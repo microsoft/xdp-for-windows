@@ -1,0 +1,5 @@
+DIRS=\
+    inf \
+    ndis685 \
+    ndis685f \
+    scripts \

@@ -1,0 +1,10 @@
+TARGETTYPE=NOTARGET
+TARGET_DESTINATION = xdp\test\scripts
+
+PASS_INDEPENDENT_BINPLACE = \
+    xdp.ps1 \
+    xdptrace.ps1 \
+    xdpxperf.ps1 \
+    xskperf.ps1 \
+    xskperfcompare.ps1 \
+    xskperfsuite.ps1 \

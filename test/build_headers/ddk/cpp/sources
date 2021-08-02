@@ -1,0 +1,6 @@
+!include ..\sources.inc
+
+TARGETNAME=cppddkheaders
+
+SOURCES=\
+    ddkheaders.cpp \

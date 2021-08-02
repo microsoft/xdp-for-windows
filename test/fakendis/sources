@@ -1,0 +1,36 @@
+TARGETNAME=fndis
+TARGETTYPE=EXPORT_DRIVER
+TARGET_DESTINATION=xdp\test\fakendis
+
+PRECOMPILED_INCLUDE=precomp.h
+
+C_DEFINES=$(C_DEFINES) \
+    -DNDIS_WDM=1 \
+    -DNDIS685=1 \
+
+MSC_WARNING_LEVEL=/WX /W4
+
+TARGETLIBS=\
+    $(ONECORE_EXTERNAL_DDK_LIB_PATH)\ndis.lib \
+
+INCLUDES=\
+    inc; \
+    $(XDP_ROOT)\lib\rtl\inc; \
+    $(XDP_ROOT)\published\private; \
+    $(XDP_DDK_INC); \
+    $(ONECORE_EXTERNAL_DDK_INC_PATH); \
+
+SOURCES=\
+    driver.c \
+    poll.c \
+    pollbackchannel.c \
+    polldpc.c \
+
+PASS_INDEPENDENT_BINPLACE=\
+    fndis.ps1
+
+DLLDEF=fndis.def
+
+MUI_VERIFY_NO_LOC_RESOURCE=1
+TEST_CODE=1
+NT_SIGNCODE=1

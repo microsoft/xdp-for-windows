@@ -1,0 +1,24 @@
+TARGETNAME=pollshim
+TARGETTYPE=DRIVER_LIBRARY
+
+PRECOMPILED_INCLUDE=precomp.h
+
+MSC_WARNING_LEVEL=/WX /W4
+
+C_DEFINES=$(C_DEFINES) \
+!if $(FNDIS)
+    -DFNDIS=1 \
+!endif
+
+INCLUDES=\
+    inc; \
+    $(XDP_ROOT)\published\private; \
+    $(XDP_ROOT)\test\fakendis\inc; \
+    $(ONECORE_EXTERNAL_DDK_INC_PATH); \
+
+SOURCES=\
+    pollshim.c \
+
+NO_PDB_PATHS=1
+
+MUI_VERIFY_NO_LOC_RESOURCE=1

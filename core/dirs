@@ -1,0 +1,4 @@
+DIRS=\
+    cat \
+    dll \
+    sys \

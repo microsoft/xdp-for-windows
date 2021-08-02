@@ -1,0 +1,25 @@
+[WMI, Dynamic, Provider("WMIProv"),
+    guid("{DDC93DC5-12C8-4F9C-9164-180310A0D877}"),
+    localeid(0x409),
+    WmiExpense(1),
+    Description("XDP Miniport Pacing")]
+class XdpMpPacing
+{
+    [key, read]
+    string   InstanceName;           // Instance name returned from WMI
+
+    [read]
+    boolean  Active;
+
+   [read, write,
+    Description("The pacing interval in microseconds."),
+    WmiDataId(1)] uint32   IntervalUs;
+
+   [read, write,
+    Description("The number of RX frames permitted per interval."),
+    WmiDataId(2)] uint32   RxFramesPerInterval;
+
+   [read, write,
+    Description("The number of TX frames permitted per interval."),
+    WmiDataId(3)] uint32   TxFramesPerInterval;
+};

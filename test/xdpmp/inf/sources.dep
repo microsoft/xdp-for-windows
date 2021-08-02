@@ -1,0 +1,4 @@
+BUILD_PASS2_CONSUMES= \
+    onecore\net\xdp\test\xdpmp\ndis685|PASS2 \
+    onecore\net\xdp\test\xdpmp\ndis685f|PASS2 \
+    onecore\merged\mbs\bootableskus\preparejustbuilttools|PASS2 \

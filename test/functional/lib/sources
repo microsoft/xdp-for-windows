@@ -1,0 +1,25 @@
+TARGETNAME=xdptests
+TARGETTYPE=LIBRARY
+
+TEST_CODE=1
+MSC_WARNING_LEVEL=/WX /W4
+MUI_VERIFY_NO_LOC_RESOURCE=1
+
+USE_DEFAULT_WIN32_LIBS=0 # Prevent kernel32.dll, advapi32.dll, etc. from being linked in automatically
+USE_NATIVE_EH=1 # Use C++ exception handling
+USE_STL=1
+STL_VER=STL_VER_CURRENT
+USE_MSVCRT=1
+USE_UNICRT = 1
+
+INCLUDES=\
+    $(XDP_SDK_INC); \
+    $(XDP_ROOT)\test\common\inc; \
+    $(XDP_ROOT)\test\functional\mp\inc; \
+    $(XDP_ROOT)\test\pkthlp; \
+
+SOURCES=\
+    tests.cpp \
+
+TARGETLIBS=\
+    $(XDP_OBJ_ROOT)\test\common\lib\$(O)\xdptestcommon.lib \

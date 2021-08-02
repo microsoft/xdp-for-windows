@@ -1,0 +1,3 @@
+BUILD_PASS2_CONSUMES= \
+    onecore\net\xdp\test\functional\taef|PASS2 \
+    onecore\net\xdp\test\spinxsk\taef|PASS2 \

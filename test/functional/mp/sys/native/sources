@@ -1,0 +1,25 @@
+TARGETNAME=xdpfnmpnative
+TARGETTYPE=DRIVER_LIBRARY
+
+NT_SIGNCODE=1
+TEST_CODE=1
+
+C_DEFINES=\
+    $(C_DEFINES) \
+    -DNDIS_MINIPORT_DRIVER \
+    -DNDIS685_MINIPORT=1 \
+
+MSC_WARNING_LEVEL=/W4
+
+INCLUDES=\
+    inc; \
+    $(XDP_ROOT)\lib\rtl\inc; \
+    $(XDP_ROOT)\test\functional\mp\inc; \
+    $(XDP_ROOT)\test\functional\mp\sys; \
+    $(ONECORE_EXTERNAL_DDK_INC_PATH); \
+    $(XDP_DDK_INC); \
+
+SOURCES=\
+    native.c \
+    rx.c \
+    tx.c \

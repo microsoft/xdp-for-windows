@@ -1,0 +1,12 @@
+{
+    "$schema": "http://universaltest/schema/testlist-3.json",
+    "TestMDs": [
+        {
+            "FilePath": "xdpfunctionaltests.testmd"
+        },
+        {
+            "FilePath": "spinxsk.testmd",
+            "Profile": "Runtime60Minutes"
+        }
+    ]
+}

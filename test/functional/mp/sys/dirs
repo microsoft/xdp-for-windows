@@ -1,0 +1,5 @@
+DIRS=\
+    generic \
+    inf \
+    native \
+    ndis685 \

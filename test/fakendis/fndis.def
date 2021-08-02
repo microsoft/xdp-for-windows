@@ -1,0 +1,7 @@
+NAME fndis.sys
+
+EXPORTS
+    FNdisRegisterPoll
+    FNdisDeregisterPoll
+    FNdisRequestPoll
+    FNdisSetPollAffinity

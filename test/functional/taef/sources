@@ -1,0 +1,36 @@
+TARGETNAME=xdpfunctionaltests
+TARGETTYPE=DYNLINK
+TARGET_DESTINATION=xdp\test\functional
+DLLDEF=
+
+TEST_CODE=1
+UNIVERSAL_TEST=1
+
+USE_DEFAULT_WIN32_LIBS=0 # Prevent kernel32.dll, advapi32.dll, etc. from being linked in automatically
+USE_NATIVE_EH=1 # Use C++ exception handling
+USE_STL=1
+STL_VER=STL_VER_CURRENT
+USE_MSVCRT=1
+USE_UNICRT = 1
+
+INCLUDES=\
+    $(XDP_ROOT)\test\common\inc; \
+    $(XDP_ROOT)\test\functional\lib; \
+    $(MINWIN_INTERNAL_PRIV_SDK_INC_PATH_L)\xdp\sdk; \
+    $(ONECORE_TAEF_INC_PATH); \
+
+SOURCES=\
+    tests.cpp \
+
+TARGETLIBS=\
+    $(XDP_OBJ_ROOT)\core\dll\msxdp\verified\$(O)\msxdp.lib \
+    $(XDP_OBJ_ROOT)\test\common\lib\util\$(O)\util.lib \
+    $(XDP_OBJ_ROOT)\test\common\lib\taefshim\$(O)\taefshim.lib \
+    $(XDP_OBJ_ROOT)\test\functional\lib\$(O)\xdptests.lib \
+    $(XDP_OBJ_ROOT)\test\functional\mp\lib\$(O)\xdpfnmpapi.lib \
+    $(XDP_OBJ_ROOT)\test\pkthlp\um\$(O)\pkthlp.lib \
+    $(ONECORE_EXTERNAL_SDK_LIB_PATH)\onecore.lib \
+    $(ONECORE_EXTERNAL_SDK_LIB_PATH)\ntdll.lib \
+    $(ONECORESDKTOOLS_INTERNAL_LIB_PATH_L)\WexTest\CuE\Te.Common.lib \
+    $(ONECORESDKTOOLS_INTERNAL_LIB_PATH_L)\WexTest\CuE\Wex.Common.lib \
+    $(ONECORESDKTOOLS_INTERNAL_LIB_PATH_L)\WexTest\CuE\Wex.Logger.lib \

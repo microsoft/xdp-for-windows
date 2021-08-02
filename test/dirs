@@ -1,0 +1,13 @@
+DIRS=\
+    afxdphelper \
+    build_headers \
+    common \
+    fakendis \
+    functional \
+    pktcmd \
+    pkthlp \
+    scripts \
+    spinxsk \
+    testlist \
+    xdpmp \
+    xskbench \

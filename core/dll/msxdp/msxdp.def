@@ -1,0 +1,13 @@
+LIBRARY msxdp.dll
+
+EXPORTS
+#if XDP_VRF
+    XdpBugCheck
+#endif
+    XdpCreateProgram
+
+    XskBind
+    XskCreate
+    XskGetSockopt
+    XskNotifySocket
+    XskSetSockopt

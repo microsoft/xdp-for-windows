@@ -1,0 +1,13 @@
+//
+//    Copyright (C) Microsoft.  All rights reserved.
+//
+#include <windows.h>
+#include <ntverp.h>
+
+#define	VER_FILETYPE                VFT_DLL
+#define	VER_FILESUBTYPE             VFT2_UNKNOWN
+#define VER_FILEDESCRIPTION_STR     "XDP API"
+#define VER_INTERNALNAME_STR        "msxdp.dll"
+#define VER_ORIGINALFILENAME_STR    "msxdp.dll"
+
+#include "common.ver"

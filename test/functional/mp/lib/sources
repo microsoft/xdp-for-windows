@@ -1,0 +1,21 @@
+TARGETNAME=xdpfnmpapi
+TARGETTYPE=LIBRARY
+
+TEST_CODE=1
+MSC_WARNING_LEVEL=/W4 /WX
+
+PRECOMPILED_INCLUDE=precomp.h
+BUILD_FOR_CORESYSTEM=1
+UMTYPE=console
+USE_MSVCRT=1
+
+C_DEFINES=$(C_DEFINES) /DUNICODE /D_UNICODE
+
+INCLUDES= \
+    ..\inc; \
+    ..\sys; \
+    $(XDP_ROOT)\lib\rtl\inc; \
+
+SOURCES= \
+    ioctl.c \
+    xdpfnmpapi.c \

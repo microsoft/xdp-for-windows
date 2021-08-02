@@ -1,0 +1,6 @@
+!include ..\sources.inc
+
+TARGETNAME=cppsdkheaders
+
+SOURCES=\
+    sdkheaders.cpp \

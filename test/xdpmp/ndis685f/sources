@@ -1,0 +1,9 @@
+!include ..\sources.inc
+
+TARGETNAME=xdpmpf
+
+C_DEFINES=$(C_DEFINES) -DFNDIS=1
+
+TARGETLIBS=$(TARGETLIBS) $(XDP_OBJ_ROOT)\test\fakendis\$(O)\fndis.lib
+
+INCLUDES=$(INCLUDES) $(XDP_ROOT)\test\fakendis\inc;

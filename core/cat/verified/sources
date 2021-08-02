@@ -1,0 +1,8 @@
+!include ..\sources.inc
+!include $(XDP_ROOT)\verifiedsources.inc
+
+!undef C_DEFINES
+
+SOURCES=\
+    $(OBJ_PATH)\..\..\sys\verified\$O\xdp.inf \
+    $(OBJ_PATH)\..\..\sys\verified\$O\xdp.sys \
