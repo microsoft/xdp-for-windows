@@ -78,7 +78,7 @@ FnMpTxGetFrame(
     _In_ HANDLE Handle,
     _In_ UINT32 FrameIndex,
     _Inout_ UINT32 *FrameBufferLength,
-    _Out_ TX_FRAME *Frame
+    _Out_opt_ TX_FRAME *Frame
     );
 
 HRESULT

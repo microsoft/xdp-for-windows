@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <ntdef.h>
+
 #define FNDIS_DEVICE_NAME L"\\Device\\fndis"
 
 #define IOCTL_FNDIS_POLL_GET_BACKCHANNEL \

@@ -2,208 +2,199 @@
 // Copyright (C) Microsoft Corporation. All rights reserved.
 //
 
-#define INLINE_TEST_METHOD_MARKUP
-#include <WexTestClass.h>
 #include <winsock2.h>
+#include <CppUnitTest.h>
 
 #include "xdptest.h"
 #include "tests.h"
 #include "util.h"
 
-#define XDPFNMP_SERVICE_NAME "xdpfnmp"
-
-static CONST CHAR *PowershellPrefix;
-static BOOLEAN XdpFnMpPreinstalled = TRUE;
-
 //
 // Test suite(s).
 //
 
-BOOLEAN
-XdpFnMpInstall()
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+VOID
+StopTest()
 {
-    CHAR CmdBuff[256];
-
-    XdpFnMpPreinstalled = IsServiceInstalled(XDPFNMP_SERVICE_NAME);
-
-    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-    sprintf_s(CmdBuff, "%s .\\xdpfnmp.ps1 -Install %s", PowershellPrefix, XdpFnMpPreinstalled ? "-DriverPreinstalled" : "");
-    TEST_EQUAL(0, system(CmdBuff));
-    return TRUE;
+    Assert::Fail(L"Stop test execution.");
 }
 
-BOOLEAN
-XdpFnMpUninstall()
+VOID
+LogTestFailure(
+    _In_z_ const LPWSTR File,
+    _In_z_ const LPWSTR Function,
+    INT Line,
+    _Printf_format_string_ const LPWSTR Format,
+    ...
+)
 {
-    CHAR CmdBuff[256];
+    static const INT Size = 128;
+    WCHAR Buffer[Size];
 
-    sprintf(CmdBuff, "%s  .\\xdpfnmp.ps1 -Uninstall %s", PowershellPrefix, XdpFnMpPreinstalled ? "-DriverPreinstalled" : "");
-    system(CmdBuff);
-    TEST_FALSE(IsServiceRunning(XDPFNMP_SERVICE_NAME));
-    return TRUE;
+    va_list Args;
+    va_start(Args, Format);
+    _vsnwprintf_s(Buffer, Size, _TRUNCATE, Format, Args);
+    va_end(Args);
+
+    Logger::WriteMessage(Buffer);
 }
 
-bool
-ModuleSetup()
+VOID
+LogTestWarning(
+    _In_z_ const LPWSTR File,
+    _In_z_ const LPWSTR Function,
+    INT Line,
+    _Printf_format_string_ const LPWSTR Format,
+    ...
+)
 {
-    PowershellPrefix = GetPowershellPrefix();
-    return XdpInstall() && XdpFnMpInstall() && TestSetup();
+    static const INT Size = 128;
+    WCHAR Buffer[Size];
+
+    va_list Args;
+    va_start(Args, Format);
+    _vsnwprintf_s(Buffer, Size, _TRUNCATE, Format, Args);
+    va_end(Args);
+
+    Logger::WriteMessage(Buffer);
 }
 
-bool
-ModuleCleanup()
+TEST_MODULE_INITIALIZE(ModuleSetup)
 {
-    return !!TestCleanup() & !!XdpFnMpUninstall() & !!XdpUninstall();
+    Assert::IsTrue(TestSetup());
 }
 
-MODULE_SETUP(ModuleSetup);
-MODULE_CLEANUP(ModuleCleanup);
-
-VOID
-GenericRxMatchUdpV4()
+TEST_MODULE_CLEANUP(ModuleCleanup)
 {
-    GenericRxMatchUdp(AF_INET);
+    Assert::IsTrue(TestCleanup());
 }
 
-VOID
-GenericRxMatchUdpV6()
+TEST_CLASS(xdpfunctionaltests)
 {
-    GenericRxMatchUdp(AF_INET6);
-}
+public:
+    TEST_METHOD(GenericBinding) {
+        ::GenericBinding();
+    }
 
-VOID
-GenericRxMatchIpPrefixV4()
-{
-    GenericRxMatchIpPrefix(AF_INET);
-}
+    TEST_METHOD(GenericBindingResetAdapter) {
+        ::GenericBindingResetAdapter();
+    }
 
-VOID
-GenericRxMatchIpPrefixV6()
-{
-    GenericRxMatchIpPrefix(AF_INET6);
-}
+    TEST_METHOD(GenericRxSingleFrame) {
+        ::GenericRxSingleFrame();
+    }
 
-VOID
-GenericXskWaitRx() {
-    GenericXskWait(TRUE, FALSE);
-}
+    TEST_METHOD(GenericRxNoPoke) {
+        ::GenericRxNoPoke();
+    }
 
-VOID
-GenericXskWaitTx() {
-    GenericXskWait(FALSE, TRUE);
-}
+    TEST_METHOD(GenericRxBackfillAndTrailer) {
+        ::GenericRxBackfillAndTrailer();
+    }
 
-VOID
-GenericXskWaitRxTx() {
-    GenericXskWait(TRUE, TRUE);
-}
+    TEST_METHOD(GenericRxLowResources) {
+        ::GenericRxLowResources();
+    }
 
-VOID
-GenericLwfDelayDetachRx() {
-    GenericLwfDelayDetach(TRUE, FALSE);
-}
+    TEST_METHOD(GenericRxMultiSocket) {
+        ::GenericRxMultiSocket();
+    }
 
-VOID
-GenericLwfDelayDetachTx() {
-    GenericLwfDelayDetach(FALSE, TRUE);
-}
+    TEST_METHOD(GenericTxToRxInject) {
+        ::GenericTxToRxInject();
+    }
 
-VOID
-GenericLwfDelayDetachRxTx() {
-    GenericLwfDelayDetach(TRUE, TRUE);
-}
+    TEST_METHOD(GenericTxSingleFrame) {
+        ::GenericTxSingleFrame();
+    }
 
-VOID
-GenericRxUdpFragmentHeaderDataV4()
-{
-    GenericRxUdpFragmentHeaderData(AF_INET);
-}
+    TEST_METHOD(GenericTxOutOfOrder) {
+        ::GenericTxOutOfOrder();
+    }
 
-VOID
-GenericRxUdpFragmentHeaderDataV6()
-{
-    GenericRxUdpFragmentHeaderData(AF_INET6);
-}
+    TEST_METHOD(GenericTxPoke) {
+        ::GenericTxPoke();
+    }
 
-VOID
-GenericRxUdpTooManyFragmentsV4()
-{
-    GenericRxUdpTooManyFragments(AF_INET);
-}
+    TEST_METHOD(GenericTxMtu) {
+        ::GenericTxMtu();
+    }
 
-VOID
-GenericRxUdpTooManyFragmentsV6()
-{
-    GenericRxUdpTooManyFragments(AF_INET6);
-}
+    TEST_METHOD(FnMpNativeHandleTest) {
+        ::FnMpNativeHandleTest();
+    }
 
-VOID
-GenericRxUdpHeaderFragmentsV4()
-{
-    GenericRxUdpHeaderFragments(AF_INET);
-}
+    TEST_METHOD(GenericRxMatchUdpV4) {
+        GenericRxMatchUdp(AF_INET);
+    }
 
-VOID
-GenericRxUdpHeaderFragmentsV6()
-{
-    GenericRxUdpHeaderFragments(AF_INET6);
-}
+    TEST_METHOD(GenericRxMatchUdpV6) {
+        GenericRxMatchUdp(AF_INET6);
+    }
 
-VOID
-GenericRxFromTxInspectV4()
-{
-    GenericRxFromTxInspect(AF_INET);
-}
+    TEST_METHOD(GenericRxMatchIpPrefixV4) {
+        GenericRxMatchIpPrefix(AF_INET);
+    }
 
-VOID
-GenericRxFromTxInspectV6()
-{
-    GenericRxFromTxInspect(AF_INET6);
-}
+    TEST_METHOD(GenericRxMatchIpPrefixV6) {
+        GenericRxMatchIpPrefix(AF_INET6);
+    }
 
-class FunctionalTestSuite
-{
-    TEST_CLASS(FunctionalTestSuite)
+    TEST_METHOD(GenericXskWaitRx) {
+        GenericXskWait(TRUE, FALSE);
+    }
 
-    #define ADD_TEST(Priority, TestName)                        \
-        TEST_METHOD(TestName)                                   \
-        {                                                       \
-            BEGIN_TEST_METHOD_PROPERTIES()                      \
-                TEST_METHOD_PROPERTY(L"Priority", L#Priority)   \
-            END_TEST_METHOD_PROPERTIES()                        \
-            ::TestName();                                       \
-        }                                                       \
+    TEST_METHOD(GenericXskWaitTx) {
+        GenericXskWait(FALSE, TRUE);
+    }
 
-    ADD_TEST(0, GenericBinding)
-    ADD_TEST(1, GenericBindingResetAdapter)
-    ADD_TEST(0, GenericRxSingleFrame)
-    ADD_TEST(0, GenericRxNoPoke)
-    ADD_TEST(0, GenericRxBackfillAndTrailer)
-    ADD_TEST(0, GenericRxMatchUdpV4)
-    ADD_TEST(0, GenericRxMatchUdpV6)
-    ADD_TEST(0, GenericRxMatchIpPrefixV4)
-    ADD_TEST(0, GenericRxMatchIpPrefixV6)
-    ADD_TEST(0, GenericRxLowResources)
-    ADD_TEST(0, GenericRxMultiSocket)
-    ADD_TEST(0, GenericRxUdpFragmentHeaderDataV4)
-    ADD_TEST(0, GenericRxUdpFragmentHeaderDataV6)
-    ADD_TEST(0, GenericRxUdpTooManyFragmentsV4)
-    ADD_TEST(0, GenericRxUdpTooManyFragmentsV6)
-    ADD_TEST(0, GenericRxUdpHeaderFragmentsV4)
-    ADD_TEST(0, GenericRxUdpHeaderFragmentsV6)
-    ADD_TEST(0, GenericRxFromTxInspectV4)
-    ADD_TEST(0, GenericRxFromTxInspectV6)
-    ADD_TEST(0, GenericTxToRxInject)
-    ADD_TEST(0, GenericTxSingleFrame)
-    ADD_TEST(0, GenericTxOutOfOrder)
-    ADD_TEST(0, GenericTxPoke)
-    ADD_TEST(1, GenericTxMtu)
-    ADD_TEST(1, GenericXskWaitRx)
-    ADD_TEST(1, GenericXskWaitTx)
-    ADD_TEST(1, GenericXskWaitRxTx)
-    ADD_TEST(1, GenericLwfDelayDetachRx)
-    ADD_TEST(1, GenericLwfDelayDetachTx)
-    ADD_TEST(1, GenericLwfDelayDetachRxTx)
+    TEST_METHOD(GenericXskWaitRxTx) {
+        GenericXskWait(TRUE, TRUE);
+    }
 
-    ADD_TEST(0, FnMpNativeHandleTest)
+    TEST_METHOD(GenericLwfDelayDetachRx) {
+        GenericLwfDelayDetach(TRUE, FALSE);
+    }
+
+    TEST_METHOD(GenericLwfDelayDetachTx) {
+        GenericLwfDelayDetach(FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericLwfDelayDetachRxTx) {
+        GenericLwfDelayDetach(TRUE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxUdpFragmentHeaderDataV4) {
+        GenericRxUdpFragmentHeaderData(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxUdpFragmentHeaderDataV6) {
+        GenericRxUdpFragmentHeaderData(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxUdpTooManyFragmentsV4) {
+        GenericRxUdpTooManyFragments(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxUdpTooManyFragmentsV6) {
+        GenericRxUdpTooManyFragments(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxUdpHeaderFragmentsV4) {
+        GenericRxUdpHeaderFragments(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxUdpHeaderFragmentsV6) {
+        GenericRxUdpHeaderFragments(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxFromTxInspectV4) {
+        GenericRxFromTxInspect(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxFromTxInspectV6) {
+        GenericRxFromTxInspect(AF_INET6);
+    }
 };

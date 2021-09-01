@@ -1,3 +1,0 @@
-BUILD_PASS2_CONSUMES= \
-    onecore\net\xdp\core\sys\verified|PASS2 \
-    onecore\merged\mbs\bootableskus\preparejustbuilttools|PASS2 \

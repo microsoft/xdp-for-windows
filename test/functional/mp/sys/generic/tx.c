@@ -25,11 +25,13 @@ typedef struct _GENERIC_TX {
 } GENERIC_TX;
 
 VOID
-_Requires_lock_held_(&Generic->Lock)
+_Requires_lock_held_(&Generic->Generic->Lock)
 GenericTxCleanupFilter(
-    _Inout_ TX_FILTER *Filter
+    _Inout_ GENERIC_TX *Generic
     )
 {
+    TX_FILTER *Filter = &Generic->Filter;
+
     if (!IsListEmpty(&Filter->Link)) {
         RemoveEntryList(&Filter->Link);
         InitializeListHead(&Filter->Link);
@@ -71,7 +73,7 @@ GenericTxCleanup(
     NdisAppendNblCountedQueueToNblCountedQueueFast(&ReturnQueue, &Tx->NblQueue);
     NdisAppendNblCountedQueueToNblCountedQueueFast(&ReturnQueue, &Tx->NblReturn);
 
-    GenericTxCleanupFilter(&Tx->Filter);
+    GenericTxCleanupFilter(Tx);
     if (!IsListEmpty(&Tx->Filter.Link)) {
         RemoveEntryList(&Tx->Filter.Link);
         InitializeListHead(&Tx->Filter.Link);
@@ -120,12 +122,13 @@ Exit:
 }
 
 BOOLEAN
-_Requires_lock_held_(&Generic->Lock)
+_Requires_lock_held_(&Generic->Generic->Lock)
 GenericTxMatchFilter(
-    _In_ TX_FILTER *Filter,
+    _In_ GENERIC_TX *Generic,
     _In_ NET_BUFFER_LIST *Nbl
     )
 {
+    TX_FILTER *Filter = &Generic->Filter;
     NET_BUFFER *NetBuffer = NET_BUFFER_LIST_FIRST_NB(Nbl);
     UINT32 DataLength = min(NET_BUFFER_DATA_LENGTH(NetBuffer), Filter->Params.Length);
     UCHAR *Buffer;
@@ -163,7 +166,7 @@ GenericTxFilterNbl(
         GENERIC_TX *Tx = CONTAINING_RECORD(Entry, GENERIC_TX, Filter.Link);
         Entry = Entry->Flink;
 
-        if (GenericTxMatchFilter(&Tx->Filter, Nbl)) {
+        if (GenericTxMatchFilter(Tx, Nbl)) {
             NdisAppendSingleNblToNblCountedQueue(&Tx->NblQueue, Nbl);
             return TRUE;
         }
@@ -172,13 +175,15 @@ GenericTxFilterNbl(
     return FALSE;
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
+_Function_class_(MINIPORT_SEND_NET_BUFFER_LISTS)
 VOID
 MpSendNetBufferLists(
-   _Inout_ NDIS_HANDLE MiniportAdapterContext,
-   _Inout_ NET_BUFFER_LIST *NetBufferLists,
-   _In_ ULONG PortNumber,
-   _In_ ULONG SendFlags
-   )
+    _In_ NDIS_HANDLE MiniportAdapterContext,
+    _In_ NET_BUFFER_LIST *NetBufferLists,
+    _In_ ULONG PortNumber,
+    _In_ ULONG SendFlags
+    )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
     NBL_COUNTED_QUEUE NblChain, ReturnChain;
@@ -247,7 +252,7 @@ GenericIrpTxFilter(
 
     KeAcquireSpinLock(&AdapterGeneric->Lock, &OldIrql);
 
-    GenericTxCleanupFilter(&Tx->Filter);
+    GenericTxCleanupFilter(Tx);
 
     Tx->Filter.Params = FilterIn;
     Tx->Filter.ContiguousBuffer = ContiguousBuffer;

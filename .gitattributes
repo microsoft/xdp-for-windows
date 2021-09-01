@@ -2,6 +2,7 @@
 * text eol=auto
 
 # Ensure text files stay text
+*.inx text
 *.xml text
 
 # Ensure binary files stay binary

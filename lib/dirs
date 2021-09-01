@@ -1,4 +1,0 @@
-DIRS=\
-    nmr \
-    pollshim \
-    rtl \

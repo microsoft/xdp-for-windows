@@ -374,7 +374,7 @@ MpReceive(
             Poll->NumberOfIndicatedNbls = NblChain.Count;
         } else {
             while (NblChain.Head != NULL) {
-                MpReceiveRecycle(Rq, (UINT32)NblChain.Head->MiniportReserved[1]);
+                MpReceiveRecycle(Rq, (UINT32)(ULONG_PTR)NblChain.Head->MiniportReserved[1]);
                 NblChain.Head = NblChain.Head->Next;
             }
         }
@@ -424,7 +424,7 @@ MpReturnNetBufferLists(
             BatchRq = Rq;
         }
 
-        HwDescriptors[HwDescriptorCount] = (UINT32)NetBufferLists->MiniportReserved[1];
+        HwDescriptors[HwDescriptorCount] = (UINT32)(ULONG_PTR)NetBufferLists->MiniportReserved[1];
 
         if (++HwDescriptorCount == RTL_NUMBER_OF(HwDescriptors)) {
             MpHwReceiveReturn(BatchRq, HwDescriptors, &HwDescriptorCount);
@@ -482,7 +482,7 @@ MpInitializeReceiveQueue(
 
     Rq->BufferArray =
         ExAllocatePoolZero(
-            NonPagedPoolNx, Rq->NumBuffers * Rq->BufferLength, POOLTAG_RXBUFFER);
+            NonPagedPoolNx, (SIZE_T)Rq->NumBuffers * (SIZE_T)Rq->BufferLength, POOLTAG_RXBUFFER);
     if (Rq->BufferArray == NULL) {
         NdisStatus = NDIS_STATUS_RESOURCES;
         goto Exit;
@@ -521,6 +521,9 @@ MpInitializeReceiveQueue(
 
         *Descriptor = i * Rq->BufferLength;
 
+#pragma warning(push) // i is always less than Rq->NumBuffers
+#pragma warning(disable:6385)
+#pragma warning(disable:6386)
         Rq->NblArray[i] =
             NdisAllocateNetBufferList(Adapter->RxNblPool, (USHORT)Adapter->MdlSize, 0);
         if (Rq->NblArray[i] == NULL) {
@@ -529,6 +532,7 @@ MpInitializeReceiveQueue(
         }
 
         NetBufferList = Rq->NblArray[i];
+#pragma warning(pop)
         NetBufferList->SourceHandle = Adapter->MiniportHandle;
         NetBufferList->MiniportReserved[0] = (VOID *)Rq;
         NetBufferList->MiniportReserved[1] = (VOID *)*Descriptor;

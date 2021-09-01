@@ -197,7 +197,7 @@ static
 VOID
 XdpGenericReceiveEnterEc(
     _In_ XDP_LWF_GENERIC_RSS *Rss,
-    _In_ NET_BUFFER_LIST **NetBufferLists,
+    _Inout_ NET_BUFFER_LIST **NetBufferLists,
     _In_ ULONG CurrentProcessor,
     _In_ BOOLEAN TxInspect,
     _In_ BOOLEAN TxWorker,
@@ -209,6 +209,10 @@ XdpGenericReceiveEnterEc(
 {
     XDP_LWF_GENERIC_RX_QUEUE *CandidateRxQueue;
     ULONG RssHash = NET_BUFFER_LIST_GET_HASH_VALUE(*NetBufferLists);
+
+    *RssQueue = NULL;
+    *RxQueue = NULL;
+    *XdpRxQueue = NULL;
 
     //
     // Find the target RSS queue based on the first NBL's RSS hash.
@@ -1020,9 +1024,11 @@ XdpGenericRxDeleteQueue(
     TraceEnter(TRACE_GENERIC, "IfIndex=%u QueueId=%u", Generic->IfIndex, RxQueue->QueueId);
 
     if (RxQueue->Flags.TxInspect) {
+        #pragma warning(suppress:6387) // WritePointerRelease second parameter is not _In_opt_
         WritePointerRelease(&Generic->Rss.Queues[RxQueue->QueueId].TxInspectQueue, NULL);
         XdpGenericDetachIfRx(Generic, &Generic->Tx.Datapath);
     } else {
+        #pragma warning(suppress:6387) // WritePointerRelease second parameter is not _In_opt_
         WritePointerRelease(&Generic->Rss.Queues[RxQueue->QueueId].RxQueue, NULL);
         XdpGenericDetachIfRx(Generic, &Generic->Rx.Datapath);
     }

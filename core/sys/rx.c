@@ -102,7 +102,9 @@ XdppFlushReceive(
     // We've removed all references to the internally buffered frames, so
     // release the elements back to the interface.
     //
+#if DBG
     ASSERT(RxQueue->FrameConsumerIndex == FrameRing->ProducerIndex);
+#endif
     FrameRing->ConsumerIndex = FrameRing->ProducerIndex;
 
     if (RxQueue->FragmentRing != NULL) {
@@ -147,7 +149,9 @@ XdpReceive(
     // most recently pushed onto the ring and flush on behalf of the caller only
     // when the queue becomes full.
     //
+#if DBG
     ASSERT(RxQueue->FrameConsumerIndex + 1 == FrameRing->ProducerIndex);
+#endif
 
     Frame = XdpRingGetElement(FrameRing, FrameIndex);
 
@@ -1045,7 +1049,7 @@ XdpRxQueueSync(
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
-    _In_ XDP_PROGRAM *Program
+    _In_opt_ XDP_PROGRAM *Program
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;

@@ -123,7 +123,7 @@ XdpPollStart(
     Status =
         ZwDeviceIoControlFile(
             BackchannelHandle, NULL, NULL, NULL, &Iosb, IOCTL_FNDIS_POLL_GET_BACKCHANNEL, NULL, 0,
-            (VOID *)&XdpPollDispatch, sizeof(XdpPollDispatch));
+            (VOID *)&XdpPollDispatch, sizeof(VOID*));
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

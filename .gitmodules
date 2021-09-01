@@ -1,0 +1,6 @@
+[submodule "submodules/ndis-driver-library"]
+	path = submodules/ndis-driver-library
+	url = https://github.com/microsoft/ndis-driver-library
+[submodule "submodules/wil"]
+	path = submodules/wil
+	url = https://github.com/microsoft/wil

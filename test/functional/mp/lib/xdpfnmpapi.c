@@ -106,7 +106,7 @@ FnMpTxGetFrame(
     _In_ HANDLE Handle,
     _In_ UINT32 FrameIndex,
     _Inout_ UINT32 *FrameBufferLength,
-    _Out_ TX_FRAME *Frame
+    _Out_opt_ TX_FRAME *Frame
     )
 {
     TX_GET_FRAME_IN In = {0};
@@ -123,7 +123,7 @@ FnMpTxGetFrame(
             Handle, IOCTL_TX_GET_FRAME, &In, sizeof(In), Frame, *FrameBufferLength,
             (ULONG *)FrameBufferLength, NULL);
 
-    if (SUCCEEDED(Result)) {
+    if (SUCCEEDED(Result) && Frame != NULL) {
         //
         // The IOCTL returns pointers relative to the output address; adjust
         // each pointer into this address space.

@@ -72,6 +72,7 @@ XdpQueueBlockingSyncCallback(
 {
     XDP_QUEUE_BLOCKING_SYNC_CONTEXT *SyncContext = CallbackContext;
 
+    ASSERT(SyncContext);
     SyncContext->Callback(SyncContext->CallbackContext);
 
     KeSetEvent(&SyncContext->Event, 0, FALSE);

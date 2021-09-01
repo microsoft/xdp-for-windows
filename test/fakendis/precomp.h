@@ -4,10 +4,10 @@
 
 #pragma once
 
-#include <ntosp.h>
-#include <zwapi.h>
+#include <ntdef.h>
+#include <ntstatus.h>
+#include <ntifs.h>
 #include <ntintsafe.h>
-#include <ntrtl.h>
 #include <ndis.h>
 #include <fndisioctl.h>
 #include <fndispoll_p.h>

@@ -355,6 +355,7 @@ XskReleaseBounceBuffer(
 }
 
 static
+_Success_(return != FALSE)
 BOOLEAN
 XskBounceBuffer(
     _In_ UMEM *Umem,
@@ -568,7 +569,7 @@ XskFillTx(
         AddressDescriptor = ReadUInt64NoFence(&Descriptor->address);
         RelativeAddress = XskDescriptorGetAddress(AddressDescriptor);
         Buffer->DataOffset = XskDescriptorGetOffset(AddressDescriptor);
-        Buffer->DataLength = ReadUInt32NoFence(&Descriptor->length);
+        Buffer->DataLength = (UINT32)ReadNoFence((LONG*)&Descriptor->length);
         Buffer->BufferLength = Buffer->DataLength + Buffer->DataOffset;
 
         Status = RtlUInt64Add(RelativeAddress, Buffer->DataLength, &Result);
@@ -784,6 +785,23 @@ static CONST XDP_TX_QUEUE_DISPATCH XskTxDispatch = {
     .FlushTransmit = XskFlushTransmit,
 };
 
+_Maybe_raises_SEH_exception_
+_IRQL_requires_max_(APC_LEVEL)
+_Ret_range_(==, *Address)
+FORCEINLINE
+HANDLE
+ProbeAndReadHandle(
+    _In_reads_bytes_(sizeof(HANDLE)) volatile CONST HANDLE *Address
+    )
+{
+    C_ASSERT(sizeof(HANDLE) == sizeof(PVOID));
+    if (Address >= (HANDLE * const)MM_USER_PROBE_ADDRESS) {
+        Address = (HANDLE * const)MM_USER_PROBE_ADDRESS;
+    }
+    _ReadWriteBarrier();
+    return (HANDLE)ReadPointerNoFence((PVOID *)Address);
+}
+
 NTSTATUS
 XskReferenceDatapathHandle(
     _In_ KPROCESSOR_MODE RequestorMode,
@@ -843,12 +861,14 @@ XskDereferenceDatapathHandle(
     XskDereference(Xsk);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 NTSTATUS
 XskIrpCreateSocket(
-    _In_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp,
+    _Inout_ IRP* Irp,
+    _Inout_ IO_STACK_LOCATION* IrpSp,
     _In_ UCHAR Disposition,
-    _In_ VOID *InputBuffer,
+    _In_ VOID* InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
 {
@@ -1565,10 +1585,12 @@ XskValidateDatapathHandle(
 }
 
 static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 NTSTATUS
 XskIrpCleanup(
-    _In_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp
+    _Inout_ IRP* Irp,
+    _Inout_ IO_STACK_LOCATION* IrpSp
     )
 {
     XSK *Xsk;
@@ -1629,9 +1651,11 @@ XskFreeRing(
             KeStackAttachProcess(Ring->OwningProcess, &ApcState);
         }
 
+        ASSERT(Ring->Mdl);
         MmUnmapLockedPages(Ring->UserVa, Ring->Mdl);
 
         if (CurrentProcess != Ring->OwningProcess) {
+#pragma prefast(suppress:6001, "ApcState is correctly initialized in KeStackAttachProcess above.")
             KeUnstackDetachProcess(&ApcState);
         }
 
@@ -1677,7 +1701,7 @@ XskSetupDma(
         return STATUS_NO_MEMORY;
     }
 
-    DmaOperations = Xsk->Tx.DmaAdapter->DmaOperations;
+    DmaOperations = (DMA_OPERATIONS*)Xsk->Tx.DmaAdapter->DmaOperations;
 
     //
     // Try to map the UMEM directly to hardware if policy allows and the DMA
@@ -1751,7 +1775,7 @@ XskRxSyncDetach(
     )
 {
     XSK *Xsk = Context;
-
+    ASSERT(Xsk);
     Xsk->Rx.Xdp.Flags.DatapathAttached = FALSE;
 }
 
@@ -2067,6 +2091,7 @@ XskDereferenceUmem(
             }
 
             if (CurrentProcess != Umem->OwningProcess) {
+#pragma prefast(suppress:6001, "ApcState is correctly initialized in KeStackAttachProcess above.")
                 KeUnstackDetachProcess(&ApcState);
             }
 
@@ -2080,10 +2105,12 @@ XskDereferenceUmem(
 }
 
 static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 NTSTATUS
 XskIrpClose(
-    _In_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp
+    _Inout_ IRP* Irp,
+    _Inout_ IO_STACK_LOCATION* IrpSp
     )
 {
     XSK *Xsk = IrpSp->FileObject->FsContext;
@@ -2503,7 +2530,7 @@ XskSockoptUmemReg(
     try {
         if (RequestorMode != KernelMode) {
             ProbeForRead(
-                SockoptInputBuffer, SockoptInputBufferLength,
+                (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
                 PROBE_ALIGNMENT(XSK_UMEM_REG));
         }
         Umem->Reg = *(XSK_UMEM_REG*)SockoptInputBuffer;
@@ -2649,7 +2676,7 @@ XskSockoptRingSize(
 
     try {
         if (RequestorMode != KernelMode) {
-            ProbeForRead(SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(UINT32));
+            ProbeForRead((VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(UINT32));
         }
         NumDescriptors = *(UINT32 *)SockoptInputBuffer;
     } except (EXCEPTION_EXECUTE_HANDLER) {
@@ -2874,7 +2901,7 @@ XskSockoptSetHookId(
 
     try {
         if (RequestorMode != KernelMode) {
-            ProbeForRead(SockoptIn, SockoptInSize, PROBE_ALIGNMENT(XDP_HOOK_ID));
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(XDP_HOOK_ID));
         }
         HookId = *(CONST XDP_HOOK_ID *)SockoptIn;
     } except (EXCEPTION_EXECUTE_HANDLER) {
@@ -3171,7 +3198,7 @@ XskSockoptPollMode(
     try {
         if (RequestorMode != KernelMode) {
             ProbeForRead(
-                SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(XSK_POLL_MODE));
+                (VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(XSK_POLL_MODE));
         }
         PollMode = *(XSK_POLL_MODE *)SockoptInputBuffer;
     } except (EXCEPTION_EXECUTE_HANDLER) {
@@ -3306,9 +3333,10 @@ XskNotifyValidateParams(
     }
 
     try {
+        ASSERT(InputBuffer);
         if (ExGetPreviousMode() != KernelMode) {
             ProbeForRead(
-                InputBuffer, InputBufferLength, PROBE_ALIGNMENT(XSK_NOTIFY_IN));
+                (VOID*)InputBuffer, InputBufferLength, PROBE_ALIGNMENT(XSK_NOTIFY_IN));
         }
 
         *InFlags = ((XSK_NOTIFY_IN*)InputBuffer)->Flags;
@@ -3533,15 +3561,17 @@ Exit:
     return Status;
 }
 
+#pragma warning(push)
+#pragma warning(disable:6101) // We don't set OutputBuffer
 BOOLEAN
 XskFastIo(
     _In_ XDP_FILE_OBJECT_HEADER *FileObjectHeader,
     _In_opt_ VOID *InputBuffer,
     _In_ ULONG InputBufferLength,
-    _Inout_opt_ VOID *OutputBuffer,
+    _Out_opt_ VOID *OutputBuffer,
     _In_ ULONG OutputBufferLength,
     _In_ ULONG IoControlCode,
-    _Inout_ IO_STATUS_BLOCK *IoStatus
+    _Out_ IO_STATUS_BLOCK *IoStatus
     )
 {
     UNREFERENCED_PARAMETER(OutputBuffer);
@@ -3555,8 +3585,11 @@ XskFastIo(
         return TRUE;
     }
 
+    IoStatus->Status = STATUS_INVALID_PARAMETER;
+
     return FALSE;
 }
+#pragma warning(pop)
 
 static
 FORCEINLINE

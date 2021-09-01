@@ -1,7 +1,0 @@
-!include ..\sources.inc
-
-!undef C_DEFINES
-
-SOURCES=\
-    $(OBJ_PATH)\..\..\sys\retail\$O\xdp.inf \
-    $(OBJ_PATH)\..\..\sys\retail\$O\xdp.sys \

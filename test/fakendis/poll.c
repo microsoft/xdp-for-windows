@@ -16,6 +16,7 @@ NdisPollReferenceQueue(
     InterlockedIncrement(&Q->ReferenceCount);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 NdisPollDereferenceQueue(
     _In_ PNDIS_POLL_QUEUE Q
@@ -44,7 +45,10 @@ NdisRequestPollAtDpc(
     NotifyRoutine = ReadPointerNoFence((PVOID *)&Q->Notify);
 #pragma warning(pop)
     if (NotifyRoutine != NULL) {
+#pragma warning(push)
+#pragma warning(disable:28121) // Dispatch calling into a Passive function? Bad annotation? Ignore for now.
         NotifyRoutine(Q);
+#pragma warning(pop)
     }
 }
 

@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 #include <ws2ipdef.h>
 #include <mstcpip.h>
 #include <pkthlp.h>

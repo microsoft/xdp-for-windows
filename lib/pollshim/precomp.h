@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include <ntosp.h>
-#include <zwapi.h>
+#pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
+
+#include <ntstatus.h>
 #include <ntintsafe.h>
-#include <ntrtl.h>
+#include <ntddk.h>
 #include <fndisioctl.h>
 
 #include <xdppollshim.h>

@@ -29,6 +29,7 @@ XdpEcPassiveWorker(
     XDP_EC *Ec = Context;
 
     UNREFERENCED_PARAMETER(DeviceObject);
+    ASSERT(Ec != NULL);
 
     KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
 }
@@ -134,6 +135,7 @@ XdpEcDpcThunk(
     UNREFERENCED_PARAMETER(Dpc);
     UNREFERENCED_PARAMETER(SystemArgument1);
     UNREFERENCED_PARAMETER(SystemArgument2);
+    ASSERT(DeferredContext != NULL);
 
     Ec->OwningProcessor = CurrentProcessor;
     XdpEcPoll(DeferredContext);

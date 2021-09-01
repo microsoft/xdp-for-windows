@@ -6,6 +6,10 @@
 
 PDEVICE_OBJECT FndisDeviceObject;
 
+_Function_class_(DRIVER_DISPATCH)
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+__declspec(code_seg("PAGE"))
 NTSTATUS
 IrpIoDeviceControl(
     _In_ PDEVICE_OBJECT DeviceObject,
@@ -70,6 +74,9 @@ DriverUnload(
     }
 }
 
+_Function_class_(DRIVER_INITIALIZE)
+_IRQL_requires_same_
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 DriverEntry(
     _In_ struct _DRIVER_OBJECT *DriverObject,
@@ -97,7 +104,10 @@ DriverEntry(
         goto Exit;
     }
 
+#pragma warning(push)
+#pragma warning(disable:28168) // The function 'IrpIoDeviceControl' does not have a _Dispatch_type_ annotation matching dispatch table position 'IRP_MJ_DEVICE_CONTROL' (0x0e).
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = IrpIoDeviceControl;
+#pragma warning(pop)
     DriverObject->DriverUnload = DriverUnload;
 
     Status = NdisPollStart();

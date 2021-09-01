@@ -105,7 +105,7 @@ HwRingHwComplete(
     _In_ UINT32 Count
     )
 {
-    UINT32 ProducerIndex = ReadUInt32NoFence(&Ring->ProducerIndex);
+    UINT32 ProducerIndex = (UINT32)ReadNoFence((LONG*)&Ring->ProducerIndex);
     UINT32 HardwareAvailable = ProducerIndex - Ring->HardwareCompletionIndex;
 
     Count = min(Count, HardwareAvailable);
@@ -121,7 +121,7 @@ HwRingBoundedMpReserve(
     _In_ HW_RING *Ring,
     _In_ UINT32 Count,
     _Out_ UINT32 *Head,
-    _Out_ KIRQL *OldIrql
+    _Out_ _At_(*OldIrql, _IRQL_saves_) KIRQL *OldIrql
     )
 {
     KeRaiseIrql(DISPATCH_LEVEL, OldIrql);
@@ -138,7 +138,7 @@ UINT32
 HwRingBestEffortMpReserve(
     _In_ HW_RING *Ring,
     _In_ UINT32 MaxCount,
-    _Out_ UINT32 *Head,
+    _When_(return != 0, _Out_) UINT32 *Head,
     _Out_ _At_(*OldIrql, _IRQL_saves_) KIRQL *OldIrql
     )
 {
@@ -173,7 +173,7 @@ HwRingMpCommit(
     _In_ _IRQL_restores_ KIRQL OldIrql
     )
 {
-    while (ReadUInt32NoFence(&Ring->ProducerIndex) != Head);
+    while ((UINT32)ReadNoFence((LONG*)&Ring->ProducerIndex) != Head);
     WriteUInt32Release(&Ring->ProducerIndex, Head + Count);
     KeLowerIrql(OldIrql);
 }

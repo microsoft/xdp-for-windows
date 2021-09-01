@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <iphlpapi.h>
-#include <wil/resource.h>
+#include <stdio.h>
 
 #include "util.h"
 
@@ -14,6 +14,7 @@
 #define NT_VERIFY(expr) \
     if (!(expr)) { printf("("#expr") failed line %d\n", __LINE__); exit(1); } // TODO: return error values instead of exit
 
+EXTERN_C
 CONST CHAR*
 GetPowershellPrefix()
 {
@@ -21,6 +22,8 @@ GetPowershellPrefix()
         "pwsh -ExecutionPolicy Bypass" : "powershell -noprofile -ExecutionPolicy Bypass";
 }
 
+EXTERN_C
+_Success_(return == 0)
 DWORD
 ConvertInterfaceAliasToIndex(
     _In_ CONST WCHAR *Alias,
@@ -39,50 +42,63 @@ ConvertInterfaceAliasToIndex(
 }
 
 static
-wil::unique_schandle
+SC_HANDLE
 OpenServiceHandle(
     _In_z_ CONST CHAR *ServiceName
     )
 {
-    wil::unique_schandle ScmHandle{ OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS) };
-    NT_VERIFY(ScmHandle.is_valid());
+    SC_HANDLE ScmHandle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
+    NT_VERIFY(ScmHandle);
 
-    wil::unique_schandle SvcHandle{ OpenService(ScmHandle.get(), ServiceName, SERVICE_QUERY_STATUS) };
+    SC_HANDLE SvcHandle = OpenServiceA(ScmHandle, ServiceName, SERVICE_QUERY_STATUS);
+    NT_VERIFY(ScmHandle);
 
-    if (!SvcHandle.is_valid()) {
+    if (!ScmHandle) {
         NT_VERIFY(GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST);
     }
+
+    CloseServiceHandle(ScmHandle);
 
     return SvcHandle;
 }
 
+EXTERN_C
 BOOLEAN
 IsServiceInstalled(
     _In_z_ CONST CHAR *ServiceName
     )
 {
-    return OpenServiceHandle(ServiceName).is_valid();
+    SC_HANDLE SvcHandle = OpenServiceHandle(ServiceName);
+    BOOLEAN Result = SvcHandle != nullptr;
+    if (SvcHandle) {
+        CloseServiceHandle(SvcHandle);
+    }
+    return Result;
 }
 
+EXTERN_C
 BOOLEAN
 IsServiceRunning(
     _In_z_ CONST CHAR *ServiceName
     )
 {
-    wil::unique_schandle SvcHandle = OpenServiceHandle(ServiceName);
+    SC_HANDLE SvcHandle = OpenServiceHandle(ServiceName);
     SERVICE_STATUS ServiceStatus;
 
-    if (!SvcHandle.is_valid()) {
+    if (!SvcHandle) {
         return FALSE;
     }
 
-    NT_VERIFY(QueryServiceStatus(SvcHandle.get(), &ServiceStatus));
+    NT_VERIFY(QueryServiceStatus(SvcHandle, &ServiceStatus));
+
+    CloseServiceHandle(SvcHandle);
 
     return ServiceStatus.dwCurrentState != SERVICE_STOPPED;
 }
 
 static BOOLEAN XdpPreinstalled = TRUE;
 
+EXTERN_C
 BOOLEAN
 XdpInstall()
 {
@@ -96,6 +112,7 @@ XdpInstall()
     return TRUE;
 }
 
+EXTERN_C
 BOOLEAN
 XdpUninstall()
 {

@@ -4,6 +4,8 @@
 
 #pragma once
 
+#pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
+
 #include <ws2def.h>
 #include <ws2ipdef.h>
 
@@ -108,6 +110,7 @@ PktPseudoHeaderChecksum(
     _In_ UINT8 NextHeader
     );
 
+_Success_(return != FALSE)
 BOOLEAN
 PktBuildUdpFrame(
     _Out_ VOID *Buffer,

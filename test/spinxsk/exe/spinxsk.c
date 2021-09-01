@@ -209,7 +209,7 @@ RandUlong(
     VOID
     )
 {
-    unsigned int r;
+    unsigned int r = 0;
     rand_s(&r);
     return r;
 }
@@ -292,13 +292,15 @@ GetFuzzedAttachParams(
         *Flags = XDP_ATTACH_GENERIC;
     } else if (Queue->xdpMode == XdpModeNative) {
         *Flags = XDP_ATTACH_NATIVE;
+    } else {
+        *Flags = 0;
     }
 }
 
 static
 VOID
 GetFuzzedHookId(
-    _Out_ XDP_HOOK_ID *HookId
+    _Inout_ XDP_HOOK_ID *HookId
     )
 {
     if (!(RandUlong() % 8)) {
@@ -728,7 +730,7 @@ VOID
 FuzzSocketUmemSetup(
     _Inout_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
-    _Out_ BOOLEAN *WasUmemRegistered
+    _Inout_ BOOLEAN *WasUmemRegistered
     )
 {
     HRESULT res;
@@ -780,8 +782,8 @@ FuzzSocketRxTxSetup(
     _In_ HANDLE Sock,
     _In_ BOOLEAN RequiresRx,
     _In_ BOOLEAN RequiresTx,
-    _Out_ BOOLEAN *WasRxSet,
-    _Out_ BOOLEAN *WasTxSet
+    _Inout_ BOOLEAN *WasRxSet,
+    _Inout_ BOOLEAN *WasTxSet
     )
 {
     HRESULT res;
@@ -874,8 +876,8 @@ VOID
 FuzzSocketBind(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
-    _In_ HANDLE SharedUmemSock,
-    _Out_ BOOLEAN *WasSockBound
+    _In_opt_ HANDLE SharedUmemSock,
+    _Inout_ BOOLEAN *WasSockBound
     )
 {
     HRESULT res;
@@ -1159,7 +1161,7 @@ XskDatapathWorkerFn(
 
     if (SUCCEEDED(SetupDatapath(datapath))) {
         while (!ReadBooleanNoFence(&done)) {
-            if (ReadUInt32NoFence((UINT32 *)&datapath->shared->state) == ThreadStateReturn) {
+            if (ReadNoFence((LONG *)&datapath->shared->state) == ThreadStateReturn) {
                 break;
             }
 
@@ -1189,11 +1191,11 @@ XskFuzzerWorkerFn(
     printf_verbose("q[%u]f[0x%p]: entering\n", queue->queueId, fuzzer->threadHandle);
 
     while (!ReadBooleanNoFence(&done)) {
-        if (ReadUInt32NoFence((UINT32 *)&fuzzer->shared->state) == ThreadStateReturn) {
+        if (ReadNoFence((LONG *)&fuzzer->shared->state) == ThreadStateReturn) {
             break;
         }
 
-        if (ReadUInt32NoFence((UINT32 *)&fuzzer->shared->state) == ThreadStatePause) {
+        if (ReadNoFence((LONG *)&fuzzer->shared->state) == ThreadStatePause) {
             WaitForSingleObject(fuzzer->shared->pauseEvent, INFINITE);
             continue;
         }
@@ -1300,7 +1302,7 @@ QueueWorkerFn(
             // Signal and wait for datapath thread/s to return.
             //
             printf_verbose("q[%u]: waiting for datapath threads\n", queue->queueId);
-            WriteUInt32NoFence((UINT32 *)&queue->datapathShared.state, ThreadStateReturn);
+            WriteNoFence((LONG *)&queue->datapathShared.state, ThreadStateReturn);
             if (queue->datapath1.threadHandle != NULL) {
                 WaitForSingleObject(queue->datapath1.threadHandle, INFINITE);
             }
@@ -1313,7 +1315,7 @@ QueueWorkerFn(
         // Signal and wait for fuzzer threads to return.
         //
         printf_verbose("q[%u]: waiting for fuzzer threads\n", queue->queueId);
-        WriteUInt32NoFence((UINT32 *)&queue->fuzzerShared.state, ThreadStateReturn);
+        WriteNoFence((LONG*)&queue->fuzzerShared.state, ThreadStateReturn);
         for (UINT32 i = 0; i < queue->fuzzerCount; i++) {
             WaitForSingleObject(queue->fuzzers[i].threadHandle, INFINITE);
         }
@@ -1342,7 +1344,7 @@ AdminFn(
     UNREFERENCED_PARAMETER(ThreadParameter);
 
     res =
-        RegCreateKeyEx(
+        RegCreateKeyExA(
             HKEY_LOCAL_MACHINE,
             "System\\CurrentControlSet\\Services\\Xdp\\Parameters",
             0, NULL, REG_OPTION_VOLATILE, KEY_WRITE, NULL, &xdpParametersKey, NULL);
@@ -1361,14 +1363,14 @@ AdminFn(
             RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
             sprintf_s(
                 cmdBuff, sizeof(cmdBuff),
-                "%s \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | Restart-NetAdapter\"",
+                "%s -Command \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | Restart-NetAdapter\"",
                 powershellPrefix, ifindex);
             system(cmdBuff);
         }
 
         if (!(RandUlong() % 10)) {
             DWORD DelayDetachTimeout = RandUlong() % 10;
-            RegSetValueEx(
+            RegSetValueExA(
                 xdpParametersKey, delayDetachTimeoutRegName, 0, REG_DWORD,
                 (BYTE *)&DelayDetachTimeout, sizeof(DelayDetachTimeout));
         }
@@ -1377,7 +1379,7 @@ AdminFn(
     //
     // Clean up fuzzed registry state.
     //
-    RegDeleteValue(xdpParametersKey, delayDetachTimeoutRegName);
+    RegDeleteValueA(xdpParametersKey, delayDetachTimeoutRegName);
     RegCloseKey(xdpParametersKey);
 
     printf_verbose("admin exiting\n");
@@ -1408,8 +1410,8 @@ WatchdogFn(
         for (UINT32 i = 0; i < queueCount; i++) {
             if ((LONGLONG)(queueWorkers[i].watchdogPerfCount + watchdogTimeoutInCounts - perfCount) < 0) {
                 printf("WATCHDOG on queue %d\n", i);
-                XdpBugCheck();
                 DebugBreak();
+                DbgRaiseAssertionFailure();
                 exit(ERROR_TIMEOUT);
             }
         }
@@ -1539,7 +1541,9 @@ main(
     // Create admin and watchdog thread for queue workers.
     //
     adminThread = CreateThread(NULL, 0, AdminFn, NULL, 0, NULL);
+    ASSERT_FRE(adminThread);
     watchdogThread = CreateThread(NULL, 0, WatchdogFn, NULL, 0, NULL);
+    ASSERT_FRE(watchdogThread);
 
     //
     // Kick off the queue workers.

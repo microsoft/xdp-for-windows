@@ -23,7 +23,7 @@ BounceCleanup(
 
 VOID
 BounceFree(
-    _In_ CONST VOID *Buffer
+    _In_opt_ CONST VOID *Buffer
     )
 {
     if (Buffer != NULL) {
@@ -41,6 +41,7 @@ BounceRelease(
     return Buffer;
 }
 
+__declspec(code_seg("PAGE"))
 NTSTATUS
 BounceBuffer(
     _Inout_ BOUNCE_BUFFER *Bounce,

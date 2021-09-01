@@ -310,6 +310,7 @@ XdpTimerTimeout(
     KIRQL OldIrql;
 
     UNREFERENCED_PARAMETER(ExTimer);
+    ASSERT(Timer);
 
     KeAcquireSpinLock(&Timer->SpinLock, &OldIrql);
 
@@ -348,6 +349,7 @@ XdpTimerWorker(
 
     UNREFERENCED_PARAMETER(IoObject);
     UNREFERENCED_PARAMETER(IoWorkItem);
+    ASSERT(Timer);
 
     KeAcquireSpinLock(&Timer->SpinLock, &OldIrql);
 

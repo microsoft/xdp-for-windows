@@ -1,4 +1,0 @@
-!include ..\sources.inc
-
-PASS1_PUBLISH= \
-    {$(TARGET)=$(MINWIN_INTERNAL_PRIV_SDK_LIB_PATH_L)\xdp\sdk\lib\msxdp.lib} \

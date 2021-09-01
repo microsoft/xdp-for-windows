@@ -40,10 +40,10 @@ XskFastIo(
     _In_ XDP_FILE_OBJECT_HEADER *FileObjectHeader,
     _In_opt_ VOID *InputBuffer,
     _In_ ULONG InputBufferLength,
-    _Inout_opt_ VOID *OutputBuffer,
+    _Out_opt_ VOID *OutputBuffer,
     _In_ ULONG OutputBufferLength,
     _In_ ULONG IoControlCode,
-    _Inout_ IO_STATUS_BLOCK *IoStatus
+    _Out_ IO_STATUS_BLOCK *IoStatus
     );
 
 NTSTATUS

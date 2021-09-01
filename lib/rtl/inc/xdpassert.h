@@ -11,7 +11,7 @@
 #ifdef ASSERT
 #undef ASSERT
 #endif
-#define ASSERT(e) NT_ASSERT(e)
+#define ASSERT(e) NT_ASSERT_ASSUME(e)
 
 #define FRE_ASSERT(e) \
     (NT_VERIFY(e) ? TRUE : (RtlFailFast(FAST_FAIL_INVALID_ARG), FALSE))

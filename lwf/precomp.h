@@ -4,13 +4,15 @@
 
 #pragma once
 
-#include <ntosp.h>
-#include <zwapi.h>
+#pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
+
+#include <ntdef.h>
+#include <ntstatus.h>
+#include <ntifs.h>
 #include <ntintsafe.h>
-#include <ntrtl.h>
 #include <ndis.h>
-#include <ndis/nblqueue.h>
-#include <ndis/nblclassify.h>
+#include <ndis/ndl/nblqueue.h>
+#include <ndis/ndl/nblclassify.h>
 #include <netiodef.h>
 
 #define XDPEXPORT(RoutineName) RoutineName##Thunk

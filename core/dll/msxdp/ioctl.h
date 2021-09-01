@@ -25,7 +25,7 @@ typedef struct _FILE_FULL_EA_INFORMATION {
 VOID *
 XdpInitializeEa(
     _In_ XDP_OBJECT_TYPE ObjectType,
-    _Inout_ VOID *EaBuffer,
+    _Out_ VOID *EaBuffer,
     _In_ ULONG EaLength
     );
 
@@ -46,11 +46,12 @@ XdpCloseGlobal(
     VOID
     );
 
+_Success_(return != FALSE)
 BOOL
 XdpIoctl(
     _In_ HANDLE XdpHandle,
     _In_ ULONG Operation,
-    _In_ VOID *InBuffer,
+    _In_opt_ VOID *InBuffer,
     _In_ ULONG InBufferSize,
     _Out_opt_ VOID *OutBuffer,
     _In_ ULONG OutputBufferSize,

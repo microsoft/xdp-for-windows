@@ -49,7 +49,7 @@ PostNbQueueToHw(
             //
             ULONG La = 0;
 
-            HwDescriptor->LogicalAddress = La + Nb->DataOffset;
+            HwDescriptor->LogicalAddress = (UINT64)La + (UINT64)Nb->DataOffset;
             HwDescriptor->Length = Nb->DataLength;
 
             ShadowDescriptor->Nb = Nb;
@@ -283,13 +283,15 @@ MpSendGetRssQueue(
     return &Adapter->RssQueues[QueueId];
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
+_Function_class_(MINIPORT_SEND_NET_BUFFER_LISTS)
 VOID
 MpSendNetBufferLists(
-   _Inout_ NDIS_HANDLE MiniportAdapterContext,
-   _Inout_ NET_BUFFER_LIST *NetBufferList,
-   _In_ ULONG PortNumber,
-   _In_ ULONG SendFlags
-   )
+    _In_ NDIS_HANDLE MiniportAdapterContext,
+    _In_ NET_BUFFER_LIST *NetBufferList,
+    _In_ ULONG PortNumber,
+    _In_ ULONG SendFlags
+    )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
     ADAPTER_QUEUE *AdapterQueue;

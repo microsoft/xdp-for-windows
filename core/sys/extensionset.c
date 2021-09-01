@@ -270,6 +270,7 @@ XdpExtensionSetCreate(
 
     for (UINT16 Index = 0; Index < Set->Count; Index++) {
         XDP_EXTENSION_ENTRY *Entry = &Set->Entries[Index];
+        ASSERT(ReservedExtensions);
         CONST XDP_EXTENSION_REGISTRATION *Reg = &ReservedExtensions[Index];
 
         XdpExtensionSetValidate(Set, &Reg->Info);

@@ -129,6 +129,7 @@ NdisPollCpuPassiveWorker(
     )
 {
     PNDIS_POLL_CPU PollCpu = (PNDIS_POLL_CPU)Context;
+    ASSERT(PollCpu);
 
     UNREFERENCED_PARAMETER(DeviceObject);
 
@@ -403,7 +404,10 @@ NdisPollCpuStop(
             }
 
             if (PollCpu->WorkItem != NULL) {
+#pragma warning(push)
+#pragma warning(disable:6001) // WorkItem should be initialized.
                 IoFreeWorkItem(PollCpu->WorkItem);
+#pragma warning(pop)
             }
         }
 

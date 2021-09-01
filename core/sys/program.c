@@ -68,6 +68,7 @@ XdpInitializeFrameCache(
 }
 
 static
+_Success_(return != FALSE)
 BOOLEAN
 XdpGetContiguousHeader(
     _In_ XDP_FRAME *Frame,
@@ -135,7 +136,7 @@ XdpParseFragmentedEthernet(
     _In_ XDP_RING *FragmentRing,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
     _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Out_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     Cache->EthValid =
@@ -155,7 +156,7 @@ XdpParseFragmentedIp4(
     _In_ XDP_RING *FragmentRing,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
     _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Out_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     Cache->Ip4Valid =
@@ -175,7 +176,7 @@ XdpParseFragmentedIp6(
     _In_ XDP_RING *FragmentRing,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
     _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Out_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     Cache->Ip6Valid =
@@ -195,7 +196,7 @@ XdpParseFragmentedUdp(
     _In_ XDP_RING *FragmentRing,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
     _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Out_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     Cache->UdpValid =
@@ -212,8 +213,8 @@ XdpParseFragmentedFrame(
     _In_ XDP_EXTENSION *FragmentExtension,
     _In_ UINT32 FragmentIndex,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
-    _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Out_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *Cache,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     XDP_BUFFER *Buffer = &Frame->Buffer;
@@ -280,7 +281,7 @@ XdpParseFrame(
     _In_ UINT32 FragmentIndex,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
     _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Out_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     XDP_BUFFER *Buffer;
@@ -347,6 +348,7 @@ XdpParseFrame(
 BufferTooSmall:
 
     if (FragmentRing != NULL) {
+        ASSERT(FragmentExtension);
         XdpParseFragmentedFrame(
             Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
             Cache, Storage);
@@ -402,7 +404,7 @@ XdpInspect(
     ASSERT(FrameIndex <= FrameRing->Mask);
     ASSERT(
         (FragmentRing == NULL && FragmentIndex == 0) ||
-        (FragmentIndex <= FragmentRing->Mask));
+        (FragmentRing && FragmentIndex <= FragmentRing->Mask));
 
     XdpInitializeFrameCache(&FrameCache);
     Frame = XdpRingGetElement(FrameRing, FrameIndex);
@@ -653,7 +655,7 @@ XdpCaptureProgram(
 
     try {
         if (RequestorMode != KernelMode) {
-            ProbeForRead(Rules, sizeof(*Rules) * RuleCount, PROBE_ALIGNMENT(XDP_RULE));
+            ProbeForRead((VOID*)Rules, sizeof(*Rules) * RuleCount, PROBE_ALIGNMENT(XDP_RULE));
         }
         RtlCopyMemory(ProgramObject->Program.Rules, Rules, sizeof(*Rules) * RuleCount);
     } except (EXCEPTION_EXECUTE_HANDLER) {

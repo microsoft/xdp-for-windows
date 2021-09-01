@@ -1,6 +1,0 @@
-DIRS=\
-    core \
-    lib \
-    lwf \
-    published \
-    test \

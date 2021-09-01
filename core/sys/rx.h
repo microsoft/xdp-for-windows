@@ -70,7 +70,7 @@ XdpRxQueueSync(
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
-    _In_ XDP_PROGRAM *Program
+    _In_opt_ XDP_PROGRAM *Program
     );
 
 XDP_PROGRAM *

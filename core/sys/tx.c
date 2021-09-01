@@ -74,6 +74,7 @@ XdpTxQueueDereference(
     }
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpFlushTransmit(
     _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue
@@ -442,6 +443,7 @@ XdpTxQueueNotify(
     switch (NotifyCode) {
     case XDP_TX_QUEUE_NOTIFY_MAX_FRAME_SIZE:
         FRE_ASSERT(NotifyBufferSize == sizeof(UINT32));
+        ASSERT(NotifyBuffer);
         FRE_ASSERT(*(UINT32 *)NotifyBuffer > 0);
 
         TraceVerbose(TRACE_CORE, "TxQueue=%p MTU=%u", TxQueue, *(CONST UINT32 *)NotifyBuffer);

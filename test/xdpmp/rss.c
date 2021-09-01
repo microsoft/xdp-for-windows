@@ -16,14 +16,18 @@ MpPoll(
     ADAPTER_QUEUE *RssQueue = (ADAPTER_QUEUE *)MiniportPollContext;
     XDP_POLL_DATA XdpPoll = {0};
 
+#if DBG
     ASSERT(InterlockedIncrement(&RssQueue->ActivePolls) == 1);
+#endif
 
     MpPace(RssQueue);
 
     MpReceive(&RssQueue->Rq, &Poll->Receive, &XdpPoll.Receive);
     MpTransmit(&RssQueue->Tq, &Poll->Transmit, &XdpPoll.Transmit);
 
+#if DBG
     ASSERT(InterlockedDecrement(&RssQueue->ActivePolls) == 0);
+#endif
 
     XdpCompleteNdisPoll(RssQueue->NdisPollHandle, Poll, &XdpPoll.Transmit, &XdpPoll.Receive);
 }

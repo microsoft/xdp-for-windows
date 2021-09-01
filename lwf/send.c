@@ -175,7 +175,7 @@ XdpGenericBuildTxNbl(
     _In_ XDP_LWF_GENERIC_TX_QUEUE *TxQueue,
     _In_ XDP_BUFFER *Buffer,
     _In_ XDP_BUFFER_MDL *BufferMdl,
-    _Out_ NET_BUFFER_LIST *Nbl
+    _Inout_ NET_BUFFER_LIST *Nbl
     )
 {
     NET_BUFFER *Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);

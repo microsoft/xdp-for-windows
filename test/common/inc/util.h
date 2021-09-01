@@ -4,11 +4,14 @@
 
 #pragma once
 
-EXTERN_C_START
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 CONST CHAR*
 GetPowershellPrefix();
 
+_Success_(return==0)
 DWORD
 ConvertInterfaceAliasToIndex(
     _In_ CONST WCHAR *Alias,
@@ -31,4 +34,6 @@ XdpInstall();
 BOOLEAN
 XdpUninstall();
 
-EXTERN_C_END
+#ifdef __cplusplus
+} // extern "C"
+#endif

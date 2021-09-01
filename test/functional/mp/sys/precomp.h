@@ -21,6 +21,3 @@
 #include "oid.h"
 #include "rss.h"
 #include "xdpfnmpioctl.h"
-
-#define RTL_IS_POWER_OF_TWO(Value) \
-    ((Value != 0) && !((Value) & ((Value) - 1)))

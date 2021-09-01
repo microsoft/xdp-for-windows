@@ -2,6 +2,9 @@
 // Copyright (C) Microsoft Corporation. All rights reserved.
 //
 
+#pragma warning(disable:26495)  // Always initialize a variable
+#pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
+
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -12,9 +15,9 @@
 
 // Windows and WIL includes need to be ordered in a certain way.
 #define NOMINMAX
+#include <winsock2.h>
 #include <windows.h>
 #include <iphlpapi.h>
-#include <winsock2.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 #include <wil/resource.h>
@@ -52,9 +55,9 @@ static CONST XDP_HOOK_ID XdpInspectRxL2 =
 // A timeout value that allows for a little latency, e.g. async threads to
 // execute.
 //
-#define TIMEOUT_ASYNC_MS 1000
-#define TIMEOUT_ASYNC std::chrono::milliseconds(TIMEOUT_ASYNC_MS)
-#define MP_RESTART_TIMEOUT std::chrono::milliseconds(5 * TIMEOUT_ASYNC_MS)
+#define TEST_TIMEOUT_ASYNC_MS 1000
+#define TEST_TIMEOUT_ASYNC std::chrono::milliseconds(TEST_TIMEOUT_ASYNC_MS)
+#define MP_RESTART_TIMEOUT std::chrono::milliseconds(5 * TEST_TIMEOUT_ASYNC_MS)
 
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
@@ -96,7 +99,7 @@ class TestInterface {
 private:
     CONST CHAR *_IfDesc;
     mutable UINT32 _IfIndex;
-    mutable UCHAR _HwAddress[ETHERNET_MAC_SIZE];
+    mutable UCHAR _HwAddress[ETHERNET_MAC_SIZE]{ 0 };
     IN_ADDR _Ipv4Address;
     IN6_ADDR _Ipv6Address;
 
@@ -661,11 +664,11 @@ UINT32
 SocketConsumerReserve(
     _In_ XSK_RING *Ring,
     _In_ UINT32 ExpectedCount,
-    _In_opt_ std::chrono::milliseconds Timeout = TIMEOUT_ASYNC
+    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
     )
 {
     UINT32 Index;
-    Stopwatch watchdog(Timeout);
+    Stopwatch<std::chrono::milliseconds> watchdog(Timeout);
     while (!watchdog.IsExpired()) {
         if (XskRingConsumerReserve(Ring, ExpectedCount, &Index) == ExpectedCount) {
             break;
@@ -696,10 +699,10 @@ VOID
 SocketProducerCheckNeedPoke(
     _In_ XSK_RING *Ring,
     _In_ BOOLEAN ExpectedState,
-    _In_opt_ std::chrono::milliseconds Timeout = TIMEOUT_ASYNC
+    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
     )
 {
-    Stopwatch watchdog(Timeout);
+    Stopwatch<std::chrono::milliseconds> watchdog(Timeout);
     while (!watchdog.IsExpired()) {
         if (XskRingProducerNeedPoke(Ring) == ExpectedState) {
             break;
@@ -804,7 +807,7 @@ MpTxGetFrame(
     _In_ const wil::unique_handle& Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
-    _Out_ TX_FRAME *Frame
+    _Out_opt_ TX_FRAME *Frame
     )
 {
     return FnMpTxGetFrame(Handle.get(), Index, FrameBufferLength, Frame);
@@ -820,7 +823,7 @@ MpTxAllocateAndGetFrame(
     unique_malloc_ptr<TX_FRAME> FrameBuffer;
     UINT32 FrameLength = 0;
     HRESULT Result;
-    Stopwatch Watchdog(TIMEOUT_ASYNC);
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
 
     //
     // Poll FNMP for TX: the driver doesn't support overlapped IO.
@@ -847,7 +850,7 @@ MpTxDequeueFrame(
     )
 {
     HRESULT Result;
-    Stopwatch Watchdog(TIMEOUT_ASYNC);
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
 
     //
     // Poll FNMP for TX: the driver doesn't support overlapped IO.
@@ -906,7 +909,7 @@ CreateUdpSocket(
     INT AddressLength = sizeof(Address);
     TEST_EQUAL(0, getsockname(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
 
-    INT TimeoutMs = (INT)std::chrono::milliseconds(TIMEOUT_ASYNC).count();
+    INT TimeoutMs = (INT)std::chrono::milliseconds(TEST_TIMEOUT_ASYNC).count();
     TEST_EQUAL(
         0,
         setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
@@ -949,7 +952,7 @@ WaitForWfpQuarantine(
     //
     // On Windows Server 2019, WFP takes a very long time to de-quarantine.
     //
-    Stopwatch Watchdog(std::chrono::seconds(30));
+    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(30));
     DWORD Bytes;
     do {
         MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
@@ -1055,7 +1058,7 @@ BindingTest(
                     If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
             if (RestartAdapter) {
-                Stopwatch Timer(MP_RESTART_TIMEOUT);
+                Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
                 If.Restart();
                 TEST_FALSE(Timer.IsExpired());
             }
@@ -1069,7 +1072,7 @@ BindingTest(
                 SetupSocket(If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
             if (RestartAdapter) {
-                Stopwatch Timer(MP_RESTART_TIMEOUT);
+                Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
                 If.Restart();
                 TEST_FALSE(Timer.IsExpired());
             }
@@ -1713,13 +1716,11 @@ GenericRxUdpHeaderFragments(
     Params.UdpPayloadLength = 43;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    UINT16 SplitIndexes[] =
-    {
-        sizeof(ETHERNET_HEADER) / 2,
-        SplitIndexes[0] + sizeof(ETHERNET_HEADER),
-        SplitIndexes[1] + 1,
-        SplitIndexes[2] + ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)),
-    };
+    UINT16 SplitIndexes[4] = { 0 };
+    SplitIndexes[0] = sizeof(ETHERNET_HEADER) / 2;
+    SplitIndexes[1] = SplitIndexes[0] + sizeof(ETHERNET_HEADER);
+    SplitIndexes[2] = SplitIndexes[1] + 1;
+    SplitIndexes[3] = SplitIndexes[2] + ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
     Params.SplitIndexes = SplitIndexes;
     Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
     GenericRxUdpFragmentBuffer(Af, &Params);
@@ -1778,7 +1779,7 @@ GenericRxFromTxInspect(
     // XDP completing a bind request does not imply that the TCPIP data path is
     // restarted. Wait until the send succeeds.
     //
-    Stopwatch Watchdog(std::chrono::seconds(5));
+    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(5));
     int result;
     do {
         result =
@@ -1905,10 +1906,13 @@ GenericTxSingleFrame()
 
     CONST TX_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
     TEST_EQUAL(TxFrameLength, MpTxBuffer->BufferLength);
+#pragma warning(push)
+#pragma warning(disable:6385)  // Reading invalid data from 'TxFrame':  the readable size is '_Old_10`8' bytes, but '29' bytes may be read.
     TEST_TRUE(
         RtlEqualMemory(
             TxFrame, MpTxBuffer->VirtualAddress + MpTxBuffer->DataOffset,
             TxFrameLength));
+#pragma warning(pop)
 
     MpTxDequeueFrame(GenericMp, 0);
     MpTxFlush(GenericMp);
@@ -2041,7 +2045,7 @@ GenericTxMtu()
         // Wait for the MTU changes to quiesce, which may involve a complete NDIS
         // rebind for filters and protocols.
         //
-        Sleep(TIMEOUT_ASYNC_MS);
+        Sleep(TEST_TIMEOUT_ASYNC_MS);
         WaitForWfpQuarantine(If);
     });
 
@@ -2054,7 +2058,7 @@ GenericTxMtu()
     //
     // The XSK TX path should be torn down after an MTU change.
     //
-    Stopwatch Watchdog(TIMEOUT_ASYNC);
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
     do {
         if (XskRingError(&Xsk.Rings.Tx)) {
             break;
@@ -2066,7 +2070,7 @@ GenericTxMtu()
     //
     // Wait for the MTU changes to quiesce.
     //
-    Sleep(TIMEOUT_ASYNC_MS);
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
     Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
 
     //
@@ -2232,7 +2236,7 @@ GenericXskWait(
     // conditions are eventually met.
     //
     do {
-        Timer.Reset(TIMEOUT_ASYNC);
+        Timer.Reset(TEST_TIMEOUT_ASYNC);
         TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
         TEST_FALSE(Timer.IsExpired());
         TEST_NOT_EQUAL(0, (NotifyResult & ExpectedResult));
@@ -2303,13 +2307,13 @@ GenericLwfDelayDetach(
             ERROR_SUCCESS,
             RegDeleteValue(XdpParametersKey.get(), DelayDetachTimeoutRegName));
     });
-    Sleep(TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+    Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
     FnMpIf.Restart();
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
     }
-    Stopwatch Timer(MP_RESTART_TIMEOUT);
+    Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
     FnMpIf.Restart();
     TEST_FALSE(Timer.IsExpired());
 
@@ -2317,7 +2321,7 @@ GenericLwfDelayDetach(
     // Verify LWF detach occurs at the expected time by observing FNMP pause events.
     //
 
-    DelayTimeoutMs = TIMEOUT_ASYNC_MS * 3;
+    DelayTimeoutMs = TEST_TIMEOUT_ASYNC_MS * 3;
     DelayTimeoutSec = DelayTimeoutMs / 1000;
     TEST_EQUAL(
         ERROR_SUCCESS,
@@ -2325,7 +2329,7 @@ GenericLwfDelayDetach(
             XdpParametersKey.get(),
             DelayDetachTimeoutRegName,
             0, REG_DWORD, (BYTE *)&DelayTimeoutSec, sizeof(DelayTimeoutSec)));
-    Sleep(TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+    Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
     FnMpIf.Restart();
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
@@ -2338,19 +2342,19 @@ GenericLwfDelayDetach(
     // Simple case: close socket, wait for delay.
     //
     // 0s                                  -> close socket
-    // DelayTimeoutMs - TIMEOUT_ASYNC_MS   -> lower bound
+    // DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS   -> lower bound
     // DelayTimeoutMs                      -> expected datapath detach
-    // DelayTimeoutMs + TIMEOUT_ASYNC_MS   -> upper bound
+    // DelayTimeoutMs + TEST_TIMEOUT_ASYNC_MS   -> upper bound
     //
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
         QueryPerformanceCounter(&SocketClosureTime);
     }
-    Sleep(DelayTimeoutMs - TIMEOUT_ASYNC_MS);
+    Sleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
     TEST_TRUE(LastMpPauseTime.QuadPart < SocketClosureTime.QuadPart);
     QueryPerformanceCounter(&LowerBoundTime);
-    Sleep(TIMEOUT_ASYNC_MS * 2);
+    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
     QueryPerformanceCounter(&UpperBoundTime);
 
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
@@ -2361,24 +2365,24 @@ GenericLwfDelayDetach(
     // Reset case: close socket, open and close another socket, wait for delay.
     //
     // 0s                                   -> close socket
-    // DelayTimeoutMs - TIMEOUT_ASYNC_MS    -> close another socket
-    // DelayTimeoutMs + TIMEOUT_ASYNC_MS    -> lower bound
-    // 2*DelayTimeoutMs - TIMEOUT_ASYNC_MS  -> expected datapath detach
+    // DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS    -> close another socket
+    // DelayTimeoutMs + TEST_TIMEOUT_ASYNC_MS    -> lower bound
+    // 2*DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS  -> expected datapath detach
     // 2*DelayTimeoutMs                     -> upper bound
     //
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
         QueryPerformanceCounter(&SocketClosureTime);
     }
-    Sleep(DelayTimeoutMs - TIMEOUT_ASYNC_MS);
+    Sleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
     }
-    Sleep(TIMEOUT_ASYNC_MS * 2);
+    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
     TEST_TRUE(LastMpPauseTime.QuadPart < SocketClosureTime.QuadPart);
     QueryPerformanceCounter(&LowerBoundTime);
-    Sleep(TIMEOUT_ASYNC_MS * 2);
+    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
     QueryPerformanceCounter(&UpperBoundTime);
 
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);

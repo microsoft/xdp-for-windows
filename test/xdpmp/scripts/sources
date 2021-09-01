@@ -1,6 +1,0 @@
-TARGETTYPE=NOTARGET
-TARGET_DESTINATION=xdp\test\xdpmp
-
-PASS_INDEPENDENT_BINPLACE=\
-    ..\xdpmp.ps1 \
-    ..\xdpmppace.ps1 \

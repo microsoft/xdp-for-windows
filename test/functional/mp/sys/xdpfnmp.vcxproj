@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)xdp.props" />
+  <ItemGroup>
+    <ClCompile Include="dispatch.c" />
+    <ClCompile Include="bounce.c" />
+    <ClCompile Include="ioctlbounce.c" />
+    <ClCompile Include="miniport.c" />
+    <ClCompile Include="oid.c" />
+    <ClCompile Include="rss.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="precomp.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="xdpfnmp.rc">
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\lib\nmr\nmr.vcxproj">
+      <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
+    </ProjectReference>
+    <ProjectReference Include="generic\xdpfnmpgeneric.vcxproj">
+      <Project>{5140e124-dbcb-42f9-bd51-22ff8eac7d7c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="native\xdpfnmpnative.vcxproj">
+      <Project>{1447d9ed-6762-45d7-929d-92d24593d472}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{ad2ed8d3-06f7-4b3b-89f4-e8e7065a6f82}</ProjectGuid>
+    <TemplateGuid>{1bc93793-694f-48fe-9372-81e2b05556fd}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>KMDF</DriverType>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(SolutionDir)xdp.cpp.props" />
+  <Import Project="$(SolutionDir)xdp.cpp.kernel.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)lib\rtl\inc;$(SolutionDir)test\functional\mp\inc;$(SolutionDir)test\functional\mp\sys;$(SolutionDir)test\functional\mp\sys\generic\inc;$(SolutionDir)test\functional\mp\sys\native\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS685_MINIPORT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <Inf Include="inf\xdpfnmp.inx">
+      <SpecifyDriverDirectiveVersion>true</SpecifyDriverDirectiveVersion>
+    </Inf>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

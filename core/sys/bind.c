@@ -242,6 +242,7 @@ XdpIfpInvokeOpenInterface(
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (InterfaceDispatch->OpenInterface != NULL) {
+        ASSERT(InterfaceContext);
         Status =
             InterfaceDispatch->OpenInterface(
                 InterfaceContext, (XDP_INTERFACE_CONFIG)&Binding->OpenConfig);
@@ -618,7 +619,7 @@ XdpIfpTrimIfSet(
     }
 }
 
-_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateBinding(
     _In_ NET_IFINDEX IfIndex,
@@ -710,6 +711,7 @@ Exit:
             if (Interfaces[Index].BindingHandle != NULL) {
                 XDP_INTERFACE *Binding;
                 Binding = (XDP_INTERFACE *)Interfaces[Index].BindingHandle;
+                ASSERT(IfSet);
                 IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
                 Interfaces[Index].BindingHandle = NULL;
                 XdpIfpDereferenceBinding(Binding);
@@ -727,7 +729,7 @@ Exit:
     return Status;
 }
 
-_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 XdpIfDeleteBinding(
     _In_reads_(HandleCount) XDP_IF_BINDING_HANDLE *BindingHandles,

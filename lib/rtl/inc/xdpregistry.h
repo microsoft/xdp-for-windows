@@ -4,6 +4,7 @@
 
 #pragma once
 
+__declspec(code_seg("PAGE"))
 NTSTATUS
 XdpRegQueryDwordValue(
     _In_z_ CONST WCHAR *KeyName,

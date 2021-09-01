@@ -5,6 +5,17 @@
 #include "precomp.h"
 #include "dispatch.tmh"
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Must_inspect_result_
+NTSYSAPI
+BOOLEAN
+NTAPI
+RtlEqualString(
+    _In_ const STRING * String1,
+    _In_ const STRING * String2,
+    _In_ BOOLEAN CaseInSensitive
+    );
+
 DRIVER_INITIALIZE DriverEntry;
 DRIVER_UNLOAD DriverUnload;
 DRIVER_DISPATCH_PAGED XdpIrpDispatch;
@@ -150,6 +161,7 @@ XdpIrpClose(
     return STATUS_SUCCESS;
 }
 
+__declspec(code_seg("PAGE"))
 _Use_decl_annotations_
 NTSTATUS
 XdpIrpDispatch(
@@ -207,6 +219,7 @@ XdpIrpBugCheck(
 }
 #endif
 
+__declspec(code_seg("PAGE"))
 _Use_decl_annotations_
 NTSTATUS
 XdpIrpDeviceIoControl(
@@ -262,6 +275,9 @@ Exit:
     return Status;
 }
 
+#pragma warning(push)
+#pragma warning(disable:6101) // We don't set OutputBuffer
+__declspec(code_seg("PAGE"))
 _Use_decl_annotations_
 BOOLEAN
 XdpFastDeviceIoControl(
@@ -288,6 +304,7 @@ XdpFastDeviceIoControl(
 #endif
 
     if (FileObjHeader == NULL) {
+        IoStatus->Status = STATUS_INVALID_PARAMETER;
         return FALSE;
     }
 
@@ -298,12 +315,14 @@ XdpFastDeviceIoControl(
                 FileObjHeader, InputBuffer, InputBufferLength, OutputBuffer,
                 OutputBufferLength, IoControlCode, IoStatus);
     default:
+        IoStatus->Status = STATUS_INVALID_PARAMETER;
         return FALSE;
     }
 
     UNREFERENCED_PARAMETER(Wait);
     UNREFERENCED_PARAMETER(DeviceObject);
 }
+#pragma warning(pop)
 
 NTSTATUS
 XdpReferenceObjectByHandle(
@@ -385,12 +404,16 @@ XdpStart(
     NTSTATUS Status;
     DECLARE_CONST_UNICODE_STRING(DeviceName, XDP_DEVICE_NAME);
 
-    XdpDriverObject->MajorFunction[IRP_MJ_CREATE]           = XdpIrpDispatch;
-    XdpDriverObject->MajorFunction[IRP_MJ_CLEANUP]          = XdpIrpDispatch;
-    XdpDriverObject->MajorFunction[IRP_MJ_CLOSE]            = XdpIrpDispatch;
-    XdpDriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL]   = XdpIrpDeviceIoControl;
+#pragma warning(push)
+#pragma warning(disable:28175) // We can access the DRIVER_OBJECT
+#pragma warning(disable:28168) // Default annotation seems to be incorrect
+    XdpDriverObject->MajorFunction[IRP_MJ_CREATE]           = (PDRIVER_DISPATCH)XdpIrpDispatch; // BUGBUG: MajorFunction is an array of PDRIVER_DISPATCH, NOT PDRIVER_DISPATCH_PAGED!!!
+    XdpDriverObject->MajorFunction[IRP_MJ_CLEANUP]          = (PDRIVER_DISPATCH)XdpIrpDispatch;
+    XdpDriverObject->MajorFunction[IRP_MJ_CLOSE]            = (PDRIVER_DISPATCH)XdpIrpDispatch;
+    XdpDriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL]   = (PDRIVER_DISPATCH)XdpIrpDeviceIoControl;
     XdpDriverObject->FastIoDispatch                         = &XdpFastIoDispatch;
     XdpDriverObject->DriverUnload                           = DriverUnload;
+#pragma warning(pop)
 
     XdpOsVersion.dwOSVersionInfoSize = sizeof(XdpOsVersion);
     Status = RtlGetVersion(&XdpOsVersion);

@@ -1,11 +1,7 @@
-LIBRARY msxdp.dll
+LIBRARY msxdp
 
 EXPORTS
-#if XDP_VRF
-    XdpBugCheck
-#endif
     XdpCreateProgram
-
     XskBind
     XskCreate
     XskGetSockopt

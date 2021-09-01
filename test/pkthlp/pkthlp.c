@@ -72,6 +72,7 @@ PktChecksum(
     return ~PktChecksumFold(Checksum);
 }
 
+_Success_(return != FALSE)
 BOOLEAN
 PktBuildUdpFrame(
     _Out_ VOID *Buffer,

@@ -12,6 +12,17 @@ static INT64 IoctlDeviceReferenceCount = 0;
 static EX_PUSH_LOCK IoctlDeviceLock;
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
+_Must_inspect_result_
+NTSYSAPI
+BOOLEAN
+NTAPI
+RtlEqualString(
+    _In_ const STRING * String1,
+    _In_ const STRING * String2,
+    _In_ BOOLEAN CaseInSensitive
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 MpIrpCreate(
     _Inout_ IRP *Irp,
@@ -146,6 +157,7 @@ MpIrpIoctl(
 }
 
 static
+__declspec(code_seg("PAGE"))
 _Use_decl_annotations_
 NTSTATUS
 MpIoctlDispatch(

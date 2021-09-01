@@ -135,7 +135,7 @@ MpQueryInformationHandler(
             break;
 
         case OID_GEN_VENDOR_DESCRIPTION:
-            DataLength = (ULONG)(sizeof(MpDriverFriendlyName));
+            DataLength = (ULONG)(sizeof(VOID*));
             Data = (VOID *)MpDriverFriendlyName;
             break;
 
@@ -418,10 +418,12 @@ MiniportCancelRequestHandler(
     UNREFERENCED_PARAMETER(RequestId);
 }
 
+_IRQL_requires_(PASSIVE_LEVEL)
+_Function_class_(MINIPORT_OID_REQUEST)
 NDIS_STATUS
 MiniportRequestHandler(
    _In_ NDIS_HANDLE MiniportAdapterContext,
-   _Inout_ NDIS_OID_REQUEST *pNdisRequest
+    _In_ NDIS_OID_REQUEST *pNdisRequest
    )
 {
     switch (pNdisRequest->RequestType)

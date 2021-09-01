@@ -27,7 +27,7 @@ typedef struct _FILE_FULL_EA_INFORMATION {
 VOID *
 FnMpInitializeEa(
     _In_ XDPFNMP_FILE_TYPE FileType,
-    _Inout_ VOID *EaBuffer,
+    _Out_ VOID *EaBuffer,
     _In_ ULONG EaLength
     );
 
@@ -43,7 +43,7 @@ HRESULT
 FnMpIoctl(
     _In_ HANDLE XdpHandle,
     _In_ ULONG Operation,
-    _In_ VOID *InBuffer,
+    _In_opt_ VOID *InBuffer,
     _In_ ULONG InBufferSize,
     _Out_opt_ VOID *OutBuffer,
     _In_ ULONG OutputBufferSize,

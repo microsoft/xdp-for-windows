@@ -6,10 +6,11 @@
 
 typedef
 _IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 NTSTATUS
 XDP_FILE_CREATE_ROUTINE(
-    _In_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp,
+    _Inout_ IRP *Irp,
+    _Inout_ IO_STACK_LOCATION *IrpSp,
     _In_ UCHAR Disposition,
     _In_ VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
@@ -17,10 +18,11 @@ XDP_FILE_CREATE_ROUTINE(
 
 typedef
 _IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 NTSTATUS
 XDP_FILE_IRP_ROUTINE(
-    _In_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp
+    _Inout_ IRP *Irp,
+    _Inout_ IO_STACK_LOCATION *IrpSp
     );
 
 typedef struct _XDP_FILE_DISPATCH {

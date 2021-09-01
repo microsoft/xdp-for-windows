@@ -4,6 +4,8 @@
 
 #include "precomp.h"
 
+#pragma warning(disable:4701) // OldIrql for XdpWorkQueueReleaseLock is initialized.
+
 typedef struct _XDP_WORK_QUEUE {
     KIRQL MaxIrql;
     union {
@@ -27,33 +29,19 @@ XdpIoWorkItemRoutine(
     _In_ PIO_WORKITEM IoWorkItem
     );
 
-static
-VOID
-XdpWorkQueueAcquireLock(
-    _Inout_ XDP_WORK_QUEUE *WorkQueue,
-    _Out_ KIRQL *OldIrql
-    )
-{
-    if (WorkQueue->MaxIrql < DISPATCH_LEVEL) {
-        ExAcquirePushLockExclusive(&WorkQueue->PushLock);
-    } else {
-        KeAcquireSpinLock(&WorkQueue->SpinLock, OldIrql);
+#define XdpWorkQueueAcquireLock(WorkQueue, OldIrql) \
+    if ((WorkQueue)->MaxIrql < DISPATCH_LEVEL) { \
+        ExAcquirePushLockExclusive(&(WorkQueue)->PushLock); \
+    } else { \
+        KeAcquireSpinLock(&(WorkQueue)->SpinLock, OldIrql); \
     }
-}
 
-static
-VOID
-XdpWorkQueueReleaseLock(
-    _Inout_ XDP_WORK_QUEUE *WorkQueue,
-    _In_ KIRQL OldIrql
-    )
-{
-    if (WorkQueue->MaxIrql < DISPATCH_LEVEL) {
-        ExReleasePushLockExclusive(&WorkQueue->PushLock);
-    } else {
-        KeReleaseSpinLock(&WorkQueue->SpinLock, OldIrql);
+#define XdpWorkQueueReleaseLock(WorkQueue, OldIrql) \
+    if ((WorkQueue)->MaxIrql < DISPATCH_LEVEL) { \
+        ExReleasePushLockExclusive(&(WorkQueue)->PushLock); \
+    } else { \
+        KeReleaseSpinLock(&(WorkQueue)->SpinLock, OldIrql); \
     }
-}
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_WORK_QUEUE *
@@ -238,6 +226,7 @@ XdpIoWorkItemRoutine(
 
     UNREFERENCED_PARAMETER(IoWorkItem);
     UNREFERENCED_PARAMETER(IoObject);
+    ASSERT(WorkQueue);
 
     //
     // Process the contents of a work-queue.

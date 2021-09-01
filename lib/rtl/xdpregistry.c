@@ -5,6 +5,7 @@
 #include "precomp.h"
 #include "xdpregistry.tmh"
 
+__declspec(code_seg("PAGE"))
 NTSTATUS
 XdpRegQueryDwordValue(
     _In_z_ CONST WCHAR *KeyName,
@@ -107,7 +108,9 @@ Exit:
 
 
 static
-_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+_Function_class_(WORKER_THREAD_ROUTINE)
 VOID
 XdpRegWatcherNotify(
     _In_ VOID *Context

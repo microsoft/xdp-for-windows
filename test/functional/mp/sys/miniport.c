@@ -399,11 +399,14 @@ MiniportUnloadHandler(
     MpIoctlCleanup();
 }
 
+_Function_class_(DRIVER_INITIALIZE)
+_IRQL_requires_same_
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 DriverEntry(
-   _In_ DRIVER_OBJECT *DriverObject,
-   _In_ PUNICODE_STRING RegistryPath
-   )
+    _In_ struct _DRIVER_OBJECT *DriverObject,
+    _In_ PUNICODE_STRING RegistryPath
+    )
 {
     NDIS_STATUS NdisStatus = NDIS_STATUS_SUCCESS;
     NDIS_MINIPORT_DRIVER_CHARACTERISTICS MChars;

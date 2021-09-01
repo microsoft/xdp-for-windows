@@ -1,9 +1,0 @@
-BUILD_PASS1_CONSUMES= \
-    onecore\net\xdp\test\functional\lib|PASS1 \
-    onecore\net\xdp\core\dll\msxdp|PASS1 \
-
-BUILD_PASS2_CONSUMES= \
-    onecore\net\tools\dswdevice|PASS2 \
-    onecore\net\xdp\core\sys|PASS2 \
-    onecore\net\xdp\core\cat|PASS2 \
-    onecore\net\xdp\core\dll\msxdp|PASS2 \

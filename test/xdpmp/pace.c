@@ -20,7 +20,9 @@ MpPaceInterrupt(
 }
 
 static
-_Use_decl_annotations_
+_IRQL_requires_(DISPATCH_LEVEL)
+_IRQL_requires_same_
+_Function_class_(NDIS_TIMER_FUNCTION)
 VOID
 MpPaceTimeout(
     VOID *SystemSpecific1,
