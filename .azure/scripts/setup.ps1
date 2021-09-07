@@ -38,7 +38,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("", "reboot", "bugcheck")]
-    [string]$FailureAction = "reboot"
+    [string]$FailureAction = "bugcheck"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -72,7 +72,10 @@ function Uninstall-Failure {
         Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
         Write-Error "Preparing to reboot machine!"
     } elseif ($FailureAction -eq "bugcheck") {
-        # TODO - Trigger a bugcheck.
+        Write-Host "Forcing a bugcheck!"
+        Write-Debug "C:\notmyfault64.exe /bugcheck aabbccdd"
+        Start-Sleep -Seconds 5
+        C:\notmyfault64.exe /bugcheck aabbccdd
     }
 }
 
@@ -93,8 +96,9 @@ function Start-Service-With-Retry($Name) {
     }
 }
 
-# Helper to stop and delete a service.
-function Stop-and-Delete-Service($Name) {
+# Helper wait for a service to stop and then delete it. Callers are responsible
+# making sure the service is already stopped or stopping.
+function Cleanup-Service($Name) {
     # Wait for the service to stop.
     $StopSuccess = $false
     try {
@@ -114,14 +118,23 @@ function Stop-and-Delete-Service($Name) {
     }
 
     # Delete the service.
-    try {
-        if (Get-Service $Name -ErrorAction Ignore) {
-            sc.exe delete $Name > $null
-        }
-    } catch { Write-Debug "Failed to delete $Name service" }
-
     if (Get-Service $Name -ErrorAction Ignore) {
-         Uninstall-Failure
+        try { sc.exe delete $Name > $null }
+        catch { Write-Debug "'sc.exe delete $Name' threw exception!" }
+
+        # Wait for the service to be deleted.
+        $DeleteSuccess = $false
+        for ($i = 0; $i -lt 10; $i++) {
+            if (-not (Get-Service $Name -ErrorAction Ignore)) {
+                $DeleteSuccess = $true
+                break;
+            }
+            Start-Sleep -Milliseconds 10
+        }
+        if (!$DeleteSuccess) {
+            Write-Debug "Failed to clean up $Name!"
+            Uninstall-Failure
+        }
     }
 }
 
@@ -219,8 +232,12 @@ function Install-FakeNdis {
 function Uninstall-FakeNdis {
     Write-Host "------- Uninstalling fndis.sys -------"
 
+    # Stop the service.
+    Write-Debug "Stop-Service fndis"
+    try { Stop-Service fndis } catch { }
+
     # Cleanup the service.
-    Stop-and-Delete-Service fndis
+    Cleanup-Service fndis
 
     Write-Debug "fndis.sys uninstall complete!"
 }
@@ -292,7 +309,7 @@ function Uninstall-XdpMp {
     try { & $DswDevice -u $XdpMpDeviceId } catch { Write-Debug "Deleting $XdpMpDeviceId device failed" }
 
     # Cleanup the service.
-    Stop-and-Delete-Service $XdpMpServiceName
+    Cleanup-Service $XdpMpServiceName
 
     # Uninstall xdpmp.
     Uninstall-Driver "xdpmp.inf"
@@ -388,7 +405,7 @@ function Uninstall-XdpFnMp {
     try { & $DswDevice -u $XdpFnMpDeviceId0 } catch { Write-Debug "Deleting $XdpMpDeviceId0 device failed" }
 
     # Cleanup the service.
-    Stop-and-Delete-Service $XdpFnMpServiceName
+    Cleanup-Service $XdpFnMpServiceName
 
     # Uninstall xdpfnmp.
     Uninstall-Driver "xdpfnmp.inf"
