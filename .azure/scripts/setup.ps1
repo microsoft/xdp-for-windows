@@ -47,7 +47,7 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 # Important paths.
 $RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
-$DswDevice = "C:\Program Files (x86)\Windows Kits\10\Tools\x86\dswdevice.exe"
+$DswDevice = "C:\dswdevice.exe"
 
 # File paths.
 $XdpSys = Join-Path $ArtifactsDir "xdp" "xdp.sys"
