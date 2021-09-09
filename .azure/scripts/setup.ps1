@@ -73,9 +73,9 @@ function Uninstall-Failure {
         Write-Error "Preparing to reboot machine!"
     } elseif ($FailureAction -eq "bugcheck") {
         Write-Host "Forcing a bugcheck!"
-        Write-Debug "C:\notmyfault64.exe /bugcheck aabbccdd"
+        Write-Debug "C:\notmyfault64.exe /bugcheck aabbccdd /accepteula"
         Start-Sleep -Seconds 5
-        C:\notmyfault64.exe /bugcheck aabbccdd
+        C:\notmyfault64.exe /bugcheck aabbccdd /accepteula
     }
 }
 
