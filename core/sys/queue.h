@@ -73,6 +73,13 @@ XdpQueueBlockingSyncInsert(
     _In_opt_ VOID *CallbackContext
     );
 
+VOID
+XdpInitializeQueueInfo(
+    _Out_ XDP_QUEUE_INFO *QueueInfo,
+    _In_ XDP_QUEUE_TYPE QueueType,
+    _In_ UINT32 QueueId
+    );
+
 #if DBG
 typedef struct _XDP_DBG_QUEUE_EC {
     KSPIN_LOCK Lock;

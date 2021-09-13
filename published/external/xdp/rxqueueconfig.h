@@ -10,6 +10,7 @@ EXTERN_C_START
 #include <xdp/extensioninfo.h>
 #include <xdp/pollinfo.h>
 #include <xdp/queueinfo.h>
+#include <xdp/objectheader.h>
 
 DECLARE_HANDLE(XDP_RX_QUEUE_CONFIG_CREATE);
 DECLARE_HANDLE(XDP_RX_QUEUE_CONFIG_ACTIVATE);
@@ -27,7 +28,7 @@ XdpRxQueueGetTargetQueueInfo(
 // an XDP receive queue.
 //
 typedef struct _XDP_RX_CAPABILITIES {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // Indicates the interface supports the virtual address buffer extension.
@@ -63,6 +64,11 @@ typedef struct _XDP_RX_CAPABILITIES {
     BOOLEAN TxActionSupported;
 } XDP_RX_CAPABILITIES;
 
+#define XDP_RX_CAPABILITIES_REVISION_1 1
+
+#define XDP_SIZEOF_RX_CAPABILITIES_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_RX_CAPABILITIES, TxActionSupported)
+
 //
 // Initializes RX queue capabilities for driver-allocated buffers with virtual
 // addresses.
@@ -76,7 +82,8 @@ XdpInitializeRxCapabilitiesDriverVa(
     )
 {
     RtlZeroMemory(Capabilities, sizeof(*Capabilities));
-    Capabilities->Size = sizeof(*Capabilities);
+    Capabilities->Header.Revision = XDP_RX_CAPABILITIES_REVISION_1;
+    Capabilities->Header.Size = XDP_SIZEOF_RX_CAPABILITIES_REVISION_1;
     Capabilities->VirtualAddressSupported = TRUE;
 }
 
@@ -84,7 +91,7 @@ XdpInitializeRxCapabilitiesDriverVa(
 // Structure defining optional descriptor contexts for XDP receive queues.
 //
 typedef struct _XDP_RX_DESCRIPTOR_CONTEXTS {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // If non-zero, enables the XDP_FRAME_INTERFACE_CONTEXT frame extension. The
@@ -111,6 +118,11 @@ typedef struct _XDP_RX_DESCRIPTOR_CONTEXTS {
     UINT8 BufferContextAlignment;
 } XDP_RX_DESCRIPTOR_CONTEXTS;
 
+#define XDP_RX_DESCRIPTOR_CONTEXTS_REVISION_1 1
+
+#define XDP_SIZEOF_RX_DESCRIPTOR_CONTEXTS_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_RX_DESCRIPTOR_CONTEXTS, BufferContextAlignment)
+
 //
 // Initializes descriptor contexts for RX queues.
 //
@@ -121,7 +133,8 @@ XdpInitializeRxDescriptorContexts(
     )
 {
     RtlZeroMemory(DescriptorContexts, sizeof(*DescriptorContexts));
-    DescriptorContexts->Size = sizeof(*DescriptorContexts);
+    DescriptorContexts->Header.Revision = XDP_RX_DESCRIPTOR_CONTEXTS_REVISION_1;
+    DescriptorContexts->Header.Size = XDP_SIZEOF_RX_DESCRIPTOR_CONTEXTS_REVISION_1;
 }
 
 //

@@ -220,6 +220,7 @@ XdpLwfFilterDetach(
     // TODO: we could unbind both interfaces concurrently.
     XdpNativeDeleteBinding(&Filter->Native);
     XdpGenericDeleteBinding(&Filter->Generic);
+
     ExFreePoolWithTag(Filter, POOLTAG_FILTER);
 }
 

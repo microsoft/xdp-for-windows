@@ -4,11 +4,20 @@
 
 #include "precomp.h"
 
+static
+CONST XDP_VERSION DriverApiVersion = {
+    .Major = XDP_DRIVER_API_MAJOR_VER,
+    .Minor = XDP_DRIVER_API_MINOR_VER,
+    .Patch = XDP_DRIVER_API_PATCH_VER
+};
+
 static EX_PUSH_LOCK NativeContextListLock;
 static LIST_ENTRY NativeContextList;
-static CONST XDP_INTERFACE_DISPATCH MpXdpDispatch =
-{
-    .Size               = sizeof(MpXdpDispatch),
+static CONST XDP_INTERFACE_DISPATCH MpXdpDispatch = {
+    .Header             = {
+        .Revision       = XDP_INTERFACE_DISPATCH_REVISION_1,
+        .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
+    },
     .CreateRxQueue      = MpXdpCreateRxQueue,
     .ActivateRxQueue    = MpXdpActivateRxQueue,
     .DeleteRxQueue      = MpXdpDeleteRxQueue,
@@ -98,19 +107,20 @@ NativeHandleXdpOid(
     )
 {
     NDIS_STATUS Status;
+    CONST UINT32 CapabilitiesSize = sizeof(AdapterNative->Capabilities);
 
     *BytesNeeded = 0;
     *BytesWritten = 0;
 
-    if (InformationBufferLength < sizeof(AdapterNative->XdpCapabilities)) {
-        *BytesNeeded = sizeof(AdapterNative->XdpCapabilities);
+    if (InformationBufferLength < CapabilitiesSize) {
+        *BytesNeeded = CapabilitiesSize;
         Status = NDIS_STATUS_BUFFER_TOO_SHORT;
     } else {
         RtlCopyMemory(
             InformationBuffer,
-            &AdapterNative->XdpCapabilities,
-            sizeof(AdapterNative->XdpCapabilities));
-        *BytesWritten = sizeof(AdapterNative->XdpCapabilities);
+            &AdapterNative->Capabilities,
+            CapabilitiesSize);
+        *BytesWritten = CapabilitiesSize;
         Status = NDIS_STATUS_SUCCESS;
     }
 
@@ -139,7 +149,7 @@ NativeAdapterCreate(
         goto Exit;
     }
 
-    Status = XdpInitializeCapabilities(&AdapterNative->XdpCapabilities, XDP_API_VERSION_1);
+    Status = XdpInitializeCapabilities(&AdapterNative->Capabilities, &DriverApiVersion);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -181,7 +191,7 @@ NativeIrpXdpRegister(
         Status =
             XdpRegisterInterface(
                 Native->Adapter->IfIndex,
-                &Native->Adapter->Native->XdpCapabilities,
+                &Native->Adapter->Native->Capabilities,
                 Native, &MpXdpDispatch, &Native->XdpRegistration);
     }
 

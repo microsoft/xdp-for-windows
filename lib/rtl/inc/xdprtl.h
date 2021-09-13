@@ -4,19 +4,24 @@
 
 #pragma once
 
+#include <xdp/rtl.h>
+
+#ifndef RTL_IS_CLEAR_OR_SINGLE_FLAG
 #define RTL_IS_CLEAR_OR_SINGLE_FLAG(Flags, Mask) \
     (((Flags) & (Mask)) == 0 || !(((Flags) & (Mask)) & (((Flags) & (Mask)) - 1)))
+#endif
 
-#define RTL_PTR_ADD(Pointer, Value) \
-    ((PVOID)((ULONG_PTR)(Pointer) + (ULONG_PTR)(Value)))
-
+#ifndef RTL_PTR_SUBTRACT
 #define RTL_PTR_SUBTRACT(Pointer, Value) \
     ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Value)))
+#endif
 
 #define RTL_MILLISEC_TO_100NANOSEC(m) ((m) * 10000ui64)
 #define RTL_SEC_TO_100NANOSEC(s) ((s) * 10000000ui64)
 
+#ifndef ReadUInt64NoFence
 #define ReadUInt64NoFence ReadULong64NoFence
+#endif
 
 NTSTATUS
 RtlUInt32RoundUpToPowerOfTwo(

@@ -62,9 +62,21 @@ param (
     [Parameter(Mandatory=$false)]
     [switch]$XdpReceiveBatch = $false,
 
+    [Parameter(Mandatory=$false)]
+    [switch]$RxInject = $false,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$TxInspect = $false,
+
+    [Parameter(Mandatory=$false)]
+    [int]$TxInspectContentionCount = 1,
+
     [ValidateSet("System", "Busy", "Socket")]
     [Parameter(Mandatory=$false)]
     [string]$PollMode = "System",
+
+    [Parameter(Mandatory=$false)]
+    [switch]$Fndis = $false,
 
     [Parameter(Mandatory=$false)]
     [string]$OutFile = "",
@@ -137,17 +149,17 @@ try {
         Write-Error "Pacing is supported only by XDPMP" -ErrorAction Stop
     }
     if ($Adapter.InterfaceDescription -like "XDPMP*") {
-        if (@("RX", "FWD").Contains($Mode)) {
+        if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
             Write-Verbose "Setting XDPMP RX buffer size to $BufferSize"
             Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword RxBufferLength -RegistryValue $BufferSize -NoRestart
         }
 
-        if (@("RX", "FWD").Contains($Mode)) {
+        if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
             Write-Verbose "Setting XDPMP RX data length to $IoSize"
             Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword RxDataLength -RegistryValue $IoSize -NoRestart
         }
 
-        if ($UdpDstPort -ne 0) {
+        if ($UdpDstPort -ne 0 -and -not $TxInspect) {
             $ArgList =
                 "udp 22-22-22-22-00-02 22-22-22-22-00-00 192.168.100.2 192.168.100.1 1234 " +
                 "$UdpDstPort $UdpSize"
@@ -176,19 +188,29 @@ try {
         Write-Verbose "Setting XDPMP RX batch to $XdpReceiveBatchValue"
         Set-NetAdapterAdvancedProperty $AdapterName -RegistryKeyword RxBatchInspection -RegistryValue $XdpReceiveBatchValue -NoRestart
 
+        if ($Fndis) {
+            $PollProvider = "FNDIS"
+        } else {
+            $PollProvider = "NDIS"
+        }
+
+        Write-Verbose "Setting XDPMP poll provider to $PollProvider"
+        Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword PollProvider -DisplayValue $PollProvider
+
         Write-Verbose "Restarting $AdapterName"
         Restart-NetAdapter $AdapterName
         Wait-NetAdapterUpStatus -Name $AdapterName
 
         $RxPacingRate = 1
         $TxPacingRate = 1
-        if (@("RX", "FWD").Contains($Mode)) {
+        if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
             $RxPacingRate = 0xFFFFFFFFl
             if ($Pacing) {
                 $RxPacingRate = 1000
             }
         }
-        if (@("TX", "FWD").Contains($Mode)) {
+        if ((@("TX", "FWD").Contains($Mode) -and -not $RxInject) -or
+            ($Mode -eq "RX" -and $TxInspect)) {
             $TxPacingRate = 0xFFFFFFFFl
             if ($Pacing) {
                 $TxPacingRate = 1000
@@ -230,22 +252,45 @@ try {
         $WsaRioIoSize = 32 * $UdpSize
         $WsaRioCpu = $XdpCpu + 5
         $ArgList =
-            "Winsock Send -Bind 192.168.1.12:1234 -Target 192.168.1.11:1234 -Group $XskGroup " +
+            "Winsock Send -Bind 192.168.100.2:1234 -Target 192.168.100.1:1234 -Group $XskGroup " +
             "-CPU $WsaRioCpu -IoSize $WsaRioIoSize -Uso $UdpSize -IoCount -1"
+        Write-Verbose "wsario.exe $ArgList"
+        $WsaRio = Start-Process .\test\tools\wsario.exe -PassThru -ArgumentList $ArgList
+    }
+    #
+    # If using TxInspect, generate TX load.
+    #
+    if ($TxInspect) {
+        if ($XdpMode -ne "Generic" -or $Mode -ne "RX") {
+            Write-Error "TxInspect only supported in RX-Generic mode"
+        }
+
+        $WsaRioCpu = $XdpCpu + 5
+        $ArgList =
+            "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup -CPU $WsaRioCpu " +
+            "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
         Write-Verbose "wsario.exe $ArgList"
         $WsaRio = Start-Process .\test\tools\wsario.exe -PassThru -ArgumentList $ArgList
     }
 
     if ($Wait) {
-        $ThreadParams += "-w"
+        $ThreadParams += " -w"
     }
 
     if ($Stats) {
-        $QueueParams += "-s"
+        $QueueParams += " -s"
     }
 
     if ($LargePages) {
-        $GlobalParams += "-lp"
+        $GlobalParams += " -lp"
+    }
+
+    if ($RxInject) {
+        $QueueParams += " -rx_inject"
+    }
+
+    if ($TxInspect) {
+        $QueueParams += " -tx_inspect"
     }
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
@@ -320,6 +365,6 @@ try {
     if ($Adapter.InterfaceDescription -like "XDPMP*") {
         Write-Verbose "Stopping XDPMP pacing"
         .\test\xdpmp\xdpmppace.ps1 -AdapterName $AdapterName `
-            -RxFramesPerInterval 1 -TxFramesPerInterval 1
+            -RxFramesPerInterval 1 -TxFramesPerInterval 0xFFFFFFFFl
     }
 }

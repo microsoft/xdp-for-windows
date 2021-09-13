@@ -45,10 +45,7 @@ NdisRequestPollAtDpc(
     NotifyRoutine = ReadPointerNoFence((PVOID *)&Q->Notify);
 #pragma warning(pop)
     if (NotifyRoutine != NULL) {
-#pragma warning(push)
-#pragma warning(disable:28121) // Dispatch calling into a Passive function? Bad annotation? Ignore for now.
         NotifyRoutine(Q);
-#pragma warning(pop)
     }
 }
 
@@ -337,6 +334,8 @@ FNdisRegisterPoll(
     *PollHandle = (NDIS_POLL_HANDLE)Q;
     Status = STATUS_SUCCESS;
 
+    // Start the polling state machine on behalf of the caller.
+    FNdisRequestPoll(*PollHandle, NULL);
 Exit:
 
     return Status;

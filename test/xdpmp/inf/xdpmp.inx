@@ -153,6 +153,14 @@
  HKR, Ndi\Params\RxBatchInspection\Enum,"0",               0, %DISABLED_STR%
  HKR, Ndi\Params\RxBatchInspection\Enum,"1",               0, %ENABLED_STR%
 
+; PollProvider
+ HKR, Ndi\Params\PollProvider,          ParamDesc,         0, "PollProvider"
+ HKR, Ndi\Params\PollProvider,          default,           0, "0"
+ HKR, Ndi\Params\PollProvider,          type,              0, "enum"
+ HKR, Ndi\Params\PollProvider\Enum,     "0",               0, %POLL_PROVIDER_NDIS%
+ HKR, Ndi\Params\PollProvider\Enum,     "1",               0, %POLL_PROVIDER_FNDIS%
+
+
 [SourceDisksNames]
  ; diskid = description[, [tagfile] [, <unused>, subdir]]
  1 = %xdpmp.DeviceDesc%,,,
@@ -190,3 +198,5 @@ xdpmp.DeviceDesc         = "XDPMP"
 xdpmp.Service.DispName   = "XDP Test Miniport Adapter Driver"
 ENABLED_STR              = "Enabled"
 DISABLED_STR             = "Disabled"
+POLL_PROVIDER_NDIS       = "NDIS"
+POLL_PROVIDER_FNDIS      = "FNDIS"

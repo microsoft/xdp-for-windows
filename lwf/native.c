@@ -40,7 +40,7 @@ XdpNativeCreateBinding(
 {
     NTSTATUS Status;
     XDP_REGISTER_IF XdpInterface = {0};
-    XDP_CAPABILITIES *Capabilities = NULL;
+    XDP_CAPABILITIES_EX *CapabilitiesEx = NULL;
     ULONG BytesReturned = 0;
 
     Native->NdisFilterHandle = NdisFilterHandle;
@@ -69,32 +69,32 @@ XdpNativeCreateBinding(
         goto Exit;
     }
 
-    Capabilities = ExAllocatePoolZero(NonPagedPoolNx, BytesReturned, POOLTAG_NATIVE);
-    if (Capabilities == NULL) {
+    CapabilitiesEx = ExAllocatePoolZero(NonPagedPoolNx, BytesReturned, POOLTAG_NATIVE);
+    if (CapabilitiesEx == NULL) {
         Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
-
-    Status =
-        XdpLwfOidInternalRequest(
-            Native->NdisFilterHandle, NdisRequestQueryInformation,
-            OID_XDP_QUERY_CAPABILITIES, Capabilities,
-            BytesReturned, 0, 0, &BytesReturned);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
-    if (BytesReturned < RTL_SIZEOF_THROUGH_FIELD(XDP_CAPABILITIES, Size) ||
-        BytesReturned != Capabilities->Size) {
-        Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
     Native->Capabilities.Mode = XDP_INTERFACE_MODE_NATIVE;
     Native->Capabilities.Hooks = NativeHooks;
     Native->Capabilities.HookCount = RTL_NUMBER_OF(NativeHooks);
-    Native->Capabilities.Capabilities = Capabilities;
-    Capabilities = NULL;
+    Native->Capabilities.CapabilitiesEx = CapabilitiesEx;
+
+    Status =
+        XdpLwfOidInternalRequest(
+            Native->NdisFilterHandle, NdisRequestQueryInformation,
+            OID_XDP_QUERY_CAPABILITIES, CapabilitiesEx,
+            BytesReturned, 0, 0, &BytesReturned);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    if (BytesReturned < RTL_SIZEOF_THROUGH_FIELD(XDP_CAPABILITIES_EX, Header)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    Native->Capabilities.CapabilitiesSize = BytesReturned;
 
     XdpInterface.InterfaceCapabilities = &Native->Capabilities;
     XdpInterface.DeleteBindingComplete = XdpNativeDeleteBindingComplete;
@@ -132,8 +132,9 @@ XdpNativeDeleteBinding(
         Native->BindingHandle = NULL;
     }
 
-    if (Native->Capabilities.Capabilities != NULL) {
-        ExFreePoolWithTag((VOID *)Native->Capabilities.Capabilities, POOLTAG_NATIVE);
-        Native->Capabilities.Capabilities = NULL;
+    if (Native->Capabilities.CapabilitiesEx != NULL) {
+        ExFreePoolWithTag((VOID *)Native->Capabilities.CapabilitiesEx, POOLTAG_NATIVE);
+        Native->Capabilities.CapabilitiesEx = NULL;
+        Native->Capabilities.CapabilitiesSize = 0;
     }
 }

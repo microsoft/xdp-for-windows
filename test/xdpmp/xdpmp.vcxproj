@@ -5,11 +5,13 @@
     <ClCompile Include="hwring.c" />
     <ClCompile Include="miniport.c" />
     <ClCompile Include="pace.c" />
+    <ClCompile Include="poll.c" />
     <ClCompile Include="rss.c" />
     <ClCompile Include="rx.c" />
     <ClCompile Include="tx.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="poll.h" />
     <ClInclude Include="precomp.h" />
   </ItemGroup>
   <ItemGroup>

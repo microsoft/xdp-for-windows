@@ -33,6 +33,7 @@
 #define DEFAULT_CPU_AFFINITY 0
 #define DEFAULT_UDP_DEST_PORT 0
 #define DEFAULT_DURATION ULONG_MAX
+#define DEFAULT_TX_IO_SIZE 64
 
 CHAR *HELP =
 "xskbench.exe <rx|tx|fwd> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -63,7 +64,7 @@ CHAR *HELP =
 "   -h <headroom>      The size (in bytes) of UMEM chunk headroom\n"
 "                      Default: " STR_OF(DEFAULT_UMEM_HEADROOM) "\n"
 "   -txio <txiosize>   The size (in bytes) of each IO in tx mode\n"
-"                      Default: <umemchunksize> - <headroom>\n"
+"                      Default: " STR_OF(DEFAULT_TX_IO_SIZE) "\n"
 "   -b <iobatchsize>   The number of buffers to submit for IO at once\n"
 "                      Default: " STR_OF(DEFAULT_IO_BATCH) "\n"
 "   -ignore_needpoke   Ignore the NEED_POKE optimization mechanism\n"
@@ -109,8 +110,8 @@ CHAR *HELP =
 #define printf_error(...) \
     fprintf(stderr, __VA_ARGS__)
 
-#define printf_verbose(...) \
-    if (verbose) { printf(__VA_ARGS__); }
+#define printf_verbose(format, ...) \
+    if (verbose) { LARGE_INTEGER Qpc; QueryPerformanceCounter(&Qpc); printf("Qpc=%llu " format, Qpc.QuadPart, __VA_ARGS__); }
 
 #define ABORT(...) \
     printf_error(__VA_ARGS__); exit(1)
@@ -164,6 +165,7 @@ typedef struct {
     ULONGLONG lastTick;
     ULONGLONG packetCount;
     ULONGLONG lastPacketCount;
+    ULONGLONG lastRxDropCount;
     ULONGLONG pokesRequestedCount;
     ULONGLONG lastPokesRequestedCount;
     ULONGLONG pokesPerformedCount;
@@ -179,6 +181,7 @@ typedef struct {
 
 typedef struct {
     HANDLE threadHandle;
+    HANDLE readyEvent;
     LONG nodeAffinity;
     LONG group;
     LONG idealCpu;
@@ -555,6 +558,8 @@ ProcessPeriodicStats(
         ULONGLONG pokesRequestedDiff;
         ULONGLONG pokesPerformedDiff;
         ULONGLONG pokesAvoidedPercentage;
+        ULONGLONG rxDropDiff;
+        double rxDropKpps;
 
         if (pokesPerformed > pokesRequested) {
             //
@@ -581,10 +586,13 @@ ProcessPeriodicStats(
         ASSERT_FRE(res == S_OK);
         ASSERT_FRE(optSize == sizeof(stats));
 
-        printf("%s[%d]: %.3f kpps rxDropped:%llu rxTruncated:%llu "
-            "rxInvalidDescriptors:%llu txInvalidDescriptors:%llu "
-            "pokesAvoided:%d%%\n",
-            modestr, Queue->queueId, kpps, stats.rxDropped, stats.rxTruncated,
+        rxDropDiff = stats.rxDropped - Queue->lastRxDropCount;
+        rxDropKpps = rxDropDiff ? (double)rxDropDiff / tickDiff : 0;
+        Queue->lastRxDropCount = stats.rxDropped;
+
+        printf("%s[%d]: %9.3f kpps %9.3f rxDropKpps rxDrop:%llu rxTrunc:%llu "
+            "rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%d%%\n",
+            modestr, Queue->queueId, kpps, rxDropKpps, stats.rxDropped, stats.rxTruncated,
             stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
             pokesAvoidedPercentage);
 
@@ -802,6 +810,7 @@ DoRxMode(
     }
 
     printf("Receiving...\n");
+    SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -916,6 +925,7 @@ DoTxMode(
     }
 
     printf("Sending...\n");
+    SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -1054,6 +1064,7 @@ DoFwdMode(
     }
 
     printf("Forwarding...\n");
+    SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -1086,6 +1097,7 @@ ParseQueueArgs(
     Queue->iobatchsize = DEFAULT_IO_BATCH;
     Queue->pollMode = XSK_POLL_MODE_DEFAULT;
     Queue->flags.optimizePoking = TRUE;
+    Queue->txiosize = DEFAULT_TX_IO_SIZE;
 
     for (INT i = 0; i < argc; i++) {
         if (!_stricmp(argv[i], "-id")) {
@@ -1169,10 +1181,6 @@ ParseQueueArgs(
 
     if (Queue->queueId == -1) {
         Usage();
-    }
-
-    if (Queue->txiosize == 0) {
-        Queue->txiosize = Queue->umemchunksize - Queue->umemheadroom;
     }
 
     if (Queue->ringsize == 0) {
@@ -1445,9 +1453,12 @@ main(
     ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
 
     for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+        threads[tIndex].readyEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+        ASSERT_FRE(threads[tIndex].readyEvent != NULL);
         threads[tIndex].threadHandle =
             CreateThread(NULL, 0, DoThread, &threads[tIndex], 0, NULL);
         ASSERT_FRE(threads[tIndex].threadHandle != NULL);
+        WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
     }
 
     while (duration-- > 0) {

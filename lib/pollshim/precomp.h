@@ -9,6 +9,7 @@
 #include <ntstatus.h>
 #include <ntintsafe.h>
 #include <ntddk.h>
-#include <fndisioctl.h>
+#include <xdppollbackchannel.h>
+#include <fndisnpi.h>
 
 #include <xdppollshim.h>

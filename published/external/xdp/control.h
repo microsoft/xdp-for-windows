@@ -3,7 +3,7 @@
 //
 
 //
-// This file contains declarations for the XDP network interface control path.
+// This file contains declarations for the XDP Driver API control path.
 //
 
 #pragma once
@@ -11,6 +11,7 @@
 #include <xdp/datapath.h>
 #include <xdp/guid.h>
 #include <xdp/interfaceconfig.h>
+#include <xdp/rtl.h>
 #include <xdp/rxqueueconfig.h>
 #include <xdp/txqueueconfig.h>
 
@@ -20,28 +21,58 @@ EXTERN_C_START
 #pragma warning(disable:4214) // nonstandard extension used: bit field types other than int
 
 //
+// Forward declaration of XDP interface dispatch table.
+//
+typedef struct _XDP_INTERFACE_DISPATCH XDP_INTERFACE_DISPATCH;
+
+DECLARE_HANDLE(XDP_REGISTRATION_HANDLE);
+
+//
 // Each XDP-capable interface advertises its minimum XDP contract version. XDP
 // interfaces can enable additional features at runtime by testing the current
 // XDP platform's level of support.
 //
-#define XDP_API_VERSION_1 (1 << 16 | 0)
 
-//
-// The XDP interface driver capabilities.
-//
-typedef struct _XDP_CAPABILITIES {
-    UINT32 Size;
-
-    //
-    // The interface's XDP minimum contract version.
-    //
-    UINT32 ApiVersion;
+typedef
+_When_(DriverApiVersionCount == 0, _Struct_size_bytes_(Header.Size))
+_When_(DriverApiVersionCount > 0, _Struct_size_bytes_(DriverApiVersionsOffset + DriverApiVersionCount * sizeof(XDP_VERSION)))
+struct _XDP_CAPABILITIES_EX {
+    XDP_OBJECT_HEADER Header;
 
     //
-    // The unique ID for the interface. This instance ID should be assigned by
-    // the XDP helper on behalf of the interface.
+    // The interface may support one or more major versions of the XDP driver API.
+    // The versions are represented as an array of XDP_VERSION entries.
+    //
+    // The array of minimum API versions which are supported starts at offset
+    // DriverApiVersionsOffset and contains DriverApiVersionCount number
+    // of XDP_VERSION entries.
+    //
+    // For each version entry of the form "Major.Minor.Patch" present in the array,
+    // the interface supports any API version higher or equal to "Major.Minor.Patch"
+    // but lower than "(Major + 1).0.0".
+    //
+    UINT32 DriverApiVersionsOffset;
+    UINT32 DriverApiVersionCount;
+
+    //
+    // The driver API version published by the development kit.
+    //
+    XDP_VERSION DdkDriverApiVersion;
+
+    //
+    // The unique ID for the interface.
     //
     GUID InstanceId;
+} XDP_CAPABILITIES_EX;
+
+#define XDP_CAPABILITIES_EX_REVISION_1 1
+
+#define XDP_SIZEOF_CAPABILITIES_EX_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_CAPABILITIES_EX, InstanceId)
+
+typedef struct _XDP_CAPABILITIES {
+    XDP_CAPABILITIES_EX CapabilitiesEx;
+    XDP_VERSION DriverApiVersion;
 } XDP_CAPABILITIES;
 
 //
@@ -51,22 +82,37 @@ inline
 NTSTATUS
 XdpInitializeCapabilities(
     _Out_ XDP_CAPABILITIES *Capabilities,
-    _In_ UINT32 ApiVersion
+    _In_ CONST XDP_VERSION *DriverApiVersion
     )
 {
-    RtlZeroMemory(Capabilities, sizeof(*Capabilities));
-    Capabilities->Size = sizeof(*Capabilities);
-    Capabilities->ApiVersion = ApiVersion;
+    CONST XDP_VERSION DdkDriverApiVersion = {
+        XDP_DRIVER_API_MAJOR_VER,
+        XDP_DRIVER_API_MINOR_VER,
+        XDP_DRIVER_API_PATCH_VER
+    };
 
-    return XdpGuidCreate(&Capabilities->InstanceId);
+    RtlZeroMemory(Capabilities, sizeof(*Capabilities));
+    Capabilities->CapabilitiesEx.Header.Revision = XDP_CAPABILITIES_EX_REVISION_1;
+    Capabilities->CapabilitiesEx.Header.Size = XDP_SIZEOF_CAPABILITIES_EX_REVISION_1;
+
+    Capabilities->CapabilitiesEx.DriverApiVersionsOffset =
+        FIELD_OFFSET(XDP_CAPABILITIES, DriverApiVersion);
+    Capabilities->CapabilitiesEx.DriverApiVersionCount = 1;
+
+    Capabilities->DriverApiVersion = *DriverApiVersion;
+    Capabilities->CapabilitiesEx.DdkDriverApiVersion = DdkDriverApiVersion;
+
+    return XdpGuidCreate(&Capabilities->CapabilitiesEx.InstanceId);
 }
 
-//
-// Forward declaration of XDP interface dispatch table.
-//
-typedef struct _XDP_INTERFACE_DISPATCH XDP_INTERFACE_DISPATCH;
-
-DECLARE_HANDLE(XDP_REGISTRATION_HANDLE);
+NTSTATUS
+XdpRegisterInterfaceEx(
+    _In_ UINT32 InterfaceIndex,
+    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ VOID *InterfaceContext,
+    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
+    _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
+    );
 
 //
 // Each XDP-capable interface must register with the XDP platform. The interface
@@ -96,6 +142,7 @@ DECLARE_HANDLE(XDP_REGISTRATION_HANDLE);
 //          Upon success, returns a registration handle. This handle is used to
 //          deregister the interface.
 //
+inline
 NTSTATUS
 XdpRegisterInterface(
     _In_ UINT32 InterfaceIndex,
@@ -103,7 +150,13 @@ XdpRegisterInterface(
     _In_ VOID *InterfaceContext,
     _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
     _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
-    );
+    )
+{
+    return
+        XdpRegisterInterfaceEx(
+            InterfaceIndex, &Capabilities->CapabilitiesEx, InterfaceContext,
+            InterfaceDispatch, RegistrationHandle);
+}
 
 //
 // Each XDP interface must deregister from the XDP platform prior to
@@ -385,7 +438,7 @@ XDP_DELETE_TX_QUEUE(
 // during XDP interface registration.
 //
 typedef struct _XDP_INTERFACE_DISPATCH {
-    UINT32 Size;
+    XDP_OBJECT_HEADER       Header;
     XDP_OPEN_INTERFACE      *OpenInterface;
     XDP_CLOSE_INTERFACE     *CloseInterface;
     XDP_CREATE_RX_QUEUE     *CreateRxQueue;
@@ -395,6 +448,11 @@ typedef struct _XDP_INTERFACE_DISPATCH {
     XDP_ACTIVATE_TX_QUEUE   *ActivateTxQueue;
     XDP_DELETE_TX_QUEUE     *DeleteTxQueue;
 } XDP_INTERFACE_DISPATCH;
+
+#define XDP_INTERFACE_DISPATCH_REVISION_1 1
+
+#define XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_INTERFACE_DISPATCH, DeleteTxQueue)
 
 #pragma warning(pop)
 

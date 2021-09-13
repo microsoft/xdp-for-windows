@@ -4,6 +4,8 @@
 
 #pragma once
 
+#define XDP_POLL_BACKCHANNEL
+
 #include <ndis/types.h>
 
 typedef struct _NDIS_POLL_BACKCHANNEL NDIS_POLL_BACKCHANNEL;

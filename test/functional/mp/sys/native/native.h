@@ -5,7 +5,7 @@
 #pragma once
 
 typedef struct _ADAPTER_NATIVE {
-    XDP_CAPABILITIES XdpCapabilities;
+    XDP_CAPABILITIES Capabilities;
     ADAPTER_CONTEXT *Adapter;
 } ADAPTER_NATIVE;
 

@@ -4,8 +4,61 @@
 
 #include "precomp.h"
 
+typedef struct _FNDIS_EXPORT_ENTRY {
+    UNICODE_STRING Name;
+    PVOID Function;
+} FNDIS_EXPORT_ENTRY;
+
+#pragma warning(push)
+#pragma warning(disable:4152) // nonstandard extension, function/data pointer conversion
+
+static const FNDIS_EXPORT_ENTRY FndisExports[] = {
+    { RTL_CONSTANT_STRING(L"NdisRegisterPoll"), FNdisRegisterPoll },
+    { RTL_CONSTANT_STRING(L"NdisDeregisterPoll"), FNdisDeregisterPoll },
+    { RTL_CONSTANT_STRING(L"NdisSetPollAffinity"), FNdisSetPollAffinity },
+    { RTL_CONSTANT_STRING(L"NdisRequestPoll"), FNdisRequestPoll },
+    { RTL_CONSTANT_STRING(L"NdisGetRoutineAddress"), FNdisGetRoutineAddress },
+};
+
+#pragma warning(pop)
+
 PDEVICE_OBJECT FndisDeviceObject;
 
+_IRQL_requires_(PASSIVE_LEVEL)
+PVOID
+FNdisGetRoutineAddress(
+    _In_ PUNICODE_STRING RoutineName
+    )
+{
+    for (SIZE_T Index = 0; Index < RTL_NUMBER_OF(FndisExports); Index++) {
+        if (RtlEqualUnicodeString(RoutineName, &FndisExports[Index].Name, FALSE)) {
+            return FndisExports[Index].Function;
+        }
+    }
+
+    return NULL;
+}
+
+static
+__declspec(code_seg("PAGE"))
+_Dispatch_type_(IRP_MJ_CREATE)
+NTSTATUS
+IrpIoCreate(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ PIRP Irp
+    )
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    PAGED_CODE();
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return STATUS_SUCCESS;
+}
+
+static
 _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
@@ -46,6 +99,32 @@ IrpIoDeviceControl(
         break;
     }
 
+    case IOCTL_FNDIS_POLL_GET_ROUTINE_ADDRESS:
+    {
+        CONST FNDIS_POLL_GET_ROUTINE_ADDRESS_IN *In;
+        FNDIS_POLL_GET_ROUTINE_ADDRESS_OUT *Out;
+
+        if (Irp->RequestorMode != KernelMode) {
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In) ||
+            IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*Out)) {
+            Status = STATUS_BUFFER_TOO_SMALL;
+            break;
+        }
+
+        In = Irp->AssociatedIrp.SystemBuffer;
+        Out = Irp->AssociatedIrp.SystemBuffer;
+
+        Out->Routine = FNdisGetRoutineAddress(In->RoutineName);
+
+        Irp->IoStatus.Information = sizeof(*Out);
+        Status = STATUS_SUCCESS;
+        break;
+    }
+
     default:
         Status = STATUS_INVALID_DEVICE_REQUEST;
         break;
@@ -59,6 +138,7 @@ IrpIoDeviceControl(
     return Status;
 }
 
+static
 VOID
 DriverUnload(
     _In_ PDRIVER_OBJECT DriverObject
@@ -104,6 +184,7 @@ DriverEntry(
         goto Exit;
     }
 
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = IrpIoCreate;
 #pragma warning(push)
 #pragma warning(disable:28168) // The function 'IrpIoDeviceControl' does not have a _Dispatch_type_ annotation matching dispatch table position 'IRP_MJ_DEVICE_CONTROL' (0x0e).
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = IrpIoDeviceControl;

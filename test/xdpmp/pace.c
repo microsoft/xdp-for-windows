@@ -15,7 +15,7 @@ MpPaceInterrupt(
     )
 {
     if (InterlockedExchange8((CHAR *)&RssQueue->Pacing.HwArmed, FALSE)) {
-        NdisRequestPoll(RssQueue->NdisPollHandle, 0);
+        RssQueue->Adapter->PollDispatch.RequestPoll(RssQueue->NdisPollHandle, 0);
     }
 }
 
@@ -233,7 +233,7 @@ MpCleanupPace(
     //
     KeInitializeEvent(&CleanupEvent, NotificationEvent, FALSE);
     RssQueue->Pacing.CleanupEvent = &CleanupEvent;
-    NdisRequestPoll(RssQueue->NdisPollHandle, 0);
+    RssQueue->Adapter->PollDispatch.RequestPoll(RssQueue->NdisPollHandle, 0);
     KeWaitForSingleObject(&CleanupEvent, Executive, KernelMode, FALSE, NULL);
     ASSERT(RssQueue->Pacing.CleanupEvent == NULL);
     ASSERT(RssQueue->Pacing.TimerHandle == NULL);

@@ -13,9 +13,14 @@ XDP_RX_QUEUE_CREATE_GET_HOOK_ID(
     );
 
 typedef struct _XDP_RX_QUEUE_CONFIG_RESERVED {
-    UINT32 Size;
-    XDP_RX_QUEUE_CREATE_GET_HOOK_ID         *GetHookId;
+    XDP_OBJECT_HEADER               Header;
+    XDP_RX_QUEUE_CREATE_GET_HOOK_ID *GetHookId;
 } XDP_RX_QUEUE_CONFIG_RESERVED;
+
+#define XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1 1
+
+#define XDP_SIZEOF_RX_QUEUE_CONFIG_RESERVED_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_RX_QUEUE_CONFIG_RESERVED, GetHookId)
 
 inline
 CONST XDP_HOOK_ID *
@@ -27,7 +32,8 @@ XdpRxQueueGetHookId(
     CONST XDP_RX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
-        !RTL_CONTAINS_FIELD(Reserved, Reserved->Size, GetHookId) ||
+        Reserved->Header.Revision < XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
+        Reserved->Header.Size < XDP_SIZEOF_RX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
         Reserved->GetHookId == NULL) {
         return NULL;
     }

@@ -6,11 +6,15 @@
 
 EXTERN_C_START
 
+#include <xdp/apiversion.h>
+#include <xdp/driverapi.h>
+
 DECLARE_HANDLE(XDP_INTERFACE_CONFIG);
 
-//
-// There are currently no supported interface configuration options.
-//
+CONST XDP_VERSION *
+XdpGetDriverApiVersion(
+    _In_ XDP_INTERFACE_CONFIG InterfaceConfig
+    );
 
 #include <xdp/details/interfaceconfig.h>
 

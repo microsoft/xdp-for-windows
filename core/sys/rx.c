@@ -443,7 +443,8 @@ XdpRxQueueSetCapabilities(
     //
     // TODO: Some capabilities are not implemented.
     //
-    FRE_ASSERT(Capabilities->Size == sizeof(*Capabilities));
+    FRE_ASSERT(Capabilities->Header.Revision >= XDP_RX_CAPABILITIES_REVISION_1);
+    FRE_ASSERT(Capabilities->Header.Size >= XDP_SIZEOF_RX_CAPABILITIES_REVISION_1);
 
     RxQueue->InterfaceRxCapabilities = *Capabilities;
 
@@ -469,6 +470,9 @@ XdpRxQueueRegisterExtensionVersion(
     _In_ XDP_EXTENSION_INFO *ExtensionInfo
     )
 {
+    FRE_ASSERT(ExtensionInfo->Header.Revision >= XDP_EXTENSION_INFO_REVISION_1);
+    FRE_ASSERT(ExtensionInfo->Header.Size >= XDP_SIZEOF_EXTENSION_INFO_REVISION_1);
+
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigCreate(RxQueueConfig);
     XDP_EXTENSION_SET *Set = XdpRxQueueGetExtensionSet(RxQueue, ExtensionInfo->ExtensionType);
 
@@ -487,6 +491,9 @@ XdpRxQueueSetDescriptorContexts(
     )
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigCreate(RxQueueConfig);
+
+    FRE_ASSERT(Descriptors->Header.Revision >= XDP_RX_DESCRIPTOR_CONTEXTS_REVISION_1);
+    FRE_ASSERT(Descriptors->Header.Size >= XDP_SIZEOF_RX_DESCRIPTOR_CONTEXTS_REVISION_1);
 
     FRE_ASSERT((Descriptors->FrameContextSize == 0) == (Descriptors->FrameContextAlignment == 0));
     FRE_ASSERT((Descriptors->BufferContextSize == 0) == (Descriptors->BufferContextAlignment == 0));
@@ -514,6 +521,9 @@ XdpRxQueueSetPollInfo(
     _In_ XDP_POLL_INFO *PollInfo
     )
 {
+    FRE_ASSERT(PollInfo->Header.Revision >= XDP_POLL_INFO_REVISION_1);
+    FRE_ASSERT(PollInfo->Header.Size >= XDP_SIZEOF_POLL_INFO_REVISION_1);
+
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigCreate(RxQueueConfig);
 
     RxQueue->InterfaceRxPollHandle = PollInfo->PollHandle;
@@ -556,6 +566,9 @@ XdpRxQueueGetExtension(
     _Out_ XDP_EXTENSION *Extension
     )
 {
+    FRE_ASSERT(ExtensionInfo->Header.Revision >= XDP_EXTENSION_INFO_REVISION_1);
+    FRE_ASSERT(ExtensionInfo->Header.Size >= XDP_SIZEOF_EXTENSION_INFO_REVISION_1);
+
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
     XDP_EXTENSION_SET *Set = XdpRxQueueGetExtensionSet(RxQueue, ExtensionInfo->ExtensionType);
 
@@ -609,12 +622,18 @@ XdppRxQueueGetHookId(
 }
 
 static CONST XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
-    .Size                           = sizeof(XdpRxConfigReservedDispatch),
+    .Header                         = {
+        .Revision                   = XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
+        .Size                       = XDP_SIZEOF_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
+    },
     .GetHookId                      = XdppRxQueueGetHookId,
 };
 
 static CONST XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
-    .Size                       = sizeof(XdpRxConfigCreateDispatch),
+    .Header                     = {
+        .Revision               = XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1,
+        .Size                   = XDP_SIZEOF_RX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1
+    },
     .Reserved                   = &XdpRxConfigReservedDispatch,
     .GetTargetQueueInfo         = XdpRxQueueGetTargetQueueInfo,
     .SetRxQueueCapabilities     = XdpRxQueueSetCapabilities,
@@ -624,7 +643,10 @@ static CONST XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
 };
 
 static CONST XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch = {
-    .Size                       = sizeof(XdpRxConfigCreateDispatch),
+    .Header                     = {
+        .Revision               = XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1,
+        .Size                   = XDP_SIZEOF_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1
+    },
     .GetFrameRing               = XdpRxQueueGetFrameRing,
     .GetFragmentRing            = XdpRxQueueGetFragmentRing,
     .GetExtension               = XdpRxQueueGetExtension,
@@ -743,6 +765,12 @@ XdpRxQueueAttachInterface(
         goto Exit;
     }
 
+    //
+    // Ensure the interface driver has registered its capabilities.
+    //
+    FRE_ASSERT(RxQueue->InterfaceRxCapabilities.Header.Revision >= XDP_RX_CAPABILITIES_REVISION_1);
+    FRE_ASSERT(RxQueue->InterfaceRxCapabilities.Header.Size >= XDP_SIZEOF_RX_CAPABILITIES_REVISION_1);
+
     Status =
         XdpExtensionSetAssignLayout(
             RxQueue->BufferExtensionSet, sizeof(XDP_BUFFER), __alignof(XDP_BUFFER),
@@ -851,8 +879,7 @@ XdpRxQueueDetachEvent(
 
 static
 CONST
-XDP_BINDING_CLIENT RxQueueBindingClient =
-{
+XDP_BINDING_CLIENT RxQueueBindingClient = {
     .ClientId           = XDP_BINDING_CLIENT_ID_RX_QUEUE,
     .KeySize            = sizeof(XDP_RX_QUEUE_KEY),
     .BindingDetached    = XdpRxQueueDetachEvent,
@@ -918,9 +945,7 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
-    RxQueue->QueueInfo.Size = sizeof(RxQueue->QueueInfo.Size);
-    RxQueue->QueueInfo.QueueType = XDP_QUEUE_TYPE_DEFAULT_RSS;
-    RxQueue->QueueInfo.QueueId = QueueId;
+    XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
 
     Status =

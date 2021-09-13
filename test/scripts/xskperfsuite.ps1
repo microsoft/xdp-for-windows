@@ -39,6 +39,18 @@ param (
     [switch]$XdpReceiveBatch = $false,
 
     [Parameter(Mandatory=$false)]
+    [switch]$RxInject = $false,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$TxInspect = $false,
+
+    [Parameter(Mandatory=$false)]
+    [int]$TxInspectContentionCount = 1,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$Fndis = $false,
+
+    [Parameter(Mandatory=$false)]
     [string]$RawResultsFile = "",
 
     [Parameter(Mandatory=$false)]
@@ -105,8 +117,17 @@ foreach ($AdapterName in $AdapterNames) {
                     $Wait = $WaitMode -eq "WAIT"
                     $Options = ""
 
+                    if ($RxInject) {
+                        $Options += "-RXINJECT"
+                    }
+                    if ($TxInspect) {
+                        $Options += "-TXINSPECT"
+                    }
                     if ($XdpReceiveBatch) {
                         $Options += "-RXBATCH"
+                    }
+                    if ($Fndis) {
+                        $Options += "-FNDIS"
                     }
 
                     $ScenarioName = `
@@ -132,7 +153,9 @@ foreach ($AdapterName in $AdapterNames) {
                                 -IoSize $IoBufferPair.IoSize -BatchSize $XskBatchSize `
                                 -Wait:$Wait -Duration $Duration -OutFile $TmpFile `
                                 -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
-                                -XdpReceiveBatch:$XdpReceiveBatch
+                                -XdpReceiveBatch:$XdpReceiveBatch -RxInject:$RxInject `
+                                -TxInspect:$TxInspect -TxInspectContentionCount $TxInspectContentionCount `
+                                -Fndis:$Fndis
 
                             $kppsList += ExtractKppsStat $TmpFile
                         }

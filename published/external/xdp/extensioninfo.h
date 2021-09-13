@@ -35,7 +35,7 @@ typedef enum _XDP_EXTENSION_TYPE {
 // object defined in xdp/extension.h.
 //
 typedef struct _XDP_EXTENSION_INFO {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // The extension name. Only XDP-defined extensions are currently supported.
@@ -53,6 +53,11 @@ typedef struct _XDP_EXTENSION_INFO {
     XDP_EXTENSION_TYPE ExtensionType;
 } XDP_EXTENSION_INFO;
 
+#define XDP_EXTENSION_INFO_REVISION_1 1
+
+#define XDP_SIZEOF_EXTENSION_INFO_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_EXTENSION_INFO, ExtensionType)
+
 //
 // Initializes an XDP extension information struct with the given parameters.
 //
@@ -66,7 +71,8 @@ XdpInitializeExtensionInfo(
     )
 {
     RtlZeroMemory(ExtensionInfo, sizeof(*ExtensionInfo));
-    ExtensionInfo->Size = sizeof(*ExtensionInfo);
+    ExtensionInfo->Header.Revision = XDP_EXTENSION_INFO_REVISION_1;
+    ExtensionInfo->Header.Size = XDP_SIZEOF_EXTENSION_INFO_REVISION_1;
 
     ExtensionInfo->ExtensionName = ExtensionName;
     ExtensionInfo->ExtensionVersion = ExtensionVersion;

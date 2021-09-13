@@ -20,10 +20,15 @@ XDP_TX_QUEUE_CREATE_GET_NOTIFY_HANDLE(
     );
 
 typedef struct _XDP_TX_QUEUE_CONFIG_RESERVED {
-    UINT32 Size;
+    XDP_OBJECT_HEADER                       Header;
     XDP_TX_QUEUE_CREATE_GET_HOOK_ID         *GetHookId;
     XDP_TX_QUEUE_CREATE_GET_NOTIFY_HANDLE   *GetNotifyHandle;
 } XDP_TX_QUEUE_CONFIG_RESERVED;
+
+#define XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1 1
+
+#define XDP_SIZEOF_TX_QUEUE_CONFIG_RESERVED_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_TX_QUEUE_CONFIG_RESERVED, GetNotifyHandle)
 
 inline
 CONST XDP_HOOK_ID *
@@ -35,7 +40,8 @@ XdpTxQueueGetHookId(
     CONST XDP_TX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
-        !RTL_CONTAINS_FIELD(Reserved, Reserved->Size, GetHookId) ||
+        Reserved->Header.Revision < XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
+        Reserved->Header.Size < XDP_SIZEOF_TX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
         Reserved->GetHookId == NULL) {
         return NULL;
     }
@@ -53,7 +59,8 @@ XdpTxQueueGetNotifyHandle(
     CONST XDP_TX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
-        !RTL_CONTAINS_FIELD(Reserved, Reserved->Size, GetNotifyHandle) ||
+        Reserved->Header.Revision < XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
+        Reserved->Header.Size < XDP_SIZEOF_TX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
         Reserved->GetNotifyHandle == NULL) {
         return NULL;
     }
@@ -82,9 +89,14 @@ XDP_TX_QUEUE_NOTIFY(
 XDP_TX_QUEUE_NOTIFY XdpTxQueueNotify;
 
 typedef struct _XDP_TX_QUEUE_NOTIFY_DISPATCH {
-    UINT32 Size;
-    XDP_TX_QUEUE_NOTIFY                     *Notify;
+    XDP_OBJECT_HEADER   Header;
+    XDP_TX_QUEUE_NOTIFY *Notify;
 } XDP_TX_QUEUE_NOTIFY_DISPATCH;
+
+#define XDP_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1 1
+
+#define XDP_SIZEOF_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_TX_QUEUE_NOTIFY_DISPATCH, Notify)
 
 typedef struct _XDP_TX_QUEUE_NOTIFY_DETAILS {
     CONST XDP_TX_QUEUE_NOTIFY_DISPATCH *Dispatch;
@@ -104,7 +116,8 @@ XDPEXPORT(XdpTxQueueNotify)(
     CONST XDP_TX_QUEUE_NOTIFY_DISPATCH *Dispatch = Details->Dispatch;
 
     ASSERT(Dispatch != NULL);
-    ASSERT(RTL_CONTAINS_FIELD(Dispatch, Dispatch->Size, Notify));
+    ASSERT(Dispatch->Header.Revision >= XDP_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1);
+    ASSERT(Dispatch->Header.Size >= XDP_SIZEOF_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1);
 
     Dispatch->Notify(TxQueueNotifyHandle, NotifyCode, NotifyBuffer, NotifyBufferSize);
 }

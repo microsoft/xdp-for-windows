@@ -185,9 +185,29 @@ struct QUEUE_CONTEXT {
 };
 
 typedef struct {
+    ULONG initSuccess;
+    ULONG umemSuccess;
+    ULONG umemTotal;
+    ULONG rxSuccess;
+    ULONG rxTotal;
+    ULONG txSuccess;
+    ULONG txTotal;
+    ULONG bindSuccess;
+    ULONG bindTotal;
+    ULONG sharedRxSuccess;
+    ULONG sharedRxTotal;
+    ULONG sharedTxSuccess;
+    ULONG sharedTxTotal;
+    ULONG sharedBindSuccess;
+    ULONG sharedBindTotal;
+    ULONG setupSuccess;
+} SETUP_STATS;
+
+typedef struct {
     HANDLE threadHandle;
     UINT32 queueId;
     ULONGLONG watchdogPerfCount;
+    SETUP_STATS setupStats;
 } QUEUE_WORKER;
 
 INT ifindex = -1;
@@ -195,13 +215,14 @@ ULONG duration = DEFAULT_DURATION;
 BOOLEAN verbose = FALSE;
 BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
-BOOLEAN periodicStats = FALSE;
+BOOLEAN extraStats = FALSE;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
 QUEUE_WORKER *queueWorkers;
 UINT32 queueCount = DEFAULT_QUEUE_COUNT;
 UINT32 fuzzerCount = DEFAULT_FUZZER_COUNT;
 ULONGLONG perfFreq;
+XDP_BUGCHECK *XdpBugCheckHandler;
 CONST CHAR *powershellPrefix;
 
 ULONG
@@ -212,6 +233,15 @@ RandUlong(
     unsigned int r = 0;
     rand_s(&r);
     return r;
+}
+
+ULONG
+Pct(
+    ULONG Dividend,
+    ULONG Divisor
+    )
+{
+    return (Divisor == 0) ? 0 : Dividend * 100 / Divisor;
 }
 
 BOOLEAN
@@ -358,7 +388,9 @@ AttachXdpProgram(
 
     res = XdpCreateProgram(ifindex, &hookId, Queue->queueId, flags, &rule, 1, &handle);
     if (SUCCEEDED(res)) {
-        ASSERT_FRE(InterlockedExchangePointer(RxProgramHandle, handle) == NULL);
+        if (InterlockedCompareExchangePointer(RxProgramHandle, handle, NULL) != NULL) {
+            CloseHandle(handle);
+        }
     }
 
 Exit:
@@ -379,40 +411,38 @@ DetachXdpProgram(
 }
 
 VOID
-PrintStats(
+PrintDatapathStats(
     _In_ CONST XSK_DATAPATH_WORKER *Datapath
     )
 {
-    if (periodicStats) {
-        XSK_STATISTICS stats;
-        UINT32 optSize = sizeof(stats);
-        CHAR rxPacketCount[64] = { 0 };
-        CHAR txPacketCount[64] = { 0 };
-        HRESULT res =
-            XskGetSockopt(Datapath->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
-        if (FAILED(res)) {
-            return;
-        }
-
-        if (Datapath->flags.rx) {
-            sprintf_s(rxPacketCount, sizeof(rxPacketCount), "%llu", Datapath->rxPacketCount);
-        } else {
-            sprintf_s(rxPacketCount, sizeof(rxPacketCount), "n/a");
-        }
-
-        if (Datapath->flags.tx) {
-            sprintf_s(txPacketCount, sizeof(txPacketCount), "%llu", Datapath->txPacketCount);
-        } else {
-            sprintf_s(txPacketCount, sizeof(txPacketCount), "n/a");
-        }
-
-        printf("q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
-            "rxInvalidDesc:%llu txInvalidDesc:%llu xdpMode:%s\n",
-            Datapath->shared->queue->queueId, Datapath->threadHandle,
-            rxPacketCount, txPacketCount, stats.rxDropped, stats.rxTruncated,
-            stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
-            XdpModeToString[Datapath->shared->queue->xdpMode]);
+    XSK_STATISTICS stats;
+    UINT32 optSize = sizeof(stats);
+    CHAR rxPacketCount[64] = { 0 };
+    CHAR txPacketCount[64] = { 0 };
+    HRESULT res =
+        XskGetSockopt(Datapath->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
+    if (FAILED(res)) {
+        return;
     }
+
+    if (Datapath->flags.rx) {
+        sprintf_s(rxPacketCount, sizeof(rxPacketCount), "%llu", Datapath->rxPacketCount);
+    } else {
+        sprintf_s(rxPacketCount, sizeof(rxPacketCount), "n/a");
+    }
+
+    if (Datapath->flags.tx) {
+        sprintf_s(txPacketCount, sizeof(txPacketCount), "%llu", Datapath->txPacketCount);
+    } else {
+        sprintf_s(txPacketCount, sizeof(txPacketCount), "n/a");
+    }
+
+    printf("q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
+        "rxInvalidDesc:%llu txInvalidDesc:%llu xdpMode:%s\n",
+        Datapath->shared->queue->queueId, Datapath->threadHandle,
+        rxPacketCount, txPacketCount, stats.rxDropped, stats.rxTruncated,
+        stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
+        XdpModeToString[Datapath->shared->queue->xdpMode]);
 }
 
 HRESULT
@@ -461,6 +491,89 @@ FreeRingInitialize(
 }
 
 VOID
+UpdateSetupStats(
+    _In_ QUEUE_WORKER *QueueWorker,
+    _In_ QUEUE_CONTEXT *Queue
+    )
+{
+    //
+    // Every scenario requires at least one UMEM registered and one socket bound.
+    //
+    ++QueueWorker->setupStats.initSuccess;
+    ++QueueWorker->setupStats.umemTotal;
+    ++QueueWorker->setupStats.bindTotal;
+
+    if (Queue->scenarioConfig.isUmemRegistered) {
+        ++QueueWorker->setupStats.umemSuccess;
+    }
+    if (Queue->scenarioConfig.sockRx) {
+        ++QueueWorker->setupStats.rxTotal;
+        if (Queue->scenarioConfig.isSockRxSet) {
+            ++QueueWorker->setupStats.rxSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.sockTx) {
+        ++QueueWorker->setupStats.txTotal;
+        if (Queue->scenarioConfig.isSockTxSet) {
+            ++QueueWorker->setupStats.txSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.isSockBound) {
+        ++QueueWorker->setupStats.bindSuccess;
+    }
+    if (Queue->scenarioConfig.sharedUmemSockRx) {
+        ++QueueWorker->setupStats.sharedRxTotal;
+        if (Queue->scenarioConfig.isSharedUmemSockRxSet) {
+            ++QueueWorker->setupStats.sharedRxSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.sharedUmemSockTx) {
+        ++QueueWorker->setupStats.sharedTxTotal;
+        if (Queue->scenarioConfig.isSharedUmemSockTxSet) {
+            ++QueueWorker->setupStats.sharedTxSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.sharedUmemSockRx || Queue->scenarioConfig.sharedUmemSockTx) {
+        ++QueueWorker->setupStats.sharedBindTotal;
+        if (Queue->scenarioConfig.isSharedUmemSockBound) {
+            ++QueueWorker->setupStats.sharedBindSuccess;
+        }
+    }
+    if (ScenarioConfigComplete(&Queue->scenarioConfig)) {
+        ++QueueWorker->setupStats.setupSuccess;
+    }
+}
+
+VOID
+PrintSetupStats(
+    _In_ QUEUE_WORKER *QueueWorker,
+    _In_ ULONG NumIterations
+    )
+{
+    SETUP_STATS *setupStats = &QueueWorker->setupStats;
+
+    printf(
+        "\tbreakdown\n"
+        "\tinit:       (%lu / %lu) %lu%%\n"
+        "\tumem:       (%lu / %lu) %lu%%\n"
+        "\trx:         (%lu / %lu) %lu%%\n"
+        "\ttx:         (%lu / %lu) %lu%%\n"
+        "\tbind:       (%lu / %lu) %lu%%\n"
+        "\tsharedRx:   (%lu / %lu) %lu%%\n"
+        "\tsharedTx:   (%lu / %lu) %lu%%\n"
+        "\tsharedBind: (%lu / %lu) %lu%%\n",
+        setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
+        setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
+        setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
+        setupStats->txSuccess, setupStats->txTotal, Pct(setupStats->txSuccess, setupStats->txTotal),
+        setupStats->bindSuccess, setupStats->bindTotal, Pct(setupStats->bindSuccess, setupStats->bindTotal),
+        setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
+        setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
+        setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal));
+
+}
+
+VOID
 CleanupQueue(
     _In_ QUEUE_CONTEXT *Queue
     )
@@ -480,7 +593,7 @@ CleanupQueue(
     if (Queue->fuzzerShared.pauseEvent != NULL) {
         CloseHandle(Queue->fuzzerShared.pauseEvent);
     }
-    if (Queue->scenarioConfig.completeEvent) {
+    if (Queue->scenarioConfig.completeEvent != NULL) {
         CloseHandle(Queue->scenarioConfig.completeEvent);
     }
 
@@ -488,7 +601,7 @@ CleanupQueue(
         free(Queue->fuzzers);
     }
 
-    if (Queue->umemReg.address) {
+    if (Queue->umemReg.address != NULL) {
         res = VirtualFree(Queue->umemReg.address, 0, MEM_RELEASE);
         ASSERT_FRE(res);
     }
@@ -497,7 +610,7 @@ CleanupQueue(
 }
 
 HRESULT
-SetupQueue(
+InitializeQueue(
     _In_ UINT32 QueueId,
     _Out_ QUEUE_CONTEXT **Queue
     )
@@ -734,7 +847,6 @@ FuzzSocketUmemSetup(
     )
 {
     HRESULT res;
-    UINT32 ringSize;
 
     if (RandUlong() % 2) {
         XSK_UMEM_REG umemReg;
@@ -759,20 +871,6 @@ FuzzSocketUmemSetup(
             BOOL success = VirtualFree(umemReg.address, 0, MEM_RELEASE);
             ASSERT_FRE(success);
         }
-    }
-
-    if (RandUlong() % 2) {
-        GetFuzzedRingSize(Queue, &ringSize);
-        res =
-            XskSetSockopt(
-                Sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &ringSize, sizeof(ringSize));
-    }
-
-    if (RandUlong() % 2) {
-        GetFuzzedRingSize(Queue, &ringSize);
-        res =
-            XskSetSockopt(
-                Sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &ringSize, sizeof(ringSize));
     }
 }
 
@@ -811,6 +909,20 @@ FuzzSocketRxTxSetup(
                 WriteBooleanRelease(WasTxSet, TRUE);
             }
         }
+    }
+
+    if (RandUlong() % 2) {
+        GetFuzzedRingSize(Queue, &ringSize);
+        res =
+            XskSetSockopt(
+                Sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &ringSize, sizeof(ringSize));
+    }
+
+    if (RandUlong() % 2) {
+        GetFuzzedRingSize(Queue, &ringSize);
+        res =
+            XskSetSockopt(
+                Sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &ringSize, sizeof(ringSize));
     }
 }
 
@@ -908,7 +1020,7 @@ CleanupDatapath(
 }
 
 HRESULT
-SetupDatapath(
+InitializeDatapath(
     _Inout_ XSK_DATAPATH_WORKER *Datapath
     )
 {
@@ -1159,7 +1271,7 @@ XskDatapathWorkerFn(
 
     printf_verbose("q[%u]d[0x%p]: entering\n", queue->queueId, datapath->threadHandle);
 
-    if (SUCCEEDED(SetupDatapath(datapath))) {
+    if (SUCCEEDED(InitializeDatapath(datapath))) {
         while (!ReadBooleanNoFence(&done)) {
             if (ReadNoFence((LONG *)&datapath->shared->state) == ThreadStateReturn) {
                 break;
@@ -1170,7 +1282,9 @@ XskDatapathWorkerFn(
             }
         }
 
-        PrintStats(datapath);
+        if (extraStats) {
+            PrintDatapathStats(datapath);
+        }
         CleanupDatapath(datapath);
     }
 
@@ -1246,19 +1360,19 @@ QueueWorkerFn(
     )
 {
     QUEUE_WORKER *queueWorker = ThreadParameter;
-    ULONG numIterations = 1;
+    ULONG numIterations = 0;
     ULONG numSuccessfulSetups = 0;
 
     while (!ReadBooleanNoFence(&done)) {
         QUEUE_CONTEXT *queue;
         DWORD ret;
 
-        printf_verbose("q[%u]: iter %lu\n", queueWorker->queueId, numIterations);
         ++numIterations;
+        printf_verbose("q[%u]: iter %lu\n", queueWorker->queueId, numIterations);
 
         QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
 
-        if (!SUCCEEDED(SetupQueue(queueWorker->queueId, &queue))) {
+        if (!SUCCEEDED(InitializeQueue(queueWorker->queueId, &queue))) {
             printf_verbose("q[%u]: failed to setup queue\n", queueWorker->queueId);
             continue;
         }
@@ -1320,12 +1434,21 @@ QueueWorkerFn(
             WaitForSingleObject(queue->fuzzers[i].threadHandle, INFINITE);
         }
 
+        if (extraStats) {
+            UpdateSetupStats(queueWorker, queue);
+        }
+
         CleanupQueue(queue);
     }
 
     printf("q[%u]: socket setup success rate: (%lu / %lu) %lu%%\n",
         queueWorker->queueId, numSuccessfulSetups, numIterations,
-        numSuccessfulSetups * 100 / numIterations);
+        Pct(numSuccessfulSetups, numIterations));
+
+    if (extraStats) {
+        PrintSetupStats(queueWorker, numIterations);
+    }
+
     printf_verbose("q[%u]: exiting\n", queueWorker->queueId);
     return 0;
 }
@@ -1410,6 +1533,9 @@ WatchdogFn(
         for (UINT32 i = 0; i < queueCount; i++) {
             if ((LONGLONG)(queueWorkers[i].watchdogPerfCount + watchdogTimeoutInCounts - perfCount) < 0) {
                 printf("WATCHDOG on queue %d\n", i);
+                if (XdpBugCheckHandler != NULL) {
+                    XdpBugCheckHandler();
+                }
                 DebugBreak();
                 DbgRaiseAssertionFailure();
                 exit(ERROR_TIMEOUT);
@@ -1455,7 +1581,7 @@ ParseArgs(
             }
             duration = atoi(argv[i]) * 60;
         } else if (!strcmp(argv[i], "-Stats")) {
-            periodicStats = TRUE;
+            extraStats = TRUE;
         } else if (!strcmp(argv[i], "-Verbose")) {
             verbose = TRUE;
         } else if (!strcmp(argv[i], "-QueueCount")) {
@@ -1509,6 +1635,12 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
+    HMODULE msxdpHandle;
+
+    msxdpHandle = GetModuleHandleW(L"msxdp");
+    if (msxdpHandle != NULL) {
+        XdpBugCheckHandler = (XDP_BUGCHECK *)GetProcAddress(msxdpHandle, "XdpBugCheck");
+    }
 
     ParseArgs(argc, argv);
 

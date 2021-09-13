@@ -562,7 +562,15 @@ XdpProgramDelete(
     )
 {
     //
-    // Delete an XDP program after runtime references are dropped.
+    // Detach the XDP program from the RX queue.
+    //
+    if (ProgramObject->RxQueue != NULL) {
+        XdpProgramDetachRxQueue(ProgramObject);
+        XdpRxQueueDereference(ProgramObject->RxQueue);
+    }
+
+    //
+    // Clean up the XDP program after data path references are dropped.
     //
 
     for (ULONG Index = 0; Index < ProgramObject->Program.RuleCount; Index++) {
@@ -580,11 +588,6 @@ XdpProgramDelete(
                 ASSERT(FALSE);
             }
         }
-    }
-
-    if (ProgramObject->RxQueue != NULL) {
-        XdpProgramDetachRxQueue(ProgramObject);
-        XdpRxQueueDereference(ProgramObject->RxQueue);
     }
 
     ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM);

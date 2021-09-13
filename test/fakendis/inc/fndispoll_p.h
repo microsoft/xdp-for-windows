@@ -13,7 +13,7 @@
 typedef struct _NDIS_POLL_QUEUE *PNDIS_POLL_QUEUE;
 
 typedef
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 NDIS_POLL_NOTIFY(
     _In_ PNDIS_POLL_QUEUE Q

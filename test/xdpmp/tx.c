@@ -382,7 +382,7 @@ MpSendNetBufferLists(
     }
 
     if (RequestPoll) {
-        NdisRequestPoll(AdapterQueue->NdisPollHandle, 0);
+        Adapter->PollDispatch.RequestPoll(AdapterQueue->NdisPollHandle, 0);
     }
 }
 
@@ -551,7 +551,7 @@ MpXdpDeleteTxQueue(
     //
     ASSERT(Tq->XdpState == XDP_STATE_ACTIVE);
     WriteUInt32Release((UINT32 *)&Tq->XdpState, XDP_STATE_DELETE_PENDING);
-    NdisRequestPoll(AdapterQueue->NdisPollHandle, 0);
+    AdapterQueue->Adapter->PollDispatch.RequestPoll(AdapterQueue->NdisPollHandle, 0);
 
     KeWaitForSingleObject(&DeleteComplete, Executive, KernelMode, FALSE, NULL);
     ASSERT(Tq->XdpState == XDP_STATE_INACTIVE);

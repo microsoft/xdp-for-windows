@@ -191,7 +191,8 @@ XdpTxQueueSetCapabilities(
     //
     // TODO: Some capabilities are not implemented.
     //
-    FRE_ASSERT(Capabilities->Size == sizeof(*Capabilities));
+    FRE_ASSERT(Capabilities->Header.Revision >= XDP_TX_CAPABILITIES_REVISION_1);
+    FRE_ASSERT(Capabilities->Header.Size >= XDP_SIZEOF_TX_CAPABILITIES_REVISION_1);
     FRE_ASSERT(Capabilities->MaximumFragments <= 1);
     FRE_ASSERT(
         Capabilities->VirtualAddressEnabled ||
@@ -223,6 +224,9 @@ XdpTxQueueRegisterExtensionVersion(
     _In_ XDP_EXTENSION_INFO *ExtensionInfo
     )
 {
+    FRE_ASSERT(ExtensionInfo->Header.Revision >= XDP_EXTENSION_INFO_REVISION_1);
+    FRE_ASSERT(ExtensionInfo->Header.Size >= XDP_SIZEOF_EXTENSION_INFO_REVISION_1);
+
     XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigCreate(TxQueueConfig);
     XDP_EXTENSION_SET *Set = XdpTxQueueGetExtensionSet(TxQueue, ExtensionInfo->ExtensionType);
 
@@ -242,6 +246,9 @@ XdpTxQueueSetDescriptorContexts(
     )
 {
     XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigCreate(TxQueueConfig);
+
+    FRE_ASSERT(Descriptors->Header.Revision >= XDP_TX_DESCRIPTOR_CONTEXTS_REVISION_1);
+    FRE_ASSERT(Descriptors->Header.Size >= XDP_SIZEOF_TX_DESCRIPTOR_CONTEXTS_REVISION_1);
 
     FRE_ASSERT((Descriptors->FrameContextSize == 0) == (Descriptors->FrameContextAlignment == 0));
     FRE_ASSERT((Descriptors->BufferContextSize == 0) == (Descriptors->BufferContextAlignment == 0));
@@ -269,8 +276,10 @@ XdpTxQueueSetPollInfo(
     _In_ XDP_POLL_INFO *PollInfo
     )
 {
-    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigCreate(TxQueueConfig);
+    FRE_ASSERT(PollInfo->Header.Revision >= XDP_POLL_INFO_REVISION_1);
+    FRE_ASSERT(PollInfo->Header.Size >= XDP_SIZEOF_POLL_INFO_REVISION_1);
 
+    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigCreate(TxQueueConfig);
     TxQueue->InterfacePollHandle = PollInfo->PollHandle;
 }
 
@@ -322,6 +331,9 @@ XdpTxQueueGetExtension(
     _Out_ XDP_EXTENSION *Extension
     )
 {
+    FRE_ASSERT(ExtensionInfo->Header.Revision >= XDP_EXTENSION_INFO_REVISION_1);
+    FRE_ASSERT(ExtensionInfo->Header.Size >= XDP_SIZEOF_EXTENSION_INFO_REVISION_1);
+
     XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
     XDP_EXTENSION_SET *Set = XdpTxQueueGetExtensionSet(TxQueue, ExtensionInfo->ExtensionType);
 
@@ -463,13 +475,19 @@ XdpTxQueueNotify(
 }
 
 static CONST XDP_TX_QUEUE_CONFIG_RESERVED XdpTxConfigReservedDispatch = {
-    .Size                           = sizeof(XdpTxConfigReservedDispatch),
+    .Header                         = {
+        .Revision                   = XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1,
+        .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_RESERVED_REVISION_1
+    },
     .GetHookId                      = XdppTxQueueGetHookId,
     .GetNotifyHandle                = XdppTxQueueGetNotifyHandle,
 };
 
 static CONST XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
-    .Size                           = sizeof(XdpTxConfigCreateDispatch),
+    .Header                         = {
+        .Revision                   = XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1,
+        .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1
+    },
     .Reserved                       = &XdpTxConfigReservedDispatch,
     .GetTargetQueueInfo             = XdpTxQueueGetTargetQueueInfo,
     .SetTxQueueCapabilities         = XdpTxQueueSetCapabilities,
@@ -479,7 +497,10 @@ static CONST XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
 };
 
 static CONST XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch = {
-    .Size                           = sizeof(XdpTxConfigActivateDispatch),
+    .Header                         = {
+        .Revision                   = XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1,
+        .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1
+    },
     .GetFrameRing                   = XdpTxQueueGetFrameRing,
     .GetFragmentRing                = XdpTxQueueGetFragmentRing,
     .GetCompletionRing              = XdpTxQueueGetCompletionRing,
@@ -490,7 +511,10 @@ static CONST XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch =
 };
 
 static CONST XDP_TX_QUEUE_NOTIFY_DISPATCH XdpTxNotifyDispatch = {
-    .Size                           = sizeof(XdpTxNotifyDispatch),
+    .Header                         = {
+        .Revision                   = XDP_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1,
+        .Size                       = XDP_SIZEOF_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1
+    },
     .Notify                         = XdpTxQueueNotify,
 };
 
@@ -535,8 +559,7 @@ XdpTxQueueDetachEvent(
 
 static
 CONST
-XDP_BINDING_CLIENT TxQueueBindingClient =
-{
+XDP_BINDING_CLIENT TxQueueBindingClient = {
     .ClientId           = XDP_BINDING_CLIENT_ID_TX_QUEUE,
     .KeySize            = sizeof(XDP_TX_QUEUE_KEY),
     .BindingDetached    = XdpTxQueueDetachEvent,
@@ -602,9 +625,7 @@ XdpTxQueueCreate(
     TxQueue->Binding = Binding;
     TxQueue->Key = Key;
     XdpIfInitializeClientEntry(&TxQueue->BindingClientEntry);
-    TxQueue->QueueInfo.Size = sizeof(TxQueue->QueueInfo.Size);
-    TxQueue->QueueInfo.QueueType = XDP_QUEUE_TYPE_DEFAULT_RSS;
-    TxQueue->QueueInfo.QueueId = QueueId;
+    XdpInitializeQueueInfo(&TxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdpInitializeReferenceCount(&TxQueue->ReferenceCount);
     TxQueue->Client = Client;
     TxQueue->ClientDetachEvent = DetachHandler;
@@ -647,7 +668,8 @@ XdpTxQueueCreate(
     //
     // Ensure the interface driver has registered its capabilities.
     //
-    FRE_ASSERT(TxQueue->InterfaceTxCapabilities.Size > 0);
+    FRE_ASSERT(TxQueue->InterfaceTxCapabilities.Header.Revision >= XDP_TX_CAPABILITIES_REVISION_1);
+    FRE_ASSERT(TxQueue->InterfaceTxCapabilities.Header.Size >= XDP_SIZEOF_TX_CAPABILITIES_REVISION_1);
 
     Status =
         XdpExtensionSetAssignLayout(

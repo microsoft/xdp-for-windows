@@ -840,7 +840,7 @@ XskReferenceDatapathHandle(
 
 Exit:
 
-    TraceInfo(TRACE_XSK, "XSK=%p Status=%!STATUS!", Xsk, Status);
+    TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, Status);
 
     if (FileObject != NULL) {
         ObDereferenceObject(FileObject);
@@ -856,7 +856,7 @@ XskDereferenceDatapathHandle(
 {
     XSK *Xsk = XskHandle;
 
-    TraceInfo(TRACE_XSK, "XSK=%p", Xsk);
+    TraceInfo(TRACE_XSK, "Xsk=%p", Xsk);
 
     XskDereference(Xsk);
 }
@@ -880,7 +880,7 @@ XskIrpCreateSocket(
     UNREFERENCED_PARAMETER(InputBuffer);
     UNREFERENCED_PARAMETER(InputBufferLength);
 
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     Xsk = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Xsk), POOLTAG_XSK);
     if (Xsk == NULL) {
@@ -908,7 +908,7 @@ XskIrpCreateSocket(
 
 Exit:
 
-    TraceInfo(TRACE_XSK, "XSK=%p Status=%!STATUS!", Xsk, Status);
+    TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, Status);
 
     TraceExit(TRACE_XSK);
 
@@ -1546,7 +1546,7 @@ XskNotifyRxQueue(
 {
     XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Rx.Xdp.QueueNotificationEntry);
 
-    TraceInfo(TRACE_XSK, "XSK=%p NotificationType=%u", Xsk, NotificationType);
+    TraceInfo(TRACE_XSK, "Xsk=%p NotificationType=%u", Xsk, NotificationType);
 
     switch (NotificationType) {
 
@@ -1600,7 +1600,7 @@ XskIrpCleanup(
     UNREFERENCED_PARAMETER(Irp);
 
     Xsk = IrpSp->FileObject->FsContext;
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     //
     // Synchronize the polling execution context with socket cleanup: the socket
@@ -1624,7 +1624,7 @@ XskIrpCleanup(
         XskSignalReadyIo(Xsk, IoWaitFlags);
     }
 
-    TraceInfo(TRACE_XSK, "XSK=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
+    TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
 
     TraceExit(TRACE_XSK);
 
@@ -1677,7 +1677,7 @@ XskSetupDma(
     )
 {
     NTSTATUS Status;
-    DEVICE_DESCRIPTION DeviceDescription = { 0 };
+    DEVICE_DESCRIPTION DeviceDescription = {0};
     ULONG NumberOfMapRegisters = 0;
     UMEM_MAPPING *Mapping;
     CONST XDP_DMA_CAPABILITIES *DmaCapabilities =
@@ -1785,7 +1785,7 @@ XskDetachRxIf(
     _In_ XSK *Xsk
     )
 {
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (Xsk->Rx.Xdp.Queue != NULL) {
         XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
@@ -1811,7 +1811,7 @@ XskDetachTxIf(
     _In_ XSK *Xsk
     )
 {
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (Xsk->Tx.Xdp.Queue != NULL) {
         if (Xsk->Tx.Xdp.InterfaceQueue != NULL) {
@@ -1922,7 +1922,7 @@ XskBindRxIf(
     XSK *Xsk = WorkItem->Xsk;
     NTSTATUS Status;
 
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     ASSERT(Xsk->Rx.Xdp.IfHandle == NULL);
     ASSERT(Xsk->Rx.Ring.Size > 0);
@@ -1966,7 +1966,7 @@ XskBindTxIf(
     XDP_EXTENSION_INFO ExtensionInfo;
     NTSTATUS Status;
 
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
     ASSERT (Xsk->Tx.Ring.Size > 0);
@@ -2068,7 +2068,7 @@ XskDereferenceUmem(
     )
 {
     if (InterlockedDecrement(&Umem->ReferenceCount) == 0) {
-        TraceInfo(TRACE_XSK, "Destroying UMEM=%p", Umem);
+        TraceInfo(TRACE_XSK, "Destroying Umem=%p", Umem);
 
         if (Umem->Mapping.Mdl != NULL) {
             VOID *CurrentProcess = PsGetCurrentProcess();
@@ -2115,7 +2115,7 @@ XskIrpClose(
 {
     XSK *Xsk = IrpSp->FileObject->FsContext;
 
-    TraceEnter(TRACE_XSK, "XSK=%p", Xsk);
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     UNREFERENCED_PARAMETER(Irp);
 
@@ -2162,7 +2162,7 @@ XskIrpClose(
 
     XskDereference(Xsk);
 
-    TraceInfo(TRACE_XSK, "XSK=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
+    TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
 
     TraceExit(TRACE_XSK);
 
@@ -2195,7 +2195,7 @@ XskIrpBindSocket(
     Bind = *(XSK_BIND_IN*)Irp->AssociatedIrp.SystemBuffer;
 
     TraceEnter(
-        TRACE_XSK, "XSK=%p IfIndex=%u QueueId=%u Flags=%x",
+        TRACE_XSK, "Xsk=%p IfIndex=%u QueueId=%u Flags=%x",
         Xsk, Bind.IfIndex, Bind.QueueId, Bind.Flags);
 
     if ((Bind.Flags & ~(XSK_BIND_GENERIC | XSK_BIND_NATIVE)) ||
@@ -2382,7 +2382,7 @@ Exit:
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
     TraceInfo(
-        TRACE_XSK, "XSK=%p IfIndex=%u QueueId=%u Flags=%x Status=%!STATUS!",
+        TRACE_XSK, "Xsk=%p IfIndex=%u QueueId=%u Flags=%x Status=%!STATUS!",
         Xsk, Bind.IfIndex, Bind.QueueId, Bind.Flags, Status);
 
     TraceExitStatus(TRACE_XSK);
@@ -2392,34 +2392,47 @@ Exit:
 
 static
 NTSTATUS
-XskSockoptStatistics(
+XskSockoptGetStatistics(
     _In_ XSK *Xsk,
     _In_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
+    NTSTATUS Status;
     XSK_STATISTICS *Statistics;
-    KIRQL OldIrql;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(XSK_STATISTICS)) {
-        return STATUS_INVALID_PARAMETER;
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
     }
 
     Statistics = (XSK_STATISTICS*)Irp->AssociatedIrp.SystemBuffer;
     RtlZeroMemory(Statistics, sizeof(*Statistics));
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
 
     if (Xsk->State != XskBound) {
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        return STATUS_INVALID_DEVICE_STATE;
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
     }
 
     *Statistics = Xsk->Statistics;
 
-    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-
+    Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = sizeof(*Statistics);
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceExit(TRACE_XSK);
 
     return STATUS_SUCCESS;
 }
@@ -2447,24 +2460,28 @@ XskFillRingInfo(
 
 static
 NTSTATUS
-XskSockoptRingInfo(
+XskSockoptGetRingInfo(
     _In_ XSK *Xsk,
     _In_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
-    KIRQL OldIrql;
-
+    NTSTATUS Status;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
     XSK_RING_INFO_SET *InfoSet = Irp->AssociatedIrp.SystemBuffer;
 
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(XSK_RING_INFO_SET)) {
-        return STATUS_INVALID_PARAMETER;
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
     }
 
     RtlZeroMemory(InfoSet, sizeof(*InfoSet));
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
 
     if (Xsk->State == XskClosing) {
         Status = STATUS_INVALID_DEVICE_STATE;
@@ -2484,29 +2501,36 @@ XskSockoptRingInfo(
         XskFillRingInfo(&Xsk->Tx.CompletionRing, &InfoSet->completion);
     }
 
+    Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = sizeof(*InfoSet);
 
 Exit:
 
-    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceExit(TRACE_XSK);
 
     return Status;
 }
 
 static
 NTSTATUS
-XskSockoptUmemReg(
+XskSockoptSetUmem(
     _In_ XSK *Xsk,
     _In_ XSK_SET_SOCKOPT_IN *Sockopt,
     _In_ KPROCESSOR_MODE RequestorMode
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
-    const VOID * SockoptInputBuffer;
+    NTSTATUS Status;
+    CONST VOID *SockoptInputBuffer;
     UINT32 SockoptInputBufferLength;
     UMEM *Umem = NULL;
-    KIRQL OldIrql = { 0 };
+    KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     //
     // This is a nested buffer not copied by IO manager, so it needs special care.
@@ -2625,9 +2649,10 @@ XskSockoptUmemReg(
     }
 
     TraceInfo(
-        TRACE_XSK, "XSK=%p Set UMEM=%p TotalSize=%llu ChunkSize=%llu Headroom=%u",
+        TRACE_XSK, "Xsk=%p Set Umem=%p TotalSize=%llu ChunkSize=%llu Headroom=%u",
         Xsk, Umem, Umem->Reg.totalSize, Umem->Reg.chunkSize, Umem->Reg.headroom);
 
+    Status = STATUS_SUCCESS;
     Xsk->Umem = Umem;
     Umem = NULL;
 
@@ -2639,19 +2664,22 @@ Exit:
     if (Umem != NULL) {
         XskDereferenceUmem(Umem);
     }
+
+    TraceExit(TRACE_XSK);
+
     return Status;
 }
 
 static
 NTSTATUS
-XskSockoptRingSize(
+XskSockoptSetRingSize(
     _In_ XSK *Xsk,
     _In_ XSK_SET_SOCKOPT_IN *Sockopt,
     _In_ KPROCESSOR_MODE RequestorMode
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
-    const VOID * SockoptInputBuffer;
+    NTSTATUS Status;
+    CONST VOID *SockoptInputBuffer;
     UINT32 SockoptInputBufferLength;
     XSK_SHARED_RING *Shared = NULL;
     MDL *Mdl = NULL;
@@ -2660,8 +2688,10 @@ XskSockoptRingSize(
     UINT32 NumDescriptors;
     ULONG DescriptorSize;
     ULONG AllocationSize;
-    KIRQL OldIrql = { 0 };
+    KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     //
     // This is a nested buffer not copied by IO manager, so it needs special care.
@@ -2753,6 +2783,7 @@ XskSockoptRingSize(
                 FALSE,// BugCheckOnFailure
                 NormalPagePriority | MdlMappingNoExecute);
         if (UserVa == NULL) {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
         }
     } except (EXCEPTION_EXECUTE_HANDLER) {
@@ -2797,8 +2828,10 @@ XskSockoptRingSize(
     }
 
     TraceInfo(
-        TRACE_XSK, "XSK=%p Set ring Type=%u Size=%u",
+        TRACE_XSK, "Xsk=%p Set ring Type=%u Size=%u",
         Xsk, Sockopt->Option, NumDescriptors);
+
+    Status = STATUS_SUCCESS;
 
     Ring->Shared = Shared;
     Ring->Mdl = Mdl;
@@ -2828,6 +2861,8 @@ Exit:
         ExFreePoolWithTag(Shared, POOLTAG_RING);
     }
 
+    TraceExit(TRACE_XSK);
+
     return Status;
 }
 
@@ -2840,15 +2875,20 @@ XskSockoptGetHookId(
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS Status;
     XDP_HOOK_ID *HookId = Irp->AssociatedIrp.SystemBuffer;
-    KIRQL OldIrql;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*HookId)) {
-        return STATUS_INVALID_PARAMETER;
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
     }
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
 
     switch (Option) {
     case XSK_SOCKOPT_RX_HOOK_ID:
@@ -2864,11 +2904,16 @@ XskSockoptGetHookId(
         goto Exit;
     }
 
+    Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = sizeof(*HookId);
 
 Exit:
 
-    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceExit(TRACE_XSK);
 
     return Status;
 }
@@ -2881,12 +2926,14 @@ XskSockoptSetHookId(
     _In_ KPROCESSOR_MODE RequestorMode
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS Status;
     CONST VOID *SockoptIn;
     UINT32 SockoptInSize;
     XDP_HOOK_ID HookId;
     KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     //
     // This is a nested buffer not copied by IO manager, so it needs special care.
@@ -2921,7 +2968,7 @@ XskSockoptSetHookId(
     case XSK_SOCKOPT_RX_HOOK_ID:
         TraceInfo(
             TRACE_XSK,
-            "XSK=%p Set XSK_SOCKOPT_RX_HOOK_ID Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!}",
+            "Xsk=%p Set XSK_SOCKOPT_RX_HOOK_ID Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!}",
             Xsk, HookId.Layer, HookId.Direction, HookId.SubLayer);
         Xsk->Rx.Xdp.HookId = HookId;
         break;
@@ -2929,7 +2976,7 @@ XskSockoptSetHookId(
     case XSK_SOCKOPT_TX_HOOK_ID:
         TraceInfo(
             TRACE_XSK,
-            "XSK=%p Set XSK_SOCKOPT_TX_HOOK_ID Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!}",
+            "Xsk=%p Set XSK_SOCKOPT_TX_HOOK_ID Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!}",
             Xsk, HookId.Layer, HookId.Direction, HookId.SubLayer);
         Xsk->Tx.Xdp.HookId = HookId;
         break;
@@ -2939,16 +2986,21 @@ XskSockoptSetHookId(
         goto Exit;
     }
 
+    Status = STATUS_SUCCESS;
+
 Exit:
 
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
+    TraceExit(TRACE_XSK);
+
     return Status;
 }
 
 static
+NTSTATUS
 XskSockoptGetError(
     _In_ XSK *Xsk,
     _In_ UINT32 Option,
@@ -2956,11 +3008,14 @@ XskSockoptGetError(
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS Status;
     XSK_ERROR *XskError = Irp->AssociatedIrp.SystemBuffer;
 
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*XskError)) {
-        return STATUS_INVALID_PARAMETER;
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
     }
 
     switch (Option) {
@@ -2985,9 +3040,12 @@ XskSockoptGetError(
         goto Exit;
     }
 
+    Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = sizeof(*XskError);
 
 Exit:
+
+    TraceExit(TRACE_XSK);
 
     return Status;
 }
@@ -3173,16 +3231,18 @@ XskPollSocket(
 
 static
 NTSTATUS
-XskSockoptPollMode(
+XskSockoptSetPollMode(
     _In_ XSK *Xsk,
     _In_ XSK_SET_SOCKOPT_IN *Sockopt,
     _In_ KPROCESSOR_MODE RequestorMode
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
-    const VOID * SockoptInputBuffer;
+    NTSTATUS Status;
+    CONST VOID *SockoptInputBuffer;
     UINT32 SockoptInputBufferLength;
     XSK_POLL_MODE PollMode;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     //
     // This is a nested buffer not copied by IO manager, so it needs special care.
@@ -3211,10 +3271,12 @@ XskSockoptPollMode(
     XskReleasePollLock(Xsk);
 
     if (NT_SUCCESS(Status)) {
-        TraceInfo(TRACE_XSK, "XSK=%p Set poll mode PollMode=%u", Xsk, PollMode);
+        TraceInfo(TRACE_XSK, "Xsk=%p Set poll mode PollMode=%u", Xsk, PollMode);
     }
 
 Exit:
+
+    TraceExit(TRACE_XSK);
 
     return Status;
 }
@@ -3240,10 +3302,10 @@ XskIrpGetSockopt(
 
     switch (Option) {
     case XSK_SOCKOPT_RING_INFO:
-        Status = XskSockoptRingInfo(Xsk, Irp, IrpSp);
+        Status = XskSockoptGetRingInfo(Xsk, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_STATISTICS:
-        Status = XskSockoptStatistics(Xsk, Irp, IrpSp);
+        Status = XskSockoptGetStatistics(Xsk, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_RX_HOOK_ID:
     case XSK_SOCKOPT_TX_HOOK_ID:
@@ -3287,20 +3349,20 @@ XskIrpSetSockopt(
 
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_UMEM_REG:
-        Status = XskSockoptUmemReg(Xsk, Sockopt, Irp->RequestorMode);
+        Status = XskSockoptSetUmem(Xsk, Sockopt, Irp->RequestorMode);
         break;
     case XSK_SOCKOPT_TX_RING_SIZE:
     case XSK_SOCKOPT_RX_RING_SIZE:
     case XSK_SOCKOPT_RX_FILL_RING_SIZE:
     case XSK_SOCKOPT_TX_COMPLETION_RING_SIZE:
-        Status = XskSockoptRingSize(Xsk, Sockopt, Irp->RequestorMode);
+        Status = XskSockoptSetRingSize(Xsk, Sockopt, Irp->RequestorMode);
         break;
     case XSK_SOCKOPT_RX_HOOK_ID:
     case XSK_SOCKOPT_TX_HOOK_ID:
         Status = XskSockoptSetHookId(Xsk, Sockopt, Irp->RequestorMode);
         break;
     case XSK_SOCKOPT_POLL_MODE:
-        Status = XskSockoptPollMode(Xsk, Sockopt, Irp->RequestorMode);
+        Status = XskSockoptSetPollMode(Xsk, Sockopt, Irp->RequestorMode);
         break;
     default:
         Status = STATUS_NOT_SUPPORTED;
@@ -3308,7 +3370,7 @@ XskIrpSetSockopt(
     }
 
     TraceInfo(
-        TRACE_XSK, "XSK=%p Option=%u Status=%!STATUS!",
+        TRACE_XSK, "Xsk=%p Option=%u Status=%!STATUS!",
         Xsk, (Sockopt != NULL) ? Sockopt->Option : 0, Status);
 
     return Status;
@@ -3438,7 +3500,7 @@ XskNotify(
         XskNotifyValidateParams(
             Xsk, InputBuffer, InputBufferLength, &TimeoutMilliseconds, &InFlags);
     if (Status != STATUS_SUCCESS) {
-        TraceError(TRACE_XSK, "Notify failed: Invalid params. XSK=%p", Xsk);
+        TraceError(TRACE_XSK, "Xsk=%p Notify failed: Invalid params", Xsk);
         goto Exit;
     }
 
@@ -3451,7 +3513,7 @@ XskNotify(
         Status = XskPoke(Xsk, InFlags, TimeoutMilliseconds);
         if (Status != STATUS_SUCCESS) {
             TraceError(
-                TRACE_XSK, "Notify failed: Poke failed. XSK=%p Status=%!STATUS!",
+                TRACE_XSK, "Xsk=%p Notify failed: Poke failed Status=%!STATUS!",
                 Xsk, Status);
             goto Exit;
         }
@@ -3481,7 +3543,7 @@ XskNotify(
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if (Xsk->State != XskBound) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        TraceInfo(TRACE_XSK, "Notify wait failed: XSK not bound. XSK=%p", Xsk);
+        TraceInfo(TRACE_XSK, "Xsk=%p Notify wait failed: XSK not bound", Xsk);
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
@@ -3490,7 +3552,7 @@ XskNotify(
         // There is currently a wait active. Only a single wait is allowed.
         //
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        TraceError(TRACE_XSK, "Notify wait failed: Wait already active. XSK=%p", Xsk);
+        TraceError(TRACE_XSK, "Xsk=%p Notify wait failed: Wait already active", Xsk);
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
@@ -3584,8 +3646,6 @@ XskFastIo(
                 &IoStatus->Information);
         return TRUE;
     }
-
-    IoStatus->Status = STATUS_INVALID_PARAMETER;
 
     return FALSE;
 }

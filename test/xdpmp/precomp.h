@@ -4,12 +4,14 @@
 
 #pragma once
 
-#include <wdm.h>
+#include <ntddk.h>
 #include <ndis.h>
 #include <ntintsafe.h>
 #include <pkthlp.h>
 #include <xdpddi.h>
 #include <xdpassert.h>
+#include <fndispoll.h>
+#include <fndisnpi.h>
 
 #define RTL_IS_POWER_OF_TWO(Value) \
     ((Value != 0) && !((Value) & ((Value) - 1)))
@@ -39,6 +41,7 @@ WriteUInt32Release (
 #include "hwring.h"
 #include "miniport.h"
 #include "pace.h"
+#include "poll.h"
 #include "rss.h"
 #include "rx.h"
 #include "tx.h"
@@ -50,12 +53,3 @@ WriteUInt32Release (
 #define POOLTAG_QUEUE    'QpmX' // XmpQ
 #define POOLTAG_RSS      'RpmX' // XmpR
 #define POOLTAG_TX       'TpmX' // XmpT
-
-#ifdef FNDIS
-#define NdisRegisterPoll        FNdisRegisterPoll
-#define NdisDeregisterPoll      FNdisDeregisterPoll
-#define NdisSetPollAffinity     FNdisSetPollAffinity
-#define NdisRequestPoll         FNdisRequestPoll
-#define XdpCompleteNdisPoll     FNdisCompletePoll
-#include <fndispoll.h>
-#endif

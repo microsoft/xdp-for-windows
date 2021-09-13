@@ -394,9 +394,11 @@ XdpGenericCloseInterface(
     XdpGenericRssCleanup(Generic);
 }
 
-static CONST XDP_INTERFACE_DISPATCH XdpGenericDispatch =
-{
-    .Size               = sizeof(XdpGenericDispatch),
+static CONST XDP_INTERFACE_DISPATCH XdpGenericDispatch = {
+    .Header             = {
+        .Revision       = XDP_INTERFACE_DISPATCH_REVISION_1,
+        .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
+    },
     .OpenInterface      = XdpGenericOpenInterface,
     .CloseInterface     = XdpGenericCloseInterface,
     .CreateRxQueue      = XdpGenericRxCreateQueue,
@@ -449,6 +451,11 @@ XdpGenericCreateBinding(
 {
     NTSTATUS Status;
     XDP_REGISTER_IF XdpInterface = {0};
+    CONST XDP_VERSION DriverApiVersion = {
+        .Major = XDP_DRIVER_API_MAJOR_VER,
+        .Minor = XDP_DRIVER_API_MINOR_VER,
+        .Patch = XDP_DRIVER_API_PATCH_VER
+    };
 
     ExInitializePushLock(&Generic->Lock);
     InitializeListHead(&Generic->Tx.Queues);
@@ -462,16 +469,20 @@ XdpGenericCreateBinding(
     Generic->InternalCapabilities.Mode = XDP_INTERFACE_MODE_GENERIC;
     Generic->InternalCapabilities.Hooks = GenericHooks;
     Generic->InternalCapabilities.HookCount = RTL_NUMBER_OF(GenericHooks);
-    Generic->InternalCapabilities.Capabilities = &Generic->Capabilities;
+    Generic->InternalCapabilities.CapabilitiesEx = &Generic->Capabilities.CapabilitiesEx;
+    Generic->InternalCapabilities.CapabilitiesSize = sizeof(Generic->Capabilities);
 
-    Status = XdpInitializeCapabilities(&Generic->Capabilities, XDP_API_VERSION_1);
+    Status =
+        XdpInitializeCapabilities(
+            &Generic->Capabilities, &DriverApiVersion);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
     Status =
         XdpRegisterInterface(
-            IfIndex, &Generic->Capabilities, Generic, &XdpGenericDispatch, &Generic->Registration);
+            IfIndex, &Generic->Capabilities, Generic,
+            &XdpGenericDispatch, &Generic->Registration);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

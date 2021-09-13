@@ -37,6 +37,14 @@ typedef struct _XDP_POLL_DATA {
     XDP_POLL_RECEIVE_DATA Receive;
 } XDP_POLL_DATA;
 
+typedef
+_IRQL_requires_max_(HIGH_LEVEL)
+VOID
+XDP_NDIS_REQUEST_POLL(
+    _In_ NDIS_POLL_HANDLE PollHandle,
+    _Reserved_ VOID *Reserved
+    );
+
 //
 // This routine provides compatibility with NDIS polling APIs that lack support
 // for XDP polling extensions. XDP interface drivers must invoke this helper (or
@@ -49,7 +57,8 @@ XdpCompleteNdisPoll(
     _In_ NDIS_HANDLE PollHandle,
     _In_ NDIS_POLL_DATA *Poll,
     _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
-    _In_ XDP_POLL_RECEIVE_DATA *Receive
+    _In_ XDP_POLL_RECEIVE_DATA *Receive,
+    _In_ XDP_NDIS_REQUEST_POLL *RequestPoll
     )
 {
     if (Poll->Receive.IndicatedNblChain != NULL || Poll->Transmit.CompletedNblChain != NULL) {
@@ -65,7 +74,7 @@ XdpCompleteNdisPoll(
         // XDP made forward progress, and this was not observable to NDIS.
         // Explicitly request another poll.
         //
-        NdisRequestPoll(PollHandle, NULL);
+        RequestPoll(PollHandle, NULL);
     }
 }
 

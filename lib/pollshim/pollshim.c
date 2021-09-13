@@ -5,7 +5,7 @@
 #include "precomp.h"
 
 static CONST NDIS_POLL_BACKCHANNEL_DISPATCH *XdpPollDispatch;
-static HANDLE BackchannelHandle;
+static FNDIS_NPI_CLIENT FndisClient;
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
@@ -97,11 +97,7 @@ XdpPollStart(
 #if FNDIS
 
     NTSTATUS Status;
-    UNICODE_STRING Name;
-    OBJECT_ATTRIBUTES Oa;
-    IO_STATUS_BLOCK Iosb;
 
-    BackchannelHandle = NULL;
     XdpPollDispatch = NULL;
 
     //
@@ -110,20 +106,12 @@ XdpPollStart(
     // table via an IOCTL.
     //
 
-    RtlInitUnicodeString(&Name, FNDIS_DEVICE_NAME);
-    InitializeObjectAttributes(&Oa, &Name, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-    Status =
-        ZwCreateFile(
-            &BackchannelHandle, GENERIC_READ, &Oa, &Iosb, NULL, 0L, 0, FILE_OPEN_IF, 0, NULL, 0);
+    Status = FNdisClientOpen(&FndisClient);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    Status =
-        ZwDeviceIoControlFile(
-            BackchannelHandle, NULL, NULL, NULL, &Iosb, IOCTL_FNDIS_POLL_GET_BACKCHANNEL, NULL, 0,
-            (VOID *)&XdpPollDispatch, sizeof(VOID*));
+    Status = FNdisClientGetPollBackchannel(&FndisClient, (VOID *)&XdpPollDispatch);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -140,8 +128,5 @@ XdpPollStop(
     VOID
     )
 {
-    if (BackchannelHandle != NULL) {
-        ZwClose(BackchannelHandle);
-        BackchannelHandle = NULL;
-    }
+    FNdisClientClose(&FndisClient);
 }

@@ -24,7 +24,12 @@ typedef struct _XDP_CAPABILITIES_INTERNAL {
     //
     // The XDP capabilities reported by the XDP interface.
     //
-    CONST XDP_CAPABILITIES *Capabilities;
+    CONST XDP_CAPABILITIES_EX *CapabilitiesEx;
+
+    //
+    // Size of the capabilities buffer, including the driver API version array.
+    //
+    UINT32 CapabilitiesSize;
 } XDP_CAPABILITIES_INTERNAL;
 
 //

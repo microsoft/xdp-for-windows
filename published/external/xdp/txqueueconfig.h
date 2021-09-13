@@ -11,6 +11,7 @@ EXTERN_C_START
 #include <xdp/extensioninfo.h>
 #include <xdp/pollinfo.h>
 #include <xdp/queueinfo.h>
+#include <xdp/objectheader.h>
 
 DECLARE_HANDLE(XDP_TX_QUEUE_CONFIG_CREATE);
 DECLARE_HANDLE(XDP_TX_QUEUE_CONFIG_ACTIVATE);
@@ -28,7 +29,7 @@ XdpTxQueueGetTargetQueueInfo(
 // an XDP transmit queue.
 //
 typedef struct _XDP_TX_CAPABILITIES {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // Indicates the interface uses the virtual address buffer extension.
@@ -80,6 +81,12 @@ typedef struct _XDP_TX_CAPABILITIES {
     BOOLEAN OutOfOrderCompletionEnabled;
 } XDP_TX_CAPABILITIES;
 
+
+#define XDP_TX_CAPABILITIES_REVISION_1 1
+
+#define XDP_SIZEOF_TX_CAPABILITIES_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_TX_CAPABILITIES, OutOfOrderCompletionEnabled)
+
 //
 // Reserved for system use.
 //
@@ -90,7 +97,8 @@ XdpInitializeTxCapabilities(
     )
 {
     RtlZeroMemory(Capabilities, sizeof(*Capabilities));
-    Capabilities->Size = sizeof(*Capabilities);
+    Capabilities->Header.Revision = XDP_TX_CAPABILITIES_REVISION_1;
+    Capabilities->Header.Size = XDP_SIZEOF_TX_CAPABILITIES_REVISION_1;
     Capabilities->MaximumBufferSize = MAXUINT32;
     Capabilities->MaximumFrameSize = MAXUINT32;
 }
@@ -140,7 +148,7 @@ XdpInitializeTxCapabilitiesSystemDma(
 // Structure defining optional descriptor contexts for XDP transmit queues.
 //
 typedef struct _XDP_TX_DESCRIPTOR_CONTEXTS {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // If non-zero, enables the XDP_FRAME_INTERFACE_CONTEXT frame extension. The
@@ -167,6 +175,11 @@ typedef struct _XDP_TX_DESCRIPTOR_CONTEXTS {
     UINT8 BufferContextAlignment;
 } XDP_TX_DESCRIPTOR_CONTEXTS;
 
+#define XDP_TX_DESCRIPTOR_CONTEXTS_REVISION_1 1
+
+#define XDP_SIZEOF_TX_DESCRIPTOR_CONTEXTS_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_TX_DESCRIPTOR_CONTEXTS, BufferContextAlignment)
+
 //
 // Initializes descriptor contexts for TX queues.
 //
@@ -177,7 +190,8 @@ XdpInitializeTxDescriptorContexts(
     )
 {
     RtlZeroMemory(DescriptorContexts, sizeof(*DescriptorContexts));
-    DescriptorContexts->Size = sizeof(*DescriptorContexts);
+    DescriptorContexts->Header.Revision = XDP_TX_DESCRIPTOR_CONTEXTS_REVISION_1;
+    DescriptorContexts->Header.Size = XDP_SIZEOF_TX_DESCRIPTOR_CONTEXTS_REVISION_1;
 }
 
 //

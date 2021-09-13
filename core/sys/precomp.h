@@ -24,7 +24,7 @@
 #define RTL_NUM_ALIGN_UP(Number, Alignment) \
     RTL_NUM_ALIGN_DOWN((Number) + (Alignment) - 1, (Alignment))
 
-#ifndef NTDDI_WIN10_CO // Temporary until the latest WDK is published.
+#ifndef NTDDI_WIN10_FE // Temporary until the latest WDK is published.
 #pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
 typedef enum _DMA_COMMON_BUFFER_EXTENDED_CONFIGURATION_TYPE {
     CommonBufferConfigTypeLogicalAddressLimits,
@@ -107,7 +107,7 @@ typedef struct _DMA_OPERATIONS_XDP {
     PCREATE_COMMON_BUFFER_FROM_MDL CreateCommonBufferFromMdl;
 } DMA_OPERATIONS_XDP;
 #define DMA_OPERATIONS DMA_OPERATIONS_XDP
-#endif // NTDDI_WIN10_CO
+#endif // NTDDI_WIN10_FE
 
 #include <xdp/bufferinterfacecontext.h>
 #include <xdp/bufferlogicaladdress.h>

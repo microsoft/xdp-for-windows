@@ -32,8 +32,10 @@ typedef struct _XDP_INTERFACE {
     XDP_INTERFACE_CONFIG_DETAILS OpenConfig;
 
     XDP_INTERFACE_NMR *Nmr;
+    XDP_VERSION DriverApiVersion;
     CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
     VOID *InterfaceContext;
+
     LONG ReferenceCount;
 
     LIST_ENTRY Clients;         // Components bound to the NIC.
@@ -74,12 +76,75 @@ typedef struct _XDP_INTERFACE_SET {
     XDP_INTERFACE *Interfaces[2];   // One binding for both generic and native.
 } XDP_INTERFACE_SET;
 
+//
+// Latest version of the XDP driver API.
+//
+static CONST XDP_VERSION XdpDriverApiCurrentVersion = {
+    .Major = XDP_DRIVER_API_MAJOR_VER,
+    .Minor = XDP_DRIVER_API_MINOR_VER,
+    .Patch = XDP_DRIVER_API_PATCH_VER
+};
+
 static EX_PUSH_LOCK XdpBindingLock;
 static LIST_ENTRY XdpBindings;
 static BOOLEAN XdpBindInitialized = FALSE;
 
+static
+XDP_INTERFACE *
+XdpInterfaceFromConfig(
+    _In_ XDP_INTERFACE_CONFIG InterfaceConfig
+    )
+{
+    return CONTAINING_RECORD(InterfaceConfig, XDP_INTERFACE, OpenConfig);
+}
+
+static
+BOOLEAN
+XdpValidateCapabilitiesEx(
+    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ UINT32 TotalSize
+    )
+{
+    UINT32 Size;
+    NTSTATUS Status;
+
+    if (CapabilitiesEx->Header.Revision < XDP_CAPABILITIES_EX_REVISION_1 ||
+        CapabilitiesEx->Header.Size < XDP_SIZEOF_CAPABILITIES_EX_REVISION_1) {
+        return FALSE;
+    }
+
+    Status =
+        RtlUInt32Mult(
+            CapabilitiesEx->DriverApiVersionCount, sizeof(XDP_VERSION), &Size);
+    if (!NT_SUCCESS(Status)) {
+        return FALSE;
+    }
+
+    Status =
+        RtlUInt32Add(
+            CapabilitiesEx->DriverApiVersionsOffset, Size, &Size);
+    if (!NT_SUCCESS(Status)) {
+        return FALSE;
+    }
+
+    return TotalSize >= Size;
+}
+
+CONST XDP_VERSION *
+XdpGetDriverApiVersion(
+    _In_ XDP_INTERFACE_CONFIG InterfaceConfig
+    )
+{
+    XDP_INTERFACE *Interface = XdpInterfaceFromConfig(InterfaceConfig);
+    return &Interface->DriverApiVersion;
+}
+
 static CONST XDP_INTERFACE_CONFIG_DISPATCH XdpOpenDispatch = {
-    .Size = sizeof(XdpOpenDispatch),
+    .Header         = {
+        .Revision   = XDP_INTERFACE_CONFIG_DISPATCH_REVISION_1,
+        .Size       = XDP_SIZEOF_INTERFACE_CONFIG_DISPATCH_REVISION_1
+    },
+    .GetDriverApiVersion = XdpGetDriverApiVersion
 };
 
 static
@@ -254,13 +319,80 @@ XdpIfpInvokeOpenInterface(
 }
 
 static
+BOOLEAN
+XdpVersionIsSupported(
+    _In_ CONST XDP_VERSION *Version,
+    _In_ CONST XDP_VERSION *MinimumSupportedVersion
+    )
+{
+    return
+        Version->Major == MinimumSupportedVersion->Major &&
+        Version->Minor >= MinimumSupportedVersion->Minor &&
+        Version->Patch >= MinimumSupportedVersion->Patch;
+}
+
+static
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+XdpRequestClientDispatch(
+    _In_ CONST XDP_CAPABILITIES_EX *ClientCapabilitiesEx,
+    _In_ VOID *GetInterfaceContext,
+    _In_ XDP_GET_INTERFACE_DISPATCH  *GetInterfaceDispatch,
+    _Inout_ XDP_INTERFACE *Binding,
+    _Out_ VOID **InterfaceContext,
+    _Out_ CONST XDP_INTERFACE_DISPATCH  **InterfaceDispatch
+    )
+{
+    NTSTATUS Status = STATUS_NOT_SUPPORTED;
+    XDP_VERSION *DriverApiVersions =
+        RTL_PTR_ADD(
+            ClientCapabilitiesEx, ClientCapabilitiesEx->DriverApiVersionsOffset);
+
+    for (UINT32 i = 0; i < ClientCapabilitiesEx->DriverApiVersionCount; i++) {
+        CONST XDP_VERSION *ClientVersion = &DriverApiVersions[i];
+
+        if (XdpVersionIsSupported(&XdpDriverApiCurrentVersion, ClientVersion)) {
+            Status =
+                GetInterfaceDispatch(
+                    ClientVersion, GetInterfaceContext,
+                    InterfaceContext, InterfaceDispatch);
+            if (NT_SUCCESS(Status)) {
+                Binding->DriverApiVersion = *ClientVersion;
+                TraceInfo(
+                    TRACE_CORE, "IfIndex=%u Mode=%u Received interface dispatch"
+                    " table for ClientVersion=%u.%u.%u",
+                    Binding->IfIndex, Binding->Capabilities.Mode,
+                    ClientVersion->Major, ClientVersion->Minor, ClientVersion->Patch);
+                break;
+            } else {
+                TraceWarn(
+                    TRACE_CORE,
+                    "IfIndex=%u Mode=%u Failed to get interface dispatch table"
+                    " Status=%!STATUS!", Binding->IfIndex, Binding->Capabilities.Mode,
+                    Status);
+                Status = STATUS_NOT_SUPPORTED;
+            }
+        }
+    }
+
+    if (!NT_SUCCESS(Status)) {
+        TraceWarn(
+            TRACE_CORE, "IfIndex=%u Mode=%u No compatible interface was found",
+            Binding->IfIndex, Binding->Capabilities.Mode);
+    }
+    return Status;
+}
+
+static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfpOpenInterface(
-    _In_ XDP_INTERFACE *Binding
+    _Inout_ XDP_INTERFACE *Binding
     )
 {
-    CONST XDP_CAPABILITIES *Capabilities = Binding->Capabilities.Capabilities;
+    CONST XDP_CAPABILITIES_EX *CapabilitiesEx = Binding->Capabilities.CapabilitiesEx;
+    VOID *GetInterfaceContext;
+    XDP_GET_INTERFACE_DISPATCH  *GetInterfaceDispatch;
     VOID *InterfaceContext;
     CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
     NTSTATUS Status;
@@ -269,18 +401,23 @@ XdpIfpOpenInterface(
         TRACE_CORE, "IfIndex=%u Mode=%u",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
-    if (Capabilities->Size < RTL_SIZEOF_THROUGH_FIELD(XDP_CAPABILITIES, InstanceId) ||
-        Capabilities->ApiVersion != XDP_API_VERSION_1) {
-        TraceInfo(TRACE_CORE, "Invalid capabilities");
+    if (CapabilitiesEx->Header.Revision < XDP_CAPABILITIES_EX_REVISION_1 ||
+        CapabilitiesEx->Header.Size < XDP_SIZEOF_CAPABILITIES_EX_REVISION_1) {
+        TraceError(
+            TRACE_CORE, "IfIndex=%u Mode=%u Invalid capabilities",
+            Binding->IfIndex, Binding->Capabilities.Mode);
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
     }
 
     ASSERT(Binding->Nmr == NULL);
 
-    Binding->Nmr = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding->Nmr), XDP_POOLTAG_BINDING);
+    Binding->Nmr =
+        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding->Nmr), XDP_POOLTAG_BINDING);
     if (Binding->Nmr == NULL) {
-        TraceInfo(TRACE_CORE, "NMR allocation failed");
+        TraceError(
+            TRACE_CORE, "IfIndex=%u Mode=%u NMR allocation failed",
+            Binding->IfIndex, Binding->Capabilities.Mode);
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
@@ -297,22 +434,35 @@ XdpIfpOpenInterface(
 
     Status =
         XdpOpenProvider(
-            XDP_API_VERSION_1, Binding->IfIndex, &Capabilities->InstanceId, Binding->Nmr,
-            XdpIfpDetachNmrInterface, &InterfaceContext, &InterfaceDispatch,
+            Binding->IfIndex, &CapabilitiesEx->InstanceId, Binding->Nmr,
+            XdpIfpDetachNmrInterface, &GetInterfaceContext, &GetInterfaceDispatch,
             &Binding->Nmr->NmrHandle);
     if (!NT_SUCCESS(Status)) {
-        TraceInfo(TRACE_CORE, "Failed to open NMR binding");
+        TraceError(
+            TRACE_CORE, "IfIndex=%u Mode=%u Failed to open NMR binding",
+            Binding->IfIndex, Binding->Capabilities.Mode);
         goto Exit;
     }
 
-    Status = XdpIfpInvokeOpenInterface(Binding, InterfaceContext, InterfaceDispatch);
+    Status =
+        XdpRequestClientDispatch(
+            CapabilitiesEx, GetInterfaceContext, GetInterfaceDispatch,
+            Binding, &InterfaceContext, &InterfaceDispatch);
     if (!NT_SUCCESS(Status)) {
-        TraceInfo(TRACE_CORE, "Interface open failed");
         goto Exit;
     }
 
     Binding->InterfaceContext = InterfaceContext;
     Binding->InterfaceDispatch = InterfaceDispatch;
+
+    Status = XdpIfpInvokeOpenInterface(Binding, InterfaceContext, InterfaceDispatch);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE, "IfIndex=%u Mode=%u Interface open failed",
+            Binding->IfIndex, Binding->Capabilities.Mode);
+        goto Exit;
+    }
+
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -667,6 +817,16 @@ XdpIfCreateBinding(
     for (ULONG Index = 0; Index < InterfaceCount; Index++) {
         XDP_REGISTER_IF *Registration = &Interfaces[Index];
         XDP_INTERFACE *Binding = NULL;
+
+        if (!XdpValidateCapabilitiesEx(
+                Registration->InterfaceCapabilities->CapabilitiesEx,
+                Registration->InterfaceCapabilities->CapabilitiesSize)) {
+            TraceError(
+                TRACE_CORE, "IfIndex=%u Mode=%u Invalid capabilities",
+                IfIndex, Registration->InterfaceCapabilities->Mode);
+            Status = STATUS_NOT_SUPPORTED;
+            goto Exit;
+        }
 
         Binding = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding), XDP_POOLTAG_BINDING);
         if (Binding == NULL) {

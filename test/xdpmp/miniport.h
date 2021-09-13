@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "poll.h"
+
 #define ETH_HDR_LEN 14
 #define MAC_ADDR_LEN 6
 #define MAX_MULTICAST_ADDRESSES 16
@@ -138,7 +140,7 @@ typedef struct _ADAPTER_CONTEXT {
     LIST_ENTRY AdapterListLink;
 
     NDIS_HANDLE MiniportHandle;
-    XDP_CAPABILITIES XdpCapabilities;
+    XDP_CAPABILITIES Capabilities;
     XDP_REGISTRATION_HANDLE XdpRegistration;
 
     PEX_RUNDOWN_REF_CACHE_AWARE NblRundown;
@@ -172,6 +174,9 @@ typedef struct _ADAPTER_CONTEXT {
     UCHAR RxPattern[128];
     BOOLEAN RxBatchInspectionEnabled;
     XDPMP_PACING_WMI Pacing;
+    FNDIS_NPI_CLIENT FndisClient;
+    ADAPTER_POLL_PROVIDER PollProvider;
+    ADAPTER_POLL_DISPATCH PollDispatch;
 
 } ADAPTER_CONTEXT;
 

@@ -12,7 +12,7 @@ EXTERN_C_START
 // Structure containing NDIS poll API information for an XDP queue.
 //
 typedef struct _XDP_POLL_INFO {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // A handle to the interface's NDIS polling context for a queue.
@@ -25,6 +25,11 @@ typedef struct _XDP_POLL_INFO {
     //
     BOOLEAN Shared;
 } XDP_POLL_INFO;
+
+#define XDP_POLL_INFO_REVISION_1 1
+
+#define XDP_SIZEOF_POLL_INFO_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_POLL_INFO, Shared)
 
 //
 // Initializes an XDP poll information object with a shared NDIS polling handle.
@@ -40,7 +45,8 @@ XdpInitializeSharedPollInfo(
     )
 {
     RtlZeroMemory(PollInfo, sizeof(*PollInfo));
-    PollInfo->Size = sizeof(*PollInfo);
+    PollInfo->Header.Revision = XDP_POLL_INFO_REVISION_1;
+    PollInfo->Header.Size = XDP_SIZEOF_POLL_INFO_REVISION_1;
 
     PollInfo->PollHandle = PollHandle;
     PollInfo->Shared = TRUE;
@@ -59,7 +65,8 @@ XdpInitializeExclusivePollInfo(
     )
 {
     RtlZeroMemory(PollInfo, sizeof(*PollInfo));
-    PollInfo->Size = sizeof(*PollInfo);
+    PollInfo->Header.Revision = XDP_POLL_INFO_REVISION_1;
+    PollInfo->Header.Size = XDP_SIZEOF_POLL_INFO_REVISION_1;
 
     PollInfo->PollHandle = PollHandle;
     PollInfo->Shared = FALSE;

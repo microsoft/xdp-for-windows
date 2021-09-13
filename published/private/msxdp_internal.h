@@ -11,10 +11,14 @@ EXTERN_C_START
 //
 // Trigger a bugcheck in xdp.sys. For testing purposes only.
 //
+
+typedef
 HRESULT
 XDPAPI
-XdpBugCheck(
+XDP_BUGCHECK(
     VOID
     );
+
+XDP_BUGCHECK XdpBugCheck;
 
 EXTERN_C_END

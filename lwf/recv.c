@@ -79,8 +79,7 @@ XdpGenericReceiveNotify(
     }
 }
 
-static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH RxDispatch =
-{
+static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH RxDispatch = {
     .InterfaceNotifyQueue = XdpGenericReceiveNotify,
 };
 
@@ -374,13 +373,12 @@ XdpGenericReceiveExpandFragmentBuffer(
 
 static
 BOOLEAN
-XdpGenericReceiveLinearizeNbl(
+XdpGenericReceiveLinearizeNb(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue,
-    _In_ NET_BUFFER_LIST *Nbl
+    _In_ NET_BUFFER *Nb
     )
 {
-    NET_BUFFER *Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);
     XDP_RING *FrameRing = RxQueue->FrameRing;
     XDP_FRAME *Frame;
     XDP_BUFFER *Buffer;
@@ -390,8 +388,8 @@ XdpGenericReceiveLinearizeNbl(
     XDP_BUFFER_VIRTUAL_ADDRESS *SystemVa;
 
     //
-    // Generic XDP reserves a single contiguous buffer for linearization; if an
-    // NBL contains more than the maximum number of fragments (MDLs), copy the
+    // Generic XDP reserves a single contiguous buffer for linearization; if a
+    // NB contains more than the maximum number of fragments (MDLs), copy the
     // contents of the entire MDL chain into one contiguous buffer.
     //
     // If the contiguous buffer is already in use, flush the queue first.
@@ -466,73 +464,25 @@ XdpGenericReceiveNbl(
     XDP_RING *FragmentRing = RxQueue->FragmentRing;
     XDP_FRAME *Frame;
     XDP_FRAME_FRAGMENT *FragmentExtension;
-    UINT8 FragmentCount = 0;
+    UINT8 FragmentCount;
     XDP_BUFFER *Buffer;
     MDL *Mdl;
     XDP_BUFFER_VIRTUAL_ADDRESS *SystemVa;
-    UINT32 DataLength = NET_BUFFER_DATA_LENGTH(Nb);
+    UINT32 DataLength;
     XDP_RX_ACTION Action;
 
-    ASSERT(XdpRingFree(FrameRing) > 0);
-    Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
+    do {
+        ASSERT(XdpRingFree(FrameRing) > 0);
+        Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
 
-    Buffer = &Frame->Buffer;
-    Mdl = Nb->CurrentMdl;
-    Buffer->DataOffset = Nb->CurrentMdlOffset;
-    Buffer->DataLength = min(Mdl->ByteCount - Buffer->DataOffset, DataLength);
-    Buffer->BufferLength = Mdl->ByteCount;
-    DataLength -= Buffer->DataLength;
-
-    SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
-    SystemVa->VirtualAddress =
-        MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
-    if (SystemVa->VirtualAddress == NULL) {
-        Action = XDP_RX_ACTION_DROP;
-        goto Exit;
-    }
-
-    //
-    // Loop over fragment MDLs. NDIS allows excess MDLs past the data length;
-    // ignore those, but allow trailing bytes in the final buffer.
-    //
-    for (Mdl = Mdl->Next; Mdl != NULL && DataLength > 0; Mdl = Mdl->Next) {
-        //
-        // Check if the number of MDLs exceeds the maximum XDP fragments. If so,
-        // attempt to convert the MDL chain to a single flat buffer.
-        //
-        if (FragmentCount + 1ui32 > RxQueue->FragmentLimit) {
-            if (!XdpGenericReceiveLinearizeNbl(RxQueue, XdpRxQueue, Nbl)) {
-                Action = XDP_RX_ACTION_DROP;
-                goto Exit;
-            }
-
-            //
-            // The NBL was converted to a single, virtually-contiguous buffer,
-            // so abandon fragmentation and proceed to XDP inspection.
-            //
-            FragmentCount = 0;
-            break;
-        }
-
-        //
-        // Reserve XDP descriptor space for this MDL. If space does not exist,
-        // flush existing descriptors to create space.
-        //
-        if (++FragmentCount > XdpRingFree(FragmentRing)) {
-            XdpGenericFlushReceive(RxQueue, XdpRxQueue);
-
-            ASSERT(XdpRingFree(FragmentRing) >= FragmentCount);
-        }
-
-        Buffer =
-            XdpRingGetElement(
-                FragmentRing,
-                (FragmentRing->ProducerIndex + FragmentCount - 1) & FragmentRing->Mask);
-
-        Buffer->DataOffset = 0;
-        Buffer->DataLength = min(Mdl->ByteCount, DataLength);
+        Buffer = &Frame->Buffer;
+        DataLength = NET_BUFFER_DATA_LENGTH(Nb);
+        Mdl = Nb->CurrentMdl;
+        Buffer->DataOffset = Nb->CurrentMdlOffset;
+        Buffer->DataLength = min(Mdl->ByteCount - Buffer->DataOffset, DataLength);
         Buffer->BufferLength = Mdl->ByteCount;
         DataLength -= Buffer->DataLength;
+        FragmentCount = 0;
 
         SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
         SystemVa->VirtualAddress =
@@ -541,23 +491,92 @@ XdpGenericReceiveNbl(
             Action = XDP_RX_ACTION_DROP;
             goto Exit;
         }
-    }
 
-    //
-    // The NBL has successfully been converted to XDP descriptors, so commit
-    // the descriptors to the XDP rings and invoke XDP inspection.
-    //
-    FragmentExtension = XdpGetFragmentExtension(Frame, &RxQueue->FragmentExtension);
-    FragmentExtension->FragmentBufferCount = FragmentCount;
-    FragmentRing->ProducerIndex += FragmentCount;
-    FrameRing->ProducerIndex++;
-    Action = XdpReceive(XdpRxQueue);
+        //
+        // Loop over fragment MDLs. NDIS allows excess MDLs past the data length;
+        // ignore those, but allow trailing bytes in the final buffer.
+        //
+        for (Mdl = Mdl->Next; Mdl != NULL && DataLength > 0; Mdl = Mdl->Next) {
+            //
+            // Check if the number of MDLs exceeds the maximum XDP fragments. If so,
+            // attempt to convert the MDL chain to a single flat buffer.
+            //
+            if (FragmentCount + 1ui32 > RxQueue->FragmentLimit) {
+                if (!XdpGenericReceiveLinearizeNb(RxQueue, XdpRxQueue, Nb)) {
+                    Action = XDP_RX_ACTION_DROP;
+                    goto Exit;
+                }
 
-    //
-    // Currently XDP does not advance/retreat buffers, so there's no need to
-    // explicitly update the NBL; the payload data may have already been
-    // rewritten.
-    //
+                //
+                // The NB was converted to a single, virtually-contiguous buffer,
+                // so abandon fragmentation and proceed to XDP inspection.
+                //
+                FragmentCount = 0;
+                break;
+            }
+
+            //
+            // Reserve XDP descriptor space for this MDL. If space does not exist,
+            // flush existing descriptors to create space.
+            //
+            if (++FragmentCount > XdpRingFree(FragmentRing)) {
+                XdpGenericFlushReceive(RxQueue, XdpRxQueue);
+
+                ASSERT(XdpRingFree(FragmentRing) >= FragmentCount);
+            }
+
+            Buffer =
+                XdpRingGetElement(
+                    FragmentRing,
+                    (FragmentRing->ProducerIndex + FragmentCount - 1) & FragmentRing->Mask);
+
+            Buffer->DataOffset = 0;
+            Buffer->DataLength = min(Mdl->ByteCount, DataLength);
+            Buffer->BufferLength = Mdl->ByteCount;
+            DataLength -= Buffer->DataLength;
+
+            SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
+            SystemVa->VirtualAddress =
+                MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
+            if (SystemVa->VirtualAddress == NULL) {
+                Action = XDP_RX_ACTION_DROP;
+                goto Exit;
+            }
+        }
+
+        //
+        // The NB has successfully been converted to XDP descriptors, so commit
+        // the descriptors to the XDP rings and invoke XDP inspection.
+        //
+        FragmentExtension = XdpGetFragmentExtension(Frame, &RxQueue->FragmentExtension);
+        FragmentExtension->FragmentBufferCount = FragmentCount;
+        FragmentRing->ProducerIndex += FragmentCount;
+        FrameRing->ProducerIndex++;
+        Action = XdpReceive(XdpRxQueue);
+
+        //
+        // Currently XDP does not advance/retreat buffers, so there's no need to
+        // explicitly update the NB; however, the payload data may have already
+        // been rewritten.
+        //
+
+        //
+        // Advance to the next NB in the NBL. NBLs with multiple NBs are only
+        // permitted on the NDIS send path.
+        //
+        // Since all NBs sharing an NBL are grouped by flow, simply return the
+        // XDP action for the last NB in the NBL. This is an oversimplification
+        // (we need to split NBLs in the general case) but is sufficient for the
+        // filtering conditions supported by XDP today: all map to a property
+        // greater than or equal to the scope of a single flow, so filters today
+        // cannot split NBLs.
+        //
+        Nb = Nb->Next;
+
+        if (Nb != NULL && XdpRingFree(FrameRing) == 0) {
+            XdpGenericFlushReceive(RxQueue, XdpRxQueue);
+        }
+    } while (Nb != NULL);
 
 Exit:
     return Action;

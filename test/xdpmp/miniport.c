@@ -15,6 +15,7 @@ NDIS_STRING RegRxBufferLength = NDIS_STRING_CONST("RxBufferLength");
 NDIS_STRING RegRxDataLength = NDIS_STRING_CONST("RxDataLength");
 NDIS_STRING RegRxPattern = NDIS_STRING_CONST("RxPattern");
 NDIS_STRING RegRxBatchInspection = NDIS_STRING_CONST("RxBatchInspection");
+NDIS_STRING RegPollProvider = NDIS_STRING_CONST("PollProvider");
 
 PCSTR MpDriverFriendlyName = "XDPMP";
 UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
@@ -42,6 +43,17 @@ UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 #define MIN_RX_DATA_LENGTH 64
 #define DEFAULT_RX_BUFFER_DATA_LENGTH 64
 #define MAX_RX_DATA_LENGTH 65536
+
+//
+// The driver only supports the driver API version in the DDK or higher.
+// Drivers can set lower values for backwards compatibility.
+//
+static
+CONST XDP_VERSION DriverApiVersion = {
+    .Major = XDP_DRIVER_API_MAJOR_VER,
+    .Minor = XDP_DRIVER_API_MINOR_VER,
+    .Patch = XDP_DRIVER_API_PATCH_VER
+};
 
 //
 // Define custom OIDs in the vendor-private range [0xFF00000, 0xFFFFFFFF].
@@ -109,9 +121,11 @@ static CONST NDIS_GUID MpCustomGuidArray[] = {
 
 MINIPORT_SUPPORTED_XDP_EXTENSIONS MpSupportedXdpExtensions = {0};
 
-static CONST XDP_INTERFACE_DISPATCH MpXdpDispatch =
-{
-    .Size               = sizeof(MpXdpDispatch),
+static CONST XDP_INTERFACE_DISPATCH MpXdpDispatch = {
+    .Header             = {
+        .Revision       = XDP_INTERFACE_DISPATCH_REVISION_1,
+        .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
+    },
     .CreateRxQueue      = MpXdpCreateRxQueue,
     .ActivateRxQueue    = MpXdpActivateRxQueue,
     .DeleteRxQueue      = MpXdpDeleteRxQueue,
@@ -251,7 +265,9 @@ MpInitialize(
 
     NdisZeroMemory(&AdapterAttributes, sizeof(NDIS_MINIPORT_ADAPTER_ATTRIBUTES));
 
-    Status = XdpInitializeCapabilities(&Adapter->XdpCapabilities, XDP_API_VERSION_1);
+    Status =
+        XdpInitializeCapabilities(
+            &Adapter->Capabilities, &DriverApiVersion);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
@@ -419,8 +435,8 @@ MpInitialize(
 
     Status =
         XdpRegisterInterface(
-            Adapter->IfIndex, &Adapter->XdpCapabilities, Adapter, &MpXdpDispatch,
-            &Adapter->XdpRegistration);
+            Adapter->IfIndex, &Adapter->Capabilities,
+            Adapter, &MpXdpDispatch, &Adapter->XdpRegistration);
     if (Status != NDIS_STATUS_SUCCESS) {
         //
         // Failure to register with XDP is not fatal, but it does mean that XDP
@@ -962,6 +978,14 @@ MpReadConfiguration(
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxBatchInspection, &RegValue);
     Adapter->RxBatchInspectionEnabled = !!RegValue;
 
+    Adapter->PollProvider = PollProviderNdis;
+    TRY_READ_INT_CONFIGURATION(ConfigHandle, RegPollProvider, &Adapter->PollProvider);
+    if (Adapter->PollProvider < 0 ||
+        Adapter->PollProvider >= PollProviderMax) {
+        Status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
     Adapter->CurrentLookAhead = 0;
     Adapter->CurrentPacketFilter = 0;
 
@@ -1231,8 +1255,8 @@ MpQueryInformationHandler(
             break;
 
         case OID_XDP_QUERY_CAPABILITIES:
-            DataPointer = &Adapter->XdpCapabilities;
-            DataLength = sizeof(Adapter->XdpCapabilities);
+            DataPointer = &Adapter->Capabilities;
+            DataLength = sizeof(Adapter->Capabilities);
             break;
 
         default:

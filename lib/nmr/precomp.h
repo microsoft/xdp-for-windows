@@ -10,5 +10,6 @@
 #include <xdp/control.h>
 #include <xdpassert.h>
 #include <xdpnmrprovider.h>
+#include <xdprtl.h>
 
 #include "common.h"

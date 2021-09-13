@@ -19,15 +19,9 @@ param (
     [switch]$Fndis = $false
 )
 
-if ($Fndis) {
-    $DeviceId = "xdpmpf0"
-    $ComponentId = "ms_xdpmpf"
-    $Name = "XDPMPF"
-} else {
-    $DeviceId = "xdpmp0"
-    $ComponentId = "ms_xdpmp"
-    $Name = "XDPMP"
-}
+$DeviceId = "xdpmp0"
+$ComponentId = "ms_xdpmp"
+$Name = "XDPMP"
 
 if ($Uninstall) {
     netsh advfirewall firewall del rule name="Allow$($Name)v4"
@@ -71,6 +65,14 @@ if ($Install) {
 
     Rename-NetAdapter -InterfaceDescription $Name $Name
     $AdapterIndex = (Get-NetAdapter $Name).ifIndex
+
+    if ($Fndis) {
+        $PollProvider = "FNDIS"
+    } else {
+        $PollProvider = "NDIS"
+    }
+
+    Set-NetAdapterAdvancedProperty -Name $Name -RegistryKeyword PollProvider -DisplayValue $PollProvider
 
     netsh int ipv4 set int $AdapterIndex dadtransmits=0
     netsh int ipv4 add address $AdapterIndex address=192.168.100.1/24

@@ -10,6 +10,7 @@
 #include <ntintsafe.h>
 #include <ndis.h>
 #include <fndisioctl.h>
+#include <fndisnpi.h>
 #include <fndispoll_p.h>
 #include <xdpassert.h>
 #include <xdppollbackchannel.h>

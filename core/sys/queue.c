@@ -93,6 +93,21 @@ XdpQueueBlockingSyncInsert(
     XdpQueueSyncInsert(Sync, &Entry->SyncEntry, XdpQueueBlockingSyncCallback, Entry);
 }
 
+VOID
+XdpInitializeQueueInfo(
+    _Out_ XDP_QUEUE_INFO *QueueInfo,
+    _In_ XDP_QUEUE_TYPE QueueType,
+    _In_ UINT32 QueueId
+    )
+{
+    RtlZeroMemory(QueueInfo, sizeof(*QueueInfo));
+    QueueInfo->Header.Revision = XDP_QUEUE_INFO_REVISION_1;
+    QueueInfo->Header.Size = XDP_SIZEOF_QUEUE_INFO_REVISION_1;
+
+    QueueInfo->QueueType = QueueType;
+    QueueInfo->QueueId = QueueId;
+}
+
 #if DBG
 
 VOID

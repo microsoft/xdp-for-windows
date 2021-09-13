@@ -8,12 +8,19 @@ typedef struct _XDP_CLIENT {
     NPI_CLIENT_CHARACTERISTICS NpiClientCharacteristics;
     NPI_MODULEID ModuleId;
     HANDLE NmrClientHandle;
-    CONST XDP_CAPABILITIES *Capabilities;
+    CONST XDP_CAPABILITIES_EX *CapabilitiesEx;
     XDP_NPI_CLIENT NpiClient;
 
     ERESOURCE Resource;
     HANDLE BindingHandle;
 } XDP_CLIENT;
+
+typedef struct _XDP_CLIENT_SINGLE_VERSION {
+    XDP_CLIENT Client;
+    CONST XDP_VERSION *ClientVersion;
+    VOID *InterfaceContext;
+    CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
+} XDP_CLIENT_SINGLE_VERSION;
 
 static
 VOID
@@ -35,8 +42,6 @@ XdpCleanupInterfaceRegistration(
     if (ResourceInitialized) {
         NT_VERIFY(NT_SUCCESS(ExDeleteResourceLite(&Client->Resource)));
     }
-
-    ExFreePoolWithTag(Client, POOLTAG_NMR_CLIENT);
 }
 
 static
@@ -49,8 +54,8 @@ XdpNmrClientAttachProvider(
 {
     XDP_CLIENT *Client = ClientContext;
     NTSTATUS Status;
-    VOID *ProviderContext;
-    CONST VOID *ProviderDispatch;
+    VOID *ProviderBindingContext;
+    CONST VOID *ProviderBindingDispatch;
 
     UNREFERENCED_PARAMETER(ProviderRegistrationInstance);
 
@@ -66,7 +71,8 @@ XdpNmrClientAttachProvider(
     } else {
         Status =
             NmrClientAttachProvider(
-                NmrBindingHandle, Client, &Client->NpiClient, &ProviderContext, &ProviderDispatch);
+                NmrBindingHandle, Client, &Client->NpiClient,
+                &ProviderBindingContext, &ProviderBindingDispatch);
 
         if (NT_SUCCESS(Status)) {
             Client->BindingHandle = NmrBindingHandle;
@@ -95,36 +101,21 @@ XdpNmrClientDetachProvider(
     return STATUS_SUCCESS;
 }
 
-VOID
-XdpDeregisterInterface(
-    _In_ XDP_REGISTRATION_HANDLE RegistrationHandle
-    )
-{
-    XDP_CLIENT *Client = (XDP_CLIENT *)RegistrationHandle;
-
-    XdpCleanupInterfaceRegistration(Client, TRUE);
-}
-
+static
 NTSTATUS
-XdpRegisterInterface(
+XdpRegisterInterfaceInternal(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_CAPABILITIES *Capabilities,
-    _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
+    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ VOID *GetInterfaceContext,
+    _In_ XDP_GET_INTERFACE_DISPATCH *GetInterfaceDispatch,
+    _Out_ XDP_CLIENT *Client,
     _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
     )
 {
     NTSTATUS Status;
-    XDP_CLIENT *Client;
     NPI_CLIENT_CHARACTERISTICS *NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *NpiInstance;
     BOOLEAN ResourceInitialized = FALSE;
-
-    Client = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Client), POOLTAG_NMR_CLIENT);
-    if (Client == NULL) {
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
 
     //
     // Use resources instead of push locks for downlevel compatibility.
@@ -135,13 +126,15 @@ XdpRegisterInterface(
     }
     ResourceInitialized = TRUE;
 
-    Client->Capabilities = Capabilities;
-    Client->NpiClient.InterfaceContext = InterfaceContext;
-    Client->NpiClient.InterfaceDispatch = InterfaceDispatch;
+    Client->CapabilitiesEx = CapabilitiesEx;
+    Client->NpiClient.Header.Revision = XDP_NPI_CLIENT_REVISION_1;
+    Client->NpiClient.Header.Size = XDP_SIZEOF_NPI_CLIENT_REVISION_1;
+    Client->NpiClient.GetInterfaceContext = GetInterfaceContext;
+    Client->NpiClient.GetInterfaceDispatch = GetInterfaceDispatch;
 
     Client->ModuleId.Length = sizeof(Client->ModuleId);
     Client->ModuleId.Type = MIT_GUID;
-    Client->ModuleId.Guid = Capabilities->InstanceId;
+    Client->ModuleId.Guid = CapabilitiesEx->InstanceId;
 
     NpiCharacteristics = &Client->NpiClientCharacteristics;
     NpiCharacteristics->Length = sizeof(*NpiCharacteristics);
@@ -154,7 +147,7 @@ XdpRegisterInterface(
     NpiInstance->NpiId = &NPI_XDP_ID;
     NpiInstance->ModuleId = &Client->ModuleId;
     NpiInstance->Number = InterfaceIndex;
-    NpiInstance->NpiSpecificCharacteristics = Client->Capabilities;
+    NpiInstance->NpiSpecificCharacteristics = Client->CapabilitiesEx;
 
     Status =
         NmrRegisterClient(
@@ -175,4 +168,92 @@ Exit:
     }
 
     return Status;
+}
+
+static
+VOID
+XdpDeregisterInterfaceInternal(
+    _In_ XDP_CLIENT *Client
+    )
+{
+    XdpCleanupInterfaceRegistration(Client, TRUE);
+}
+
+static
+NTSTATUS
+XdpNmrClientGetInterfaceDispatch(
+    _In_ CONST XDP_VERSION *Version,
+    _In_ VOID *GetInterfaceContext,
+    _Out_ VOID **InterfaceContext,
+    _Out_ CONST VOID **InterfaceDispatch
+    )
+{
+    XDP_CLIENT_SINGLE_VERSION *ClientSingleVersion = GetInterfaceContext;
+
+    if (Version->Major != ClientSingleVersion->ClientVersion->Major) {
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    *InterfaceContext = ClientSingleVersion->InterfaceContext;
+    *InterfaceDispatch = ClientSingleVersion->InterfaceDispatch;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+XdpRegisterInterfaceEx(
+    _In_ UINT32 InterfaceIndex,
+    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ VOID *InterfaceContext,
+    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
+    _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
+    )
+{
+    XDP_CLIENT_SINGLE_VERSION *ClientSingleVersion = NULL;
+    NTSTATUS Status;
+
+    if (CapabilitiesEx->DriverApiVersionCount != 1) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    ClientSingleVersion =
+        ExAllocatePoolZero(
+            NonPagedPoolNx, sizeof(*ClientSingleVersion), POOLTAG_NMR_CLIENT);
+    if (ClientSingleVersion == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    ClientSingleVersion->ClientVersion =
+        RTL_PTR_ADD(CapabilitiesEx, CapabilitiesEx->DriverApiVersionsOffset);
+    ClientSingleVersion->InterfaceContext = InterfaceContext;
+    ClientSingleVersion->InterfaceDispatch = InterfaceDispatch;
+
+    Status =
+        XdpRegisterInterfaceInternal(
+            InterfaceIndex, CapabilitiesEx, ClientSingleVersion,
+            XdpNmrClientGetInterfaceDispatch, &ClientSingleVersion->Client,
+            RegistrationHandle);
+
+Exit:
+    if (!NT_SUCCESS(Status)) {
+        if (ClientSingleVersion != NULL) {
+            ExFreePoolWithTag(ClientSingleVersion, POOLTAG_NMR_CLIENT);
+        }
+    }
+
+    return Status;
+}
+
+VOID
+XdpDeregisterInterface(
+    _In_ XDP_REGISTRATION_HANDLE RegistrationHandle
+    )
+{
+    XDP_CLIENT_SINGLE_VERSION *ClientSingleVersion =
+        (XDP_CLIENT_SINGLE_VERSION *)RegistrationHandle;
+
+    XdpDeregisterInterfaceInternal(&ClientSingleVersion->Client);
+    ExFreePoolWithTag(ClientSingleVersion, POOLTAG_NMR_CLIENT);
 }

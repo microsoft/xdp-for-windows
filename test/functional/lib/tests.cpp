@@ -57,7 +57,11 @@ static CONST XDP_HOOK_ID XdpInspectRxL2 =
 //
 #define TEST_TIMEOUT_ASYNC_MS 1000
 #define TEST_TIMEOUT_ASYNC std::chrono::milliseconds(TEST_TIMEOUT_ASYNC_MS)
-#define MP_RESTART_TIMEOUT std::chrono::milliseconds(5 * TEST_TIMEOUT_ASYNC_MS)
+
+//
+// The expected maximum time needed for a network adapter to restart.
+//
+#define MP_RESTART_TIMEOUT std::chrono::seconds(10)
 
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
@@ -1735,6 +1739,7 @@ GenericRxFromTxInspect(
     UINT16 XskPort;
     SOCKADDR_INET DestAddr = {};
     XDP_HOOK_ID RxInspectFromTxL2 = {};
+    const UINT32 NumFrames = 2;
 
     RxInspectFromTxL2.Layer = XDP_HOOK_L2;
     RxInspectFromTxL2.Direction = XDP_HOOK_TX;
@@ -1758,7 +1763,6 @@ GenericRxFromTxInspect(
         CreateXdpProg(
             If.GetIfIndex(), &RxInspectFromTxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    UCHAR UdpPayload[] = "GenericRxFromTxInspect";
     if (Af == AF_INET) {
         DestAddr.si_family = AF_INET;
         DestAddr.Ipv4.sin_port = XskPort;
@@ -1770,9 +1774,18 @@ GenericRxFromTxInspect(
     }
 
     //
-    // Produce one XSK fill descriptor.
+    // Using UDP segmentation offload, build one send with two UDP frames. The
+    // UDP data path should split the send into one NBL chained to two NBs.
     //
-    SocketProduceRxFill(&Xsk, 1);
+    CHAR UdpPayload[] = "GenericRxFromTxInspectPkt1GenericRxFromTxInspectPkt2";
+    UINT32 UdpSegmentSize = (UINT32)(strchr(UdpPayload, '1') - UdpPayload + 1);
+    TEST_EQUAL((SIZE_T)NumFrames * (SIZE_T)UdpSegmentSize + 1, sizeof(UdpPayload));
+    TEST_EQUAL(NO_ERROR, WSASetUdpSendMessageSize(UdpSocket.get(), UdpSegmentSize));
+
+    //
+    // Produce two XSK fill descriptors, one for each UDP frame.
+    //
+    SocketProduceRxFill(&Xsk, NumFrames);
 
     //
     // NDIS restarts protocol stacks from the NIC upwards towards protocols, so
@@ -1784,7 +1797,7 @@ GenericRxFromTxInspect(
     do {
         result =
             sendto(
-                UdpSocket.get(), (CHAR *)UdpPayload, sizeof(UdpPayload), 0,
+                UdpSocket.get(), UdpPayload, NumFrames * UdpSegmentSize, 0,
                 (SOCKADDR *)&DestAddr, sizeof(DestAddr));
 
         if (result == SOCKET_ERROR) {
@@ -1796,22 +1809,26 @@ GenericRxFromTxInspect(
         }
     } while (result == SOCKET_ERROR && !Watchdog.IsExpired());
 
-    TEST_EQUAL(sizeof(UdpPayload), result);
+    TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)result);
 
     //
     // Verify the NBL propagated correctly to XSK.
     //
-    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
-    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
-    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, NumFrames);
+    TEST_EQUAL(NumFrames, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
 
-    TEST_EQUAL(UDP_HEADER_BACKFILL(Af) + sizeof(UdpPayload), RxDesc->length);
-    TEST_TRUE(
-        RtlEqualMemory(
-            Xsk.Umem.Buffer.get() + UDP_HEADER_BACKFILL(Af) +
-                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
-            UdpPayload,
-            sizeof(UdpPayload)));
+    for (UINT32 FrameIndex = 0; FrameIndex < NumFrames; FrameIndex++) {
+        auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+
+        TEST_EQUAL(UDP_HEADER_BACKFILL(Af) + UdpSegmentSize, RxDesc->length);
+        TEST_TRUE(
+            RtlEqualMemory(
+                Xsk.Umem.Buffer.get() + UDP_HEADER_BACKFILL(Af) +
+                    XskDescriptorGetAddress(RxDesc->address) +
+                        XskDescriptorGetOffset(RxDesc->address),
+                &UdpPayload[FrameIndex * UdpSegmentSize],
+                UdpSegmentSize));
+    }
 }
 
 VOID

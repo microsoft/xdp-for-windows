@@ -8,7 +8,6 @@ typedef struct _XDP_PROVIDER {
     NPI_PROVIDER_CHARACTERISTICS NpiProviderCharacteristics;
     NPI_MODULEID ModuleId;
     HANDLE NmrProviderHandle;
-    UINT32 ApiVersion;
     VOID *ProviderContext;
     XDP_PROVIDER_DETACH_HANDLER *DetachHandler;
 
@@ -52,8 +51,6 @@ XdpNmrProviderAttachClient(
     XDP_PROVIDER *Provider = ProviderContext;
     CONST NPI_REGISTRATION_INSTANCE *ProviderRegistrationInstance =
         &Provider->NpiProviderCharacteristics.ProviderRegistrationInstance;
-    CONST XDP_CAPABILITIES *ClientCapabilities =
-        ClientRegistrationInstance->NpiSpecificCharacteristics;
     CONST XDP_NPI_CLIENT *NpiClient = ClientDispatch;
     NTSTATUS Status;
 
@@ -85,10 +82,8 @@ XdpNmrProviderAttachClient(
         goto Exit;
     }
 
-    //
-    // TODO: Support several API versions.
-    //
-    if (ClientCapabilities->ApiVersion != Provider->ApiVersion) {
+    if (NpiClient->Header.Revision < XDP_NPI_CLIENT_REVISION_1 ||
+        NpiClient->Header.Size < XDP_SIZEOF_NPI_CLIENT_REVISION_1) {
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
     }
@@ -184,13 +179,12 @@ XdpCleanupProvider(
 
 NTSTATUS
 XdpOpenProvider(
-    _In_ UINT32 ApiVersion,
     _In_ UINT32 InterfaceIndex,
     _In_ CONST GUID *ClientGuid,
     _In_ VOID *ProviderContext,
     _In_ XDP_PROVIDER_DETACH_HANDLER *DetachHandler,
-    _Out_ VOID **InterfaceContext,
-    _Out_ CONST XDP_INTERFACE_DISPATCH **InterfaceDispatch,
+    _Out_ VOID **NpiGetInterfaceContext,
+    _Out_ XDP_GET_INTERFACE_DISPATCH  **NpiGetInterfaceDispatch,
     _Out_ XDP_PROVIDER_HANDLE *ProviderHandle
     )
 {
@@ -207,7 +201,6 @@ XdpOpenProvider(
 
     ExInitializePushLock(&Provider->Lock);
 
-    Provider->ApiVersion = ApiVersion;
     Provider->ProviderContext = ProviderContext;
     Provider->DetachHandler = DetachHandler;
 
@@ -237,8 +230,8 @@ XdpOpenProvider(
     ExAcquirePushLockExclusive(&Provider->Lock);
 
     if (Provider->BindingHandle != NULL) {
-        *InterfaceContext = Provider->NpiClient->InterfaceContext;
-        *InterfaceDispatch = Provider->NpiClient->InterfaceDispatch;
+        *NpiGetInterfaceContext = Provider->NpiClient->GetInterfaceContext;
+        *NpiGetInterfaceDispatch = Provider->NpiClient->GetInterfaceDispatch;
         Status = STATUS_SUCCESS;
     } else {
         Provider->Closed = TRUE;

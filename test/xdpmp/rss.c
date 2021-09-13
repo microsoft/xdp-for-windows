@@ -4,6 +4,16 @@
 
 #include "precomp.h"
 
+typedef
+VOID
+POLL_COMPLETE_HELPER(
+    _In_ NDIS_HANDLE PollHandle,
+    _In_ NDIS_POLL_DATA *Poll,
+    _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
+    _In_ XDP_POLL_RECEIVE_DATA *Receive,
+    _In_ XDP_NDIS_REQUEST_POLL *RequestPoll
+    );
+
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 _Function_class_(NDIS_POLL)
@@ -15,6 +25,7 @@ MpPoll(
 {
     ADAPTER_QUEUE *RssQueue = (ADAPTER_QUEUE *)MiniportPollContext;
     XDP_POLL_DATA XdpPoll = {0};
+    POLL_COMPLETE_HELPER *PollComplete;
 
 #if DBG
     ASSERT(InterlockedIncrement(&RssQueue->ActivePolls) == 1);
@@ -29,7 +40,15 @@ MpPoll(
     ASSERT(InterlockedDecrement(&RssQueue->ActivePolls) == 0);
 #endif
 
-    XdpCompleteNdisPoll(RssQueue->NdisPollHandle, Poll, &XdpPoll.Transmit, &XdpPoll.Receive);
+    if (RssQueue->Adapter->PollProvider == PollProviderFndis) {
+        PollComplete = FNdisCompletePoll;
+    } else {
+        PollComplete = XdpCompleteNdisPoll;
+    }
+
+    PollComplete(
+        RssQueue->NdisPollHandle, Poll, &XdpPoll.Transmit, &XdpPoll.Receive,
+        RssQueue->Adapter->PollDispatch.RequestPoll);
 }
 
 static
@@ -71,7 +90,7 @@ MpXdpNotify(
     }
 
     if (Flags & PollMask) {
-        NdisRequestPoll(RssQueue->NdisPollHandle, 0);
+        RssQueue->Adapter->PollDispatch.RequestPoll(RssQueue->NdisPollHandle, 0);
     }
 }
 
@@ -89,13 +108,15 @@ MpDepopulateRssQueues(
 
         // Tell NDIS to stop calling the miniport's poll routine.
         if (RssQueue->NdisPollHandle != NULL) {
-            NdisDeregisterPoll(RssQueue->NdisPollHandle);
+            Adapter->PollDispatch.DeregisterPoll(RssQueue->NdisPollHandle);
             RssQueue->NdisPollHandle = NULL;
         }
 
         MpCleanupReceiveQueue(&RssQueue->Rq);
         MpCleanupTransmitQueue(&RssQueue->Tq);
     }
+
+    MpCleanupPoll(Adapter);
 
     ExFreePoolWithTag(Adapter->RssQueues, POOLTAG_QUEUE);
     Adapter->RssQueues = NULL;
@@ -116,6 +137,11 @@ MpPopulateRssQueues(
             NonPagedPoolNxCacheAligned, AllocationSize, POOLTAG_QUEUE);
     if (Adapter->RssQueues == NULL) {
         ndisStatus = NDIS_STATUS_RESOURCES;
+        goto Exit;
+    }
+
+    ndisStatus = MpInitializePoll(Adapter);
+    if (ndisStatus != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
@@ -159,7 +185,7 @@ MpStartRss(
     PollAttributes.SetPollNotificationHandler = MpInterruptControl;
 
     ndisStatus =
-        NdisRegisterPoll(
+        Adapter->PollDispatch.RegisterPoll(
             Adapter->MiniportHandle, RssQueue, &PollAttributes, &RssQueue->NdisPollHandle);
     if (ndisStatus != NDIS_STATUS_SUCCESS) {
         goto Exit;
@@ -242,7 +268,7 @@ MpSetRss(
             RssQueue->HwActiveRx = TRUE;
 
             KeGetProcessorNumberFromIndex(AssignedProcessors[Index], &ProcessorNumber);
-            NdisSetPollAffinity(RssQueue->NdisPollHandle, &ProcessorNumber);
+            Adapter->PollDispatch.SetPollAffinity(RssQueue->NdisPollHandle, &ProcessorNumber);
         } else {
             //
             // There's no convenient way to disable the unused queue, so just

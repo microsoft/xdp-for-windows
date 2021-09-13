@@ -45,6 +45,12 @@ FNdisRequestPoll(
     _Reserved_ void * Reserved
     );
 
+_IRQL_requires_(PASSIVE_LEVEL)
+PVOID
+FNdisGetRoutineAddress(
+    _In_ PUNICODE_STRING RoutineName
+    );
+
 inline
 _IRQL_requires_max_(DISPATCH_LEVEL)
 void
@@ -52,10 +58,12 @@ FNdisCompletePoll(
     _In_ NDIS_HANDLE PollHandle,
     _In_ NDIS_POLL_DATA *Poll,
     _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
-    _In_ XDP_POLL_RECEIVE_DATA *Receive
+    _In_ XDP_POLL_RECEIVE_DATA *Receive,
+    _In_ XDP_NDIS_REQUEST_POLL *RequestPoll
     )
 {
     UNREFERENCED_PARAMETER(PollHandle);
+    UNREFERENCED_PARAMETER(RequestPoll);
 
     Poll->Transmit.Reserved1[TxXdpFramesCompleted] = Transmit->FramesCompleted;
     Poll->Transmit.Reserved1[TxXdpFramesTransmitted] = Transmit->FramesTransmitted;

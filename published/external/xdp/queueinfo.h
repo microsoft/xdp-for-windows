@@ -29,7 +29,7 @@ typedef enum _XDP_QUEUE_TYPE {
 // The XDP queue information structure uniquely identifies an interface queue.
 //
 typedef struct _XDP_QUEUE_INFO {
-    UINT32 Size;
+    XDP_OBJECT_HEADER Header;
 
     //
     // Specifies the type of queue.
@@ -42,6 +42,11 @@ typedef struct _XDP_QUEUE_INFO {
     //
     UINT32 QueueId;
 } XDP_QUEUE_INFO;
+
+#define XDP_QUEUE_INFO_REVISION_1 1
+
+#define XDP_SIZEOF_QUEUE_INFO_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_QUEUE_INFO, QueueId)
 
 #ifdef __cplusplus
 } // extern "C"
