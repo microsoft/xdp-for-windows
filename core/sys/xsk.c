@@ -569,7 +569,7 @@ XskFillTx(
         AddressDescriptor = ReadUInt64NoFence(&Descriptor->address);
         RelativeAddress = XskDescriptorGetAddress(AddressDescriptor);
         Buffer->DataOffset = XskDescriptorGetOffset(AddressDescriptor);
-        Buffer->DataLength = (UINT32)ReadNoFence((LONG*)&Descriptor->length);
+        Buffer->DataLength = ReadUInt32NoFence(&Descriptor->length);
         Buffer->BufferLength = Buffer->DataLength + Buffer->DataOffset;
 
         Status = RtlUInt64Add(RelativeAddress, Buffer->DataLength, &Result);
@@ -785,23 +785,6 @@ static CONST XDP_TX_QUEUE_DISPATCH XskTxDispatch = {
     .FlushTransmit = XskFlushTransmit,
 };
 
-_Maybe_raises_SEH_exception_
-_IRQL_requires_max_(APC_LEVEL)
-_Ret_range_(==, *Address)
-FORCEINLINE
-HANDLE
-ProbeAndReadHandle(
-    _In_reads_bytes_(sizeof(HANDLE)) volatile CONST HANDLE *Address
-    )
-{
-    C_ASSERT(sizeof(HANDLE) == sizeof(PVOID));
-    if (Address >= (HANDLE * const)MM_USER_PROBE_ADDRESS) {
-        Address = (HANDLE * const)MM_USER_PROBE_ADDRESS;
-    }
-    _ReadWriteBarrier();
-    return (HANDLE)ReadPointerNoFence((PVOID *)Address);
-}
-
 NTSTATUS
 XskReferenceDatapathHandle(
     _In_ KPROCESSOR_MODE RequestorMode,
@@ -817,7 +800,8 @@ XskReferenceDatapathHandle(
 
     if (RequestorMode != KernelMode && !HandleBounced) {
         try {
-            TargetHandle = ProbeAndReadHandle((HANDLE*)HandleBuffer);
+            ProbeForRead((VOID *)HandleBuffer, sizeof(HANDLE), PROBE_ALIGNMENT(HANDLE));
+            TargetHandle = *(HANDLE *)HandleBuffer;
         } except (EXCEPTION_EXECUTE_HANDLER) {
             Status = GetExceptionCode();
             goto Exit;

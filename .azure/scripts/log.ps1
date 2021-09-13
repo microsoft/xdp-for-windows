@@ -65,17 +65,23 @@ function Start-Logging {
         wpr.exe -start "$($WprpFile)!$($Profile)" -filemode -instancename $Name 2>&1
     } catch {
         Write-Host $_
+        Get-Error
+        $_ | Format-List *
+        throw
     }
 }
 
 function Stop-Logging {
-    Write-Host "------- Stoping logs -------"
+    Write-Host "------- Stopping logs -------"
     try {
         wpr.exe -stop $EtlPath -instancename $Name 2>&1
         & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
         Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
     } catch {
         Write-Host $_
+        Get-Error
+        $_ | Format-List *
+        throw
     }
 }
 

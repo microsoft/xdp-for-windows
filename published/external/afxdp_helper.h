@@ -6,34 +6,10 @@
 #define AFXDP_HELPER_H
 
 #include <afxdp.h>
+#include <xdp/rtl.h>
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-//
-// The UInt32 variant of volatile accessors was added in the CO SDK, without
-// being wrapped in the NTDDI_VERSION macro. Shim them when necessary.
-//
-#if !defined(NTDDI_WIN10_CO) || (WDK_NTDDI_VERSION < NTDDI_WIN10_CO)
-FORCEINLINE
-UINT32
-ReadUInt32Acquire(
-    _In_ UINT32 *Value
-    )
-{
-    return ReadULongAcquire((ULONG *)Value);
-}
-
-FORCEINLINE
-VOID
-WriteUInt32Release(
-    _Out_ UINT32 *Destination,
-    _In_ UINT32 Value
-    )
-{
-    WriteULongRelease((ULONG *)Destination, Value);
-}
 #endif
 
 typedef struct _XSK_RING {

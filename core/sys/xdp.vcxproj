@@ -65,7 +65,14 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>inc;$(SolutionDir)lib\pollshim\inc;$(SolutionDir)lib\rtl\inc;$(SolutionDir)lwf\inc;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+        inc;
+        $(SolutionDir)lib\pollshim\inc;
+        $(SolutionDir)lib\rtl\inc;
+        $(SolutionDir)lwf\inc;
+        $(SolutionDir)published\private;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDIS_WDM=1;NDIS684=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>$(SolutionDir)core\sys\inc\xdptrace.h</WppScanConfigurationData>

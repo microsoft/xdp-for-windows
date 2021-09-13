@@ -6,9 +6,24 @@
 
 #include <xdp/rtl.h>
 
+#ifndef RTL_IS_POWER_OF_TWO
+#define RTL_IS_POWER_OF_TWO(Value) \
+    ((Value != 0) && !((Value) & ((Value) - 1)))
+#endif
+
 #ifndef RTL_IS_CLEAR_OR_SINGLE_FLAG
 #define RTL_IS_CLEAR_OR_SINGLE_FLAG(Flags, Mask) \
     (((Flags) & (Mask)) == 0 || !(((Flags) & (Mask)) & (((Flags) & (Mask)) - 1)))
+#endif
+
+#ifndef RTL_NUM_ALIGN_DOWN
+#define RTL_NUM_ALIGN_DOWN(Number, Alignment) \
+    ((Number) - ((Number) & ((Alignment) - 1)))
+#endif
+
+#ifndef RTL_NUM_ALIGN_UP
+#define RTL_NUM_ALIGN_UP(Number, Alignment) \
+    RTL_NUM_ALIGN_DOWN((Number) + (Alignment) - 1, (Alignment))
 #endif
 
 #ifndef RTL_PTR_SUBTRACT

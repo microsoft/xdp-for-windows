@@ -43,7 +43,13 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>inc;$(SolutionDir)core\sys\inc;$(SolutionDir)lib\rtl\inc;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+        inc;
+        $(SolutionDir)core\sys\inc;
+        $(SolutionDir)lib\rtl\inc;
+        $(SolutionDir)published\private;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDIS_WDM=1;NDIS684=1;XDP_MAJOR_VER=$(XdpMajorVersion);XDP_MINOR_VER=$(XdpMinorVersion);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>$(SolutionDir)core\sys\inc\xdptrace.h</WppScanConfigurationData>

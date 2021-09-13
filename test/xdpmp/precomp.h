@@ -10,32 +10,9 @@
 #include <pkthlp.h>
 #include <xdpddi.h>
 #include <xdpassert.h>
+#include <xdprtl.h>
 #include <fndispoll.h>
 #include <fndisnpi.h>
-
-#define RTL_IS_POWER_OF_TWO(Value) \
-    ((Value != 0) && !((Value) & ((Value) - 1)))
-
-#ifndef NTDDI_WIN10_CO
-FORCEINLINE
-UINT32
-ReadUInt32Acquire (
-    _In_ _Interlocked_operand_ UINT32 const volatile *Source
-    )
-{
-    return (UINT32)ReadAcquire((PLONG)Source);
-}
-CFORCEINLINE
-VOID
-WriteUInt32Release (
-    _Out_ _Interlocked_operand_ UINT32 volatile *Destination,
-    _In_ UINT32 Value
-    )
-{
-    WriteRelease((PLONG)Destination, (LONG)Value);
-    return;
-}
-#endif // NTDDI_WIN10_CO
 
 #include "xdpmpwmi.h"
 #include "hwring.h"
