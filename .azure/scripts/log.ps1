@@ -55,7 +55,17 @@ $LogPath = Join-Path $RootDir "artifacts" "logs" "$Name.log"
 
 function Start-Logging {
     Write-Host "+++++++ Starting logs +++++++"
-    wpr.exe -start "$($WprpFile)!$($Profile)" -filemode -instancename $Name 2>&1
+
+    if (!(Test-Path $WprpFile)) {
+        Write-Error "$WprpFile does not exist!"
+    }
+
+    try {
+        Write-Debug "wpr.exe -start $($WprpFile)!$($Profile) -filemode -instancename $Name"
+        wpr.exe -start "$($WprpFile)!$($Profile)" -filemode -instancename $Name 2>&1
+    } catch {
+        Write-Host $_
+    }
 }
 
 function Stop-Logging {
@@ -65,7 +75,7 @@ function Stop-Logging {
         & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
         Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
     } catch {
-        Write-Debug "Failed to stop/convert logs"
+        Write-Host $_
     }
 }
 
