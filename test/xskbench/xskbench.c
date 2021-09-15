@@ -10,7 +10,7 @@
 #include <afxdp_experimental.h>
 #include <msxdp.h>
 
-#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union)
+#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #define SHALLOW_STR_OF(x) #x
 #define STR_OF(x) SHALLOW_STR_OF(x)

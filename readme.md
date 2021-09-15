@@ -1,10 +1,26 @@
 # XDP Developer Readme
 
+## Getting and building the code
+
+Clone this repo and ensure all submodules are cloned (pass --recursive to
+"git clone" or run "git submodule update --init --recursive" in an
+already-cloned repo).
+
+Install Visual Studio and the WDK (LTSC 2022 WDK or newer is required):
+https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
+
+Open the Visual Studio Installer, click "modify" for the Visual Studio 2019
+installation, click "Individual components", and select the boxes for the latest
+Spectre-mitigated libraries for all architectures (such as
+"MSVC v142 - VS 2019 C++ ARM Spectre-mitigated libs (Latest)").
+
+Open xdp.sln in Visual Studio and press ctrl+shift+B to build the code.
+
 ## Installing XDP
 
 The XDP runtime consists of a kernel mode driver and a user mode library.
 
-To install the XDP user mode libary, add the root XDP directory to the `PATH`
+To install the XDP user mode library, add the root XDP directory to the `PATH`
 environment variable or copy msxdp.dll into `system32`.
 
 To install the XDP driver:
