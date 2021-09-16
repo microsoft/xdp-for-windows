@@ -2,7 +2,7 @@
   <!-- Defines the XDP version numbers -->
   <PropertyGroup>
     <XdpMajorVersion>0</XdpMajorVersion>
-    <XdpMinorVersion>10</XdpMinorVersion>
+    <XdpMinorVersion>11</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
