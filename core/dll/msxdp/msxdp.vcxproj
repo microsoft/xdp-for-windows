@@ -49,7 +49,6 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ModuleDefinitionFile>msxdp.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

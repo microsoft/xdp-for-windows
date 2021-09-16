@@ -4,10 +4,8 @@
 
 #include "precomp.h"
 
-#define XDPAPI
-#include <msxdp.h>
-
 HRESULT
+XDPAPI
 XdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ CONST XDP_HOOK_ID *HookId,
@@ -37,7 +35,9 @@ XdpCreateProgram(
     return S_OK;
 }
 
+#if DBG
 HRESULT
+XDPAPI
 XdpBugCheck(
     VOID
     )
@@ -59,6 +59,7 @@ XdpBugCheck(
     CloseHandle(Handle);
     return S_OK;
 }
+#endif
 
 BOOL
 WINAPI

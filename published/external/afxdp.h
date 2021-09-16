@@ -16,6 +16,10 @@
 
 #include <xdp/hookid.h>
 
+#ifndef XDPAPI
+#define XDPAPI __declspec(dllimport)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -67,7 +71,9 @@ typedef struct XSK_BUFFER_DESCRIPTOR {
 // Creates an AF_XDP socket object and returns a handle to it.
 // To close the socket object, call CloseHandle.
 //
-HRESULT XskCreate(
+HRESULT
+XDPAPI
+XskCreate(
     _Out_ HANDLE* socket
     );
 
@@ -104,7 +110,9 @@ HRESULT XskCreate(
 #define XSK_BIND_GENERIC            0x1
 #define XSK_BIND_NATIVE             0x2
 
-HRESULT XskBind(
+HRESULT
+XDPAPI
+XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
@@ -166,7 +174,9 @@ HRESULT XskBind(
 #define XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE        (1 << 2)
 #define XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE   (1 << 3)
 
-HRESULT XskNotifySocket(
+HRESULT
+XDPAPI
+XskNotifySocket(
     _In_ HANDLE socket,
     _In_ UINT32 flags,
     _In_ UINT32 waitTimeoutMilliseconds,
@@ -178,7 +188,9 @@ HRESULT XskNotifySocket(
 //
 // Sets a socket option.
 //
-HRESULT XskSetSockopt(
+HRESULT
+XDPAPI
+XskSetSockopt(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
     _In_reads_bytes_opt_(optionLength) const VOID *optionValue,
@@ -190,7 +202,9 @@ HRESULT XskSetSockopt(
 //
 // Gets a socket option.
 //
-HRESULT XskGetSockopt(
+HRESULT
+XDPAPI
+XskGetSockopt(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
     _Out_writes_bytes_(*optionLength) VOID *optionValue,

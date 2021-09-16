@@ -6,6 +6,7 @@
 #include <assert.h>
 
 HRESULT
+XDPAPI
 XskCreate(
     _Out_ HANDLE* socket
     )
@@ -31,6 +32,7 @@ XskCreate(
 }
 
 HRESULT
+XDPAPI
 XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
@@ -65,6 +67,7 @@ XskBind(
 }
 
 HRESULT
+XDPAPI
 XskSetSockopt(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
@@ -97,6 +100,7 @@ XskSetSockopt(
 }
 
 HRESULT
+XDPAPI
 XskGetSockopt(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
@@ -127,6 +131,7 @@ XskGetSockopt(
 }
 
 HRESULT
+XDPAPI
 XskNotifySocket(
     _In_ HANDLE socket,
     _In_ UINT32 flags,

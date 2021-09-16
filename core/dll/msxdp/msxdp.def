@@ -1,9 +1,0 @@
-LIBRARY msxdp
-
-EXPORTS
-    XdpCreateProgram
-    XskBind
-    XskCreate
-    XskGetSockopt
-    XskNotifySocket
-    XskSetSockopt

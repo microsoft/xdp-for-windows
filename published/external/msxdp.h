@@ -13,7 +13,7 @@ extern "C" {
 #include <xdp/program.h>
 
 #ifndef XDPAPI
-#define XDPAPI DECLSPEC_IMPORT
+#define XDPAPI __declspec(dllimport)
 #endif
 
 //

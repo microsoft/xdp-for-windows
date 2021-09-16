@@ -4,10 +4,13 @@
 
 #pragma once
 
+#define XDPAPI __declspec(dllexport)
+
 #include <windows.h>
 #include <winioctl.h>
 #include <winternl.h>
 #include <ifdef.h>
+#include <msxdp.h>
 #include <xdpioctl.h>
 #include <xdprtl.h>
 
