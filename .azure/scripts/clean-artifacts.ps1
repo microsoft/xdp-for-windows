@@ -29,12 +29,8 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
 
-# Copy symbols and libs into the specific driver folders.
+# Move files into the specific driver folders.
 Move-Item (Join-Path $ArtifactsDir "fndis.lib") (Join-Path $ArtifactsDir "fndis" "fndis.lib")
-Move-Item (Join-Path $ArtifactsDir "fndis.pdb") (Join-Path $ArtifactsDir "fndis" "fndis.pdb")
-Move-Item (Join-Path $ArtifactsDir "xdp.pdb") (Join-Path $ArtifactsDir "xdp" "xdp.pdb")
-Move-Item (Join-Path $ArtifactsDir "xdpfnmp.pdb") (Join-Path $ArtifactsDir "xdpfnmp" "xdpfnmp.pdb")
-Move-Item (Join-Path $ArtifactsDir "xdpmp.pdb") (Join-Path $ArtifactsDir "xdpmp" "xdpmp.pdb")
 
 # Delete all unnecessary duplicates.
 Remove-Item (Join-Path $ArtifactsDir "fndis.sys")
