@@ -1,22 +1,42 @@
-# XDP Developer Readme
+# Windows XDP
 
-## Getting and building the code
+A Windows interface similar to the [XDP (eXpress Data Path)](https://en.wikipedia.org/wiki/Express_Data_Path)
+design. Used to send and receive network packets at extremely high rates, by bypassing most of the
+OS networking stack.
 
-Clone this repo and ensure all submodules are cloned (pass --recursive to
-"git clone" or run "git submodule update --init --recursive" in an
-already-cloned repo).
+[![Build Status](https://mscodehub.visualstudio.com/WindowsXDP/_apis/build/status/CI?branchName=main)](https://mscodehub.visualstudio.com/WindowsXDP/_build/latest?definitionId=1746&branchName=main)
 
-Install Visual Studio and the WDK (LTSC 2022 WDK or newer is required):
-https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
+# Getting Started
 
-Open the Visual Studio Installer, click "modify" for the Visual Studio 2019
-installation, click "Individual components", and select the boxes for the latest
-Spectre-mitigated libraries for all architectures (such as
-"MSVC v142 - VS 2019 C++ ARM Spectre-mitigated libs (Latest)").
+## Prerequisites
 
-Open xdp.sln in Visual Studio and press ctrl+shift+B to build the code.
+The following need to be installed before the project can be built.
 
-## Installing XDP
+- [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/)
+  - Latest Spectre-mitigated libs (via "Individual components" section of Visual Studio Installer)
+- [Windows Driver Kit](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
+  (LTSC 2022 WDK or newer)
+
+## Get the code
+
+Clone this repo and ensure all submodules are cloned with the `--recursive`
+option. Or run `git submodule update --init --recursive` in an already-cloned
+repo.
+
+```
+git clone https://mscodehub.visualstudio.com/WindowsXDP/_git/xdp --recursive
+```
+
+## Build the code
+
+Open xdp.sln in Visual Studio and press ctrl+shift+B to build the code or you
+can run `build.ps1` in the "Developer Command Prompt":
+
+```PowerShell
+.\tools\build.ps1
+```
+
+## Install XDP
 
 The XDP runtime consists of a kernel mode driver and a user mode library.
 
@@ -38,6 +58,8 @@ netcfg.exe -u ms_xdp
 pnputil.exe /delete-driver xdp.inf
 ```
 
+# Windows XDP Design
+
 ## XDP Configuration
 
 XDP is in a passive state upon installation. XDP can be configured via a set of
@@ -50,7 +72,7 @@ a network interface. The XDP queue IDs are assigned [0, N-1] for an interface
 with N configured RSS queues. XDP programs and AF_XDP applications bind to RSS
 queues using this queue ID space.
 
-See the `xskbench` application for example usage.
+See [`xskbench`](test\xskbench\xskbench.c) for example usage.
 
 ## AF_XDP
 
@@ -63,7 +85,7 @@ The top level headers required by AF_XDP applications are:
 - msxdp.h (XDP program API)
 - afxdp_helper.h (optional AF_XDP helpers)
 
-See `xskbench` for example usage.
+See [`xskbench`](test\xskbench\xskbench.c) for example usage.
 
 ## Generic XDP
 
