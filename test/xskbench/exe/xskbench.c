@@ -4,6 +4,7 @@
 
 #include <windows.h>
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <afxdp_helper.h>
@@ -340,7 +341,7 @@ HexToBin(
 
 VOID
 SetDescriptorPattern(
-    _Out_ UCHAR *Buffer,
+    _Inout_ UCHAR *Buffer,
     _In_ UINT32 BufferSize,
     _In_opt_z_ CONST CHAR *Hex
     )
@@ -591,7 +592,7 @@ ProcessPeriodicStats(
         Queue->lastRxDropCount = stats.rxDropped;
 
         printf("%s[%d]: %9.3f kpps %9.3f rxDropKpps rxDrop:%llu rxTrunc:%llu "
-            "rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%d%%\n",
+            "rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%llu%%\n",
             modestr, Queue->queueId, kpps, rxDropKpps, stats.rxDropped, stats.rxTruncated,
             stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
             pokesAvoidedPercentage);
@@ -740,7 +741,7 @@ ReadRxPackets(
         UINT64 *freeDesc = XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
 
         *freeDesc = XskDescriptorGetAddress(rxDesc->address);
-        printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+        printf_verbose("Consuming RX entry   {address:%llu, offset:%u, length:%d}\n",
             XskDescriptorGetAddress(rxDesc->address), XskDescriptorGetOffset(rxDesc->address), rxDesc->length);
     }
 }
@@ -838,7 +839,7 @@ WriteTxPackets(
         //
         // This benchmark does not write data into the TX packet.
         //
-        printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+        printf_verbose("Producing TX entry {address:%llu, offset:%u, length:%d}\n",
             XskDescriptorGetAddress(txDesc->address), XskDescriptorGetOffset(txDesc->address), txDesc->length);
     }
 }
@@ -956,7 +957,7 @@ ProcessFwd(
             XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Queue->rxRing, consumerIndex++);
             XSK_BUFFER_DESCRIPTOR *txDesc = XskRingGetElement(&Queue->txRing, producerIndex++);
 
-            printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+            printf_verbose("Consuming RX entry   {address:%llu, offset:%u, length:%d}\n",
                 XskDescriptorGetAddress(rxDesc->address), XskDescriptorGetOffset(rxDesc->address), rxDesc->length);
 
             txDesc->address = rxDesc->address;
@@ -976,7 +977,7 @@ ProcessFwd(
                 memcpy(ethHdr + 6, tmp, sizeof(tmp));
             }
 
-            printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+            printf_verbose("Producing TX entry {address:%llu, offset:%u, length:%d}\n",
                 XskDescriptorGetAddress(txDesc->address), XskDescriptorGetOffset(txDesc->address), txDesc->length);
         }
 
@@ -1372,7 +1373,7 @@ SetThreadAffinities(
     if (Thread->group != DEFAULT_GROUP) {
         GROUP_AFFINITY group = {0};
 
-        printf_verbose("setting CPU affinity mask 0x%x\n", Thread->cpuAffinity);
+        printf_verbose("setting CPU affinity mask 0x%llu\n", Thread->cpuAffinity);
         printf_verbose("setting group affinity %d\n", Thread->group);
         group.Mask = Thread->cpuAffinity;
         group.Group = (WORD)Thread->group;

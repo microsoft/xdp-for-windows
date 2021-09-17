@@ -37,6 +37,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltests", "test\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkthlp_um", "test\pkthlp\um\pkthlp_um.vcxproj", "{E84FF937-7445-4B8E-BA40-DFFACC09C060}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\exe\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -401,6 +403,18 @@ Global
 		{E84FF937-7445-4B8E-BA40-DFFACC09C060}.Release|x64.Build.0 = Release|x64
 		{E84FF937-7445-4B8E-BA40-DFFACC09C060}.Release|x86.ActiveCfg = Release|Win32
 		{E84FF937-7445-4B8E-BA40-DFFACC09C060}.Release|x86.Build.0 = Release|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|ARM.ActiveCfg = Debug|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|x64.ActiveCfg = Debug|x64
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|x64.Build.0 = Debug|x64
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|x86.ActiveCfg = Debug|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|x86.Build.0 = Debug|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|ARM.ActiveCfg = Release|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|ARM64.ActiveCfg = Release|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|x64.ActiveCfg = Release|x64
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|x64.Build.0 = Release|x64
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|x86.ActiveCfg = Release|Win32
+		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
