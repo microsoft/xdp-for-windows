@@ -2494,7 +2494,7 @@ Exit:
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -2649,7 +2649,7 @@ Exit:
         XskDereferenceUmem(Umem);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -2845,7 +2845,7 @@ Exit:
         ExFreePoolWithTag(Shared, POOLTAG_RING);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -2897,7 +2897,7 @@ Exit:
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -2978,7 +2978,7 @@ Exit:
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -3029,7 +3029,7 @@ XskSockoptGetError(
 
 Exit:
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -3260,7 +3260,7 @@ XskSockoptSetPollMode(
 
 Exit:
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -3306,8 +3306,7 @@ XskIrpGetSockopt(
         break;
     }
 
-    TraceInfo(
-        TRACE_XSK, "Xsk=%p Option=%u Status=%!STATUS!", Xsk, Option, Status);
+    TraceInfo(TRACE_XSK, "Xsk=%p Option=%u Status=%!STATUS!", Xsk, Option, Status);
 
     return Status;
 }
@@ -3354,8 +3353,8 @@ XskIrpSetSockopt(
     }
 
     TraceInfo(
-        TRACE_XSK, "Xsk=%p Option=%u Status=%!STATUS!",
-        Xsk, (Sockopt != NULL) ? Sockopt->Option : 0, Status);
+        TRACE_XSK, "Xsk=%p Option=%u Status=%!STATUS! Value=%!HEXDUMP!",
+        Xsk, Sockopt->Option, Status, WppHexDump(Sockopt->InputBuffer, Sockopt->InputBufferLength));
 
     return Status;
 }

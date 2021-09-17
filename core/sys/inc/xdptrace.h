@@ -65,6 +65,8 @@
 // CUSTOM_TYPE(RX_QUEUE_NOTIFICATION_TYPE, ItemEnum(_XDP_RX_QUEUE_NOTIFICATION_TYPE));
 // CUSTOM_TYPE(TX_QUEUE_NOTIFICATION_TYPE, ItemEnum(_XDP_TX_QUEUE_NOTIFICATION_TYPE));
 //
+// DEFINE_CPLX_TYPE(HEXDUMP, WPP_LOGHEXDUMP, WPP_HEXDUMP, ItemHEXDump, "s", _HEX_, 0, 2);
+//
 // end_wpp
 //
 
@@ -85,3 +87,32 @@
 //
 #define WPP_IFRLOG_LEVEL_FLAGS_ENABLED(IFRLOG, LEVEL, FLAGS) WPP_LEVEL_FLAGS_ENABLED(LEVEL, FLAGS)
 #define WPP_IFRLOG_LEVEL_FLAGS_LOGGER(IFRLOG, LEVEL, FLAGS)  WPP_LEVEL_FLAGS_LOGGER(LEVEL, FLAGS)
+
+#define WPP_LOGHEXDUMP(x) \
+    WPP_LOGPAIR(sizeof(UINT16), &(x).Length) \
+    WPP_LOGPAIR((x).Length, (x).Buffer)
+
+typedef struct _WPP_HEXDUMP {
+    CONST VOID *Buffer;
+    UINT16 Length;
+} WPP_HEXDUMP;
+
+FORCEINLINE
+WPP_HEXDUMP
+WppHexDump(
+    _In_ CONST VOID *Buffer,
+    _In_ SIZE_T Length
+    )
+{
+    WPP_HEXDUMP WppHexDump;
+
+    WppHexDump.Buffer = Buffer;
+
+    if (Buffer == NULL) {
+        WppHexDump.Length = 0;
+    } else  {
+        WppHexDump.Length = (UINT16)min(Length, MAXUINT16);
+    }
+
+    return WppHexDump;
+}

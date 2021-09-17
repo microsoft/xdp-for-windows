@@ -773,7 +773,6 @@ GetFuzzedRingSize(
     )
 {
     UINT32 numUmemDescriptors;
-    UINT32 power = 0;
 
     if (ReadBooleanAcquire(&Queue->scenarioConfig.isUmemRegistered)) {
         numUmemDescriptors = (UINT32)(Queue->umemReg.totalSize / Queue->umemReg.chunkSize);
@@ -781,13 +780,8 @@ GetFuzzedRingSize(
         numUmemDescriptors = (RandUlong() % 16) + 1;
     }
 
-    while (numUmemDescriptors > 0) {
-        numUmemDescriptors /= 2;
-        ++power;
-    }
-
     if (RandUlong() % 2) {
-        *Size = (UINT32)pow(2, (RandUlong() % (power * 2)));
+        *Size = 1ui32 << (RandUlong() % (RtlFindMostSignificantBit(numUmemDescriptors) + 1));
     } else {
         *Size = RandUlong();
     }
@@ -1362,6 +1356,7 @@ QueueWorkerFn(
     QUEUE_WORKER *queueWorker = ThreadParameter;
     ULONG numIterations = 0;
     ULONG numSuccessfulSetups = 0;
+    ULONG successPct;
 
     while (!ReadBooleanNoFence(&done)) {
         QUEUE_CONTEXT *queue;
@@ -1441,13 +1436,19 @@ QueueWorkerFn(
         CleanupQueue(queue);
     }
 
+    successPct = Pct(numSuccessfulSetups, numIterations);
     printf("q[%u]: socket setup success rate: (%lu / %lu) %lu%%\n",
-        queueWorker->queueId, numSuccessfulSetups, numIterations,
-        Pct(numSuccessfulSetups, numIterations));
+        queueWorker->queueId, numSuccessfulSetups, numIterations, successPct);
 
     if (extraStats) {
         PrintSetupStats(queueWorker, numIterations);
     }
+
+    //
+    // Require a certain percentage of sockets to complete the setup phase as a
+    // proxy for ensuring effective code coverage.
+    //
+    ASSERT_FRE(successPct >= 80);
 
     printf_verbose("q[%u]: exiting\n", queueWorker->queueId);
     return 0;
