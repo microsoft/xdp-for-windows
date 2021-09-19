@@ -27,20 +27,48 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [string]$CertPath = "C:\CodeSign.pfx",
+    [string]$CertPath = "C:\XdpCodeSign.pfx",
 
     [Parameter(Mandatory = $false)]
-    [switch]$GenerateCert = $false
+    [switch]$GenerateCert = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoCertInstall = $false
 )
 
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
+function Get-WindowsKitTool {
+    param (
+        [string]$Arch = "x86",
+        [Parameter(Mandatory = $true)]
+        [string]$Tool
+    )
+
+    $KitBinRoot = "C:\Program Files (x86)\Windows Kits\10\bin"
+    if (!(Test-Path $KitBinRoot)) {
+        Write-Error "Windows Kit Binary Folder not Found"
+        return $null
+    }
+
+
+    $Subfolders = Get-ChildItem -Path $KitBinRoot -Directory | Sort-Object -Descending
+    foreach ($Subfolder in $Subfolders) {
+        $ToolPath = Join-Path $Subfolder.FullName "$Arch\$Tool"
+        if (Test-Path $ToolPath) {
+            return $ToolPath
+        }
+    }
+
+    Write-Error "Failed to find tool"
+    return $null
+}
+
 # Tool paths.
-$ToolsDir = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x86"
-$CertMgrPath = Join-Path $ToolsDir "certmgr.exe"
-$SignToolPath = Join-Path $ToolsDir "signtool.exe"
-$Inf2CatToolPath = Join-Path $ToolsDir "inf2cat.exe"
+$CertMgrPath = Get-WindowsKitTool -Tool "certmgr.exe"
+$SignToolPath = Get-WindowsKitTool -Tool "signtool.exe"
+$Inf2CatToolPath = Get-WindowsKitTool -Tool "inf2cat.exe"
 
 if (!(Test-Path $CertMgrPath)) {
     Write-Error "$CertMgrPath does not exist!"
@@ -55,11 +83,19 @@ if (!(Test-Path $CertPath)) {
     if ($GenerateCert) {
         # Generate the certificate.
         $PfxPassword = ConvertTo-SecureString -String "placeholder" -Force -AsPlainText
-        $CodeSignCert = New-SelfSignedCertificate -Type Custom -Subject "CN=XdpTestCodeSignRoot" -FriendlyName XdpTestCodeSignRoot -KeyUsageProperty Sign -KeyUsage DigitalSignature -CertStoreLocation cert:\CurrentUser\My -HashAlgorithm SHA256 -Provider "Microsoft Software Key Storage Provider" -KeyExportPolicy Exportable -NotAfter(Get-Date).AddYears(1) -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3,1.3.6.1.4.1.311.10.3.6","2.5.29.19 = {text}")
-        $CodeSignCertPath = Join-Path $Env:TEMP "CodeSignRoot.cer"
+        $CodeSignCert = New-SelfSignedCertificate -Type Custom -Subject "CN=XdpTestCodeSignRoot" `
+            -FriendlyName XdpTestCodeSignRoot -KeyUsageProperty Sign -KeyUsage DigitalSignature `
+            -CertStoreLocation cert:\CurrentUser\My -HashAlgorithm SHA256 `
+            -Provider "Microsoft Software Key Storage Provider" -KeyExportPolicy Exportable `
+            -NotAfter(Get-Date).AddYears(1) `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3,1.3.6.1.4.1.311.10.3.6","2.5.29.19 = {text}")
+
+        $CodeSignCertPath = Join-Path $Env:TEMP "XdpCodeSignRoot.cer"
         Export-Certificate -Type CERT -Cert $CodeSignCert -FilePath $CodeSignCertPath
-        CertUtil.exe -addstore Root $CodeSignCertPath
-        CertUtil.exe -addstore trustedpublisher $CodeSignCertPath
+        if (!$NoCertInstall) {
+            CertUtil.exe -addstore Root $CodeSignCertPath
+            CertUtil.exe -addstore trustedpublisher $CodeSignCertPath
+        }
         Export-PfxCertificate -Cert $CodeSignCert -Password $PfxPassword -FilePath $CertPath
         Remove-Item $CodeSignCertPath
         Remove-Item $CodeSignCert.PSPath
@@ -69,13 +105,13 @@ if (!(Test-Path $CertPath)) {
 }
 
 # Artifact paths.
-$RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
+$RootDir = (Split-Path $PSScriptRoot -Parent)
+$ArtifactsDir = Join-Path $RootDir "artifacts\bin\$($Arch)_$($Config)"
 $XdpDir = Join-Path $ArtifactsDir "xdp"
 $XdpSys = Join-Path $XdpDir "xdp.sys"
 $XdpInf = Join-Path $XdpDir "xdp.inf"
 $XdpCat = Join-Path $XdpDir "xdp.cat"
-$FndisSys = Join-Path $ArtifactsDir "fndis" "fndis.sys"
+$FndisSys = Join-Path $ArtifactsDir "fndis\fndis.sys"
 $XdpMpDir = Join-Path $ArtifactsDir "xdpmp"
 $XdpMpSys = Join-Path $XdpMpDir "xdpmp.sys"
 $XdpMpInf = Join-Path $XdpMpDir "xdpmp.inf"
