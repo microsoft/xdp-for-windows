@@ -382,6 +382,7 @@ AttachXdpProgram(
     if (FAILED(res)) {
         goto Exit;
     }
+    ASSERT_FRE(hookIdSize == sizeof(hookId));
 
     GetFuzzedAttachParams(Queue, Sock, &flags, &rule);
     GetFuzzedHookId(&hookId);
@@ -419,11 +420,13 @@ PrintDatapathStats(
     UINT32 optSize = sizeof(stats);
     CHAR rxPacketCount[64] = { 0 };
     CHAR txPacketCount[64] = { 0 };
-    HRESULT res =
-        XskGetSockopt(Datapath->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
+    HRESULT res;
+
+    res = XskGetSockopt(Datapath->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
     if (FAILED(res)) {
         return;
     }
+    ASSERT_FRE(optSize == sizeof(stats));
 
     if (Datapath->flags.rx) {
         sprintf_s(rxPacketCount, sizeof(rxPacketCount), "%llu", Datapath->rxPacketCount);
@@ -1036,6 +1039,7 @@ InitializeDatapath(
     if (FAILED(res)) {
         goto Exit;
     }
+    ASSERT_FRE(ringInfoSize == sizeof(ringInfo));
 
     //
     // Create separate free rings for RX and TX, each getting half of the UMEM

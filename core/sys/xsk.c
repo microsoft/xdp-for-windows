@@ -894,7 +894,7 @@ Exit:
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, Status);
 
-    TraceExit(TRACE_XSK);
+    TraceExitStatus(TRACE_XSK);
 
     return Status;
 }
@@ -2384,8 +2384,6 @@ XskSockoptGetStatistics(
 {
     NTSTATUS Status;
     XSK_STATISTICS *Statistics;
-    KIRQL OldIrql = {0};
-    BOOLEAN IsLockHeld = FALSE;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
@@ -2397,14 +2395,6 @@ XskSockoptGetStatistics(
     Statistics = (XSK_STATISTICS*)Irp->AssociatedIrp.SystemBuffer;
     RtlZeroMemory(Statistics, sizeof(*Statistics));
 
-    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-    IsLockHeld = TRUE;
-
-    if (Xsk->State != XskBound) {
-        Status = STATUS_INVALID_DEVICE_STATE;
-        goto Exit;
-    }
-
     *Statistics = Xsk->Statistics;
 
     Status = STATUS_SUCCESS;
@@ -2412,13 +2402,9 @@ XskSockoptGetStatistics(
 
 Exit:
 
-    if (IsLockHeld) {
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-    }
+    TraceExitStatus(TRACE_XSK);
 
-    TraceExit(TRACE_XSK);
-
-    return STATUS_SUCCESS;
+    return Status;
 }
 
 static
