@@ -54,4 +54,5 @@
 #include "ring.h"
 #include "rx.h"
 #include "tx.h"
+#include "version.h"
 #include "xsk.h"

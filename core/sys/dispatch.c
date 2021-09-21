@@ -422,8 +422,9 @@ XdpStart(
     }
 
     TraceInfo(
-        TRACE_CORE, "OsVersion=%u.%u.%u",
-        XdpOsVersion.dwMajorVersion, XdpOsVersion.dwMinorVersion, XdpOsVersion.dwBuildNumber);
+        TRACE_CORE, "XdpVersion=%s OsVersion=%u.%u.%u",
+        XDP_VERSION_STR, XdpOsVersion.dwMajorVersion, XdpOsVersion.dwMinorVersion,
+        XdpOsVersion.dwBuildNumber);
 
     XdpRegWatcher = XdpRegWatcherCreate(XDP_PARAMETERS_KEY, XdpDriverObject, NULL);
     if (XdpRegWatcher == NULL) {

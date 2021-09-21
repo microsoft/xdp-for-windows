@@ -19,9 +19,46 @@
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
+  <Target Name="SetSourceRevisionId" BeforeTargets="ClCompile;ResourceCompile">
+    <Exec
+      Command="git describe --long --always --dirty --exclude=* --abbrev=8"
+      ConsoleToMSBuild="True"
+      IgnoreExitCode="False"
+      >
+      <Output PropertyName="SourceRevisionId" TaskParameter="ConsoleOutput"/>
+    </Exec>
+    <ItemGroup>
+      <ResourceCompile>
+        <PreprocessorDefinitions>
+          XDP_COMMIT_VERSION=$(SourceRevisionId);
+          %(PreprocessorDefinitions)
+        </PreprocessorDefinitions>
+      </ResourceCompile>
+      <ClCompile>
+        <PreprocessorDefinitions>
+          XDP_COMMIT_VERSION=$(SourceRevisionId);
+          %(PreprocessorDefinitions)
+        </PreprocessorDefinitions>
+      </ClCompile>
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <ResourceCompile Include="xdp.rc">
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>
+        XDP_MAJOR_VERSION=$(XdpMajorVersion);
+        XDP_MINOR_VERSION=$(XdpMinorVersion);
+        XDP_PATCH_VERSION=$(XdpPatchVersion);
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' != ''">
+        XDP_BUILD_VERSION=$(BUILD_BUILDID);
+        XDP_BUILD_TYPE=official;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' == ''">
+        XDP_BUILD_TYPE=private;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
@@ -72,8 +109,25 @@
         $(SolutionDir)lwf\inc;
         $(SolutionDir)published\private;
         $(IntDir);
-        %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDIS_WDM=1;NDIS684=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        NDIS_WDM=1;
+        NDIS684=1;
+        XDP_MAJOR_VERSION=$(XdpMajorVersion);
+        XDP_MINOR_VERSION=$(XdpMinorVersion);
+        XDP_PATCH_VERSION=$(XdpPatchVersion);
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' != ''">
+        XDP_BUILD_VERSION=$(BUILD_BUILDID);
+        XDP_BUILD_TYPE=official;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' == ''">
+        XDP_BUILD_TYPE=private;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>$(SolutionDir)core\sys\inc\xdptrace.h</WppScanConfigurationData>
       <WppRecorderEnabled>true</WppRecorderEnabled>
