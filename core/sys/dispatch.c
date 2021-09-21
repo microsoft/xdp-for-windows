@@ -203,7 +203,7 @@ XdpIrpDispatch(
     return Status;
 }
 
-#if XDP_VRF
+#if DBG
 __declspec(noinline)
 NTSTATUS
 XdpIrpBugCheck(
@@ -215,7 +215,6 @@ XdpIrpBugCheck(
     UNREFERENCED_PARAMETER(IrpSp);
 
     KeBugCheck(NDIS_INTERNAL_ERROR);
-    return STATUS_SUCCESS;
 }
 #endif
 
@@ -254,7 +253,7 @@ XdpIrpDeviceIoControl(
         }
     } else {
         switch (IrpSp->Parameters.DeviceIoControl.IoControlCode) {
-#if XDP_VRF
+#if DBG
         case IOCTL_XDP_BUGCHECK:
             Status = XdpIrpBugCheck(Irp, IrpSp);
             break;
