@@ -215,6 +215,12 @@ function Install-FakeNdis {
         Write-Error "$FndisSys does not exist!"
     }
 
+    Write-Debug "verifier.exe /volatile /adddriver fndis.sys /flags 0x9BB"
+    verifier.exe /volatile /adddriver fndis.sys /flags 0x9BB > $null
+    if ($LastExitCode) {
+        Write-Host "verifier.exe exit code: $LastExitCode"
+    }
+
     # Create a service for fndis.
     Write-Debug "sc.exe create fndis type= kernel start= demand binpath= $FndisSys"
     sc.exe create fndis type= kernel start= demand binpath= $FndisSys
@@ -239,6 +245,8 @@ function Uninstall-FakeNdis {
     # Cleanup the service.
     Cleanup-Service fndis
 
+    try { verifier.exe /volatile /removedriver fndis.sys > $null } catch { Write-Debug "verifier (removal) failure" }
+
     Write-Debug "fndis.sys uninstall complete!"
 }
 
@@ -249,6 +257,12 @@ function Install-XdpMp {
     # Verify all the files are present.
     if (!(Test-Path $XdpMpSys)) {
         Write-Error "$XdpMpSys does not exist!"
+    }
+
+    Write-Debug "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9BB"
+    verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9BB > $null
+    if ($LastExitCode) {
+        Write-Host "verifier.exe exit code: $LastExitCode"
     }
 
     # Install the xdpmp driver via inf.
@@ -313,6 +327,8 @@ function Uninstall-XdpMp {
 
     # Uninstall xdpmp.
     Uninstall-Driver "xdpmp.inf"
+
+    try { verifier.exe /volatile /removedriver xdpmp.sys > $null } catch { Write-Debug "verifier (removal) failure" }
 
     Write-Debug "xdpmp.sys uninstall complete!"
 }
