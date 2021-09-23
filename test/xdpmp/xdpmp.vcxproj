@@ -23,10 +23,10 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\lib\nmr\nmr.vcxproj">
+    <ProjectReference Include="$(SolutionDir)lib\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\fakendis\fndis.vcxproj">
+    <ProjectReference Include="$(SolutionDir)test\fakendis\fndis.vcxproj">
       <Project>{8a82f294-00d6-40e1-9c55-6bc93c2bec0e}</Project>
     </ProjectReference>
   </ItemGroup>

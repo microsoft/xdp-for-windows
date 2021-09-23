@@ -62,16 +62,16 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\lib\nmr\nmr.vcxproj">
+    <ProjectReference Include="$(SolutionDir)lib\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\lib\pollshim\pollshim.vcxproj">
+    <ProjectReference Include="$(SolutionDir)lib\pollshim\pollshim.vcxproj">
       <Project>{4a54653b-b380-4187-890b-7451f835b07a}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\lib\rtl\rtl.vcxproj">
+    <ProjectReference Include="$(SolutionDir)lib\rtl\rtl.vcxproj">
       <Project>{043c2162-639f-4fc8-b72c-f7c1bacb9db3}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\lwf\lwf.vcxproj">
+    <ProjectReference Include="$(SolutionDir)lwf\lwf.vcxproj">
       <Project>{63591dcb-0bbc-441c-a8a2-f882ee6a7d5c}</Project>
     </ProjectReference>
   </ItemGroup>

@@ -13,7 +13,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lwf", "lwf\lwf.vcxproj", "{
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "msxdp", "core\dll\msxdp\msxdp.vcxproj", "{0CCECB60-0538-4252-8C8E-23A92199CBE0}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spinxsk", "test\spinxsk\exe\spinxsk.vcxproj", "{A831B9F7-3948-48CC-B4F7-DB725EF13408}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spinxsk", "test\spinxsk\spinxsk.vcxproj", "{A831B9F7-3948-48CC-B4F7-DB725EF13408}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "util", "test\common\lib\util\util.vcxproj", "{BDD99A80-0936-47B0-918D-04CF3B472FB0}"
 EndProject
@@ -37,7 +37,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltests", "test\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkthlp_um", "test\pkthlp\um\pkthlp_um.vcxproj", "{E84FF937-7445-4B8E-BA40-DFFACC09C060}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\exe\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktcmd", "test\pktcmd\pktcmd.vcxproj", "{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}"
 EndProject

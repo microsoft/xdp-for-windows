@@ -5,19 +5,19 @@
     <ClCompile Include="tests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\core\dll\msxdp\msxdp.vcxproj">
+    <ProjectReference Include="$(SolutionDir)core\dll\msxdp\msxdp.vcxproj">
       <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\common\lib\util\util.vcxproj">
+    <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
       <Project>{bdd99a80-0936-47b0-918d-04cf3b472fb0}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\pkthlp\um\pkthlp_um.vcxproj">
+    <ProjectReference Include="$(SolutionDir)test\pkthlp\um\pkthlp_um.vcxproj">
       <Project>{e84ff937-7445-4b8e-ba40-dffacc09c060}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\lib\xdptests.vcxproj">
+    <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\mp\lib\xdpfnmpapi.vcxproj">
+    <ProjectReference Include="$(SolutionDir)test\functional\mp\lib\xdpfnmpapi.vcxproj">
       <Project>{15de7d30-6a0b-47c7-8ddc-1cfc658e8a1e}</Project>
     </ProjectReference>
   </ItemGroup>
