@@ -34,7 +34,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>xdpnmr</TargetName>
-    <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
+    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

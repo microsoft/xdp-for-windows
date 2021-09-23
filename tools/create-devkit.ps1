@@ -3,8 +3,6 @@
 # Code must be built before running this script.
 #
 #  TODO:
-# -xdp.cat (originally generated during build)
-# -sha2-testroot.cer (originally copied from BASEDIR\tools)
 # -pktcmd.exe / pktcmd.pdb (needs vcxproj)
 # -xskbench.exe / xskbench.pdb (needs vcxproj)
 # -convert from CIL to native? These commands don't work:
@@ -22,7 +20,10 @@ param (
     [string]$Flavor = "Release"
 )
 
-$dstPath = "$(git rev-parse --short HEAD)-$Platform"
+$dstPath = "artifacts\kit\$(git rev-parse --short HEAD)-$Platform"
+if ($Flavor -eq "Debug") {
+    $dstPath = $dstPath + "-Debug"
+}
 
 New-Item -Path $dstPath -ItemType Directory > $null
 
@@ -33,8 +34,10 @@ $Platform >> $dstPath\info.txt
 copy readme.md $dstPath
 
 New-Item -Path $dstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.inf"   $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.sys"   $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\CoreNetSignRoot.cer" $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.dll" $dstPath\bin
 
 New-Item -Path $dstPath\symbols -ItemType Directory > $null
@@ -46,7 +49,7 @@ copy -Recurse published\external\* $dstPath\include
 
 New-Item -Path $dstPath\lib -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.lib" $dstPath\lib
-copy "build\$($Platform)_$($Flavor)\bin\xdpnmr.lib"  $dstPath\lib
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $dstPath\lib
 
 New-Item -Path $dstPath\samples -ItemType Directory > $null
 New-Item -Path $dstPath\samples\xdpmp -ItemType Directory > $null
