@@ -9,12 +9,6 @@ This signs and packages the drivers.
 .PARAMETER Arch
     The CPU architecture to use.
 
-.PARAMETER CertPath
-    The path to the certificate to use.
-
-.PARAMETER GenerateCert
-    Indicates whether to generate a certificate.
-
 #>
 
 param (
@@ -24,16 +18,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x86", "x64", "arm", "arm64")]
-    [string]$Arch = "x64",
-
-    [Parameter(Mandatory = $false)]
-    [string]$CertPath = "C:\XdpCodeSign.pfx",
-
-    [Parameter(Mandatory = $false)]
-    [switch]$GenerateCert = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoCertInstall = $false
+    [string]$Arch = "x64"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -66,47 +51,22 @@ function Get-WindowsKitTool {
 }
 
 # Tool paths.
-$CertMgrPath = Get-WindowsKitTool -Tool "certmgr.exe"
 $SignToolPath = Get-WindowsKitTool -Tool "signtool.exe"
+if (!(Test-Path $SignToolPath)) { Write-Error "$SignToolPath does not exist!" }
 $Inf2CatToolPath = Get-WindowsKitTool -Tool "inf2cat.exe"
-
-if (!(Test-Path $CertMgrPath)) {
-    Write-Error "$CertMgrPath does not exist!"
-}
-if (!(Test-Path $SignToolPath)) {
-    Write-Error "$SignToolPath does not exist!"
-}
-if (!(Test-Path $Inf2CatToolPath)) {
-    Write-Error "$Inf2CatToolPath does not exist!"
-}
-if (!(Test-Path $CertPath)) {
-    if ($GenerateCert) {
-        # Generate the certificate.
-        $PfxPassword = ConvertTo-SecureString -String "placeholder" -Force -AsPlainText
-        $CodeSignCert = New-SelfSignedCertificate -Type Custom -Subject "CN=XdpTestCodeSignRoot" `
-            -FriendlyName XdpTestCodeSignRoot -KeyUsageProperty Sign -KeyUsage DigitalSignature `
-            -CertStoreLocation cert:\CurrentUser\My -HashAlgorithm SHA256 `
-            -Provider "Microsoft Software Key Storage Provider" -KeyExportPolicy Exportable `
-            -NotAfter(Get-Date).AddYears(1) `
-            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3,1.3.6.1.4.1.311.10.3.6","2.5.29.19 = {text}")
-
-        $CodeSignCertPath = Join-Path $Env:TEMP "XdpCodeSignRoot.cer"
-        Export-Certificate -Type CERT -Cert $CodeSignCert -FilePath $CodeSignCertPath
-        if (!$NoCertInstall) {
-            CertUtil.exe -addstore Root $CodeSignCertPath
-            CertUtil.exe -addstore trustedpublisher $CodeSignCertPath
-        }
-        Export-PfxCertificate -Cert $CodeSignCert -Password $PfxPassword -FilePath $CertPath
-        Remove-Item $CodeSignCertPath
-        Remove-Item $CodeSignCert.PSPath
-    } else {
-        Write-Error "$CertPath does not exist!"
-    }
-}
+if (!(Test-Path $Inf2CatToolPath)) { Write-Error "$Inf2CatToolPath does not exist!" }
 
 # Artifact paths.
 $RootDir = (Split-Path $PSScriptRoot -Parent)
 $ArtifactsDir = Join-Path $RootDir "artifacts\bin\$($Arch)_$($Config)"
+
+# Certificate paths.
+$CodeSignCertPath = Join-Path $RootDir "artifacts\CoreNetSignRoot.cer"
+if (!(Test-Path $CodeSignCertPath)) { Write-Error "$CodeSignCertPath does not exist!" }
+$CertPath = Join-Path $RootDir "artifacts\CoreNetSign.pfx"
+if (!(Test-Path $CertPath)) { Write-Error "$CertPath does not exist!" }
+
+# All the file paths.
 $XdpDir = Join-Path $ArtifactsDir "xdp"
 $XdpSys = Join-Path $XdpDir "xdp.sys"
 $XdpInf = Join-Path $XdpDir "xdp.inf"
@@ -155,3 +115,6 @@ if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpFnMpCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
+
+# Copy the cert to the artifacts dir.
+Copy-Item $CodeSignCertPath $ArtifactsDir

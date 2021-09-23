@@ -20,8 +20,12 @@ if (!$NoClean) {
     $Tasks = @("Clean") + $Tasks
 }
 
+tools/prepare-machine.ps1 -ForBuild
+
 msbuild.exe xdp.sln `
     /p:Configuration=$Flavor `
     /p:Platform=$Platform `
     /t:$($Tasks -join ",") `
     /maxCpuCount
+
+tools/sign.ps1 -Config $Flavor -Arch $Platform
