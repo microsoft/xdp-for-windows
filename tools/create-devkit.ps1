@@ -3,8 +3,6 @@
 # Code must be built before running this script.
 #
 #  TODO:
-# -pktcmd.exe / pktcmd.pdb (needs vcxproj)
-# -xskbench.exe / xskbench.pdb (needs vcxproj)
 # -convert from CIL to native? These commands don't work:
 #   link.exe /cvtcil /out:$dstPath\lib\msxdp.lib  ".\artifacts\bin\$($Platform)_$($Flavor)\msxdp.lib"
 #   link.exe /cvtcil /out:$dstPath\lib\xdpnmr.lib ".\build\$($Platform)_$($Flavor)\bin\xdpnmr.lib"
@@ -39,10 +37,14 @@ copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.dll" $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.exe" $dstPath\bin
 
 New-Item -Path $dstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.pdb"   $dstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.pdb" $dstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $dstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.pdb" $dstPath\symbols
 
 New-Item -Path $dstPath\include -ItemType Directory > $null
 copy -Recurse published\external\* $dstPath\include
