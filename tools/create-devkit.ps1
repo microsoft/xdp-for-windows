@@ -18,16 +18,12 @@ param (
     [string]$Flavor = "Release"
 )
 
-$dstPath = "artifacts\kit\$(git rev-parse --short HEAD)-$Platform"
+$dstPath = "artifacts\kit\xdp-devkit-$Platform"
 if ($Flavor -eq "Debug") {
     $dstPath = $dstPath + "-Debug"
 }
 
 New-Item -Path $dstPath -ItemType Directory > $null
-
-git rev-parse HEAD >> $dstPath\info.txt
-git branch --show-current >> $dstPath\info.txt
-$Platform >> $dstPath\info.txt
 
 copy readme.md $dstPath
 
