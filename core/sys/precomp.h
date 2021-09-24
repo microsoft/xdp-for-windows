@@ -40,6 +40,7 @@
 #include <xdprxqueue_internal.h>
 #include <xdptrace.h>
 #include <xdptxqueue_internal.h>
+#include <xdpversion.h>
 #include <xdpworkqueue.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
@@ -54,5 +55,4 @@
 #include "ring.h"
 #include "rx.h"
 #include "tx.h"
-#include "version.h"
 #include "xsk.h"

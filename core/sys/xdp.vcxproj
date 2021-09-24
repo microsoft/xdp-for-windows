@@ -44,6 +44,10 @@
   </Target>
   <ItemGroup>
     <ResourceCompile Include="xdp.rc">
+      <AdditionalIncludeDirectories>
+          $(SolutionDir)published\private;
+          %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         XDP_MAJOR_VERSION=$(XdpMajorVersion);
         XDP_MINOR_VERSION=$(XdpMinorVersion);
