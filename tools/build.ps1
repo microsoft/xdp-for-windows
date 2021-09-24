@@ -18,6 +18,9 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$NoDevKit = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$UpdateDeps = $false
 )
 
@@ -36,4 +39,8 @@ msbuild.exe xdp.sln `
 
 if (!$NoSign) {
     tools/sign.ps1 -Config $Flavor -Arch $Platform
+}
+
+if (!$NoDevKit) {
+    tools/create-devkit.ps1 -Flavor $Flavor
 }

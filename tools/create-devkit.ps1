@@ -15,7 +15,7 @@ param (
 
     [ValidateSet("Debug", "Release")]
     [Parameter(Mandatory=$false)]
-    [string]$Flavor = "Release"
+    [string]$Flavor = "Debug"
 )
 
 $dstPath = "artifacts\kit\xdp-devkit-$Platform"
@@ -23,6 +23,7 @@ if ($Flavor -eq "Debug") {
     $dstPath = $dstPath + "-Debug"
 }
 
+Remove-Item $dstPath -Recurse -ErrorAction Ignore
 New-Item -Path $dstPath -ItemType Directory > $null
 
 copy readme.md $dstPath
@@ -54,3 +55,6 @@ New-Item -Path $dstPath\samples\xdpmp -ItemType Directory > $null
 copy test\xdpmp\*.c $dstPath\samples\xdpmp
 copy test\xdpmp\*.h $dstPath\samples\xdpmp
 copy test\xdpmp\inf\xdpmp.inx $dstPath\samples\xdpmp
+New-Item -Path $dstPath\samples\xskbench -ItemType Directory > $null
+copy test\xskbench\*.c $dstPath\samples\xskbench
+copy test\xskbench\*.h $dstPath\samples\xskbench
