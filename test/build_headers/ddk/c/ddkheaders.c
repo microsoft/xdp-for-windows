@@ -2,4 +2,5 @@
 // Copyright (C) Microsoft Corporation. All rights reserved.
 //
 
-#include "ddkheaders.h"
+#include <wdm.h>
+#include <xdpddi.h>

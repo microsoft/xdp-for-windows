@@ -1,6 +1,0 @@
-!include ..\sources.inc
-
-TARGETNAME=cddkheaders
-
-SOURCES=\
-    ddkheaders.c \

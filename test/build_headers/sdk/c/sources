@@ -1,6 +1,0 @@
-!include ..\sources.inc
-
-TARGETNAME=csdkheaders
-
-SOURCES=\
-    sdkheaders.c \
