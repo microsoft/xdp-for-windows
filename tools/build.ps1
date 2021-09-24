@@ -12,7 +12,13 @@ param (
     [string]$Flavor = "Debug",
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoClean = $false
+    [switch]$NoClean = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoSign = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$UpdateDeps = $false
 )
 
 $Tasks = @("Build")
@@ -20,7 +26,7 @@ if (!$NoClean) {
     $Tasks = @("Clean") + $Tasks
 }
 
-tools/prepare-machine.ps1 -ForBuild
+tools/prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
 msbuild.exe xdp.sln `
     /p:Configuration=$Flavor `
@@ -28,4 +34,6 @@ msbuild.exe xdp.sln `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 
-tools/sign.ps1 -Config $Flavor -Arch $Platform
+if (!$NoSign) {
+    tools/sign.ps1 -Config $Flavor -Arch $Platform
+}
