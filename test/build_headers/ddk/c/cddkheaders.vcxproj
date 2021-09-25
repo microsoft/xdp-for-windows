@@ -28,6 +28,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>cddkheaders</TargetName>
+    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
