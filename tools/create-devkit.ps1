@@ -26,7 +26,7 @@ if ($Flavor -eq "Debug") {
 Remove-Item $dstPath -Recurse -ErrorAction Ignore
 New-Item -Path $dstPath -ItemType Directory > $null
 
-copy readme.md $dstPath
+copy docs\usage.md $dstPath
 
 New-Item -Path $dstPath\bin -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\CoreNetSignRoot.cer" $dstPath\bin
