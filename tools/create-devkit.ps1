@@ -2,11 +2,6 @@
 # Assembles a dev kit for both AF_XDP client and XDP driver development.
 # Code must be built before running this script.
 #
-#  TODO:
-# -convert from CIL to native? These commands don't work:
-#   link.exe /cvtcil /out:$dstPath\lib\msxdp.lib  ".\artifacts\bin\$($Platform)_$($Flavor)\msxdp.lib"
-#   link.exe /cvtcil /out:$dstPath\lib\xdpnmr.lib ".\build\$($Platform)_$($Flavor)\bin\xdpnmr.lib"
-#
 
 param (
     [ValidateSet("x64")]

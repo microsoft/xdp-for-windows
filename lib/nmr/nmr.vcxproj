@@ -39,11 +39,17 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
-      $(SolutionDir)lib\rtl\inc;
-      $(SolutionDir)published\private;
-      $(IntDir);
-      %(AdditionalIncludeDirectories)
-    </AdditionalIncludeDirectories>
+        $(SolutionDir)lib\rtl\inc;
+        $(SolutionDir)published\private;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <!--
+        To allow the static xdpnmr.lib to be linked by other toolchain versions,
+        disable /GL, which avoids compiler version-dependent CIL and use slower
+        but portable codegen instead.
+        -->
+      <WholeProgramOptimization>false</WholeProgramOptimization>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
