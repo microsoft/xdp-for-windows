@@ -1,3 +1,0 @@
-!include ..\sources.inc
-
-TARGETTYPE=DRIVER_LIBRARY

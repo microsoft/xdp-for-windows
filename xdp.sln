@@ -37,6 +37,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltests", "test\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkthlp_um", "test\pkthlp\um\pkthlp_um.vcxproj", "{E84FF937-7445-4B8E-BA40-DFFACC09C060}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkthlp_km", "test\pkthlp\km\pkthlp_km.vcxproj", "{091c094c-bf60-4bcb-9d38-1b439fc0ab7f}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktcmd", "test\pktcmd\pktcmd.vcxproj", "{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}"
@@ -413,6 +415,22 @@ Global
 		{E84FF937-7445-4B8E-BA40-DFFACC09C060}.Release|x64.Build.0 = Release|x64
 		{E84FF937-7445-4B8E-BA40-DFFACC09C060}.Release|x86.ActiveCfg = Release|Win32
 		{E84FF937-7445-4B8E-BA40-DFFACC09C060}.Release|x86.Build.0 = Release|Win32
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|ARM.ActiveCfg = Debug|ARM
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|ARM.Build.0 = Debug|ARM
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|ARM64.ActiveCfg = Debug|ARM64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|ARM64.Build.0 = Debug|ARM64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|x64.ActiveCfg = Debug|x64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|x64.Build.0 = Debug|x64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|x86.ActiveCfg = Debug|Win32
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Debug|x86.Build.0 = Debug|Win32
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|ARM.ActiveCfg = Release|ARM
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|ARM.Build.0 = Release|ARM
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|ARM64.ActiveCfg = Release|ARM64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|ARM64.Build.0 = Release|ARM64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|x64.ActiveCfg = Release|x64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|x64.Build.0 = Release|x64
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|x86.ActiveCfg = Release|Win32
+        {091c094c-bf60-4bcb-9d38-1b439fc0ab7f}.Release|x86.Build.0 = Release|Win32
 		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|ARM.ActiveCfg = Debug|Win32
 		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|ARM64.ActiveCfg = Debug|Win32
 		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Debug|x64.ActiveCfg = Debug|x64
