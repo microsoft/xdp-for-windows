@@ -1,22 +1,23 @@
-# How to use WinXdp
+# How to use WinXDP
 
 ## Installation
 
-WinXdp consists of a usermode library (msxdp.dll) and a driver (xdp.sys).
+WinXDP consists of a usermode library (msxdp.dll) and a driver (xdp.sys).
 
-To install the library, add the root XDP directory to the `PATH`
-environment variable or copy msxdp.dll into `system32`.
-
-To install the driver:
-
+If xdp.sys is not production-signed:
 ```PowerShell
-certmgr.exe -add .\test\testroot.cer -s root
+CertUtil.exe -addstore Root CoreNetSignRoot.cer
+CertUtil.exe -addstore TrustedPublisher CoreNetSignRoot.cer
 bcdedit.exe /set testsigning on
+[reboot]
+```
+
+Install:
+```PowerShell
 netcfg.exe -l .\xdp.inf -c s -i ms_xdp
 ```
 
-To uninstall the driver:
-
+Uninstall:
 ```PowerShell
 netcfg.exe -u ms_xdp
 pnputil.exe /delete-driver xdp.inf
@@ -34,8 +35,6 @@ a network interface. The XDP queue IDs are assigned [0, N-1] for an interface
 with N configured RSS queues. XDP programs and AF_XDP applications bind to RSS
 queues using this queue ID space.
 
-See [`xskbench`](test\xskbench\xskbench.c) for example usage.
-
 ## AF_XDP
 
 AF_XDP is the API for redirecting traffic to a usermode application. To use the API,
@@ -44,8 +43,6 @@ include the following headers:
 - afxdp.h (AF_XDP sockets API)
 - msxdp.h (XDP program API)
 - afxdp_helper.h (optional AF_XDP helpers)
-
-See [`xskbench`](test\xskbench\xskbench.c) for example usage.
 
 ## Generic XDP
 

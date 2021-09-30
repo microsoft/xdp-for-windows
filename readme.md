@@ -1,6 +1,6 @@
 # XDP For Windows
 
-WinXdp is a Windows interface similar to [XDP (eXpress Data Path)](https://en.wikipedia.org/wiki/Express_Data_Path),
+WinXDP is a Windows interface similar to [XDP (eXpress Data Path)](https://en.wikipedia.org/wiki/Express_Data_Path),
 used to send and receive packets at high rates by bypassing most of the OS networking stack.
 
 ## Documentation
