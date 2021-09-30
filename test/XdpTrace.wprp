@@ -7,12 +7,24 @@
         </EventCollector>
 
         <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
+        <EventProvider Id="EP_SpinXskWpp" Name="D6143B5D-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" />
 
         <Profile Id="XdpFunctional.Verbose.File" Name="XdpFunctional" Description="XDP Functional Test" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>
                 <EventCollectorId Value="EC_HighVolume">
                     <EventProviders>
                         <EventProviderId Value="EP_XdpWpp" />
+                    </EventProviders>
+                </EventCollectorId>
+            </Collectors>
+        </Profile>
+
+        <Profile Id="SpinXsk.Verbose.File" Name="SpinXsk" Description="XDP SpinXsk Stress Test" LoggingMode="File" DetailLevel="Verbose">
+            <Collectors>
+                <EventCollectorId Value="EC_HighVolume">
+                    <EventProviders>
+                        <EventProviderId Value="EP_XdpWpp" />
+                        <EventProviderId Value="EP_SpinXskWpp" />
                     </EventProviders>
                 </EventCollectorId>
             </Collectors>

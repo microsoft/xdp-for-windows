@@ -36,19 +36,25 @@ param (
     [switch]$Stop = $false,
 
     [Parameter(Mandatory = $false)]
+    [string]$Profile = $null,
+
+    [Parameter(Mandatory = $false)]
     [string]$Name = "xdp"
 )
 
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
+if ($Profile -eq $null -and $Start) {
+    Write-Error "-Start requires -Profile"
+}
+
 # Important paths.
 $RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
 $ToolsDir = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x86"
 $TracePdb = Join-Path $ToolsDir "tracepdb.exe"
-$WprpFile = Join-Path $RootDir "test" "functional" "XdpFunctional.wprp"
-$Profile = "XdpFunctional.Verbose"
+$WprpFile = Join-Path $RootDir "test" "XdpTrace.wprp"
 $TmfPath = Join-Path $ArtifactsDir "tmfs"
 $EtlPath = Join-Path $RootDir "artifacts" "logs" "$Name.etl"
 $LogPath = Join-Path $RootDir "artifacts" "logs" "$Name.log"

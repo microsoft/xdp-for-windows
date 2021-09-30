@@ -12,6 +12,9 @@
 extern "C" {
 #endif
 
+#pragma warning(push)
+#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+
 typedef enum _XDP_MATCH_TYPE {
     //
     // Match all frames.
@@ -103,6 +106,8 @@ typedef struct _XDP_RULE {
         XDP_REDIRECT_PARAMS Redirect;
     };
 } XDP_RULE;
+
+#pragma warning(pop)
 
 #ifdef __cplusplus
 } // extern "C"

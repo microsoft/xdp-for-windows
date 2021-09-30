@@ -37,6 +37,11 @@
     <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>
+        tracewpp.exe -odir:$(IntDir) -scan:$(ProjectDir)trace.h $(ProjectDir)*.c -cfgdir:"$(WindowsSdkDir)bin\$(TargetPlatformVersion)\WppConfig\Rev1"
+      </Command>
+    </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;

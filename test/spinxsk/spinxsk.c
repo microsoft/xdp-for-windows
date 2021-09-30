@@ -12,7 +12,9 @@
 #include <msxdp.h>
 #include <msxdp_internal.h>
 
+#include "trace.h"
 #include "util.h"
+#include "spinxsk.tmh"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
@@ -1533,6 +1535,7 @@ WatchdogFn(
         }
 
         printf_verbose("watchdog iter\n");
+        TraceVerbose(TRACE_WATCHDOG, "watchdog iter");
 
         QueryPerformanceCounter((LARGE_INTEGER*)&perfCount);
         for (UINT32 i = 0; i < queueCount; i++) {
@@ -1642,6 +1645,8 @@ main(
     HANDLE watchdogThread;
     HMODULE msxdpHandle;
 
+    WPP_INIT_TRACING(NULL);
+
     msxdpHandle = GetModuleHandleW(L"msxdp");
     if (msxdpHandle != NULL) {
         XdpBugCheckHandler = (XDP_BUGCHECK *)GetProcAddress(msxdpHandle, "XdpBugCheck");
@@ -1723,6 +1728,8 @@ main(
     free(queueWorkers);
 
     printf("done\n");
+
+    WPP_CLEANUP();
 
     return 0;
 }
