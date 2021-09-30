@@ -1,6 +1,0 @@
-TARGETTYPE=TESTLIST
-TESTLIST_SOURCES=XDP-CI.testlist
-
-TESTLIST_REFERENCE_DIRS= \
-    $(XDP_OBJ_ROOT)\test\functional\taef\$(O) \
-    $(XDP_OBJ_ROOT)\test\spinxsk\taef\$(O) \
