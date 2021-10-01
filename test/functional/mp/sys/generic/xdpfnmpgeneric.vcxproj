@@ -37,8 +37,21 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>inc;$(SolutionDir)lib\rtl\inc;$(SolutionDir)test\functional\mp\inc;$(SolutionDir)test\functional\mp\sys;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS685_MINIPORT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>
+        inc;
+        $(SolutionDir)lib\rtl\inc;
+        $(SolutionDir)test\functional\mp\inc;
+        $(SolutionDir)test\functional\mp\sys;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        NDIS_MINIPORT_DRIVER;
+        NDIS685_MINIPORT=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>$(ProjectDir)..\trace.h</WppScanConfigurationData>
+      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

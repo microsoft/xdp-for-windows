@@ -46,7 +46,14 @@
         $(SolutionDir)published\private;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDIS_WDM=1;NDIS685=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>
+        NDIS_WDM=1;
+        NDIS685=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
+      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
     <Link>
       <ModuleDefinitionFile>fndis.def</ModuleDefinitionFile>

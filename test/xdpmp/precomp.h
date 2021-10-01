@@ -21,6 +21,7 @@
 #include "poll.h"
 #include "rss.h"
 #include "rx.h"
+#include "trace.h"
 #include "tx.h"
 
 #define POOLTAG_ADAPTER  'ApmX' // XmpA

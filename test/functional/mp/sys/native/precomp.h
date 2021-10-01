@@ -14,6 +14,7 @@
 #include <ioctlbounce.h>
 #include <miniport.h>
 #include <pooltag.h>
+#include <trace.h>
 #include <xdpfnmpioctl.h>
 
 #include "native.h"

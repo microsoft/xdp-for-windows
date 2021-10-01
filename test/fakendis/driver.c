@@ -3,6 +3,7 @@
 //
 
 #include "precomp.h"
+#include "driver.tmh"
 
 typedef struct _FNDIS_EXPORT_ENTRY {
     UNICODE_STRING Name;
@@ -144,7 +145,7 @@ DriverUnload(
     _In_ PDRIVER_OBJECT DriverObject
     )
 {
-    UNREFERENCED_PARAMETER(DriverObject);
+    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
 
     NdisPollCpuStop();
     NdisPollStop();
@@ -152,6 +153,10 @@ DriverUnload(
         IoDeleteDevice(FndisDeviceObject);
         FndisDeviceObject = NULL;
     }
+
+    TraceExit(TRACE_CONTROL);
+
+    WPP_CLEANUP(DriverObject);
 }
 
 _Function_class_(DRIVER_INITIALIZE)
@@ -169,7 +174,10 @@ DriverEntry(
     UNREFERENCED_PARAMETER(RegistryPath);
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
+    WPP_INIT_TRACING(DriverObject, RegistryPath);
     RtlInitUnicodeString(&DeviceName, FNDIS_DEVICE_NAME);
+
+    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
 
     Status =
         IoCreateDevice(
@@ -202,6 +210,8 @@ DriverEntry(
     }
 
 Exit:
+
+    TraceExit(TRACE_CONTROL);
 
     if (!NT_SUCCESS(Status)) {
         DriverUnload(DriverObject);

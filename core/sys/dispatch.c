@@ -516,11 +516,11 @@ DriverEntry(
 
 Exit:
 
+    TraceExitStatus(TRACE_CORE);
+
     if (!NT_SUCCESS(Status)) {
         DriverUnload(DriverObject);
     }
-
-    TraceExitStatus(TRACE_CORE);
 
     return Status;
 }

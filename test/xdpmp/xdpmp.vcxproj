@@ -70,6 +70,9 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS685_MINIPORT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
+      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</AdditionalLibraryDirectories>

@@ -3,6 +3,7 @@
 //
 
 #include "precomp.h"
+#include "miniport.tmh"
 
 NDIS_STRING RegRSS = NDIS_STRING_CONST("*RSS");
 NDIS_STRING RegNumRssQueues = NDIS_STRING_CONST("*NumRssQueues");
@@ -568,16 +569,20 @@ MpOidRequest(
 
 VOID
 MpUnload(
-  _In_ DRIVER_OBJECT *DriverObject
-  )
+    _In_ DRIVER_OBJECT *DriverObject
+    )
 {
-    UNREFERENCED_PARAMETER(DriverObject);
+    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
 
     if (MpGlobalContext.NdisMiniportDriverHandle != NULL)
     {
         NdisMDeregisterMiniportDriver(MpGlobalContext.NdisMiniportDriverHandle);
         MpGlobalContext.NdisMiniportDriverHandle = NULL;
     }
+
+    TraceExit(TRACE_CONTROL);
+
+    WPP_CLEANUP(DriverObject);
 }
 
 _Function_class_(DRIVER_INITIALIZE)
@@ -594,8 +599,11 @@ DriverEntry(
 
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
+    WPP_INIT_TRACING(DriverObject, RegistryPath);
     ExInitializePushLock(&MpGlobalContext.Lock);
     InitializeListHead(&MpGlobalContext.AdapterList);
+
+    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
 
     XdpInitializeExtensionInfo(
         &MpSupportedXdpExtensions.VirtualAddress,
@@ -679,6 +687,8 @@ DriverEntry(
     }
 
 Exit:
+
+    TraceExitStatus(TRACE_CONTROL);
 
     if (Status != NDIS_STATUS_SUCCESS) {
         MpUnload(DriverObject);

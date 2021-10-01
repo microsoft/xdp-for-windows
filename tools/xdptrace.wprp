@@ -8,12 +8,16 @@
 
         <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
         <EventProvider Id="EP_SpinXskWpp" Name="D6143B5D-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" />
+        <EventProvider Id="EP_XdpMpWpp" Name="D6143B5E-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
+        <EventProvider Id="EP_XdpFnMpWpp" Name="D6143B5F-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
+        <EventProvider Id="EP_FndisWpp" Name="D6143B60-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
 
         <Profile Id="XdpFunctional.Verbose.File" Name="XdpFunctional" Description="XDP Functional Test" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>
                 <EventCollectorId Value="EC_HighVolume">
                     <EventProviders>
                         <EventProviderId Value="EP_XdpWpp" />
+                        <EventProviderId Value="EP_XdpFnMpWpp" />
                     </EventProviders>
                 </EventCollectorId>
             </Collectors>
@@ -25,6 +29,8 @@
                     <EventProviders>
                         <EventProviderId Value="EP_XdpWpp" />
                         <EventProviderId Value="EP_SpinXskWpp" />
+                        <EventProviderId Value="EP_XdpMpWpp" />
+                        <EventProviderId Value="EP_FndisWpp" />
                     </EventProviders>
                 </EventCollectorId>
             </Collectors>

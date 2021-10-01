@@ -19,6 +19,7 @@
 #include "poll.h"
 #include "pollbackchannel.h"
 #include "polldpc.h"
+#include "trace.h"
 
 #define POOLTAG_BACKCHANNEL 'BinF'  // FniB
 #define POOLTAG_POLL        'PinF'  // FniP

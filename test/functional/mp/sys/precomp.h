@@ -20,4 +20,5 @@
 #include "pooltag.h"
 #include "oid.h"
 #include "rss.h"
+#include "trace.h"
 #include "xdpfnmpioctl.h"
