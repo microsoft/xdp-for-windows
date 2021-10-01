@@ -28,7 +28,10 @@ param (
     [switch]$NoReboot = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Force = $false
+    [switch]$Force = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Cleanup = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -67,25 +70,50 @@ function Setup-TestSigning {
             # Enable test signing.
             Write-Host "Enabling Test Signing. Reboot required!"
             bcdedit /set testsigning on
+            $Reboot = $true
         }
     }
 }
 
-if ($ForBuild) {
-    Download-CoreNet-Deps
-    Copy-Item "artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer" "artifacts\CoreNetSignRoot.cer"
-    Copy-Item "artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx" "artifacts\CoreNetSign.pfx"
+# Installs the XDP certificates.
+function Install-Certs {
+    $CodeSignCertPath = "artifacts\CoreNetSignRoot.cer"
+    if (!(Test-Path $CodeSignCertPath)) {
+        Write-Error "$CodeSignCertPath does not exist!"
+    }
+    CertUtil.exe -f -addstore Root $CodeSignCertPath
+    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath
 }
 
-if ($ForTest) {
-    Setup-TestSigning
-    Download-CoreNet-Deps
-    Copy-Item artifacts\corenet-ci-main\vm-setup\dswdevice.exe C:\dswdevice.exe
-    Copy-Item artifacts\corenet-ci-main\vm-setup\notmyfault64.exe C:\notmyfault64.exe
-    Copy-Item artifacts\corenet-ci-main\vm-setup\sdk\* "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x86\" -Force
+# Uninstalls the XDP certificates.
+function Uninstall-Certs {
+    try { CertUtil.exe -delstore Root "CoreNetTestSigning" } catch { }
+    try { CertUtil.exe -delstore trustedpublisher "CoreNetTestSigning" } catch { }
 }
 
-if ($Reboot) {
+if ($Cleanup) {
+    if ($ForTest) {
+        Uninstall-Certs
+    }
+} else {
+    if ($ForBuild) {
+        Download-CoreNet-Deps
+        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
+        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
+    }
+
+    if ($ForTest) {
+        Setup-TestSigning
+        Download-CoreNet-Deps
+        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
+        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
+        Copy-Item artifacts\corenet-ci-main\vm-setup\dswdevice.exe C:\dswdevice.exe
+        Copy-Item artifacts\corenet-ci-main\vm-setup\notmyfault64.exe C:\notmyfault64.exe
+        Install-Certs
+    }
+}
+
+if ($Reboot -and !$NoReboot) {
     # Reboot the machine.
     Write-Host "Rebooting..."
     shutdown.exe /f /r /t 0

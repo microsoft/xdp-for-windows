@@ -67,21 +67,6 @@ $XdpFnMpDeviceId0 = "xdpfnmp0"
 $XdpFnMpDeviceId1 = "xdpfnmp1"
 $XdpFnMpServiceName = "XDPFNMP"
 
-# Installs the XDP certificates.
-function Install-Certs {
-    if (!(Test-Path $CodeSignCertPath)) {
-        Write-Error "$CodeSignCertPath does not exist!"
-    }
-    CertUtil.exe -addstore Root $CodeSignCertPath
-    CertUtil.exe -addstore trustedpublisher $CodeSignCertPath
-}
-
-# Uninstalls the XDP certificates.
-function Uninstall-Certs {
-    try { CertUtil.exe -delstore Root "CoreNetTestSigning" } catch { }
-    try { CertUtil.exe -delstore trustedpublisher "CoreNetTestSigning" } catch { }
-}
-
 # Helper to reboot the machine
 function Uninstall-Failure {
     if ($FailureAction -eq "reboot") {
@@ -449,7 +434,6 @@ if ($Install -ne "") {
     # Install the necessary components.
     if ($Install -eq "xdpmp") {
         try {
-            Install-Certs
             Install-FakeNdis
             Install-Xdp
             Install-XdpMp
@@ -459,13 +443,11 @@ if ($Install -ne "") {
             Uninstall-XdpMp
             Uninstall-Xdp
             Uninstall-FakeNdis
-            Uninstall-Certs
             throw
         }
 
     } elseif ($Install -eq "xdpfnmp") {
         try {
-            Install-Certs
             Install-Xdp
             Install-XdpFnMp
         } catch {
@@ -473,7 +455,6 @@ if ($Install -ne "") {
             Write-Host $_
             Uninstall-XdpFnMp
             Uninstall-Xdp
-            Uninstall-Certs
             throw
         }
     }
@@ -486,5 +467,4 @@ if ($Uninstall) {
     Uninstall-XdpMp
     Uninstall-Xdp
     Uninstall-FakeNdis
-    Uninstall-Certs
 }
