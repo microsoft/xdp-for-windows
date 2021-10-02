@@ -50,7 +50,7 @@ if ($Profile -eq $null -and $Start) {
 }
 
 # Important paths.
-$RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
 $ToolsDir = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x86"
 $TracePdb = Join-Path $ToolsDir "tracepdb.exe"

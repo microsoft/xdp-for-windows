@@ -45,7 +45,7 @@ Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 # Important paths.
-$RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
 $DswDevice = "C:\dswdevice.exe"
 
