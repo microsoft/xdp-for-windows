@@ -35,32 +35,6 @@ XdpCreateProgram(
     return S_OK;
 }
 
-#if DBG
-HRESULT
-XDPAPI
-XdpBugCheck(
-    VOID
-    )
-{
-    HANDLE Handle;
-    BOOL Success;
-
-    Handle = XdpOpen(FILE_CREATE, NULL, 0);
-    if (Handle == NULL) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    Success = XdpIoctl(Handle, IOCTL_XDP_BUGCHECK, NULL, 0, NULL, 0, NULL, NULL);
-    if (!Success) {
-        CloseHandle(Handle);
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    CloseHandle(Handle);
-    return S_OK;
-}
-#endif
-
 BOOL
 WINAPI
 DllMain(

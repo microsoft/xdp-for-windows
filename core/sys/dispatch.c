@@ -203,21 +203,6 @@ XdpIrpDispatch(
     return Status;
 }
 
-#if DBG
-__declspec(noinline)
-NTSTATUS
-XdpIrpBugCheck(
-    _Inout_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp
-    )
-{
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IrpSp);
-
-    KeBugCheck(NDIS_INTERNAL_ERROR);
-}
-#endif
-
 __declspec(code_seg("PAGE"))
 _Use_decl_annotations_
 NTSTATUS
@@ -253,11 +238,6 @@ XdpIrpDeviceIoControl(
         }
     } else {
         switch (IrpSp->Parameters.DeviceIoControl.IoControlCode) {
-#if DBG
-        case IOCTL_XDP_BUGCHECK:
-            Status = XdpIrpBugCheck(Irp, IrpSp);
-            break;
-#endif
         default:
             Status = STATUS_NOT_SUPPORTED;
             goto Exit;

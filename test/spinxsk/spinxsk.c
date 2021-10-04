@@ -50,6 +50,8 @@ CHAR *HELP =
 "                         Default: " STR_OF(DEFAULT_FUZZER_COUNT) "\n"
 "   -CleanDatapath        Avoid actions that invalidate the datapath\n"
 "                         Default: off\n"
+"   -WatchdogCmd <cmd>    Execute a system command after a watchdog violation\n"
+"                         Default: \"\"\n"
 ;
 
 #define ASSERT_FRE(expr) \
@@ -226,7 +228,7 @@ QUEUE_WORKER *queueWorkers;
 UINT32 queueCount = DEFAULT_QUEUE_COUNT;
 UINT32 fuzzerCount = DEFAULT_FUZZER_COUNT;
 ULONGLONG perfFreq;
-XDP_BUGCHECK *XdpBugCheckHandler;
+CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
 
 ULONG
@@ -1550,8 +1552,9 @@ WatchdogFn(
             if ((LONGLONG)(queueWorkers[i].watchdogPerfCount + watchdogTimeoutInCounts - perfCount) < 0) {
                 TraceError( "WATCHDOG exceeded on queue %d", i);
                 printf("WATCHDOG exceeded on queue %d\n", i);
-                if (XdpBugCheckHandler != NULL) {
-                    XdpBugCheckHandler();
+                if (strlen(watchdogCmd) > 0) {
+                    TraceInfo("watchdogCmd=%s", watchdogCmd);
+                    system(watchdogCmd);
                 }
                 DebugBreak();
                 DbgRaiseAssertionFailure();
@@ -1597,6 +1600,7 @@ ParseArgs(
                 Usage();
             }
             duration = atoi(argv[i]) * 60;
+            TraceVerbose("duration=%u", duration);
         } else if (!strcmp(argv[i], "-Stats")) {
             extraStats = TRUE;
         } else if (!strcmp(argv[i], "-Verbose")) {
@@ -1606,13 +1610,22 @@ ParseArgs(
                 Usage();
             }
             queueCount = atoi(argv[i]);
+            TraceVerbose("queueCount=%u", queueCount);
         } else if (!strcmp(argv[i], "-FuzzerCount")) {
             if (++i > argc) {
                 Usage();
             }
             fuzzerCount = atoi(argv[i]);
+            TraceVerbose("fuzzerCount=%u", fuzzerCount);
         } else if (!strcmp(argv[i], "-CleanDatapath")) {
             cleanDatapath = TRUE;
+            TraceVerbose("cleanDatapath=%!BOOLEAN!", cleanDatapath);
+        } else if (!strcmp(argv[i], "-WatchdogCmd")) {
+            if (++i > argc) {
+                Usage();
+            }
+            watchdogCmd = argv[i];
+            TraceVerbose("watchdogCmd=%s", watchdogCmd);
         } else {
             Usage();
         }
@@ -1655,11 +1668,6 @@ main(
     HMODULE msxdpHandle;
 
     WPP_INIT_TRACING(NULL);
-
-    msxdpHandle = GetModuleHandleW(L"msxdp");
-    if (msxdpHandle != NULL) {
-        XdpBugCheckHandler = (XDP_BUGCHECK *)GetProcAddress(msxdpHandle, "XdpBugCheck");
-    }
 
     ParseArgs(argc, argv);
 

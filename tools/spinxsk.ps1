@@ -57,7 +57,10 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
+$LogsDir = "$RootDir\artifacts\logs"
 $SpinXsk = Join-Path $ArtifactsDir "spinxsk.exe"
+$LiveKD = "C:\livekd64.exe"
+$KD = "C:\kd.exe"
 
 Write-Host "+++++++ Running SpinXsk.exe +++++++"
 
@@ -68,6 +71,7 @@ if (!(Test-Path $SpinXsk)) {
 
 # Build up the args.
 $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
+$Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
 if ($Minutes -ne 0) {
     $Args += " -Minutes $Minutes"
 }
