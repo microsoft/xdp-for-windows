@@ -17,13 +17,6 @@
 #define XDP_OPEN_PACKET_NAME "XdpOpenPacket000"
 
 //
-// Define IOCTLs supported by the default file handle.
-//
-
-#define IOCTL_XDP_BUGCHECK \
-    CTL_CODE(FILE_DEVICE_NETWORK, 0, METHOD_BUFFERED, FILE_WRITE_ACCESS)
-
-//
 // Type of XDP object to create or open.
 //
 typedef enum _XDP_OBJECT_TYPE {

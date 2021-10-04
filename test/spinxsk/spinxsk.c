@@ -1665,7 +1665,6 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
-    HMODULE msxdpHandle;
 
     WPP_INIT_TRACING(NULL);
 
