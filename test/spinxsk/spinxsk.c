@@ -57,7 +57,8 @@ CHAR *HELP =
 
 #define Usage() PrintUsage(__LINE__)
 
-#define printf_verbose(s, ...) \
+#ifndef TraceVerbose
+#define TraceVerbose(s, ...) \
     if (verbose) { \
         SYSTEMTIME system_time; \
         char timestamp_buf[21] = { 0 }; \
@@ -67,6 +68,7 @@ CHAR *HELP =
             system_time.wHour, system_time.wMinute, system_time.wSecond); \
         printf("%s" s, timestamp_buf, __VA_ARGS__); \
     }
+#endif
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
 #define ADMIN_THREAD_TIMEOUT_SEC 1
@@ -726,8 +728,8 @@ InitializeQueue(
             queue->datapath2.flags.tx = TRUE;
         }
     }
-    printf_verbose(
-        "q[%u]: datapath1_rx:%d datapath1_tx:%d datapath2_rx:%d datapath2_tx:%d sharedUmem:%d xdpMode:%s\n",
+    TraceVerbose(
+        "q[%u]: datapath1_rx:%d datapath1_tx:%d datapath2_rx:%d datapath2_tx:%d sharedUmem:%d xdpMode:%s",
         queue->queueId, queue->datapath1.flags.rx, queue->datapath1.flags.tx,
         queue->datapath2.flags.rx, queue->datapath2.flags.tx,
         (queue->datapath1.sock != queue->datapath2.sock && queue->datapath2.sock != NULL),
@@ -864,7 +866,7 @@ FuzzSocketUmemSetup(
         if (SUCCEEDED(res)) {
             Queue->umemReg = umemReg;
             WriteBooleanRelease(WasUmemRegistered, TRUE);
-            printf_verbose("q[%u]: umem totalSize:%llu chunkSize:%u headroom:%u\n",
+            TraceVerbose("q[%u]: umem totalSize:%llu chunkSize:%u headroom:%u",
                 Queue->queueId, umemReg.totalSize, umemReg.chunkSize, umemReg.headroom);
         } else {
             BOOL success = VirtualFree(umemReg.address, 0, MEM_RELEASE);
@@ -1049,7 +1051,7 @@ InitializeDatapath(
     //
 
     if (Datapath->flags.rx) {
-        printf_verbose("q[%u]d[0x%p]: rx_size:%u fill_size:%u\n",
+        TraceVerbose("q[%u]d[0x%p]: rx_size:%u fill_size:%u",
             queue->queueId, Datapath->threadHandle, ringInfo.rx.size, ringInfo.fill.size);
         XskRingInitialize(&Datapath->rxRing, &ringInfo.rx);
         XskRingInitialize(&Datapath->fillRing, &ringInfo.fill);
@@ -1067,7 +1069,7 @@ InitializeDatapath(
 
     }
     if (Datapath->flags.tx) {
-        printf_verbose("q[%u]d[0x%p]: tx_size:%u comp_size:%u\n",
+        TraceVerbose("q[%u]d[0x%p]: tx_size:%u comp_size:%u",
             queue->queueId, Datapath->threadHandle, ringInfo.tx.size, ringInfo.completion.size);
         XskRingInitialize(&Datapath->txRing, &ringInfo.tx);
         XskRingInitialize(&Datapath->compRing, &ringInfo.completion);
@@ -1269,7 +1271,7 @@ XskDatapathWorkerFn(
     XSK_DATAPATH_WORKER *datapath = ThreadParameter;
     QUEUE_CONTEXT *queue = datapath->shared->queue;
 
-    printf_verbose("q[%u]d[0x%p]: entering\n", queue->queueId, datapath->threadHandle);
+    TraceEnter("q[%u]d[0x%p]", queue->queueId, datapath->threadHandle);
 
     if (SUCCEEDED(InitializeDatapath(datapath))) {
         while (!ReadBooleanNoFence(&done)) {
@@ -1288,7 +1290,7 @@ XskDatapathWorkerFn(
         CleanupDatapath(datapath);
     }
 
-    printf_verbose("q[%u]d[0x%p]: exiting\n", queue->queueId, datapath->threadHandle);
+    TraceExit("q[%u]d[0x%p]", queue->queueId, datapath->threadHandle);
     return 0;
 }
 
@@ -1302,7 +1304,7 @@ XskFuzzerWorkerFn(
     QUEUE_CONTEXT *queue = fuzzer->shared->queue;
     SCENARIO_CONFIG *scenarioConfig = &queue->scenarioConfig;
 
-    printf_verbose("q[%u]f[0x%p]: entering\n", queue->queueId, fuzzer->threadHandle);
+    TraceEnter("q[%u]f[0x%p]", queue->queueId, fuzzer->threadHandle);
 
     while (!ReadBooleanNoFence(&done)) {
         if (ReadNoFence((LONG *)&fuzzer->shared->state) == ThreadStateReturn) {
@@ -1341,7 +1343,7 @@ XskFuzzerWorkerFn(
 
         if (ScenarioConfigComplete(scenarioConfig)) {
             if (WaitForSingleObject(scenarioConfig->completeEvent, 0) != WAIT_OBJECT_0) {
-                printf_verbose("q[%u]f[0x%p]: marking socket setup complete\n",
+                TraceVerbose("q[%u]f[0x%p]: marking socket setup complete",
                     queue->queueId, fuzzer->threadHandle);
                 SetEvent(scenarioConfig->completeEvent);
             }
@@ -1349,7 +1351,7 @@ XskFuzzerWorkerFn(
         }
     }
 
-    printf_verbose("q[%u]f[0x%p]: exiting\n", queue->queueId, fuzzer->threadHandle);
+    TraceExit("q[%u]f[0x%p]", queue->queueId, fuzzer->threadHandle);
     return 0;
 }
 
@@ -1364,17 +1366,19 @@ QueueWorkerFn(
     ULONG numSuccessfulSetups = 0;
     ULONG successPct;
 
+    TraceEnter("q[%u]", queueWorker->queueId);
+
     while (!ReadBooleanNoFence(&done)) {
         QUEUE_CONTEXT *queue;
         DWORD ret;
 
         ++numIterations;
-        printf_verbose("q[%u]: iter %lu\n", queueWorker->queueId, numIterations);
+        TraceVerbose("q[%u]: iter %lu", queueWorker->queueId, numIterations);
 
         QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
 
         if (!SUCCEEDED(InitializeQueue(queueWorker->queueId, &queue))) {
-            printf_verbose("q[%u]: failed to setup queue\n", queueWorker->queueId);
+            TraceVerbose("q[%u]: failed to setup queue", queueWorker->queueId);
             continue;
         }
 
@@ -1389,7 +1393,7 @@ QueueWorkerFn(
         //
         // Wait until fuzzers have successfully configured the socket/s.
         //
-        printf_verbose("q[%u]: waiting for sockets to be configured\n", queue->queueId);
+        TraceVerbose("q[%u]: waiting for sockets to be configured", queue->queueId);
         ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, 500);
 
         if (ret == WAIT_OBJECT_0) {
@@ -1410,13 +1414,13 @@ QueueWorkerFn(
             //
             // Let datapath thread/s pump datapath for set duration.
             //
-            printf_verbose("q[%u]: letting datapath pump\n", queue->queueId);
+            TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
             WaitForSingleObject(stopEvent, 500);
 
             //
             // Signal and wait for datapath thread/s to return.
             //
-            printf_verbose("q[%u]: waiting for datapath threads\n", queue->queueId);
+            TraceVerbose("q[%u]: waiting for datapath threads", queue->queueId);
             WriteNoFence((LONG *)&queue->datapathShared.state, ThreadStateReturn);
             if (queue->datapath1.threadHandle != NULL) {
                 WaitForSingleObject(queue->datapath1.threadHandle, INFINITE);
@@ -1429,7 +1433,7 @@ QueueWorkerFn(
         //
         // Signal and wait for fuzzer threads to return.
         //
-        printf_verbose("q[%u]: waiting for fuzzer threads\n", queue->queueId);
+        TraceVerbose("q[%u]: waiting for fuzzer threads", queue->queueId);
         WriteNoFence((LONG*)&queue->fuzzerShared.state, ThreadStateReturn);
         for (UINT32 i = 0; i < queue->fuzzerCount; i++) {
             WaitForSingleObject(queue->fuzzers[i].threadHandle, INFINITE);
@@ -1456,7 +1460,7 @@ QueueWorkerFn(
     //
     ASSERT_FRE(successPct >= 80);
 
-    printf_verbose("q[%u]: exiting\n", queueWorker->queueId);
+    TraceExit("q[%u]", queueWorker->queueId);
     return 0;
 }
 
@@ -1473,6 +1477,8 @@ AdminFn(
 
     UNREFERENCED_PARAMETER(ThreadParameter);
 
+    TraceEnter("-");
+
     res =
         RegCreateKeyExA(
             HKEY_LOCAL_MACHINE,
@@ -1486,10 +1492,10 @@ AdminFn(
             break;
         }
 
-        printf_verbose("admin iter\n");
+        TraceVerbose("admin iter");
 
         if (!cleanDatapath && !(RandUlong() % 10)) {
-            printf_verbose("admin: restart adapter\n");
+            TraceVerbose("admin: restart adapter");
             RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
             sprintf_s(
                 cmdBuff, sizeof(cmdBuff),
@@ -1512,7 +1518,8 @@ AdminFn(
     RegDeleteValueA(xdpParametersKey, delayDetachTimeoutRegName);
     RegCloseKey(xdpParametersKey);
 
-    printf_verbose("admin exiting\n");
+    TraceExit("-");
+
     return 0;
 }
 
@@ -1528,19 +1535,21 @@ WatchdogFn(
 
     UNREFERENCED_PARAMETER(ThreadParameter);
 
+    TraceEnter("-");
+
     while (TRUE) {
         res = WaitForSingleObject(workersDoneEvent, WATCHDOG_THREAD_TIMEOUT_SEC * 1000);
         if (res == WAIT_OBJECT_0) {
             break;
         }
 
-        printf_verbose("watchdog iter\n");
-        TraceVerbose(TRACE_WATCHDOG, "watchdog iter");
+        TraceVerbose("watchdog iter");
 
         QueryPerformanceCounter((LARGE_INTEGER*)&perfCount);
         for (UINT32 i = 0; i < queueCount; i++) {
             if ((LONGLONG)(queueWorkers[i].watchdogPerfCount + watchdogTimeoutInCounts - perfCount) < 0) {
-                printf("WATCHDOG on queue %d\n", i);
+                TraceError( "WATCHDOG exceeded on queue %d", i);
+                printf("WATCHDOG exceeded on queue %d\n", i);
                 if (XdpBugCheckHandler != NULL) {
                     XdpBugCheckHandler();
                 }
@@ -1551,7 +1560,7 @@ WatchdogFn(
         }
     }
 
-    printf_verbose("watchdog exiting\n");
+    TraceExit("-");
     return 0;
 }
 
@@ -1624,7 +1633,7 @@ ConsoleCtrlHandler(
 {
     UNREFERENCED_PARAMETER(CtrlType);
 
-    printf_verbose("CTRL-C\n");
+    TraceVerbose("CTRL-C");
 
     //
     // Gracefully initiate a stop.
@@ -1700,14 +1709,14 @@ main(
     //
     // Wait for test duration.
     //
-    printf_verbose("main: running test...\n");
+    TraceVerbose("main: running test...");
     WaitForSingleObject(stopEvent, (duration == ULONG_MAX) ? INFINITE : duration * 1000);
     WriteBooleanNoFence(&done, TRUE);
 
     //
     // Wait on each queue worker to return.
     //
-    printf_verbose("main: waiting for workers...\n");
+    TraceVerbose("main: waiting for workers...");
     for (UINT32 i = 0; i < queueCount; i++) {
         QUEUE_WORKER *queueWorker = &queueWorkers[i];
         WaitForSingleObject(queueWorker->threadHandle, INFINITE);
@@ -1719,10 +1728,10 @@ main(
 
     SetEvent(workersDoneEvent);
 
-    printf_verbose("main: waiting for admin...\n");
+    TraceVerbose("main: waiting for admin...");
     WaitForSingleObject(adminThread, INFINITE);
 
-    printf_verbose("main: waiting for watchdog...\n");
+    TraceVerbose("main: waiting for watchdog...");
     WaitForSingleObject(watchdogThread, INFINITE);
 
     free(queueWorkers);
