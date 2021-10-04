@@ -30,11 +30,12 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdpmp", "xdpfnmp")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$Uninstall = $false,
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp")]
+    [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("", "reboot", "bugcheck")]
@@ -430,41 +431,28 @@ function Uninstall-XdpFnMp {
     Write-Debug "xdpfnmp.sys uninstall complete!"
 }
 
-if ($Install -ne "") {
-    # Install the necessary components.
-    if ($Install -eq "xdpmp") {
-        try {
-            Install-FakeNdis
-            Install-Xdp
-            Install-XdpMp
-        } catch {
-            Write-Host "================Exception Thrown================"
-            Write-Host $_
-            Uninstall-XdpMp
-            Uninstall-Xdp
-            Uninstall-FakeNdis
-            throw
-        }
-
-    } elseif ($Install -eq "xdpfnmp") {
-        try {
-            Install-Xdp
-            Install-XdpFnMp
-        } catch {
-            Write-Host "================Exception Thrown================"
-            Write-Host $_
-            Uninstall-XdpFnMp
-            Uninstall-Xdp
-            throw
-        }
-    }
-    $LastExitCode = 0
+if ($Install -eq "fndis") {
+    Install-FakeNdis
+}
+if ($Install -eq "xdp") {
+    Install-Xdp
+}
+if ($Install -eq "xdpmp") {
+    Install-XdpMp
+}
+if ($Install -eq "xdpfnmp") {
+    Install-XdpFnMp
 }
 
-if ($Uninstall) {
-    # Just try to uninstall everything.
-    Uninstall-XdpFnMp
-    Uninstall-XdpMp
-    Uninstall-Xdp
+if ($Uninstall -eq "fndis") {
     Uninstall-FakeNdis
+}
+if ($Uninstall -eq "xdp") {
+    Uninstall-Xdp
+}
+if ($Uninstall -eq "xdpmp") {
+    Uninstall-XdpMp
+}
+if ($Uninstall -eq "xdpfnmp") {
+    Uninstall-XdpFnMp
 }
