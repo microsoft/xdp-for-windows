@@ -251,6 +251,8 @@ MpInitialize(
 
     UNREFERENCED_PARAMETER(MiniportDriverContext);
 
+    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", NdisMiniportHandle);
+
     //
     // Affinitize XDPMP allocations to NUMA node 0 by default.
     //
@@ -263,6 +265,8 @@ MpInitialize(
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
+
+    TraceVerbose(TRACE_CONTROL, "Allocated Adapter=%p", Adapter);
 
     NdisZeroMemory(&AdapterAttributes, sizeof(NDIS_MINIPORT_ADAPTER_ATTRIBUTES));
 
@@ -458,6 +462,8 @@ Exit:
 
     KeRevertToUserGroupAffinityThread(&OldAffinity);
 
+    TraceExitStatus(TRACE_CONTROL);
+
     return Status;
 }
 
@@ -471,9 +477,13 @@ MpHalt(
 
     UNREFERENCED_PARAMETER(HaltAction);
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     StopHwDatapath(Adapter);
 
     MpReturnAdapter(Adapter);
+
+    TraceExit(TRACE_CONTROL);
 }
 
 VOID
@@ -486,7 +496,11 @@ MpShutdown(
 
     UNREFERENCED_PARAMETER(ShutdownAction);
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     StopHwDatapath(Adapter);
+
+    TraceExit(TRACE_CONTROL);
 }
 
 VOID
@@ -509,7 +523,11 @@ MpRestart(
 
     UNREFERENCED_PARAMETER(RestartParameters);
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     ExReInitializeRundownProtectionCacheAware(Adapter->NblRundown);
+
+    TraceExit(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -523,7 +541,11 @@ MpPause(
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
     UNREFERENCED_PARAMETER(PauseParameters);
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     ExWaitForRundownProtectionReleaseCacheAware(Adapter->NblRundown);
+
+    TraceExit(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
