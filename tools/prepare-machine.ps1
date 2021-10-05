@@ -70,7 +70,7 @@ function Setup-TestSigning {
             # Enable test signing.
             Write-Host "Enabling Test Signing. Reboot required!"
             bcdedit /set testsigning on
-            $Reboot = $true
+            $Script:Reboot = $true
         }
     }
 }
