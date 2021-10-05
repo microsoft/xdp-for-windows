@@ -74,6 +74,8 @@ function Start-Logging {
         Write-Host $_
         Get-Error
         $_ | Format-List *
+        Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
+        Write-Error "Preparing to reboot machine!"
         throw
     }
 }
@@ -90,6 +92,8 @@ function Stop-Logging {
         Write-Host $_
         Get-Error
         $_ | Format-List *
+        Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
+        Write-Error "Preparing to reboot machine!"
         throw
     }
 }
