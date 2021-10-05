@@ -56,8 +56,9 @@ $ToolsDir = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x86"
 $TracePdb = Join-Path $ToolsDir "tracepdb.exe"
 $WprpFile = Join-Path $RootDir "tools" "xdptrace.wprp"
 $TmfPath = Join-Path $ArtifactsDir "tmfs"
-$EtlPath = Join-Path $RootDir "artifacts" "logs" "$Name.etl"
-$LogPath = Join-Path $RootDir "artifacts" "logs" "$Name.log"
+$LogsDir = Join-Path $RootDir "artifacts" "logs"
+$EtlPath = Join-Path $LogsDir "$Name.etl"
+$LogPath = Join-Path $LogsDir "$Name.log"
 
 function Start-Logging {
     Write-Host "+++++++ Starting logs +++++++"
@@ -83,6 +84,8 @@ function Stop-Logging {
         wpr.exe -stop $EtlPath -instancename $Name 2>&1
         & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
         Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
+        Write-Debug "copying C:\windows\inf\setupapi.dev.log"
+        copy C:\windows\inf\setupapi.dev.log $LogsDir
     } catch {
         Write-Host $_
         Get-Error

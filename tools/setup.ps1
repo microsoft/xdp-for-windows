@@ -15,9 +15,6 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
 
-.PARAMETER FailureAction
-    Action to take, if any, when uninstall fails.
-
 #>
 
 param (
@@ -38,11 +35,7 @@ param (
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$Verifier = $false,
-
-    [Parameter(Mandatory = $false)]
-    [ValidateSet("", "reboot", "bugcheck")]
-    [string]$FailureAction = "bugcheck"
+    [switch]$Verifier = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -51,7 +44,10 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
+$LogsDir = Join-Path $RootDir "artifacts" "logs"
 $DswDevice = "C:\dswdevice.exe"
+$LiveKD = "C:\livekd64.exe"
+$KD = "C:\kd.exe"
 
 # File paths.
 $CodeSignCertPath = Join-Path $ArtifactsDir "CoreNetSignRoot.cer"
@@ -73,15 +69,14 @@ $XdpFnMpServiceName = "XDPFNMP"
 
 # Helper to reboot the machine
 function Uninstall-Failure {
-    if ($FailureAction -eq "reboot") {
-        Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-        Write-Error "Preparing to reboot machine!"
-    } elseif ($FailureAction -eq "bugcheck") {
-        Write-Host "Forcing a bugcheck!"
-        Write-Debug "C:\notmyfault64.exe /bugcheck aabbccdd /accepteula"
-        Start-Sleep -Seconds 5
-        C:\notmyfault64.exe /bugcheck aabbccdd /accepteula
-    }
+    Write-Host "Capturing live kernel dump"
+
+    New-Item -ItemType Directory -Force -Path $LogsDir
+    Write-Debug "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
+    & $LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula
+
+    Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
+    Write-Error "Preparing to reboot machine!"
 }
 
 # Helper to start (with retry) a service.
@@ -156,6 +151,8 @@ function Wait-For-Adapter($Name) {
     }
     if ($StartSuccess -eq $false) {
         Write-Error "Failed to start $Name"
+    } else {
+        Write-Debug "Started $Name"
     }
 }
 
@@ -261,11 +258,21 @@ function Install-XdpMp {
         Write-Error "$XdpMpSys does not exist!"
     }
 
+    # On Server 2022 LTSC, the IO verifier flag causes a bugcheck due to a bug
+    # in NT verifier and PNP verifier. Either don't enable verifier on XDPMP, or
+    # disable IO verifier on all drivers when enabling verifier on XDPMP. To
+    # ensure we get as close to maximum coverage as possible, randomly enable
+    # verifier on XDPMP *or* do nothing and implicitly keep the IO verifier flag
+    # enabled.
     if ($Verifier) {
-        Write-Debug "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9BB"
-        verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9BB > $null
-        if ($LastExitCode) {
-            Write-Host "verifier.exe exit code: $LastExitCode"
+        if ((Get-Random -Maximum 1) -eq 1) {
+            Write-Debug "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB"
+            verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB > $null
+            if ($LastExitCode) {
+                Write-Host "verifier.exe exit code: $LastExitCode"
+            }
+        } else {
+            Write-Debug "Not enabling verifier on xdpmp.sys"
         }
     }
 
@@ -291,6 +298,11 @@ function Install-XdpMp {
     $AdapterIndex = (Get-NetAdapter $XdpMpServiceName).ifIndex
 
     Write-Debug "Setting up the adapter"
+
+    # NDIS polling has known race conditions and hangs on 2022 LTSC, so default
+    # to the more reliable FNDIS.
+    Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue "FNDIS"
+
     netsh.exe int ipv4 set int $AdapterIndex dadtransmits=0
     netsh.exe int ipv4 add address $AdapterIndex address=192.168.100.1/24
     netsh.exe int ipv4 add neighbor $AdapterIndex address=192.168.100.2 neighbor=22-22-22-22-00-02

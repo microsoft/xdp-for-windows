@@ -69,6 +69,9 @@ if (!(Test-Path $SpinXsk)) {
     Write-Error "$SpinXsk does not exist!"
 }
 
+# Ensure the output path exists.
+New-Item -ItemType Directory -Force -Path $LogsDir
+
 # Build up the args.
 $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
 $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
