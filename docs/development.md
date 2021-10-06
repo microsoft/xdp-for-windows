@@ -30,3 +30,42 @@ Run in a Visual Studio "Developer Command Prompt":
 ```PowerShell
 .\tools\build.ps1
 ```
+
+## Test the code
+
+### Running spinxsk
+
+The test machine must have the "artifacts" and "tools" directories from the repo, either
+by cloning the repo and building the code or by copying them from another system. The
+file layout is assumed to be identical to that of the repo.
+
+One-time setup:
+
+```Powershell
+.\tools\prepare-machine.ps1 -ForTest
+# Verifier configuration: standard flags with low resources simulation.
+# 599 - Failure probability (599/10000 = 5.99%)
+#       N.B. If left to the default value, roughly every 5 minutes verifier
+#       will fail all allocations within a 10 second interval. This behavior
+#       complicates the spinxsk socket setup statistics. Setting it to a
+#       non-default value disables this behavior.
+# ""  - Pool tag filter
+# ""  - Application filter
+# 0   - Delay (in minutes) after boot until simulation engages
+# WARNING: spinxsk.dll may fail to load xdp.sys due to low resources simulation.
+#          Simply re-run spinxsk.dll to try again.
+verifier.exe /standard /faults 599 `"`" `"`" 0  /driver fndis.sys xdp.sys xdpmp.sys
+shutdown.exe /r /f /t 0
+```
+
+Running the test:
+
+```Powershell
+.\tools\setup.ps1 -Install fndis
+.\tools\setup.ps1 -Install xdp
+.\tools\setup.ps1 -Install xdpmp
+.\tools\spinxsk.ps1 -QueueCount 2 -Minutes 10 -Stats
+.\tools\setup.ps1 -Uninstall xdpmp
+.\tools\setup.ps1 -Uninstall xdp
+.\tools\setup.ps1 -Uninstall fndis
+```

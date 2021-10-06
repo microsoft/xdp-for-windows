@@ -56,9 +56,9 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
+$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
-$SpinXsk = Join-Path $ArtifactsDir "spinxsk.exe"
+$SpinXsk = "$ArtifactsDir\spinxsk.exe"
 $LiveKD = "C:\livekd64.exe"
 $KD = "C:\kd.exe"
 
