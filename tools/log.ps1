@@ -67,35 +67,24 @@ function Start-Logging {
         Write-Error "$WprpFile does not exist!"
     }
 
-    try {
-        Write-Debug "wpr.exe -start $($WprpFile)!$($Profile) -filemode -instancename $Name"
-        wpr.exe -start "$($WprpFile)!$($Profile)" -filemode -instancename $Name 2>&1
-    } catch {
-        Write-Host $_
-        Get-Error
-        $_ | Format-List *
+    Write-Debug "wpr.exe -start $($WprpFile)!$($Profile) -filemode -instancename $Name"
+    cmd /c "wpr.exe -start `"$($WprpFile)!$($Profile)`" -filemode -instancename $Name 2>&1"
+    if ($LastExitCode -ne 0) {
         Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-        Write-Error "Preparing to reboot machine!"
-        throw
+        Write-Error "wpr.exe failed: $LastExitCode"
     }
 }
 
 function Stop-Logging {
     Write-Host "------- Stopping logs -------"
-    try {
-        wpr.exe -stop $EtlPath -instancename $Name 2>&1
-        & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
-        Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
-        Write-Debug "copying C:\windows\inf\setupapi.dev.log"
-        copy C:\windows\inf\setupapi.dev.log $LogsDir
-    } catch {
-        Write-Host $_
-        Get-Error
-        $_ | Format-List *
+    cmd /c "wpr.exe -stop $EtlPath -instancename $Name 2>&1"
+    if ($LastExitCode -ne 0) {
         Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-        Write-Error "Preparing to reboot machine!"
-        throw
+        Write-Error "wpr.exe failed: $LastExitCode"
     }
+
+    & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
+    Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
 }
 
 if ($Start) {
