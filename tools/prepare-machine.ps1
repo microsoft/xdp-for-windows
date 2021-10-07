@@ -64,12 +64,12 @@ function Setup-TestSigning {
 
     # Enable test signing as necessary.
     if (!$HasTestSigning) {
+        # Enable test signing.
+        Write-Host "Enabling Test Signing. Reboot required!"
+        bcdedit /set testsigning on
         if ($NoReboot) {
-            Write-Error "Test Signing Not Enabled!"
+            Write-Warning "Enabling Test Signing requires reboot, but -NoReboot option specified."
         } else {
-            # Enable test signing.
-            Write-Host "Enabling Test Signing. Reboot required!"
-            bcdedit /set testsigning on
             $Script:Reboot = $true
         }
     }
@@ -89,6 +89,51 @@ function Install-Certs {
 function Uninstall-Certs {
     try { CertUtil.exe -delstore Root "CoreNetTestSigning" } catch { }
     try { CertUtil.exe -delstore trustedpublisher "CoreNetTestSigning" } catch { }
+}
+
+function Setup-VcRuntime {
+    $Installed = $false
+    try { $Installed = Get-ChildItem -Path Registry::HKEY_CLASSES_ROOT\Installer\Dependencies | Where-Object { $_.Name -like "*VC,redist*" } } catch {}
+
+    if (!$Installed -or $Force) {
+        Write-Host "Installing VC++ runtime"
+
+        if (!(Test-Path "artifacts")) { mkdir artifacts }
+        Remove-Item -Force "artifacts\vc_redist.x64.exe" -ErrorAction Ignore
+
+        # Download and install.
+        Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "artifacts\vc_redist.x64.exe"
+        Invoke-Expression -Command "artifacts\vc_redist.x64.exe /install /passive"
+    }
+}
+
+function Setup-VsTest {
+    # Unfortunately CI doesn't add vstest to PATH. Test existence of vstest
+    # install paths instead.
+    $ManualVsTestPath = "artifacts\Microsoft.TestPlatform\tools\net451\Common7\IDE\Extensions\TestPlatform"
+    $CiVsTestPath = "${Env:ProgramFiles(X86)}\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\Extensions\TestPlatform"
+
+    $Installed = $false
+    try { $Installed = (Test-Path $ManualVsTestPath) -or (Test-Path $CiVsTestPath) } catch { }
+
+    if (!$Installed -or $Force) {
+        Write-Host "Installing VsTest"
+
+        if (!(Test-Path "artifacts")) { mkdir artifacts }
+        Remove-Item -Recurse -Force "artifacts\Microsoft.TestPlatform" -ErrorAction Ignore
+
+        # Download and extract.
+        Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/16.11.0" -OutFile "artifacts\Microsoft.TestPlatform.zip"
+        Expand-Archive -Path "artifacts\Microsoft.TestPlatform.zip" -DestinationPath "artifacts\Microsoft.TestPlatform" -Force
+        Remove-Item -Path "artifacts\Microsoft.TestPlatform.zip"
+
+        # Add to PATH.
+        $RootDir = Split-Path $PSScriptRoot -Parent
+        $Path = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $Path += ";$RootDir\$ManualVsTestPath"
+        [Environment]::SetEnvironmentVariable("Path", $Path, "Machine")
+        $Env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    }
 }
 
 if ($Cleanup) {
@@ -112,6 +157,8 @@ if ($Cleanup) {
         Copy-Item artifacts\corenet-ci-main\vm-setup\livekd64.exe C:\livekd64.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\notmyfault64.exe C:\notmyfault64.exe
         Install-Certs
+        Setup-VcRuntime
+        Setup-VsTest
     }
 }
 

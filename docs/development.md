@@ -33,16 +33,48 @@ Run in a Visual Studio "Developer Command Prompt":
 
 ## Test the code
 
-### Running spinxsk
-
 The test machine must have the "artifacts" and "tools" directories from the repo, either
 by cloning the repo and building the code or by copying them from another system. The
 file layout is assumed to be identical to that of the repo.
 
+### Running functional tests
+
 One-time setup:
 
 ```Powershell
-.\tools\prepare-machine.ps1 -ForTest
+.\tools\prepare-machine.ps1 -ForTest -NoReboot
+verifier.exe /standard /driver xdp.sys xdpfnmp.sys
+shutdown.exe /r /f /t 0
+```
+
+Running the tests:
+
+```Powershell
+.\tools\setup.ps1 -Install xdp
+.\tools\setup.ps1 -Install xdpfnmp
+vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll
+.\tools\setup.ps1 -Uninstall xdpfnmp
+.\tools\setup.ps1 -Uninstall xdp
+```
+
+Querying the list of test cases:
+
+```Powershell
+vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll /lt
+```
+
+Running a specific test case:
+
+```Powershell
+vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll /TestCaseFilter:"Name=GenericBinding"
+```
+
+### Running spinxsk
+
+One-time setup:
+
+```Powershell
+.\tools\prepare-machine.ps1 -ForTest -NoReboot
 # Verifier configuration: standard flags with low resources simulation.
 # 599 - Failure probability (599/10000 = 5.99%)
 #       N.B. If left to the default value, roughly every 5 minutes verifier
