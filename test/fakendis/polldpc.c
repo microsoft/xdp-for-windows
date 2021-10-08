@@ -351,6 +351,13 @@ NdisPollCpuStart(
 
         PollCpu->WorkItem = IoAllocateWorkItem(FndisDeviceObject);
         if (PollCpu->WorkItem == NULL) {
+            while (Index > 0) {
+                Index--;
+                PollCpu = &PollCpus[Index];
+                IoFreeWorkItem(PollCpu->WorkItem);
+            }
+            ExFreePoolWithTag(PollCpus, POOLTAG_PERCPU);
+            PollCpus = NULL;
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
