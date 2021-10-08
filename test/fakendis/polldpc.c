@@ -351,13 +351,6 @@ NdisPollCpuStart(
 
         PollCpu->WorkItem = IoAllocateWorkItem(FndisDeviceObject);
         if (PollCpu->WorkItem == NULL) {
-            while (Index > 0) {
-                Index--;
-                PollCpu = &PollCpus[Index];
-                IoFreeWorkItem(PollCpu->WorkItem);
-            }
-            ExFreePoolWithTag(PollCpus, POOLTAG_PERCPU);
-            PollCpus = NULL;
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
@@ -384,33 +377,34 @@ NdisPollCpuStop(
             KEVENT CleanupEvent;
             KIRQL OldIrql;
 
-            if (Index < ActiveCount) {
-                PROCESSOR_NUMBER Number;
-                GROUP_AFFINITY Affinity = {0};
-                GROUP_AFFINITY OldAffinity = {0};
-
-                KeInitializeEvent(&CleanupEvent, NotificationEvent, FALSE);
-                WritePointerRelease(&PollCpu->CleanupComplete, &CleanupEvent);
-
-                KeGetProcessorNumberFromIndex(Index, &Number);
-                Affinity.Group = Number.Group;
-                Affinity.Mask = 1ui64 << Number.Number;
-                KeSetSystemGroupAffinityThread(&Affinity, &OldAffinity);
-
-                OldIrql = KeRaiseIrqlToDpcLevel();
-                if (!PollCpu->DpcActive) {
-                    PollCpu->DpcActive = TRUE;
-                    KeInsertQueueDpc(&PollCpu->Dpc, NULL, NULL);
-                }
-                KeLowerIrql(OldIrql);
-
-                KeRevertToUserGroupAffinityThread(&OldAffinity);
-
-                KeWaitForSingleObject(&CleanupEvent, Executive, KernelMode, FALSE, NULL);
-                PollCpu->CleanupComplete = NULL;
-            }
-
             if (PollCpu->WorkItem != NULL) {
+
+                if (Index < ActiveCount) {
+                    PROCESSOR_NUMBER Number;
+                    GROUP_AFFINITY Affinity = {0};
+                    GROUP_AFFINITY OldAffinity = {0};
+
+                    KeInitializeEvent(&CleanupEvent, NotificationEvent, FALSE);
+                    WritePointerRelease(&PollCpu->CleanupComplete, &CleanupEvent);
+
+                    KeGetProcessorNumberFromIndex(Index, &Number);
+                    Affinity.Group = Number.Group;
+                    Affinity.Mask = 1ui64 << Number.Number;
+                    KeSetSystemGroupAffinityThread(&Affinity, &OldAffinity);
+
+                    OldIrql = KeRaiseIrqlToDpcLevel();
+                    if (!PollCpu->DpcActive) {
+                        PollCpu->DpcActive = TRUE;
+                        KeInsertQueueDpc(&PollCpu->Dpc, NULL, NULL);
+                    }
+                    KeLowerIrql(OldIrql);
+
+                    KeRevertToUserGroupAffinityThread(&OldAffinity);
+
+                    KeWaitForSingleObject(&CleanupEvent, Executive, KernelMode, FALSE, NULL);
+                    PollCpu->CleanupComplete = NULL;
+                }
+
 #pragma warning(push)
 #pragma warning(disable:6001) // WorkItem should be initialized.
                 IoFreeWorkItem(PollCpu->WorkItem);
