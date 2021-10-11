@@ -310,32 +310,7 @@ RingPairReserve(
 
 static
 VOID
-GetFuzzedAttachParams(
-    _In_ QUEUE_CONTEXT *Queue,
-    _In_ HANDLE Sock,
-    _Out_ UINT32 *Flags,
-    _Out_ XDP_RULE *Rule
-    )
-{
-    RtlZeroMemory(Rule, sizeof(*Rule));
-
-    Rule->Match = XDP_MATCH_ALL;
-    Rule->Action = XDP_PROGRAM_ACTION_REDIRECT;
-    Rule->Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-    Rule->Redirect.Target = Sock;
-
-    if (Queue->xdpMode == XdpModeGeneric) {
-        *Flags = XDP_ATTACH_GENERIC;
-    } else if (Queue->xdpMode == XdpModeNative) {
-        *Flags = XDP_ATTACH_NATIVE;
-    } else {
-        *Flags = 0;
-    }
-}
-
-static
-VOID
-GetFuzzedHookId(
+FuzzHookId(
     _Inout_ XDP_HOOK_ID *HookId
     )
 {
@@ -390,8 +365,7 @@ AttachXdpProgram(
     }
     ASSERT_FRE(hookIdSize == sizeof(hookId));
 
-    GetFuzzedAttachParams(Queue, Sock, &flags, &rule);
-    GetFuzzedHookId(&hookId);
+    FuzzHookId(&hookId);
 
     res = XdpCreateProgram(ifindex, &hookId, Queue->queueId, flags, &rule, 1, &handle);
     if (SUCCEEDED(res)) {
@@ -415,43 +389,6 @@ DetachXdpProgram(
     if (handle != NULL) {
         ASSERT_FRE(CloseHandle(handle));
     }
-}
-
-VOID
-PrintDatapathStats(
-    _In_ CONST XSK_DATAPATH_WORKER *Datapath
-    )
-{
-    XSK_STATISTICS stats;
-    UINT32 optSize = sizeof(stats);
-    CHAR rxPacketCount[64] = { 0 };
-    CHAR txPacketCount[64] = { 0 };
-    HRESULT res;
-
-    res = XskGetSockopt(Datapath->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
-    if (FAILED(res)) {
-        return;
-    }
-    ASSERT_FRE(optSize == sizeof(stats));
-
-    if (Datapath->flags.rx) {
-        sprintf_s(rxPacketCount, sizeof(rxPacketCount), "%llu", Datapath->rxPacketCount);
-    } else {
-        sprintf_s(rxPacketCount, sizeof(rxPacketCount), "n/a");
-    }
-
-    if (Datapath->flags.tx) {
-        sprintf_s(txPacketCount, sizeof(txPacketCount), "%llu", Datapath->txPacketCount);
-    } else {
-        sprintf_s(txPacketCount, sizeof(txPacketCount), "n/a");
-    }
-
-    printf("q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
-        "rxInvalidDesc:%llu txInvalidDesc:%llu xdpMode:%s\n",
-        Datapath->shared->queue->queueId, Datapath->threadHandle,
-        rxPacketCount, txPacketCount, stats.rxDropped, stats.rxTruncated,
-        stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
-        XdpModeToString[Datapath->shared->queue->xdpMode]);
 }
 
 HRESULT
@@ -497,89 +434,6 @@ FreeRingInitialize(
     XskRingProducerSubmit(FreeRing, DescriptorCount);
 
     return S_OK;
-}
-
-VOID
-UpdateSetupStats(
-    _In_ QUEUE_WORKER *QueueWorker,
-    _In_ QUEUE_CONTEXT *Queue
-    )
-{
-    //
-    // Every scenario requires at least one UMEM registered and one socket bound.
-    //
-    ++QueueWorker->setupStats.initSuccess;
-    ++QueueWorker->setupStats.umemTotal;
-    ++QueueWorker->setupStats.bindTotal;
-
-    if (Queue->scenarioConfig.isUmemRegistered) {
-        ++QueueWorker->setupStats.umemSuccess;
-    }
-    if (Queue->scenarioConfig.sockRx) {
-        ++QueueWorker->setupStats.rxTotal;
-        if (Queue->scenarioConfig.isSockRxSet) {
-            ++QueueWorker->setupStats.rxSuccess;
-        }
-    }
-    if (Queue->scenarioConfig.sockTx) {
-        ++QueueWorker->setupStats.txTotal;
-        if (Queue->scenarioConfig.isSockTxSet) {
-            ++QueueWorker->setupStats.txSuccess;
-        }
-    }
-    if (Queue->scenarioConfig.isSockBound) {
-        ++QueueWorker->setupStats.bindSuccess;
-    }
-    if (Queue->scenarioConfig.sharedUmemSockRx) {
-        ++QueueWorker->setupStats.sharedRxTotal;
-        if (Queue->scenarioConfig.isSharedUmemSockRxSet) {
-            ++QueueWorker->setupStats.sharedRxSuccess;
-        }
-    }
-    if (Queue->scenarioConfig.sharedUmemSockTx) {
-        ++QueueWorker->setupStats.sharedTxTotal;
-        if (Queue->scenarioConfig.isSharedUmemSockTxSet) {
-            ++QueueWorker->setupStats.sharedTxSuccess;
-        }
-    }
-    if (Queue->scenarioConfig.sharedUmemSockRx || Queue->scenarioConfig.sharedUmemSockTx) {
-        ++QueueWorker->setupStats.sharedBindTotal;
-        if (Queue->scenarioConfig.isSharedUmemSockBound) {
-            ++QueueWorker->setupStats.sharedBindSuccess;
-        }
-    }
-    if (ScenarioConfigComplete(&Queue->scenarioConfig)) {
-        ++QueueWorker->setupStats.setupSuccess;
-    }
-}
-
-VOID
-PrintSetupStats(
-    _In_ QUEUE_WORKER *QueueWorker,
-    _In_ ULONG NumIterations
-    )
-{
-    SETUP_STATS *setupStats = &QueueWorker->setupStats;
-
-    printf(
-        "\tbreakdown\n"
-        "\tinit:       (%lu / %lu) %lu%%\n"
-        "\tumem:       (%lu / %lu) %lu%%\n"
-        "\trx:         (%lu / %lu) %lu%%\n"
-        "\ttx:         (%lu / %lu) %lu%%\n"
-        "\tbind:       (%lu / %lu) %lu%%\n"
-        "\tsharedRx:   (%lu / %lu) %lu%%\n"
-        "\tsharedTx:   (%lu / %lu) %lu%%\n"
-        "\tsharedBind: (%lu / %lu) %lu%%\n",
-        setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
-        setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
-        setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
-        setupStats->txSuccess, setupStats->txTotal, Pct(setupStats->txSuccess, setupStats->txTotal),
-        setupStats->bindSuccess, setupStats->bindTotal, Pct(setupStats->bindSuccess, setupStats->bindTotal),
-        setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
-        setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
-        setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal));
-
 }
 
 VOID
@@ -752,97 +606,6 @@ Exit:
 }
 
 VOID
-GetFuzzedUmemReg(
-    _Out_ XSK_UMEM_REG *UmemReg
-    )
-{
-    if (RandUlong() % 6) {
-        UmemReg->totalSize = RandUlong() % 0x100000;
-    } else {
-        UmemReg->totalSize = RandUlong();
-    }
-
-    if (RandUlong() % 6) {
-        UmemReg->chunkSize = RandUlong() % 4096;
-    } else {
-        UmemReg->chunkSize = RandUlong();
-    }
-
-    if (RandUlong() % 6) {
-        UmemReg->headroom = RandUlong() % ((UmemReg->chunkSize / 4) + 1);
-    } else {
-        UmemReg->headroom = RandUlong();
-    }
-}
-
-VOID
-GetFuzzedRingSize(
-    _In_ QUEUE_CONTEXT *Queue,
-    _Out_ UINT32 *Size
-    )
-{
-    UINT32 numUmemDescriptors;
-
-    if (ReadBooleanAcquire(&Queue->scenarioConfig.isUmemRegistered)) {
-        numUmemDescriptors = (UINT32)(Queue->umemReg.totalSize / Queue->umemReg.chunkSize);
-    } else {
-        numUmemDescriptors = (RandUlong() % 16) + 1;
-    }
-
-    if (RandUlong() % 2) {
-        *Size = 1ui32 << (RandUlong() % (RtlFindMostSignificantBit(numUmemDescriptors) + 1));
-    } else {
-        *Size = RandUlong();
-    }
-}
-
-VOID
-GetFuzzedNotifyParams(
-    _Out_ UINT32 *NotifyFlags,
-    _Out_ UINT32 *TimeoutMs
-    )
-{
-    *NotifyFlags = 0;
-    *TimeoutMs = 0;
-
-    if (RandUlong() % 2) {
-        *NotifyFlags |= XSK_NOTIFY_POKE_RX;
-    }
-    if (RandUlong() % 2) {
-        *NotifyFlags |= XSK_NOTIFY_POKE_TX;
-    }
-    if (RandUlong() % 2) {
-        *NotifyFlags |= XSK_NOTIFY_WAIT_RX;
-    }
-    if (RandUlong() % 2) {
-        *NotifyFlags |= XSK_NOTIFY_WAIT_TX;
-    }
-
-    if (RandUlong() % 2) {
-        *TimeoutMs = RandUlong() % 1000;
-    }
-}
-
-VOID
-GetFuzzedBindFlags(
-    _In_ QUEUE_CONTEXT *Queue,
-    _Out_ UINT32 *Flags
-    )
-{
-    *Flags = 0;
-
-    if (Queue->xdpMode == XdpModeGeneric) {
-        *Flags |= XSK_BIND_GENERIC;
-    } else if (Queue->xdpMode == XdpModeNative) {
-        *Flags |= XSK_BIND_NATIVE;
-    }
-
-    if (!(RandUlong() % 10)) {
-        *Flags |= 0x1 << (RandUlong() % 32);
-    }
-}
-
-VOID
 FuzzSocketUmemSetup(
     _Inout_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
@@ -852,9 +615,26 @@ FuzzSocketUmemSetup(
     HRESULT res;
 
     if (RandUlong() % 2) {
-        XSK_UMEM_REG umemReg;
+        XSK_UMEM_REG umemReg = {0};
 
-        GetFuzzedUmemReg(&umemReg);
+        if (RandUlong() % 6) {
+            umemReg.totalSize = RandUlong() % 0x100000;
+        } else {
+            umemReg.totalSize = RandUlong();
+        }
+
+        if (RandUlong() % 6) {
+            umemReg.chunkSize = RandUlong() % 4096;
+        } else {
+            umemReg.chunkSize = RandUlong();
+        }
+
+        if (RandUlong() % 6) {
+            umemReg.headroom = RandUlong() % ((umemReg.chunkSize / 4) + 1);
+        } else {
+            umemReg.headroom = RandUlong();
+        }
+
         umemReg.address =
             VirtualAlloc(
                 NULL, umemReg.totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -878,6 +658,27 @@ FuzzSocketUmemSetup(
 }
 
 VOID
+FuzzRingSize(
+    _In_ QUEUE_CONTEXT *Queue,
+    _Out_ UINT32 *Size
+    )
+{
+    UINT32 numUmemDescriptors;
+
+    if (ReadBooleanAcquire(&Queue->scenarioConfig.isUmemRegistered)) {
+        numUmemDescriptors = (UINT32)(Queue->umemReg.totalSize / Queue->umemReg.chunkSize);
+    } else {
+        numUmemDescriptors = (RandUlong() % 16) + 1;
+    }
+
+    if (RandUlong() % 2) {
+        *Size = 1ui32 << (RandUlong() % (RtlFindMostSignificantBit(numUmemDescriptors) + 1));
+    } else {
+        *Size = RandUlong();
+    }
+}
+
+VOID
 FuzzSocketRxTxSetup(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
@@ -892,7 +693,7 @@ FuzzSocketRxTxSetup(
 
     if (RequiresRx) {
         if (RandUlong() % 2) {
-            GetFuzzedRingSize(Queue, &ringSize);
+            FuzzRingSize(Queue, &ringSize);
             res =
                 XskSetSockopt(
                     Sock, XSK_SOCKOPT_RX_RING_SIZE, &ringSize, sizeof(ringSize));
@@ -904,7 +705,7 @@ FuzzSocketRxTxSetup(
 
     if (RequiresTx) {
         if (RandUlong() % 2) {
-            GetFuzzedRingSize(Queue, &ringSize);
+            FuzzRingSize(Queue, &ringSize);
             res =
                 XskSetSockopt(
                     Sock, XSK_SOCKOPT_TX_RING_SIZE, &ringSize, sizeof(ringSize));
@@ -915,14 +716,14 @@ FuzzSocketRxTxSetup(
     }
 
     if (RandUlong() % 2) {
-        GetFuzzedRingSize(Queue, &ringSize);
+        FuzzRingSize(Queue, &ringSize);
         res =
             XskSetSockopt(
                 Sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &ringSize, sizeof(ringSize));
     }
 
     if (RandUlong() % 2) {
-        GetFuzzedRingSize(Queue, &ringSize);
+        FuzzRingSize(Queue, &ringSize);
         res =
             XskSetSockopt(
                 Sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &ringSize, sizeof(ringSize));
@@ -956,7 +757,7 @@ FuzzSocketMisc(
             XDP_HOOK_RX,
             XDP_HOOK_INSPECT,
         };
-        GetFuzzedHookId(&hookId);
+        FuzzHookId(&hookId);
         XskSetSockopt(Sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
     }
 
@@ -966,15 +767,32 @@ FuzzSocketMisc(
             XDP_HOOK_TX,
             XDP_HOOK_INJECT,
         };
-        GetFuzzedHookId(&hookId);
+        FuzzHookId(&hookId);
         XskSetSockopt(Sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
     }
 
     if (RandUlong() % 2) {
-        UINT32 notifyFlags;
-        UINT32 timeoutMs;
+        UINT32 notifyFlags = 0;
+        UINT32 timeoutMs = 0;
         UINT32 notifyResult;
-        GetFuzzedNotifyParams(&notifyFlags, &timeoutMs);
+
+        if (RandUlong() % 2) {
+            notifyFlags |= XSK_NOTIFY_POKE_RX;
+        }
+        if (RandUlong() % 2) {
+            notifyFlags |= XSK_NOTIFY_POKE_TX;
+        }
+        if (RandUlong() % 2) {
+            notifyFlags |= XSK_NOTIFY_WAIT_RX;
+        }
+        if (RandUlong() % 2) {
+            notifyFlags |= XSK_NOTIFY_WAIT_TX;
+        }
+
+        if (RandUlong() % 2) {
+            timeoutMs = RandUlong() % 1000;
+        }
+
         XskNotifySocket(Sock, notifyFlags, timeoutMs, &notifyResult);
     }
 
@@ -996,10 +814,20 @@ FuzzSocketBind(
     )
 {
     HRESULT res;
-    UINT32 bindFlags;
+    UINT32 bindFlags = 0;
 
     if (RandUlong() % 2) {
-        GetFuzzedBindFlags(Queue, &bindFlags);
+
+        if (Queue->xdpMode == XdpModeGeneric) {
+            bindFlags |= XSK_BIND_GENERIC;
+        } else if (Queue->xdpMode == XdpModeNative) {
+            bindFlags |= XSK_BIND_NATIVE;
+        }
+
+        if (!(RandUlong() % 10)) {
+            bindFlags |= 0x1 << (RandUlong() % 32);
+        }
+
         res = XskBind(Sock, ifindex, Queue->queueId, bindFlags, SharedUmemSock);
         if (SUCCEEDED(res)) {
             WriteBooleanRelease(WasSockBound, TRUE);
@@ -1264,6 +1092,43 @@ ProcessPkts(
     return TRUE;
 }
 
+VOID
+PrintDatapathStats(
+    _In_ CONST XSK_DATAPATH_WORKER *Datapath
+    )
+{
+    XSK_STATISTICS stats;
+    UINT32 optSize = sizeof(stats);
+    CHAR rxPacketCount[64] = { 0 };
+    CHAR txPacketCount[64] = { 0 };
+    HRESULT res;
+
+    res = XskGetSockopt(Datapath->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
+    if (FAILED(res)) {
+        return;
+    }
+    ASSERT_FRE(optSize == sizeof(stats));
+
+    if (Datapath->flags.rx) {
+        sprintf_s(rxPacketCount, sizeof(rxPacketCount), "%llu", Datapath->rxPacketCount);
+    } else {
+        sprintf_s(rxPacketCount, sizeof(rxPacketCount), "n/a");
+    }
+
+    if (Datapath->flags.tx) {
+        sprintf_s(txPacketCount, sizeof(txPacketCount), "%llu", Datapath->txPacketCount);
+    } else {
+        sprintf_s(txPacketCount, sizeof(txPacketCount), "n/a");
+    }
+
+    printf("q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
+        "rxInvalidDesc:%llu txInvalidDesc:%llu xdpMode:%s\n",
+        Datapath->shared->queue->queueId, Datapath->threadHandle,
+        rxPacketCount, txPacketCount, stats.rxDropped, stats.rxTruncated,
+        stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
+        XdpModeToString[Datapath->shared->queue->xdpMode]);
+}
+
 DWORD
 WINAPI
 XskDatapathWorkerFn(
@@ -1355,6 +1220,89 @@ XskFuzzerWorkerFn(
 
     TraceExit("q[%u]f[0x%p]", queue->queueId, fuzzer->threadHandle);
     return 0;
+}
+
+VOID
+UpdateSetupStats(
+    _In_ QUEUE_WORKER *QueueWorker,
+    _In_ QUEUE_CONTEXT *Queue
+    )
+{
+    //
+    // Every scenario requires at least one UMEM registered and one socket bound.
+    //
+    ++QueueWorker->setupStats.initSuccess;
+    ++QueueWorker->setupStats.umemTotal;
+    ++QueueWorker->setupStats.bindTotal;
+
+    if (Queue->scenarioConfig.isUmemRegistered) {
+        ++QueueWorker->setupStats.umemSuccess;
+    }
+    if (Queue->scenarioConfig.sockRx) {
+        ++QueueWorker->setupStats.rxTotal;
+        if (Queue->scenarioConfig.isSockRxSet) {
+            ++QueueWorker->setupStats.rxSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.sockTx) {
+        ++QueueWorker->setupStats.txTotal;
+        if (Queue->scenarioConfig.isSockTxSet) {
+            ++QueueWorker->setupStats.txSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.isSockBound) {
+        ++QueueWorker->setupStats.bindSuccess;
+    }
+    if (Queue->scenarioConfig.sharedUmemSockRx) {
+        ++QueueWorker->setupStats.sharedRxTotal;
+        if (Queue->scenarioConfig.isSharedUmemSockRxSet) {
+            ++QueueWorker->setupStats.sharedRxSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.sharedUmemSockTx) {
+        ++QueueWorker->setupStats.sharedTxTotal;
+        if (Queue->scenarioConfig.isSharedUmemSockTxSet) {
+            ++QueueWorker->setupStats.sharedTxSuccess;
+        }
+    }
+    if (Queue->scenarioConfig.sharedUmemSockRx || Queue->scenarioConfig.sharedUmemSockTx) {
+        ++QueueWorker->setupStats.sharedBindTotal;
+        if (Queue->scenarioConfig.isSharedUmemSockBound) {
+            ++QueueWorker->setupStats.sharedBindSuccess;
+        }
+    }
+    if (ScenarioConfigComplete(&Queue->scenarioConfig)) {
+        ++QueueWorker->setupStats.setupSuccess;
+    }
+}
+
+VOID
+PrintSetupStats(
+    _In_ QUEUE_WORKER *QueueWorker,
+    _In_ ULONG NumIterations
+    )
+{
+    SETUP_STATS *setupStats = &QueueWorker->setupStats;
+
+    printf(
+        "\tbreakdown\n"
+        "\tinit:       (%lu / %lu) %lu%%\n"
+        "\tumem:       (%lu / %lu) %lu%%\n"
+        "\trx:         (%lu / %lu) %lu%%\n"
+        "\ttx:         (%lu / %lu) %lu%%\n"
+        "\tbind:       (%lu / %lu) %lu%%\n"
+        "\tsharedRx:   (%lu / %lu) %lu%%\n"
+        "\tsharedTx:   (%lu / %lu) %lu%%\n"
+        "\tsharedBind: (%lu / %lu) %lu%%\n",
+        setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
+        setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
+        setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
+        setupStats->txSuccess, setupStats->txTotal, Pct(setupStats->txSuccess, setupStats->txTotal),
+        setupStats->bindSuccess, setupStats->bindTotal, Pct(setupStats->bindSuccess, setupStats->bindTotal),
+        setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
+        setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
+        setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal));
+
 }
 
 DWORD
