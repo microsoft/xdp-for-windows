@@ -49,7 +49,7 @@ if ($Install) {
 
     # Wait for the NIC to start.
     for ($i = 0; $i -lt 100; $i++) {
-        if ((Get-NetAdapter -InterfaceDescription XDPFNMP -ErrorAction Ignore).Count -eq 2) {
+        if (((Get-NetAdapter | where { $_.InterfaceDescription -like "XDPFNMP*" }) | Measure-Object).Count -eq 2) {
             break;
         }
         Start-Sleep -Milliseconds 100

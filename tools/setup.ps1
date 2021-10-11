@@ -139,20 +139,22 @@ function Cleanup-Service($Name) {
 }
 
 # Helper to wait for an adapter to start.
-function Wait-For-Adapter($Name) {
-    Write-Debug "Waiting for $Name to start"
+function Wait-For-Adapters($IfDesc, $Count=1) {
+    Write-Debug "Waiting for $Count `"$IfDesc`" adapter(s) to start"
     $StartSuccess = $false
     for ($i = 0; $i -lt 100; $i++) {
-        if (Get-NetAdapter -InterfaceDescription $Name -ErrorAction Ignore) {
+        $Result = 0
+        try { $Result = ((Get-NetAdapter | where { $_.InterfaceDescription -like "$IfDesc*" }) | Measure-Object).Count } catch {}
+        if ($Result -eq $Count) {
             $StartSuccess = $true
             break;
         }
         Start-Sleep -Milliseconds 100
     }
     if ($StartSuccess -eq $false) {
-        Write-Error "Failed to start $Name"
+        Write-Error "Failed to start $Count `"$IfDesc`" adapters(s) [$Result/$Count]"
     } else {
-        Write-Debug "Started $Name"
+        Write-Debug "Started $Count `"$IfDesc`" adapter(s)"
     }
 }
 
@@ -288,7 +290,7 @@ function Install-XdpMp {
         Write-Error "devcon.exe exit code: $LastExitCode"
     }
 
-    Wait-For-Adapter $XdpMpServiceName
+    Wait-For-Adapters -IfDesc $XdpMpServiceName
 
     Write-Debug "Renaming adapter"
     Rename-NetAdapter -InterfaceDescription $XdpMpServiceName $XdpMpServiceName
@@ -366,7 +368,7 @@ function Install-XdpFnMp {
         Write-Error "devcon.exe exit code: $LastExitCode"
     }
 
-    Wait-For-Adapter $XdpFnMpServiceName
+    Wait-For-Adapters -IfDesc $XdpFnMpServiceName -Count 2
 
     Write-Debug "Renaming adapters"
     Rename-NetAdapter -InterfaceDescription XDPFNMP XDPFNMP
