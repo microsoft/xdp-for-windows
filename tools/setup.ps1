@@ -144,7 +144,8 @@ function Wait-For-Adapters($IfDesc, $Count=1) {
     $StartSuccess = $false
     for ($i = 0; $i -lt 100; $i++) {
         $Result = 0
-        try { $Result = ((Get-NetAdapter | where { $_.InterfaceDescription -like "$IfDesc*" }) | Measure-Object).Count } catch {}
+        $Filter = { $_.InterfaceDescription -like "$IfDesc*" -and $_.Status -eq "Up" }
+        try { $Result = ((Get-NetAdapter | where $Filter) | Measure-Object).Count } catch {}
         if ($Result -eq $Count) {
             $StartSuccess = $true
             break;
