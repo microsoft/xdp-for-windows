@@ -67,7 +67,7 @@ function Start-Logging {
         Write-Error "$WprpFile does not exist!"
     }
 
-    Write-Debug "wpr.exe -start $($WprpFile)!$($Profile) -filemode -instancename $Name"
+    Write-Verbose "wpr.exe -start $($WprpFile)!$($Profile) -filemode -instancename $Name"
     cmd /c "wpr.exe -start `"$($WprpFile)!$($Profile)`" -filemode -instancename $Name 2>&1"
     if ($LastExitCode -ne 0) {
         Write-Host "##vso[task.setvariable variable=NeedsReboot]true"

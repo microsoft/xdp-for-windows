@@ -50,11 +50,11 @@ shutdown.exe /r /f /t 0
 Running the tests:
 
 ```Powershell
-.\tools\setup.ps1 -Install xdp
-.\tools\setup.ps1 -Install xdpfnmp
+.\tools\setup.ps1 -Install xdp -Verbose
+.\tools\setup.ps1 -Install xdpfnmp -Verbose
 vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll
-.\tools\setup.ps1 -Uninstall xdpfnmp
-.\tools\setup.ps1 -Uninstall xdp
+.\tools\setup.ps1 -Uninstall xdpfnmp -Verbose
+.\tools\setup.ps1 -Uninstall xdp -Verbose
 ```
 
 Querying the list of test cases:
@@ -93,11 +93,11 @@ shutdown.exe /r /f /t 0
 Running the test:
 
 ```Powershell
-.\tools\setup.ps1 -Install fndis
-.\tools\setup.ps1 -Install xdp
-.\tools\setup.ps1 -Install xdpmp
-.\tools\spinxsk.ps1 -QueueCount 2 -Minutes 10 -Stats
-.\tools\setup.ps1 -Uninstall xdpmp
-.\tools\setup.ps1 -Uninstall xdp
-.\tools\setup.ps1 -Uninstall fndis
+.\tools\setup.ps1 -Install fndis -Verbose
+.\tools\setup.ps1 -Install xdp -Verbose
+.\tools\setup.ps1 -Install xdpmp -Verbose
+.\tools\spinxsk.ps1 -QueueCount 2 -Minutes 10 -Stats -Verbose
+.\tools\setup.ps1 -Uninstall xdpmp -Verbose
+.\tools\setup.ps1 -Uninstall xdp -Verbose
+.\tools\setup.ps1 -Uninstall fndis -Verbose
 ```

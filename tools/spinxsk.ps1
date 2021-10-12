@@ -92,5 +92,5 @@ if ($CleanDatapath) {
 }
 
 # Run the exe.
-Write-Debug ($SpinXsk + " " + $Args)
+Write-Verbose ($SpinXsk + " " + $Args)
 Invoke-Expression ($SpinXsk + " " + $Args)

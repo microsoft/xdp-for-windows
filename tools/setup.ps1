@@ -72,7 +72,7 @@ function Uninstall-Failure {
     Write-Host "Capturing live kernel dump"
 
     New-Item -ItemType Directory -Force -Path $LogsDir
-    Write-Debug "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
+    Write-Verbose "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
     & $LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula
 
     Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
@@ -81,7 +81,7 @@ function Uninstall-Failure {
 
 # Helper to start (with retry) a service.
 function Start-Service-With-Retry($Name) {
-    Write-Debug "Start-Service $Name"
+    Write-Verbose "Start-Service $Name"
     $StartSuccess = $false
     for ($i=0; $i -lt 10; $i++) {
         try {
@@ -111,16 +111,16 @@ function Cleanup-Service($Name) {
             Start-Sleep -Milliseconds 100
         }
         if (!$StopSuccess) {
-            Write-Debug "$Name failed to stop"
+            Write-Verbose "$Name failed to stop"
         }
     } catch {
-        Write-Debug "Exception while waiting for $Name to stop"
+        Write-Verbose "Exception while waiting for $Name to stop"
     }
 
     # Delete the service.
     if (Get-Service $Name -ErrorAction Ignore) {
         try { sc.exe delete $Name > $null }
-        catch { Write-Debug "'sc.exe delete $Name' threw exception!" }
+        catch { Write-Verbose "'sc.exe delete $Name' threw exception!" }
 
         # Wait for the service to be deleted.
         $DeleteSuccess = $false
@@ -132,7 +132,7 @@ function Cleanup-Service($Name) {
             Start-Sleep -Milliseconds 10
         }
         if (!$DeleteSuccess) {
-            Write-Debug "Failed to clean up $Name!"
+            Write-Verbose "Failed to clean up $Name!"
             Uninstall-Failure
         }
     }
@@ -140,7 +140,7 @@ function Cleanup-Service($Name) {
 
 # Helper to wait for an adapter to start.
 function Wait-For-Adapters($IfDesc, $Count=1) {
-    Write-Debug "Waiting for $Count `"$IfDesc`" adapter(s) to start"
+    Write-Verbose "Waiting for $Count `"$IfDesc`" adapter(s) to start"
     $StartSuccess = $false
     for ($i = 0; $i -lt 100; $i++) {
         $Result = 0
@@ -155,7 +155,7 @@ function Wait-For-Adapters($IfDesc, $Count=1) {
     if ($StartSuccess -eq $false) {
         Write-Error "Failed to start $Count `"$IfDesc`" adapters(s) [$Result/$Count]"
     } else {
-        Write-Debug "Started $Count `"$IfDesc`" adapter(s)"
+        Write-Verbose "Started $Count `"$IfDesc`" adapter(s)"
     }
 }
 
@@ -167,7 +167,7 @@ function Uninstall-Driver($Inf) {
         if ($LastExitCode) {
             Write-Error "pnputil.exe exit code: $LastExitCode"
         }
-    } catch { Write-Debug "Uninstalling $Inf failed" }
+    } catch { Write-Verbose "Uninstalling $Inf failed" }
 }
 
 # Installs the xdp driver.
@@ -179,35 +179,35 @@ function Install-Xdp {
     }
 
     if ($Verifier) {
-        Write-Debug "verifier.exe /volatile /adddriver xdp.sys /flags 0x9BB"
+        Write-Verbose "verifier.exe /volatile /adddriver xdp.sys /flags 0x9BB"
         verifier.exe /volatile /adddriver xdp.sys /flags 0x9BB > $null
         if ($LastExitCode) {
             Write-Host "verifier.exe exit code: $LastExitCode"
         }
     }
 
-    Write-Debug "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
+    Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
     netcfg.exe -v -l $XdpInf -c s -i ms_xdp
     if ($LastExitCode) {
         Write-Error "netcfg.exe exit code: $LastExitCode"
     }
 
-    Write-Debug "xdp.sys install complete!"
+    Write-Verbose "xdp.sys install complete!"
 }
 
 # Uninstalls the xdp driver.
 function Uninstall-Xdp {
     Write-Host "------- Uninstalling xdp.sys -------"
 
-    try { netcfg.exe -u ms_xdp > $null } catch { Write-Debug "netcfg failure" }
-    try { pnputil.exe /uninstall /delete-driver $XdpSys > $null } catch { Write-Debug "pnputil failure" }
+    try { netcfg.exe -u ms_xdp > $null } catch { Write-Verbose "netcfg failure" }
+    try { pnputil.exe /uninstall /delete-driver $XdpSys > $null } catch { Write-Verbose "pnputil failure" }
 
     if ($Verifier) {
-        try { verifier.exe /volatile /removedriver xdp.sys > $null } catch { Write-Debug "verifier (removal) failure" }
-        try { verifier.exe /volatile /flags 0x0 > $null } catch { Write-Debug "verifier (clean up flags) failure" }
+        try { verifier.exe /volatile /removedriver xdp.sys > $null } catch { Write-Verbose "verifier (removal) failure" }
+        try { verifier.exe /volatile /flags 0x0 > $null } catch { Write-Verbose "verifier (clean up flags) failure" }
     }
 
-    Write-Debug "xdp.sys uninstall complete!"
+    Write-Verbose "xdp.sys uninstall complete!"
 }
 
 # Installs the fndis driver.
@@ -219,14 +219,14 @@ function Install-FakeNdis {
     }
 
     if ($Verifier) {
-        Write-Debug "verifier.exe /volatile /adddriver fndis.sys /flags 0x9BB"
+        Write-Verbose "verifier.exe /volatile /adddriver fndis.sys /flags 0x9BB"
         verifier.exe /volatile /adddriver fndis.sys /flags 0x9BB > $null
         if ($LastExitCode) {
             Write-Host "verifier.exe exit code: $LastExitCode"
         }
     }
 
-    Write-Debug "sc.exe create fndis type= kernel start= demand binpath= $FndisSys"
+    Write-Verbose "sc.exe create fndis type= kernel start= demand binpath= $FndisSys"
     sc.exe create fndis type= kernel start= demand binpath= $FndisSys
     if ($LastExitCode) {
         Write-Error "sc.exe exit code: $LastExitCode"
@@ -234,23 +234,23 @@ function Install-FakeNdis {
 
     Start-Service-With-Retry fndis
 
-    Write-Debug "fndis.sys install complete!"
+    Write-Verbose "fndis.sys install complete!"
 }
 
 # Uninstalls the fndis driver.
 function Uninstall-FakeNdis {
     Write-Host "------- Uninstalling fndis.sys -------"
 
-    Write-Debug "Stop-Service fndis"
+    Write-Verbose "Stop-Service fndis"
     try { Stop-Service fndis } catch { }
 
     Cleanup-Service fndis
 
     if ($Verifier) {
-        try { verifier.exe /volatile /removedriver fndis.sys > $null } catch { Write-Debug "verifier (removal) failure" }
+        try { verifier.exe /volatile /removedriver fndis.sys > $null } catch { Write-Verbose "verifier (removal) failure" }
     }
 
-    Write-Debug "fndis.sys uninstall complete!"
+    Write-Verbose "fndis.sys uninstall complete!"
 }
 
 # Installs the xdpmp driver.
@@ -269,23 +269,23 @@ function Install-XdpMp {
     # enabled.
     if ($Verifier) {
         if ((Get-Random -Maximum 1) -eq 1) {
-            Write-Debug "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB"
+            Write-Verbose "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB"
             verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB > $null
             if ($LastExitCode) {
                 Write-Host "verifier.exe exit code: $LastExitCode"
             }
         } else {
-            Write-Debug "Not enabling verifier on xdpmp.sys"
+            Write-Verbose "Not enabling verifier on xdpmp.sys"
         }
     }
 
-    Write-Debug "pnputil.exe /install /add-driver $XdpMpInf"
+    Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
     pnputil.exe /install /add-driver $XdpMpInf
     if ($LastExitCode) {
         Write-Error "pnputil.exe exit code: $LastExitCode"
     }
 
-    Write-Debug "dswdevice.exe -i $XdpMpDeviceId $XdpMpComponentId"
+    Write-Verbose "dswdevice.exe -i $XdpMpDeviceId $XdpMpComponentId"
     & $DswDevice -i $XdpMpDeviceId $XdpMpComponentId
     if ($LastExitCode) {
         Write-Error "devcon.exe exit code: $LastExitCode"
@@ -293,14 +293,14 @@ function Install-XdpMp {
 
     Wait-For-Adapters -IfDesc $XdpMpServiceName
 
-    Write-Debug "Renaming adapter"
+    Write-Verbose "Renaming adapter"
     Rename-NetAdapter -InterfaceDescription $XdpMpServiceName $XdpMpServiceName
 
-    Write-Debug "Get-NetAdapter $XdpMpServiceName"
+    Write-Verbose "Get-NetAdapter $XdpMpServiceName"
     Get-NetAdapter $XdpMpServiceName
     $AdapterIndex = (Get-NetAdapter $XdpMpServiceName).ifIndex
 
-    Write-Debug "Setting up the adapter"
+    Write-Verbose "Setting up the adapter"
 
     # NDIS polling has known race conditions and hangs on 2022 LTSC, so default
     # to the more reliable FNDIS.
@@ -314,14 +314,14 @@ function Install-XdpMp {
     netsh.exe int ipv6 add address $AdapterIndex address=fc00::100:1/112
     netsh.exe int ipv6 add neighbor $AdapterIndex address=fc00::100:2 neighbor=22-22-22-22-00-02
 
-    Write-Debug "Adding firewall rules"
+    Write-Verbose "Adding firewall rules"
     netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v4" dir=in action=allow protocol=any remoteip=192.168.100.0/24
     netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v6" dir=in action=allow protocol=any remoteip=fc00::100:0/112
 
-    Write-Debug "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
+    Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
     Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
 
-    Write-Debug "xdpmp.sys install complete!"
+    Write-Verbose "xdpmp.sys install complete!"
 }
 
 # Uninstalls the xdpmp driver.
@@ -331,17 +331,17 @@ function Uninstall-XdpMp {
     netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v4"
     netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v6"
 
-    try { & $DswDevice -u $XdpMpDeviceId } catch { Write-Debug "Deleting $XdpMpDeviceId device failed" }
+    try { & $DswDevice -u $XdpMpDeviceId } catch { Write-Verbose "Deleting $XdpMpDeviceId device failed" }
 
     Cleanup-Service $XdpMpServiceName
 
     Uninstall-Driver "xdpmp.inf"
 
     if ($Verifier) {
-        try { verifier.exe /volatile /removedriver xdpmp.sys > $null } catch { Write-Debug "verifier (removal) failure" }
+        try { verifier.exe /volatile /removedriver xdpmp.sys > $null } catch { Write-Verbose "verifier (removal) failure" }
     }
 
-    Write-Debug "xdpmp.sys uninstall complete!"
+    Write-Verbose "xdpmp.sys uninstall complete!"
 }
 
 # Installs the xdpfnmp driver.
@@ -352,18 +352,18 @@ function Install-XdpFnMp {
         Write-Error "$XdpFnMpSys does not exist!"
     }
 
-    Write-Debug "pnputil.exe /install /add-driver $XdpFnMpInf"
+    Write-Verbose "pnputil.exe /install /add-driver $XdpFnMpInf"
     pnputil.exe /install /add-driver $XdpFnMpInf
     if ($LastExitCode) {
         Write-Error "pnputil.exe exit code: $LastExitCode"
     }
 
-    Write-Debug "dswdevice.exe -i $XdpFnMpDeviceId0 $XdpFnMpComponentId"
+    Write-Verbose "dswdevice.exe -i $XdpFnMpDeviceId0 $XdpFnMpComponentId"
     & $DswDevice -i $XdpFnMpDeviceId0 $XdpFnMpComponentId
     if ($LastExitCode) {
         Write-Error "devcon.exe exit code: $LastExitCode"
     }
-    Write-Debug "dswdevice.exe -i $XdpFnMpDeviceId1 $XdpFnMpComponentId"
+    Write-Verbose "dswdevice.exe -i $XdpFnMpDeviceId1 $XdpFnMpComponentId"
     & $DswDevice -i $XdpFnMpDeviceId1 $XdpFnMpComponentId
     if ($LastExitCode) {
         Write-Error "devcon.exe exit code: $LastExitCode"
@@ -371,39 +371,39 @@ function Install-XdpFnMp {
 
     Wait-For-Adapters -IfDesc $XdpFnMpServiceName -Count 2
 
-    Write-Debug "Renaming adapters"
+    Write-Verbose "Renaming adapters"
     Rename-NetAdapter -InterfaceDescription XDPFNMP XDPFNMP
     Rename-NetAdapter -InterfaceDescription "XDPFNMP #2" XDPFNMP1Q
 
-    Write-Debug "Get-NetAdapter XDPFNMP"
+    Write-Verbose "Get-NetAdapter XDPFNMP"
     Get-NetAdapter XDPFNMP
-    Write-Debug "Get-NetAdapter XDPFNMP1Q"
+    Write-Verbose "Get-NetAdapter XDPFNMP1Q"
     Get-NetAdapter XDPFNMP1Q
 
-    Write-Debug "Set-NetAdapterRss -Name XDPFNMP1Q -NumberOfReceiveQueues 1"
+    Write-Verbose "Set-NetAdapterRss -Name XDPFNMP1Q -NumberOfReceiveQueues 1"
     Set-NetAdapterRss -Name XDPFNMP1Q -NumberOfReceiveQueues 1
 
-    Write-Debug "Configure xdpfnmp ipv4"
+    Write-Verbose "Configure xdpfnmp ipv4"
     netsh int ipv4 set int interface=xdpfnmp dadtransmits=0
     netsh int ipv4 add address name=xdpfnmp address=192.168.200.1/24
     netsh int ipv4 add neighbor xdpfnmp address=192.168.200.2 neighbor=22-22-22-22-00-02
 
-    Write-Debug "Configure xdpfnmp ipv6"
+    Write-Verbose "Configure xdpfnmp ipv6"
     netsh int ipv6 set int interface=xdpfnmp dadtransmits=0
     netsh int ipv6 add address interface=xdpfnmp address=fc00::200:1/112
     netsh int ipv6 add neighbor xdpfnmp address=fc00::200:2 neighbor=22-22-22-22-00-02
 
-    Write-Debug "Configure xdpfnmp1q ipv4"
+    Write-Verbose "Configure xdpfnmp1q ipv4"
     netsh int ipv4 set int interface=xdpfnmp1q dadtransmits=0
     netsh int ipv4 add address name=xdpfnmp1q address=192.168.201.1/24
     netsh int ipv4 add neighbor xdpfnmp1q address=192.168.201.2 neighbor=22-22-22-22-00-02
 
-    Write-Debug "Configure xdpfnmp1q ipv6"
+    Write-Verbose "Configure xdpfnmp1q ipv6"
     netsh int ipv6 set int interface=xdpfnmp1q dadtransmits=0
     netsh int ipv6 add address interface=xdpfnmp1q address=fc00::201:1/112
     netsh int ipv6 add neighbor xdpfnmp1q address=fc00::201:2 neighbor=22-22-22-22-00-02
 
-    Write-Debug "xdpfnmp.sys install complete!"
+    Write-Verbose "xdpfnmp.sys install complete!"
 }
 
 # Uninstalls the xdpfnmp driver.
@@ -420,14 +420,14 @@ function Uninstall-XdpFnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 2>&1 $null
     netsh int ipv6 delete neighbors xdpfnmp1q 2>&1 $null
 
-    try { & $DswDevice -u $XdpFnMpDeviceId1 } catch { Write-Debug "Deleting $XdpMpDeviceId1 device failed" }
-    try { & $DswDevice -u $XdpFnMpDeviceId0 } catch { Write-Debug "Deleting $XdpMpDeviceId0 device failed" }
+    try { & $DswDevice -u $XdpFnMpDeviceId1 } catch { Write-Verbose "Deleting $XdpMpDeviceId1 device failed" }
+    try { & $DswDevice -u $XdpFnMpDeviceId0 } catch { Write-Verbose "Deleting $XdpMpDeviceId0 device failed" }
 
     Cleanup-Service $XdpFnMpServiceName
 
     Uninstall-Driver "xdpfnmp.inf"
 
-    Write-Debug "xdpfnmp.sys uninstall complete!"
+    Write-Verbose "xdpfnmp.sys uninstall complete!"
 }
 
 if ($Install -eq "fndis") {
