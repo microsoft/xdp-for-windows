@@ -44,7 +44,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         inc;
-        $(SolutionDir)lib\rtl\inc;
+        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\functional\mp\inc;
         $(SolutionDir)test\functional\mp\sys;
         %(AdditionalIncludeDirectories)
@@ -62,7 +62,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
-    <None Include="$(SolutionDir)\core\dll\msxdp\packages.config" />
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" />

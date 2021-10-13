@@ -27,7 +27,7 @@
 #include <xdp/framerxaction.h>
 #include <xdp/frametxcompletioncontext.h>
 
-#include <msxdp.h>
+#include <xdpapi.h>
 #include <xdpassert.h>
 #include <xdpif.h>
 #include <xdpioctl.h>

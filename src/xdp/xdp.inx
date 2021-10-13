@@ -6,10 +6,12 @@ Provider        = %Msft%
 PnpLockdown     = 1
 
 [DestinationDirs]
-DefaultDestDir = %DIRID_DRIVERS%
+Drivers_Dir = %DIRID_DRIVERS%
+System_Dir = %DIRID_SYSTEM%
 
 [SourceDisksFiles]
 xdp.sys = 1
+xdpapi.dll = 1
 
 [SourceDisksNames]
 1 = disk
@@ -23,11 +25,15 @@ xdp.sys = 1
 [Install]
 Characteristics     = %NCF_LW_FILTER%
 NetCfgInstanceId    = "{c0be1ebc-74b8-4ba9-8c1e-ecd227e2be3b}"
-Copyfiles           = XDP.CopyFiles
+CopyFiles           = Drivers_Dir
+CopyFiles           = System_Dir
 AddReg              = XDP.NDI
 
-[XDP.CopyFiles]
+[Drivers_Dir]
 xdp.sys
+
+[System_Dir]
+xdpapi.dll
 
 [XDP.NDI]
 HKR, Ndi, Service,, "xdp"
@@ -66,6 +72,7 @@ Msft            = "Microsoft Corporation"
 XdpDescription  = "XDP"
 
 ; non-localizable strings
+DIRID_SYSTEM                = 11
 DIRID_DRIVERS               = 12
 FILTER_RUN_TYPE_OPTIONAL    = 2
 FILTER_TYPE_MODIFYING       = 2

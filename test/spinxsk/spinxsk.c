@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
-#include <msxdp.h>
-#include <msxdp_internal.h>
+#include <xdpapi.h>
+#include <xdpapi_internal.h>
 
 #include "trace.h"
 #include "util.h"

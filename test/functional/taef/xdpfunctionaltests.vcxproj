@@ -10,7 +10,7 @@
     <ClCompile Include="tests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)core\dll\msxdp\msxdp.vcxproj">
+    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
       <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
@@ -56,7 +56,12 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)test\common\inc;$(SolutionDir)test\functional\lib;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\lib;
+        $(VCInstallDir)UnitTest\include;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
       <UseFullPaths>true</UseFullPaths>
     </ClCompile>
     <Link>
@@ -68,7 +73,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
-    <None Include="$(SolutionDir)\core\dll\msxdp\packages.config" />
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" />

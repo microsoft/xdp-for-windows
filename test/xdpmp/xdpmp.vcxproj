@@ -28,7 +28,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)lib\nmr\nmr.vcxproj">
+    <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\fakendis\fndis.vcxproj">
@@ -67,14 +67,18 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
     </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
-        $(SolutionDir)lib\rtl\inc;
         $(SolutionDir)published\private;
+        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\pkthlp;
         $(SolutionDir)test\fakendis\inc;
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS685_MINIPORT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>
+        NDIS_MINIPORT_DRIVER;
+        NDIS685_MINIPORT=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
       <WppRecorderEnabled>true</WppRecorderEnabled>
@@ -92,7 +96,7 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
-    <None Include="$(SolutionDir)\core\dll\msxdp\packages.config" />
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" />

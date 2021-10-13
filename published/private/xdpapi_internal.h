@@ -6,6 +6,6 @@
 
 EXTERN_C_START
 
-#include <msxdp.h>
+#include <xdpapi.h>
 
 EXTERN_C_END

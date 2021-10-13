@@ -7,21 +7,13 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <ItemGroup>
-    <ClCompile Include="bind.c" />
-    <ClCompile Include="dispatch.c" />
-    <ClCompile Include="ec.c" />
-    <ClCompile Include="generic.c" />
-    <ClCompile Include="native.c" />
-    <ClCompile Include="oid.c" />
-    <ClCompile Include="recv.c" />
-    <ClCompile Include="rss.c" />
-    <ClCompile Include="send.c" />
+    <ClCompile Include="pollshim.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{63591dcb-0bbc-441c-a8a2-f882ee6a7d5c}</ProjectGuid>
+    <ProjectGuid>{4a54653b-b380-4187-890b-7451f835b07a}</ProjectGuid>
     <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
@@ -43,28 +35,24 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <TargetName>xdplwf</TargetName>
+    <TargetName>pollshim</TargetName>
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
         inc;
-        $(SolutionDir)core\sys\inc;
-        $(SolutionDir)lib\rtl\inc;
         $(SolutionDir)published\private;
+        $(SolutionDir)test\fakendis\inc;
         $(IntDir);
-        %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDIS_WDM=1;NDIS684=1;XDP_MAJOR_VER=$(XdpMajorVersion);XDP_MINOR_VER=$(XdpMinorVersion);%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>$(SolutionDir)core\sys\inc\xdptrace.h</WppScanConfigurationData>
-      <WppRecorderEnabled>true</WppRecorderEnabled>
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
-    <None Include="$(SolutionDir)\core\dll\msxdp\packages.config" />
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" />

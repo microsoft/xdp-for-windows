@@ -3,21 +3,21 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29728.190
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nmr", "lib\nmr\nmr.vcxproj", "{F389859E-1D0C-4F30-BAEC-6A5E44B8190E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nmr", "src\nmr\nmr.vcxproj", "{F389859E-1D0C-4F30-BAEC-6A5E44B8190E}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pollshim", "lib\pollshim\pollshim.vcxproj", "{4A54653B-B380-4187-890B-7451F835B07A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pollshim", "src\pollshim\pollshim.vcxproj", "{4A54653B-B380-4187-890B-7451F835B07A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rtl", "lib\rtl\rtl.vcxproj", "{043C2162-639F-4FC8-B72C-F7C1BACB9DB3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rtl", "src\rtl\rtl.vcxproj", "{043C2162-639F-4FC8-B72C-F7C1BACB9DB3}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lwf", "lwf\lwf.vcxproj", "{63591DCB-0BBC-441C-A8A2-F882EE6A7D5C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdplwf", "src\xdplwf\xdplwf.vcxproj", "{63591DCB-0BBC-441C-A8A2-F882EE6A7D5C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "msxdp", "core\dll\msxdp\msxdp.vcxproj", "{0CCECB60-0538-4252-8C8E-23A92199CBE0}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpapi", "src\xdpapi\xdpapi.vcxproj", "{0CCECB60-0538-4252-8C8E-23A92199CBE0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spinxsk", "test\spinxsk\spinxsk.vcxproj", "{A831B9F7-3948-48CC-B4F7-DB725EF13408}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "util", "test\common\lib\util\util.vcxproj", "{BDD99A80-0936-47B0-918D-04CF3B472FB0}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdp", "core\sys\xdp.vcxproj", "{DE26C8C2-F986-47C7-8E36-8A7CAC1358EE}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdp", "src\xdp\xdp.vcxproj", "{DE26C8C2-F986-47C7-8E36-8A7CAC1358EE}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fndis", "test\fakendis\fndis.vcxproj", "{8A82F294-00D6-40E1-9C55-6BC93C2BEC0E}"
 EndProject

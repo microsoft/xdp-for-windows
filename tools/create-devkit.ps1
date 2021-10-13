@@ -28,13 +28,13 @@ copy "artifacts\bin\$($Platform)_$($Flavor)\CoreNetSignRoot.cer" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.dll" $dstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdpapi.dll" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $dstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.exe" $dstPath\bin
 
 New-Item -Path $dstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.pdb"   $dstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.pdb" $dstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.pdb" $dstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $dstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.pdb" $dstPath\symbols
 
@@ -42,7 +42,7 @@ New-Item -Path $dstPath\include -ItemType Directory > $null
 copy -Recurse published\external\* $dstPath\include
 
 New-Item -Path $dstPath\lib -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Flavor)\msxdp.lib" $dstPath\lib
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.lib" $dstPath\lib
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $dstPath\lib
 
 New-Item -Path $dstPath\samples -ItemType Directory > $null

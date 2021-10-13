@@ -28,11 +28,11 @@ if ($Uninstall) {
         & "$SourceDirectory\netsetuptool.exe" -uninstall -type filter -id $XdpLwfGuid
         sc.exe delete xdp
     }
-    Remove-Item C:\Windows\System32\msxdp.dll
+    Remove-Item C:\Windows\System32\xdpapi.dll
 }
 
 if ($Install) {
-    Copy-Item $SourceDirectory\msxdp.dll C:\Windows\System32\
+    Copy-Item $SourceDirectory\xdpapi.dll C:\Windows\System32\
     if (-not $DriverPreinstalled) {
         netcfg.exe -l "$SourceDirectory\xdp.inf" -c s -i ms_xdp
     } else {

@@ -35,13 +35,19 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)test\common\inc;$(SolutionDir)test\functional\mp\inc;$(SolutionDir)test\pkthlp;$(SolutionDir)submodules\wil\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\mp\inc;
+        $(SolutionDir)test\pkthlp;
+        $(SolutionDir)submodules\wil\include;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
-    <None Include="$(SolutionDir)\core\dll\msxdp\packages.config" />
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" />

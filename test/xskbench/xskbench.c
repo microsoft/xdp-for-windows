@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
-#include <msxdp.h>
+#include <xdpapi.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 

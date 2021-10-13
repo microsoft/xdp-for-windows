@@ -10,7 +10,7 @@
 #include <winioctl.h>
 #include <winternl.h>
 #include <ifdef.h>
-#include <msxdp.h>
+#include <xdpapi.h>
 #include <xdpioctl.h>
 #include <xdprtl.h>
 

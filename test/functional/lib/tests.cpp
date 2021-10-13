@@ -23,7 +23,7 @@
 #include <wil/resource.h>
 
 #include <afxdp_helper.h>
-#include <msxdp.h>
+#include <xdpapi.h>
 #include <pkthlp.h>
 #include <xdpfnmpapi.h>
 

@@ -2,8 +2,8 @@
 // Copyright (C) Microsoft Corporation. All rights reserved.
 //
 
-#ifndef MSXDP_H
-#define MSXDP_H
+#ifndef XDPAPI_H
+#define XDPAPI_H
 
 #ifdef __cplusplus
 extern "C" {

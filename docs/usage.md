@@ -2,7 +2,7 @@
 
 ## Installation
 
-WinXDP consists of a usermode library (msxdp.dll) and a driver (xdp.sys).
+WinXDP consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
 
 If xdp.sys is not production-signed:
 ```PowerShell
@@ -26,7 +26,7 @@ pnputil.exe /delete-driver xdp.inf
 ## Configuration
 
 XDP is in a passive state upon installation. XDP can be configured via a set of
-usermode APIs exported from `msxdp.dll`.
+usermode APIs exported from `xdpapi.dll`.
 
 ### XDP Queues
 
@@ -41,7 +41,7 @@ AF_XDP is the API for redirecting traffic to a usermode application. To use the 
 include the following headers:
 
 - afxdp.h (AF_XDP sockets API)
-- msxdp.h (XDP program API)
+- xdpapi.h (XDP API)
 - afxdp_helper.h (optional AF_XDP helpers)
 
 ## Generic XDP

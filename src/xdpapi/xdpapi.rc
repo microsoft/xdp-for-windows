@@ -12,7 +12,7 @@
 #define VER_PRODUCTVERSION_STR      XDP_VERSION_STR
 
 #define VER_FILEDESCRIPTION_STR     "Microsoft\256 XDP Platform API"
-#define VER_ORIGINALFILENAME_STR    "msxdp.dll"
+#define VER_ORIGINALFILENAME_STR    "xdpapi.dll"
 
 #define VER_COMPANYNAME_STR         "Microsoft Corporation"
 #define VER_LEGALCOPYRIGHT_STR      "\251 Microsoft Corporation. All rights reserved."
