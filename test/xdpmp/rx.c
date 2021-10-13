@@ -3,6 +3,7 @@
 //
 
 #include "precomp.h"
+#include "rx.tmh"
 
 static
 VOID
@@ -472,7 +473,9 @@ MpInitializeReceiveQueue(
     _In_ CONST ADAPTER_CONTEXT *Adapter
     )
 {
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
+
+    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
 
     Rq->NumBuffers = Adapter->NumRxBuffers;
     Rq->BufferLength = Adapter->RxBufferLength;
@@ -484,15 +487,15 @@ MpInitializeReceiveQueue(
         ExAllocatePoolZero(
             NonPagedPoolNx, (SIZE_T)Rq->NumBuffers * (SIZE_T)Rq->BufferLength, POOLTAG_RXBUFFER);
     if (Rq->BufferArray == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
-    NdisStatus =
+    Status =
         HwRingAllocateRing(
             sizeof(UINT32), Rq->NumBuffers, __alignof(UINT32), &Rq->HwRing);
-    if (NdisStatus != STATUS_SUCCESS) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+    if (Status != STATUS_SUCCESS) {
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
@@ -500,7 +503,7 @@ MpInitializeReceiveQueue(
         ExAllocatePoolZero(
             NonPagedPoolNx, Rq->NumBuffers * sizeof(*Rq->RecycleArray), POOLTAG_RXBUFFER);
     if (Rq->RecycleArray == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
@@ -508,7 +511,7 @@ MpInitializeReceiveQueue(
         ExAllocatePoolZero(
             NonPagedPoolNx, Rq->NumBuffers * sizeof(*Rq->NblArray), POOLTAG_RXBUFFER);
     if (Rq->NblArray == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
@@ -527,7 +530,7 @@ MpInitializeReceiveQueue(
         Rq->NblArray[i] =
             NdisAllocateNetBufferList(Adapter->RxNblPool, (USHORT)Adapter->MdlSize, 0);
         if (Rq->NblArray[i] == NULL) {
-            NdisStatus = STATUS_NO_MEMORY;
+            Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
@@ -572,7 +575,9 @@ MpInitializeReceiveQueue(
 
 Exit:
 
-    return NdisStatus;
+    TraceExitStatus(TRACE_CONTROL);
+
+    return Status;
 }
 
 static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH MpXdpRxDispatch = {

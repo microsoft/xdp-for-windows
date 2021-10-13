@@ -408,7 +408,7 @@ MpInitializeTransmitQueue(
     _In_ CONST ADAPTER_CONTEXT *Adapter
     )
 {
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
 
     Tq->NbQueueCount = 0;
     Tq->NbQueueHead = NULL;
@@ -421,12 +421,12 @@ MpInitializeTransmitQueue(
         Tq->XdpHwDescriptorsAvailable = 1;
     }
 
-    NdisStatus =
+    Status =
         HwRingAllocateRing(
             sizeof(TX_HW_DESCRIPTOR), Adapter->TxRingSize,
             __alignof(TX_HW_DESCRIPTOR), &Tq->HwRing);
-    if (NdisStatus != STATUS_SUCCESS) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+    if (Status != STATUS_SUCCESS) {
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
@@ -436,13 +436,13 @@ MpInitializeTransmitQueue(
             (sizeof(TX_SHADOW_DESCRIPTOR) * Adapter->TxRingSize),
             POOLTAG_TX);
     if (Tq->ShadowRing == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
 Exit:
 
-    return NdisStatus;
+    return Status;
 }
 
 static CONST XDP_INTERFACE_TX_QUEUE_DISPATCH MpXdpTxDispatch = {

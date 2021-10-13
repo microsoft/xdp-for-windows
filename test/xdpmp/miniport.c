@@ -295,6 +295,9 @@ MpInitialize(
 
     Status = NdisMSetMiniportAttributes(NdisMiniportHandle, &AdapterAttributes);
     if (Status != NDIS_STATUS_SUCCESS) {
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p NdisMSetMiniportAttributes failed Status=%!STATUS!",
+            NdisMiniportHandle, Status);
         goto Exit;
     }
 
@@ -374,6 +377,9 @@ MpInitialize(
             NdisMiniportHandle,
             (NDIS_MINIPORT_ADAPTER_ATTRIBUTES *)&GeneralAttributes);
     if (Status != NDIS_STATUS_SUCCESS) {
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p NdisMSetMiniportAttributes failed Status=%!STATUS!",
+            NdisMiniportHandle, Status);
         goto Exit;
     }
 
@@ -385,6 +391,9 @@ MpInitialize(
     Adapter->MdlSize = (UINT32)MmSizeOfMdl((VOID *)(PAGE_SIZE - 1), Adapter->RxBufferLength);
     Adapter->MdlSize = ALIGN_UP(Adapter->MdlSize, MEMORY_ALLOCATION_ALIGNMENT);
     if (Adapter->MdlSize > MAXUSHORT) {
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p Error: MdlSize too large MdlSize=%lu",
+            NdisMiniportHandle, Adapter->MdlSize);
         Status = STATUS_INVALID_BUFFER_SIZE;
         goto Exit;
     }
@@ -404,6 +413,9 @@ MpInitialize(
             NdisMiniportHandle,
             &NetBufferListPoolParameters);
     if (Adapter->RxNblPool == NULL) {
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p NdisAllocateNetBufferListPool failed",
+            NdisMiniportHandle);
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
@@ -415,6 +427,9 @@ MpInitialize(
     NT_FRE_ASSERT(Status == NDIS_STATUS_BUFFER_TOO_SHORT);
     RssProcessorInfo = ExAllocatePoolZero(NonPagedPoolNx, Size, POOLTAG_RSS);
     if (RssProcessorInfo == NULL) {
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p Failed to allocate RssProcessorInfo",
+            NdisMiniportHandle);
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
@@ -423,6 +438,9 @@ MpInitialize(
         NdisGetRssProcessorInformation(
             NdisMiniportHandle, RssProcessorInfo, &Size);
     if (Status != NDIS_STATUS_SUCCESS) {
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p NdisGetRssProcessorInformation failed Status=%!STATUS!",
+            NdisMiniportHandle, Status);
         goto Exit;
     }
 
@@ -447,6 +465,7 @@ MpInitialize(
         // Failure to register with XDP is not fatal, but it does mean that XDP
         // cannot be used on the interface.
         //
+        TraceWarn(TRACE_CONTROL, "XdpRegisterInterface failed with %!STATUS! (XDP cannot be used on this interface)", Status);
         Status = NDIS_STATUS_SUCCESS;
     }
 
@@ -1077,7 +1096,7 @@ MpQueryInformationHandler(
    )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
     NDIS_OID Oid = NdisRequest->DATA.QUERY_INFORMATION.Oid;
     VOID *InformationBuffer = NdisRequest->DATA.QUERY_INFORMATION.InformationBuffer;
     ULONG InformationBufferLength = NdisRequest->DATA.QUERY_INFORMATION.InformationBufferLength;
@@ -1092,7 +1111,7 @@ MpQueryInformationHandler(
 
     *BytesWritten = 0;
 
-    NdisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
     switch (Oid)
     {
@@ -1102,7 +1121,7 @@ MpQueryInformationHandler(
             if (InformationBufferLength < DataLength)
             {
                 *BytesNeeded = DataLength;
-                NdisStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+                Status = NDIS_STATUS_BUFFER_TOO_SHORT;
                 break;
             }
             NdisMoveMemory(InformationBuffer,
@@ -1118,7 +1137,7 @@ MpQueryInformationHandler(
 
             if (InformationBufferLength < DataLength) {
                 *BytesNeeded = DataLength;
-                NdisStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+                Status = NDIS_STATUS_BUFFER_TOO_SHORT;
                 break;
             }
 
@@ -1214,12 +1233,12 @@ MpQueryInformationHandler(
             DataLength = Adapter->NumMulticastAddresses * MAC_ADDR_LEN;
             if (MpGlobalContext.Medium != NdisMedium802_3)
             {
-                NdisStatus = NDIS_STATUS_INVALID_OID;
+                Status = NDIS_STATUS_INVALID_OID;
                 break;
             }
             else if ((InformationBufferLength % ETH_LENGTH_OF_ADDRESS) != 0)
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
             DataPointer = Adapter->MulticastAddressList;
@@ -1293,7 +1312,7 @@ MpQueryInformationHandler(
 
         default:
             DoCopy = FALSE;
-            NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+            Status = NDIS_STATUS_NOT_SUPPORTED;
             break;
     }
 
@@ -1302,7 +1321,7 @@ MpQueryInformationHandler(
         if (InformationBufferLength < DataLength)
         {
             *BytesNeeded = DataLength;
-            NdisStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+            Status = NDIS_STATUS_BUFFER_TOO_SHORT;
         }
         else
         {
@@ -1311,7 +1330,7 @@ MpQueryInformationHandler(
         }
     }
 
-    return NdisStatus;
+    return Status;
 }
 
 NDIS_STATUS
@@ -1321,14 +1340,14 @@ MpSetInformationHandler(
    )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
 
     NDIS_OID Oid = NdisRequest->DATA.SET_INFORMATION.Oid;
     VOID *InformationBuffer = NdisRequest->DATA.SET_INFORMATION.InformationBuffer;
     ULONG InformationBufferLength = NdisRequest->DATA.SET_INFORMATION.InformationBufferLength;
     UINT *BytesRead = &NdisRequest->DATA.SET_INFORMATION.BytesRead;
 
-    NdisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
     switch (Oid)
     {
@@ -1336,7 +1355,7 @@ MpSetInformationHandler(
 
             if (InformationBufferLength < NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1)
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -1347,7 +1366,7 @@ MpSetInformationHandler(
                 (offloadEncapsulation->Header.Revision < NDIS_OFFLOAD_ENCAPSULATION_REVISION_1) ||
                 (offloadEncapsulation->Header.Size < NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1))
             {
-                NdisStatus = NDIS_STATUS_INVALID_PARAMETER;
+                Status = NDIS_STATUS_INVALID_PARAMETER;
                 break;
             }
 
@@ -1356,7 +1375,7 @@ MpSetInformationHandler(
                 if (offloadEncapsulation->IPv6.EncapsulationType != NDIS_ENCAPSULATION_IEEE_802_3 ||
                     offloadEncapsulation->IPv6.HeaderSize != ETH_HDR_LEN)
                 {
-                    NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+                    Status = NDIS_STATUS_NOT_SUPPORTED;
                     break;
                 }
             }
@@ -1366,7 +1385,7 @@ MpSetInformationHandler(
                 if (offloadEncapsulation->IPv4.EncapsulationType != NDIS_ENCAPSULATION_IEEE_802_3 ||
                     offloadEncapsulation->IPv4.HeaderSize != ETH_HDR_LEN)
                 {
-                    NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+                    Status = NDIS_STATUS_NOT_SUPPORTED;
                     break;
                 }
             }
@@ -1377,7 +1396,7 @@ MpSetInformationHandler(
 
             if (InformationBufferLength < sizeof(ULONG))
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -1391,14 +1410,14 @@ MpSetInformationHandler(
 
             if (InformationBufferLength < sizeof(ULONG))
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
             ULONG CurrentLookahead = *(UNALIGNED ULONG *)InformationBuffer;
             if (CurrentLookahead > Adapter->MtuSize)
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
             }
             else if (CurrentLookahead >= Adapter->CurrentLookAhead)
             {
@@ -1412,14 +1431,14 @@ MpSetInformationHandler(
 
             if (MpGlobalContext.Medium != NdisMedium802_3)
             {
-                NdisStatus = NDIS_STATUS_INVALID_OID;
+                Status = NDIS_STATUS_INVALID_OID;
                 break;
             }
 
             if ((InformationBufferLength % ETH_LENGTH_OF_ADDRESS) != 0 ||
                 InformationBufferLength  > (MAX_MULTICAST_ADDRESSES * MAC_ADDR_LEN))
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -1434,7 +1453,7 @@ MpSetInformationHandler(
 
             if (InformationBufferLength < sizeof(NDIS_DEVICE_POWER_STATE))
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -1446,26 +1465,26 @@ MpSetInformationHandler(
 
             if (InformationBufferLength < NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2)
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
             MpSetRss(Adapter, InformationBuffer, InformationBufferLength);
-            NdisStatus = NDIS_STATUS_SUCCESS;
+            Status = NDIS_STATUS_SUCCESS;
             break;
 
         case OID_XDPMP_PACING:
         {
-            NdisStatus = MpUpdatePace(Adapter, InformationBuffer);
+            Status = MpUpdatePace(Adapter, InformationBuffer);
             break;
         }
 
         default:
 
-            NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+            Status = NDIS_STATUS_NOT_SUPPORTED;
             break;
 
     }
 
-    return NdisStatus;
+    return Status;
 }

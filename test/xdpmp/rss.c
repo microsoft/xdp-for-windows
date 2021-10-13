@@ -3,6 +3,7 @@
 //
 
 #include "precomp.h"
+#include "rss.tmh"
 
 typedef
 VOID
@@ -127,8 +128,10 @@ MpPopulateRssQueues(
     _Inout_ ADAPTER_CONTEXT *Adapter
     )
 {
-    NDIS_STATUS ndisStatus;
+    NDIS_STATUS Status;
     SIZE_T AllocationSize;
+
+    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
 
     AllocationSize = sizeof(*Adapter->RssQueues) * Adapter->NumRssQueues;
 
@@ -136,12 +139,15 @@ MpPopulateRssQueues(
         ExAllocatePoolZero(
             NonPagedPoolNxCacheAligned, AllocationSize, POOLTAG_QUEUE);
     if (Adapter->RssQueues == NULL) {
-        ndisStatus = NDIS_STATUS_RESOURCES;
+        TraceError(
+            TRACE_CONTROL, "NdisMiniportHandle=%p MpPopulateRssQueues failed to allocate RssQueues",
+            Adapter->MiniportHandle);
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
-    ndisStatus = MpInitializePoll(Adapter);
-    if (ndisStatus != NDIS_STATUS_SUCCESS) {
+    Status = MpInitializePoll(Adapter);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
@@ -151,22 +157,24 @@ MpPopulateRssQueues(
         RssQueue->QueueId = Index;
         RssQueue->Adapter = Adapter;
 
-        ndisStatus = MpInitializeReceiveQueue(&RssQueue->Rq, Adapter);
-        if (ndisStatus != NDIS_STATUS_SUCCESS) {
+        Status = MpInitializeReceiveQueue(&RssQueue->Rq, Adapter);
+        if (Status != NDIS_STATUS_SUCCESS) {
             goto Exit;
         }
 
-        ndisStatus = MpInitializeTransmitQueue(&RssQueue->Tq, Adapter);
-        if (ndisStatus != NDIS_STATUS_SUCCESS) {
+        Status = MpInitializeTransmitQueue(&RssQueue->Tq, Adapter);
+        if (Status != NDIS_STATUS_SUCCESS) {
             goto Exit;
         }
     }
 
-    ndisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
 Exit:
 
-    return ndisStatus;
+    TraceExitStatus(TRACE_CONTROL);
+
+    return Status;
 }
 
 NDIS_STATUS
@@ -175,7 +183,7 @@ MpStartRss(
     _Inout_ ADAPTER_QUEUE *RssQueue
     )
 {
-    NDIS_STATUS ndisStatus;
+    NDIS_STATUS Status;
     NDIS_POLL_CHARACTERISTICS PollAttributes = {0};
 
     PollAttributes.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
@@ -184,16 +192,16 @@ MpStartRss(
     PollAttributes.PollHandler = MpPoll;
     PollAttributes.SetPollNotificationHandler = MpInterruptControl;
 
-    ndisStatus =
+    Status =
         Adapter->PollDispatch.RegisterPoll(
             Adapter->MiniportHandle, RssQueue, &PollAttributes, &RssQueue->NdisPollHandle);
-    if (ndisStatus != NDIS_STATUS_SUCCESS) {
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
 Exit:
 
-    return ndisStatus;
+    return Status;
 }
 
 VOID
