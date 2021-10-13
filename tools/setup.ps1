@@ -268,7 +268,7 @@ function Install-XdpMp {
     # verifier on XDPMP *or* do nothing and implicitly keep the IO verifier flag
     # enabled.
     if ($Verifier) {
-        if ((Get-Random -Maximum 1) -eq 1) {
+        if ((Get-Random -Maximum 2) -eq 1) {
             Write-Verbose "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB"
             verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB > $null
             if ($LastExitCode) {
