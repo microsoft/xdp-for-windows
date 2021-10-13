@@ -617,11 +617,14 @@ FuzzSocketUmemSetup(
     if (RandUlong() % 2) {
         XSK_UMEM_REG umemReg = {0};
 
-        if (RandUlong() % 6) {
-            umemReg.totalSize = RandUlong() % 0x100000;
-        } else {
-            umemReg.totalSize = RandUlong();
-        }
+        //
+        // Limit the total UMEM size to avoid trashing the system - some non-XDP
+        // system components (e.g. ETW) are sensitive to out-of-memory
+        // conditions, and attempting to lock pages can be very slow. Using
+        // driver verifier's fault injection provides coverage of mapping
+        // failure paths.
+        //
+        umemReg.totalSize = RandUlong() % 0x100000;
 
         if (RandUlong() % 6) {
             umemReg.chunkSize = RandUlong() % 4096;

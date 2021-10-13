@@ -1,10 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <WindowsPerformanceRecorder Version="1.0" Author="Microsoft Corporation" Copyright="Microsoft Corporation" Company="Microsoft Corporation">
     <Profiles>
+        <SystemCollector Id="SystemCollector" Name="NT Kernel Logger">
+            <BufferSize Value="4096"/>
+            <Buffers Value="128"/>
+       </SystemCollector>
+
         <EventCollector Id="EC_HighVolume" Name="High Volume">
             <BufferSize Value="1024"/>
             <Buffers Value="64"/>
         </EventCollector>
+
+        <SystemProvider Id="SystemProviderCpu">
+            <Keywords>
+                <Keyword Value="ProcessThread"/>
+                <Keyword Value="Loader"/>
+                <Keyword Value="CSwitch"/>
+                <Keyword Value="ReadyThread"/>
+                <Keyword Value="SampledProfile"/>
+                <Keyword Value="DPC"/>
+                <Keyword Value="Interrupt"/>
+                <Keyword Value="IdleStates"/>
+            </Keywords>
+
+            <Stacks>
+                <Stack Value="CSwitch"/>
+                <Stack Value="ReadyThread"/>
+                <Stack Value="SampledProfile"/>
+            </Stacks>
+        </SystemProvider>
 
         <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
         <EventProvider Id="EP_SpinXskWpp" Name="D6143B5D-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" />
@@ -33,6 +57,14 @@
                         <EventProviderId Value="EP_FndisWpp" />
                     </EventProviders>
                 </EventCollectorId>
+            </Collectors>
+        </Profile>
+
+        <Profile Id="CpuCswitchSample.Verbose.File" Name="CpuCswitchSample" Description="CPU precise and sampled profile" LoggingMode="File" DetailLevel="Verbose">
+            <Collectors>
+                <SystemCollectorId Value="SystemCollector">
+                    <SystemProviderId Value="SystemProviderCpu"/>
+                </SystemCollectorId>
             </Collectors>
         </Profile>
     </Profiles>

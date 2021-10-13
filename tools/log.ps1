@@ -36,6 +36,9 @@ param (
     [switch]$Stop = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$NoTextConversion = $false,
+
+    [Parameter(Mandatory = $false)]
     [string]$Profile = $null,
 
     [Parameter(Mandatory = $false)]
@@ -83,8 +86,13 @@ function Stop-Logging {
         Write-Error "wpr.exe failed: $LastExitCode"
     }
 
-    & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
-    Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
+    if (!$NoTextConversion) {
+        & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
+        Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
+    }
+
+    # Enumerate log file sizes.
+    Get-ChildItem $LogsDir | Write-Verbose
 }
 
 if ($Start) {
