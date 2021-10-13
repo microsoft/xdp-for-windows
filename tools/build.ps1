@@ -32,6 +32,10 @@ if (!$NoClean) {
 tools/prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
 msbuild.exe xdp.sln `
+    -t:restore `
+    -p:RestorePackagesConfig=true
+
+msbuild.exe xdp.sln `
     /p:Configuration=$Flavor `
     /p:Platform=$Platform `
     /t:$($Tasks -join ",") `
