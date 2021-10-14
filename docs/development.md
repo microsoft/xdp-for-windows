@@ -101,3 +101,17 @@ Running the test:
 .\tools\setup.ps1 -Uninstall xdp -Verbose
 .\tools\setup.ps1 -Uninstall fndis -Verbose
 ```
+
+## Configuration
+
+### XDPMP poll-mode provider
+
+NDIS:
+```Powershell
+Set-NetAdapterAdvancedProperty -Name XDPMP -RegistryKeyword PollProvider -DisplayValue NDIS
+```
+
+FNDIS:
+```Powershell
+Set-NetAdapterAdvancedProperty -Name XDPMP -RegistryKeyword PollProvider -DisplayValue FNDIS
+```
