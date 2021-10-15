@@ -28,3 +28,6 @@ if (Check-Driver 'xdp.sys') { Write-Error "xdp.sys loaded!" }
 
 # Yay! No XDP drivers found.
 Write-Host "No loaded XDP drivers found!"
+
+# Log driver verifier status
+verifier.exe /query

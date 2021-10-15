@@ -1739,7 +1739,6 @@ GenericRxFromTxInspect(
     UINT16 XskPort;
     SOCKADDR_INET DestAddr = {};
     XDP_HOOK_ID RxInspectFromTxL2 = {};
-    const UINT32 NumFrames = 2;
 
     RxInspectFromTxL2.Layer = XDP_HOOK_L2;
     RxInspectFromTxL2.Direction = XDP_HOOK_TX;
@@ -1775,10 +1774,23 @@ GenericRxFromTxInspect(
 
     //
     // Using UDP segmentation offload, build one send with two UDP frames. The
-    // UDP data path should split the send into one NBL chained to two NBs.
+    // UDP data path should split the send into one NBL chained to two NBs. This
+    // feature is only supported on newer versions of Windows; if USO is not
+    // supported, send a single frame.
     //
+    UINT32 NumFrames;
+    UINT32 UdpSegmentSize;
     CHAR UdpPayload[] = "GenericRxFromTxInspectPkt1GenericRxFromTxInspectPkt2";
-    UINT32 UdpSegmentSize = (UINT32)(strchr(UdpPayload, '1') - UdpPayload + 1);
+
+    if (WSAGetUdpSendMessageSize(UdpSocket.get(), (DWORD *)&UdpSegmentSize) == SOCKET_ERROR) {
+        TEST_EQUAL(WSAEOPNOTSUPP, WSAGetLastError());
+        NumFrames = 1;
+        UdpSegmentSize = sizeof(UdpPayload) - 1;
+    } else {
+        NumFrames = 2;
+        UdpSegmentSize = (UINT32)(strchr(UdpPayload, '1') - UdpPayload + 1);
+    }
+
     TEST_EQUAL((SIZE_T)NumFrames * (SIZE_T)UdpSegmentSize + 1, sizeof(UdpPayload));
     TEST_EQUAL(NO_ERROR, WSASetUdpSendMessageSize(UdpSocket.get(), UdpSegmentSize));
 

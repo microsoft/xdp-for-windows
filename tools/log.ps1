@@ -78,6 +78,8 @@ function Start-Logging {
 }
 
 function Stop-Logging {
+    New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
+
     Write-Host "------- Stopping logs -------"
     cmd /c "wpr.exe -stop $EtlPath -instancename $Name 2>&1"
     if ($LastExitCode -ne 0) {

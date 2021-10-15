@@ -70,7 +70,7 @@ if (!(Test-Path $SpinXsk)) {
 }
 
 # Ensure the output path exists.
-New-Item -ItemType Directory -Force -Path $LogsDir
+New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 # Build up the args.
 $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
