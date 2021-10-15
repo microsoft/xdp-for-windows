@@ -54,14 +54,13 @@ if ($Profile -eq $null -and $Start) {
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
-$ToolsDir = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x86"
-$TracePdb = Join-Path $ToolsDir "tracepdb.exe"
-$WprpFile = Join-Path $RootDir "tools" "xdptrace.wprp"
-$TmfPath = Join-Path $ArtifactsDir "tmfs"
-$LogsDir = Join-Path $RootDir "artifacts" "logs"
-$EtlPath = Join-Path $LogsDir "$Name.etl"
-$LogPath = Join-Path $LogsDir "$Name.log"
+$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$TracePdb = "$RootDir\artifacts\corenet-ci-main\vm-setup\tracepdb.exe"
+$WprpFile = "$RootDir\tools\xdptrace.wprp"
+$TmfPath = "$ArtifactsDir\tmfs"
+$LogsDir = "$RootDir\artifacts\logs"
+$EtlPath = "$LogsDir\$Name.etl"
+$LogPath = "$LogsDir\$Name.log"
 
 function Start-Logging {
     Write-Host "+++++++ Starting logs +++++++"
@@ -87,7 +86,7 @@ function Stop-Logging {
     }
 
     if (!$NoTextConversion) {
-        & $TracePdb -f (Join-Path $ArtifactsDir "*.pdb") -p $TmfPath
+        & $TracePdb -f "$ArtifactsDir\*.pdb" -p $TmfPath
         Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
     }
 

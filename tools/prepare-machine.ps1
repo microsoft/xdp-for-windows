@@ -37,6 +37,9 @@ param (
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
+# Disable Invoke-WebRequest progress bar to work around a bug that slows downloads.
+$ProgressPreference = 'SilentlyContinue'
+
 if (!$ForBuild -and !$ForTest) {
     Write-Error 'Must specify either -ForBuild or -ForTest'
 }
