@@ -109,6 +109,7 @@ Running the test:
 NDIS:
 ```Powershell
 Set-NetAdapterAdvancedProperty -Name XDPMP -RegistryKeyword PollProvider -DisplayValue NDIS
+Set-NetAdapterDataPathConfiguration -Name XDPMP -Profile Passive
 ```
 
 FNDIS:
