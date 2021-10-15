@@ -5,6 +5,7 @@
 #include "precomp.h"
 #include "rss.tmh"
 
+static
 VOID
 XdpGenericRssFreeIndirection(
     _In_ XDP_LIFETIME_ENTRY *Entry
@@ -16,6 +17,7 @@ XdpGenericRssFreeIndirection(
     ExFreePoolWithTag(IndirectionTable, POOLTAG_RSS);
 }
 
+static
 NTSTATUS
 XdpGenericRssUpdateIndirection(
     _In_ XDP_LWF_GENERIC *Generic,
@@ -168,6 +170,77 @@ Exit:
     }
 
     return Status;
+}
+
+XDP_LWF_GENERIC_RSS_QUEUE *
+XdpGenericRssGetQueueById(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ UINT32 QueueId
+    )
+{
+    if (QueueId >= Generic->Rss.QueueCount) {
+        return NULL;
+    }
+
+    return &Generic->Rss.Queues[QueueId];
+}
+
+_IRQL_requires_(DISPATCH_LEVEL)
+XDP_LWF_GENERIC_RSS_QUEUE *
+XdpGenericRssGetQueue(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ ULONG CurrentProcessor,
+    _In_ BOOLEAN TxInspect,
+    _In_ UINT32 RssHash
+    )
+{
+    XDP_LWF_GENERIC_RSS *Rss = &Generic->Rss;
+    XDP_LWF_GENERIC_INDIRECTION_TABLE *IndirectionTable;
+    XDP_LWF_GENERIC_RSS_QUEUE *Queues;
+    RSS_INDIRECTION_ENTRY *IndirectionEntry;
+    UINT32 IndirectionIndex;
+    XDP_LWF_GENERIC_RSS_QUEUE *Queue;
+
+    IndirectionTable = ReadPointerNoFence(&Rss->IndirectionTable);
+    Queues = ReadPointerNoFence(&Rss->Queues);
+
+    if (IndirectionTable == NULL || Queues == NULL) {
+        return NULL;
+    } else if (RssHash == 0 && IndirectionTable->IndirectionMask > 0 && !TxInspect) {
+        Queue = NULL;
+
+        //
+        // Some NIC vendors support RSS, but do not fill out the hash OOB fields.
+        // In this case, infer the queue from the current processor. For TX
+        // inspect, do not use the current CPU to infer the RSS queue ID since
+        // the NDIS send path is not RSS-affinitized.
+        //
+        // TODO: Optimize with (CPU -> queue) index.
+        //
+        for (IndirectionIndex = 0;
+            IndirectionIndex <= IndirectionTable->IndirectionMask;
+            IndirectionIndex++) {
+            IndirectionEntry = &IndirectionTable->Entries[IndirectionIndex];
+            Queue = &Queues[IndirectionEntry->QueueIndex];
+            if (Queue->IdealProcessor == CurrentProcessor) {
+                return Queue;
+            }
+        }
+
+        //
+        // Assign to queue at index 0 if appropriate queue was not found.
+        //
+        return &Queues[0];
+    } else {
+        //
+        // Normal case where RSS is supported and hash OOB is filled out.
+        //
+        IndirectionIndex = RssHash & IndirectionTable->IndirectionMask;
+        IndirectionEntry = &IndirectionTable->Entries[IndirectionIndex];
+        Queue = &Queues[IndirectionEntry->QueueIndex];
+
+        return Queue;
+    }
 }
 
 NDIS_STATUS

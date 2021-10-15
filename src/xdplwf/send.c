@@ -534,6 +534,7 @@ XdpGenericTxCreateQueue(
 {
     XDP_LWF_GENERIC *Generic = (XDP_LWF_GENERIC *)InterfaceContext;
     XDP_LWF_GENERIC_TX_QUEUE *TxQueue = NULL;
+    XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
     CONST XDP_QUEUE_INFO *QueueInfo;
     CONST XDP_HOOK_ID *QueueHookId;
     NTSTATUS Status;
@@ -568,7 +569,8 @@ XdpGenericTxCreateQueue(
         goto Exit;
     }
 
-    if (QueueInfo->QueueId >= Generic->Rss.QueueCount) {
+    RssQueue = XdpGenericRssGetQueueById(Generic, QueueInfo->QueueId);
+    if (RssQueue == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -658,7 +660,7 @@ XdpGenericTxCreateQueue(
     TxQueue->Generic = Generic;
     TxQueue->QueueId = QueueInfo->QueueId;
     TxQueue->FilterHandle = Generic->NdisHandle;
-    TxQueue->RssQueue = &Generic->Rss.Queues[TxQueue->QueueId];
+    TxQueue->RssQueue = RssQueue;
 
     TxQueue->Flags.RxInject = (HookId.Direction == XDP_HOOK_RX);
 

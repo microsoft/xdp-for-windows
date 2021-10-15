@@ -84,64 +84,6 @@ static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH RxDispatch = {
 };
 
 static
-_IRQL_requires_(DISPATCH_LEVEL)
-XDP_LWF_GENERIC_RSS_QUEUE *
-XdpGenericReceiveGetRssQueue(
-    _In_ XDP_LWF_GENERIC_RSS *Rss,
-    _In_ ULONG CurrentProcessor,
-    _In_ BOOLEAN TxInspect,
-    _In_ UINT32 RssHash
-    )
-{
-    XDP_LWF_GENERIC_INDIRECTION_TABLE *IndirectionTable;
-    XDP_LWF_GENERIC_RSS_QUEUE *Queues;
-    RSS_INDIRECTION_ENTRY *IndirectionEntry;
-    UINT32 IndirectionIndex;
-    XDP_LWF_GENERIC_RSS_QUEUE *Queue;
-
-    IndirectionTable = ReadPointerNoFence(&Rss->IndirectionTable);
-    Queues = ReadPointerNoFence(&Rss->Queues);
-
-    if (IndirectionTable == NULL || Queues == NULL) {
-        return NULL;
-    } else if (RssHash == 0 && IndirectionTable->IndirectionMask > 0 && !TxInspect) {
-        Queue = NULL;
-
-        //
-        // Some NIC vendors support RSS, but do not fill out the hash OOB fields.
-        // In this case, infer the queue from the current processor. For TX
-        // inspect, do not use the current CPU to infer the RSS queue ID since
-        // the NDIS send path is not RSS-affinitized.
-        //
-        // TODO: Optimize with (CPU -> queue) index.
-        //
-        for (IndirectionIndex = 0;
-            IndirectionIndex <= IndirectionTable->IndirectionMask;
-            IndirectionIndex++) {
-            IndirectionEntry = &IndirectionTable->Entries[IndirectionIndex];
-            Queue = &Queues[IndirectionEntry->QueueIndex];
-            if (Queue->IdealProcessor == CurrentProcessor) {
-                return Queue;
-            }
-        }
-
-        //
-        // Assign to queue at index 0 if appropriate queue was not found.
-        //
-        return &Queues[0];
-    } else {
-        //
-        // Normal case where RSS is supported and hash OOB is filled out.
-        //
-        IndirectionIndex = RssHash & IndirectionTable->IndirectionMask;
-        IndirectionEntry = &IndirectionTable->Entries[IndirectionIndex];
-        Queue = &Queues[IndirectionEntry->QueueIndex];
-
-        return Queue;
-    }
-}
-
-static
 VOID
 XdpGenericReceiveLowResources(
     _In_ NDIS_HANDLE NdisHandle,
@@ -195,7 +137,7 @@ _IRQL_requires_(DISPATCH_LEVEL)
 static
 VOID
 XdpGenericReceiveEnterEc(
-    _In_ XDP_LWF_GENERIC_RSS *Rss,
+    _In_ XDP_LWF_GENERIC *Generic,
     _Inout_ NET_BUFFER_LIST **NetBufferLists,
     _In_ ULONG CurrentProcessor,
     _In_ BOOLEAN TxInspect,
@@ -216,7 +158,7 @@ XdpGenericReceiveEnterEc(
     //
     // Find the target RSS queue based on the first NBL's RSS hash.
     //
-    *RssQueue = XdpGenericReceiveGetRssQueue(Rss, CurrentProcessor, TxInspect, RssHash);
+    *RssQueue = XdpGenericRssGetQueue(Generic, CurrentProcessor, TxInspect, RssHash);
     if (*RssQueue == NULL) {
         //
         // RSS is uninitialized, so pass the NBLs through.
@@ -620,7 +562,7 @@ XdpGenericReceive(
     // redirected).
     //
     XdpGenericReceiveEnterEc(
-        &Generic->Rss, &NetBufferLists, Processor, TxInspect, TxWorker, &RssQueue, &RxQueue,
+        Generic, &NetBufferLists, Processor, TxInspect, TxWorker, &RssQueue, &RxQueue,
         &XdpRxQueue, PassList);
     ASSERT((NetBufferLists != NULL) == (XdpRxQueue != NULL));
 
@@ -893,12 +835,11 @@ XdpGenericRxCreateQueue(
         goto Exit;
     }
 
-    if (QueueInfo->QueueId >= Generic->Rss.QueueCount) {
+    RssQueue = XdpGenericRssGetQueueById(Generic, QueueInfo->QueueId);
+    if (RssQueue == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
-
-    RssQueue = &Generic->Rss.Queues[QueueInfo->QueueId];
 
     if (HookId.Layer != XDP_HOOK_L2 ||
         HookId.SubLayer != XDP_HOOK_INSPECT ||

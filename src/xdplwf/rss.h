@@ -8,11 +8,6 @@ typedef struct _XDP_LWF_GENERIC XDP_LWF_GENERIC;
 typedef struct _XDP_LWF_GENERIC_RX_QUEUE XDP_LWF_GENERIC_RX_QUEUE;
 typedef struct _XDP_LWF_GENERIC_TX_QUEUE XDP_LWF_GENERIC_TX_QUEUE;
 
-typedef enum _XDP_LWF_GENERIC_RSS_QUEUE_DIRECTION {
-    RSS_QUEUE_DIRECTION_RX,
-    RSS_QUEUE_DIRECTION_MAX,
-} XDP_LWF_GENERIC_RSS_QUEUE_DIRECTION;
-
 typedef struct _XDP_LWF_GENERIC_RSS_QUEUE {
     ULONG RssHash;
     ULONG IdealProcessor;
@@ -43,6 +38,21 @@ typedef struct _XDP_LWF_GENERIC_RSS {
     ULONG QueueCount;
     XDP_LWF_GENERIC_RSS_CLEANUP *QueueCleanup;
 } XDP_LWF_GENERIC_RSS;
+
+XDP_LWF_GENERIC_RSS_QUEUE *
+XdpGenericRssGetQueueById(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ UINT32 QueueId
+    );
+
+_IRQL_requires_(DISPATCH_LEVEL)
+XDP_LWF_GENERIC_RSS_QUEUE *
+XdpGenericRssGetQueue(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ ULONG CurrentProcessor,
+    _In_ BOOLEAN TxInspect,
+    _In_ UINT32 RssHash
+    );
 
 NDIS_STATUS
 XdpGenericRssInspectOidRequest(
