@@ -155,6 +155,7 @@ if ($Cleanup) {
         Download-CoreNet-Deps
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
+        Copy-Item artifacts\corenet-ci-main\vm-setup\devcon.exe C:\devcon.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\dswdevice.exe C:\dswdevice.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\kd.exe C:\kd.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\livekd64.exe C:\livekd64.exe

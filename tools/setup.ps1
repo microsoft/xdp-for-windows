@@ -42,6 +42,7 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
+$DevCon = "C:\devcon.exe"
 $DswDevice = "C:\dswdevice.exe"
 $LiveKD = "C:\livekd64.exe"
 $KD = "C:\kd.exe"
@@ -136,12 +137,12 @@ function Cleanup-Service($Name) {
 }
 
 # Helper to wait for an adapter to start.
-function Wait-For-Adapters($IfDesc, $Count=1) {
+function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
     Write-Verbose "Waiting for $Count `"$IfDesc`" adapter(s) to start"
     $StartSuccess = $false
     for ($i = 0; $i -lt 100; $i++) {
         $Result = 0
-        $Filter = { $_.InterfaceDescription -like "$IfDesc*" -and $_.Status -eq "Up" }
+        $Filter = { $_.InterfaceDescription -like "$IfDesc*" -and (!$WaitForUp -or $_.Status -eq "Up") }
         try { $Result = ((Get-NetAdapter | where $Filter) | Measure-Object).Count } catch {}
         if ($Result -eq $Count) {
             $StartSuccess = $true
@@ -186,7 +187,7 @@ function Uninstall-Driver($Inf) {
 
     cmd.exe /c "pnputil.exe /uninstall /delete-driver $StagedDriver 2>&1" | Write-Verbose
     if (!$?) {
-        Write-Host "pnputil.exe /uninstall $Inf exit code: $LastExitCode"
+        Write-Verbose "pnputil.exe /uninstall $Inf exit code: $LastExitCode"
     }
 }
 
@@ -291,7 +292,9 @@ function Install-XdpMp {
         Write-Error "dswdevice.exe exit code: $LastExitCode"
     }
 
-    Wait-For-Adapters -IfDesc $XdpMpServiceName
+    # Do not wait for the adapter to fully come up: the default is NDIS polling,
+    # which is not available prior to WS2022.
+    Wait-For-Adapters -IfDesc $XdpMpServiceName -WaitForUp $false
 
     Write-Verbose "Renaming adapter"
     Rename-NetAdapter -InterfaceDescription $XdpMpServiceName $XdpMpServiceName
@@ -306,6 +309,8 @@ function Install-XdpMp {
     # to the more reliable FNDIS.
     Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue "FNDIS"
 
+    Wait-For-Adapters -IfDesc $XdpMpServiceName
+
     netsh.exe int ipv4 set int $AdapterIndex dadtransmits=0
     netsh.exe int ipv4 add address $AdapterIndex address=192.168.100.1/24
     netsh.exe int ipv4 add neighbor $AdapterIndex address=192.168.100.2 neighbor=22-22-22-22-00-02
@@ -318,8 +323,9 @@ function Install-XdpMp {
     netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v4" dir=in action=allow protocol=any remoteip=192.168.100.0/24
     netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v6" dir=in action=allow protocol=any remoteip=fc00::100:0/112
 
-    Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
-    Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
+    # Since we're using FNDIS, don't bother trying to set the NDIS polling profile.
+    # Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
+    # Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
 
     Write-Verbose "xdpmp.sys install complete!"
 }
@@ -334,6 +340,11 @@ function Uninstall-XdpMp {
     cmd.exe /c "$DswDevice -u $XdpMpDeviceId 2>&1"
     if (!$?) {
         Write-Host "Deleting $XdpMpDeviceId device failed: $LastExitCode"
+    }
+
+    cmd.exe /c "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId 2>&1"
+    if (!$?) {
+        Write-Host "Removing $XdpMpDeviceId device failed: $LastExitCode"
     }
 
     Cleanup-Service $XdpMpServiceName
@@ -424,9 +435,19 @@ function Uninstall-XdpFnMp {
         Write-Host "Deleting $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
+    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1 2>&1"
+    if (!$?) {
+        Write-Host "Removing $XdpFnMpDeviceId1 device failed: $LastExitCode"
+    }
+
     cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId0 2>&1"
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId0 device failed: $LastExitCode"
+    }
+
+    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0 2>&1"
+    if (!$?) {
+        Write-Host "Removing $XdpFnMpDeviceId0 device failed: $LastExitCode"
     }
 
     Cleanup-Service $XdpFnMpServiceName
