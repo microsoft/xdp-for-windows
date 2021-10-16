@@ -1783,16 +1783,16 @@ GenericRxFromTxInspect(
     CHAR UdpPayload[] = "GenericRxFromTxInspectPkt1GenericRxFromTxInspectPkt2";
 
     if (WSAGetUdpSendMessageSize(UdpSocket.get(), (DWORD *)&UdpSegmentSize) == SOCKET_ERROR) {
-        TEST_EQUAL(WSAEOPNOTSUPP, WSAGetLastError());
+        TEST_EQUAL(WSAEINVAL, WSAGetLastError());
         NumFrames = 1;
         UdpSegmentSize = sizeof(UdpPayload) - 1;
     } else {
         NumFrames = 2;
         UdpSegmentSize = (UINT32)(strchr(UdpPayload, '1') - UdpPayload + 1);
+        TEST_EQUAL(NO_ERROR, WSASetUdpSendMessageSize(UdpSocket.get(), UdpSegmentSize));
     }
 
     TEST_EQUAL((SIZE_T)NumFrames * (SIZE_T)UdpSegmentSize + 1, sizeof(UdpPayload));
-    TEST_EQUAL(NO_ERROR, WSASetUdpSendMessageSize(UdpSocket.get(), UdpSegmentSize));
 
     //
     // Produce two XSK fill descriptors, one for each UDP frame.
