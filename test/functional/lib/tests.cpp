@@ -1132,7 +1132,7 @@ GenericRxSingleFrame()
 
     RX_FRAME Frame = {0};
     RX_BUFFER Buffer = {0};
-    CONST UCHAR BufferVa[] = "Hello, XDP!";
+    CONST UCHAR BufferVa[] = "GenericRxSingleFrame";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
@@ -1189,7 +1189,7 @@ GenericRxBackfillAndTrailer()
 
     RX_FRAME Frame = {0};
     RX_BUFFER Buffer = {0};
-    CONST UCHAR BufferVa[] = "0123456789";
+    CONST UCHAR BufferVa[] = "GenericRxBackfillAndTrailer";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
@@ -1249,7 +1249,7 @@ GenericRxMatchUdp(
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    UCHAR UdpPayload[] = "Hello, XDP!";
+    UCHAR UdpPayload[] = "GenericRxMatchUdp";
     CHAR RecvPayload[sizeof(UdpPayload)];
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
     UINT32 UdpFrameLength = sizeof(UdpFrame);
@@ -1868,7 +1868,7 @@ GenericTxToRxInject()
     If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
 
     UINT16 FrameOffset = 16;
-    UCHAR UdpPayload[] = "Hello, XDP!";
+    UCHAR UdpPayload[] = "GenericTxToRxInject";
     CHAR RecvPayload[sizeof(UdpPayload)];
     UINT64 TxBuffer = SocketFreePop(&Xsk);
     UCHAR *UdpFrame = Xsk.Umem.Buffer.get() + TxBuffer + FrameOffset;
