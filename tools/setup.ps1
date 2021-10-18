@@ -185,22 +185,20 @@ function Uninstall-Driver($Inf) {
         return
     }
 
-    cmd.exe /c "pnputil.exe /uninstall /delete-driver $StagedDriver 2>&1" | Write-Verbose
+    cmd.exe /c "pnputil.exe /delete-driver $StagedDriver 2>&1" | Write-Verbose
     if (!$?) {
-        Write-Verbose "pnputil.exe /uninstall $Inf exit code: $LastExitCode"
+        Write-Verbose "pnputil.exe /delete-driver $Inf ($StagedDriver) exit code: $LastExitCode"
     }
 }
 
 # Installs the xdp driver.
 function Install-Xdp {
-    Write-Host "+++++++ Installing xdp.sys +++++++"
-
     if (!(Test-Path $XdpSys)) {
         Write-Error "$XdpSys does not exist!"
     }
 
     Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
-    netcfg.exe -v -l $XdpInf -c s -i ms_xdp
+    netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
     if ($LastExitCode) {
         Write-Error "netcfg.exe exit code: $LastExitCode"
     }
@@ -210,8 +208,6 @@ function Install-Xdp {
 
 # Uninstalls the xdp driver.
 function Uninstall-Xdp {
-    Write-Host "------- Uninstalling xdp.sys -------"
-
     Write-Verbose "netcfg.exe -u ms_xdp"
     cmd.exe /c "netcfg.exe -u ms_xdp 2>&1" | Write-Verbose
     if (!$?) {
@@ -225,14 +221,12 @@ function Uninstall-Xdp {
 
 # Installs the fndis driver.
 function Install-FakeNdis {
-    Write-Host "+++++++ Installing fndis.sys +++++++"
-
     if (!(Test-Path $FndisSys)) {
         Write-Error "$FndisSys does not exist!"
     }
 
     Write-Verbose "sc.exe create fndis type= kernel start= demand binpath= $FndisSys"
-    sc.exe create fndis type= kernel start= demand binpath= $FndisSys
+    sc.exe create fndis type= kernel start= demand binpath= $FndisSys | Write-Verbose
     if ($LastExitCode) {
         Write-Error "sc.exe exit code: $LastExitCode"
     }
@@ -244,8 +238,6 @@ function Install-FakeNdis {
 
 # Uninstalls the fndis driver.
 function Uninstall-FakeNdis {
-    Write-Host "------- Uninstalling fndis.sys -------"
-
     Write-Verbose "Stop-Service fndis"
     try { Stop-Service fndis } catch { }
 
@@ -256,8 +248,6 @@ function Uninstall-FakeNdis {
 
 # Installs the xdpmp driver.
 function Install-XdpMp {
-    Write-Host "+++++++ Installing xdpmp.sys +++++++"
-
     if (!(Test-Path $XdpMpSys)) {
         Write-Error "$XdpMpSys does not exist!"
     }
@@ -281,13 +271,13 @@ function Install-XdpMp {
     # }
 
     Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
-    pnputil.exe /install /add-driver $XdpMpInf
+    pnputil.exe /install /add-driver $XdpMpInf | Write-Verbose
     if ($LastExitCode) {
         Write-Error "pnputil.exe exit code: $LastExitCode"
     }
 
     Write-Verbose "dswdevice.exe -i $XdpMpDeviceId $XdpMpComponentId"
-    & $DswDevice -i $XdpMpDeviceId $XdpMpComponentId
+    & $DswDevice -i $XdpMpDeviceId $XdpMpComponentId | Write-Verbose
     if ($LastExitCode) {
         Write-Error "dswdevice.exe exit code: $LastExitCode"
     }
@@ -300,7 +290,7 @@ function Install-XdpMp {
     Rename-NetAdapter -InterfaceDescription $XdpMpServiceName $XdpMpServiceName
 
     Write-Verbose "Get-NetAdapter $XdpMpServiceName"
-    Get-NetAdapter $XdpMpServiceName
+    Get-NetAdapter $XdpMpServiceName | Format-Table | Out-String | Write-Verbose
     $AdapterIndex = (Get-NetAdapter $XdpMpServiceName).ifIndex
 
     Write-Verbose "Setting up the adapter"
@@ -311,17 +301,17 @@ function Install-XdpMp {
 
     Wait-For-Adapters -IfDesc $XdpMpServiceName
 
-    netsh.exe int ipv4 set int $AdapterIndex dadtransmits=0
-    netsh.exe int ipv4 add address $AdapterIndex address=192.168.100.1/24
-    netsh.exe int ipv4 add neighbor $AdapterIndex address=192.168.100.2 neighbor=22-22-22-22-00-02
+    netsh.exe int ipv4 set int $AdapterIndex dadtransmits=0 | Write-Verbose
+    netsh.exe int ipv4 add address $AdapterIndex address=192.168.100.1/24 | Write-Verbose
+    netsh.exe int ipv4 add neighbor $AdapterIndex address=192.168.100.2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
-    netsh.exe int ipv6 set int $AdapterIndex dadtransmits=0
-    netsh.exe int ipv6 add address $AdapterIndex address=fc00::100:1/112
-    netsh.exe int ipv6 add neighbor $AdapterIndex address=fc00::100:2 neighbor=22-22-22-22-00-02
+    netsh.exe int ipv6 set int $AdapterIndex dadtransmits=0 | Write-Verbose
+    netsh.exe int ipv6 add address $AdapterIndex address=fc00::100:1/112 | Write-Verbose
+    netsh.exe int ipv6 add neighbor $AdapterIndex address=fc00::100:2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
     Write-Verbose "Adding firewall rules"
-    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v4" dir=in action=allow protocol=any remoteip=192.168.100.0/24
-    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v6" dir=in action=allow protocol=any remoteip=fc00::100:0/112
+    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v4" dir=in action=allow protocol=any remoteip=192.168.100.0/24 | Write-Verbose
+    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v6" dir=in action=allow protocol=any remoteip=fc00::100:0/112 | Write-Verbose
 
     # Since we're using FNDIS, don't bother trying to set the NDIS polling profile.
     # Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
@@ -332,17 +322,15 @@ function Install-XdpMp {
 
 # Uninstalls the xdpmp driver.
 function Uninstall-XdpMp {
-    Write-Host "------- Uninstalling xdpmp.sys -------"
+    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v4" | Out-Null
+    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v6" | Out-Null
 
-    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v4"
-    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v6"
-
-    cmd.exe /c "$DswDevice -u $XdpMpDeviceId 2>&1"
+    cmd.exe /c "$DswDevice -u $XdpMpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpMpDeviceId device failed: $LastExitCode"
     }
 
-    cmd.exe /c "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId 2>&1"
+    cmd.exe /c "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpMpDeviceId device failed: $LastExitCode"
     }
@@ -356,25 +344,23 @@ function Uninstall-XdpMp {
 
 # Installs the xdpfnmp driver.
 function Install-XdpFnMp {
-    Write-Host "+++++++ Installing xdpfnmp.sys +++++++"
-
     if (!(Test-Path $XdpFnMpSys)) {
         Write-Error "$XdpFnMpSys does not exist!"
     }
 
     Write-Verbose "pnputil.exe /install /add-driver $XdpFnMpInf"
-    pnputil.exe /install /add-driver $XdpFnMpInf
+    pnputil.exe /install /add-driver $XdpFnMpInf | Write-Verbose
     if ($LastExitCode) {
         Write-Error "pnputil.exe exit code: $LastExitCode"
     }
 
     Write-Verbose "dswdevice.exe -i $XdpFnMpDeviceId0 $XdpFnMpComponentId"
-    & $DswDevice -i $XdpFnMpDeviceId0 $XdpFnMpComponentId
+    & $DswDevice -i $XdpFnMpDeviceId0 $XdpFnMpComponentId | Write-Verbose
     if ($LastExitCode) {
         Write-Error "dswdevice.exe exit code: $LastExitCode"
     }
     Write-Verbose "dswdevice.exe -i $XdpFnMpDeviceId1 $XdpFnMpComponentId"
-    & $DswDevice -i $XdpFnMpDeviceId1 $XdpFnMpComponentId
+    & $DswDevice -i $XdpFnMpDeviceId1 $XdpFnMpComponentId | Write-Verbose
     if ($LastExitCode) {
         Write-Error "dswdevice.exe exit code: $LastExitCode"
     }
@@ -386,66 +372,64 @@ function Install-XdpFnMp {
     Rename-NetAdapter -InterfaceDescription "XDPFNMP #2" XDPFNMP1Q
 
     Write-Verbose "Get-NetAdapter XDPFNMP"
-    Get-NetAdapter XDPFNMP
+    Get-NetAdapter XDPFNMP | Format-Table | Out-String | Write-Verbose
     Write-Verbose "Get-NetAdapter XDPFNMP1Q"
-    Get-NetAdapter XDPFNMP1Q
+    Get-NetAdapter XDPFNMP1Q | Format-Table | Out-String | Write-Verbose
 
     Write-Verbose "Set-NetAdapterRss -Name XDPFNMP1Q -NumberOfReceiveQueues 1"
     Set-NetAdapterRss -Name XDPFNMP1Q -NumberOfReceiveQueues 1
 
     Write-Verbose "Configure xdpfnmp ipv4"
-    netsh int ipv4 set int interface=xdpfnmp dadtransmits=0
-    netsh int ipv4 add address name=xdpfnmp address=192.168.200.1/24
-    netsh int ipv4 add neighbor xdpfnmp address=192.168.200.2 neighbor=22-22-22-22-00-02
+    netsh int ipv4 set int interface=xdpfnmp dadtransmits=0 | Write-Verbose
+    netsh int ipv4 add address name=xdpfnmp address=192.168.200.1/24 | Write-Verbose
+    netsh int ipv4 add neighbor xdpfnmp address=192.168.200.2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
     Write-Verbose "Configure xdpfnmp ipv6"
-    netsh int ipv6 set int interface=xdpfnmp dadtransmits=0
-    netsh int ipv6 add address interface=xdpfnmp address=fc00::200:1/112
-    netsh int ipv6 add neighbor xdpfnmp address=fc00::200:2 neighbor=22-22-22-22-00-02
+    netsh int ipv6 set int interface=xdpfnmp dadtransmits=0 | Write-Verbose
+    netsh int ipv6 add address interface=xdpfnmp address=fc00::200:1/112 | Write-Verbose
+    netsh int ipv6 add neighbor xdpfnmp address=fc00::200:2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
     Write-Verbose "Configure xdpfnmp1q ipv4"
-    netsh int ipv4 set int interface=xdpfnmp1q dadtransmits=0
-    netsh int ipv4 add address name=xdpfnmp1q address=192.168.201.1/24
-    netsh int ipv4 add neighbor xdpfnmp1q address=192.168.201.2 neighbor=22-22-22-22-00-02
+    netsh int ipv4 set int interface=xdpfnmp1q dadtransmits=0 | Write-Verbose
+    netsh int ipv4 add address name=xdpfnmp1q address=192.168.201.1/24 | Write-Verbose
+    netsh int ipv4 add neighbor xdpfnmp1q address=192.168.201.2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
     Write-Verbose "Configure xdpfnmp1q ipv6"
-    netsh int ipv6 set int interface=xdpfnmp1q dadtransmits=0
-    netsh int ipv6 add address interface=xdpfnmp1q address=fc00::201:1/112
-    netsh int ipv6 add neighbor xdpfnmp1q address=fc00::201:2 neighbor=22-22-22-22-00-02
+    netsh int ipv6 set int interface=xdpfnmp1q dadtransmits=0 | Write-Verbose
+    netsh int ipv6 add address interface=xdpfnmp1q address=fc00::201:1/112 | Write-Verbose
+    netsh int ipv6 add neighbor xdpfnmp1q address=fc00::201:2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
     Write-Verbose "xdpfnmp.sys install complete!"
 }
 
 # Uninstalls the xdpfnmp driver.
 function Uninstall-XdpFnMp {
-    Write-Host "------- Uninstalling xdpfnmp.sys -------"
+    netsh int ipv4 delete address dpfnmp 192.168.200.1 | Out-Null
+    netsh int ipv4 delete neighbors xdpfnmp | Out-Null
+    netsh int ipv6 delete address xdpfnmp fc00::200:1 | Out-Null
+    netsh int ipv6 delete neighbors xdpfnmp | Out-Null
 
-    netsh int ipv4 delete address dpfnmp 192.168.200.1 2>&1 $null
-    netsh int ipv4 delete neighbors xdpfnmp 2>&1 $null
-    netsh int ipv6 delete address xdpfnmp fc00::200:1 2>&1 $null
-    netsh int ipv6 delete neighbors xdpfnmp 2>&1 $null
+    netsh int ipv4 delete address xdpfnmp1q 192.168.201.1 | Out-Null
+    netsh int ipv4 delete neighbors xdpfnmp1q | Out-Null
+    netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
+    netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
-    netsh int ipv4 delete address xdpfnmp1q 192.168.201.1 2>&1 $null
-    netsh int ipv4 delete neighbors xdpfnmp1q 2>&1 $null
-    netsh int ipv6 delete address xdpfnmp1q fc00::201:1 2>&1 $null
-    netsh int ipv6 delete neighbors xdpfnmp1q 2>&1 $null
-
-    cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId1 2>&1"
+    cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId1 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
-    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1 2>&1"
+    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
-    cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId0 2>&1"
+    cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId0 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId0 device failed: $LastExitCode"
     }
 
-    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0 2>&1"
+    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpFnMpDeviceId0 device failed: $LastExitCode"
     }
