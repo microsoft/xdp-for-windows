@@ -30,11 +30,32 @@
             </Stacks>
         </SystemProvider>
 
-        <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
-        <EventProvider Id="EP_SpinXskWpp" Name="D6143B5D-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" />
-        <EventProvider Id="EP_XdpMpWpp" Name="D6143B5E-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
-        <EventProvider Id="EP_XdpFnMpWpp" Name="D6143B5F-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
-        <EventProvider Id="EP_FndisWpp" Name="D6143B60-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true" />
+        <!-- Leave the highest keywords bit unset to workaround downlevel WPR bug. -->
+        <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id="EP_SpinXskWpp" Name="D6143B5D-9FD6-44BA-BA02-FAD9EA0C263D" Level="5">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id="EP_XdpMpWpp" Name="D6143B5E-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id="EP_XdpFnMpWpp" Name="D6143B5F-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id="EP_FndisWpp" Name="D6143B60-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
 
         <Profile Id="XdpFunctional.Verbose.File" Name="XdpFunctional" Description="XDP Functional Test" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>

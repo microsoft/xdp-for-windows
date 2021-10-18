@@ -63,8 +63,6 @@ $EtlPath = "$LogsDir\$Name.etl"
 $LogPath = "$LogsDir\$Name.log"
 
 function Start-Logging {
-    Write-Host "+++++++ Starting logs +++++++"
-
     if (!(Test-Path $WprpFile)) {
         Write-Error "$WprpFile does not exist!"
     }
@@ -80,7 +78,7 @@ function Start-Logging {
 function Stop-Logging {
     New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
-    Write-Host "------- Stopping logs -------"
+    Write-Verbose "wpr.exe -stop $EtlPath -instancename $Name"
     cmd /c "wpr.exe -stop $EtlPath -instancename $Name 2>&1"
     if ($LastExitCode -ne 0) {
         Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
@@ -93,7 +91,7 @@ function Stop-Logging {
     }
 
     # Enumerate log file sizes.
-    Get-ChildItem $LogsDir | Write-Verbose
+    Get-ChildItem $LogsDir | Format-Table | Out-String | Write-Verbose
 }
 
 if ($Start) {
