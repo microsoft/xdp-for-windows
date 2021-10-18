@@ -50,11 +50,12 @@ XdpGenericFromFilterContext(
     _In_ NDIS_HANDLE FilterModuleContext
     );
 
-VOID
+NTSTATUS
 XdpGenericCreateBinding(
     _Inout_ XDP_LWF_GENERIC *Generic,
     _In_ NDIS_HANDLE NdisFilterHandle,
-    _In_ NET_IFINDEX IfIndex
+    _In_ NET_IFINDEX IfIndex,
+    _Out_ XDP_REGISTER_IF *RegisterIf
     );
 
 VOID

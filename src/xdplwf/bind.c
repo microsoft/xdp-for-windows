@@ -110,6 +110,9 @@ XdpLwfFilterAttach(
     XDP_LWF_FILTER *Filter = NULL;
     NDIS_STATUS Status;
     NDIS_FILTER_ATTRIBUTES FilterAttributes;
+    XDP_REGISTER_IF RegisterIf[2];
+    UINT32 IfCount = 0;
+    UINT32 Index = 0;
 
     UNREFERENCED_PARAMETER(FilterDriverContext);
 
@@ -148,8 +151,35 @@ XdpLwfFilterAttach(
         goto Exit;
     }
 
-    XdpGenericCreateBinding(&Filter->Generic, Filter->FilterHandle, Filter->MiniportIfIndex);
-    XdpNativeCreateBinding(&Filter->Native, Filter->FilterHandle, Filter->MiniportIfIndex);
+    Status =
+        XdpGenericCreateBinding(
+            &Filter->Generic, Filter->FilterHandle, Filter->MiniportIfIndex, &RegisterIf[Index]);
+    if (NT_SUCCESS(Status)) {
+        IfCount++;
+        Index++;
+    }
+
+    Status =
+        XdpNativeCreateBinding(
+            &Filter->Native, Filter->FilterHandle, Filter->MiniportIfIndex, &RegisterIf[Index]);
+    if (NT_SUCCESS(Status)) {
+        IfCount++;
+        Index++;
+    }
+
+    if (IfCount == 0) {
+        ASSERT(!NT_SUCCESS(Status));
+        goto Exit;
+    }
+
+    Status =
+        XdpIfCreateBindings(
+            Filter->MiniportIfIndex, &RegisterIf[0], IfCount, Filter, &Filter->BindingSetHandle);
+    if (!NT_SUCCESS(Status)) {
+        ASSERT(Filter->BindingSetHandle == NULL);
+        Status = XdpConvertNtStatusToNdisStatus(Status);
+        goto Exit;
+    }
 
     Filter = NULL;
 

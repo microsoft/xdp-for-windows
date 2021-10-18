@@ -23,23 +23,23 @@ XDP_HOOK_ID NativeHooks[] = {
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 XdpNativeDeleteBindingComplete(
-    _In_ VOID *InterfaceBindingContext
+    _In_ VOID *BindingContext
     )
 {
-    XDP_LWF_NATIVE *Native = InterfaceBindingContext;
+    XDP_LWF_NATIVE *Native = BindingContext;
 
     KeSetEvent(Native->BindingDeletedEvent, 0, FALSE);
 }
 
-VOID
+NTSTATUS
 XdpNativeCreateBinding(
     _Inout_ XDP_LWF_NATIVE *Native,
     _In_ NDIS_HANDLE NdisFilterHandle,
-    _In_ NET_IFINDEX IfIndex
+    _In_ NET_IFINDEX IfIndex,
+    _Out_ XDP_REGISTER_IF *RegisterIf
     )
 {
     NTSTATUS Status;
-    XDP_REGISTER_IF XdpInterface = {0};
     XDP_CAPABILITIES_EX *CapabilitiesEx = NULL;
     ULONG BytesReturned = 0;
 
@@ -96,22 +96,19 @@ XdpNativeCreateBinding(
 
     Native->Capabilities.CapabilitiesSize = BytesReturned;
 
-    XdpInterface.InterfaceCapabilities = &Native->Capabilities;
-    XdpInterface.DeleteBindingComplete = XdpNativeDeleteBindingComplete;
-    XdpInterface.InterfaceContext = Native;
-
-    Status = XdpIfCreateBinding(IfIndex, &XdpInterface, 1);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
-    Native->BindingHandle = XdpInterface.BindingHandle;
+    RtlZeroMemory(RegisterIf, sizeof(*RegisterIf));
+    RegisterIf->InterfaceCapabilities = &Native->Capabilities;
+    RegisterIf->DeleteBindingComplete = XdpNativeDeleteBindingComplete;
+    RegisterIf->BindingContext = Native;
+    RegisterIf->BindingHandle = &Native->BindingHandle;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
         XdpNativeDeleteBinding(Native);
     }
+
+    return Status;
 }
 
 VOID
@@ -126,7 +123,7 @@ XdpNativeDeleteBinding(
         Native->BindingDeletedEvent = &DeletedEvent;
 
         // Initiate core XDP cleanup and wait for completion.
-        XdpIfDeleteBinding(&Native->BindingHandle, 1);
+        XdpIfDeleteBindings(&Native->BindingHandle, 1);
         KeWaitForSingleObject(&DeletedEvent, Executive, KernelMode, FALSE, NULL);
         Native->BindingDeletedEvent = NULL;
         Native->BindingHandle = NULL;

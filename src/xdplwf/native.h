@@ -13,11 +13,12 @@ typedef struct _XDP_LWF_NATIVE {
     KEVENT *BindingDeletedEvent;
 } XDP_LWF_NATIVE;
 
-VOID
+NTSTATUS
 XdpNativeCreateBinding(
     _Inout_ XDP_LWF_NATIVE *Native,
     _In_ NDIS_HANDLE NdisFilterHandle,
-    _In_ NET_IFINDEX IfIndex
+    _In_ NET_IFINDEX IfIndex,
+    _Out_ XDP_REGISTER_IF *RegisterIf
     );
 
 VOID

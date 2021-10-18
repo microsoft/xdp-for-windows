@@ -419,7 +419,7 @@ XdpGenericCleanupBinding(
         //
         // Initiate core XDP cleanup and wait for completion.
         //
-        XdpIfDeleteBinding(&Generic->BindingHandle, 1);
+        XdpIfDeleteBindings(&Generic->BindingHandle, 1);
         KeWaitForSingleObject(
             &Generic->BindingDeletedEvent, Executive, KernelMode, FALSE, NULL);
         Generic->BindingHandle = NULL;
@@ -433,24 +433,24 @@ XdpGenericCleanupBinding(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpGenericCloseBindingComplete(
-    _In_ VOID *InterfaceBindingContext
+XdpGenericDeleteBindingComplete(
+    _In_ VOID *BindingContext
     )
 {
-    XDP_LWF_GENERIC *Generic = InterfaceBindingContext;
+    XDP_LWF_GENERIC *Generic = BindingContext;
 
     KeSetEvent(&Generic->BindingDeletedEvent, 0, FALSE);
 }
 
-VOID
+NTSTATUS
 XdpGenericCreateBinding(
     _Inout_ XDP_LWF_GENERIC *Generic,
     _In_ NDIS_HANDLE NdisFilterHandle,
-    _In_ NET_IFINDEX IfIndex
+    _In_ NET_IFINDEX IfIndex,
+    _Out_ XDP_REGISTER_IF *RegisterIf
     )
 {
     NTSTATUS Status;
-    XDP_REGISTER_IF XdpInterface = {0};
     CONST XDP_VERSION DriverApiVersion = {
         .Major = XDP_DRIVER_API_MAJOR_VER,
         .Minor = XDP_DRIVER_API_MINOR_VER,
@@ -487,22 +487,19 @@ XdpGenericCreateBinding(
         goto Exit;
     }
 
-    XdpInterface.InterfaceCapabilities = &Generic->InternalCapabilities;
-    XdpInterface.DeleteBindingComplete = XdpGenericCloseBindingComplete;
-    XdpInterface.InterfaceContext = Generic;
-
-    Status = XdpIfCreateBinding(IfIndex, &XdpInterface, 1);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
-    Generic->BindingHandle = XdpInterface.BindingHandle;
+    RtlZeroMemory(RegisterIf, sizeof(*RegisterIf));
+    RegisterIf->InterfaceCapabilities = &Generic->InternalCapabilities;
+    RegisterIf->DeleteBindingComplete = XdpGenericDeleteBindingComplete;
+    RegisterIf->BindingContext = Generic;
+    RegisterIf->BindingHandle = &Generic->BindingHandle;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
         XdpGenericCleanupBinding(Generic);
     }
+
+    return Status;
 }
 
 VOID

@@ -18,6 +18,7 @@ typedef struct _XDP_LWF_FILTER {
     NDIS_HANDLE FilterHandle;
     NET_IFINDEX MiniportIfIndex;
     XDP_LWF_FILTER_STATE NdisState;
+    XDP_IF_BINDING_SET_HANDLE BindingSetHandle;
 
     XDP_LWF_GENERIC Generic;
     XDP_LWF_NATIVE Native;

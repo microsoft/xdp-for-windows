@@ -8,6 +8,7 @@
 #include <xdpifmode.h>
 
 DECLARE_HANDLE(XDP_IF_BINDING_HANDLE);
+DECLARE_HANDLE(XDP_IF_BINDING_SET_HANDLE);
 
 typedef struct _XDP_CAPABILITIES_INTERNAL {
     //
@@ -38,36 +39,38 @@ typedef struct _XDP_CAPABILITIES_INTERNAL {
 typedef
 VOID
 XDP_DELETE_BINDING_COMPLETE(
-    _In_ VOID *InterfaceContext
+    _In_ VOID *BindingContext
     );
 
 //
 // Parameters for XdpIfCreateBinding.
 //
 typedef struct _XDP_REGISTER_IF {
-    _In_ VOID *InterfaceContext;
+    _In_ VOID *BindingContext;
     _In_ CONST XDP_CAPABILITIES_INTERNAL *InterfaceCapabilities;
     _In_ XDP_DELETE_BINDING_COMPLETE *DeleteBindingComplete;
-    _Out_ XDP_IF_BINDING_HANDLE BindingHandle;
+    _Out_ XDP_IF_BINDING_HANDLE *BindingHandle;
 } XDP_REGISTER_IF;
 
 //
-// Create an XDP interface binding.
+// Create XDP interface bindings.
 //
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfCreateBinding(
+XdpIfCreateBindings(
     _In_ NET_IFINDEX IfIndex,
     _Inout_ XDP_REGISTER_IF *Interfaces,
-    _In_ ULONG InterfaceCount
+    _In_ UINT32 InterfaceCount,
+    _In_ VOID *BindingSetContext,
+    _Out_ XDP_IF_BINDING_SET_HANDLE *BindingSetHandle
     );
 
 //
-// Delete an XDP interface binding.
+// Delete XDP interface bindings.
 //
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpIfDeleteBinding(
+XdpIfDeleteBindings(
     _In_reads_(HandleCount) XDP_IF_BINDING_HANDLE *BindingHandles,
-    _In_ ULONG HandleCount
+    _In_ UINT32 HandleCount
     );

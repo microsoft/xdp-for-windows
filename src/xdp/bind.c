@@ -73,6 +73,7 @@ typedef struct _XDP_INTERFACE_NMR {
 typedef struct _XDP_INTERFACE_SET {
     LIST_ENTRY Link;
     NET_IFINDEX IfIndex;
+    XDP_INTERFACE_HANDLE InterfaceBindingSetContext;
     XDP_INTERFACE *Interfaces[2];   // One binding for both generic and native.
 } XDP_INTERFACE_SET;
 
@@ -86,7 +87,7 @@ static CONST XDP_VERSION XdpDriverApiCurrentVersion = {
 };
 
 static EX_PUSH_LOCK XdpBindingLock;
-static LIST_ENTRY XdpBindings;
+static LIST_ENTRY XdpBindingSets;
 static BOOLEAN XdpBindInitialized = FALSE;
 
 static
@@ -493,9 +494,9 @@ XdpIfpFindIfSet(
     )
 {
     XDP_INTERFACE_SET *IfSet = NULL;
-    LIST_ENTRY *Entry = XdpBindings.Flink;
+    LIST_ENTRY *Entry = XdpBindingSets.Flink;
 
-    while (Entry != &XdpBindings) {
+    while (Entry != &XdpBindingSets) {
         XDP_INTERFACE_SET *Candidate = CONTAINING_RECORD(Entry, XDP_INTERFACE_SET, Link);
         Entry = Entry->Flink;
 
@@ -771,50 +772,49 @@ XdpIfpTrimIfSet(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfCreateBinding(
+XdpIfCreateBindings(
     _In_ NET_IFINDEX IfIndex,
     _Inout_ XDP_REGISTER_IF *Interfaces,
-    _In_ ULONG InterfaceCount
+    _In_ UINT32 InterfaceCount,
+    _In_ VOID *BindingSetContext,
+    _Out_ XDP_IF_BINDING_SET_HANDLE *BindingSetHandle
     )
 {
     NTSTATUS Status;
     XDP_INTERFACE_SET *IfSet = NULL;
 
+    //
     // This function is invoked by an interface provider (e.g. NDIS6 via XdpLwf)
     // when a NIC is added.
+    //
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", IfIndex);
 
     ExAcquirePushLockExclusive(&XdpBindingLock);
 
     //
-    // Check for duplicate (interface index, mode) tuples.
+    // Check for duplicate binding set.
     //
     IfSet = XdpIfpFindIfSet(IfIndex);
-    for (ULONG Index = 0; IfSet != NULL && Index < InterfaceCount; Index++) {
-        XDP_INTERFACE_MODE Mode = Interfaces[Index].InterfaceCapabilities->Mode;
-        if (IfSet->Interfaces[Mode] != NULL) {
-            ASSERT(FALSE);
-            Status = STATUS_DUPLICATE_OBJECTID;
-            goto Exit;
-        }
+    if (IfSet != NULL) {
+        Status = STATUS_DUPLICATE_OBJECTID;
+        goto Exit;
     }
 
     //
     // Create a helper entry per interface index.
     //
+    IfSet = ExAllocatePoolZero(PagedPool, sizeof(*IfSet), XDP_POOLTAG_BINDING);
     if (IfSet == NULL) {
-        IfSet = ExAllocatePoolZero(PagedPool, sizeof(*IfSet), XDP_POOLTAG_BINDING);
-        if (IfSet == NULL) {
-            Status = STATUS_NO_MEMORY;
-            goto Exit;
-        }
-        IfSet->IfIndex = IfIndex;
-        InitializeListHead(&IfSet->Link);
-        InsertTailList(&XdpBindings, &IfSet->Link);
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
     }
+    IfSet->IfIndex = IfIndex;
+    IfSet->InterfaceBindingSetContext = BindingSetContext;
+    InitializeListHead(&IfSet->Link);
+    InsertTailList(&XdpBindingSets, &IfSet->Link);
 
-    for (ULONG Index = 0; Index < InterfaceCount; Index++) {
+    for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_REGISTER_IF *Registration = &Interfaces[Index];
         XDP_INTERFACE *Binding = NULL;
 
@@ -837,7 +837,7 @@ XdpIfCreateBinding(
         Binding->IfIndex = IfIndex;
         Binding->IfSet = IfSet;
         Binding->DeleteBindingComplete = Registration->DeleteBindingComplete;
-        Binding->InterfaceBindingContext = Registration->InterfaceContext;
+        Binding->InterfaceBindingContext = Registration->BindingContext;
         Binding->OpenConfig.Dispatch = &XdpOpenDispatch;
         Binding->ReferenceCount = 1;
         RtlCopyMemory(
@@ -856,24 +856,25 @@ XdpIfCreateBinding(
 
         ASSERT(IfSet->Interfaces[Binding->Capabilities.Mode] == NULL);
         IfSet->Interfaces[Binding->Capabilities.Mode] = Binding;
-        Registration->BindingHandle = (XDP_IF_BINDING_HANDLE)Binding;
+        *Registration->BindingHandle = (XDP_IF_BINDING_HANDLE)Binding;
 
         TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%u BindingContext=%p registered",
             Binding->IfIndex, Binding->Capabilities.Mode, Binding->InterfaceBindingContext);
     }
 
+    *BindingSetHandle = (XDP_IF_BINDING_SET_HANDLE)IfSet;
     Status = STATUS_SUCCESS;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        for (ULONG Index = 0; Index < InterfaceCount; Index++) {
-            if (Interfaces[Index].BindingHandle != NULL) {
+        for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
+            if (*Interfaces[Index].BindingHandle != NULL) {
                 XDP_INTERFACE *Binding;
-                Binding = (XDP_INTERFACE *)Interfaces[Index].BindingHandle;
+                Binding = (XDP_INTERFACE *)(*Interfaces[Index].BindingHandle);
                 ASSERT(IfSet);
                 IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
-                Interfaces[Index].BindingHandle = NULL;
+                *Interfaces[Index].BindingHandle = NULL;
                 XdpIfpDereferenceBinding(Binding);
             }
         }
@@ -891,17 +892,19 @@ Exit:
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpIfDeleteBinding(
+XdpIfDeleteBindings(
     _In_reads_(HandleCount) XDP_IF_BINDING_HANDLE *BindingHandles,
-    _In_ ULONG HandleCount
+    _In_ UINT32 HandleCount
     )
 {
+    //
     // This function is invoked by an interface provider (e.g. XDP LWF)
     // when a NIC is deleted.
+    //
 
     ExAcquirePushLockExclusive(&XdpBindingLock);
 
-    for (ULONG Index = 0; Index < HandleCount; Index++) {
+    for (UINT32 Index = 0; Index < HandleCount; Index++) {
         XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandles[Index];
 
         TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%u deregistering",
@@ -1307,7 +1310,7 @@ XdpIfStart(
     )
 {
     ExInitializePushLock(&XdpBindingLock);
-    InitializeListHead(&XdpBindings);
+    InitializeListHead(&XdpBindingSets);
     XdpBindInitialized = TRUE;
     return STATUS_SUCCESS;
 }
@@ -1325,7 +1328,7 @@ XdpIfStop(
 
     ExAcquirePushLockExclusive(&XdpBindingLock);
 
-    ASSERT(IsListEmpty(&XdpBindings));
+    ASSERT(IsListEmpty(&XdpBindingSets));
 
     ExReleasePushLockExclusive(&XdpBindingLock);
 }
