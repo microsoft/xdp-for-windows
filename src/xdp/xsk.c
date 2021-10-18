@@ -1481,7 +1481,7 @@ XskNotifyAttachRxQueue(
         XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
     XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.VaExtension);
 
-    if (XdpRxQueueGetMaxmimumFragments(Config) > 1) {
+    if (XdpRxQueueGetMaximumFragments(Config) > 1) {
         Xsk->Rx.Xdp.FragmentRing = XdpRxQueueGetFragmentRing(Config);
 
         XdpInitializeExtensionInfo(

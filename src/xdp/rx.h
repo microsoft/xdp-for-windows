@@ -94,7 +94,7 @@ XdpRxQueueIsRxBatchEnabled(
     );
 
 UINT8
-XdpRxQueueGetMaxmimumFragments(
+XdpRxQueueGetMaximumFragments(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
 
