@@ -151,6 +151,7 @@ function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
         Start-Sleep -Milliseconds 100
     }
     if ($StartSuccess -eq $false) {
+        Get-NetAdapter | Format-Table | Out-String | Write-Verbose
         Write-Error "Failed to start $Count `"$IfDesc`" adapters(s) [$Result/$Count]"
     } else {
         Write-Verbose "Started $Count `"$IfDesc`" adapter(s)"

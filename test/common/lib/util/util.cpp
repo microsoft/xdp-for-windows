@@ -18,8 +18,7 @@ EXTERN_C
 CONST CHAR*
 GetPowershellPrefix()
 {
-    return (system("pwsh -v 2> NUL") == 0) ?
-        "pwsh -ExecutionPolicy Bypass" : "powershell -noprofile -ExecutionPolicy Bypass";
+    return "powershell -noprofile -ExecutionPolicy Bypass";
 }
 
 EXTERN_C

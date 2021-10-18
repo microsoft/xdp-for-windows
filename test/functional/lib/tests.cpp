@@ -557,7 +557,23 @@ CreateAndBindSocket(
     } else if (XdpMode == XDP_NATIVE) {
         BindFlags |= XSK_BIND_NATIVE;
     }
-    BindSocket(Socket.Handle.get(), IfIndex, QueueId, BindFlags);
+
+    //
+    // Since test actions (e.g. restart) might disrupt the interface, retry
+    // bindings until the system must have quiesced.
+    //
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    HRESULT BindResult;
+    do {
+        BindResult = XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags, NULL);
+        if (SUCCEEDED(BindResult)) {
+            break;
+        } else {
+            Sleep(100);
+        }
+    } while (!Watchdog.IsExpired());
+    TEST_HRESULT(BindResult);
+
     GetRingInfo(Socket.Handle.get(), &InfoSet);
     XskRingInitialize(&Socket.Rings.Fill, &InfoSet.fill);
     XskRingInitialize(&Socket.Rings.Completion, &InfoSet.completion);
