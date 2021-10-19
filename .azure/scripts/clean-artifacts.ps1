@@ -27,17 +27,17 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 # Artifact paths.
 $RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$ArtifactsDir = Join-Path $RootDir "artifacts" "bin" "$($Arch)_$($Config)"
+$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 
 # Move files into the specific driver folders.
-Move-Item (Join-Path $ArtifactsDir "fndis.lib") (Join-Path $ArtifactsDir "fndis" "fndis.lib")
+Move-Item "$ArtifactsDir\fndis.lib" "$ArtifactsDir\fndis\fndis.lib"
 
 # Delete all unnecessary duplicates.
-Remove-Item (Join-Path $ArtifactsDir "fndis.sys")
-Remove-Item (Join-Path $ArtifactsDir "xdp.inf")
-Remove-Item (Join-Path $ArtifactsDir "xdp.sys")
-Remove-Item (Join-Path $ArtifactsDir "xdpfnmp.inf")
-Remove-Item (Join-Path $ArtifactsDir "xdpfnmp.sys")
-Remove-Item (Join-Path $ArtifactsDir "xdpmp.inf")
-Remove-Item (Join-Path $ArtifactsDir "xdpmp.sys")
-Remove-Item (Join-Path $ArtifactsDir "xdpmp" "fndis.sys")
+Remove-Item "$ArtifactsDir\fndis.sys"
+Remove-Item "$ArtifactsDir\xdp.inf"
+Remove-Item "$ArtifactsDir\xdp.sys"
+Remove-Item "$ArtifactsDir\xdpfnmp.inf"
+Remove-Item "$ArtifactsDir\xdpfnmp.sys"
+Remove-Item "$ArtifactsDir\xdpmp.inf"
+Remove-Item "$ArtifactsDir\xdpmp.sys"
+Remove-Item "$ArtifactsDir\xdpmp\fndis.sys"
