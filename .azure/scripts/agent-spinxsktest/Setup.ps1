@@ -28,4 +28,4 @@ Write-Host "Enable driver verifier"
 #
 # WARNING: xdp.sys itself may fail to load due to low resources simulation.
 #
-verifier.exe /standard /faults 599 "" "" 0 /driver xdp.sys
+verifier.exe /standard /faults 599 `"`" `"`" 0 /driver xdp.sys

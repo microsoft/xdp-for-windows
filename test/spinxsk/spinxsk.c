@@ -1411,7 +1411,7 @@ QueueWorkerFn(
     // Require a certain percentage of sockets to complete the setup phase as a
     // proxy for ensuring effective code coverage.
     //
-    ASSERT_FRE(successPct >= 50);
+    ASSERT_FRE(successPct >= 10);
 
     TraceExit("q[%u]", queueWorker->queueId);
     return 0;

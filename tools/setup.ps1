@@ -204,6 +204,8 @@ function Install-Xdp {
         Write-Error "netcfg.exe exit code: $LastExitCode"
     }
 
+    Start-Service-With-Retry xdp
+
     Write-Verbose "xdp.sys install complete!"
 }
 
