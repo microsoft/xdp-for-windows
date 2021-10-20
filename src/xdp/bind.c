@@ -208,7 +208,7 @@ XdpIfpDetachNmrInterface(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)Nmr->WorkItem.BindingHandle;
 
     TraceVerbose(
-        TRACE_CORE, "IfIndex=%u Mode=%u NMR detach notification",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! NMR detach notification",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     KeSetEvent(&Nmr->DetachNotification, 0, FALSE);
@@ -225,7 +225,7 @@ XdpIfpCloseNmrInterface(
     XDP_INTERFACE_NMR *Nmr = Binding->Nmr;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     ASSERT(Binding->ProviderReference == 0);
@@ -250,7 +250,7 @@ XdpIfpInvokeCloseInterface(
     )
 {
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (Binding->InterfaceDispatch->CloseInterface != NULL) {
@@ -267,7 +267,7 @@ XdpIfpCloseInterface(
     )
 {
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (Binding->InterfaceContext != NULL) {
@@ -304,7 +304,7 @@ XdpIfpInvokeOpenInterface(
     NTSTATUS Status = STATUS_SUCCESS;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (InterfaceDispatch->OpenInterface != NULL) {
@@ -360,7 +360,7 @@ XdpRequestClientDispatch(
             if (NT_SUCCESS(Status)) {
                 Binding->DriverApiVersion = *ClientVersion;
                 TraceInfo(
-                    TRACE_CORE, "IfIndex=%u Mode=%u Received interface dispatch"
+                    TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Received interface dispatch"
                     " table for ClientVersion=%u.%u.%u",
                     Binding->IfIndex, Binding->Capabilities.Mode,
                     ClientVersion->Major, ClientVersion->Minor, ClientVersion->Patch);
@@ -368,7 +368,7 @@ XdpRequestClientDispatch(
             } else {
                 TraceWarn(
                     TRACE_CORE,
-                    "IfIndex=%u Mode=%u Failed to get interface dispatch table"
+                    "IfIndex=%u Mode=%!XDP_MODE! Failed to get interface dispatch table"
                     " Status=%!STATUS!", Binding->IfIndex, Binding->Capabilities.Mode,
                     Status);
                 Status = STATUS_NOT_SUPPORTED;
@@ -378,7 +378,7 @@ XdpRequestClientDispatch(
 
     if (!NT_SUCCESS(Status)) {
         TraceWarn(
-            TRACE_CORE, "IfIndex=%u Mode=%u No compatible interface was found",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! No compatible interface was found",
             Binding->IfIndex, Binding->Capabilities.Mode);
     }
     return Status;
@@ -399,13 +399,13 @@ XdpIfpOpenInterface(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (CapabilitiesEx->Header.Revision < XDP_CAPABILITIES_EX_REVISION_1 ||
         CapabilitiesEx->Header.Size < XDP_SIZEOF_CAPABILITIES_EX_REVISION_1) {
         TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%u Invalid capabilities",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Invalid capabilities",
             Binding->IfIndex, Binding->Capabilities.Mode);
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
@@ -417,7 +417,7 @@ XdpIfpOpenInterface(
         ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding->Nmr), XDP_POOLTAG_BINDING);
     if (Binding->Nmr == NULL) {
         TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%u NMR allocation failed",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! NMR allocation failed",
             Binding->IfIndex, Binding->Capabilities.Mode);
         Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -440,7 +440,7 @@ XdpIfpOpenInterface(
             &Binding->Nmr->NmrHandle);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%u Failed to open NMR binding",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Failed to open NMR binding",
             Binding->IfIndex, Binding->Capabilities.Mode);
         goto Exit;
     }
@@ -459,7 +459,7 @@ XdpIfpOpenInterface(
     Status = XdpIfpInvokeOpenInterface(Binding, InterfaceContext, InterfaceDispatch);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%u Interface open failed",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Interface open failed",
             Binding->IfIndex, Binding->Capabilities.Mode);
         goto Exit;
     }
@@ -643,7 +643,7 @@ XdpIfpStartRundown(
     )
 {
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (Binding->ProviderReference == 0) {
@@ -674,7 +674,7 @@ XdpIfpBindingDelete(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)Item->BindingHandle;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Binding->IfIndex, Binding->Capabilities.Mode);
 
     Binding->BindingDeleting = TRUE;
@@ -698,7 +698,8 @@ XdpIfpBindingNmrDelete(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)Item->BindingHandle;
     XDP_INTERFACE_NMR *Nmr = CONTAINING_RECORD(Item, XDP_INTERFACE_NMR, WorkItem);
 
-    TraceEnter(TRACE_CORE, "IfIndex=%u Mode=%u", Binding->IfIndex, Binding->Capabilities.Mode);
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!", Binding->IfIndex, Binding->Capabilities.Mode);
 
     if (Nmr->NmrHandle != NULL) {
         ASSERT(Binding->NmrDeleting == FALSE);
@@ -822,7 +823,7 @@ XdpIfCreateBindings(
                 Registration->InterfaceCapabilities->CapabilitiesEx,
                 Registration->InterfaceCapabilities->CapabilitiesSize)) {
             TraceError(
-                TRACE_CORE, "IfIndex=%u Mode=%u Invalid capabilities",
+                TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Invalid capabilities",
                 IfIndex, Registration->InterfaceCapabilities->Mode);
             Status = STATUS_NOT_SUPPORTED;
             goto Exit;
@@ -858,7 +859,7 @@ XdpIfCreateBindings(
         IfSet->Interfaces[Binding->Capabilities.Mode] = Binding;
         *Registration->BindingHandle = (XDP_IF_BINDING_HANDLE)Binding;
 
-        TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%u BindingContext=%p registered",
+        TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! BindingContext=%p registered",
             Binding->IfIndex, Binding->Capabilities.Mode, Binding->InterfaceBindingContext);
     }
 
@@ -907,7 +908,7 @@ XdpIfDeleteBindings(
     for (UINT32 Index = 0; Index < HandleCount; Index++) {
         XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandles[Index];
 
-        TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%u deregistering",
+        TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! deregistering",
             Binding->IfIndex, Binding->Capabilities.Mode);
         Binding->IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
         XdpIfpTrimIfSet(Binding->IfSet);
@@ -949,7 +950,7 @@ XdpIfRegisterClient(
 
     if (Binding->BindingDeleting) {
         TraceInfo(
-            TRACE_CORE, "IfIndex=%u Mode=%u client registration failed: binding deleting",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! client registration failed: binding deleting",
             Binding->IfIndex, Binding->Capabilities.Mode);
         return STATUS_DELETE_PENDING;
     }
@@ -967,7 +968,8 @@ XdpIfRegisterClient(
                 (Candidate->Client->ClientId != Client->ClientId) ||
                 !RtlEqualMemory(Candidate->Key, Key, Client->KeySize))) {
             TraceInfo(
-                TRACE_CORE, "IfIndex=%u Mode=%u client registration failed: duplicate client",
+                TRACE_CORE,
+                "IfIndex=%u Mode=%!XDP_MODE! client registration failed: duplicate client",
                 Binding->IfIndex, Binding->Capabilities.Mode);
             return STATUS_DUPLICATE_OBJECTID;
         }
@@ -1051,7 +1053,7 @@ XdpIfpReferenceInterface(
     if (Binding->Rundown) {
         Status = STATUS_DELETE_PENDING;
         TraceInfo(
-            TRACE_CORE, "IfIndex=%u Mode=%u reference failed: rundown",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! reference failed: rundown",
             Binding->IfIndex, Binding->Capabilities.Mode);
         goto Exit;
     }
@@ -1061,7 +1063,7 @@ XdpIfpReferenceInterface(
         Status = XdpIfpOpenInterface(Binding);
         if (!NT_SUCCESS(Status)) {
             TraceInfo(
-                TRACE_CORE, "IfIndex=%u Mode=%u reference failed: open interface",
+                TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! reference failed: open interface",
                 Binding->IfIndex, Binding->Capabilities.Mode);
             goto Exit;
         }
@@ -1100,7 +1102,7 @@ XdpIfpInvokeCreateRxQueue(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u QueueId=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
         Binding->IfIndex, Binding->Capabilities.Mode,
         XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
 
@@ -1126,7 +1128,7 @@ XdpIfCreateRxQueue(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u QueueId=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
         Binding->IfIndex, Binding->Capabilities.Mode,
         XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
 
@@ -1167,7 +1169,7 @@ XdpIfActivateRxQueue(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u InterfaceQueue=%p",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Binding->IfIndex, Binding->Capabilities.Mode, InterfaceRxQueue);
 
     Binding->InterfaceDispatch->ActivateRxQueue(InterfaceRxQueue, XdpRxQueue, Config);
@@ -1185,7 +1187,7 @@ XdpIfDeleteRxQueue(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u InterfaceQueue=%p",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Binding->IfIndex, Binding->Capabilities.Mode, InterfaceRxQueue);
 
     Binding->InterfaceDispatch->DeleteRxQueue(InterfaceRxQueue);
@@ -1208,7 +1210,7 @@ XdpIfpInvokeCreateTxQueue(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u QueueId=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
         Binding->IfIndex, Binding->Capabilities.Mode,
         XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
 
@@ -1233,7 +1235,7 @@ XdpIfCreateTxQueue(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u QueueId=%u",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
         Binding->IfIndex, Binding->Capabilities.Mode,
         XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
 
@@ -1274,7 +1276,7 @@ XdpIfActivateTxQueue(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u InterfaceQueue=%p",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Binding->IfIndex, Binding->Capabilities.Mode, InterfaceTxQueue);
 
     Binding->InterfaceDispatch->ActivateTxQueue(InterfaceTxQueue, XdpTxQueue, Config);
@@ -1292,7 +1294,7 @@ XdpIfDeleteTxQueue(
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%u InterfaceQueue=%p",
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Binding->IfIndex, Binding->Capabilities.Mode, InterfaceTxQueue);
 
     Binding->InterfaceDispatch->DeleteTxQueue(InterfaceTxQueue);
