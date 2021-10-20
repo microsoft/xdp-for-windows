@@ -84,9 +84,8 @@ One-time setup:
 # ""  - Pool tag filter
 # ""  - Application filter
 # 0   - Delay (in minutes) after boot until simulation engages
-# WARNING: spinxsk.dll may fail to load xdp.sys due to low resources simulation.
-#          Simply re-run spinxsk.dll to try again.
-verifier.exe /standard /faults 599 `"`" `"`" 0  /driver fndis.sys xdp.sys xdpmp.sys
+# WARNING: xdp.sys itself may fail to load due to low resources simulation.
+verifier.exe /standard /faults 599 `"`" `"`" 0  /driver xdp.sys
 shutdown.exe /r /f /t 0
 ```
 
