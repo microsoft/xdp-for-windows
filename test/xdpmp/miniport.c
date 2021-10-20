@@ -266,7 +266,8 @@ MpInitialize(
         goto Exit;
     }
 
-    TraceVerbose(TRACE_CONTROL, "Allocated Adapter=%p", Adapter);
+    TraceInfo(
+        TRACE_CONTROL, "Adapter=%p allocated IfIndex=%u", Adapter, InitParameters->IfIndex);
 
     NdisZeroMemory(&AdapterAttributes, sizeof(NDIS_MINIPORT_ADAPTER_ATTRIBUTES));
 
@@ -748,6 +749,7 @@ MpFreeAdapter(
         Adapter->NblRundown = NULL;
     }
 
+    TraceInfo(TRACE_CONTROL, "Adapter=%p freed", Adapter);
     ExFreePool(Adapter);
 }
 

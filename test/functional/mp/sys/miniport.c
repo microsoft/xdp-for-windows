@@ -30,6 +30,7 @@ MpCleanupAdapter(
     }
 
     MpIoctlDereference();
+    TraceInfo(TRACE_CONTROL, "Adapter=%p freed", Adapter);
     ExFreePool(Adapter);
 }
 
@@ -214,7 +215,7 @@ MiniportInitializeHandler(
    )
 {
     ADAPTER_CONTEXT *Adapter = NULL;
-    NDIS_STATUS NdisStatus = NDIS_STATUS_SUCCESS;
+    NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     NDIS_MINIPORT_ADAPTER_ATTRIBUTES AdapterAttributes;
     NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES *RegAttributes;
     NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES GeneralAttributes;
@@ -222,11 +223,16 @@ MiniportInitializeHandler(
 
     UNREFERENCED_PARAMETER(MiniportDriverContext);
 
+    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", NdisMiniportHandle);
+
     Adapter = MpCreateAdapter(NdisMiniportHandle, InitParameters->IfIndex);
     if (Adapter == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
+
+    TraceInfo(
+        TRACE_CONTROL, "Adapter=%p allocated IfIndex=%u", Adapter, InitParameters->IfIndex);
 
     NdisMoveMemory(Adapter->MACAddress, MpMacAddressBase, MAC_ADDR_LEN);
 
@@ -244,13 +250,13 @@ MiniportInitializeHandler(
     RegAttributes->CheckForHangTimeInSeconds = 0;
     RegAttributes->InterfaceType = NdisInterfacePNPBus;
 
-    NdisStatus = NdisMSetMiniportAttributes(NdisMiniportHandle, &AdapterAttributes);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = NdisMSetMiniportAttributes(NdisMiniportHandle, &AdapterAttributes);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
-    NdisStatus = MpReadConfiguration(Adapter);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = MpReadConfiguration(Adapter);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
@@ -308,20 +314,20 @@ MiniportInitializeHandler(
     }
 
     NDIS_DECLARE_MINIPORT_ADAPTER_CONTEXT(ADAPTER_CONTEXT);
-    NdisStatus =
+    Status =
         NdisMSetMiniportAttributes(
             NdisMiniportHandle, (NDIS_MINIPORT_ADAPTER_ATTRIBUTES *)&GeneralAttributes);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
-    NdisStatus = MpSetOffloadAttributes(Adapter);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = MpSetOffloadAttributes(Adapter);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
-    NdisStatus = MpCreateRssQueues(Adapter);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = MpCreateRssQueues(Adapter);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
@@ -331,11 +337,13 @@ MiniportInitializeHandler(
 
 Exit:
 
-    if (NdisStatus != NDIS_STATUS_SUCCESS && Adapter != NULL) {
+    if (Status != NDIS_STATUS_SUCCESS && Adapter != NULL) {
         MpDereferenceAdapter(Adapter);
     }
 
-    return NdisStatus;
+    TraceExitStatus(TRACE_CONTROL);
+
+    return Status;
 }
 
 static
@@ -347,6 +355,8 @@ MiniportHaltHandler(
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     UNREFERENCED_PARAMETER(HaltAction);
 
     ExAcquirePushLockExclusive(&MpGlobalContext.Lock);
@@ -357,6 +367,8 @@ MiniportHaltHandler(
     ExReleasePushLockExclusive(&MpGlobalContext.Lock);
 
     MpDereferenceAdapter(Adapter);
+
+    TraceExit(TRACE_CONTROL);
 }
 
 static

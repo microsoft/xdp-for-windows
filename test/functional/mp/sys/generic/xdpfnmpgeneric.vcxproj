@@ -57,6 +57,7 @@
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>$(ProjectDir)..\trace.h</WppScanConfigurationData>
       <WppRecorderEnabled>true</WppRecorderEnabled>
+      <WppAdditionalOptions>-p:xdpfnmp</WppAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

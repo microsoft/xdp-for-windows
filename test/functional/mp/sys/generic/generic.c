@@ -3,6 +3,7 @@
 //
 
 #include "precomp.h"
+#include "generic.tmh"
 
 NDIS_STATUS
 MiniportRestartHandler(
@@ -12,9 +13,13 @@ MiniportRestartHandler(
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     UNREFERENCED_PARAMETER(RestartParameters);
 
     ExReInitializeRundownProtection(&Adapter->Generic->NblRundown);
+
+    TraceExit(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -27,10 +32,14 @@ MiniportPauseHandler(
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
 
+    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+
     UNREFERENCED_PARAMETER(PauseParameters);
 
     Adapter->LastPauseTimestamp = KeQueryPerformanceCounter(NULL);
     ExWaitForRundownProtectionRelease(&Adapter->Generic->NblRundown);
+
+    TraceExit(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
