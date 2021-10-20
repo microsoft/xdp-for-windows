@@ -755,6 +755,17 @@ MpOpenNative(
 }
 
 static
+HRESULT
+MpRxTryEnqueue(
+    _In_ const wil::unique_handle& Handle,
+    _In_ RX_FRAME *Frame,
+    _In_ RX_BUFFER *Buffer
+    )
+{
+    return FnMpRxEnqueue(Handle.get(), Frame, Buffer);
+}
+
+static
 VOID
 MpRxEnqueue(
     _In_ const wil::unique_handle& Handle,
@@ -762,12 +773,12 @@ MpRxEnqueue(
     _In_ RX_BUFFER *Buffer
     )
 {
-    TEST_HRESULT(FnMpRxEnqueue(Handle.get(), Frame, Buffer));
+    TEST_HRESULT(MpRxTryEnqueue(Handle, Frame, Buffer));
 }
 
 static
-VOID
-MpRxEnqueueFrame(
+HRESULT
+MpRxTryEnqueueFrame(
     _In_ const wil::unique_handle& Handle,
     _In_ UINT32 HashQueueId,
     _In_ VOID *FrameBuffer,
@@ -783,7 +794,29 @@ MpRxEnqueueFrame(
     Buffer.DataLength = FrameLength;
     Buffer.BufferLength = FrameLength;
     Buffer.VirtualAddress = (UCHAR *)FrameBuffer;
-    MpRxEnqueue(Handle, &Frame, &Buffer);
+    return MpRxTryEnqueue(Handle, &Frame, &Buffer);
+}
+
+static
+VOID
+MpRxEnqueueFrame(
+    _In_ const wil::unique_handle& Handle,
+    _In_ UINT32 HashQueueId,
+    _In_ VOID *FrameBuffer,
+    _In_ UINT32 FrameLength
+    )
+{
+    TEST_HRESULT(MpRxTryEnqueueFrame(Handle, HashQueueId, FrameBuffer, FrameLength));
+}
+
+static
+HRESULT
+MpRxTryFlush(
+    _In_ const wil::unique_handle& Handle,
+    _In_opt_ RX_FLUSH_OPTIONS *Options = nullptr
+    )
+{
+    return FnMpRxFlush(Handle.get(), Options);
 }
 
 static
@@ -793,7 +826,31 @@ MpRxFlush(
     _In_opt_ RX_FLUSH_OPTIONS *Options = nullptr
     )
 {
-    TEST_HRESULT(FnMpRxFlush(Handle.get(), Options));
+    TEST_HRESULT(MpRxTryFlush(Handle, Options));
+}
+
+static
+HRESULT
+MpRxTryIndicateFrame(
+    _In_ const wil::unique_handle& Handle,
+    _In_ UINT32 HashQueueId,
+    _In_ VOID *FrameBuffer,
+    _In_ UINT32 FrameLength
+    )
+{
+    HRESULT Result;
+
+    Result = MpRxTryEnqueueFrame(Handle, HashQueueId, FrameBuffer, FrameLength);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    Result = MpRxTryFlush(Handle);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    return S_OK;
 }
 
 static
@@ -805,8 +862,7 @@ MpRxIndicateFrame(
     _In_ UINT32 FrameLength
     )
 {
-    MpRxEnqueueFrame(Handle, HashQueueId, FrameBuffer, FrameLength);
-    MpRxFlush(Handle);
+    TEST_HRESULT(MpRxTryIndicateFrame(Handle, HashQueueId, FrameBuffer, FrameLength));
 }
 
 static
@@ -970,14 +1026,23 @@ WaitForWfpQuarantine(
             &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     //
-    // On Windows Server 2019, WFP takes a very long time to de-quarantine.
+    // On older Windows builds, WFP takes a very long time to de-quarantine.
     //
     Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(30));
     DWORD Bytes;
     do {
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
-        Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
-    } while (!Watchdog.IsExpired() && Bytes != sizeof(UdpPayload));
+        if (SUCCEEDED(MpRxTryIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength))) {
+            Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
+        } else {
+            Bytes = -1;
+        }
+
+        if (Bytes == sizeof(UdpPayload)) {
+            break;
+        } else {
+            Sleep(100);
+        }
+    } while (!Watchdog.IsExpired());
     TEST_EQUAL(Bytes, sizeof(UdpPayload));
 }
 
