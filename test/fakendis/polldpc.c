@@ -129,11 +129,22 @@ NdisPollCpuPassiveWorker(
     )
 {
     PNDIS_POLL_CPU PollCpu = (PNDIS_POLL_CPU)Context;
-    ASSERT(PollCpu);
+    UINT32 ProcessorIndex = (UINT32)(PollCpu - PollCpus);
+    GROUP_AFFINITY Affinity = {0};
+    GROUP_AFFINITY OldAffinity;
+    PROCESSOR_NUMBER ProcessorNumber;
 
+    ASSERT(PollCpu);
     UNREFERENCED_PARAMETER(DeviceObject);
 
+    KeGetProcessorNumberFromIndex(ProcessorIndex, &ProcessorNumber);
+    Affinity.Group = ProcessorNumber.Group;
+    Affinity.Mask = AFFINITY_MASK(ProcessorNumber.Number);
+    KeSetSystemGroupAffinityThread(&Affinity, &OldAffinity);
+
     KeInsertQueueDpc(&PollCpu->Dpc, NULL, NULL);
+
+    KeRevertToUserGroupAffinityThread(&OldAffinity);
 }
 
 _Function_class_(KDEFERRED_ROUTINE)

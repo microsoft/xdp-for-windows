@@ -27,11 +27,21 @@ XdpEcPassiveWorker(
     )
 {
     XDP_EC *Ec = Context;
+    GROUP_AFFINITY Affinity = {0};
+    GROUP_AFFINITY OldAffinity;
+    PROCESSOR_NUMBER ProcessorNumber;
 
     UNREFERENCED_PARAMETER(DeviceObject);
     ASSERT(Ec != NULL);
 
+    KeGetProcessorNumberFromIndex(Ec->OwningProcessor, &ProcessorNumber);
+    Affinity.Group = ProcessorNumber.Group;
+    Affinity.Mask = AFFINITY_MASK(ProcessorNumber.Number);
+    KeSetSystemGroupAffinityThread(&Affinity, &OldAffinity);
+
     KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
+
+    KeRevertToUserGroupAffinityThread(&OldAffinity);
 }
 
 static
