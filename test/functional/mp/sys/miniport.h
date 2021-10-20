@@ -13,10 +13,10 @@
 
 #define TRY_READ_INT_CONFIGURATION(hConfig, Keyword, pValue) \
     { \
-        NDIS_STATUS Status; \
+        NDIS_STATUS _Status; \
         PNDIS_CONFIGURATION_PARAMETER Parameter; \
-        NdisReadConfiguration(&Status, &Parameter, (hConfig), &(Keyword), NdisParameterInteger); \
-        if (Status == NDIS_STATUS_SUCCESS) \
+        NdisReadConfiguration(&_Status, &Parameter, (hConfig), &(Keyword), NdisParameterInteger); \
+        if (_Status == NDIS_STATUS_SUCCESS) \
         { \
             *(pValue) = Parameter->ParameterData.IntegerData; \
         } \

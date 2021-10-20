@@ -207,7 +207,7 @@ MpIoctlReference(
     VOID
     )
 {
-    NDIS_STATUS NdisStatus = NDIS_STATUS_SUCCESS;
+    NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     UNICODE_STRING DeviceName;
     UNICODE_STRING DeviceLinkName;
     DRIVER_DISPATCH *DispatchTable[IRP_MJ_MAXIMUM_FUNCTION + 1] = {0};
@@ -238,20 +238,20 @@ MpIoctlReference(
         DispatchTable[IRP_MJ_CLOSE]             = MpIoctlDispatch;
         DispatchTable[IRP_MJ_DEVICE_CONTROL]    = MpIoctlDispatch;
 
-        NdisStatus =
+        Status =
             NdisRegisterDeviceEx(
                 MpGlobalContext.NdisMiniportDriverHandle, &DeviceAttributes,
                 &IoctlDeviceObject, &IoctlNdisDeviceObject);
     }
 
-    if (NdisStatus == NDIS_STATUS_SUCCESS) {
+    if (Status == NDIS_STATUS_SUCCESS) {
         ASSERT(IoctlDeviceObject != NULL);
         IoctlDeviceReferenceCount++;
     }
 
     ExReleasePushLockExclusive(&IoctlDeviceLock);
 
-    return NdisStatus;
+    return Status;
 }
 
 VOID

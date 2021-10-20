@@ -914,7 +914,7 @@ Exit:
             Params->Flags, Status);
     }
 
-    TraceExit(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE);
 
     return Status;
 }

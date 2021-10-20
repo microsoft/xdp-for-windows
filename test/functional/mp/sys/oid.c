@@ -54,7 +54,7 @@ MpQueryInformationHandler(
    )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
     NDIS_OID Oid = NdisRequest->DATA.QUERY_INFORMATION.Oid;
     VOID *InformationBuffer = NdisRequest->DATA.QUERY_INFORMATION.InformationBuffer;
     ULONG InformationBufferLength = NdisRequest->DATA.QUERY_INFORMATION.InformationBufferLength;
@@ -77,7 +77,7 @@ MpQueryInformationHandler(
 
     *BytesWritten = 0;
 
-    NdisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
     switch (Oid)
     {
@@ -87,7 +87,7 @@ MpQueryInformationHandler(
             if (InformationBufferLength < DataLength)
             {
                 *BytesNeeded = DataLength;
-                NdisStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+                Status = NDIS_STATUS_BUFFER_TOO_SHORT;
                 break;
             }
             NdisMoveMemory(InformationBuffer,
@@ -184,12 +184,12 @@ MpQueryInformationHandler(
             DataLength = Adapter->NumMulticastAddresses * MAC_ADDR_LEN;
             if (MpGlobalContext.Medium != NdisMedium802_3)
             {
-                NdisStatus = NDIS_STATUS_INVALID_OID;
+                Status = NDIS_STATUS_INVALID_OID;
                 break;
             }
             else if ((InformationBufferLength % ETH_LENGTH_OF_ADDRESS) != 0)
             {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
             Data = Adapter->MulticastAddressList;
@@ -251,7 +251,7 @@ MpQueryInformationHandler(
 
         default:
             DoCopy = FALSE;
-            NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+            Status = NDIS_STATUS_NOT_SUPPORTED;
             break;
     }
 
@@ -260,7 +260,7 @@ MpQueryInformationHandler(
         if (InformationBufferLength < DataLength)
         {
             *BytesNeeded = DataLength;
-            NdisStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+            Status = NDIS_STATUS_BUFFER_TOO_SHORT;
         }
         else
         {
@@ -269,7 +269,7 @@ MpQueryInformationHandler(
         }
     }
 
-    return NdisStatus;
+    return Status;
 }
 
 static
@@ -280,20 +280,20 @@ MpSetInformationHandler(
    )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
 
     NDIS_OID Oid = NdisRequest->DATA.SET_INFORMATION.Oid;
     VOID *InformationBuffer = NdisRequest->DATA.SET_INFORMATION.InformationBuffer;
     ULONG InformationBufferLength = NdisRequest->DATA.SET_INFORMATION.InformationBufferLength;
     PUINT BytesRead = &NdisRequest->DATA.SET_INFORMATION.BytesRead;
 
-    NdisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
     switch (Oid) {
         case OID_OFFLOAD_ENCAPSULATION:
 
             if (InformationBufferLength < NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -303,14 +303,14 @@ MpSetInformationHandler(
             if ((OffloadEncap->Header.Type != NDIS_OBJECT_TYPE_OFFLOAD_ENCAPSULATION) ||
                 (OffloadEncap->Header.Revision < NDIS_OFFLOAD_ENCAPSULATION_REVISION_1) ||
                 (OffloadEncap->Header.Size < NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1)) {
-                NdisStatus = NDIS_STATUS_INVALID_PARAMETER;
+                Status = NDIS_STATUS_INVALID_PARAMETER;
                 break;
             }
 
             if (OffloadEncap->IPv6.Enabled == NDIS_OFFLOAD_SET_ON) {
                 if (OffloadEncap->IPv6.EncapsulationType != NDIS_ENCAPSULATION_IEEE_802_3 ||
                     OffloadEncap->IPv6.HeaderSize != ETH_HDR_LEN) {
-                    NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+                    Status = NDIS_STATUS_NOT_SUPPORTED;
                     break;
                 }
             }
@@ -318,7 +318,7 @@ MpSetInformationHandler(
             if (OffloadEncap->IPv4.Enabled == NDIS_OFFLOAD_SET_ON) {
                 if (OffloadEncap->IPv4.EncapsulationType != NDIS_ENCAPSULATION_IEEE_802_3 ||
                     OffloadEncap->IPv4.HeaderSize != ETH_HDR_LEN) {
-                    NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+                    Status = NDIS_STATUS_NOT_SUPPORTED;
                     break;
                 }
             }
@@ -328,7 +328,7 @@ MpSetInformationHandler(
         case OID_GEN_CURRENT_PACKET_FILTER:
 
             if (InformationBufferLength < sizeof(ULONG)) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -341,13 +341,13 @@ MpSetInformationHandler(
         case OID_GEN_CURRENT_LOOKAHEAD:
 
             if (InformationBufferLength < sizeof(ULONG)) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
             ULONG CurrentLookahead = *(UNALIGNED ULONG *)InformationBuffer;
             if (CurrentLookahead > Adapter->MtuSize) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
             } else if (CurrentLookahead >= Adapter->CurrentLookAhead) {
                 Adapter->CurrentLookAhead = CurrentLookahead;
                 *BytesRead = sizeof(ULONG);
@@ -358,13 +358,13 @@ MpSetInformationHandler(
         case OID_802_3_MULTICAST_LIST:
 
             if (MpGlobalContext.Medium != NdisMedium802_3) {
-                NdisStatus = NDIS_STATUS_INVALID_OID;
+                Status = NDIS_STATUS_INVALID_OID;
                 break;
             }
 
             if ((InformationBufferLength % ETH_LENGTH_OF_ADDRESS) != 0 ||
                 InformationBufferLength  > (MAX_MULTICAST_ADDRESSES * MAC_ADDR_LEN)) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -378,7 +378,7 @@ MpSetInformationHandler(
         case OID_PNP_SET_POWER:
 
             if (InformationBufferLength < sizeof(NDIS_DEVICE_POWER_STATE)) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
@@ -389,23 +389,23 @@ MpSetInformationHandler(
         case OID_GEN_RECEIVE_SCALE_PARAMETERS:
 
             if (InformationBufferLength < NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2) {
-                NdisStatus = NDIS_STATUS_INVALID_LENGTH;
+                Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
 
             MpSetRss(Adapter, InformationBuffer, InformationBufferLength);
-            NdisStatus = NDIS_STATUS_SUCCESS;
+            Status = NDIS_STATUS_SUCCESS;
 
             break;
 
         default:
 
-            NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+            Status = NDIS_STATUS_NOT_SUPPORTED;
             break;
 
     }
 
-    return NdisStatus;
+    return Status;
 }
 
 VOID

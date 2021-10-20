@@ -211,7 +211,7 @@ DriverEntry(
 
 Exit:
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL);
 
     if (!NT_SUCCESS(Status)) {
         DriverUnload(DriverObject);

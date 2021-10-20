@@ -22,21 +22,21 @@ MpCreateRssQueues(
     _Inout_ ADAPTER_CONTEXT *Adapter
     )
 {
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
     NDIS_RSS_PROCESSOR_INFO *RssProcessorInfo = NULL;
     SIZE_T AllocationSize;
     SIZE_T Size = 0;
 
-    NdisStatus = NdisGetRssProcessorInformation(Adapter->MiniportHandle, RssProcessorInfo, &Size);
-    NT_FRE_ASSERT(NdisStatus == NDIS_STATUS_BUFFER_TOO_SHORT);
+    Status = NdisGetRssProcessorInformation(Adapter->MiniportHandle, RssProcessorInfo, &Size);
+    NT_FRE_ASSERT(Status == NDIS_STATUS_BUFFER_TOO_SHORT);
     RssProcessorInfo = ExAllocatePoolZero(NonPagedPoolNx, Size, POOLTAG_RSS);
     if (RssProcessorInfo == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
-    NdisStatus = NdisGetRssProcessorInformation(Adapter->MiniportHandle, RssProcessorInfo, &Size);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = NdisGetRssProcessorInformation(Adapter->MiniportHandle, RssProcessorInfo, &Size);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
@@ -45,7 +45,7 @@ MpCreateRssQueues(
 
     Adapter->RssQueues = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, POOLTAG_RSS);
     if (Adapter->RssQueues == NULL) {
-        NdisStatus = NDIS_STATUS_RESOURCES;
+        Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
 
@@ -55,7 +55,7 @@ MpCreateRssQueues(
         RssQueue->QueueId = Index;
     }
 
-    NdisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
 Exit:
 
@@ -63,7 +63,7 @@ Exit:
         ExFreePool(RssProcessorInfo);
     }
 
-    return NdisStatus;
+    return Status;
 }
 
 VOID

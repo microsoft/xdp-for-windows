@@ -285,7 +285,7 @@ XdpGenericFilterSetOptions(
     _In_ XDP_LWF_GENERIC *Generic
     )
 {
-    NDIS_STATUS NdisStatus = NDIS_STATUS_SUCCESS;
+    NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     NDIS_FILTER_PARTIAL_CHARACTERISTICS Handlers = {0};
     BOOLEAN RxInserted = FALSE;
     BOOLEAN TxInserted = FALSE;
@@ -309,22 +309,22 @@ XdpGenericFilterSetOptions(
 
     ExReleasePushLockExclusive(&Generic->Lock);
 
-    NdisStatus =
+    Status =
         NdisSetOptionalHandlers(
             Generic->NdisHandle, (NDIS_DRIVER_OPTIONAL_HANDLERS *)&Handlers);
 
     TraceVerbose(
         TRACE_GENERIC, "IfIndex=%u Set datapath handlers RX=%u TX=%u Status=%!STATUS!",
-        Generic->IfIndex, RxInserted, TxInserted, NdisStatus);
+        Generic->IfIndex, RxInserted, TxInserted, Status);
 
-    if (NdisStatus == NDIS_STATUS_SUCCESS) {
+    if (Status == NDIS_STATUS_SUCCESS) {
         ExAcquirePushLockExclusive(&Generic->Lock);
         Generic->Rx.Datapath.Inserted = RxInserted;
         Generic->Tx.Datapath.Inserted = TxInserted;
         ExReleasePushLockExclusive(&Generic->Lock);
     }
 
-    return NdisStatus;
+    return Status;
 }
 
 NDIS_STATUS
@@ -351,12 +351,12 @@ XdpGenericRequestRestart(
     _In_ XDP_LWF_GENERIC *Generic
     )
 {
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
 
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting datapath restart", Generic->IfIndex);
-    NdisStatus = NdisFRestartFilter(Generic->NdisHandle);
+    Status = NdisFRestartFilter(Generic->NdisHandle);
     ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
-    NT_VERIFY(NT_SUCCESS(XdpConvertNdisStatusToNtStatus(NdisStatus)));
+    NT_VERIFY(NT_SUCCESS(XdpConvertNdisStatusToNtStatus(Status)));
 }
 
 static

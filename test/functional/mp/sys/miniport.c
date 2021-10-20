@@ -141,7 +141,7 @@ MpReadConfiguration(
    )
 {
     NDIS_HANDLE ConfigHandle = NULL;
-    NDIS_STATUS NdisStatus;
+    NDIS_STATUS Status;
     NDIS_CONFIGURATION_OBJECT ConfigObject;
 
     ConfigObject.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
@@ -150,8 +150,8 @@ MpReadConfiguration(
     ConfigObject.NdisHandle = Adapter->MiniportHandle;
     ConfigObject.Flags = 0;
 
-    NdisStatus = NdisOpenConfigurationEx(&ConfigObject, &ConfigHandle);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = NdisOpenConfigurationEx(&ConfigObject, &ConfigHandle);
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
@@ -165,11 +165,11 @@ MpReadConfiguration(
     Adapter->NumRssQueues = 4;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegNumRssQueues, &Adapter->NumRssQueues);
     if (Adapter->NumRssQueues == 0 || Adapter->NumRssQueues > MAX_RSS_QUEUES) {
-        NdisStatus = NDIS_STATUS_INVALID_PARAMETER;
+        Status = NDIS_STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
-    NdisStatus = NDIS_STATUS_SUCCESS;
+    Status = NDIS_STATUS_SUCCESS;
 
 Exit:
 
@@ -177,7 +177,7 @@ Exit:
         NdisCloseConfiguration(ConfigHandle);
     }
 
-    return NdisStatus;
+    return Status;
 }
 
 static
@@ -425,7 +425,7 @@ DriverEntry(
     _In_ PUNICODE_STRING RegistryPath
     )
 {
-    NDIS_STATUS NdisStatus = NDIS_STATUS_SUCCESS;
+    NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     NDIS_MINIPORT_DRIVER_CHARACTERISTICS MChars;
 
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
@@ -477,7 +477,7 @@ DriverEntry(
         MChars.MajorNdisVersion = 6;
         MChars.MinorNdisVersion = 60;
     } else {
-        NdisStatus = NDIS_STATUS_NOT_SUPPORTED;
+        Status = NDIS_STATUS_NOT_SUPPORTED;
         goto Cleanup;
     }
 
@@ -496,31 +496,31 @@ DriverEntry(
     MChars.CancelOidRequestHandler = MiniportCancelRequestHandler;
     MChars.CancelDirectOidRequestHandler = MiniportCancelRequestHandler;
 
-    NdisStatus =
+    Status =
         NdisMRegisterMiniportDriver(
             DriverObject, RegistryPath, (NDIS_HANDLE *)NULL, &MChars,
             &MpGlobalContext.NdisMiniportDriverHandle);
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Cleanup;
     }
 
-    NdisStatus = MpIoctlStart();
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = MpIoctlStart();
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Cleanup;
     }
 
-    NdisStatus = MpNativeStart();
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    Status = MpNativeStart();
+    if (Status != NDIS_STATUS_SUCCESS) {
         goto Cleanup;
     }
 
 Cleanup:
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL);
 
-    if (NdisStatus != NDIS_STATUS_SUCCESS) {
+    if (Status != NDIS_STATUS_SUCCESS) {
         MiniportUnloadHandler(DriverObject);
     }
 
-    return NdisStatus;
+    return Status;
 }
