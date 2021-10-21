@@ -8,7 +8,7 @@
 
         <EventCollector Id="EC_HighVolume" Name="High Volume">
             <BufferSize Value="1024"/>
-            <Buffers Value="64"/>
+            <Buffers Value="5" PercentageOfTotalMemory="true"/>
         </EventCollector>
 
         <SystemProvider Id="SystemProviderCpu">
@@ -80,6 +80,14 @@
                 </EventCollectorId>
             </Collectors>
         </Profile>
+
+        <Profile
+            Id="SpinXsk.Verbose.Memory"
+            Base="SpinXsk.Verbose.File"
+            LoggingMode = "Memory"
+            DetailLevel = "Verbose"
+            Name = "SpinXsk"
+            Description = "XDP SpinXsk Stress Test"/>
 
         <Profile Id="CpuCswitchSample.Verbose.File" Name="CpuCswitchSample" Description="CPU precise and sampled profile" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>

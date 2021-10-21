@@ -42,7 +42,11 @@ param (
     [string]$Profile = $null,
 
     [Parameter(Mandatory = $false)]
-    [string]$Name = "xdp"
+    [string]$Name = "xdp",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("File", "Memory")]
+    [string]$LogMode = "File"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -67,8 +71,13 @@ function Start-Logging {
         Write-Error "$WprpFile does not exist!"
     }
 
-    Write-Verbose "wpr.exe -start $($WprpFile)!$($Profile) -filemode -instancename $Name"
-    cmd /c "wpr.exe -start `"$($WprpFile)!$($Profile)`" -filemode -instancename $Name 2>&1"
+    $LogArg = ""
+    if ($LogMode -eq "File") {
+        $LogArg = "-filemode"
+    }
+
+    Write-Verbose "wpr.exe -start $($WprpFile)!$($Profile) -instancename $Name $LogArg"
+    cmd /c "wpr.exe -start `"$($WprpFile)!$($Profile)`" -instancename $Name $LogArg 2>&1"
     if ($LastExitCode -ne 0) {
         Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
         Write-Error "wpr.exe failed: $LastExitCode"
