@@ -27,7 +27,7 @@ typedef struct _XDP_BINDING_WORKITEM {
     SINGLE_LIST_ENTRY Link;
     XDP_BINDING_HANDLE BindingHandle;
     XDP_BINDING_WORK_ROUTINE *WorkRoutine;
-    PROCESSOR_NUMBER IdealProcessor;
+    UINT16 IdealNode;
 } XDP_BINDING_WORKITEM;
 
 _IRQL_requires_(PASSIVE_LEVEL)

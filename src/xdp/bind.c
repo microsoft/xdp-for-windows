@@ -621,7 +621,7 @@ XdpIfQueueWorkItem(
 {
     XDP_INTERFACE *Binding = (XDP_INTERFACE *)WorkItem->BindingHandle;
 
-    KeGetCurrentProcessorNumberEx(&WorkItem->IdealProcessor);
+    WorkItem->IdealNode = KeGetCurrentNodeNumber();
     XdpIfpReferenceBinding(Binding);
     XdpInsertWorkQueue(Binding->WorkQueue, &WorkItem->Link);
 }
@@ -723,7 +723,7 @@ XdpIfpBindingWorker(
     while (WorkQueueHead != NULL) {
         XDP_BINDING_WORKITEM *Item;
         XDP_INTERFACE *Binding;
-        GROUP_AFFINITY Affinity = {0};
+        GROUP_AFFINITY Affinity;
         GROUP_AFFINITY OldAffinity;
 
         Item = CONTAINING_RECORD(WorkQueueHead, XDP_BINDING_WORKITEM, Link);
@@ -731,11 +731,10 @@ XdpIfpBindingWorker(
         WorkQueueHead = WorkQueueHead->Next;
 
         //
-        // Perform work on the original caller's NUMA node. For simplicity,
-        // target the CPU itself.
+        // Perform work on the original caller's NUMA node. Note that WS2022
+        // introduces a multi-affinity-group NUMA concept not implemented here.
         //
-        Affinity.Group = Item->IdealProcessor.Group;
-        Affinity.Mask = 1ui64 << Item->IdealProcessor.Number;
+        KeQueryNodeActiveAffinity(Item->IdealNode, &Affinity, NULL);
         KeSetSystemGroupAffinityThread(&Affinity, &OldAffinity);
 
         Item->WorkRoutine(Item);
