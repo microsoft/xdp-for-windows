@@ -1124,7 +1124,8 @@ PrintDatapathStats(
         sprintf_s(txPacketCount, sizeof(txPacketCount), "n/a");
     }
 
-    printf("q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
+    TraceVerbose(
+        "q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
         "rxInvalidDesc:%llu txInvalidDesc:%llu xdpMode:%s\n",
         Datapath->shared->queue->queueId, Datapath->threadHandle,
         rxPacketCount, txPacketCount, stats.rxDropped, stats.rxTruncated,
@@ -1305,7 +1306,6 @@ PrintSetupStats(
         setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
         setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
         setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal));
-
 }
 
 DWORD
