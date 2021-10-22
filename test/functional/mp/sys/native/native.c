@@ -5,7 +5,7 @@
 #include "precomp.h"
 
 static
-CONST XDP_VERSION DriverApiVersion = {
+CONST XDP_VERSION XdpDriverApiVersion = {
     .Major = XDP_DRIVER_API_MAJOR_VER,
     .Minor = XDP_DRIVER_API_MINOR_VER,
     .Patch = XDP_DRIVER_API_PATCH_VER
@@ -149,7 +149,7 @@ NativeAdapterCreate(
         goto Exit;
     }
 
-    Status = XdpInitializeCapabilities(&AdapterNative->Capabilities, &DriverApiVersion);
+    Status = XdpInitializeCapabilities(&AdapterNative->Capabilities, &XdpDriverApiVersion);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

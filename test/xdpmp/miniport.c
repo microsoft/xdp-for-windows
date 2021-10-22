@@ -50,7 +50,7 @@ UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 // Drivers can set lower values for backwards compatibility.
 //
 static
-CONST XDP_VERSION DriverApiVersion = {
+CONST XDP_VERSION XdpDriverApiVersion = {
     .Major = XDP_DRIVER_API_MAJOR_VER,
     .Minor = XDP_DRIVER_API_MINOR_VER,
     .Patch = XDP_DRIVER_API_PATCH_VER
@@ -273,7 +273,7 @@ MpInitialize(
 
     Status =
         XdpInitializeCapabilities(
-            &Adapter->Capabilities, &DriverApiVersion);
+            &Adapter->Capabilities, &XdpDriverApiVersion);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
