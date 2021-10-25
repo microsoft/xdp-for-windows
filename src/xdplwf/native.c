@@ -22,29 +22,35 @@ XDP_HOOK_ID NativeHooks[] = {
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpNativeDeleteBindingComplete(
-    _In_ VOID *BindingContext
+XdpNativeRemoveInterfaceComplete(
+    _In_ VOID *InterfaceContext
     )
 {
-    XDP_LWF_NATIVE *Native = BindingContext;
+    XDP_LWF_NATIVE *Native = InterfaceContext;
 
-    KeSetEvent(Native->BindingDeletedEvent, 0, FALSE);
+    KeSetEvent(&Native->InterfaceRemovedEvent, 0, FALSE);
 }
 
 NTSTATUS
-XdpNativeCreateBinding(
+XdpNativeAttachInterface(
     _Inout_ XDP_LWF_NATIVE *Native,
     _In_ NDIS_HANDLE NdisFilterHandle,
     _In_ NET_IFINDEX IfIndex,
-    _Out_ XDP_REGISTER_IF *RegisterIf
+    _Out_ XDP_ADD_INTERFACE *AddIf
     )
 {
     NTSTATUS Status;
     XDP_CAPABILITIES_EX *CapabilitiesEx = NULL;
     ULONG BytesReturned = 0;
 
+    //
+    // This function supplies its caller with XDPIF interface addition info and
+    // the caller will add the XDPIF interface.
+    //
+
     Native->NdisFilterHandle = NdisFilterHandle;
     Native->IfIndex = IfIndex;
+    KeInitializeEvent(&Native->InterfaceRemovedEvent, NotificationEvent, FALSE);
 
     Status =
         XdpLwfOidInternalRequest(
@@ -96,37 +102,39 @@ XdpNativeCreateBinding(
 
     Native->Capabilities.CapabilitiesSize = BytesReturned;
 
-    RtlZeroMemory(RegisterIf, sizeof(*RegisterIf));
-    RegisterIf->InterfaceCapabilities = &Native->Capabilities;
-    RegisterIf->DeleteBindingComplete = XdpNativeDeleteBindingComplete;
-    RegisterIf->BindingContext = Native;
-    RegisterIf->BindingHandle = &Native->BindingHandle;
+    RtlZeroMemory(AddIf, sizeof(*AddIf));
+    AddIf->InterfaceCapabilities = &Native->Capabilities;
+    AddIf->RemoveInterfaceComplete = XdpNativeRemoveInterfaceComplete;
+    AddIf->InterfaceContext = Native;
+    AddIf->InterfaceHandle = &Native->XdpIfInterfaceHandle;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        XdpNativeDeleteBinding(Native);
+        XdpNativeDetachInterface(Native);
     }
 
     return Status;
 }
 
 VOID
-XdpNativeDeleteBinding(
+XdpNativeDetachInterface(
     _In_ XDP_LWF_NATIVE *Native
     )
 {
-    KEVENT DeletedEvent;
+    //
+    // The caller of the attach routine added the XDPIF interface, but this
+    // function removes the XDPIF interface.
+    //
 
-    if (Native->BindingHandle != NULL) {
-        KeInitializeEvent(&DeletedEvent, NotificationEvent, FALSE);
-        Native->BindingDeletedEvent = &DeletedEvent;
-
+    if (Native->XdpIfInterfaceHandle != NULL) {
+        //
         // Initiate core XDP cleanup and wait for completion.
-        XdpIfDeleteBindings(&Native->BindingHandle, 1);
-        KeWaitForSingleObject(&DeletedEvent, Executive, KernelMode, FALSE, NULL);
-        Native->BindingDeletedEvent = NULL;
-        Native->BindingHandle = NULL;
+        //
+        XdpIfRemoveInterfaces(&Native->XdpIfInterfaceHandle, 1);
+        KeWaitForSingleObject(
+            &Native->InterfaceRemovedEvent, Executive, KernelMode, FALSE, NULL);
+        Native->XdpIfInterfaceHandle = NULL;
     }
 
     if (Native->Capabilities.CapabilitiesEx != NULL) {

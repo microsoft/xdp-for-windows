@@ -110,7 +110,7 @@ XdpLwfFilterAttach(
     XDP_LWF_FILTER *Filter = NULL;
     NDIS_STATUS Status;
     NDIS_FILTER_ATTRIBUTES FilterAttributes;
-    XDP_REGISTER_IF RegisterIf[2];
+    XDP_ADD_INTERFACE AddIf[2];
     UINT32 IfCount = 0;
     UINT32 Index = 0;
 
@@ -152,16 +152,25 @@ XdpLwfFilterAttach(
     }
 
     Status =
-        XdpGenericCreateBinding(
-            &Filter->Generic, Filter->FilterHandle, Filter->MiniportIfIndex, &RegisterIf[Index]);
+        XdpIfCreateInterfaceSet(
+            Filter->MiniportIfIndex, Filter, &Filter->XdpIfInterfaceSetHandle);
+    if (!NT_SUCCESS(Status)) {
+        ASSERT(Filter->XdpIfInterfaceSetHandle == NULL);
+        Status = XdpConvertNtStatusToNdisStatus(Status);
+        goto Exit;
+    }
+
+    Status =
+        XdpGenericAttachInterface(
+            &Filter->Generic, Filter->FilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
     if (NT_SUCCESS(Status)) {
         IfCount++;
         Index++;
     }
 
     Status =
-        XdpNativeCreateBinding(
-            &Filter->Native, Filter->FilterHandle, Filter->MiniportIfIndex, &RegisterIf[Index]);
+        XdpNativeAttachInterface(
+            &Filter->Native, Filter->FilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
     if (NT_SUCCESS(Status)) {
         IfCount++;
         Index++;
@@ -172,11 +181,15 @@ XdpLwfFilterAttach(
         goto Exit;
     }
 
-    Status =
-        XdpIfCreateBindings(
-            Filter->MiniportIfIndex, &RegisterIf[0], IfCount, Filter, &Filter->BindingSetHandle);
+    //
+    // N.B. We are adding both interfaces at once in order to avoid a race
+    // condition where XSK bind races interface additions. At the time of XSK
+    // bind, a non-optimal interface might only be available while the optimal
+    // interface is not yet added. "Optimal" has a flexible definition based on
+    // the XSK's requirements.
+    //
+    Status = XdpIfAddInterfaces(Filter->XdpIfInterfaceSetHandle, &AddIf[0], IfCount);
     if (!NT_SUCCESS(Status)) {
-        ASSERT(Filter->BindingSetHandle == NULL);
         Status = XdpConvertNtStatusToNdisStatus(Status);
         goto Exit;
     }
@@ -247,9 +260,12 @@ XdpLwfFilterDetach(
 
     TraceInfo(TRACE_GENERIC, "IfIndex=%u", Filter->MiniportIfIndex);
 
-    // TODO: we could unbind both interfaces concurrently.
-    XdpNativeDeleteBinding(&Filter->Native);
-    XdpGenericDeleteBinding(&Filter->Generic);
+    if (Filter->XdpIfInterfaceSetHandle != NULL) {
+        XdpNativeDetachInterface(&Filter->Native);
+        XdpGenericDetachInterface(&Filter->Generic);
+
+        XdpIfDeleteInterfaceSet(Filter->XdpIfInterfaceSetHandle);
+    }
 
     ExFreePoolWithTag(Filter, POOLTAG_FILTER);
 }

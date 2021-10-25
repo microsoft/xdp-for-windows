@@ -9,19 +9,19 @@ typedef struct _XDP_LWF_NATIVE {
     XDP_CAPABILITIES_INTERNAL Capabilities;
     NET_IFINDEX IfIndex;
 
-    XDP_IF_BINDING_HANDLE BindingHandle;
-    KEVENT *BindingDeletedEvent;
+    XDPIF_INTERFACE_HANDLE XdpIfInterfaceHandle;
+    KEVENT InterfaceRemovedEvent;
 } XDP_LWF_NATIVE;
 
 NTSTATUS
-XdpNativeCreateBinding(
+XdpNativeAttachInterface(
     _Inout_ XDP_LWF_NATIVE *Native,
     _In_ NDIS_HANDLE NdisFilterHandle,
     _In_ NET_IFINDEX IfIndex,
-    _Out_ XDP_REGISTER_IF *RegisterIf
+    _Out_ XDP_ADD_INTERFACE *AddIf
     );
 
 VOID
-XdpNativeDeleteBinding(
+XdpNativeDetachInterface(
     _In_ XDP_LWF_NATIVE *Native
     );

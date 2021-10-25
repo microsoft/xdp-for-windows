@@ -188,7 +188,7 @@ XdpGenericDelayDereferenceDatapath(
         Timeout.QuadPart = -1 * DelayInterval;
         Status =
             KeWaitForSingleObject(
-                &Generic->BindingDeletedEvent, Executive, KernelMode, FALSE, &Timeout);
+                &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, &Timeout);
 
         ExAcquirePushLockExclusive(&Generic->Lock);
 
@@ -411,20 +411,10 @@ static CONST XDP_INTERFACE_DISPATCH XdpGenericDispatch = {
 
 static
 VOID
-XdpGenericCleanupBinding(
+XdpGenericCleanupInterface(
     _In_ XDP_LWF_GENERIC *Generic
     )
 {
-    if (Generic->BindingHandle != NULL) {
-        //
-        // Initiate core XDP cleanup and wait for completion.
-        //
-        XdpIfDeleteBindings(&Generic->BindingHandle, 1);
-        KeWaitForSingleObject(
-            &Generic->BindingDeletedEvent, Executive, KernelMode, FALSE, NULL);
-        Generic->BindingHandle = NULL;
-    }
-
     if (Generic->Registration != NULL) {
         XdpDeregisterInterface(Generic->Registration);
         Generic->Registration = NULL;
@@ -433,21 +423,21 @@ XdpGenericCleanupBinding(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpGenericDeleteBindingComplete(
-    _In_ VOID *BindingContext
+XdpGenericRemoveInterfaceComplete(
+    _In_ VOID *InterfaceContext
     )
 {
-    XDP_LWF_GENERIC *Generic = BindingContext;
+    XDP_LWF_GENERIC *Generic = InterfaceContext;
 
-    KeSetEvent(&Generic->BindingDeletedEvent, 0, FALSE);
+    KeSetEvent(&Generic->InterfaceRemovedEvent, 0, FALSE);
 }
 
 NTSTATUS
-XdpGenericCreateBinding(
+XdpGenericAttachInterface(
     _Inout_ XDP_LWF_GENERIC *Generic,
     _In_ NDIS_HANDLE NdisFilterHandle,
     _In_ NET_IFINDEX IfIndex,
-    _Out_ XDP_REGISTER_IF *RegisterIf
+    _Out_ XDP_ADD_INTERFACE *AddIf
     )
 {
     NTSTATUS Status;
@@ -457,9 +447,14 @@ XdpGenericCreateBinding(
         .Patch = XDP_DRIVER_API_PATCH_VER
     };
 
+    //
+    // This function supplies its caller with XDPIF interface addition info and
+    // the caller will add the XDPIF interface.
+    //
+
     ExInitializePushLock(&Generic->Lock);
     InitializeListHead(&Generic->Tx.Queues);
-    KeInitializeEvent(&Generic->BindingDeletedEvent, NotificationEvent, FALSE);
+    KeInitializeEvent(&Generic->InterfaceRemovedEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->CleanupEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Rx.Datapath.ReadyEvent, NotificationEvent, FALSE);
@@ -487,27 +482,42 @@ XdpGenericCreateBinding(
         goto Exit;
     }
 
-    RtlZeroMemory(RegisterIf, sizeof(*RegisterIf));
-    RegisterIf->InterfaceCapabilities = &Generic->InternalCapabilities;
-    RegisterIf->DeleteBindingComplete = XdpGenericDeleteBindingComplete;
-    RegisterIf->BindingContext = Generic;
-    RegisterIf->BindingHandle = &Generic->BindingHandle;
+    RtlZeroMemory(AddIf, sizeof(*AddIf));
+    AddIf->InterfaceCapabilities = &Generic->InternalCapabilities;
+    AddIf->RemoveInterfaceComplete = XdpGenericRemoveInterfaceComplete;
+    AddIf->InterfaceContext = Generic;
+    AddIf->InterfaceHandle = &Generic->XdpIfInterfaceHandle;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        XdpGenericCleanupBinding(Generic);
+        XdpGenericCleanupInterface(Generic);
     }
 
     return Status;
 }
 
 VOID
-XdpGenericDeleteBinding(
+XdpGenericDetachInterface(
     _In_ XDP_LWF_GENERIC *Generic
     )
 {
-    XdpGenericCleanupBinding(Generic);
+    //
+    // The caller of the attach routine added the XDPIF interface, but this
+    // function removes the XDPIF interface.
+    //
+
+    if (Generic->XdpIfInterfaceHandle != NULL) {
+        //
+        // Initiate core XDP cleanup and wait for completion.
+        //
+        XdpIfRemoveInterfaces(&Generic->XdpIfInterfaceHandle, 1);
+        KeWaitForSingleObject(
+            &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, NULL);
+        Generic->XdpIfInterfaceHandle = NULL;
+    }
+
+    XdpGenericCleanupInterface(Generic);
     XdpGenericDereference(Generic);
     KeWaitForSingleObject(&Generic->CleanupEvent, Executive, KernelMode, FALSE, NULL);
 }

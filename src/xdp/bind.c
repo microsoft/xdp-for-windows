@@ -3,13 +3,11 @@
 //
 
 //
-// Implementation of XDP interface binding.
-//
 // This module provides:
 //
 // 1. A single abstraction for core XDP modules to manipulate disparate XDP
-//    interface types. Core XDP does not need to consider the specifics of OIDs
-//    for native XDP over NDIS6 or the generic XDP implementation, etc.
+//    interface types. This module implements the core XDP side of the XDP IF
+//    API.
 // 2. A single work queue for each interface, since the external-facing XDP
 //    control path is serialized. Core XDP components can schedule their own
 //    work on this queue, reducing the need for locking schemes across
@@ -25,10 +23,10 @@ typedef struct _XDP_INTERFACE_NMR XDP_INTERFACE_NMR;
 typedef struct _XDP_INTERFACE {
     NET_IFINDEX IfIndex;
     XDP_INTERFACE_SET *IfSet;
-    XDP_INTERFACE_HANDLE InterfaceBindingContext;
+    VOID *XdpIfInterfaceContext;
 
     CONST XDP_CAPABILITIES_INTERNAL Capabilities;
-    XDP_DELETE_BINDING_COMPLETE *DeleteBindingComplete;
+    XDP_REMOVE_INTERFACE_COMPLETE *RemoveInterfaceComplete;
     XDP_INTERFACE_CONFIG_DETAILS OpenConfig;
 
     XDP_INTERFACE_NMR *Nmr;
@@ -73,7 +71,7 @@ typedef struct _XDP_INTERFACE_NMR {
 typedef struct _XDP_INTERFACE_SET {
     LIST_ENTRY Link;
     NET_IFINDEX IfIndex;
-    XDP_INTERFACE_HANDLE InterfaceBindingSetContext;
+    VOID *XdpIfInterfaceSetContext;
     XDP_INTERFACE *Interfaces[2];   // One binding for both generic and native.
 } XDP_INTERFACE_SET;
 
@@ -174,7 +172,7 @@ XdpIfpDereferenceBinding(
         if (Binding->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Binding->WorkQueue, FALSE);
         }
-        ExFreePoolWithTag(Binding, XDP_POOLTAG_BINDING);
+        ExFreePoolWithTag(Binding, XDP_POOLTAG_IF);
     }
 }
 
@@ -283,9 +281,9 @@ XdpIfpCloseInterface(
         TraceVerbose(TRACE_CORE, "interface closed");
     }
 
-    if (Binding->BindingDeleting && Binding->InterfaceBindingContext != NULL) {
-        Binding->DeleteBindingComplete(Binding->InterfaceBindingContext);
-        Binding->InterfaceBindingContext = NULL;
+    if (Binding->BindingDeleting && Binding->XdpIfInterfaceContext != NULL) {
+        Binding->RemoveInterfaceComplete(Binding->XdpIfInterfaceContext);
+        Binding->XdpIfInterfaceContext = NULL;
 
         TraceVerbose(TRACE_CORE, "interface deregistration completed");
     }
@@ -745,39 +743,12 @@ XdpIfpBindingWorker(
     }
 }
 
-static
-_IRQL_requires_(PASSIVE_LEVEL)
-_Requires_exclusive_lock_held_(&XdpBindingLock)
-VOID
-XdpIfpTrimIfSet(
-    _In_ XDP_INTERFACE_SET *IfSet
-    )
-{
-    BOOLEAN IsEmpty = TRUE;
-
-    for (XDP_INTERFACE_MODE Mode = XDP_INTERFACE_MODE_GENERIC;
-        Mode <= XDP_INTERFACE_MODE_NATIVE;
-        Mode++) {
-        if (IfSet->Interfaces[Mode] != NULL) {
-            IsEmpty = FALSE;
-            break;
-        }
-    }
-
-    if (IsEmpty) {
-        RemoveEntryList(&IfSet->Link);
-        ExFreePoolWithTag(IfSet, XDP_POOLTAG_BINDING);
-    }
-}
-
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfCreateBindings(
+XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
-    _Inout_ XDP_REGISTER_IF *Interfaces,
-    _In_ UINT32 InterfaceCount,
-    _In_ VOID *BindingSetContext,
-    _Out_ XDP_IF_BINDING_SET_HANDLE *BindingSetHandle
+    _In_ VOID *InterfaceSetContext,
+    _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     )
 {
     NTSTATUS Status;
@@ -795,91 +766,146 @@ XdpIfCreateBindings(
     //
     // Check for duplicate binding set.
     //
-    IfSet = XdpIfpFindIfSet(IfIndex);
-    if (IfSet != NULL) {
+    if (XdpIfpFindIfSet(IfIndex) != NULL) {
         Status = STATUS_DUPLICATE_OBJECTID;
         goto Exit;
     }
 
-    //
-    // Create a helper entry per interface index.
-    //
-    IfSet = ExAllocatePoolZero(PagedPool, sizeof(*IfSet), XDP_POOLTAG_BINDING);
+    IfSet = ExAllocatePoolZero(PagedPool, sizeof(*IfSet), XDP_POOLTAG_IFSET);
     if (IfSet == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
+
     IfSet->IfIndex = IfIndex;
-    IfSet->InterfaceBindingSetContext = BindingSetContext;
+    IfSet->XdpIfInterfaceSetContext = InterfaceSetContext;
     InitializeListHead(&IfSet->Link);
     InsertTailList(&XdpBindingSets, &IfSet->Link);
 
+    *InterfaceSetHandle = (XDPIF_INTERFACE_SET_HANDLE)IfSet;
+    Status = STATUS_SUCCESS;
+
+    TraceVerbose(
+        TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p registered",
+        IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
+
+Exit:
+
+    ExReleasePushLockExclusive(&XdpBindingLock);
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpIfDeleteInterfaceSet(
+    _In_ XDPIF_INTERFACE_SET_HANDLE InterfaceSetHandle
+    )
+{
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)InterfaceSetHandle;
+
+    //
+    // This function is invoked by an interface provider (e.g. XDP LWF)
+    // when a NIC is deleted.
+    //
+
+    ExAcquirePushLockExclusive(&XdpBindingLock);
+
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(IfSet->Interfaces); Index++) {
+        FRE_ASSERT(IfSet->Interfaces[Index] == NULL);
+    }
+
+    RemoveEntryList(&IfSet->Link);
+    ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
+
+    ExReleasePushLockExclusive(&XdpBindingLock);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+XdpIfAddInterfaces(
+    _In_ XDPIF_INTERFACE_SET_HANDLE InterfaceSetHandle,
+    _Inout_ XDP_ADD_INTERFACE *Interfaces,
+    _In_ UINT32 InterfaceCount
+    )
+{
+    NTSTATUS Status;
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)InterfaceSetHandle;
+
+    //
+    // This function is invoked by an interface provider (e.g. NDIS6 via XdpLwf)
+    // when a NIC is added.
+    //
+
+    TraceEnter(TRACE_CORE, "IfIndex=%u", IfSet->IfIndex);
+
+    ExAcquirePushLockExclusive(&XdpBindingLock);
+
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
-        XDP_REGISTER_IF *Registration = &Interfaces[Index];
+        XDP_ADD_INTERFACE *AddIf = &Interfaces[Index];
         XDP_INTERFACE *Binding = NULL;
 
         if (!XdpValidateCapabilitiesEx(
-                Registration->InterfaceCapabilities->CapabilitiesEx,
-                Registration->InterfaceCapabilities->CapabilitiesSize)) {
+                AddIf->InterfaceCapabilities->CapabilitiesEx,
+                AddIf->InterfaceCapabilities->CapabilitiesSize)) {
             TraceError(
                 TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Invalid capabilities",
-                IfIndex, Registration->InterfaceCapabilities->Mode);
+                IfSet->IfIndex, AddIf->InterfaceCapabilities->Mode);
             Status = STATUS_NOT_SUPPORTED;
             goto Exit;
         }
 
-        Binding = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding), XDP_POOLTAG_BINDING);
+        Binding = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding), XDP_POOLTAG_IF);
         if (Binding == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
-        Binding->IfIndex = IfIndex;
+        Binding->IfIndex = IfSet->IfIndex;
         Binding->IfSet = IfSet;
-        Binding->DeleteBindingComplete = Registration->DeleteBindingComplete;
-        Binding->InterfaceBindingContext = Registration->BindingContext;
+        Binding->RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
+        Binding->XdpIfInterfaceContext = AddIf->InterfaceContext;
         Binding->OpenConfig.Dispatch = &XdpOpenDispatch;
         Binding->ReferenceCount = 1;
         RtlCopyMemory(
             (XDP_CAPABILITIES_INTERNAL *)&Binding->Capabilities,
-            Registration->InterfaceCapabilities,
+            AddIf->InterfaceCapabilities,
             sizeof(Binding->Capabilities));
         InitializeListHead(&Binding->Clients);
 
         Binding->WorkQueue =
             XdpCreateWorkQueue(XdpIfpBindingWorker, DISPATCH_LEVEL, XdpDriverObject, NULL);
         if (Binding->WorkQueue == NULL) {
-            ExFreePoolWithTag(Binding, XDP_POOLTAG_BINDING);
+            ExFreePoolWithTag(Binding, XDP_POOLTAG_IF);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
         ASSERT(IfSet->Interfaces[Binding->Capabilities.Mode] == NULL);
         IfSet->Interfaces[Binding->Capabilities.Mode] = Binding;
-        *Registration->BindingHandle = (XDP_IF_BINDING_HANDLE)Binding;
+        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Binding;
 
-        TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! BindingContext=%p registered",
-            Binding->IfIndex, Binding->Capabilities.Mode, Binding->InterfaceBindingContext);
+        TraceVerbose(
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! XdpIfInterfaceContext=%p registered",
+            Binding->IfIndex, Binding->Capabilities.Mode, Binding->XdpIfInterfaceContext);
     }
 
-    *BindingSetHandle = (XDP_IF_BINDING_SET_HANDLE)IfSet;
     Status = STATUS_SUCCESS;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
         for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
-            if (*Interfaces[Index].BindingHandle != NULL) {
+            if (*Interfaces[Index].InterfaceHandle != NULL) {
                 XDP_INTERFACE *Binding;
-                Binding = (XDP_INTERFACE *)(*Interfaces[Index].BindingHandle);
+                Binding = (XDP_INTERFACE *)(*Interfaces[Index].InterfaceHandle);
                 ASSERT(IfSet);
                 IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
-                *Interfaces[Index].BindingHandle = NULL;
+                *Interfaces[Index].InterfaceHandle = NULL;
                 XdpIfpDereferenceBinding(Binding);
             }
-        }
-        if (IfSet != NULL) {
-            XdpIfpTrimIfSet(IfSet);
         }
     }
 
@@ -892,9 +918,9 @@ Exit:
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpIfDeleteBindings(
-    _In_reads_(HandleCount) XDP_IF_BINDING_HANDLE *BindingHandles,
-    _In_ UINT32 HandleCount
+XdpIfRemoveInterfaces(
+    _In_ XDPIF_INTERFACE_HANDLE *Interfaces,
+    _In_ UINT32 InterfaceCount
     )
 {
     //
@@ -904,13 +930,13 @@ XdpIfDeleteBindings(
 
     ExAcquirePushLockExclusive(&XdpBindingLock);
 
-    for (UINT32 Index = 0; Index < HandleCount; Index++) {
-        XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandles[Index];
+    for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
+        XDP_INTERFACE *Binding = (XDP_INTERFACE *)Interfaces[Index];
 
-        TraceVerbose(TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! deregistering",
+        TraceVerbose(
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! deregistering",
             Binding->IfIndex, Binding->Capabilities.Mode);
         Binding->IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
-        XdpIfpTrimIfSet(Binding->IfSet);
         Binding->IfSet = NULL;
 
         Binding->DeleteWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Binding;
