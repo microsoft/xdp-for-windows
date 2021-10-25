@@ -3,7 +3,7 @@
   <PropertyGroup>
     <XdpMajorVersion>0</XdpMajorVersion>
     <XdpMinorVersion>11</XdpMinorVersion>
-    <XdpPatchVersion>2</XdpPatchVersion>
+    <XdpPatchVersion>3</XdpPatchVersion>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
   <ItemGroup Label="ProjectConfigurations">

@@ -44,6 +44,9 @@ copy -Recurse published\external\* $dstPath\include
 New-Item -Path $dstPath\lib -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.lib" $dstPath\lib
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $dstPath\lib
+# Package the NMR symbols alongside its static library: consuming projects will
+# throw build exceptions if symbols are missing for statically linked code.
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.pdb" $dstPath\lib
 
 New-Item -Path $dstPath\samples -ItemType Directory > $null
 New-Item -Path $dstPath\samples\xdpmp -ItemType Directory > $null
