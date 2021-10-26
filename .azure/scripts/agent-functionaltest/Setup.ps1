@@ -15,3 +15,6 @@ bcdedit.exe /set testsigning on
 
 Write-Host "Enable driver verifier"
 verifier.exe /standard /driver xdp.sys xdpfnmp.sys
+
+Write-Host "Enable WER upload"
+reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Consent" /f /v DefaultConsent /t REG_DWORD /d 4
