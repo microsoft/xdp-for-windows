@@ -84,8 +84,8 @@ static CONST XDP_VERSION XdpDriverApiCurrentVersion = {
     .Patch = XDP_DRIVER_API_PATCH_VER
 };
 
-static EX_PUSH_LOCK XdpBindingLock;
-static LIST_ENTRY XdpBindingSets;
+static EX_PUSH_LOCK XdpInterfaceSetsLock;
+static LIST_ENTRY XdpInterfaceSets;
 static BOOLEAN XdpBindInitialized = FALSE;
 
 static
@@ -148,31 +148,31 @@ static CONST XDP_INTERFACE_CONFIG_DISPATCH XdpOpenDispatch = {
 
 static
 VOID
-XdpIfpBindingNmrDelete(
+XdpIfpInterfaceNmrDelete(
     _In_ XDP_BINDING_WORKITEM *Item
     );
 
 static
 VOID
-XdpIfpReferenceBinding(
-    _Inout_ XDP_INTERFACE *Binding
+XdpIfpReferenceInterface(
+    _Inout_ XDP_INTERFACE *Interface
     )
 {
-    InterlockedIncrement(&Binding->ReferenceCount);
+    InterlockedIncrement(&Interface->ReferenceCount);
 }
 
 static
 VOID
-XdpIfpDereferenceBinding(
-    _Inout_ XDP_INTERFACE *Binding
+XdpIfpDereferenceInterface(
+    _Inout_ XDP_INTERFACE *Interface
     )
 {
-    if (InterlockedDecrement(&Binding->ReferenceCount) == 0) {
-        ASSERT(Binding->ProviderReference == 0);
-        if (Binding->WorkQueue != NULL) {
-            XdpShutdownWorkQueue(Binding->WorkQueue, FALSE);
+    if (InterlockedDecrement(&Interface->ReferenceCount) == 0) {
+        ASSERT(Interface->ProviderReference == 0);
+        if (Interface->WorkQueue != NULL) {
+            XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
-        ExFreePoolWithTag(Binding, XDP_POOLTAG_IF);
+        ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
     }
 }
 
@@ -181,7 +181,7 @@ XdpIfDereferenceBinding(
     _In_ XDP_BINDING_HANDLE BindingHandle
     )
 {
-    XdpIfpDereferenceBinding((XDP_INTERFACE *)BindingHandle);
+    XdpIfpDereferenceInterface((XDP_INTERFACE *)BindingHandle);
 }
 
 static
@@ -203,31 +203,31 @@ XdpIfpDetachNmrInterface(
     )
 {
     XDP_INTERFACE_NMR *Nmr = ProviderContext;
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)Nmr->WorkItem.BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)Nmr->WorkItem.BindingHandle;
 
     TraceVerbose(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! NMR detach notification",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
     KeSetEvent(&Nmr->DetachNotification, 0, FALSE);
     XdpIfQueueWorkItem(&Nmr->WorkItem);
-    XdpIfpDereferenceBinding(Binding);
+    XdpIfpDereferenceInterface(Interface);
 }
 
 static
 VOID
 XdpIfpCloseNmrInterface(
-    _In_ XDP_INTERFACE *Binding
+    _In_ XDP_INTERFACE *Interface
     )
 {
-    XDP_INTERFACE_NMR *Nmr = Binding->Nmr;
+    XDP_INTERFACE_NMR *Nmr = Interface->Nmr;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
-    ASSERT(Binding->ProviderReference == 0);
-    ASSERT(Binding->InterfaceContext == NULL);
+    ASSERT(Interface->ProviderReference == 0);
+    ASSERT(Interface->InterfaceContext == NULL);
     ASSERT(Nmr != NULL && Nmr->NmrHandle != NULL);
 
     XdpCloseProvider(Nmr->NmrHandle);
@@ -235,7 +235,7 @@ XdpIfpCloseNmrInterface(
     XdpCleanupProvider(Nmr->NmrHandle);
     Nmr->NmrHandle = NULL;
 
-    Binding->Nmr = NULL;
+    Interface->Nmr = NULL;
     XdpIfpDereferenceNmr(Nmr);
 
     TraceExit(TRACE_CORE);
@@ -244,15 +244,15 @@ XdpIfpCloseNmrInterface(
 static
 VOID
 XdpIfpInvokeCloseInterface(
-    _In_ XDP_INTERFACE *Binding
+    _In_ XDP_INTERFACE *Interface
     )
 {
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Binding->InterfaceDispatch->CloseInterface != NULL) {
-        Binding->InterfaceDispatch->CloseInterface(Binding->InterfaceContext);
+    if (Interface->InterfaceDispatch->CloseInterface != NULL) {
+        Interface->InterfaceDispatch->CloseInterface(Interface->InterfaceContext);
     }
 
     TraceExit(TRACE_CORE);
@@ -261,29 +261,29 @@ XdpIfpInvokeCloseInterface(
 static
 VOID
 XdpIfpCloseInterface(
-    _In_ XDP_INTERFACE *Binding
+    _In_ XDP_INTERFACE *Interface
     )
 {
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Binding->InterfaceContext != NULL) {
-        XdpIfpInvokeCloseInterface(Binding);
-        Binding->InterfaceDispatch = NULL;
-        Binding->InterfaceContext = NULL;
+    if (Interface->InterfaceContext != NULL) {
+        XdpIfpInvokeCloseInterface(Interface);
+        Interface->InterfaceDispatch = NULL;
+        Interface->InterfaceContext = NULL;
     }
 
-    if (Binding->Nmr != NULL) {
-        XdpIfpCloseNmrInterface(Binding);
-        Binding->NmrDeleting = FALSE;
+    if (Interface->Nmr != NULL) {
+        XdpIfpCloseNmrInterface(Interface);
+        Interface->NmrDeleting = FALSE;
 
         TraceVerbose(TRACE_CORE, "interface closed");
     }
 
-    if (Binding->BindingDeleting && Binding->XdpIfInterfaceContext != NULL) {
-        Binding->RemoveInterfaceComplete(Binding->XdpIfInterfaceContext);
-        Binding->XdpIfInterfaceContext = NULL;
+    if (Interface->BindingDeleting && Interface->XdpIfInterfaceContext != NULL) {
+        Interface->RemoveInterfaceComplete(Interface->XdpIfInterfaceContext);
+        Interface->XdpIfInterfaceContext = NULL;
 
         TraceVerbose(TRACE_CORE, "interface deregistration completed");
     }
@@ -294,7 +294,7 @@ XdpIfpCloseInterface(
 static
 NTSTATUS
 XdpIfpInvokeOpenInterface(
-    _In_ XDP_INTERFACE *Binding,
+    _In_ XDP_INTERFACE *Interface,
     _In_opt_ VOID *InterfaceContext,
     _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch
     )
@@ -303,13 +303,13 @@ XdpIfpInvokeOpenInterface(
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
     if (InterfaceDispatch->OpenInterface != NULL) {
         ASSERT(InterfaceContext);
         Status =
             InterfaceDispatch->OpenInterface(
-                InterfaceContext, (XDP_INTERFACE_CONFIG)&Binding->OpenConfig);
+                InterfaceContext, (XDP_INTERFACE_CONFIG)&Interface->OpenConfig);
     }
 
     TraceExitStatus(TRACE_CORE);
@@ -337,7 +337,7 @@ XdpRequestClientDispatch(
     _In_ CONST XDP_CAPABILITIES_EX *ClientCapabilitiesEx,
     _In_ VOID *GetInterfaceContext,
     _In_ XDP_GET_INTERFACE_DISPATCH  *GetInterfaceDispatch,
-    _Inout_ XDP_INTERFACE *Binding,
+    _Inout_ XDP_INTERFACE *Interface,
     _Out_ VOID **InterfaceContext,
     _Out_ CONST XDP_INTERFACE_DISPATCH  **InterfaceDispatch
     )
@@ -356,18 +356,18 @@ XdpRequestClientDispatch(
                     ClientVersion, GetInterfaceContext,
                     InterfaceContext, InterfaceDispatch);
             if (NT_SUCCESS(Status)) {
-                Binding->DriverApiVersion = *ClientVersion;
+                Interface->DriverApiVersion = *ClientVersion;
                 TraceInfo(
                     TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Received interface dispatch"
                     " table for ClientVersion=%u.%u.%u",
-                    Binding->IfIndex, Binding->Capabilities.Mode,
+                    Interface->IfIndex, Interface->Capabilities.Mode,
                     ClientVersion->Major, ClientVersion->Minor, ClientVersion->Patch);
                 break;
             } else {
                 TraceWarn(
                     TRACE_CORE,
                     "IfIndex=%u Mode=%!XDP_MODE! Failed to get interface dispatch table"
-                    " Status=%!STATUS!", Binding->IfIndex, Binding->Capabilities.Mode,
+                    " Status=%!STATUS!", Interface->IfIndex, Interface->Capabilities.Mode,
                     Status);
                 Status = STATUS_NOT_SUPPORTED;
             }
@@ -377,7 +377,7 @@ XdpRequestClientDispatch(
     if (!NT_SUCCESS(Status)) {
         TraceWarn(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! No compatible interface was found",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
     }
     return Status;
 }
@@ -386,10 +386,10 @@ static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfpOpenInterface(
-    _Inout_ XDP_INTERFACE *Binding
+    _Inout_ XDP_INTERFACE *Interface
     )
 {
-    CONST XDP_CAPABILITIES_EX *CapabilitiesEx = Binding->Capabilities.CapabilitiesEx;
+    CONST XDP_CAPABILITIES_EX *CapabilitiesEx = Interface->Capabilities.CapabilitiesEx;
     VOID *GetInterfaceContext;
     XDP_GET_INTERFACE_DISPATCH  *GetInterfaceDispatch;
     VOID *InterfaceContext;
@@ -398,67 +398,67 @@ XdpIfpOpenInterface(
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
     if (CapabilitiesEx->Header.Revision < XDP_CAPABILITIES_EX_REVISION_1 ||
         CapabilitiesEx->Header.Size < XDP_SIZEOF_CAPABILITIES_EX_REVISION_1) {
         TraceError(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Invalid capabilities",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
     }
 
-    ASSERT(Binding->Nmr == NULL);
+    ASSERT(Interface->Nmr == NULL);
 
-    Binding->Nmr =
-        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding->Nmr), XDP_POOLTAG_BINDING);
-    if (Binding->Nmr == NULL) {
+    Interface->Nmr =
+        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Interface->Nmr), XDP_POOLTAG_BINDING);
+    if (Interface->Nmr == NULL) {
         TraceError(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! NMR allocation failed",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
 
-    if (!XdpIsFeOrLater() && Binding->Capabilities.Mode == XDP_INTERFACE_MODE_NATIVE) {
+    if (!XdpIsFeOrLater() && Interface->Capabilities.Mode == XDP_INTERFACE_MODE_NATIVE) {
         TraceWarn(TRACE_CORE, "Opening a native XDP interface on an unsupported OS");
     }
 
-    XdpIfpReferenceBinding(Binding);
-    Binding->Nmr->ReferenceCount = 2;
-    Binding->Nmr->WorkItem.BindingHandle = (XDP_BINDING_HANDLE)Binding;
-    Binding->Nmr->WorkItem.WorkRoutine = XdpIfpBindingNmrDelete;
-    KeInitializeEvent(&Binding->Nmr->DetachNotification, NotificationEvent, FALSE);
+    XdpIfpReferenceInterface(Interface);
+    Interface->Nmr->ReferenceCount = 2;
+    Interface->Nmr->WorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
+    Interface->Nmr->WorkItem.WorkRoutine = XdpIfpInterfaceNmrDelete;
+    KeInitializeEvent(&Interface->Nmr->DetachNotification, NotificationEvent, FALSE);
 
     Status =
         XdpOpenProvider(
-            Binding->IfIndex, &CapabilitiesEx->InstanceId, Binding->Nmr,
+            Interface->IfIndex, &CapabilitiesEx->InstanceId, Interface->Nmr,
             XdpIfpDetachNmrInterface, &GetInterfaceContext, &GetInterfaceDispatch,
-            &Binding->Nmr->NmrHandle);
+            &Interface->Nmr->NmrHandle);
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Failed to open NMR binding",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
         goto Exit;
     }
 
     Status =
         XdpRequestClientDispatch(
             CapabilitiesEx, GetInterfaceContext, GetInterfaceDispatch,
-            Binding, &InterfaceContext, &InterfaceDispatch);
+            Interface, &InterfaceContext, &InterfaceDispatch);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    Binding->InterfaceContext = InterfaceContext;
-    Binding->InterfaceDispatch = InterfaceDispatch;
+    Interface->InterfaceContext = InterfaceContext;
+    Interface->InterfaceDispatch = InterfaceDispatch;
 
-    Status = XdpIfpInvokeOpenInterface(Binding, InterfaceContext, InterfaceDispatch);
+    Status = XdpIfpInvokeOpenInterface(Interface, InterfaceContext, InterfaceDispatch);
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Interface open failed",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
         goto Exit;
     }
 
@@ -467,14 +467,14 @@ XdpIfpOpenInterface(
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        if (Binding->Nmr != NULL) {
-            if (Binding->Nmr->NmrHandle != NULL) {
-                XdpIfpCloseInterface(Binding);
+        if (Interface->Nmr != NULL) {
+            if (Interface->Nmr->NmrHandle != NULL) {
+                XdpIfpCloseInterface(Interface);
             } else {
-                XdpIfpDereferenceBinding(Binding);
-                ExFreePoolWithTag(Binding->Nmr, XDP_POOLTAG_BINDING);
+                XdpIfpDereferenceInterface(Interface);
+                ExFreePoolWithTag(Interface->Nmr, XDP_POOLTAG_BINDING);
             }
-            Binding->Nmr = NULL;
+            Interface->Nmr = NULL;
         }
     }
 
@@ -485,16 +485,16 @@ Exit:
 
 static
 _IRQL_requires_(PASSIVE_LEVEL)
-_Requires_lock_held_(&XdpBindingLock)
+_Requires_lock_held_(&XdpInterfaceSetsLock)
 XDP_INTERFACE_SET *
 XdpIfpFindIfSet(
     _In_ NET_IFINDEX IfIndex
     )
 {
     XDP_INTERFACE_SET *IfSet = NULL;
-    LIST_ENTRY *Entry = XdpBindingSets.Flink;
+    LIST_ENTRY *Entry = XdpInterfaceSets.Flink;
 
-    while (Entry != &XdpBindingSets) {
+    while (Entry != &XdpInterfaceSets) {
         XDP_INTERFACE_SET *Candidate = CONTAINING_RECORD(Entry, XDP_INTERFACE_SET, Link);
         Entry = Entry->Flink;
 
@@ -546,9 +546,9 @@ XdpIfpSupportsHookIds(
 
 static
 _IRQL_requires_(PASSIVE_LEVEL)
-_Requires_lock_held_(&XdpBindingLock)
+_Requires_lock_held_(&XdpInterfaceSetsLock)
 XDP_INTERFACE *
-XdpIfpFindBinding(
+XdpIfpFindInterface(
     _In_ NET_IFINDEX IfIndex,
     _In_ CONST XDP_HOOK_ID *HookIds,
     _In_ UINT32 HookCount,
@@ -600,16 +600,16 @@ XdpIfFindAndReferenceBinding(
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     )
 {
-    XDP_INTERFACE *Binding = NULL;
+    XDP_INTERFACE *Interface = NULL;
 
-    ExAcquirePushLockShared(&XdpBindingLock);
-    Binding = XdpIfpFindBinding(IfIndex, HookIds, HookCount, RequiredMode);
-    if (Binding != NULL) {
-        XdpIfpReferenceBinding(Binding);
+    ExAcquirePushLockShared(&XdpInterfaceSetsLock);
+    Interface = XdpIfpFindInterface(IfIndex, HookIds, HookCount, RequiredMode);
+    if (Interface != NULL) {
+        XdpIfpReferenceInterface(Interface);
     }
-    ExReleasePushLockShared(&XdpBindingLock);
+    ExReleasePushLockShared(&XdpInterfaceSetsLock);
 
-    return (XDP_BINDING_HANDLE)Binding;
+    return (XDP_BINDING_HANDLE)Interface;
 }
 
 VOID
@@ -617,11 +617,11 @@ XdpIfQueueWorkItem(
     _In_ XDP_BINDING_WORKITEM *WorkItem
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)WorkItem->BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)WorkItem->BindingHandle;
 
     WorkItem->IdealNode = KeGetCurrentNodeNumber();
-    XdpIfpReferenceBinding(Binding);
-    XdpInsertWorkQueue(Binding->WorkQueue, &WorkItem->Link);
+    XdpIfpReferenceInterface(Interface);
+    XdpInsertWorkQueue(Interface->WorkQueue, &WorkItem->Link);
 }
 
 CONST XDP_CAPABILITIES_INTERNAL *
@@ -629,35 +629,35 @@ XdpIfGetCapabilities(
     _In_ XDP_BINDING_HANDLE BindingHandle
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
-    return &Binding->Capabilities;
+    return &Interface->Capabilities;
 }
 
 static
 VOID
 XdpIfpStartRundown(
-    _In_ XDP_INTERFACE *Binding
+    _In_ XDP_INTERFACE *Interface
     )
 {
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Binding->ProviderReference == 0) {
-        XdpIfpCloseInterface(Binding);
+    if (Interface->ProviderReference == 0) {
+        XdpIfpCloseInterface(Interface);
     }
 
-    while (!IsListEmpty(&Binding->Clients)) {
+    while (!IsListEmpty(&Interface->Clients)) {
         XDP_BINDING_CLIENT_ENTRY *ClientEntry =
-            CONTAINING_RECORD(Binding->Clients.Flink, XDP_BINDING_CLIENT_ENTRY, Link);
+            CONTAINING_RECORD(Interface->Clients.Flink, XDP_BINDING_CLIENT_ENTRY, Link);
 
         RemoveEntryList(&ClientEntry->Link);
         InitializeListHead(&ClientEntry->Link);
 
         ClientEntry->Client->BindingDetached(ClientEntry);
 
-        XdpIfpDereferenceBinding(Binding);
+        XdpIfpDereferenceInterface(Interface);
     }
 
     TraceExit(TRACE_CORE);
@@ -665,45 +665,46 @@ XdpIfpStartRundown(
 
 static
 VOID
-XdpIfpBindingDelete(
+XdpIfpInterfaceDelete(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)Item->BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)Item->BindingHandle;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
-        Binding->IfIndex, Binding->Capabilities.Mode);
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
-    Binding->BindingDeleting = TRUE;
+    Interface->BindingDeleting = TRUE;
 
-    XdpIfpStartRundown(Binding);
+    XdpIfpStartRundown(Interface);
 
     //
     // Release the initial binding reference.
     //
-    XdpIfpDereferenceBinding(Binding);
+    XdpIfpDereferenceInterface(Interface);
 
     TraceExit(TRACE_CORE);
 }
 
 static
 VOID
-XdpIfpBindingNmrDelete(
+XdpIfpInterfaceNmrDelete(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)Item->BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)Item->BindingHandle;
     XDP_INTERFACE_NMR *Nmr = CONTAINING_RECORD(Item, XDP_INTERFACE_NMR, WorkItem);
 
     TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!", Binding->IfIndex, Binding->Capabilities.Mode);
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
+        Interface->IfIndex, Interface->Capabilities.Mode);
 
     if (Nmr->NmrHandle != NULL) {
-        ASSERT(Binding->NmrDeleting == FALSE);
-        Binding->NmrDeleting = TRUE;
+        ASSERT(Interface->NmrDeleting == FALSE);
+        Interface->NmrDeleting = TRUE;
 
-        XdpIfpStartRundown(Binding);
+        XdpIfpStartRundown(Interface);
     }
 
     XdpIfpDereferenceNmr(Nmr);
@@ -714,18 +715,18 @@ XdpIfpBindingNmrDelete(
 static
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XdpIfpBindingWorker(
+XdpIfpInterfaceWorker(
     _In_ SINGLE_LIST_ENTRY *WorkQueueHead
     )
 {
     while (WorkQueueHead != NULL) {
         XDP_BINDING_WORKITEM *Item;
-        XDP_INTERFACE *Binding;
+        XDP_INTERFACE *Interface;
         GROUP_AFFINITY Affinity;
         GROUP_AFFINITY OldAffinity;
 
         Item = CONTAINING_RECORD(WorkQueueHead, XDP_BINDING_WORKITEM, Link);
-        Binding = (XDP_INTERFACE *)Item->BindingHandle;
+        Interface = (XDP_INTERFACE *)Item->BindingHandle;
         WorkQueueHead = WorkQueueHead->Next;
 
         //
@@ -739,7 +740,7 @@ XdpIfpBindingWorker(
 
         KeRevertToUserGroupAffinityThread(&OldAffinity);
 
-        XdpIfpDereferenceBinding(Binding);
+        XdpIfpDereferenceInterface(Interface);
     }
 }
 
@@ -761,7 +762,7 @@ XdpIfCreateInterfaceSet(
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", IfIndex);
 
-    ExAcquirePushLockExclusive(&XdpBindingLock);
+    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     //
     // Check for duplicate binding set.
@@ -780,7 +781,7 @@ XdpIfCreateInterfaceSet(
     IfSet->IfIndex = IfIndex;
     IfSet->XdpIfInterfaceSetContext = InterfaceSetContext;
     InitializeListHead(&IfSet->Link);
-    InsertTailList(&XdpBindingSets, &IfSet->Link);
+    InsertTailList(&XdpInterfaceSets, &IfSet->Link);
 
     *InterfaceSetHandle = (XDPIF_INTERFACE_SET_HANDLE)IfSet;
     Status = STATUS_SUCCESS;
@@ -791,7 +792,7 @@ XdpIfCreateInterfaceSet(
 
 Exit:
 
-    ExReleasePushLockExclusive(&XdpBindingLock);
+    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -811,7 +812,7 @@ XdpIfDeleteInterfaceSet(
     // when a NIC is deleted.
     //
 
-    ExAcquirePushLockExclusive(&XdpBindingLock);
+    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(IfSet->Interfaces); Index++) {
         FRE_ASSERT(IfSet->Interfaces[Index] == NULL);
@@ -820,7 +821,7 @@ XdpIfDeleteInterfaceSet(
     RemoveEntryList(&IfSet->Link);
     ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
 
-    ExReleasePushLockExclusive(&XdpBindingLock);
+    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -841,11 +842,11 @@ XdpIfAddInterfaces(
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", IfSet->IfIndex);
 
-    ExAcquirePushLockExclusive(&XdpBindingLock);
+    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_ADD_INTERFACE *AddIf = &Interfaces[Index];
-        XDP_INTERFACE *Binding = NULL;
+        XDP_INTERFACE *Interface = NULL;
 
         if (!XdpValidateCapabilitiesEx(
                 AddIf->InterfaceCapabilities->CapabilitiesEx,
@@ -857,39 +858,39 @@ XdpIfAddInterfaces(
             goto Exit;
         }
 
-        Binding = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding), XDP_POOLTAG_IF);
-        if (Binding == NULL) {
+        Interface = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Interface), XDP_POOLTAG_IF);
+        if (Interface == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
-        Binding->IfIndex = IfSet->IfIndex;
-        Binding->IfSet = IfSet;
-        Binding->RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
-        Binding->XdpIfInterfaceContext = AddIf->InterfaceContext;
-        Binding->OpenConfig.Dispatch = &XdpOpenDispatch;
-        Binding->ReferenceCount = 1;
+        Interface->IfIndex = IfSet->IfIndex;
+        Interface->IfSet = IfSet;
+        Interface->RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
+        Interface->XdpIfInterfaceContext = AddIf->InterfaceContext;
+        Interface->OpenConfig.Dispatch = &XdpOpenDispatch;
+        Interface->ReferenceCount = 1;
         RtlCopyMemory(
-            (XDP_CAPABILITIES_INTERNAL *)&Binding->Capabilities,
+            (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities,
             AddIf->InterfaceCapabilities,
-            sizeof(Binding->Capabilities));
-        InitializeListHead(&Binding->Clients);
+            sizeof(Interface->Capabilities));
+        InitializeListHead(&Interface->Clients);
 
-        Binding->WorkQueue =
-            XdpCreateWorkQueue(XdpIfpBindingWorker, DISPATCH_LEVEL, XdpDriverObject, NULL);
-        if (Binding->WorkQueue == NULL) {
-            ExFreePoolWithTag(Binding, XDP_POOLTAG_IF);
+        Interface->WorkQueue =
+            XdpCreateWorkQueue(XdpIfpInterfaceWorker, DISPATCH_LEVEL, XdpDriverObject, NULL);
+        if (Interface->WorkQueue == NULL) {
+            ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
-        ASSERT(IfSet->Interfaces[Binding->Capabilities.Mode] == NULL);
-        IfSet->Interfaces[Binding->Capabilities.Mode] = Binding;
-        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Binding;
+        ASSERT(IfSet->Interfaces[Interface->Capabilities.Mode] == NULL);
+        IfSet->Interfaces[Interface->Capabilities.Mode] = Interface;
+        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Interface;
 
         TraceVerbose(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! XdpIfInterfaceContext=%p registered",
-            Binding->IfIndex, Binding->Capabilities.Mode, Binding->XdpIfInterfaceContext);
+            Interface->IfIndex, Interface->Capabilities.Mode, Interface->XdpIfInterfaceContext);
     }
 
     Status = STATUS_SUCCESS;
@@ -899,17 +900,17 @@ Exit:
     if (!NT_SUCCESS(Status)) {
         for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
             if (*Interfaces[Index].InterfaceHandle != NULL) {
-                XDP_INTERFACE *Binding;
-                Binding = (XDP_INTERFACE *)(*Interfaces[Index].InterfaceHandle);
+                XDP_INTERFACE *Interface;
+                Interface = (XDP_INTERFACE *)(*Interfaces[Index].InterfaceHandle);
                 ASSERT(IfSet);
-                IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
+                IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
                 *Interfaces[Index].InterfaceHandle = NULL;
-                XdpIfpDereferenceBinding(Binding);
+                XdpIfpDereferenceInterface(Interface);
             }
         }
     }
 
-    ExReleasePushLockExclusive(&XdpBindingLock);
+    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -928,23 +929,23 @@ XdpIfRemoveInterfaces(
     // when a NIC is deleted.
     //
 
-    ExAcquirePushLockExclusive(&XdpBindingLock);
+    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
-        XDP_INTERFACE *Binding = (XDP_INTERFACE *)Interfaces[Index];
+        XDP_INTERFACE *Interface = (XDP_INTERFACE *)Interfaces[Index];
 
         TraceVerbose(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! deregistering",
-            Binding->IfIndex, Binding->Capabilities.Mode);
-        Binding->IfSet->Interfaces[Binding->Capabilities.Mode] = NULL;
-        Binding->IfSet = NULL;
+            Interface->IfIndex, Interface->Capabilities.Mode);
+        Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
+        Interface->IfSet = NULL;
 
-        Binding->DeleteWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Binding;
-        Binding->DeleteWorkItem.WorkRoutine = XdpIfpBindingDelete;
-        XdpIfQueueWorkItem(&Binding->DeleteWorkItem);
+        Interface->DeleteWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
+        Interface->DeleteWorkItem.WorkRoutine = XdpIfpInterfaceDelete;
+        XdpIfQueueWorkItem(&Interface->DeleteWorkItem);
     }
 
-    ExReleasePushLockExclusive(&XdpBindingLock);
+    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -966,25 +967,25 @@ XdpIfRegisterClient(
     _In_ XDP_BINDING_CLIENT_ENTRY *ClientEntry
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
     LIST_ENTRY *Entry;
 
     FRE_ASSERT(Client->ClientId != XDP_BINDING_CLIENT_ID_INVALID);
     FRE_ASSERT(Client->KeySize > 0);
     FRE_ASSERT(Key != NULL);
 
-    if (Binding->BindingDeleting) {
+    if (Interface->BindingDeleting) {
         TraceInfo(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! client registration failed: binding deleting",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
         return STATUS_DELETE_PENDING;
     }
 
     //
     // Verify we're not inserting a duplicate client.
     //
-    Entry = Binding->Clients.Flink;
-    while (Entry != &Binding->Clients) {
+    Entry = Interface->Clients.Flink;
+    while (Entry != &Interface->Clients) {
         XDP_BINDING_CLIENT_ENTRY *Candidate =
             CONTAINING_RECORD(Entry, XDP_BINDING_CLIENT_ENTRY, Link);
         Entry = Entry->Flink;
@@ -995,15 +996,15 @@ XdpIfRegisterClient(
             TraceInfo(
                 TRACE_CORE,
                 "IfIndex=%u Mode=%!XDP_MODE! client registration failed: duplicate client",
-                Binding->IfIndex, Binding->Capabilities.Mode);
+                Interface->IfIndex, Interface->Capabilities.Mode);
             return STATUS_DUPLICATE_OBJECTID;
         }
     }
 
     ClientEntry->Client = Client;
     ClientEntry->Key = Key;
-    XdpIfpReferenceBinding(Binding);
-    InsertTailList(&Binding->Clients, &ClientEntry->Link);
+    XdpIfpReferenceInterface(Interface);
+    InsertTailList(&Interface->Clients, &ClientEntry->Link);
 
     return STATUS_SUCCESS;
 }
@@ -1015,7 +1016,7 @@ XdpIfDeregisterClient(
     _In_ XDP_BINDING_CLIENT_ENTRY *ClientEntry
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
     //
     // Invoked by XDP components (e.g. programs, XSKs) to detach from an
@@ -1025,7 +1026,7 @@ XdpIfDeregisterClient(
     if (!IsListEmpty(&ClientEntry->Link)) {
         RemoveEntryList(&ClientEntry->Link);
         InitializeListHead(&ClientEntry->Link);
-        XdpIfpDereferenceBinding(Binding);
+        XdpIfpDereferenceInterface(Interface);
     }
 }
 
@@ -1037,12 +1038,12 @@ XdpIfFindClientEntry(
     _In_ CONST VOID *Key
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
     LIST_ENTRY *Entry;
     XDP_BINDING_CLIENT_ENTRY *Candidate;
 
-    Entry = Binding->Clients.Flink;
-    while (Entry != &Binding->Clients) {
+    Entry = Interface->Clients.Flink;
+    while (Entry != &Interface->Clients) {
         Candidate = CONTAINING_RECORD(Entry, XDP_BINDING_CLIENT_ENTRY, Link);
         Entry = Entry->Flink;
 
@@ -1061,40 +1062,40 @@ XdpIfGetIfIndex(
     _In_ XDP_BINDING_HANDLE BindingHandle
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
-    return Binding->IfIndex;
+    return Interface->IfIndex;
 }
 
 static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfpReferenceInterface(
-    _In_ XDP_INTERFACE *Binding
+XdpIfpReferenceProvider(
+    _In_ XDP_INTERFACE *Interface
     )
 {
     NTSTATUS Status;
 
-    if (Binding->Rundown) {
+    if (Interface->Rundown) {
         Status = STATUS_DELETE_PENDING;
         TraceInfo(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! reference failed: rundown",
-            Binding->IfIndex, Binding->Capabilities.Mode);
+            Interface->IfIndex, Interface->Capabilities.Mode);
         goto Exit;
     }
 
-    if (Binding->InterfaceContext == NULL) {
-        ASSERT(Binding->ProviderReference == 0);
-        Status = XdpIfpOpenInterface(Binding);
+    if (Interface->InterfaceContext == NULL) {
+        ASSERT(Interface->ProviderReference == 0);
+        Status = XdpIfpOpenInterface(Interface);
         if (!NT_SUCCESS(Status)) {
             TraceInfo(
                 TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! reference failed: open interface",
-                Binding->IfIndex, Binding->Capabilities.Mode);
+                Interface->IfIndex, Interface->Capabilities.Mode);
             goto Exit;
         }
     }
 
-    Binding->ProviderReference++;
+    Interface->ProviderReference++;
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -1105,12 +1106,12 @@ Exit:
 static
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XdpIfpDereferenceInterface(
-    _In_ XDP_INTERFACE *Binding
+XdpIfpDereferenceProvider(
+    _In_ XDP_INTERFACE *Interface
     )
 {
-    if (--Binding->ProviderReference == 0) {
-        XdpIfpCloseInterface(Binding);
+    if (--Interface->ProviderReference == 0) {
+        XdpIfpCloseInterface(Interface);
     }
 }
 
@@ -1118,7 +1119,7 @@ static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfpInvokeCreateRxQueue(
-    _In_ XDP_INTERFACE *Binding,
+    _In_ XDP_INTERFACE *Interface,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
     _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
@@ -1128,12 +1129,12 @@ XdpIfpInvokeCreateRxQueue(
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
-        Binding->IfIndex, Binding->Capabilities.Mode,
+        Interface->IfIndex, Interface->Capabilities.Mode,
         XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
 
     Status =
-        Binding->InterfaceDispatch->CreateRxQueue(
-            Binding->InterfaceContext, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
+        Interface->InterfaceDispatch->CreateRxQueue(
+            Interface->InterfaceContext, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1149,25 +1150,25 @@ XdpIfCreateRxQueue(
     _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
     NTSTATUS Status;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
-        Binding->IfIndex, Binding->Capabilities.Mode,
+        Interface->IfIndex, Interface->Capabilities.Mode,
         XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
 
     *InterfaceRxQueue = NULL;
     *InterfaceRxQueueDispatch = NULL;
 
-    Status = XdpIfpReferenceInterface(Binding);
+    Status = XdpIfpReferenceProvider(Interface);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    Status = XdpIfpInvokeCreateRxQueue(Binding, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
+    Status = XdpIfpInvokeCreateRxQueue(Interface, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
     if (!NT_SUCCESS(Status)) {
-        XdpIfpDereferenceInterface(Binding);
+        XdpIfpDereferenceProvider(Interface);
         goto Exit;
     }
 
@@ -1191,13 +1192,13 @@ XdpIfActivateRxQueue(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE Config
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
-        Binding->IfIndex, Binding->Capabilities.Mode, InterfaceRxQueue);
+        Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
 
-    Binding->InterfaceDispatch->ActivateRxQueue(InterfaceRxQueue, XdpRxQueue, Config);
+    Interface->InterfaceDispatch->ActivateRxQueue(InterfaceRxQueue, XdpRxQueue, Config);
 
     TraceExit(TRACE_CORE);
 }
@@ -1209,15 +1210,15 @@ XdpIfDeleteRxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
-        Binding->IfIndex, Binding->Capabilities.Mode, InterfaceRxQueue);
+        Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
 
-    Binding->InterfaceDispatch->DeleteRxQueue(InterfaceRxQueue);
+    Interface->InterfaceDispatch->DeleteRxQueue(InterfaceRxQueue);
 
-    XdpIfpDereferenceInterface(Binding);
+    XdpIfpDereferenceProvider(Interface);
 
     TraceExit(TRACE_CORE);
 }
@@ -1226,7 +1227,7 @@ static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfpInvokeCreateTxQueue(
-    _In_ XDP_INTERFACE *Binding,
+    _In_ XDP_INTERFACE *Interface,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
     _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
@@ -1236,17 +1237,18 @@ XdpIfpInvokeCreateTxQueue(
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
-        Binding->IfIndex, Binding->Capabilities.Mode,
+        Interface->IfIndex, Interface->Capabilities.Mode,
         XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
 
     Status =
-        Binding->InterfaceDispatch->CreateTxQueue(
-            Binding->InterfaceContext, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
+        Interface->InterfaceDispatch->CreateTxQueue(
+            Interface->InterfaceContext, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
 
     TraceExitStatus(TRACE_CORE);
 
     return Status;
 }
+
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateTxQueue(
@@ -1256,25 +1258,25 @@ XdpIfCreateTxQueue(
     _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
     NTSTATUS Status;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
-        Binding->IfIndex, Binding->Capabilities.Mode,
+        Interface->IfIndex, Interface->Capabilities.Mode,
         XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
 
     *InterfaceTxQueue = NULL;
     *InterfaceTxQueueDispatch = NULL;
 
-    Status = XdpIfpReferenceInterface(Binding);
+    Status = XdpIfpReferenceProvider(Interface);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    Status = XdpIfpInvokeCreateTxQueue(Binding, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
+    Status = XdpIfpInvokeCreateTxQueue(Interface, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
     if (!NT_SUCCESS(Status)) {
-        XdpIfpDereferenceInterface(Binding);
+        XdpIfpDereferenceProvider(Interface);
         goto Exit;
     }
 
@@ -1298,13 +1300,13 @@ XdpIfActivateTxQueue(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE Config
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
-        Binding->IfIndex, Binding->Capabilities.Mode, InterfaceTxQueue);
+        Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue);
 
-    Binding->InterfaceDispatch->ActivateTxQueue(InterfaceTxQueue, XdpTxQueue, Config);
+    Interface->InterfaceDispatch->ActivateTxQueue(InterfaceTxQueue, XdpTxQueue, Config);
 
     TraceExit(TRACE_CORE);
 }
@@ -1316,15 +1318,15 @@ XdpIfDeleteTxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue
     )
 {
-    XDP_INTERFACE *Binding = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
-        Binding->IfIndex, Binding->Capabilities.Mode, InterfaceTxQueue);
+        Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue);
 
-    Binding->InterfaceDispatch->DeleteTxQueue(InterfaceTxQueue);
+    Interface->InterfaceDispatch->DeleteTxQueue(InterfaceTxQueue);
 
-    XdpIfpDereferenceInterface(Binding);
+    XdpIfpDereferenceProvider(Interface);
 
     TraceExit(TRACE_CORE);
 }
@@ -1336,8 +1338,8 @@ XdpIfStart(
     VOID
     )
 {
-    ExInitializePushLock(&XdpBindingLock);
-    InitializeListHead(&XdpBindingSets);
+    ExInitializePushLock(&XdpInterfaceSetsLock);
+    InitializeListHead(&XdpInterfaceSets);
     XdpBindInitialized = TRUE;
     return STATUS_SUCCESS;
 }
@@ -1353,9 +1355,9 @@ XdpIfStop(
         return;
     }
 
-    ExAcquirePushLockExclusive(&XdpBindingLock);
+    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
-    ASSERT(IsListEmpty(&XdpBindingSets));
+    ASSERT(IsListEmpty(&XdpInterfaceSets));
 
-    ExReleasePushLockExclusive(&XdpBindingLock);
+    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }
