@@ -29,6 +29,3 @@ Write-Host "Enable driver verifier"
 # WARNING: xdp.sys itself may fail to load due to low resources simulation.
 #
 verifier.exe /standard /faults 599 `"`" `"`" 0 /driver xdp.sys
-
-Write-Host "Enable WER upload"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Consent" /f /v DefaultConsent /t REG_DWORD /d 4
