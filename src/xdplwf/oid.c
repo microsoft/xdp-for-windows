@@ -175,7 +175,7 @@ XdpLwfOidRequest(
 
     Status =
         NdisAllocateCloneOidRequest(
-            Filter->FilterHandle, Request, POOLTAG_OID, &ClonedRequest);
+            Filter->NdisFilterHandle, Request, POOLTAG_OID, &ClonedRequest);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
@@ -184,7 +184,7 @@ XdpLwfOidRequest(
     Context->OriginalRequest = Request;
     ClonedRequest->RequestId = Request->RequestId;
 
-    Status = NdisFOidRequest(Filter->FilterHandle, ClonedRequest);
+    Status = NdisFOidRequest(Filter->NdisFilterHandle, ClonedRequest);
 
     if (Status != NDIS_STATUS_PENDING) {
         XdpLwfOidRequestComplete(Filter, ClonedRequest, Status);
@@ -249,6 +249,6 @@ XdpLwfOidRequestComplete(
         break;
     }
 
-    NdisFreeCloneOidRequest(Filter->FilterHandle, Request);
-    NdisFOidRequestComplete(Filter->FilterHandle, OriginalRequest, Status);
+    NdisFreeCloneOidRequest(Filter->NdisFilterHandle, Request);
+    NdisFOidRequestComplete(Filter->NdisFilterHandle, OriginalRequest, Status);
 }

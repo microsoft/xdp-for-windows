@@ -19,7 +19,7 @@ typedef struct _XDP_LWF_DATAPATH_BYPASS {
 } XDP_LWF_DATAPATH_BYPASS;
 
 typedef struct _XDP_LWF_GENERIC {
-    NDIS_HANDLE NdisHandle;
+    NDIS_HANDLE NdisFilterHandle;
     NET_IFINDEX IfIndex;
 
     XDP_CAPABILITIES Capabilities;

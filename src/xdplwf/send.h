@@ -14,7 +14,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     XDP_LWF_GENERIC *Generic;
     XDP_TX_QUEUE_NOTIFY_HANDLE XdpNotifyHandle;
 
-    NDIS_HANDLE FilterHandle;
+    NDIS_HANDLE NdisFilterHandle;
     XDP_TX_QUEUE_HANDLE XdpTxQueue;
     XDP_RING *FrameRing;
     XDP_RING *CompletionRing;

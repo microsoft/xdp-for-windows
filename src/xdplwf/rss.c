@@ -288,7 +288,7 @@ XdpGenericRssInitialize(
 
     Status =
         XdpLwfOidInternalRequest(
-            Generic->NdisHandle, NdisRequestQueryInformation,
+            Generic->NdisFilterHandle, NdisRequestQueryInformation,
             OID_GEN_RECEIVE_SCALE_CAPABILITIES, &RssCaps,
             sizeof(RssCaps), 0, 0, &BytesReturned);
     if (!NT_SUCCESS(Status) && Status != STATUS_NOT_SUPPORTED) {
@@ -376,7 +376,7 @@ XdpGenericRssInitialize(
 
     Status =
         XdpLwfOidInternalRequest(
-            Generic->NdisHandle, NdisRequestQueryInformation,
+            Generic->NdisFilterHandle, NdisRequestQueryInformation,
             OID_GEN_RECEIVE_SCALE_PARAMETERS, RssParams, 0, 0, 0,
             &BytesReturned);
     if (Status != STATUS_BUFFER_TOO_SMALL || BytesReturned == 0) {
@@ -396,7 +396,7 @@ XdpGenericRssInitialize(
 
     Status =
         XdpLwfOidInternalRequest(
-            Generic->NdisHandle, NdisRequestQueryInformation,
+            Generic->NdisFilterHandle, NdisRequestQueryInformation,
             OID_GEN_RECEIVE_SCALE_PARAMETERS, RssParams, BytesReturned, 0, 0,
             &BytesReturned);
     if (!NT_SUCCESS(Status)) {

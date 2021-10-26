@@ -15,7 +15,7 @@ typedef enum _XDP_LWF_FILTER_STATE {
 } XDP_LWF_FILTER_STATE;
 
 typedef struct _XDP_LWF_FILTER {
-    NDIS_HANDLE FilterHandle;
+    NDIS_HANDLE NdisFilterHandle;
     NET_IFINDEX MiniportIfIndex;
     XDP_LWF_FILTER_STATE NdisState;
     XDPIF_INTERFACE_SET_HANDLE XdpIfInterfaceSetHandle;

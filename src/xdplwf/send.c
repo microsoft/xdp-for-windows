@@ -97,7 +97,7 @@ XdpGenericInjectNetBufferListsComplete(
     NdisInitializeNblQueue(&PassList);
 
     NdisClassifyNblChainByValueLookaheadWithCount(
-        NetBufferLists, XdpGenericInjectCompleteClassify, Generic->NdisHandle,
+        NetBufferLists, XdpGenericInjectCompleteClassify, Generic->NdisFilterHandle,
         XdpGenericInjectCompleteFlush, &PassList);
 
     return NdisGetNblChainFromNblQueue(&PassList);
@@ -125,7 +125,8 @@ XdpGenericSendNetBufferListsComplete(
     }
 
     if (NetBufferLists != NULL) {
-        NdisFSendNetBufferListsComplete(Generic->NdisHandle, NetBufferLists, SendCompleteFlags);
+        NdisFSendNetBufferListsComplete(
+            Generic->NdisFilterHandle, NetBufferLists, SendCompleteFlags);
     }
 }
 
@@ -150,13 +151,13 @@ XdpGenericSendNetBufferLists(
 
     if (!NdisIsNblCountedQueueEmpty(&PassList)) {
         NdisFSendNetBufferLists(
-            Generic->NdisHandle, NdisGetNblChainFromNblCountedQueue(&PassList),
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&PassList),
             PortNumber, SendFlags);
     }
 
     if (!NdisIsNblQueueEmpty(&DropList)) {
         NdisFSendNetBufferListsComplete(
-            Generic->NdisHandle, NdisGetNblChainFromNblQueue(&DropList),
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&DropList),
             NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags) ?
                 NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
     }
@@ -291,11 +292,11 @@ XdpGenericInitiateTx(
 
     if (!TxQueue->Flags.RxInject) {
         NdisFSendNetBufferLists(
-            TxQueue->FilterHandle, NdisGetNblChainFromNblCountedQueue(&Nbls),
+            TxQueue->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&Nbls),
             NDIS_DEFAULT_PORT_NUMBER, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
     } else {
         NdisFIndicateReceiveNetBufferLists(
-            TxQueue->FilterHandle, NdisGetNblChainFromNblCountedQueue(&Nbls),
+            TxQueue->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&Nbls),
             NDIS_DEFAULT_PORT_NUMBER, (ULONG)Nbls.NblCount, NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
     }
 
@@ -617,7 +618,7 @@ XdpGenericTxCreateQueue(
     C_ASSERT(__alignof(MDL) <= __alignof(NBL_TX_CONTEXT));
     PoolParams.ContextSize = (USHORT)(MdlSize + sizeof(NBL_TX_CONTEXT));
 
-    TxQueue->NblPool = NdisAllocateNetBufferListPool(Generic->NdisHandle, &PoolParams);
+    TxQueue->NblPool = NdisAllocateNetBufferListPool(Generic->NdisFilterHandle, &PoolParams);
     if (TxQueue->NblPool == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -646,7 +647,7 @@ XdpGenericTxCreateQueue(
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
-        Nbl->SourceHandle = Generic->NdisHandle;
+        Nbl->SourceHandle = Generic->NdisFilterHandle;
         Mdl = (MDL *)(NET_BUFFER_LIST_CONTEXT_DATA_START(Nbl) + sizeof(NBL_TX_CONTEXT));
         MmInitializeMdl(Mdl, NULL, MAX_TX_BUFFER_LENGTH);
         Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);
@@ -659,7 +660,7 @@ XdpGenericTxCreateQueue(
     InitializeSListHead(&TxQueue->NblComplete);
     TxQueue->Generic = Generic;
     TxQueue->QueueId = QueueInfo->QueueId;
-    TxQueue->FilterHandle = Generic->NdisHandle;
+    TxQueue->NdisFilterHandle = Generic->NdisFilterHandle;
     TxQueue->RssQueue = RssQueue;
 
     TxQueue->Flags.RxInject = (HookId.Direction == XDP_HOOK_RX);

@@ -130,7 +130,7 @@ XdpLwfFilterAttach(
     }
 
     Filter->MiniportIfIndex = AttachParameters->BaseMiniportIfIndex;
-    Filter->FilterHandle = NdisFilterHandle;
+    Filter->NdisFilterHandle = NdisFilterHandle;
     Filter->NdisState = FilterPaused;
 
     //
@@ -162,7 +162,7 @@ XdpLwfFilterAttach(
 
     Status =
         XdpGenericAttachInterface(
-            &Filter->Generic, Filter->FilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
+            &Filter->Generic, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
     if (NT_SUCCESS(Status)) {
         IfCount++;
         Index++;
@@ -170,7 +170,7 @@ XdpLwfFilterAttach(
 
     Status =
         XdpNativeAttachInterface(
-            &Filter->Native, Filter->FilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
+            &Filter->Native, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
     if (NT_SUCCESS(Status)) {
         IfCount++;
         Index++;

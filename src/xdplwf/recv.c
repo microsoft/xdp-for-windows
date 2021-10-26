@@ -30,7 +30,7 @@ XdpGenericReturnNetBufferLists(
     }
 
     if (NetBufferLists != NULL) {
-        NdisFReturnNetBufferLists(Generic->NdisHandle, NetBufferLists, ReturnFlags);
+        NdisFReturnNetBufferLists(Generic->NdisFilterHandle, NetBufferLists, ReturnFlags);
     }
 }
 
@@ -241,7 +241,8 @@ XdpGenericReceiveExitEc(
             //
             if (!NdisIsNblCountedQueueEmpty(PassList)) {
                 NdisFSendNetBufferLists(
-                    RxQueue->Generic->NdisHandle, NdisGetNblChainFromNblCountedQueue(PassList),
+                    RxQueue->Generic->NdisFilterHandle,
+                    NdisGetNblChainFromNblCountedQueue(PassList),
                     NDIS_DEFAULT_PORT_NUMBER, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
                 NdisInitializeNblCountedQueue(PassList);
             }
@@ -602,7 +603,7 @@ XdpGenericReceive(
             //
             ASSERT(!RxQueue->Flags.TxInspect);
             XdpGenericReceiveLowResources(
-                Generic->NdisHandle, &RxQueue->EcLock, PassList, DropList, &LowResourcesList,
+                Generic->NdisFilterHandle, &RxQueue->EcLock, PassList, DropList, &LowResourcesList,
                 PortNumber, (NetBufferLists == NULL));
         }
     }
@@ -651,13 +652,13 @@ XdpGenericReceiveNetBufferLists(
 
     if (!NdisIsNblCountedQueueEmpty(&PassList)) {
         NdisFIndicateReceiveNetBufferLists(
-            Generic->NdisHandle, NdisGetNblChainFromNblCountedQueue(&PassList), PortNumber,
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&PassList), PortNumber,
             (ULONG)PassList.NblCount, ReceiveFlags);
     }
 
     if (!NdisIsNblQueueEmpty(&DropList)) {
         NdisFReturnNetBufferLists(
-            Generic->NdisHandle, NdisGetNblChainFromNblQueue(&DropList),
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&DropList),
             NDIS_TEST_RECEIVE_AT_DISPATCH_LEVEL(ReceiveFlags) ?
                 NDIS_RETURN_FLAGS_DISPATCH_LEVEL : 0);
     }
@@ -735,13 +736,13 @@ XdpGenericReceiveTxInspectPoll(
 
         if (!NdisIsNblCountedQueueEmpty(&PassList)) {
             NdisFSendNetBufferLists(
-                Generic->NdisHandle, NdisGetNblChainFromNblCountedQueue(&PassList),
+                Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&PassList),
                 NDIS_DEFAULT_PORT_NUMBER, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
         }
 
         if (!NdisIsNblQueueEmpty(&DropList)) {
             NdisFSendNetBufferListsComplete(
-                Generic->NdisHandle, NdisGetNblChainFromNblQueue(&DropList),
+                Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&DropList),
                 NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
         }
 

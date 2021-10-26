@@ -311,7 +311,7 @@ XdpGenericFilterSetOptions(
 
     Status =
         NdisSetOptionalHandlers(
-            Generic->NdisHandle, (NDIS_DRIVER_OPTIONAL_HANDLERS *)&Handlers);
+            Generic->NdisFilterHandle, (NDIS_DRIVER_OPTIONAL_HANDLERS *)&Handlers);
 
     TraceVerbose(
         TRACE_GENERIC, "IfIndex=%u Set datapath handlers RX=%u TX=%u Status=%!STATUS!",
@@ -354,7 +354,7 @@ XdpGenericRequestRestart(
     NDIS_STATUS Status;
 
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting datapath restart", Generic->IfIndex);
-    Status = NdisFRestartFilter(Generic->NdisHandle);
+    Status = NdisFRestartFilter(Generic->NdisFilterHandle);
     ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
     NT_VERIFY(NT_SUCCESS(XdpConvertNdisStatusToNtStatus(Status)));
 }
@@ -459,7 +459,7 @@ XdpGenericAttachInterface(
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Rx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     XdpInitializeReferenceCount(&Generic->ReferenceCount);
-    Generic->NdisHandle = NdisFilterHandle;
+    Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
     Generic->InternalCapabilities.Mode = XDP_INTERFACE_MODE_GENERIC;
     Generic->InternalCapabilities.Hooks = GenericHooks;
