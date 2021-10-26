@@ -32,7 +32,11 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp")]
-    [string]$Uninstall = ""
+    [string]$Uninstall = "",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("NDIS", "FNDIS")]
+    [string]$XdpmpPollProvider = "NDIS"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -255,24 +259,6 @@ function Install-XdpMp {
         Write-Error "$XdpMpSys does not exist!"
     }
 
-    # On Server 2022 LTSC, the IO verifier flag causes a bugcheck due to a bug
-    # in NT verifier and PNP verifier. Either don't enable verifier on XDPMP, or
-    # disable IO verifier on all drivers when enabling verifier on XDPMP. To
-    # ensure we get as close to maximum coverage as possible, randomly enable
-    # verifier on XDPMP *or* do nothing and implicitly keep the IO verifier flag
-    # enabled.
-    # if ($Verifier) {
-    #     if ((Get-Random -Maximum 2) -eq 1) {
-    #         Write-Verbose "verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB"
-    #         verifier.exe /volatile /adddriver xdpmp.sys /flags 0x9AB > $null
-    #         if ($LastExitCode) {
-    #             Write-Host "verifier.exe exit code: $LastExitCode"
-    #         }
-    #     } else {
-    #         Write-Verbose "Not enabling verifier on xdpmp.sys"
-    #     }
-    # }
-
     Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
     pnputil.exe /install /add-driver $XdpMpInf | Write-Verbose
     if ($LastExitCode) {
@@ -298,9 +284,13 @@ function Install-XdpMp {
 
     Write-Verbose "Setting up the adapter"
 
-    # NDIS polling has known race conditions and hangs on 2022 LTSC, so default
-    # to the more reliable FNDIS.
-    Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue "FNDIS"
+    Write-Verbose "Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider"
+    Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider
+
+    if ($XdpmpPollProvider -eq "NDIS") {
+        Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
+        Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
+    }
 
     Wait-For-Adapters -IfDesc $XdpMpServiceName
 
@@ -315,10 +305,6 @@ function Install-XdpMp {
     Write-Verbose "Adding firewall rules"
     netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v4" dir=in action=allow protocol=any remoteip=192.168.100.0/24 | Write-Verbose
     netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v6" dir=in action=allow protocol=any remoteip=fc00::100:0/112 | Write-Verbose
-
-    # Since we're using FNDIS, don't bother trying to set the NDIS polling profile.
-    # Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
-    # Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
 
     Write-Verbose "xdpmp.sys install complete!"
 }

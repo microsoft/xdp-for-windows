@@ -94,7 +94,7 @@ Running the test:
 ```Powershell
 .\tools\setup.ps1 -Install fndis
 .\tools\setup.ps1 -Install xdp
-.\tools\setup.ps1 -Install xdpmp
+.\tools\setup.ps1 -Install xdpmp -XdpmpPollProvider FNDIS
 .\tools\spinxsk.ps1 -QueueCount 2 -Minutes 10 -Stats
 .\tools\setup.ps1 -Uninstall xdpmp
 .\tools\setup.ps1 -Uninstall xdp
