@@ -23,35 +23,32 @@ typedef struct _XDP_INTERFACE_NMR XDP_INTERFACE_NMR;
 typedef struct _XDP_INTERFACE {
     NET_IFINDEX IfIndex;
     XDP_INTERFACE_SET *IfSet;
-    VOID *XdpIfInterfaceContext;
-
+    LONG ReferenceCount;
     CONST XDP_CAPABILITIES_INTERNAL Capabilities;
-    XDP_REMOVE_INTERFACE_COMPLETE *RemoveInterfaceComplete;
-    XDP_INTERFACE_CONFIG_DETAILS OpenConfig;
+    XDP_WORK_QUEUE *WorkQueue;
+    XDP_BINDING_WORKITEM RemoveWorkItem;   // Guaranteed item for remove.
+
+    //
+    // XDP core components bound to this XDP interface.
+    //
+    LIST_ENTRY Clients;
 
     XDP_INTERFACE_NMR *Nmr;
-    XDP_VERSION DriverApiVersion;
-    CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
-    VOID *InterfaceContext;
+    BOOLEAN NmrDeleting;
 
-    LONG ReferenceCount;
+    struct {
+        VOID *InterfaceContext;
+        XDP_REMOVE_INTERFACE_COMPLETE *RemoveInterfaceComplete;
+        BOOLEAN InterfaceRemoving;
+    } XdpIfApi;
 
-    LIST_ENTRY Clients;         // Components bound to the NIC.
-    ULONG ProviderReference;    // Active reference on the NIC.
-
-    union {
-        struct {
-            BOOLEAN BindingDeleting : 1;    // The interface is being deleted.
-            BOOLEAN NmrDeleting : 1;        // The NMR binding is being deleted.
-        };
-        BOOLEAN Rundown;            // Disable new active references on the NIC.
-    };
-
-    XDP_WORK_QUEUE *WorkQueue;
-    union {
-        XDP_BINDING_WORKITEM CloseWorkItem;    // Guaranteed item for close.
-        XDP_BINDING_WORKITEM DeleteWorkItem;   // Guaranteed item for delete.
-    };
+    struct {
+        XDP_VERSION Version;
+        CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
+        VOID *InterfaceContext;
+        ULONG ProviderReference;
+        XDP_INTERFACE_CONFIG_DETAILS OpenConfig;
+    } XdpDriverApi;
 } XDP_INTERFACE;
 
 typedef struct _XDP_INTERFACE_NMR {
@@ -72,7 +69,7 @@ typedef struct _XDP_INTERFACE_SET {
     LIST_ENTRY Link;
     NET_IFINDEX IfIndex;
     VOID *XdpIfInterfaceSetContext;
-    XDP_INTERFACE *Interfaces[2];   // One binding for both generic and native.
+    XDP_INTERFACE *Interfaces[2];   // One interface for both generic and native.
 } XDP_INTERFACE_SET;
 
 //
@@ -94,7 +91,7 @@ XdpInterfaceFromConfig(
     _In_ XDP_INTERFACE_CONFIG InterfaceConfig
     )
 {
-    return CONTAINING_RECORD(InterfaceConfig, XDP_INTERFACE, OpenConfig);
+    return CONTAINING_RECORD(InterfaceConfig, XDP_INTERFACE, XdpDriverApi.OpenConfig);
 }
 
 static
@@ -135,7 +132,7 @@ XdpGetDriverApiVersion(
     )
 {
     XDP_INTERFACE *Interface = XdpInterfaceFromConfig(InterfaceConfig);
-    return &Interface->DriverApiVersion;
+    return &Interface->XdpDriverApi.Version;
 }
 
 static CONST XDP_INTERFACE_CONFIG_DISPATCH XdpOpenDispatch = {
@@ -168,7 +165,7 @@ XdpIfpDereferenceInterface(
     )
 {
     if (InterlockedDecrement(&Interface->ReferenceCount) == 0) {
-        ASSERT(Interface->ProviderReference == 0);
+        ASSERT(Interface->XdpDriverApi.ProviderReference == 0);
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
@@ -192,7 +189,7 @@ XdpIfpDereferenceNmr(
 {
     if (--Nmr->ReferenceCount == 0) {
         ASSERT(Nmr->NmrHandle == NULL);
-        ExFreePoolWithTag(Nmr, XDP_POOLTAG_BINDING);
+        ExFreePoolWithTag(Nmr, XDP_POOLTAG_NMR);
     }
 }
 
@@ -226,8 +223,8 @@ XdpIfpCloseNmrInterface(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    ASSERT(Interface->ProviderReference == 0);
-    ASSERT(Interface->InterfaceContext == NULL);
+    ASSERT(Interface->XdpDriverApi.ProviderReference == 0);
+    ASSERT(Interface->XdpDriverApi.InterfaceContext == NULL);
     ASSERT(Nmr != NULL && Nmr->NmrHandle != NULL);
 
     XdpCloseProvider(Nmr->NmrHandle);
@@ -251,8 +248,9 @@ XdpIfpInvokeCloseInterface(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Interface->InterfaceDispatch->CloseInterface != NULL) {
-        Interface->InterfaceDispatch->CloseInterface(Interface->InterfaceContext);
+    if (Interface->XdpDriverApi.InterfaceDispatch->CloseInterface != NULL) {
+        Interface->XdpDriverApi.InterfaceDispatch->CloseInterface(
+            Interface->XdpDriverApi.InterfaceContext);
     }
 
     TraceExit(TRACE_CORE);
@@ -268,10 +266,10 @@ XdpIfpCloseInterface(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Interface->InterfaceContext != NULL) {
+    if (Interface->XdpDriverApi.InterfaceContext != NULL) {
         XdpIfpInvokeCloseInterface(Interface);
-        Interface->InterfaceDispatch = NULL;
-        Interface->InterfaceContext = NULL;
+        Interface->XdpDriverApi.InterfaceDispatch = NULL;
+        Interface->XdpDriverApi.InterfaceContext = NULL;
     }
 
     if (Interface->Nmr != NULL) {
@@ -281,11 +279,11 @@ XdpIfpCloseInterface(
         TraceVerbose(TRACE_CORE, "interface closed");
     }
 
-    if (Interface->BindingDeleting && Interface->XdpIfInterfaceContext != NULL) {
-        Interface->RemoveInterfaceComplete(Interface->XdpIfInterfaceContext);
-        Interface->XdpIfInterfaceContext = NULL;
+    if (Interface->XdpIfApi.InterfaceRemoving && Interface->XdpIfApi.InterfaceContext != NULL) {
+        Interface->XdpIfApi.RemoveInterfaceComplete(Interface->XdpIfApi.InterfaceContext);
+        Interface->XdpIfApi.InterfaceContext = NULL;
 
-        TraceVerbose(TRACE_CORE, "interface deregistration completed");
+        TraceVerbose(TRACE_CORE, "interface removal completed");
     }
 
     TraceExit(TRACE_CORE);
@@ -309,7 +307,7 @@ XdpIfpInvokeOpenInterface(
         ASSERT(InterfaceContext);
         Status =
             InterfaceDispatch->OpenInterface(
-                InterfaceContext, (XDP_INTERFACE_CONFIG)&Interface->OpenConfig);
+                InterfaceContext, (XDP_INTERFACE_CONFIG)&Interface->XdpDriverApi.OpenConfig);
     }
 
     TraceExitStatus(TRACE_CORE);
@@ -356,7 +354,7 @@ XdpRequestClientDispatch(
                     ClientVersion, GetInterfaceContext,
                     InterfaceContext, InterfaceDispatch);
             if (NT_SUCCESS(Status)) {
-                Interface->DriverApiVersion = *ClientVersion;
+                Interface->XdpDriverApi.Version = *ClientVersion;
                 TraceInfo(
                     TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Received interface dispatch"
                     " table for ClientVersion=%u.%u.%u",
@@ -412,7 +410,7 @@ XdpIfpOpenInterface(
     ASSERT(Interface->Nmr == NULL);
 
     Interface->Nmr =
-        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Interface->Nmr), XDP_POOLTAG_BINDING);
+        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Interface->Nmr), XDP_POOLTAG_NMR);
     if (Interface->Nmr == NULL) {
         TraceError(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! NMR allocation failed",
@@ -451,8 +449,8 @@ XdpIfpOpenInterface(
         goto Exit;
     }
 
-    Interface->InterfaceContext = InterfaceContext;
-    Interface->InterfaceDispatch = InterfaceDispatch;
+    Interface->XdpDriverApi.InterfaceContext = InterfaceContext;
+    Interface->XdpDriverApi.InterfaceDispatch = InterfaceDispatch;
 
     Status = XdpIfpInvokeOpenInterface(Interface, InterfaceContext, InterfaceDispatch);
     if (!NT_SUCCESS(Status)) {
@@ -472,7 +470,7 @@ Exit:
                 XdpIfpCloseInterface(Interface);
             } else {
                 XdpIfpDereferenceInterface(Interface);
-                ExFreePoolWithTag(Interface->Nmr, XDP_POOLTAG_BINDING);
+                ExFreePoolWithTag(Interface->Nmr, XDP_POOLTAG_NMR);
             }
             Interface->Nmr = NULL;
         }
@@ -644,7 +642,7 @@ XdpIfpStartRundown(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Interface->ProviderReference == 0) {
+    if (Interface->XdpDriverApi.ProviderReference == 0) {
         XdpIfpCloseInterface(Interface);
     }
 
@@ -665,7 +663,7 @@ XdpIfpStartRundown(
 
 static
 VOID
-XdpIfpInterfaceDelete(
+XdpIfpInterfaceRemove(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
@@ -675,12 +673,12 @@ XdpIfpInterfaceDelete(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    Interface->BindingDeleting = TRUE;
+    Interface->XdpIfApi.InterfaceRemoving = TRUE;
 
     XdpIfpStartRundown(Interface);
 
     //
-    // Release the initial binding reference.
+    // Release the initial interface reference.
     //
     XdpIfpDereferenceInterface(Interface);
 
@@ -765,7 +763,7 @@ XdpIfCreateInterfaceSet(
     ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     //
-    // Check for duplicate binding set.
+    // Check for duplicate interface set.
     //
     if (XdpIfpFindIfSet(IfIndex) != NULL) {
         Status = STATUS_DUPLICATE_OBJECTID;
@@ -787,7 +785,7 @@ XdpIfCreateInterfaceSet(
     Status = STATUS_SUCCESS;
 
     TraceVerbose(
-        TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p registered",
+        TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p Created",
         IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
 
 Exit:
@@ -817,6 +815,10 @@ XdpIfDeleteInterfaceSet(
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(IfSet->Interfaces); Index++) {
         FRE_ASSERT(IfSet->Interfaces[Index] == NULL);
     }
+
+    TraceVerbose(
+        TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p Deleted",
+        IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
 
     RemoveEntryList(&IfSet->Link);
     ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
@@ -866,9 +868,9 @@ XdpIfAddInterfaces(
 
         Interface->IfIndex = IfSet->IfIndex;
         Interface->IfSet = IfSet;
-        Interface->RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
-        Interface->XdpIfInterfaceContext = AddIf->InterfaceContext;
-        Interface->OpenConfig.Dispatch = &XdpOpenDispatch;
+        Interface->XdpIfApi.RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
+        Interface->XdpIfApi.InterfaceContext = AddIf->InterfaceContext;
+        Interface->XdpDriverApi.OpenConfig.Dispatch = &XdpOpenDispatch;
         Interface->ReferenceCount = 1;
         RtlCopyMemory(
             (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities,
@@ -889,8 +891,9 @@ XdpIfAddInterfaces(
         *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Interface;
 
         TraceVerbose(
-            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! XdpIfInterfaceContext=%p registered",
-            Interface->IfIndex, Interface->Capabilities.Mode, Interface->XdpIfInterfaceContext);
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! XdpIfInterfaceContext=%p Added",
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            Interface->XdpIfApi.InterfaceContext);
     }
 
     Status = STATUS_SUCCESS;
@@ -935,14 +938,14 @@ XdpIfRemoveInterfaces(
         XDP_INTERFACE *Interface = (XDP_INTERFACE *)Interfaces[Index];
 
         TraceVerbose(
-            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! deregistering",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Removing",
             Interface->IfIndex, Interface->Capabilities.Mode);
         Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
         Interface->IfSet = NULL;
 
-        Interface->DeleteWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
-        Interface->DeleteWorkItem.WorkRoutine = XdpIfpInterfaceDelete;
-        XdpIfQueueWorkItem(&Interface->DeleteWorkItem);
+        Interface->RemoveWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
+        Interface->RemoveWorkItem.WorkRoutine = XdpIfpInterfaceRemove;
+        XdpIfQueueWorkItem(&Interface->RemoveWorkItem);
     }
 
     ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
@@ -974,9 +977,9 @@ XdpIfRegisterClient(
     FRE_ASSERT(Client->KeySize > 0);
     FRE_ASSERT(Key != NULL);
 
-    if (Interface->BindingDeleting) {
+    if (Interface->XdpIfApi.InterfaceRemoving) {
         TraceInfo(
-            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! client registration failed: binding deleting",
+            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! client registration failed: interface removing",
             Interface->IfIndex, Interface->Capabilities.Mode);
         return STATUS_DELETE_PENDING;
     }
@@ -1076,7 +1079,7 @@ XdpIfpReferenceProvider(
 {
     NTSTATUS Status;
 
-    if (Interface->Rundown) {
+    if (Interface->XdpIfApi.InterfaceRemoving || Interface->NmrDeleting) {
         Status = STATUS_DELETE_PENDING;
         TraceInfo(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! reference failed: rundown",
@@ -1084,8 +1087,8 @@ XdpIfpReferenceProvider(
         goto Exit;
     }
 
-    if (Interface->InterfaceContext == NULL) {
-        ASSERT(Interface->ProviderReference == 0);
+    if (Interface->XdpDriverApi.InterfaceContext == NULL) {
+        ASSERT(Interface->XdpDriverApi.ProviderReference == 0);
         Status = XdpIfpOpenInterface(Interface);
         if (!NT_SUCCESS(Status)) {
             TraceInfo(
@@ -1095,7 +1098,7 @@ XdpIfpReferenceProvider(
         }
     }
 
-    Interface->ProviderReference++;
+    Interface->XdpDriverApi.ProviderReference++;
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -1110,7 +1113,7 @@ XdpIfpDereferenceProvider(
     _In_ XDP_INTERFACE *Interface
     )
 {
-    if (--Interface->ProviderReference == 0) {
+    if (--Interface->XdpDriverApi.ProviderReference == 0) {
         XdpIfpCloseInterface(Interface);
     }
 }
@@ -1133,8 +1136,9 @@ XdpIfpInvokeCreateRxQueue(
         XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
 
     Status =
-        Interface->InterfaceDispatch->CreateRxQueue(
-            Interface->InterfaceContext, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
+        Interface->XdpDriverApi.InterfaceDispatch->CreateRxQueue(
+            Interface->XdpDriverApi.InterfaceContext, Config, InterfaceRxQueue,
+            InterfaceRxQueueDispatch);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1166,7 +1170,8 @@ XdpIfCreateRxQueue(
         goto Exit;
     }
 
-    Status = XdpIfpInvokeCreateRxQueue(Interface, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
+    Status =
+        XdpIfpInvokeCreateRxQueue(Interface, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
     if (!NT_SUCCESS(Status)) {
         XdpIfpDereferenceProvider(Interface);
         goto Exit;
@@ -1198,7 +1203,8 @@ XdpIfActivateRxQueue(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
 
-    Interface->InterfaceDispatch->ActivateRxQueue(InterfaceRxQueue, XdpRxQueue, Config);
+    Interface->XdpDriverApi.InterfaceDispatch->ActivateRxQueue(
+        InterfaceRxQueue, XdpRxQueue, Config);
 
     TraceExit(TRACE_CORE);
 }
@@ -1216,7 +1222,7 @@ XdpIfDeleteRxQueue(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
 
-    Interface->InterfaceDispatch->DeleteRxQueue(InterfaceRxQueue);
+    Interface->XdpDriverApi.InterfaceDispatch->DeleteRxQueue(InterfaceRxQueue);
 
     XdpIfpDereferenceProvider(Interface);
 
@@ -1241,8 +1247,9 @@ XdpIfpInvokeCreateTxQueue(
         XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
 
     Status =
-        Interface->InterfaceDispatch->CreateTxQueue(
-            Interface->InterfaceContext, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
+        Interface->XdpDriverApi.InterfaceDispatch->CreateTxQueue(
+            Interface->XdpDriverApi.InterfaceContext, Config, InterfaceTxQueue,
+            InterfaceTxQueueDispatch);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1274,7 +1281,8 @@ XdpIfCreateTxQueue(
         goto Exit;
     }
 
-    Status = XdpIfpInvokeCreateTxQueue(Interface, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
+    Status =
+        XdpIfpInvokeCreateTxQueue(Interface, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
     if (!NT_SUCCESS(Status)) {
         XdpIfpDereferenceProvider(Interface);
         goto Exit;
@@ -1306,7 +1314,8 @@ XdpIfActivateTxQueue(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue);
 
-    Interface->InterfaceDispatch->ActivateTxQueue(InterfaceTxQueue, XdpTxQueue, Config);
+    Interface->XdpDriverApi.InterfaceDispatch->ActivateTxQueue(
+        InterfaceTxQueue, XdpTxQueue, Config);
 
     TraceExit(TRACE_CORE);
 }
@@ -1324,7 +1333,7 @@ XdpIfDeleteTxQueue(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue);
 
-    Interface->InterfaceDispatch->DeleteTxQueue(InterfaceTxQueue);
+    Interface->XdpDriverApi.InterfaceDispatch->DeleteTxQueue(InterfaceTxQueue);
 
     XdpIfpDereferenceProvider(Interface);
 
