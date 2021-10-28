@@ -50,7 +50,7 @@ $Reboot = $false
 function Download-CoreNet-Deps {
     # Download and extract https://github.com/microsoft/corenet-ci.
     if (!(Test-Path "artifacts")) { mkdir artifacts }
-    if ($Force -and (Test-Path "artifacts/corenet-ci")) {
+    if ($Force -and (Test-Path "artifacts/corenet-ci-main")) {
         Remove-Item -Recurse -Force "artifacts/corenet-ci-main"
     }
     if (!(Test-Path "artifacts/corenet-ci-main")) {
