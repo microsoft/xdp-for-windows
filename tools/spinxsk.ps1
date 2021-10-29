@@ -27,6 +27,9 @@ more coverage for setup and cleanup.
 .PARAMETER CleanDatapath
     Avoid actions that invalidate the datapath.
 
+.PARAMETER NoLogs
+    Do not capture logs.
+
 .PARAMETER XdpmpPollProvider
     Poll provider for XDPMP.
 
@@ -55,6 +58,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$CleanDatapath = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoLogs = $false,
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
@@ -93,8 +99,10 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
     }
 
     try {
-        & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Arch $Arch
-        & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Arch $Arch
+        if (!$NoLogs) {
+            & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Arch $Arch
+            & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Arch $Arch
+        }
         if ($XdpmpPollProvider -eq "FNDIS") {
             & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
         }
@@ -132,7 +140,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if ($XdpmpPollProvider -eq "FNDIS") {
             & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }
-        & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        if (!$NoLogs) {
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        }
     }
 }
