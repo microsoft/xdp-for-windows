@@ -1769,6 +1769,8 @@ XskDetachRxIf(
     _In_ XSK *Xsk
     )
 {
+    KIRQL OldIrql;
+
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (Xsk->Rx.Xdp.Queue != NULL) {
@@ -1780,7 +1782,14 @@ XskDetachRxIf(
 
     if (Xsk->Rx.Xdp.IfHandle != NULL) {
         XdpIfDereferenceBinding(Xsk->Rx.Xdp.IfHandle);
+
+        //
+        // Synchronize with non-binding-workers while clearing the interface
+        // handle.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
         Xsk->Rx.Xdp.IfHandle = NULL;
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
     XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
@@ -1795,6 +1804,8 @@ XskDetachTxIf(
     _In_ XSK *Xsk
     )
 {
+    KIRQL OldIrql;
+
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (Xsk->Tx.Xdp.Queue != NULL) {
@@ -1828,7 +1839,14 @@ XskDetachTxIf(
 
     if (Xsk->Tx.Xdp.IfHandle != NULL) {
         XdpIfDereferenceBinding(Xsk->Tx.Xdp.IfHandle);
+
+        //
+        // Synchronize with non-binding-workers while clearing the interface
+        // handle.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
         Xsk->Tx.Xdp.IfHandle = NULL;
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
     XskKernelRingSetError(&Xsk->Tx.Ring, XSK_ERROR_INTERFACE_DETACH);
@@ -2098,12 +2116,15 @@ XskIrpClose(
     )
 {
     XSK *Xsk = IrpSp->FileObject->FsContext;
+    KIRQL OldIrql;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     UNREFERENCED_PARAMETER(Irp);
 
     ASSERT(Xsk->State == XskClosing);
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
     if (Xsk->Tx.Xdp.IfHandle != NULL) {
         XSK_BINDING_WORKITEM WorkItem = {0};
@@ -2112,12 +2133,15 @@ XskIrpClose(
         WorkItem.Xsk = Xsk;
         WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
         WorkItem.IfWorkItem.WorkRoutine = XskDetachTxIfWorker;
-
         XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
         KeWaitForSingleObject(
             &WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
-
         ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
+
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     }
 
     if (Xsk->Rx.Xdp.IfHandle != NULL) {
@@ -2127,13 +2151,18 @@ XskIrpClose(
         WorkItem.Xsk = Xsk;
         WorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
         WorkItem.IfWorkItem.WorkRoutine = XskDetachRxIfWorker;
-
         XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
         KeWaitForSingleObject(
             &WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
-
         ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
+
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     }
+
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
     if (Xsk->Umem != NULL) {
         XskDereferenceUmem(Xsk->Umem);
@@ -2311,16 +2340,21 @@ XskIrpBindSocket(
 Exit:
 
     if (!NT_SUCCESS(Status) && BindIfInitiated) {
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+
         if (Xsk->Tx.Xdp.IfHandle != NULL) {
             WorkItem.Xsk = Xsk;
             WorkItem.QueueId = Bind.QueueId;
             WorkItem.IfWorkItem.WorkRoutine = XskDetachTxIfWorker;
             WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
-
             XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+            KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
             KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
             ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
+
+            KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
         }
 
         if (Xsk->Rx.Xdp.IfHandle != NULL) {
@@ -2328,12 +2362,17 @@ Exit:
             WorkItem.QueueId = Bind.QueueId;
             WorkItem.IfWorkItem.WorkRoutine = XskDetachRxIfWorker;
             WorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
-
             XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+            KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
             KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
             ASSERT(Xsk->Rx.Xdp.IfHandle == NULL);
+
+            KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
         }
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
