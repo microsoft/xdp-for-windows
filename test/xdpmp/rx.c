@@ -447,6 +447,13 @@ MpCleanupReceiveQueue(
     )
 {
     if (Rq->NblArray != NULL) {
+        for (UINT32 Index = 0; Index < Rq->NumBuffers; Index++) {
+#pragma warning(suppress:6001) // Rq->NblArray is initialized.
+            if (Rq->NblArray[Index] != NULL) {
+                NdisFreeNetBufferList(Rq->NblArray[Index]);
+            }
+        }
+
         ExFreePoolWithTag(Rq->NblArray, POOLTAG_RXBUFFER);
         Rq->NblArray = NULL;
     }
