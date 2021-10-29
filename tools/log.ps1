@@ -13,7 +13,10 @@ This helps start and stop ETW logging.
     Starts the logging.
 
 .PARAMETER Stop
-    Stops the logging and converts the ETL.
+    Stops the logging.
+
+.PARAMETER Convert
+    Converts the ETL to text.
 
 .PARAMETER Name
     The name of the tracing instance and output file.
@@ -36,7 +39,7 @@ param (
     [switch]$Stop = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoTextConversion = $false,
+    [switch]$Convert = $false,
 
     [Parameter(Mandatory = $false)]
     [string]$Profile = $null,
@@ -66,7 +69,7 @@ $LogsDir = "$RootDir\artifacts\logs"
 $EtlPath = "$LogsDir\$Name.etl"
 $LogPath = "$LogsDir\$Name.log"
 
-function Start-Logging {
+if ($Start) {
     if (!(Test-Path $WprpFile)) {
         Write-Error "$WprpFile does not exist!"
     }
@@ -84,7 +87,7 @@ function Start-Logging {
     }
 }
 
-function Stop-Logging {
+if ($Stop) {
     New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
     Write-Verbose "wpr.exe -stop $EtlPath -instancename $Name"
@@ -94,19 +97,15 @@ function Stop-Logging {
         Write-Error "wpr.exe failed: $LastExitCode"
     }
 
-    if (!$NoTextConversion) {
-        & $TracePdb -f "$ArtifactsDir\*.pdb" -p $TmfPath
-        Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
-    }
-
     # Enumerate log file sizes.
     Get-ChildItem $LogsDir | Format-Table | Out-String | Write-Verbose
 }
 
-if ($Start) {
-    Start-Logging
-}
+if ($Convert) {
+    if (!(Test-Path $EtlPath)) {
+        Write-Error "$EtlPath does not exist!"
+    }
 
-if ($Stop) {
-    Stop-Logging
+    & $TracePdb -f "$ArtifactsDir\*.pdb" -p $TmfPath
+    Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
 }

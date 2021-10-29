@@ -1,7 +1,10 @@
 <#
 
 .SYNOPSIS
-This script runs spinxsk.exe.
+This script runs spinxsk.exe over and over until the number of specified minutes
+have elapsed or a failure is seen. The tool is run multiple times in short iterations
+rather than for one long iteration to keep the size of traces down and to provide
+more coverage for setup and cleanup.
 
 .PARAMETER Config
     Specifies the build configuration to use.
@@ -10,7 +13,7 @@ This script runs spinxsk.exe.
     The CPU architecture to use.
 
 .PARAMETER Minutes
-    Duration of execution in minutes.
+    Duration of execution in minutes. If 0, runs until ctrl+c is pressed.
 
 .PARAMETER Stats
     Periodic socket statistics output.
@@ -23,6 +26,9 @@ This script runs spinxsk.exe.
 
 .PARAMETER CleanDatapath
     Avoid actions that invalidate the datapath.
+
+.PARAMETER XdpmpPollProvider
+    Poll provider for XDPMP.
 
 #>
 
@@ -48,7 +54,11 @@ param (
     [Int32]$FuzzerCount = 0,
 
     [Parameter(Mandatory = $false)]
-    [switch]$CleanDatapath = $false
+    [switch]$CleanDatapath = $false,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("NDIS", "FNDIS")]
+    [string]$XdpmpPollProvider = "NDIS"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -62,8 +72,6 @@ $SpinXsk = "$ArtifactsDir\spinxsk.exe"
 $LiveKD = "C:\livekd64.exe"
 $KD = "C:\kd.exe"
 
-Write-Host "+++++++ Running SpinXsk.exe +++++++"
-
 # Verify all the files are present.
 if (!(Test-Path $SpinXsk)) {
     Write-Error "$SpinXsk does not exist!"
@@ -72,25 +80,59 @@ if (!(Test-Path $SpinXsk)) {
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
-# Build up the args.
-$Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
-$Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
-if ($Minutes -ne 0) {
-    $Args += " -Minutes $Minutes"
-}
-if ($Stats) {
-    $Args += " -Stats"
-}
-if ($QueueCount -ne 0) {
-    $Args += " -QueueCount $QueueCount"
-}
-if ($FuzzerCount -ne 0) {
-    $Args += " -FuzzerCount $FuzzerCount"
-}
-if ($CleanDatapath) {
-    $Args += " -CleanDatapath"
-}
+$StartTime = Get-Date
 
-# Run the exe.
-Write-Verbose ($SpinXsk + " " + $Args)
-Invoke-Expression ($SpinXsk + " " + $Args)
+while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes)) {
+
+    $ThisIterationMinutes = 5
+    if ($Minutes -ne 0) {
+        $TotalRemainingMinutes = [math]::max(1, [math]::ceiling($Minutes - ((Get-Date)-$StartTime).TotalMinutes))
+        if ($ThisIterationMinutes -gt $TotalRemainingMinutes) {
+            $ThisIterationMinutes = $TotalRemainingMinutes
+        }
+    }
+
+    try {
+        & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Arch $Arch
+        & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Arch $Arch
+        if ($XdpmpPollProvider -eq "FNDIS") {
+            & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
+        }
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+
+        Write-Verbose "installing xdpmp..."
+        & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Arch $Arch
+        Write-Verbose "installed xdpmp."
+
+        $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
+        $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
+        if ($Minutes -ne 0) {
+            $Args += " -Minutes $ThisIterationMinutes"
+        }
+        if ($Stats) {
+            $Args += " -Stats"
+        }
+        if ($QueueCount -ne 0) {
+            $Args += " -QueueCount $QueueCount"
+        }
+        if ($FuzzerCount -ne 0) {
+            $Args += " -FuzzerCount $FuzzerCount"
+        }
+        if ($CleanDatapath) {
+            $Args += " -CleanDatapath"
+        }
+        Write-Verbose ($SpinXsk + " " + $Args)
+        Invoke-Expression ($SpinXsk + " " + $Args)
+        if ($LastExitCode -ne 0) {
+            throw "SpinXsk failed with $LastExitCode"
+        }
+    } finally {
+        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        if ($XdpmpPollProvider -eq "FNDIS") {
+            & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        }
+        & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    }
+}

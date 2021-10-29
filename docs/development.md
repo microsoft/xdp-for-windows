@@ -92,13 +92,19 @@ shutdown.exe /r /f /t 0
 Running the test:
 
 ```Powershell
-.\tools\setup.ps1 -Install fndis
-.\tools\setup.ps1 -Install xdp
-.\tools\setup.ps1 -Install xdpmp -XdpmpPollProvider FNDIS
-.\tools\spinxsk.ps1 -QueueCount 2 -Minutes 10 -Stats
-.\tools\setup.ps1 -Uninstall xdpmp
-.\tools\setup.ps1 -Uninstall xdp
-.\tools\setup.ps1 -Uninstall fndis
+.\tools\spinxsk.ps1 -XdpmpPollProvider FNDIS -QueueCount 2 -Minutes 100
+```
+
+Or, to run until ctrl+c is pressed:
+
+```Powershell
+.\tools\spinxsk.ps1 -XdpmpPollProvider FNDIS -QueueCount 2
+```
+
+After the test, convert the logs:
+
+```Powershell
+.\tools\log.ps1 -Convert -Name spinxsk
 ```
 
 ## Configuration
