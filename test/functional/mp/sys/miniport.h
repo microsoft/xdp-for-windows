@@ -50,6 +50,7 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RssEnabled;
     ULONG NumRssProcs;
     ULONG NumRssQueues;
+    ULONG RssAssignedProcessorCount;
 
     ADAPTER_GENERIC *Generic;
     ADAPTER_NATIVE *Native;

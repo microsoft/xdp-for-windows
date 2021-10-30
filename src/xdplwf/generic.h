@@ -11,6 +11,11 @@
 
 #define GENERIC_DATAPATH_RESTART_TIMEOUT_MS 1000
 
+// TODO: break circular dependency Filter->Generic->Filter.
+//       Add an interface context when creating an XDP binding?
+//       Or just make this opaque context?
+typedef struct _XDP_LWF_FILTER XDP_LWF_FILTER;
+
 typedef struct _XDP_LWF_DATAPATH_BYPASS {
     BOOLEAN Inserted;           // LWF handlers are inserted on the NDIS data path.
     ULONG ReferenceCount;       // Number of data path clients.
@@ -19,6 +24,7 @@ typedef struct _XDP_LWF_DATAPATH_BYPASS {
 } XDP_LWF_DATAPATH_BYPASS;
 
 typedef struct _XDP_LWF_GENERIC {
+    XDP_LWF_FILTER *Filter;
     NDIS_HANDLE NdisFilterHandle;
     NET_IFINDEX IfIndex;
 
@@ -53,6 +59,7 @@ XdpGenericFromFilterContext(
 NTSTATUS
 XdpGenericAttachInterface(
     _Inout_ XDP_LWF_GENERIC *Generic,
+    _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_HANDLE NdisFilterHandle,
     _In_ NET_IFINDEX IfIndex,
     _Out_ XDP_ADD_INTERFACE *AddIf

@@ -61,6 +61,13 @@ XdpGenericRssInspectOidRequest(
     );
 
 NTSTATUS
+XdpGenericRssUpdateIndirection(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ NDIS_RECEIVE_SCALE_PARAMETERS *RssParams,
+    _In_ ULONG RssParamsLength
+    );
+
+NTSTATUS
 XdpGenericRssInitialize(
     _In_ XDP_LWF_GENERIC *Generic
     );

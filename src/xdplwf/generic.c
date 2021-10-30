@@ -435,6 +435,7 @@ XdpGenericRemoveInterfaceComplete(
 NTSTATUS
 XdpGenericAttachInterface(
     _Inout_ XDP_LWF_GENERIC *Generic,
+    _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_HANDLE NdisFilterHandle,
     _In_ NET_IFINDEX IfIndex,
     _Out_ XDP_ADD_INTERFACE *AddIf
@@ -459,6 +460,7 @@ XdpGenericAttachInterface(
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Rx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     XdpInitializeReferenceCount(&Generic->ReferenceCount);
+    Generic->Filter = Filter;
     Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
     Generic->InternalCapabilities.Mode = XDP_INTERFACE_MODE_GENERIC;

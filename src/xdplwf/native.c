@@ -34,6 +34,7 @@ XdpNativeRemoveInterfaceComplete(
 NTSTATUS
 XdpNativeAttachInterface(
     _Inout_ XDP_LWF_NATIVE *Native,
+    _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_HANDLE NdisFilterHandle,
     _In_ NET_IFINDEX IfIndex,
     _Out_ XDP_ADD_INTERFACE *AddIf
@@ -48,6 +49,7 @@ XdpNativeAttachInterface(
     // the caller will add the XDPIF interface.
     //
 
+    Native->Filter = Filter;
     Native->NdisFilterHandle = NdisFilterHandle;
     Native->IfIndex = IfIndex;
     KeInitializeEvent(&Native->InterfaceRemovedEvent, NotificationEvent, FALSE);

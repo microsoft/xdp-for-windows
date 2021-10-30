@@ -651,6 +651,8 @@ XdpGenericReceiveNetBufferLists(
         ReceiveFlags & XDP_LWF_GENERIC_INSPECT_NDIS_RX_MASK);
 
     if (!NdisIsNblCountedQueueEmpty(&PassList)) {
+        XdpLwfOffloadTransformNbls(
+            Generic->Filter, &PassList, ReceiveFlags & XDP_LWF_GENERIC_INSPECT_NDIS_RX_MASK);
         NdisFIndicateReceiveNetBufferLists(
             Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&PassList), PortNumber,
             (ULONG)PassList.NblCount, ReceiveFlags);

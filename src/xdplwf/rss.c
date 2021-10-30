@@ -17,7 +17,6 @@ XdpGenericRssFreeIndirection(
     ExFreePoolWithTag(IndirectionTable, POOLTAG_RSS);
 }
 
-static
 NTSTATUS
 XdpGenericRssUpdateIndirection(
     _In_ XDP_LWF_GENERIC *Generic,
@@ -72,6 +71,14 @@ XdpGenericRssUpdateIndirection(
         EntryCount = 1;
         KeGetProcessorNumberFromIndex(0, &DisabledRssTable);
         RssTable = &DisabledRssTable;
+    }
+
+    if ((RssParams->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED) != 0) {
+        //
+        // Don't update the indirection table if it is not changing.
+        //
+        Status = STATUS_SUCCESS;
+        goto Exit;
     }
 
     NewQueues =

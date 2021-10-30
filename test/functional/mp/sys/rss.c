@@ -119,7 +119,7 @@ MpSetRss(
                 //
                 // For simplicity, we support up to 64 queues.
                 //
-                return;
+                goto Exit;
             }
 
             AssignedProcessors[AssignedProcessorCount] = TargetProcessor;
@@ -141,4 +141,8 @@ MpSetRss(
         RssQueue->RssHash = RssHash;
         RssQueue->ProcessorIndex = ProcessorIndex;
     }
+
+Exit:
+
+    Adapter->RssAssignedProcessorCount = AssignedProcessorCount;
 }

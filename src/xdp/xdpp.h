@@ -22,5 +22,6 @@
 #define XDP_POOLTAG_NMR         'NpdX' // XdpN
 #define XDP_POOLTAG_PROGRAM     'PpdX' // XdpP
 #define XDP_POOLTAG_RING        'rpdX' // Xdpr
+#define XDP_POOLTAG_RSS         'srdX' // Xdrs
 #define XDP_POOLTAG_RXQUEUE     'RpdX' // XdpR
 #define XDP_POOLTAG_TXQUEUE     'TpdX' // XdpT

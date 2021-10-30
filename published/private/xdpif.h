@@ -74,6 +74,170 @@ XDP_REMOVE_INTERFACE_COMPLETE(
     );
 
 //
+// Offload configuration.
+//
+
+#define XDP_RSS_INDIRECTION_TABLE_SIZE 128
+#define XDP_RSS_HASH_SECRET_KEY_SIZE   40
+
+typedef enum {
+    XdpOffloadRss,
+} XDP_INTERFACE_OFFLOAD_TYPE;
+
+typedef enum {
+    XdpQueueOffloadTypeChecksum,
+    XdpQueueOffloadTypeLso,
+    XdpQueueOffloadTypeUso,
+    XdpQueueOffloadTypeRsc,
+} XDP_QUEUE_OFFLOAD_TYPE;
+
+typedef enum {
+    XdpOffloadStateUnspecified,
+    XdpOffloadStateEnabled,
+    XdpOffloadStateDisabled,
+} XDP_OFFLOAD_STATE;
+
+typedef struct _XDP_OFFLOAD_PARAMS_RSS {
+    XDP_OFFLOAD_STATE State;
+    UINT32 Flags;
+    UINT32 HashType;
+    UINT16 HashSecretKeySize;
+    UINT16 IndirectionTableSize;
+    UCHAR HashSecretKey[XDP_RSS_HASH_SECRET_KEY_SIZE];
+    PROCESSOR_NUMBER IndirectionTable[XDP_RSS_INDIRECTION_TABLE_SIZE];
+} XDP_OFFLOAD_PARAMS_RSS;
+
+typedef struct _XDP_OFFLOAD_PARAMS_CHECKSUM {
+    XDP_OFFLOAD_STATE Ipv4Rx;
+    XDP_OFFLOAD_STATE Ipv4Tx;
+    XDP_OFFLOAD_STATE Tcpv4Rx;
+    XDP_OFFLOAD_STATE Tcpv4Tx;
+    XDP_OFFLOAD_STATE Tcpv6Rx;
+    XDP_OFFLOAD_STATE Tcpv6Tx;
+    XDP_OFFLOAD_STATE Udpv4Rx;
+    XDP_OFFLOAD_STATE Udpv4Tx;
+    XDP_OFFLOAD_STATE Udpv6Rx;
+    XDP_OFFLOAD_STATE Udpv6Tx;
+} XDP_OFFLOAD_PARAMS_CHECKSUM;
+
+typedef struct _XDP_OFFLOAD_PARAMS_LSO {
+    XDP_OFFLOAD_STATE Ipv4;
+    XDP_OFFLOAD_STATE Ipv6;
+} XDP_OFFLOAD_PARAMS_LSO;
+
+typedef struct _XDP_OFFLOAD_PARAMS_USO {
+    XDP_OFFLOAD_STATE Ipv4;
+    XDP_OFFLOAD_STATE Ipv6;
+} XDP_OFFLOAD_PARAMS_USO;
+
+typedef struct _XDP_OFFLOAD_PARAMS_RSC {
+    XDP_OFFLOAD_STATE Ipv4;
+    XDP_OFFLOAD_STATE Ipv6;
+} XDP_OFFLOAD_PARAMS_RSC;
+
+//
+// Open an interface queue offload configuration handle.
+//
+typedef
+NTSTATUS
+XDP_OPEN_QUEUE_OFFLOAD_HANDLE(
+    _In_ VOID *InterfaceContext,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ CONST XDP_QUEUE_INFO *QueueInfo,
+    _Out_ VOID **QueueOffloadHandle
+    );
+
+//
+// Query current offload state on an interface queue.
+//
+typedef
+NTSTATUS
+XDP_GET_QUEUE_OFFLOAD(
+    _In_ VOID *QueueOffloadHandle,
+    _In_ XDP_QUEUE_OFFLOAD_TYPE OffloadType,
+    _Inout_ VOID *OffloadParams,
+    _Inout_ UINT32 *OffloadParamsSize
+    );
+
+//
+// Configure an offload on an interface queue.
+//
+typedef
+NTSTATUS
+XDP_SET_QUEUE_OFFLOAD(
+    _In_ VOID *QueueOffloadHandle,
+    _In_ XDP_QUEUE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    );
+
+//
+// Close an interface queue offload configuration handle.
+// This reverts any offload configuration done via the handle.
+//
+typedef
+VOID
+XDP_CLOSE_QUEUE_OFFLOAD_HANDLE(
+    _In_ VOID *QueueOffloadHandle
+    );
+
+//
+// Open an interface offload configuration handle.
+//
+typedef
+NTSTATUS
+XDP_OPEN_INTERFACE_OFFLOAD_HANDLE(
+    _In_ VOID *InterfaceContext,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _Out_ VOID **InterfaceOffloadHandle
+    );
+
+//
+// Query current offload state on an interface.
+//
+typedef
+NTSTATUS
+XDP_GET_INTERFACE_OFFLOAD(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _Out_opt_ VOID *OffloadParams,
+    _Inout_ UINT32 *OffloadParamsSize
+    );
+
+//
+// Configure an offload on an interface.
+//
+typedef
+NTSTATUS
+XDP_SET_INTERFACE_OFFLOAD(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    );
+
+//
+// Close an interface offload configuration handle.
+// This reverts any offload configuration done via the handle.
+//
+typedef
+VOID
+XDP_CLOSE_INTERFACE_OFFLOAD_HANDLE(
+    _In_ VOID *InterfaceOffloadHandle
+    );
+
+typedef struct _XDP_OFFLOAD_DISPATCH {
+    XDP_OPEN_QUEUE_OFFLOAD_HANDLE *OpenQueueOffloadHandle;
+    XDP_GET_QUEUE_OFFLOAD *GetQueueOffload;
+    XDP_SET_QUEUE_OFFLOAD *SetQueueOffload;
+    XDP_CLOSE_QUEUE_OFFLOAD_HANDLE *CloseQueueOffloadHandle;
+    XDP_OPEN_INTERFACE_OFFLOAD_HANDLE *OpenInterfaceOffloadHandle;
+    XDP_GET_INTERFACE_OFFLOAD *GetInterfaceOffload;
+    XDP_SET_INTERFACE_OFFLOAD *SetInterfaceOffload;
+    XDP_CLOSE_INTERFACE_OFFLOAD_HANDLE *CloseInterfaceOffloadHandle;
+} XDP_OFFLOAD_DISPATCH;
+
+//
 // Parameters for XdpIfAddInterfaces.
 //
 typedef struct _XDP_ADD_INTERFACE {
@@ -111,6 +275,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
+    _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     );

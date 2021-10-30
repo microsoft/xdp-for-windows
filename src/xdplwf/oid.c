@@ -121,9 +121,10 @@ XdpLwfOidInternalRequest(
     return XdpConvertNdisStatusToNtStatus(Status);
 }
 
+static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XdpLwfOidInternalComplete(
+XdpLwfOidInternalRequestComplete(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_OID_REQUEST *Request,
     _In_ NDIS_STATUS Status
@@ -138,13 +139,24 @@ XdpLwfOidInternalComplete(
     KeSetEvent(&FilterRequest->CompletionEvent, 0, FALSE);
 }
 
+static
 NDIS_STATUS
-XdpLwfInspectOidRequest(
+XdpLwfOidInspectRequest(
     _In_ XDP_LWF_FILTER *Filter,
-    _In_ NDIS_OID_REQUEST *Request
+    _In_ NDIS_OID_REQUEST *Request,
+    _Out_ XDP_OID_ACTION *Action,
+    _Out_ NDIS_STATUS *CompletionStatus
     )
 {
     NDIS_STATUS Status;
+
+    Status = XdpLwfOffloadInspectOidRequest(Filter, Request, Action, CompletionStatus);
+    if (Status != NDIS_STATUS_SUCCESS) {
+        goto Exit;
+    }
+    if (*Action == XdpOidActionComplete) {
+        goto Exit;
+    }
 
     Status = XdpGenericInspectOidRequest(&Filter->Generic, Request);
     if (Status != NDIS_STATUS_SUCCESS) {
@@ -167,28 +179,39 @@ XdpLwfOidRequest(
     NDIS_STATUS Status;
     NDIS_OID_REQUEST *ClonedRequest = NULL;
     XDP_OID_CLONE *Context;
+    XDP_OID_ACTION Action;
+    NDIS_STATUS CompletionStatus;
 
-    Status = XdpLwfInspectOidRequest(Filter, Request);
+    Status = XdpLwfOidInspectRequest(Filter, Request, &Action, &CompletionStatus);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
-    Status =
-        NdisAllocateCloneOidRequest(
-            Filter->NdisFilterHandle, Request, POOLTAG_OID, &ClonedRequest);
-    if (Status != NDIS_STATUS_SUCCESS) {
-        goto Exit;
-    }
+    switch (Action) {
+    case XdpOidActionComplete:
+        NdisFOidRequestComplete(Filter->NdisFilterHandle, Request, CompletionStatus);
+        break;
+    case XdpOidActionPass:
+        Status =
+            NdisAllocateCloneOidRequest(
+                Filter->NdisFilterHandle, Request, POOLTAG_OID, &ClonedRequest);
+        if (Status != NDIS_STATUS_SUCCESS) {
+            goto Exit;
+        }
 
-    Context = (XDP_OID_CLONE *)(&ClonedRequest->SourceReserved[0]);
-    Context->OriginalRequest = Request;
-    ClonedRequest->RequestId = Request->RequestId;
+        Context = (XDP_OID_CLONE *)(&ClonedRequest->SourceReserved[0]);
+        Context->OriginalRequest = Request;
+        ClonedRequest->RequestId = Request->RequestId;
 
-    Status = NdisFOidRequest(Filter->NdisFilterHandle, ClonedRequest);
-
-    if (Status != NDIS_STATUS_PENDING) {
-        XdpLwfOidRequestComplete(Filter, ClonedRequest, Status);
-        Status = NDIS_STATUS_PENDING;
+        Status = NdisFOidRequest(Filter->NdisFilterHandle, ClonedRequest);
+        if (Status != NDIS_STATUS_PENDING) {
+            XdpLwfOidRequestComplete(Filter, ClonedRequest, Status);
+            Status = NDIS_STATUS_PENDING;
+        }
+        break;
+    default:
+        ASSERT(FALSE);
+        break;
     }
 
 Exit:
@@ -212,7 +235,7 @@ XdpLwfOidRequestComplete(
     OriginalRequest = Context->OriginalRequest;
 
     if (OriginalRequest == NULL) {
-        XdpLwfOidInternalComplete(Filter, Request, Status);
+        XdpLwfOidInternalRequestComplete(Filter, Request, Status);
         return;
     }
 

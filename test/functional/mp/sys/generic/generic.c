@@ -83,6 +83,32 @@ Exit:
 static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
+GenericIrpGetRssNumActiveQueues(
+    _In_ GENERIC_CONTEXT *Generic,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    UINT32 NumQueues = Generic->Adapter->RssAssignedProcessorCount;
+
+    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(NumQueues)) {
+        Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+
+    *(UINT32 *)Irp->AssociatedIrp.SystemBuffer = NumQueues;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    Irp->IoStatus.Information = sizeof(NumQueues);
+    return Status;
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
 GenericIrpSetMtu(
     _In_ GENERIC_CONTEXT *Generic,
     _In_ IRP *Irp,
@@ -238,6 +264,10 @@ GenericIrpDeviceIoControl(
 
     case IOCTL_MINIPORT_SET_MTU:
         Status = GenericIrpSetMtu(Generic, Irp, IrpSp);
+        break;
+
+    case IOCTL_MINIPORT_GET_NUM_ACTIVE_RSS_QUEUES:
+        Status = GenericIrpGetRssNumActiveQueues(Generic, Irp, IrpSp);
         break;
 
     default:

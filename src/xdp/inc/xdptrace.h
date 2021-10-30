@@ -19,6 +19,7 @@
         WPP_DEFINE_BIT(TRACE_GENERIC)               \
         WPP_DEFINE_BIT(TRACE_NATIVE)                \
         WPP_DEFINE_BIT(TRACE_RTL)                   \
+        WPP_DEFINE_BIT(TRACE_LWF)                   \
         )
 
 //

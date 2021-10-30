@@ -107,6 +107,10 @@ XdpIrpCreate(
         CreateRoutine = XskIrpCreateSocket;
         break;
 
+    case XDP_OBJECT_TYPE_RSS:
+        CreateRoutine = XdpIrpCreateRss;
+        break;
+
     default:
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;

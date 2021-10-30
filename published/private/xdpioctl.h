@@ -22,6 +22,7 @@
 typedef enum _XDP_OBJECT_TYPE {
     XDP_OBJECT_TYPE_PROGRAM,
     XDP_OBJECT_TYPE_XSK,
+    XDP_OBJECT_TYPE_RSS,
 } XDP_OBJECT_TYPE;
 
 //
@@ -45,6 +46,21 @@ typedef struct _XDP_PROGRAM_OPEN {
     UINT32 RuleCount;
     CONST XDP_RULE *Rules;
 } XDP_PROGRAM_OPEN;
+
+//
+// Parameters for creating an XDP_OBJECT_TYPE_RSS.
+//
+typedef struct _XDP_RSS_OPEN {
+    UINT32 IfIndex;
+} XDP_RSS_OPEN;
+
+//
+// IOCTLs supported by an RSS file handle.
+//
+#define IOCTL_RSS_GET \
+    CTL_CODE(FILE_DEVICE_NETWORK, 0, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+#define IOCTL_RSS_SET \
+    CTL_CODE(FILE_DEVICE_NETWORK, 1, METHOD_BUFFERED, FILE_WRITE_ACCESS)
 
 //
 // Define IOCTLs supported by an XSK file handle.

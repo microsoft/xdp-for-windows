@@ -12,6 +12,7 @@
     <ClCompile Include="ec.c" />
     <ClCompile Include="generic.c" />
     <ClCompile Include="native.c" />
+    <ClCompile Include="offload.c" />
     <ClCompile Include="oid.c" />
     <ClCompile Include="recv.c" />
     <ClCompile Include="rss.c" />

@@ -68,6 +68,7 @@ typedef struct _XDP_INTERFACE_NMR {
 typedef struct _XDP_INTERFACE_SET {
     LIST_ENTRY Link;
     NET_IFINDEX IfIndex;
+    CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch;
     VOID *XdpIfInterfaceSetContext;
     XDP_INTERFACE *Interfaces[2];   // One interface for both generic and native.
 } XDP_INTERFACE_SET;
@@ -632,6 +633,63 @@ XdpIfGetCapabilities(
     return &Interface->Capabilities;
 }
 
+NTSTATUS
+XdpIfOpenInterfaceOffloadHandle(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _Out_ VOID **InterfaceOffloadHandle
+    )
+{
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+
+    return
+        Interface->IfSet->OffloadDispatch->OpenInterfaceOffloadHandle(
+            Interface->IfSet->XdpIfInterfaceSetContext, HookId, InterfaceOffloadHandle);
+}
+
+VOID
+XdpIfCloseInterfaceOffloadHandle(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ VOID *InterfaceOffloadHandle
+    )
+{
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+
+    Interface->IfSet->OffloadDispatch->CloseInterfaceOffloadHandle(InterfaceOffloadHandle);
+}
+
+NTSTATUS
+XdpIfGetInterfaceOffload(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _Out_opt_ VOID *OffloadParams,
+    _Inout_ UINT32 *OffloadParamsSize
+    )
+{
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+
+    return
+        Interface->IfSet->OffloadDispatch->GetInterfaceOffload(
+            InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+}
+
+NTSTATUS
+XdpIfSetInterfaceOffload(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    )
+{
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+
+    return
+        Interface->IfSet->OffloadDispatch->SetInterfaceOffload(
+            InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+}
+
 static
 VOID
 XdpIfpStartRundown(
@@ -746,6 +804,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
+    _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     )
@@ -777,6 +836,7 @@ XdpIfCreateInterfaceSet(
     }
 
     IfSet->IfIndex = IfIndex;
+    IfSet->OffloadDispatch = OffloadDispatch;
     IfSet->XdpIfInterfaceSetContext = InterfaceSetContext;
     InitializeListHead(&IfSet->Link);
     InsertTailList(&XdpInterfaceSets, &IfSet->Link);

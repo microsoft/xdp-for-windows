@@ -108,6 +108,12 @@ FnMpGetLastMiniportPauseTimestamp(
     _Out_ LARGE_INTEGER *Timestamp
     );
 
+HRESULT
+FnMpGetNumActiveRssQueues(
+    _In_ HANDLE Handle,
+    _Out_ UINT32 *NumQueues
+    );
+
 #define FNMP_MIN_MTU 1514
 #define FNMP_MAX_MTU (16 * 1024 * 1024)
 #define FNMP_DEFAULT_MTU FNMP_MAX_MTU

@@ -10,6 +10,7 @@
     <ClCompile Include="bind.c" />
     <ClCompile Include="dispatch.c" />
     <ClCompile Include="extensionset.c" />
+    <ClCompile Include="offload.c" />
     <ClCompile Include="program.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="redirect.c" />

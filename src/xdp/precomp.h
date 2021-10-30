@@ -49,6 +49,7 @@
 #include "bind.h"
 #include "dispatch.h"
 #include "extensionset.h"
+#include "offload.h"
 #include "program.h"
 #include "queue.h"
 #include "redirect.h"

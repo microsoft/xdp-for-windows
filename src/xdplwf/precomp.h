@@ -17,6 +17,8 @@
 
 #define XDPEXPORT(RoutineName) RoutineName##Thunk
 
+#include <xdpapi.h>
+
 #include <xdp/buffermdl.h>
 #include <xdp/buffervirtualaddress.h>
 #include <xdp/control.h>
@@ -44,6 +46,7 @@
 #include "ec.h"
 #include "generic.h"
 #include "native.h"
+#include "offload.h"
 #include "oid.h"
 #include "recv.h"
 #include "send.h"

@@ -4,6 +4,11 @@
 
 #pragma once
 
+typedef enum _XDP_OID_ACTION {
+    XdpOidActionPass,
+    XdpOidActionComplete,
+} XDP_OID_ACTION;
+
 FILTER_OID_REQUEST XdpLwfOidRequest;
 FILTER_OID_REQUEST_COMPLETE XdpLwfOidRequestComplete;
 

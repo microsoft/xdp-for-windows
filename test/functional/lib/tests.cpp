@@ -5,12 +5,15 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <future>
 #include <memory>
+#include <set>
 #include <stack>
+#include <string>
 #include <vector>
 
 // Windows and WIL includes need to be ordered in a certain way.
@@ -513,6 +516,69 @@ SocketAttachRxProgram(
 }
 
 static
+VOID
+XskSetupPreBind(
+    _Inout_ MY_SOCKET *Socket,
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx,
+    _In_opt_ CONST XDP_HOOK_ID *RxHookId = nullptr,
+    _In_opt_ CONST XDP_HOOK_ID *TxHookId = nullptr
+    )
+{
+    Socket->Umem.Buffer = AllocUmemBuffer();
+    InitUmem(&Socket->Umem.Reg, Socket->Umem.Buffer.get());
+    SetUmem(Socket->Handle.get(), &Socket->Umem.Reg);
+
+    SetFillRing(Socket->Handle.get());
+    SetCompletionRing(Socket->Handle.get());
+
+    if (Rx) {
+        SetRxRing(Socket->Handle.get());
+    }
+
+    if (Tx) {
+        SetTxRing(Socket->Handle.get());
+    }
+
+    if (RxHookId != nullptr) {
+        SetRxHookId(Socket->Handle.get(), RxHookId);
+    }
+    if (TxHookId != nullptr) {
+        SetTxHookId(Socket->Handle.get(), TxHookId);
+    }
+}
+
+static
+VOID
+XskSetupPostBind(
+    _Inout_ MY_SOCKET *Socket,
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx
+    )
+{
+    XSK_RING_INFO_SET InfoSet;
+
+    GetRingInfo(Socket->Handle.get(), &InfoSet);
+    XskRingInitialize(&Socket->Rings.Fill, &InfoSet.fill);
+    XskRingInitialize(&Socket->Rings.Completion, &InfoSet.completion);
+
+    if (Rx) {
+        XskRingInitialize(&Socket->Rings.Rx, &InfoSet.rx);
+    }
+
+    if (Tx) {
+        XskRingInitialize(&Socket->Rings.Tx, &InfoSet.tx);
+    }
+
+    UINT64 BufferCount = Socket->Umem.Reg.totalSize / Socket->Umem.Reg.chunkSize;
+    UINT64 Offset = 0;
+    while (BufferCount-- > 0) {
+        Socket->FreeDescriptors.push(Offset);
+        Offset += Socket->Umem.Reg.chunkSize;
+    }
+}
+
+static
 MY_SOCKET
 CreateAndBindSocket(
     NET_IFINDEX IfIndex,
@@ -526,31 +592,10 @@ CreateAndBindSocket(
     )
 {
     MY_SOCKET Socket;
-    XSK_RING_INFO_SET InfoSet;
 
     Socket.Handle = CreateSocket();
 
-    Socket.Umem.Buffer = AllocUmemBuffer();
-    InitUmem(&Socket.Umem.Reg, Socket.Umem.Buffer.get());
-    SetUmem(Socket.Handle.get(), &Socket.Umem.Reg);
-
-    SetFillRing(Socket.Handle.get());
-    SetCompletionRing(Socket.Handle.get());
-
-    if (Rx) {
-        SetRxRing(Socket.Handle.get());
-    }
-
-    if (Tx) {
-        SetTxRing(Socket.Handle.get());
-    }
-
-    if (RxHookId != nullptr) {
-        SetRxHookId(Socket.Handle.get(), RxHookId);
-    }
-    if (TxHookId != nullptr) {
-        SetTxHookId(Socket.Handle.get(), TxHookId);
-    }
+    XskSetupPreBind(&Socket, Rx, Tx, RxHookId, TxHookId);
 
     if (XdpMode == XDP_GENERIC) {
         BindFlags |= XSK_BIND_GENERIC;
@@ -574,24 +619,7 @@ CreateAndBindSocket(
     } while (!Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
-    GetRingInfo(Socket.Handle.get(), &InfoSet);
-    XskRingInitialize(&Socket.Rings.Fill, &InfoSet.fill);
-    XskRingInitialize(&Socket.Rings.Completion, &InfoSet.completion);
-
-    if (Rx) {
-        XskRingInitialize(&Socket.Rings.Rx, &InfoSet.rx);
-    }
-
-    if (Tx) {
-        XskRingInitialize(&Socket.Rings.Tx, &InfoSet.tx);
-    }
-
-    UINT64 BufferCount = Socket.Umem.Reg.totalSize / Socket.Umem.Reg.chunkSize;
-    UINT64 Offset = 0;
-    while (BufferCount-- > 0) {
-        Socket.FreeDescriptors.push(Offset);
-        Offset += Socket.Umem.Reg.chunkSize;
-    }
+    XskSetupPostBind(&Socket, Rx, Tx);
 
     return Socket;
 }
@@ -956,6 +984,17 @@ MpGetLastMiniportPauseTimestamp(
     LARGE_INTEGER Timestamp = {0};
     TEST_HRESULT(FnMpGetLastMiniportPauseTimestamp(Handle.get(), &Timestamp));
     return Timestamp;
+}
+
+static
+UINT32
+MpGetNumActiveRssQueues(
+    _In_ const wil::unique_handle& Handle
+    )
+{
+    UINT32 NumQueues = 0;
+    TEST_HRESULT(FnMpGetNumActiveRssQueues(Handle.get(), &NumQueues));
+    return NumQueues;
 }
 
 static
@@ -2513,6 +2552,530 @@ FnMpNativeHandleTest()
 
     MpXdpRegister(NativeMp);
     MpXdpDeregister(NativeMp);
+}
+
+static
+unique_malloc_ptr<XDP_RSS_CONFIGURATION>
+GetXdpRss(
+    _In_ const wil::unique_handle &RssHandle,
+    _Out_opt_ UINT32 *RssConfigSize = NULL
+    )
+{
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    UINT32 Size = 0;
+
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        XdpRssGet(RssHandle.get(), NULL, &Size));
+    TEST_TRUE(Size >= sizeof(*RssConfig.get()));
+
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(Size));
+    TEST_TRUE(RssConfig.get() != NULL);
+
+    TEST_HRESULT(XdpRssGet(RssHandle.get(), RssConfig.get(), &Size));
+
+    if (RssConfigSize != NULL) {
+        *RssConfigSize = Size;
+    }
+
+    return RssConfig;
+}
+
+static
+VOID
+GetXdpRssProcessors(
+    _In_ const TestInterface &If,
+    _Out_ std::vector<UINT32> &ProcessorArray
+    )
+{
+    wil::unique_handle RssHandle;
+
+    TEST_HRESULT(XdpRssOpen(If.GetIfIndex(), &RssHandle));
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(RssHandle);
+
+    PROCESSOR_NUMBER *IndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    std::set<UINT32> Set;
+    for (UINT32 i = 0; i < (RssConfig->IndirectionTableSize / sizeof(PROCESSOR_NUMBER)); i++) {
+        Set.insert(IndirectionTable[i].Number);
+        ASSERT(IndirectionTable[i].Group == 0);
+    }
+
+    if (Set.empty()) {
+        // RSS is disabled, indicate proc 0. TODO: use default processor
+        Set.insert(0);
+    }
+
+    ProcessorArray = std::vector<UINT32>(Set.begin(), Set.end());
+}
+
+static
+VOID
+ConfigureRssViaXdp(
+    _In_ const wil::unique_handle &RssHandle,
+    _In_ const std::vector<UINT32> &ProcessorArray
+    )
+{
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    UINT32 HashSecretKeySize = 40;
+    UINT32 IndirectionTableSize = ProcessorArray.size() * sizeof(PROCESSOR_NUMBER);
+    UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
+
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RtlZeroMemory(RssConfig.get(), RssConfigSize);
+    RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
+    RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
+
+    PROCESSOR_NUMBER *IndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    for (UINT32 i = 0; i < ProcessorArray.size(); i++) {
+        IndirectionTable[i].Group = 0;
+        IndirectionTable[i].Number = (UCHAR)ProcessorArray[i];
+    }
+
+    RssConfig->HashType =
+        XDP_RSS_HASH_TYPE_IPV4 | XDP_RSS_HASH_TYPE_IPV6 |
+        XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_UDP_IPV4;
+    RssConfig->HashSecretKeySize = HashSecretKeySize;
+    RssConfig->IndirectionTableSize = (USHORT)IndirectionTableSize;
+
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+}
+
+static
+VOID
+IndicateOnAllActiveRssQueues(
+    _In_ TestInterface &If,
+    _In_ const UINT16 LocalPort
+    )
+{
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    UCHAR UdpPayload[] = "IndicateOnAllActiveRssQueuesQ#";
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
+    UINT16 RemotePort = htons(1234);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    RX_FRAME Frame = {0};
+    RX_BUFFER Buffer = {0};
+    Frame.BufferCount = 1;
+    Buffer.DataOffset = 0;
+    Buffer.DataLength = UdpFrameLength;
+    Buffer.BufferLength = Buffer.DataLength;
+    Buffer.VirtualAddress = UdpFrame;
+
+    UINT32 NumQueues = MpGetNumActiveRssQueues(GenericMp);
+    TEST_WARNING("IndicateOnAllActiveRssQueues: Active queues: %u", NumQueues);
+
+    for (UINT32 i = 0; i < NumQueues; i++) {
+        TEST_WARNING("Indicating on queue %u", i);
+        Frame.RssHashQueueId = i;
+        UdpPayload[sizeof(UdpPayload) - 1] = (UCHAR)i;
+        MpRxEnqueue(GenericMp, &Frame, &Buffer);
+
+        RX_FLUSH_OPTIONS FlushOptions = {0};
+        FlushOptions.Flags.RssCpu = TRUE;
+        FlushOptions.RssCpuQueueId = i;
+        MpRxFlush(GenericMp, &FlushOptions);
+    }
+}
+
+static
+VOID
+PrintProcArray(const wchar_t* prefix, const std::vector<UINT32> &a)
+{
+    std::wstring Msg;
+
+    Msg += prefix;
+    Msg += L"[";
+    for (int i = 0; i < a.size(); i++) {
+        Msg += std::to_wstring(a[i]);
+        if (i != a.size() - 1) {
+            Msg += L",";
+        }
+    }
+    Msg += L"]";
+
+    TEST_WARNING("%s", Msg.c_str());
+}
+
+static
+VOID
+VerifyRssSettings(
+    _In_ const TestInterface &If,
+    _In_ const std::vector<UINT32> &ExpectedXdpProcessorArray
+    )
+{
+    std::vector<UINT32> ProcessorArray;
+
+    GetXdpRssProcessors(If, ProcessorArray);
+    PrintProcArray(L"VerifyRssSettings", ProcessorArray);
+    TEST_EQUAL(ProcessorArray.size(), ExpectedXdpProcessorArray.size());
+    for (UINT32 i = 0; i < ProcessorArray.size(); i++) {
+        TEST_EQUAL(ProcessorArray[i], ExpectedXdpProcessorArray[i]);
+    }
+}
+
+static
+VOID
+VerifyRssDatapath(
+    _In_ TestInterface &If,
+    _In_ const std::vector<UINT32> &XdpRssProcessorArray
+    )
+{
+    std::vector<MY_SOCKET> XskSockArray;
+    std::vector<wil::unique_socket> WinSockArray;
+    UINT16 LocalPort = 0;
+    SYSTEM_INFO SystemInfo;
+
+    GetSystemInfo(&SystemInfo);
+
+    //
+    // Attempt to open a XSK socket and WinSock socket for each processor. The
+    // number of XSK sockets set up should equal the number of RSS queues
+    // supported by the adapter. The number of WinSock sockets set up should
+    // equal the number of processors.
+    //
+    for (UINT32 i = 0; i < SystemInfo.dwNumberOfProcessors; i++) {
+        //
+        // XSK.
+        //
+        MY_SOCKET XskSocket;
+        XskSocket.Handle = CreateSocket();
+        XskSetupPreBind(&XskSocket, TRUE, FALSE);
+        // TODO: XskBind will not fail if you pass in an invalid queue ID.
+        if (SUCCEEDED(
+                XskBind(XskSocket.Handle.get(), If.GetIfIndex(), i, XSK_BIND_GENERIC, NULL))) {
+            XskSetupPostBind(&XskSocket, TRUE, FALSE);
+            XDP_RULE Rule = {};
+            Rule.Match = XDP_MATCH_ALL;
+            Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+            Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+            Rule.Redirect.Target = XskSocket.Handle.get();
+            if (SUCCEEDED(
+                    XdpCreateProgram(
+                        If.GetIfIndex(), &XdpInspectRxL2, i, XDP_ATTACH_GENERIC, &Rule, 1,
+                        &XskSocket.RxProgram))) {
+                SocketProduceRxFill(&XskSocket, DEFAULT_RING_SIZE);
+                XskSockArray.push_back(std::move(XskSocket));
+                TEST_WARNING("Initialized XskSockArray[%llu]", XskSockArray.size() - 1);
+            }
+        }
+
+        //
+        // WinSock.
+        //
+        wil::unique_socket WinSocket(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
+        TEST_NOT_NULL(WinSocket.get());
+        DWORD BytesReturned;
+        TEST_EQUAL(
+            0,
+            WSAIoctl(
+                WinSocket.get(), SIO_CPU_AFFINITY, &i, sizeof(USHORT),
+                NULL, 0, &BytesReturned, NULL, NULL));
+        SOCKADDR_INET Address = {0};
+        Address.si_family = AF_INET;
+        if (i != 0) {
+            ASSERT(Address.si_family == AF_INET);
+            Address.Ipv4.sin_port = LocalPort;
+        }
+        TEST_EQUAL(0, bind(WinSocket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+        INT AddressLength = sizeof(Address);
+        TEST_EQUAL(0, getsockname(WinSocket.get(), (SOCKADDR *)&Address, &AddressLength));
+        INT TimeoutMs = 1;
+        TEST_EQUAL(
+            0,
+            setsockopt(
+                WinSocket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+        if (i == 0) {
+            LocalPort = SS_PORT(&Address);
+        }
+        WinSockArray.push_back(std::move(WinSocket));
+        TEST_WARNING("Initialized WinSockArray[%llu]", WinSockArray.size() - 1);
+    }
+    TEST_TRUE(WinSockArray.size() == SystemInfo.dwNumberOfProcessors);
+
+    //
+    // Validate XSK reception.
+    //
+    // Have the miniport indicate on all its active RSS queues. Only XSK
+    // sockets bound to an RSS queue that is present in the indirection table
+    // should have received traffic.
+    //
+    // WinSock sockets should not have received any traffic.
+    //
+    IndicateOnAllActiveRssQueues(If, LocalPort);
+    for (UINT32 i = 0; i < XskSockArray.size(); i++) {
+        TEST_WARNING("VerifyRssDatapath xdpvalidate: Attempt to consume on XskSockArray[%u]", i);
+        if (i < XdpRssProcessorArray.size()) {
+            SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 1);
+            XskRingConsumerRelease(&XskSockArray[i].Rings.Rx, 1);
+            SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 0);
+        } else {
+            SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 0);
+        }
+    }
+    for (UINT32 i = 0; i < WinSockArray.size(); i++) {
+        CHAR RecvPayload[2048];
+        ULONG Bytes;
+        ULONG Error;
+        Bytes = recv(WinSockArray[i].get(), RecvPayload, sizeof(RecvPayload), 0);
+        Error = WSAGetLastError();
+        TEST_WARNING("VerifyRssDatapath xdpvalidate: WinSockArray[%u] Bytes=%d WSAGetLastError=%d", i, Bytes, Error);
+        TEST_EQUAL(SOCKET_ERROR, Bytes);
+        TEST_EQUAL(WSAETIMEDOUT, Error);
+    }
+
+    //
+    // Close all XSK sockets and XDP programs.
+    //
+    XskSockArray.clear();
+
+    //
+    // Validate Winsock reception
+    //
+    // Have the miniport indicate on all its active RSS queues. Only the
+    // sockets assigned to a processor present in the indirection table should
+    // have received traffic.
+    //
+    // Currently, XDP RSS datapath translation is not implemented, so it is
+    // expected that packets are indicated on processors in the XDP RSS
+    // indirection table.
+    //
+    IndicateOnAllActiveRssQueues(If, LocalPort);
+    for (UINT32 i = 0; i < WinSockArray.size(); i++) {
+        CHAR RecvPayload[2048];
+        ULONG Bytes;
+        ULONG Error;
+        Bytes = recv(WinSockArray[i].get(), RecvPayload, sizeof(RecvPayload), 0);
+        Error = WSAGetLastError();
+        TEST_WARNING("VerifyRssDatapath tcpipvalidate: WinSockArray[%u] Bytes=%d WSAGetLastError=%d", i, Bytes, Error);
+        if (std::find(
+                XdpRssProcessorArray.begin(), XdpRssProcessorArray.end(), i) !=
+            XdpRssProcessorArray.end()) {
+            TEST_TRUE(Bytes > 0);
+        } else {
+            TEST_EQUAL(SOCKET_ERROR, Bytes);
+            TEST_EQUAL(WSAETIMEDOUT, Error);
+        }
+    }
+}
+
+VOID
+OffloadRssError()
+{
+    wil::unique_handle RssHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    UINT32 HashSecretKeySize = 40;
+    UINT32 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
+    UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
+
+    //
+    // Open with invalid IfIndex.
+    //
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        XdpRssOpen(MAXUINT32, &RssHandle));
+
+    //
+    // Set while XSK is bound.
+    //
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RtlZeroMemory(RssConfig.get(), RssConfigSize);
+    RssConfig->Flags = XDP_RSS_FLAG_HASH_TYPE_UNCHANGED | XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED;
+    RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
+    RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
+
+    PROCESSOR_NUMBER *IndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    IndirectionTable[0].Number = 1;
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    RssHandle.reset();
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+
+    struct RSS_ERROR_CASE {
+        BOOLEAN Rx;
+        BOOLEAN Tx;
+    };
+    std::vector<RSS_ERROR_CASE> Cases;
+
+    for (BOOLEAN Rx = FALSE; Rx <= TRUE; Rx++) {
+        for (BOOLEAN Tx = FALSE; Tx <= TRUE; Tx++) {
+            if (!Rx && !Tx) {
+                continue;
+            }
+
+            RSS_ERROR_CASE Case = {};
+            Case.Rx = Rx;
+            Case.Tx = Tx;
+
+            Cases.push_back(Case);
+        }
+    }
+
+    for (auto Case : Cases) {
+        auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
+        HRESULT Error = XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize);
+        TEST_WARNING("Error is %d\n", Error);
+        TEST_EQUAL(Error, HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
+    }
+}
+
+VOID
+OffloadRssUnchanged()
+{
+    wil::unique_handle RssHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    UINT32 RssConfigSize;
+    UCHAR *HashSecretKey;
+    PROCESSOR_NUMBER *IndirectionTable;
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+
+    //
+    // Hash type.
+    //
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    UINT32 ExpectedHashType = RssConfig->HashType;
+    RssConfig->Flags = XDP_RSS_FLAG_HASH_TYPE_UNCHANGED;
+    RssConfig->HashType = 0;
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    RssConfig = GetXdpRss(RssHandle);
+    TEST_EQUAL(RssConfig->HashType, ExpectedHashType);
+
+    //
+    // Hash secret key.
+    //
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    HashSecretKey = (UCHAR *)RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset);
+    UCHAR ExpectedHashSecretKey[40];
+    UINT32 ExpectedHashSecretKeySize = RssConfig->HashSecretKeySize;
+    ASSERT(ExpectedHashSecretKeySize <= sizeof(ExpectedHashSecretKey));
+    RtlCopyMemory(&ExpectedHashSecretKey, HashSecretKey, RssConfig->HashSecretKeySize);
+    RssConfig->Flags = XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED;
+    RtlZeroMemory(HashSecretKey, RssConfig->HashSecretKeySize);
+    RssConfig->HashSecretKeySize = 0;
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    RssConfig = GetXdpRss(RssHandle);
+    TEST_EQUAL(RssConfig->HashSecretKeySize, ExpectedHashSecretKeySize);
+    HashSecretKey = (UCHAR *)RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset);
+    TEST_TRUE(RtlEqualMemory(HashSecretKey, &ExpectedHashSecretKey, ExpectedHashSecretKeySize));
+
+    //
+    // Indirection table.
+    //
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    IndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    PROCESSOR_NUMBER ExpectedIndirectionTable[128];
+    UINT32 ExpectedIndirectionTableSize = RssConfig->IndirectionTableSize;
+    ASSERT(ExpectedIndirectionTableSize <= sizeof(ExpectedIndirectionTable));
+    RtlCopyMemory(&ExpectedIndirectionTable, IndirectionTable, RssConfig->IndirectionTableSize);
+    RssConfig->Flags = XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED;
+    RtlZeroMemory(IndirectionTable, RssConfig->IndirectionTableSize);
+    RssConfig->IndirectionTableSize = 0;
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    RssConfig = GetXdpRss(RssHandle);
+    TEST_EQUAL(RssConfig->IndirectionTableSize, ExpectedIndirectionTableSize);
+    IndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    TEST_TRUE(
+        RtlEqualMemory(IndirectionTable, &ExpectedIndirectionTable, ExpectedIndirectionTableSize));
+}
+
+VOID
+OffloadRssSingleSet(
+    _In_ const std::vector<UINT32> &XdpRssProcessorArray
+    )
+{
+    std::vector<UINT32> OldXdpRssProcessorArray;
+    std::vector<UINT32> ResetXdpRssProcessorArray;
+    wil::unique_handle RssHandle;
+
+    PrintProcArray(L"OffloadRssSingleSet:", XdpRssProcessorArray);
+
+    GetXdpRssProcessors(FnMpIf, OldXdpRssProcessorArray);
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    ConfigureRssViaXdp(RssHandle, XdpRssProcessorArray);
+    VerifyRssSettings(FnMpIf, XdpRssProcessorArray);
+    VerifyRssDatapath(FnMpIf, XdpRssProcessorArray);
+
+    RssHandle.reset();
+    GetXdpRssProcessors(FnMpIf, ResetXdpRssProcessorArray);
+    TEST_EQUAL(ResetXdpRssProcessorArray, OldXdpRssProcessorArray);
+}
+
+VOID
+OffloadRssSubsequentSet(
+    _In_ const std::vector<UINT32> &XdpRssProcessorArray1,
+    _In_ const std::vector<UINT32> &XdpRssProcessorArray2
+    )
+{
+    wil::unique_handle RssHandle;
+
+    TEST_WARNING("OffloadRssSubsequentSet");
+    PrintProcArray(L"XDP1:", XdpRssProcessorArray1);
+    PrintProcArray(L"XDP2:", XdpRssProcessorArray2);
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+
+    ConfigureRssViaXdp(RssHandle, XdpRssProcessorArray1);
+    VerifyRssSettings(FnMpIf, XdpRssProcessorArray1);
+    VerifyRssDatapath(FnMpIf, XdpRssProcessorArray1);
+
+    ConfigureRssViaXdp(RssHandle, XdpRssProcessorArray2);
+    VerifyRssSettings(FnMpIf, XdpRssProcessorArray2);
+    VerifyRssDatapath(FnMpIf, XdpRssProcessorArray2);
+}
+
+VOID
+OffloadRss()
+{
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    if (SystemInfo.dwNumberOfProcessors < 2) {
+        TEST_WARNING("OffloadRss test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
+    //
+    // TODO: Already bound sockets and created programs should prohibit RSS changes.
+    //
+    // OffloadRssError();
+
+    OffloadRssUnchanged();
+
+    OffloadRssSingleSet({0});
+    OffloadRssSingleSet({1});
+    OffloadRssSingleSet({0,1});
+
+    OffloadRssSubsequentSet({0}, {1});
+
+    if (SystemInfo.dwNumberOfProcessors >= 4) {
+        OffloadRssSingleSet({0,2});
+        OffloadRssSingleSet({1,3});
+        OffloadRssSingleSet({0,1,2,3});
+
+        OffloadRssSubsequentSet({0,2}, {1,3});
+    }
 }
 
 /**

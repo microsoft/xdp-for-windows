@@ -35,6 +35,65 @@ XdpCreateProgram(
     return S_OK;
 }
 
+HRESULT
+XDPAPI
+XdpRssOpen(
+    _In_ UINT32 InterfaceIndex,
+    _Out_ HANDLE *RssHandle
+    )
+{
+    XDP_RSS_OPEN *RssOpen;
+    CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*RssOpen)];
+
+    RssOpen = XdpInitializeEa(XDP_OBJECT_TYPE_RSS, EaBuffer, sizeof(EaBuffer));
+    RssOpen->IfIndex = InterfaceIndex;
+
+    *RssHandle = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    if (*RssHandle == NULL) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
+HRESULT
+XDPAPI
+XdpRssSet(
+    _In_ HANDLE RssHandle,
+    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ UINT32 RssConfigurationSize
+    )
+{
+    BOOL Success =
+        XdpIoctl(
+            RssHandle, IOCTL_RSS_SET, (XDP_RSS_CONFIGURATION *)RssConfiguration,
+            RssConfigurationSize, NULL, 0, NULL, NULL);
+    if (!Success) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
+HRESULT
+XDPAPI
+XdpRssGet(
+    _In_ HANDLE RssHandle,
+    _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
+    _Inout_ UINT32 *RssConfigurationSize
+    )
+{
+    BOOL Success =
+        XdpIoctl(
+            RssHandle, IOCTL_RSS_GET, NULL, 0, RssConfiguration,
+            *RssConfigurationSize, (ULONG *)RssConfigurationSize, NULL);
+    if (!Success) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
 BOOL
 WINAPI
 DllMain(

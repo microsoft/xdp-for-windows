@@ -209,6 +209,22 @@ FnMpGetLastMiniportPauseTimestamp(
 }
 
 HRESULT
+FnMpGetNumActiveRssQueues(
+    _In_ HANDLE Handle,
+    _Out_ UINT32 *NumQueues
+    )
+{
+    //
+    // Supports generic handles only.
+    // Returns the number of RSS queues currently represented in the indirection table.
+    //
+    return
+        FnMpIoctl(
+            Handle, IOCTL_MINIPORT_GET_NUM_ACTIVE_RSS_QUEUES, NULL, 0, NumQueues,
+            sizeof(*NumQueues), NULL, NULL);
+}
+
+HRESULT
 FnMpSetMtu(
     _In_ HANDLE Handle,
     _In_ UINT32 Mtu

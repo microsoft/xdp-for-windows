@@ -90,3 +90,6 @@ GenericLwfDelayDetach(
 
 VOID
 FnMpNativeHandleTest();
+
+VOID
+OffloadRss();

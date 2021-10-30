@@ -51,6 +51,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "csdkheaders", "test\build_h
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cppsdkheaders", "test\build_headers\sdk\cpp\cppsdkheaders.vcxproj", "{1ec347f7-a95f-49f3-b35f-77443a601f53}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rssconfig", "test\rssconfig\rssconfig.vcxproj", "{798300cd-0d26-4fcd-843b-30a9585b102c}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -503,6 +505,18 @@ Global
         {1ec347f7-a95f-49f3-b35f-77443a601f53}.Release|x64.Build.0 = Release|x64
         {1ec347f7-a95f-49f3-b35f-77443a601f53}.Release|x86.ActiveCfg = Release|Win32
         {1ec347f7-a95f-49f3-b35f-77443a601f53}.Release|x86.Build.0 = Release|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Debug|ARM.ActiveCfg = Debug|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Debug|ARM64.ActiveCfg = Debug|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Debug|x64.ActiveCfg = Debug|x64
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Debug|x64.Build.0 = Debug|x64
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Debug|x86.ActiveCfg = Debug|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Debug|x86.Build.0 = Debug|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Release|ARM.ActiveCfg = Release|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Release|ARM64.ActiveCfg = Release|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Release|x64.ActiveCfg = Release|x64
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Release|x64.Build.0 = Release|x64
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Release|x86.ActiveCfg = Release|Win32
+        {798300cd-0d26-4fcd-843b-30a9585b102c}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

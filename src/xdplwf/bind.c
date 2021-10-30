@@ -151,9 +151,12 @@ XdpLwfFilterAttach(
         goto Exit;
     }
 
+    XdpLwfOffloadInitialize(Filter);
+
     Status =
         XdpIfCreateInterfaceSet(
-            Filter->MiniportIfIndex, Filter, &Filter->XdpIfInterfaceSetHandle);
+            Filter->MiniportIfIndex, &XdpLwfOffloadDispatch, Filter,
+            &Filter->XdpIfInterfaceSetHandle);
     if (!NT_SUCCESS(Status)) {
         ASSERT(Filter->XdpIfInterfaceSetHandle == NULL);
         Status = XdpConvertNtStatusToNdisStatus(Status);
@@ -162,7 +165,7 @@ XdpLwfFilterAttach(
 
     Status =
         XdpGenericAttachInterface(
-            &Filter->Generic, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
+            &Filter->Generic, Filter, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
     if (NT_SUCCESS(Status)) {
         IfCount++;
         Index++;
@@ -170,7 +173,7 @@ XdpLwfFilterAttach(
 
     Status =
         XdpNativeAttachInterface(
-            &Filter->Native, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
+            &Filter->Native, Filter, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
     if (NT_SUCCESS(Status)) {
         IfCount++;
         Index++;
@@ -266,6 +269,8 @@ XdpLwfFilterDetach(
 
         XdpIfDeleteInterfaceSet(Filter->XdpIfInterfaceSetHandle);
     }
+
+    XdpLwfOffloadUnInitialize(Filter);
 
     ExFreePoolWithTag(Filter, POOLTAG_FILTER);
 }

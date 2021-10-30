@@ -61,6 +61,37 @@ XdpIfSupportsHookId(
     _In_ CONST XDP_HOOK_ID *Target
     );
 
+NTSTATUS
+XdpIfOpenInterfaceOffloadHandle(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _Out_ VOID **InterfaceOffloadHandle
+    );
+
+VOID
+XdpIfCloseInterfaceOffloadHandle(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ VOID *InterfaceOffloadHandle
+    );
+
+NTSTATUS
+XdpIfGetInterfaceOffload(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _Out_opt_ VOID *OffloadParams,
+    _Inout_ UINT32 *OffloadParamsSize
+    );
+
+NTSTATUS
+XdpIfSetInterfaceOffload(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    );
+
 //
 // The following routines must be invoked from the serialized work queue.
 //
