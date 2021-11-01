@@ -98,6 +98,25 @@ function Start-Service-With-Retry($Name) {
     }
 }
 
+# Helper to rename (with retry) a network adapter. On WS2022, renames sometimes
+# fail with ERROR_TRANSACTION_NOT_ACTIVE.
+function Rename-NetAdapter-With-Retry($IfDesc, $Name) {
+    Write-Verbose "Rename-NetAdapter $IfDesc $Name"
+    $RenameSuccess = $false
+    for ($i=0; $i -lt 10; $i++) {
+        try {
+            Rename-NetAdapter -InterfaceDescription $IfDesc $Name
+            $RenameSuccess = $true
+            break
+        } catch {
+            Start-Sleep -Milliseconds 100
+        }
+    }
+    if ($RenameSuccess -eq $false) {
+        Write-Error "Failed to rename $Name"
+    }
+}
+
 # Helper wait for a service to stop and then delete it. Callers are responsible
 # making sure the service is already stopped or stopping.
 function Cleanup-Service($Name) {
@@ -276,7 +295,7 @@ function Install-XdpMp {
     Wait-For-Adapters -IfDesc $XdpMpServiceName -WaitForUp $false
 
     Write-Verbose "Renaming adapter"
-    Rename-NetAdapter -InterfaceDescription $XdpMpServiceName $XdpMpServiceName
+    Rename-NetAdapter-With-Retry $XdpMpServiceName $XdpMpServiceName
 
     Write-Verbose "Get-NetAdapter $XdpMpServiceName"
     Get-NetAdapter $XdpMpServiceName | Format-Table | Out-String | Write-Verbose
@@ -357,8 +376,8 @@ function Install-XdpFnMp {
     Wait-For-Adapters -IfDesc $XdpFnMpServiceName -Count 2
 
     Write-Verbose "Renaming adapters"
-    Rename-NetAdapter -InterfaceDescription XDPFNMP XDPFNMP
-    Rename-NetAdapter -InterfaceDescription "XDPFNMP #2" XDPFNMP1Q
+    Rename-NetAdapter-With-Retry XDPFNMP XDPFNMP
+    Rename-NetAdapter-With-Retry "XDPFNMP #2" XDPFNMP1Q
 
     Write-Verbose "Get-NetAdapter XDPFNMP"
     Get-NetAdapter XDPFNMP | Format-Table | Out-String | Write-Verbose
