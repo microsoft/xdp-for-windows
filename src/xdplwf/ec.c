@@ -136,7 +136,30 @@ XdpEcPoll(
             //
             XdpEcNotifyEx(Ec, FALSE);
         } else if (Ec->CleanupComplete != NULL) {
-            KeSetEvent(Ec->CleanupComplete, 0, FALSE);
+            //
+            // Perform a final disarm of the EC to trigger cleanup completion.
+            //
+            if (InterlockedExchange8((CHAR *)&Ec->Armed, FALSE)) {
+                //
+                // The EC has successfully been shut down; any further
+                // notifications are ignored, and the poll callback will never
+                // be invoked.
+                //
+                KeSetEvent(Ec->CleanupComplete, 0, FALSE);
+            } else {
+                //
+                // A notification disarmed the EC after this routine re-armed
+                // the EC. That notification has in turn queued a DPC, so fall
+                // through and do nothing here; that queued DPC will continue
+                // where this routine left off.
+                //
+                // Since it is illegal for external notifications to occur or
+                // for polling callbacks to request another poll after cleanup
+                // is initiated, the notification that won the disarm race must
+                // have been triggered by the cleanup routine itself, and so the
+                // EC cannot fall through this path more than once.
+                //
+            }
         }
     }
 }
