@@ -58,33 +58,6 @@
  HKR, Ndi\Params\*RSSProfile\Enum,      "4",               0, "NUMAStatic"
  HKR, Ndi\Params\*RSSProfile\Enum,      "5",               0, "Conservative"
 
-; *RssBaseProcNumber
- HKR, Ndi\params\*RssBaseProcNumber,    ParamDesc,         0, "RSSBaseProcNumber"
- HKR, Ndi\params\*RssBaseProcNumber,    default,           0, "0"
- HKR, Ndi\params\*RssBaseProcNumber,    type,              0, "int"
- HKR, Ndi\params\*RssBaseProcNumber,    min,               0, "0"
- HKR, Ndi\params\*RssBaseProcNumber,    max,               0, "63"
- HKR, Ndi\params\*RssBaseProcNumber,    step,              0, "1"
- HKR, Ndi\params\*RssBaseProcNumber,    Optional,          0, "0"
-
-; *RssMaxProcNumber
- HKR, Ndi\params\*RssMaxProcNumber,     ParamDesc,         0, "RSSMaxProcNumber"
- HKR, Ndi\params\*RssMaxProcNumber,     default,           0, "0"
- HKR, Ndi\params\*RssMaxProcNumber,     type,              0, "int"
- HKR, Ndi\params\*RssMaxProcNumber,     min,               0, "0"
- HKR, Ndi\params\*RssMaxProcNumber,     max,               0, "63"
- HKR, Ndi\params\*RssMaxProcNumber,     step,              0, "1"
- HKR, Ndi\params\*RssMaxProcNumber,     Optional,          0, "0"
-
-; *MaxRssProcessors
- HKR, Ndi\Params\*MaxRssProcessors,     ParamDesc,         0, "MaxRSSProcessors"
- HKR, Ndi\Params\*MaxRssProcessors,     default,           0, "4"
- HKR, Ndi\Params\*MaxRssProcessors,     type,              0, "int"
- HKR, Ndi\Params\*MaxRssProcessors,     min,               0, "1"
- HKR, Ndi\Params\*MaxRssProcessors,     max,               0, "64"
- HKR, Ndi\Params\*MaxRssProcessors,     step,              0, "1"
- HKR, Ndi\Params\*MaxRssProcessors,     Optional,          0, "0"
-
 ; MTU
  HKR, Ndi\Params\MTU,                   ParamDesc,         0, "MTU"
  HKR, Ndi\Params\MTU,                   default,           0, "16777216"

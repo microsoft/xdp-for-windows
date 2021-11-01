@@ -118,6 +118,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Arch $Arch
         Write-Verbose "installed xdpmp."
 
+        Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
+        Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
+
         $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
         $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
         if ($Minutes -ne 0) {
