@@ -1557,6 +1557,10 @@ XskValidateDatapathHandle(
 {
     XSK *Xsk = (XSK *)XskHandle;
 
+    if (Xsk->State < XskBound) {
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+
     if (Xsk->Rx.Xdp.Queue == NULL) {
         return STATUS_NOT_SUPPORTED;
     }
@@ -1776,6 +1780,8 @@ XskDetachRxIf(
     if (Xsk->Rx.Xdp.Queue != NULL) {
         XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
         XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
+        XskNotifyDetachRxQueue(Xsk);
+        XskNotifyDetachRxQueueComplete(Xsk);
         XdpRxQueueDereference(Xsk->Rx.Xdp.Queue);
         Xsk->Rx.Xdp.Queue = NULL;
     }
@@ -1792,8 +1798,10 @@ XskDetachRxIf(
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
-    XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
-    XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
+    if (Xsk->State >= XskBound) {
+        XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
+        XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
+    }
 
     TraceExit(TRACE_XSK);
 }
@@ -1849,8 +1857,10 @@ XskDetachTxIf(
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
 
-    XskKernelRingSetError(&Xsk->Tx.Ring, XSK_ERROR_INTERFACE_DETACH);
-    XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INTERFACE_DETACH);
+    if (Xsk->State >= XskBound) {
+        XskKernelRingSetError(&Xsk->Tx.Ring, XSK_ERROR_INTERFACE_DETACH);
+        XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INTERFACE_DETACH);
+    }
 
     TraceExit(TRACE_XSK);
 }
