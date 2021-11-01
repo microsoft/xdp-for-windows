@@ -20,6 +20,7 @@ typedef struct _XDP_EC {
     VOID *PollContext;
     BOOLEAN Armed;
     BOOLEAN InPoll;
+    BOOLEAN SkipYieldCheck;
     ULONG *IdealProcessor;
     ULONG OwningProcessor;
     LARGE_INTEGER LastYieldTick;

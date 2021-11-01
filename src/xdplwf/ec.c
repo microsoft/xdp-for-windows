@@ -72,10 +72,14 @@ XdpEcPoll(
     )
 {
     BOOLEAN NeedPoll = FALSE;
+    BOOLEAN NeedYieldCheck;
     LARGE_INTEGER CurrentTick;
     UINT32 Iteration = 0;
 
     ASSERT(Ec->OwningProcessor == KeGetCurrentProcessorIndex());
+
+    NeedYieldCheck = !Ec->SkipYieldCheck;
+    Ec->SkipYieldCheck = FALSE;
 
     if (Ec->OwningProcessor != *Ec->IdealProcessor) {
         PROCESSOR_NUMBER ProcessorNumber;
@@ -90,15 +94,27 @@ XdpEcPoll(
         return;
     }
 
-    KeQueryTickCount(&CurrentTick);
-    if (Ec->LastYieldTick.QuadPart < CurrentTick.QuadPart) {
-        Ec->LastYieldTick.QuadPart = CurrentTick.QuadPart;
-        if (KeShouldYieldProcessor()) {
-            //
-            // The EC should yield the processor, so queue a passive work item.
-            //
-            IoQueueWorkItem(Ec->WorkItem, XdpEcPassiveWorker, DelayedWorkQueue, Ec);
-            return;
+    if (NeedYieldCheck) {
+        KeQueryTickCount(&CurrentTick);
+        if (Ec->LastYieldTick.QuadPart < CurrentTick.QuadPart) {
+            Ec->LastYieldTick.QuadPart = CurrentTick.QuadPart;
+            if (KeShouldYieldProcessor()) {
+                //
+                // The EC should yield the processor, so queue a passive work
+                // item.
+                //
+                // Allow the DPC to skip the next yield check: on older systems
+                // configured with DPC watchdog timeouts disabled,
+                // KeShouldYieldProcessor may return true even if the CPU had
+                // recently dropped below dispatch level, which causes this EC
+                // to yield the processor prematurely, i.e. without ever polling
+                // the callback. If there's a lot of DPC activity on the system,
+                // starvation can occur in the degenerate case.
+                //
+                Ec->SkipYieldCheck = TRUE;
+                IoQueueWorkItem(Ec->WorkItem, XdpEcPassiveWorker, DelayedWorkQueue, Ec);
+                return;
+            }
         }
     }
 
