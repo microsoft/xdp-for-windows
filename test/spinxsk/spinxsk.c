@@ -33,6 +33,7 @@
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_QUEUE_COUNT 4
 #define DEFAULT_FUZZER_COUNT 3
+#define DEFAULT_SUCCESS_THRESHOLD 50
 
 CHAR *HELP =
 "spinxsk.exe -IfIndex <ifindex> [OPTIONS]\n"
@@ -52,6 +53,8 @@ CHAR *HELP =
 "                         Default: off\n"
 "   -WatchdogCmd <cmd>    Execute a system command after a watchdog violation\n"
 "                         Default: \"\"\n"
+"   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
+"                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 ;
 
 #define ASSERT_FRE(expr) \
@@ -222,6 +225,7 @@ BOOLEAN verbose = FALSE;
 BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
+UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
 QUEUE_WORKER *queueWorkers;
@@ -1423,10 +1427,11 @@ QueueWorkerFn(
     }
 
     //
-    // Require a certain percentage of sockets to complete the setup phase as a
-    // proxy for ensuring effective code coverage.
+    // Require a certain percentage (1%) of sockets to complete the setup phase
+    // as a proxy for ensuring effective code coverage, validating that all
+    // drivers are started, etc.
     //
-    ASSERT_FRE(successPct >= 10);
+    ASSERT_FRE(successPct >= successThresholdPercent);
 
     TraceExit("q[%u]", queueWorker->queueId);
     return 0;
@@ -1592,6 +1597,12 @@ ParseArgs(
             }
             watchdogCmd = argv[i];
             TraceVerbose("watchdogCmd=%s", watchdogCmd);
+        } else if (!strcmp(argv[i], "-SuccessThresholdPercent")) {
+            if (++i > argc) {
+                Usage();
+            }
+            successThresholdPercent = atoi(argv[i]);
+            TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
         } else {
             Usage();
         }

@@ -24,6 +24,9 @@ more coverage for setup and cleanup.
 .Parameter FuzzerCount
     Number of fuzzer threads per queue.
 
+.Parameter SuccessThresholdPercent
+    Minimum socket success rate, percent.
+
 .PARAMETER CleanDatapath
     Avoid actions that invalidate the datapath.
 
@@ -55,6 +58,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [Int32]$FuzzerCount = 0,
+
+    [Parameter(Mandatory = $false)]
+    [Int32]$SuccessThresholdPercent = -1,
 
     [Parameter(Mandatory = $false)]
     [switch]$CleanDatapath = $false,
@@ -128,6 +134,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($CleanDatapath) {
             $Args += " -CleanDatapath"
+        }
+        if ($SuccessThresholdPercent -ge 0) {
+            $Args += " -SuccessThresholdPercent $SuccessThresholdPercent"
         }
         Write-Verbose ($SpinXsk + " " + $Args)
         Invoke-Expression ($SpinXsk + " " + $Args)
