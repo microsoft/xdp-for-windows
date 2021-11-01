@@ -303,16 +303,19 @@ XdpGenericInitiateTx(
     return XdpGenericTxGetNbls(TxQueue) > 0 && XdpRingCount(FrameRing) > 0;
 }
 
-VOID
+static
+_IRQL_requires_(DISPATCH_LEVEL)
+BOOLEAN
 XdpGenericDropTx(
     _In_ XDP_LWF_GENERIC_TX_QUEUE *TxQueue
     )
 {
     XDP_RING *FrameRing;
     XDP_RING *CompletionRing;
+    CONST UINT32 MaxDrops = 1024;
 
     if (ReadPointerAcquire(&TxQueue->XdpTxQueue) == NULL) {
-        return;
+        return FALSE;
     }
 
     FrameRing = TxQueue->FrameRing;
@@ -320,13 +323,9 @@ XdpGenericDropTx(
 
     if (XdpRingCount(FrameRing) == 0) {
         XdpFlushTransmit(TxQueue->XdpTxQueue);
-
-        if (XdpRingCount(FrameRing) == 0) {
-            return;
-        }
     }
 
-    while (XdpRingCount(FrameRing) > 0) {
+    for (UINT32 Drop = 0; XdpRingCount(FrameRing) > 0 && Drop < MaxDrops; Drop++) {
         XDP_FRAME *Frame;
         XDP_BUFFER *Buffer;
         XDP_BUFFER_MDL *BufferMdl;
@@ -337,7 +336,9 @@ XdpGenericDropTx(
         BufferMdl = XdpGetMdlExtension(Buffer, &TxQueue->BufferMdlExtension);
 
         ASSERT(XdpRingFree(CompletionRing) > 0);
-        Completion = XdpRingGetElement(CompletionRing, CompletionRing->ProducerIndex++ & CompletionRing->Mask);
+        Completion =
+            XdpRingGetElement(
+                CompletionRing, CompletionRing->ProducerIndex++ & CompletionRing->Mask);
         *Completion = BufferMdl->MdlOffset;
 
         if (XdpRingFree(CompletionRing) == 0) {
@@ -348,8 +349,11 @@ XdpGenericDropTx(
     if (XdpRingCount(CompletionRing) > 0) {
         XdpFlushTransmit(TxQueue->XdpTxQueue);
     }
+
+    return XdpRingCount(FrameRing) > 0;
 }
 
+static
 _IRQL_requires_(DISPATCH_LEVEL)
 BOOLEAN
 XdpGenericTxPoll(
@@ -360,7 +364,9 @@ XdpGenericTxPoll(
 
     XdpGenericCompleteTx(TxQueue);
 
+    //
     // If the data path is pausing/paused, do not initiate new TX.
+    //
     if (TxQueue->Flags.Pause) {
         if (TxQueue->OutstandingCount == 0) {
             if (TxQueue->PauseComplete != NULL) {
@@ -374,9 +380,7 @@ XdpGenericTxPoll(
         // Drop TX frames and complete them while pausing/paused so XDP doesn't
         // wait on outstanding TX forever during interface detach.
         //
-        XdpGenericDropTx(TxQueue);
-
-        return FALSE;
+        return XdpGenericDropTx(TxQueue);
     }
 
     return XdpGenericInitiateTx(TxQueue);
