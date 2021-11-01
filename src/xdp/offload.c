@@ -197,8 +197,7 @@ XdpIrpRssSet(
     }
 
     if ((RssConfiguration->Flags & XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED) == 0) {
-        if (RssConfiguration->HashSecretKeySize >
-            XDP_RSS_HASH_SECRET_KEY_SIZE * sizeof(UCHAR)) {
+        if (RssConfiguration->HashSecretKeySize > sizeof(RssParams.HashSecretKey)) {
             TraceError(
                 TRACE_CORE,
                 "Rss=%p Hash secret key size too large HashSecretKeySize=%u",
@@ -211,8 +210,7 @@ XdpIrpRssSet(
     }
 
     if ((RssConfiguration->Flags & XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED) == 0) {
-        if (RssConfiguration->IndirectionTableSize >
-            XDP_RSS_INDIRECTION_TABLE_SIZE * sizeof(PROCESSOR_NUMBER)) {
+        if (RssConfiguration->IndirectionTableSize > sizeof(RssParams.IndirectionTable)) {
             TraceError(
                 TRACE_CORE,
                 "Rss=%p Indirection table size too large IndirectionTableSize=%u",
@@ -221,7 +219,7 @@ XdpIrpRssSet(
             goto Exit;
         }
 
-        if (RssConfiguration->IndirectionTableSize % sizeof(PROCESSOR_NUMBER) != 0 ||
+        if (RssConfiguration->IndirectionTableSize % sizeof(RssParams.IndirectionTable[0]) != 0 ||
             !RTL_IS_POWER_OF_TWO(RssConfiguration->IndirectionTableSize)) {
             TraceError(
                 TRACE_CORE,
