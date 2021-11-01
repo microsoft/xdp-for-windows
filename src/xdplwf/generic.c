@@ -232,7 +232,6 @@ XdpGenericReferenceDatapath(
     *NeedRestart = FALSE;
 
     if (Datapath->ReferenceCount++ == 0) {
-        ASSERT(!KeReadStateEvent(&Datapath->ReadyEvent));
         XdpGenericReference(Generic);
         *NeedRestart = TRUE;
     }
