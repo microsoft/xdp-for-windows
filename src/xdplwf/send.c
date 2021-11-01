@@ -423,6 +423,10 @@ XdpGenericTxPauseQueue(
 {
     KEVENT TxPauseComplete;
 
+    TraceEnter(
+        TRACE_GENERIC, "TxQueue=%p IfIndex=%u QueueId=%u RxInject=%!BOOLEAN!",
+        TxQueue, Generic->IfIndex, TxQueue->QueueId, TxQueue->Flags.RxInject);
+
     UNREFERENCED_PARAMETER(Generic);
 
     KeInitializeEvent(&TxPauseComplete, NotificationEvent, FALSE);
@@ -431,6 +435,8 @@ XdpGenericTxPauseQueue(
     XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
     KeWaitForSingleObject(&TxPauseComplete, Executive, KernelMode, FALSE, NULL);
     FRE_ASSERT(TxQueue->PauseComplete == NULL);
+
+    TraceExit(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -443,8 +449,14 @@ XdpGenericTxRestartQueue(
 {
     UNREFERENCED_PARAMETER(Generic);
 
+    TraceEnter(
+        TRACE_GENERIC, "TxQueue=%p IfIndex=%u QueueId=%u RxInject=%!BOOLEAN!",
+        TxQueue, Generic->IfIndex, TxQueue->QueueId, TxQueue->Flags.RxInject);
+
     TxQueue->Flags.Pause = FALSE;
     XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
+
+    TraceExit(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -454,6 +466,8 @@ XdpGenericTxPause(
     _In_ XDP_LWF_GENERIC *Generic
     )
 {
+    TraceEnter(TRACE_GENERIC, "IfIndex=%u", Generic->IfIndex);
+
     LIST_ENTRY *Entry = Generic->Tx.Queues.Flink;
     while (Entry != &Generic->Tx.Queues) {
         XDP_LWF_GENERIC_TX_QUEUE *TxQueue =
@@ -462,6 +476,8 @@ XdpGenericTxPause(
 
         XdpGenericTxPauseQueue(Generic, TxQueue);
     }
+
+    TraceExit(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -473,6 +489,8 @@ XdpGenericTxRestart(
     )
 {
     LIST_ENTRY *Entry = Generic->Tx.Queues.Flink;
+
+    TraceEnter(TRACE_GENERIC, "IfIndex=%u NewMtu=%u", Generic->IfIndex, NewMtu);
 
     while (Entry != &Generic->Tx.Queues) {
         XDP_LWF_GENERIC_TX_QUEUE *TxQueue =
@@ -498,6 +516,8 @@ XdpGenericTxRestart(
     }
 
     Generic->Tx.Mtu = NewMtu;
+
+    TraceExit(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
