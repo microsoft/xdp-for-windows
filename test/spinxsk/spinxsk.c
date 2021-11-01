@@ -1376,10 +1376,20 @@ QueueWorkerFn(
             TraceVerbose("q[%u]: waiting for datapath threads", queue->queueId);
             WriteNoFence((LONG *)&queue->datapathShared.state, ThreadStateReturn);
             if (queue->datapath1.threadHandle != NULL) {
+                #pragma warning(push)
+                #pragma warning(disable:6387) // threadHandle is not NULL.
                 WaitForSingleObject(queue->datapath1.threadHandle, INFINITE);
+                CloseHandle(queue->datapath1.threadHandle);
+                queue->datapath1.threadHandle = NULL;
+                #pragma warning(pop)
             }
             if (queue->datapath2.threadHandle != NULL) {
+                #pragma warning(push)
+                #pragma warning(disable:6387) // threadHandle is not NULL.
                 WaitForSingleObject(queue->datapath2.threadHandle, INFINITE);
+                CloseHandle(queue->datapath2.threadHandle);
+                queue->datapath2.threadHandle = NULL;
+                #pragma warning(pop)
             }
         }
 
@@ -1389,7 +1399,12 @@ QueueWorkerFn(
         TraceVerbose("q[%u]: waiting for fuzzer threads", queue->queueId);
         WriteNoFence((LONG*)&queue->fuzzerShared.state, ThreadStateReturn);
         for (UINT32 i = 0; i < queue->fuzzerCount; i++) {
+            #pragma warning(push)
+            #pragma warning(disable:6387) // threadHandle is not NULL.
             WaitForSingleObject(queue->fuzzers[i].threadHandle, INFINITE);
+            CloseHandle(queue->fuzzers[i].threadHandle);
+            queue->fuzzers[i].threadHandle = NULL;
+            #pragma warning(pop)
         }
 
         if (extraStats) {
@@ -1677,7 +1692,12 @@ main(
     TraceVerbose("main: waiting for workers...");
     for (UINT32 i = 0; i < queueCount; i++) {
         QUEUE_WORKER *queueWorker = &queueWorkers[i];
+        #pragma warning(push)
+        #pragma warning(disable:6387) // threadHandle is not NULL.
         WaitForSingleObject(queueWorker->threadHandle, INFINITE);
+        CloseHandle(queueWorker->threadHandle);
+        queueWorker->threadHandle = NULL;
+        #pragma warning(pop)
     }
 
     //
@@ -1688,9 +1708,13 @@ main(
 
     TraceVerbose("main: waiting for admin...");
     WaitForSingleObject(adminThread, INFINITE);
+    CloseHandle(adminThread);
+    adminThread = NULL;
 
     TraceVerbose("main: waiting for watchdog...");
     WaitForSingleObject(watchdogThread, INFINITE);
+    CloseHandle(watchdogThread);
+    watchdogThread = NULL;
 
     free(queueWorkers);
 
