@@ -54,6 +54,10 @@ PostNbQueueToHw(
 
             ShadowDescriptor->Nb = Nb;
             ShadowDescriptor->Source = TxSourceNdis;
+
+            Tq->Stats.TxFrames++;
+            Tq->Stats.TxBytes += Nb->DataLength;
+
             Nb = *MP_NB_GET_NB_QUEUE_LINK(Nb);
         }
 
@@ -202,6 +206,9 @@ MpTransmitProcessPosts(
                 ShadowDescriptor->Frame = Frame;
 #endif
                 ShadowDescriptor->Source = TxSourceXdpTx;
+
+                Tq->Stats.TxFrames++;
+                Tq->Stats.TxBytes += Frame->Buffer.DataLength;
             }
 
             HwRingMpCommit(Tq->HwRing, Count, Head, OldIrql);

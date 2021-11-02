@@ -1110,6 +1110,7 @@ MpQueryInformationHandler(
     VOID *DataPointer = &Data;
     NDIS_LINK_SPEED LinkSpeed;
     NDIS_LINK_STATE LinkState;
+    NDIS_STATISTICS_INFO StatisticsInfo;
 
     *BytesWritten = 0;
 
@@ -1272,8 +1273,6 @@ MpQueryInformationHandler(
             break;
 
         case OID_GEN_STATISTICS:
-
-            NDIS_STATISTICS_INFO StatisticsInfo;
             RtlZeroMemory(&StatisticsInfo, sizeof(StatisticsInfo));
             StatisticsInfo.Header.Revision = NDIS_OBJECT_REVISION_1;
             StatisticsInfo.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
@@ -1287,16 +1286,17 @@ MpQueryInformationHandler(
                             NDIS_STATISTICS_FLAGS_VALID_DIRECTED_FRAMES_XMIT |
                             NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_RCV |
                             NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_XMIT;
-#if 0
-            StatisticsInfo.ifInDiscards = enlStats.RxDrops;
-            StatisticsInfo.ifHCInOctets = enlStats.RxBytes;
-            StatisticsInfo.ifHCInUcastPkts = enlStats.RxPkts;
-            StatisticsInfo.ifHCInBroadcastPkts = enlStats.EmptyTicks;
-            StatisticsInfo.ifHCOutOctets = enlStats.TxBytes;
-            StatisticsInfo.ifHCOutUcastPkts = enlStats.TxPkts;
-            StatisticsInfo.ifHCOutBroadcastPkts = enlStats.BusyTicks;
-            StatisticsInfo.ifOutDiscards = enlStats.TxDrops + pAdapter->EnlTxDrops;
-#endif // TODO
+
+            for (UINT32 Index = 0; Index < Adapter->NumRssQueues; Index++) {
+                CONST ADAPTER_QUEUE *Queue = &Adapter->RssQueues[Index];
+
+                StatisticsInfo.ifHCInUcastPkts += Queue->Rq.Stats.RxFrames;
+                StatisticsInfo.ifHCInOctets += Queue->Rq.Stats.RxBytes;
+                StatisticsInfo.ifInDiscards += Queue->Rq.Stats.RxDrops;
+                StatisticsInfo.ifHCOutUcastPkts += Queue->Tq.Stats.TxFrames;
+                StatisticsInfo.ifHCOutOctets += Queue->Tq.Stats.TxBytes;
+                StatisticsInfo.ifOutDiscards += Queue->Tq.Stats.TxDrops;
+            }
 
             DataPointer = &StatisticsInfo;
             DataLength = sizeof(NDIS_STATISTICS_INFO);

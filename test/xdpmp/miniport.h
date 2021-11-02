@@ -68,6 +68,12 @@ typedef struct {
 
     UINT32 PacingFramesAvailable;
 
+    struct {
+        UINT64 RxFrames;
+        UINT64 RxBytes;
+        UINT64 RxDrops;
+    } Stats;
+
     PEX_RUNDOWN_REF_CACHE_AWARE NblRundown;
     NET_BUFFER_LIST **NblArray;
     UINT32 RssHash;
@@ -88,6 +94,12 @@ typedef struct {
     TX_SHADOW_DESCRIPTOR *ShadowRing;
 
     UINT32 PacingFramesAvailable;
+
+    struct {
+        UINT64 TxFrames;
+        UINT64 TxBytes;
+        UINT64 TxDrops;
+    } Stats;
 
     PEX_RUNDOWN_REF_CACHE_AWARE NblRundown;
     UINT32 NbQueueCount;

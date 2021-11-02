@@ -184,6 +184,8 @@ MpReceiveUseXdpSingleFrameApi(
             //
             // Pass the frame onto the regular NDIS receive path.
             //
+            Rq->Stats.RxFrames++;
+            Rq->Stats.RxBytes += DataLength;
             MpNdisReceive(Rq, *HwRxDescriptor, DataOffset, DataLength, NblChain);
             break;
 
@@ -192,6 +194,7 @@ MpReceiveUseXdpSingleFrameApi(
             // Drop the frame.
             //
             XdpAbsorbed++;
+            Rq->Stats.RxDrops++;
             MpReceiveRecycle(Rq, *HwRxDescriptor);
             break;
 
@@ -203,6 +206,8 @@ MpReceiveUseXdpSingleFrameApi(
             // Nothing more needs to be done here.
             //
             XdpAbsorbed++;
+            Rq->Stats.RxFrames++;
+            Rq->Stats.RxBytes += DataLength;
             break;
 
         default:
@@ -255,6 +260,8 @@ MpReceiveProcessBatch(
             //
             // Pass the frame onto the regular NDIS receive path.
             //
+            Rq->Stats.RxFrames++;
+            Rq->Stats.RxBytes += Buffer->DataLength;
             MpNdisReceive(Rq, HwRxDescriptor, Buffer->DataOffset, Buffer->DataLength, NblChain);
             break;
 
@@ -263,6 +270,7 @@ MpReceiveProcessBatch(
             // Drop the frame.
             //
             XdpAbsorbed++;
+            Rq->Stats.RxDrops++;
             MpReceiveRecycle(Rq, HwRxDescriptor);
             break;
 
@@ -272,6 +280,8 @@ MpReceiveProcessBatch(
             // Simply return the hardware descriptor.
             //
             XdpAbsorbed++;
+            Rq->Stats.RxFrames++;
+            Rq->Stats.RxBytes += Buffer->DataLength;
             MpReceiveRecycle(Rq, HwRxDescriptor);
             break;
 
