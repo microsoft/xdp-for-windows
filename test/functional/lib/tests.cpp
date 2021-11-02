@@ -102,6 +102,36 @@ static CONST CHAR *PowershellPrefix;
 // Helper functions.
 //
 
+typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
+
+RTL_OSVERSIONINFOW
+GetOSVersion(
+    )
+{
+    HMODULE Module = GetModuleHandleW(L"ntdll.dll");
+    TEST_TRUE(Module != NULL);
+
+    RTL_GET_VERSION_FN RtlGetVersion = (RTL_GET_VERSION_FN)GetProcAddress(Module, "RtlGetVersion");
+    TEST_TRUE(RtlGetVersion != NULL);
+
+    RTL_OSVERSIONINFOW OsVersion = { 0 };
+    OsVersion.dwOSVersionInfoSize = sizeof(OsVersion);
+    TEST_EQUAL(STATUS_SUCCESS, RtlGetVersion(&OsVersion));
+
+    return OsVersion;
+}
+
+BOOLEAN
+OsVersionIsFeOrLater(
+    _In_ const RTL_OSVERSIONINFOW *OsVersion
+    )
+{
+    return
+        (OsVersion->dwMajorVersion > 10 || (OsVersion->dwMajorVersion == 10 &&
+        (OsVersion->dwMinorVersion > 0 || (OsVersion->dwMinorVersion == 0 &&
+        (OsVersion->dwBuildNumber >= 20100)))));
+}
+
 class TestInterface {
 private:
     CONST CHAR *_IfDesc;
@@ -2853,6 +2883,15 @@ VerifyRssDatapath(
     // expected that packets are indicated on processors in the XDP RSS
     // indirection table.
     //
+    // On down-level systems, per proc UDP endpoint lookup is broken. Skip this
+    // validation.
+    //
+    //
+    RTL_OSVERSIONINFOW OsVersion = GetOSVersion();
+    if (!OsVersionIsFeOrLater(&OsVersion)) {
+        TEST_WARNING("Skipping due to version check");
+        return;
+    }
     IndicateOnAllActiveRssQueues(If, LocalPort);
     for (UINT32 i = 0; i < WinSockArray.size(); i++) {
         CHAR RecvPayload[2048];

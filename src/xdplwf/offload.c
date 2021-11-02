@@ -824,14 +824,14 @@ XdpLwfOpenInterfaceOffloadHandle(
         goto Exit;
     }
 
+    TraceVerbose(TRACE_LWF, "Filter=%p OffloadContext=%p Created", Filter, OffloadContext);
+
     InsertTailList(&Filter->Offload.InterfaceOffloadHandleListHead, &OffloadContext->Link);
     OffloadContext->Filter = Filter;
     OffloadContext->Edge = XdpLwfConvertHookIdToOffloadEdge(HookId);
     *InterfaceOffloadHandle = OffloadContext;
     OffloadContext = NULL;
     Status = STATUS_SUCCESS;
-
-    TraceVerbose(TRACE_LWF, "Filter=%p OffloadContext=%p Created", Filter, OffloadContext);
 
 Exit:
 
