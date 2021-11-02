@@ -55,9 +55,6 @@ PostNbQueueToHw(
             ShadowDescriptor->Nb = Nb;
             ShadowDescriptor->Source = TxSourceNdis;
 
-            Tq->Stats.TxFrames++;
-            Tq->Stats.TxBytes += Nb->DataLength;
-
             Nb = *MP_NB_GET_NB_QUEUE_LINK(Nb);
         }
 
@@ -97,8 +94,12 @@ MpTransmitProcessCompletions(
         }
 
         for (UINT32 Index = 0; Index < Count; Index++) {
-            TX_SHADOW_DESCRIPTOR *ShadowDescriptor =
-                &Tq->ShadowRing[(Tq->HwRing->ConsumerIndex + Index) & Tq->HwRing->Mask];
+            UINT32 MaskedIndex = (Tq->HwRing->ConsumerIndex + Index) & Tq->HwRing->Mask;
+            TX_HW_DESCRIPTOR *HwDescriptor = HwRingGetElement(Tq->HwRing, MaskedIndex);
+            TX_SHADOW_DESCRIPTOR *ShadowDescriptor = &Tq->ShadowRing[MaskedIndex];
+
+            Tq->Stats.TxFrames++;
+            Tq->Stats.TxBytes += HwDescriptor->Length;
 
             if (ShadowDescriptor->Source == TxSourceNdis) {
                 NET_BUFFER_LIST **OwningNbl = MP_NB_GET_OWNING_NBL(ShadowDescriptor->Nb);
@@ -206,9 +207,6 @@ MpTransmitProcessPosts(
                 ShadowDescriptor->Frame = Frame;
 #endif
                 ShadowDescriptor->Source = TxSourceXdpTx;
-
-                Tq->Stats.TxFrames++;
-                Tq->Stats.TxBytes += Frame->Buffer.DataLength;
             }
 
             HwRingMpCommit(Tq->HwRing, Count, Head, OldIrql);
@@ -356,6 +354,7 @@ MpSendNetBufferLists(
             NetBufferListHead,
             NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags) ?
                 NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
+        InterlockedAdd64((LONG64 *)&Tq->Stats.TxDrops, NblCount);
         return;
     }
 
