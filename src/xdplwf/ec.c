@@ -18,28 +18,50 @@ XdpEcNotifyEx(
     _In_ BOOLEAN CanInline
     );
 
-_IRQL_requires_(PASSIVE_LEVEL)
 static
+_IRQL_requires_same_
+_Function_class_(KSTART_ROUTINE)
 VOID
 XdpEcPassiveWorker(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_opt_ PVOID Context
+    _In_ VOID *Context
     )
 {
     XDP_EC *Ec = Context;
     GROUP_AFFINITY Affinity = {0};
     GROUP_AFFINITY OldAffinity;
     PROCESSOR_NUMBER ProcessorNumber;
+    ULONG CurrentProcessor;
 
-    UNREFERENCED_PARAMETER(DeviceObject);
     ASSERT(Ec != NULL);
 
-    KeGetProcessorNumberFromIndex(Ec->OwningProcessor, &ProcessorNumber);
+    CurrentProcessor = ReadULongNoFence(&Ec->OwningProcessor);
+    KeGetProcessorNumberFromIndex(CurrentProcessor, &ProcessorNumber);
     Affinity.Group = ProcessorNumber.Group;
     Affinity.Mask = AFFINITY_MASK(ProcessorNumber.Number);
     KeSetSystemGroupAffinityThread(&Affinity, &OldAffinity);
 
-    KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
+    //
+    // Set the thread priority to the same priority as the DelayedWorkQueue.
+    //
+    KeSetPriorityThread(KeGetCurrentThread(), 12);
+
+    while (TRUE) {
+        KeWaitForSingleObject(&Ec->PassiveEvent, Executive, KernelMode, FALSE, NULL);
+
+        if (Ec->CleanupPassiveThread) {
+            break;
+        }
+
+        if (CurrentProcessor != Ec->OwningProcessor) {
+            CurrentProcessor = Ec->OwningProcessor;
+            KeGetProcessorNumberFromIndex(CurrentProcessor, &ProcessorNumber);
+            Affinity.Group = ProcessorNumber.Group;
+            Affinity.Mask = AFFINITY_MASK(ProcessorNumber.Number);
+            KeSetSystemGroupAffinityThread(&Affinity, NULL);
+        }
+
+        KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
+    }
 
     KeRevertToUserGroupAffinityThread(&OldAffinity);
 }
@@ -112,7 +134,7 @@ XdpEcPoll(
                 // starvation can occur in the degenerate case.
                 //
                 Ec->SkipYieldCheck = TRUE;
-                IoQueueWorkItem(Ec->WorkItem, XdpEcPassiveWorker, DelayedWorkQueue, Ec);
+                KeSetEvent(&Ec->PassiveEvent, 0, FALSE);
                 return;
             }
         }
@@ -266,7 +288,7 @@ XdpEcCleanup(
     _In_ XDP_EC *Ec
     )
 {
-    if (Ec->WorkItem != NULL) {
+    if (Ec->PassiveThread != NULL) {
         KEVENT CleanupEvent;
 
         KeInitializeEvent(&CleanupEvent, NotificationEvent, FALSE);
@@ -275,7 +297,10 @@ XdpEcCleanup(
         KeWaitForSingleObject(&CleanupEvent, Executive, KernelMode, FALSE, NULL);
         Ec->CleanupComplete = NULL;
 
-        IoFreeWorkItem(Ec->WorkItem);
+        Ec->CleanupPassiveThread = TRUE;
+        KeSetEvent(&Ec->PassiveEvent, 0, FALSE);
+        KeWaitForSingleObject(Ec->PassiveThread, Executive, KernelMode, FALSE, NULL);
+        ObDereferenceObject(Ec->PassiveThread);
     }
 }
 
@@ -290,6 +315,7 @@ XdpEcInitialize(
 {
     NTSTATUS Status;
     PROCESSOR_NUMBER ProcessorNumber;
+    HANDLE ThreadHandle = NULL;
 
     RtlZeroMemory(Ec, sizeof(*Ec));
     Ec->Poll = Poll;
@@ -297,22 +323,30 @@ XdpEcInitialize(
     Ec->IdealProcessor = IdealProcessor;
     Ec->Armed = TRUE;
 
-    //
-    // Either a driver or device object is acceptable to this routine.
-    //
-    Ec->WorkItem = IoAllocateWorkItem((PDEVICE_OBJECT)XdpLwfDriverObject);
-    if (Ec->WorkItem == NULL) {
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
-
     KeInitializeDpc(&Ec->Dpc, XdpEcDpcThunk, Ec);
     KeGetProcessorNumberFromIndex(*Ec->IdealProcessor, &ProcessorNumber);
     KeSetTargetProcessorDpcEx(&Ec->Dpc, &ProcessorNumber);
+    KeInitializeEvent(&Ec->PassiveEvent, SynchronizationEvent, FALSE);
+
+    Status =
+        PsCreateSystemThread(
+            &ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, XdpEcPassiveWorker, Ec);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        ObReferenceObjectByHandle(
+            ThreadHandle, THREAD_ALL_ACCESS, *PsThreadType, KernelMode, &Ec->PassiveThread, NULL);
+    FRE_ASSERT(NT_SUCCESS(Status));
 
     Status = STATUS_SUCCESS;
 
 Exit:
+
+    if (ThreadHandle != NULL) {
+        ZwClose(ThreadHandle);
+    }
 
     return Status;
 }

@@ -21,11 +21,13 @@ typedef struct _XDP_EC {
     BOOLEAN Armed;
     BOOLEAN InPoll;
     BOOLEAN SkipYieldCheck;
+    BOOLEAN CleanupPassiveThread;
     ULONG *IdealProcessor;
     ULONG OwningProcessor;
     LARGE_INTEGER LastYieldTick;
     KDPC Dpc;
-    PIO_WORKITEM WorkItem;
+    PKTHREAD PassiveThread;
+    KEVENT PassiveEvent;
     KEVENT *CleanupComplete;
 } XDP_EC;
 
