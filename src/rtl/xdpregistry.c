@@ -225,7 +225,7 @@ XdpRegWatcherCreate(
     UNICODE_STRING UnicodeName;
     XDP_REG_WATCHER *Watcher = NULL;
 
-    Watcher = ExAllocatePoolZero(PagedPool, sizeof(*Watcher), XDP_POOLTAG_REGISTRY);
+    Watcher = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Watcher), XDP_POOLTAG_REGISTRY);
     if (Watcher == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
