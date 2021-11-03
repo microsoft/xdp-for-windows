@@ -40,7 +40,9 @@ XdpGenericRssUpdateIndirection(
         //
         // TODO: post a workitem.
         //
-        ASSERT(FALSE);
+        TraceError(
+            TRACE_LWF, "IfIndex=%u RSS update not supported at dispatch level",
+            Generic->IfIndex);
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -57,7 +59,9 @@ XdpGenericRssUpdateIndirection(
         //
         // TODO: handle revision 3 DefaultProcessorNumber.
         //
-        ASSERT(FALSE);
+        TraceError(
+            TRACE_LWF, "IfIndex=%u support for RSS parameters not implemented",
+            Generic->IfIndex);
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
