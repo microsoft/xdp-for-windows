@@ -35,9 +35,10 @@
 #define DEFAULT_UDP_DEST_PORT 0
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_TX_IO_SIZE 64
+#define DEFAULT_LAT_COUNT 10000000
 
 CHAR *HELP =
-"xskbench.exe <rx|tx|fwd> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
+"xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
 "\n"
 "THREAD_PARAMS: \n"
 "   -q <QUEUE_PARAMS> [-q QUEUE_PARAMS...] \n"
@@ -90,6 +91,9 @@ CHAR *HELP =
 "                      The pktcmd.exe tool outputs hexadecimal headers. Any\n"
 "                      trailing bytes in the XSK buffer are set to zero\n"
 "                      Default: \"\"\n"
+"   -lat_count         Number of latency samples to collect\n"
+"                      Default: " STR_OF(DEFAULT_LAT_COUNT) "\n"
+
 "\n"
 "OPTIONS: \n"
 "   -d                 Duration of execution in seconds\n"
@@ -106,6 +110,7 @@ CHAR *HELP =
 "   xskbench.exe rx -i 6 -t -ca 0x2 -q -id 0 -t -ca 0x4 -q -id 1\n"
 "   xskbench.exe tx -i 6 -t -q -id 0 -q -id 1\n"
 "   xskbench.exe fwd -i 6 -t -q -id 0 -y\n"
+"   xskbench.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
 #define printf_error(...) \
@@ -120,6 +125,12 @@ CHAR *HELP =
 #define ASSERT_FRE(expr) \
     if (!(expr)) { ABORT("("#expr") failed line %d\n", __LINE__);}
 
+#if DBG
+#define VERIFY(expr) assert(expr)
+#else
+#define VERIFY(expr) (expr)
+#endif
+
 #define Usage() PrintUsage(__LINE__)
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
@@ -128,7 +139,8 @@ CHAR *HELP =
 typedef enum {
     ModeRx,
     ModeTx,
-    ModeFwd
+    ModeFwd,
+    ModeLat,
 } MODE;
 
 typedef enum {
@@ -148,7 +160,11 @@ typedef struct {
     ULONG txiosize;
     ULONG iobatchsize;
     UINT32 ringsize;
-    _Null_terminated_ CONST CHAR *txPattern;
+    UCHAR *txPattern;
+    UINT32 txPatternLength;
+    INT64 *latSamples;
+    UINT32 latSamplesCount;
+    UINT32 latIndex;
     XSK_POLL_MODE pollMode;
 
     struct {
@@ -340,7 +356,7 @@ HexToBin(
 }
 
 VOID
-SetDescriptorPattern(
+GetDescriptorPattern(
     _Inout_ UCHAR *Buffer,
     _In_ UINT32 BufferSize,
     _In_opt_z_ CONST CHAR *Hex
@@ -519,10 +535,10 @@ SetupSock(
         UINT64 *Descriptor = XskRingGetElement(&Queue->freeRing, i);
         *Descriptor = desc;
 
-        if (mode == ModeTx) {
-            SetDescriptorPattern(
-                (UCHAR *)Queue->umemReg.address + desc + Queue->umemheadroom,
-                Queue->umemchunksize - Queue->umemheadroom, Queue->txPattern);
+        if (mode == ModeTx || mode == ModeLat) {
+            memcpy(
+                (UCHAR *)Queue->umemReg.address + desc + Queue->umemheadroom, Queue->txPattern,
+                Queue->txPatternLength);
         }
 
         desc += Queue->umemchunksize;
@@ -606,6 +622,64 @@ ProcessPeriodicStats(
     Queue->lastTick = currentTick;
 }
 
+INT
+LatCmp(
+    CONST VOID *A,
+    CONST VOID *B
+    )
+{
+    return *(CONST INT64 *)A - *(CONST INT64 *)B;
+}
+
+INT64
+QpcToUs64(
+    INT64 Qpc,
+    INT64 QpcFrequency
+    )
+{
+    //
+    // Multiply by a big number (1000000, to convert seconds to microseconds)
+    // and divide by a big number (QpcFrequency, to convert counts to secs).
+    //
+    // Avoid overflow with separate multiplication/division of the high and low
+    // bits.
+    //
+    // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
+    //
+    UINT64 High = (Qpc >> 32) * 1000000;
+    UINT64 Low = (Qpc & 0xFFFFFFFF) * 1000000;
+    return
+        ((High / QpcFrequency) << 32) +
+        ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
+}
+
+VOID
+PrintFinalLatStats(
+    MY_QUEUE *Queue
+    )
+{
+    LARGE_INTEGER FreqQpc;
+    VERIFY(QueryPerformanceFrequency(&FreqQpc));
+
+    qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
+
+    for (UINT32 i = 0; i < Queue->latIndex; i++) {
+        Queue->latSamples[i] = QpcToUs64(Queue->latSamples[i], FreqQpc.QuadPart);
+    }
+
+    printf(
+        "%-3s[%d]: min=%llu P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt\n",
+        modestr, Queue->queueId,
+        Queue->latSamples[0],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]);
+}
+
 VOID
 PrintFinalStats(
     MY_QUEUE *Queue
@@ -671,6 +745,10 @@ PrintFinalStats(
 
     printf("%-3s[%d]: avg=%08.3f stddev=%08.3f min=%08.3f max=%08.3f Kpps\n",
         modestr, Queue->queueId, avg, stdDev, min, max);
+
+    if (mode == ModeLat) {
+        PrintFinalLatStats(Queue);
+    }
 }
 
 VOID
@@ -1075,6 +1153,167 @@ DoFwdMode(
 }
 
 VOID
+ProcessLat(
+    MY_QUEUE *Queue,
+    BOOLEAN Wait
+    )
+{
+    UINT32 notifyFlags = 0;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+
+    //
+    // Move frames from the RX ring to the RX fill ring, recording the timestamp
+    // deltas as we go.
+    //
+    available =
+        RingPairReserve(
+            &Queue->rxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        LARGE_INTEGER NowQpc;
+        VERIFY(QueryPerformanceCounter(&NowQpc));
+
+        for (UINT32 i = 0; i < available; i++) {
+            XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Queue->rxRing, consumerIndex++);
+            UINT64 *fillDesc = XskRingGetElement(&Queue->fillRing, producerIndex++);
+
+            printf_verbose(
+                "Consuming RX entry   {address:%llu, offset:%u, length:%d}\n",
+                XskDescriptorGetAddress(rxDesc->address), XskDescriptorGetOffset(rxDesc->address),
+                rxDesc->length);
+
+            INT64 UNALIGNED *Timestamp = (INT64 UNALIGNED *)
+                ((CHAR*)Queue->umemReg.address + XskDescriptorGetAddress(rxDesc->address) +
+                    XskDescriptorGetOffset(rxDesc->address) + Queue->txPatternLength);
+
+            printf_verbose("latency: %lld\n", NowQpc.QuadPart - *Timestamp);
+
+            if (Queue->latIndex < Queue->latSamplesCount) {
+                Queue->latSamples[Queue->latIndex++] = NowQpc.QuadPart - *Timestamp;
+            }
+
+            *fillDesc = XskDescriptorGetAddress(rxDesc->address);
+
+            printf_verbose("Producing FILL entry {address:%llu}\n", *fillDesc);
+        }
+
+        XskRingConsumerRelease(&Queue->rxRing, available);
+        XskRingProducerSubmit(&Queue->fillRing, available);
+
+        Queue->packetCount += available;
+
+        notifyFlags |= XSK_NOTIFY_POKE_RX;
+    }
+
+    //
+    // Move frames from the TX completion ring to the free ring.
+    //
+    available =
+        RingPairReserve(
+            &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->compRing, available);
+        XskRingProducerSubmit(&Queue->freeRing, available);
+    }
+
+    //
+    // Move frames from the free ring to the TX ring, stamping the current time
+    // onto each frame.
+    //
+    available =
+        RingPairReserve(
+            &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        LARGE_INTEGER NowQpc;
+        VERIFY(QueryPerformanceCounter(&NowQpc));
+
+        for (UINT32 i = 0; i < available; i++) {
+            UINT64 *freeDesc = XskRingGetElement(&Queue->freeRing, consumerIndex++);
+            XSK_BUFFER_DESCRIPTOR *txDesc = XskRingGetElement(&Queue->txRing, producerIndex++);
+
+            INT64 UNALIGNED *Timestamp = (INT64 UNALIGNED *)
+                ((CHAR*)Queue->umemReg.address + *freeDesc +
+                    Queue->umemReg.headroom + Queue->txPatternLength);
+            *Timestamp = NowQpc.QuadPart;
+
+            txDesc->address = *freeDesc;
+            assert(Queue->umemReg.headroom <= MAXUINT16);
+            XskDescriptorSetOffset(&txDesc->address, (UINT16)Queue->umemReg.headroom);
+            txDesc->length = Queue->txiosize;
+
+            printf_verbose(
+                "Producing TX entry {address:%llu, offset:%u, length:%d}\n",
+                XskDescriptorGetAddress(txDesc->address), XskDescriptorGetOffset(txDesc->address),
+                txDesc->length);
+        }
+
+        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->txRing, available);
+
+        notifyFlags |= XSK_NOTIFY_POKE_TX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX);
+    }
+
+    if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= (XSK_NOTIFY_POKE_RX | XSK_NOTIFY_POKE_TX);
+    }
+
+    if (notifyFlags != 0) {
+        NotifyDriver(Queue, notifyFlags);
+    }
+}
+
+VOID
+DoLatMode(
+    MY_THREAD *Thread
+    )
+{
+    for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+        MY_QUEUE *queue = &Thread->queues[qIndex];
+        UINT32 consumerIndex;
+        UINT32 producerIndex;
+        UINT32 available;
+
+        queue->flags.rx = TRUE;
+        queue->flags.tx = TRUE;
+        SetupSock(ifindex, queue);
+        queue->lastTick = GetTickCount64();
+
+        //
+        // Fill up the RX fill ring. Once this initial fill is performed, the
+        // RX fill ring and RX ring operate in a closed loop.
+        //
+        available = XskRingProducerReserve(&queue->fillRing, queue->ringsize, &producerIndex);
+        ASSERT_FRE(available == queue->ringsize);
+        available = XskRingConsumerReserve(&queue->freeRing, queue->ringsize, &consumerIndex);
+        ASSERT_FRE(available == queue->ringsize);
+        WriteFillPackets(queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&queue->freeRing, available);
+        XskRingProducerSubmit(&queue->fillRing, available);
+    }
+
+    printf("Probing latency...\n");
+    SetEvent(Thread->readyEvent);
+
+    while (!ReadBooleanNoFence(&done)) {
+        for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+            ProcessLat(&Thread->queues[qIndex], Thread->wait);
+        }
+    }
+}
+
+VOID
 PrintUsage(
     INT Line
     )
@@ -1099,6 +1338,7 @@ ParseQueueArgs(
     Queue->pollMode = XSK_POLL_MODE_DEFAULT;
     Queue->flags.optimizePoking = TRUE;
     Queue->txiosize = DEFAULT_TX_IO_SIZE;
+    Queue->latSamplesCount = DEFAULT_LAT_COUNT;
 
     for (INT i = 0; i < argc; i++) {
         if (!_stricmp(argv[i], "-id")) {
@@ -1174,7 +1414,17 @@ ParseQueueArgs(
             if (++i > argc) {
                 Usage();
             }
-            Queue->txPattern = argv[i];
+            Queue->txPatternLength = strlen(argv[i]);
+            ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
+            Queue->txPatternLength /= 2;
+            Queue->txPattern = malloc(Queue->txPatternLength);
+            ASSERT_FRE(Queue->txPattern != NULL);
+            GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
+        } else if (!strcmp(argv[i], "-lat_count")) {
+            if (++i > argc) {
+                Usage();
+            }
+            Queue->latSamplesCount = atoi(argv[i]);
         } else {
             Usage();
         }
@@ -1186,6 +1436,19 @@ ParseQueueArgs(
 
     if (Queue->ringsize == 0) {
         Queue->ringsize = Queue->umemsize / Queue->umemchunksize;
+    }
+
+    ASSERT_FRE(Queue->umemsize >= Queue->umemchunksize);
+    ASSERT_FRE(Queue->umemchunksize >= Queue->umemheadroom);
+    ASSERT_FRE(Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength);
+
+    if (mode == ModeLat) {
+        ASSERT_FRE(
+            Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength + sizeof(UINT64));
+
+        Queue->latSamples = malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
+        ASSERT_FRE(Queue->latSamples != NULL);
+        ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
     }
 }
 
@@ -1288,6 +1551,8 @@ ParseArgs(
         mode = ModeTx;
     } else if (!_stricmp(argv[i], "fwd")) {
         mode = ModeFwd;
+    } else if (!_stricmp(argv[i], "lat")) {
+        mode = ModeLat;
     } else {
         Usage();
     }
@@ -1414,8 +1679,10 @@ DoThread(
         DoRxMode(thread);
     } else if (mode == ModeTx) {
         DoTxMode(thread);
-    } else if (mode == ModeFwd)  {
+    } else if (mode == ModeFwd) {
         DoFwdMode(thread);
+    } else if (mode == ModeLat) {
+        DoLatMode(thread);
     }
 
     return 0;
