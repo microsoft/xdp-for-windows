@@ -29,3 +29,10 @@ Write-Host "Enable driver verifier"
 # WARNING: xdp.sys itself may fail to load due to low resources simulation.
 #
 verifier.exe /standard /faults 599 `"`" `"`" 0 /driver xdp.sys
+
+#
+# Disable TDX and its dependent service NetBT. These drivers are implicated in
+# some NDIS control path hangs.
+#
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\netbt /v Start /d 4 /t REG_DWORD /f
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\tdx /v Start /d 4 /t REG_DWORD /f
