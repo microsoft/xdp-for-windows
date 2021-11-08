@@ -265,7 +265,7 @@ function Install-FakeNdis {
 # Uninstalls the fndis driver.
 function Uninstall-FakeNdis {
     Write-Verbose "Stop-Service fndis"
-    try { Stop-Service fndis } catch { }
+    try { Stop-Service fndis -NoWait } catch { }
 
     Cleanup-Service fndis
 
