@@ -30,6 +30,20 @@
             </Stacks>
         </SystemProvider>
 
+        <SystemProvider Id="SystemProviderCpuSampled">
+            <Keywords>
+                <Keyword Value="ProcessThread"/>
+                <Keyword Value="Loader"/>
+                <Keyword Value="SampledProfile"/>
+                <Keyword Value="DPC"/>
+                <Keyword Value="Interrupt"/>
+            </Keywords>
+
+            <Stacks>
+                <Stack Value="SampledProfile"/>
+            </Stacks>
+        </SystemProvider>
+
         <!-- Leave the highest keywords bit unset to workaround downlevel WPR bug. -->
         <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
             <Keywords>
@@ -93,6 +107,14 @@
             <Collectors>
                 <SystemCollectorId Value="SystemCollector">
                     <SystemProviderId Value="SystemProviderCpu"/>
+                </SystemCollectorId>
+            </Collectors>
+        </Profile>
+
+        <Profile Id="CpuSample.Verbose.File" Name="CpuSample" Description="CPU sampled profile" LoggingMode="File" DetailLevel="Verbose">
+            <Collectors>
+                <SystemCollectorId Value="SystemCollector">
+                    <SystemProviderId Value="SystemProviderCpuSampled"/>
                 </SystemCollectorId>
             </Collectors>
         </Profile>

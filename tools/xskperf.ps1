@@ -4,11 +4,18 @@
 # (CPU 1 is often a shared core.)
 #
 # Generic XDP over DuoNIC dependencies:
-# - test\tools\wsario.exe
 # - 8 or more logical processors
 #
 
 param (
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("Debug", "Release")]
+    [string]$Config = "Release",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("x64")]
+    [string]$Arch = "x64",
+
     [Parameter(Mandatory=$true)]
     [string]$AdapterName,
 
@@ -85,6 +92,7 @@ param (
     [string]$XperfFile = ""
 )
 
+
 function Wait-NetAdapterUpStatus {
     [CmdletBinding()]
     param(
@@ -113,6 +121,9 @@ function Wait-NetAdapterUpStatus {
     }
 }
 
+$RootDir = Split-Path $PSScriptRoot -Parent
+$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$WsaRio = "C:\wsario.exe"
 $Mode = $Mode.ToUpper()
 $Adapter = Get-NetAdapter $AdapterName
 $AdapterIndex = $Adapter.ifIndex
@@ -164,7 +175,7 @@ try {
                 "udp 22-22-22-22-00-02 22-22-22-22-00-00 192.168.100.2 192.168.100.1 1234 " +
                 "$UdpDstPort $UdpSize"
             Write-Verbose "pktcmd.exe $ArgList"
-            $UdpPattern = & .\test\pktcmd\pktcmd.exe $ArgList.Split(" ")
+            $UdpPattern = & $ArtifactsDir\pktcmd.exe $ArgList.Split(" ")
         } else {
             $UdpPattern = $null
         }
@@ -218,7 +229,7 @@ try {
         }
 
         Write-Verbose "Setting XDPMP pacing to RX:$RxPacingRate TX:$TxPacingRate"
-        .\test\xdpmp\xdpmppace.ps1 -AdapterName $AdapterName `
+        & $RootDir\tools\xdpmppace.ps1 -AdapterName $AdapterName `
             -RxFramesPerInterval $RxPacingRate -TxFramesPerInterval $TxPacingRate
     }
 
@@ -254,8 +265,8 @@ try {
         $ArgList =
             "Winsock Send -Bind 192.168.100.2:1234 -Target 192.168.100.1:1234 -Group $XskGroup " +
             "-CPU $WsaRioCpu -IoSize $WsaRioIoSize -Uso $UdpSize -IoCount -1"
-        Write-Verbose "wsario.exe $ArgList"
-        $WsaRio = Start-Process .\test\tools\wsario.exe -PassThru -ArgumentList $ArgList
+        Write-Verbose "$WsaRio $ArgList"
+        $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
     }
     #
     # If using TxInspect, generate TX load.
@@ -269,8 +280,8 @@ try {
         $ArgList =
             "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup -CPU $WsaRioCpu " +
             "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
-        Write-Verbose "wsario.exe $ArgList"
-        $WsaRio = Start-Process .\test\tools\wsario.exe -PassThru -ArgumentList $ArgList
+        Write-Verbose "$WsaRio $ArgList"
+        $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
     }
 
     if ($Wait) {
@@ -294,7 +305,8 @@ try {
     }
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
-        .\test\scripts\xdpxperf.ps1 -Start
+        & $RootDir\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose `
+            -Config $Config -Arch $Arch
     }
 
     if (@("System", "Generic", "Native").Contains($XdpMode)) {
@@ -306,10 +318,10 @@ try {
 
         Write-Verbose "xskbench.exe $ArgList"
         if ([string]::IsNullOrEmpty($OutFile)) {
-            Start-Process .\test\xskbench\xskbench.exe -Wait -NoNewWindow $ArgList
+            Start-Process $ArtifactsDir\xskbench.exe -Wait -NoNewWindow $ArgList
         } else {
             $StdErrFile = [System.IO.Path]::GetTempFileName()
-            Start-Process .\test\xskbench\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
+            Start-Process $ArtifactsDir\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
                 -RedirectStandardError $StdErrFile $ArgList
             $StdErr = Get-Content $StdErrFile
             if (-not [string]::IsNullOrWhiteSpace($StdErr)) {
@@ -340,8 +352,8 @@ try {
         $ArgList =
             "$XdpMode $IoDirection -Bind 0.0.0.0:$UdpDstPort -Target $RemoteAddress -Group $XskGroup " +
             "-CPU $XskCpu -IoSize $UdpSize -IoCount -1 -MaxDuration $Duration -OptFlags $OptFlags"
-        Write-Verbose "wsario.exe $ArgList"
-        $WsaRioOutput = & .\test\tools\wsario.exe $ArgList.Split(" ")
+        Write-Verbose "$WsaRio $ArgList"
+        $WsaRioOutput = & $WsaRio $ArgList.Split(" ")
         $WsaRioJson = $WsaRioOutput | ConvertFrom-Json
         $AvgKpps = [int]($WsaRioJson.Summary.IoCount / $WsaRioJson.Summary.ElapsedSeconds / 1000);
 
@@ -355,16 +367,17 @@ try {
 } finally {
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
-        .\test\scripts\xdpxperf.ps1 -Stop -OutFile $XperfFile
+        & $RootDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch `
+            -EtlPath $XperfFile
     }
 
-    if ($WsaRio -ne $null) {
-        Stop-Process -InputObject $WsaRio
+    if ($WsaRioProcess -ne $null) {
+        Stop-Process -InputObject $WsaRioProcess
     }
 
     if ($Adapter.InterfaceDescription -like "XDPMP*") {
         Write-Verbose "Stopping XDPMP pacing"
-        .\test\xdpmp\xdpmppace.ps1 -AdapterName $AdapterName `
+        & $RootDir\tools\xdpmppace.ps1 -AdapterName $AdapterName `
             -RxFramesPerInterval 1 -TxFramesPerInterval 0xFFFFFFFFl
     }
 }

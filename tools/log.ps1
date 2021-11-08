@@ -21,6 +21,9 @@ This helps start and stop ETW logging.
 .PARAMETER Name
     The name of the tracing instance and output file.
 
+.PARAMETER EtlPath
+    Overrides the output ETL file.
+
 #>
 
 param (
@@ -48,6 +51,9 @@ param (
     [string]$Name = "xdp",
 
     [Parameter(Mandatory = $false)]
+    [string]$EtlPath = $null,
+
+    [Parameter(Mandatory = $false)]
     [ValidateSet("File", "Memory")]
     [string]$LogMode = "File"
 )
@@ -66,8 +72,11 @@ $TracePdb = "$RootDir\artifacts\corenet-ci-main\vm-setup\tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
-$EtlPath = "$LogsDir\$Name.etl"
 $LogPath = "$LogsDir\$Name.log"
+
+if (!$EtlPath) {
+    $EtlPath = "$LogsDir\$Name.etl"
+}
 
 if ($Start) {
     if (!(Test-Path $WprpFile)) {

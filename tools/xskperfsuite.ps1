@@ -3,6 +3,14 @@
 #
 
 param (
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("Debug", "Release")]
+    [string]$Config = "Release",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("x64")]
+    [string]$Arch = "x64",
+
     [Parameter(Mandatory=$false)]
     [string[]]$AdapterNames = @("XDPMP"),
 
@@ -104,6 +112,8 @@ if ($DeepInspection) {
     $UdpDstPort = 0
 }
 
+$RootDir = Split-Path $PSScriptRoot -Parent
+
 $Format = "{0,-73} {1,-14} {2,-14}"
 Write-Host $($Format -f "Test Case", "Avg (Kpps)", "Std Dev (Kpps)")
 foreach ($AdapterName in $AdapterNames) {
@@ -116,6 +126,7 @@ foreach ($AdapterName in $AdapterNames) {
                     $WaitMode = $WaitMode.ToUpper()
                     $Wait = $WaitMode -eq "WAIT"
                     $Options = ""
+                    $XperfFile = $null
 
                     if ($RxInject) {
                         $Options += "-RXINJECT"
@@ -141,13 +152,13 @@ foreach ($AdapterName in $AdapterNames) {
 
                     if (-not [string]::IsNullOrEmpty($XperfDirectory)) {
                         New-Item -ItemType "directory" -Path $XperfDirectory -Force | Out-Null
-                        .\test\scripts\xdpxperf.ps1 -Start
+                        $XperfFile = "$XperfDirectory\$ScenarioName.etl"
                     }
 
                     try {
                         for ($i = 0; $i -lt $Iterations; $i++) {
                             $TmpFile = [System.IO.Path]::GetTempFileName()
-                            & .\test\scripts\xskperf.ps1 `
+                            & $RootDir\tools\xskperf.ps1 `
                                 -AdapterName $AdapterName -Mode $Mode `
                                 -BufferSize $IoBufferPair.ChunkSize -BufferCount $XskNumBuffers `
                                 -IoSize $IoBufferPair.IoSize -BatchSize $XskBatchSize `
@@ -155,7 +166,7 @@ foreach ($AdapterName in $AdapterNames) {
                                 -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
                                 -XdpReceiveBatch:$XdpReceiveBatch -RxInject:$RxInject `
                                 -TxInspect:$TxInspect -TxInspectContentionCount $TxInspectContentionCount `
-                                -Fndis:$Fndis
+                                -Fndis:$Fndis -Config $Config -Arch $Arch -XperfFile $XperfFile
 
                             $kppsList += ExtractKppsStat $TmpFile
                         }
@@ -170,10 +181,6 @@ foreach ($AdapterName in $AdapterNames) {
                     } catch {
                         Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
                         Write-Host $($Format -f $ScenarioName, -1, -1)
-                    } finally {
-                        if (-not [string]::IsNullOrEmpty($XperfDirectory)) {
-                            .\test\scripts\xdpxperf.ps1 -Stop -OutFile (Join-Path $XperfDirectory "$ScenarioName.etl")
-                        }
                     }
                 }
             }
