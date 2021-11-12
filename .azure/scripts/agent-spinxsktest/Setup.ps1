@@ -34,5 +34,18 @@ verifier.exe /standard /faults 599 `"`" `"`" 0 /driver xdp.sys
 # Disable TDX and its dependent service NetBT. These drivers are implicated in
 # some NDIS control path hangs.
 #
+Write-Host "Disable NetBT"
 reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\netbt /v Start /d 4 /t REG_DWORD /f
+Write-Host "Disable TDX"
 reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\tdx /v Start /d 4 /t REG_DWORD /f
+
+#
+# WS 2016 has a service dependency from DHCP to TDX. DHCP works fine in CI
+# without TDX, so remove the service dependency.
+#
+$Depends = (Get-ItemProperty -Path HKLM:System\CurrentControlSet\Services\dhcp -Name DependOnService).DependOnService
+if ($Depends -contains "tdx") {
+    Write-Host "Remove TDX dependency from DHCP"
+    $Depends = $Depends | Where {$_ -ne "tdx"}
+    Set-ItemProperty -Path HKLM:System\CurrentControlSet\Services\dhcp -Name DependOnService -Value $Depends
+}
