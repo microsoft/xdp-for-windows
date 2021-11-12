@@ -82,6 +82,10 @@ MpIrpCreate(
         CreateRoutine = NativeIrpCreate;
         break;
 
+    case XDPFNMP_FILE_TYPE_ADAPTER:
+        CreateRoutine = AdapterIrpCreate;
+        break;
+
     default:
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;

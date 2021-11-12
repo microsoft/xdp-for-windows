@@ -40,6 +40,7 @@
         ..\inc;
         ..\sys;
         $(SolutionDir)src\rtl\inc;
+        $(SolutionDir)test\common\inc;
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>

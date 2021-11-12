@@ -813,6 +813,17 @@ MpOpenNative(
 }
 
 static
+wil::unique_handle
+MpOpenAdapter(
+    _In_ UINT32 IfIndex
+    )
+{
+    wil::unique_handle Handle;
+    TEST_HRESULT(FnMpOpenAdapter(IfIndex, &Handle));
+    return Handle;
+}
+
+static
 HRESULT
 MpRxTryEnqueue(
     _In_ const wil::unique_handle& Handle,
@@ -964,7 +975,11 @@ MpTxAllocateAndGetFrame(
     //
     do {
         Result = MpTxGetFrame(Handle, Index, &FrameLength, NULL);
-    } while (!Watchdog.IsExpired() && Result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND));
+        if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
+            break;
+        }
+        Sleep(100);
+    } while (!Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(TX_FRAME));
@@ -1017,17 +1032,6 @@ MpGetLastMiniportPauseTimestamp(
 }
 
 static
-UINT32
-MpGetNumActiveRssQueues(
-    _In_ const wil::unique_handle& Handle
-    )
-{
-    UINT32 NumQueues = 0;
-    TEST_HRESULT(FnMpGetNumActiveRssQueues(Handle.get(), &NumQueues));
-    return NumQueues;
-}
-
-static
 VOID
 MpSetMtu(
     _In_ const wil::unique_handle& Handle,
@@ -1035,6 +1039,64 @@ MpSetMtu(
     )
 {
     TEST_HRESULT(FnMpSetMtu(Handle.get(), Mtu));
+}
+
+static
+VOID
+MpOidFilter(
+    _In_ const wil::unique_handle& Handle,
+    _In_ const OID_KEY *Keys,
+    _In_ UINT32 KeyCount
+    )
+{
+    TEST_HRESULT(FnMpOidFilter(Handle.get(), Keys, KeyCount));
+}
+
+static
+HRESULT
+MpOidGetRequest(
+    _In_ const wil::unique_handle& Handle,
+    _In_ OID_KEY Key,
+    _Inout_ UINT32 *InformationBufferLength,
+    _Out_opt_ VOID *InformationBuffer
+    )
+{
+    return FnMpOidGetRequest(Handle.get(), Key, InformationBufferLength, InformationBuffer);
+}
+
+static
+unique_malloc_ptr<VOID>
+MpOidAllocateAndGetRequest(
+    _In_ const wil::unique_handle& Handle,
+    _In_ OID_KEY Key,
+    _Out_ UINT32 *InformationBufferLength
+    )
+{
+    unique_malloc_ptr<VOID> InformationBuffer;
+    UINT32 Length = 0;
+    HRESULT Result;
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+
+    //
+    // Poll FNMP for an OID: the driver doesn't support overlapped IO.
+    //
+    do {
+        Result = MpOidGetRequest(Handle, Key, &Length, NULL);
+        if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
+            break;
+        }
+        Sleep(100);
+    } while (!Watchdog.IsExpired());
+
+    TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
+    TEST_TRUE(Length > 0);
+    InformationBuffer.reset(malloc(Length));
+    TEST_TRUE(InformationBuffer != NULL);
+
+    TEST_HRESULT(MpOidGetRequest(Handle, Key, &Length, InformationBuffer.get()));
+
+    *InformationBufferLength = Length;
+    return InformationBuffer;
 }
 
 static
@@ -1108,9 +1170,8 @@ WaitForWfpQuarantine(
 
         if (Bytes == sizeof(UdpPayload)) {
             break;
-        } else {
-            Sleep(100);
         }
+        Sleep(100);
     } while (!Watchdog.IsExpired());
     TEST_EQUAL(Bytes, sizeof(UdpPayload));
 }
@@ -1955,23 +2016,24 @@ GenericRxFromTxInspect(
     // restarted. Wait until the send succeeds.
     //
     Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(5));
-    int result;
+    INT Bytes;
     do {
-        result =
+        Bytes =
             sendto(
                 UdpSocket.get(), UdpPayload, NumFrames * UdpSegmentSize, 0,
                 (SOCKADDR *)&DestAddr, sizeof(DestAddr));
 
-        if (result == SOCKET_ERROR) {
-            //
-            // TCPIP returns WSAENOBUFS when it cannot reference the data path.
-            //
-            TEST_EQUAL(WSAENOBUFS, WSAGetLastError());
-            Sleep(100);
+        if (Bytes != SOCKET_ERROR) {
+            break;
         }
-    } while (result == SOCKET_ERROR && !Watchdog.IsExpired());
+        //
+        // TCPIP returns WSAENOBUFS when it cannot reference the data path.
+        //
+        TEST_EQUAL(WSAENOBUFS, WSAGetLastError());
+        Sleep(100);
+    } while (!Watchdog.IsExpired());
 
-    TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)result);
+    TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)Bytes);
 
     //
     // Verify the NBL propagated correctly to XSK.
@@ -2613,9 +2675,10 @@ GetXdpRss(
 
 static
 VOID
-GetXdpRssProcessors(
+GetXdpRssIndirectionTable(
     _In_ const TestInterface &If,
-    _Out_ std::vector<UINT32> &ProcessorArray
+    _Out_ unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTableOut,
+    _Out_ UINT32 &IndirectionTableSizeOut
     )
 {
     wil::unique_handle RssHandle;
@@ -2623,45 +2686,41 @@ GetXdpRssProcessors(
     TEST_HRESULT(XdpRssOpen(If.GetIfIndex(), &RssHandle));
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(RssHandle);
 
+    IndirectionTableOut.reset((PROCESSOR_NUMBER *)malloc(RssConfig->IndirectionTableSize));
+
     PROCESSOR_NUMBER *IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
-    std::set<UINT32> Set;
-    for (UINT32 i = 0; i < (RssConfig->IndirectionTableSize / sizeof(PROCESSOR_NUMBER)); i++) {
-        Set.insert(IndirectionTable[i].Number);
-        ASSERT(IndirectionTable[i].Group == 0);
-    }
-
-    if (Set.empty()) {
-        // RSS is disabled, indicate proc 0. TODO: use default processor
-        Set.insert(0);
-    }
-
-    ProcessorArray = std::vector<UINT32>(Set.begin(), Set.end());
+    RtlCopyMemory(IndirectionTableOut.get(), IndirectionTable, RssConfig->IndirectionTableSize);
+    IndirectionTableSizeOut = RssConfig->IndirectionTableSize;
 }
 
 static
 VOID
-ConfigureRssViaXdp(
+SetXdpRss(
+    _In_ const TestInterface &If,
     _In_ const wil::unique_handle &RssHandle,
-    _In_ const std::vector<UINT32> &ProcessorArray
+    _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
+    _In_ UINT32 IndirectionTableSize
     )
 {
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT32 HashSecretKeySize = 40;
-    UINT32 IndirectionTableSize = ProcessorArray.size() * sizeof(PROCESSOR_NUMBER);
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
+
+    //
+    // Form the XdpSetRss input.
+    //
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
     RtlZeroMemory(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
 
-    PROCESSOR_NUMBER *IndirectionTable =
+    PROCESSOR_NUMBER *IndirectionTableDst =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
-    for (UINT32 i = 0; i < ProcessorArray.size(); i++) {
-        IndirectionTable[i].Group = 0;
-        IndirectionTable[i].Number = (UCHAR)ProcessorArray[i];
-    }
+    RtlCopyMemory(IndirectionTableDst, IndirectionTable.get(), IndirectionTableSize);
 
     RssConfig->HashType =
         XDP_RSS_HASH_TYPE_IPV4 | XDP_RSS_HASH_TYPE_IPV6 |
@@ -2669,14 +2728,45 @@ ConfigureRssViaXdp(
     RssConfig->HashSecretKeySize = HashSecretKeySize;
     RssConfig->IndirectionTableSize = (USHORT)IndirectionTableSize;
 
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    //
+    // Set an OID filter, initiate XdpSetRss, verify the resulting OID, close
+    // the handle to allow OID completion.
+    //
+
+    OID_KEY Key {0};
+    Key.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    Key.RequestType = NdisRequestSetInformation;
+    MpOidFilter(AdapterMp, &Key, 1);
+
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize);
+        }
+    );
+
+    UINT32 OidInfoBufferLength;
+    unique_malloc_ptr<VOID> OidInfoBuffer =
+        MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+
+    NDIS_RECEIVE_SCALE_PARAMETERS *NdisParams =
+        (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
+    TEST_EQUAL(NdisParams->IndirectionTableSize, IndirectionTableSize);
+    PROCESSOR_NUMBER *NdisIndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(NdisParams, NdisParams->IndirectionTableOffset);
+    TEST_TRUE(RtlEqualMemory(NdisIndirectionTable, IndirectionTable.get(), IndirectionTableSize));
+
+    AdapterMp.reset();
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    TEST_HRESULT(AsyncThread.get());
 }
 
 static
 VOID
 IndicateOnAllActiveRssQueues(
     _In_ TestInterface &If,
-    _In_ const UINT16 LocalPort
+    _In_ UINT16 LocalPort,
+    _In_ UINT32 NumRssQueues
     )
 {
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
@@ -2705,10 +2795,7 @@ IndicateOnAllActiveRssQueues(
     Buffer.BufferLength = Buffer.DataLength;
     Buffer.VirtualAddress = UdpFrame;
 
-    UINT32 NumQueues = MpGetNumActiveRssQueues(GenericMp);
-    TEST_WARNING("IndicateOnAllActiveRssQueues: Active queues: %u", NumQueues);
-
-    for (UINT32 i = 0; i < NumQueues; i++) {
+    for (UINT32 i = 0; i < NumRssQueues; i++) {
         TEST_WARNING("Indicating on queue %u", i);
         Frame.RssHashQueueId = i;
         UdpPayload[sizeof(UdpPayload) - 1] = (UCHAR)i;
@@ -2744,32 +2831,51 @@ static
 VOID
 VerifyRssSettings(
     _In_ const TestInterface &If,
-    _In_ const std::vector<UINT32> &ExpectedXdpProcessorArray
+    _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &ExpectedXdpIndirectionTable,
+    _In_ UINT32 ExpectedXdpIndirectionTableSize
     )
 {
-    std::vector<UINT32> ProcessorArray;
+    unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
+    UINT32 IndirectionTableSize;
 
-    GetXdpRssProcessors(If, ProcessorArray);
-    PrintProcArray(L"VerifyRssSettings", ProcessorArray);
-    TEST_EQUAL(ProcessorArray.size(), ExpectedXdpProcessorArray.size());
-    for (UINT32 i = 0; i < ProcessorArray.size(); i++) {
-        TEST_EQUAL(ProcessorArray[i], ExpectedXdpProcessorArray[i]);
-    }
+    GetXdpRssIndirectionTable(If, IndirectionTable, IndirectionTableSize);
+    TEST_EQUAL(IndirectionTableSize, ExpectedXdpIndirectionTableSize);
+    TEST_TRUE(
+        RtlEqualMemory(
+            IndirectionTable.get(), ExpectedXdpIndirectionTable.get(), IndirectionTableSize));
 }
+
+typedef struct _PROCESSOR_NUMBER_COMP {
+    bool operator()(const PROCESSOR_NUMBER &A, const PROCESSOR_NUMBER &B) const {
+        return (A.Group == B.Group) ? A.Number < B.Number : A.Group < B.Group;
+    }
+} PROCESSOR_NUMBER_COMP;
 
 static
 VOID
 VerifyRssDatapath(
     _In_ TestInterface &If,
-    _In_ const std::vector<UINT32> &XdpRssProcessorArray
+    _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
+    _In_ UINT32 IndirectionTableSize
     )
 {
+    std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP> RssProcessors;
     std::vector<MY_SOCKET> XskSockArray;
     std::vector<wil::unique_socket> WinSockArray;
     UINT16 LocalPort = 0;
     SYSTEM_INFO SystemInfo;
 
     GetSystemInfo(&SystemInfo);
+
+    //
+    // Convert indirection table to processor set.
+    //
+    for (UINT32 Index = 0;
+        Index < IndirectionTableSize / sizeof(*IndirectionTable.get());
+        Index++) {
+        PROCESSOR_NUMBER Processor = *(IndirectionTable.get() + Index);
+        RssProcessors.insert(Processor);
+    }
 
     //
     // Attempt to open a XSK socket and WinSock socket for each processor. The
@@ -2845,10 +2951,10 @@ VerifyRssDatapath(
     //
     // WinSock sockets should not have received any traffic.
     //
-    IndicateOnAllActiveRssQueues(If, LocalPort);
+    IndicateOnAllActiveRssQueues(If, LocalPort, RssProcessors.size());
     for (UINT32 i = 0; i < XskSockArray.size(); i++) {
         TEST_WARNING("VerifyRssDatapath xdpvalidate: Attempt to consume on XskSockArray[%u]", i);
-        if (i < XdpRssProcessorArray.size()) {
+        if (i < RssProcessors.size()) {
             SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 1);
             XskRingConsumerRelease(&XskSockArray[i].Rings.Rx, 1);
             SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 0);
@@ -2892,7 +2998,7 @@ VerifyRssDatapath(
         TEST_WARNING("Skipping due to version check");
         return;
     }
-    IndicateOnAllActiveRssQueues(If, LocalPort);
+    IndicateOnAllActiveRssQueues(If, LocalPort, RssProcessors.size());
     for (UINT32 i = 0; i < WinSockArray.size(); i++) {
         CHAR RecvPayload[2048];
         ULONG Bytes;
@@ -2900,9 +3006,26 @@ VerifyRssDatapath(
         Bytes = recv(WinSockArray[i].get(), RecvPayload, sizeof(RecvPayload), 0);
         Error = WSAGetLastError();
         TEST_WARNING("VerifyRssDatapath tcpipvalidate: WinSockArray[%u] Bytes=%d WSAGetLastError=%d", i, Bytes, Error);
-        if (std::find(
-                XdpRssProcessorArray.begin(), XdpRssProcessorArray.end(), i) !=
-            XdpRssProcessorArray.end()) {
+
+        BOOLEAN Found = FALSE;
+        PROCESSOR_NUMBER Processor = {0};
+        //
+        // The below line assumes the test is running in CPU group 0, which is
+        // only guaranteed in a system with a single CPU group (assuming no
+        // affinitization).
+        //
+        Processor.Number = i;
+        for (auto Iter = RssProcessors.begin(); Iter != RssProcessors.end(); Iter++) {
+            //
+            // This test only supports RSS processors on CPU group 0.
+            //
+            TEST_EQUAL(Iter->Group, 0);
+            if (Iter->Group == Processor.Group && Iter->Number == Processor.Number) {
+                Found = TRUE;
+                break;
+            }
+        }
+        if (Found) {
             TEST_TRUE(Bytes > 0);
         } else {
             TEST_EQUAL(SOCKET_ERROR, Bytes);
@@ -3035,50 +3158,85 @@ OffloadRssUnchanged()
         RtlEqualMemory(IndirectionTable, &ExpectedIndirectionTable, ExpectedIndirectionTableSize));
 }
 
+static
 VOID
-OffloadRssSingleSet(
-    _In_ const std::vector<UINT32> &XdpRssProcessorArray
+CreateIndirectionTable(
+    _In_ const std::vector<UINT32> &ProcessorIndices,
+    _Out_ unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
+    _Out_ UINT32 *IndirectionTableSize
     )
 {
-    std::vector<UINT32> OldXdpRssProcessorArray;
-    std::vector<UINT32> ResetXdpRssProcessorArray;
+    *IndirectionTableSize = ProcessorIndices.size() * sizeof(*IndirectionTable);
+
+    IndirectionTable.reset((PROCESSOR_NUMBER *)malloc(*IndirectionTableSize));
+    TEST_TRUE(IndirectionTable.get() != NULL);
+
+    RtlZeroMemory(IndirectionTable.get(), *IndirectionTableSize);
+    for (UINT32 i = 0; i < ProcessorIndices.size(); i++) {
+        (IndirectionTable.get() + i)->Number = ProcessorIndices[i];
+    }
+}
+
+VOID
+OffloadRssSingleSet(
+    _In_ const std::vector<UINT32> &ProcessorIndices
+    )
+{
+    unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
+    unique_malloc_ptr<PROCESSOR_NUMBER> OldIndirectionTable;
+    unique_malloc_ptr<PROCESSOR_NUMBER> ResetIndirectionTable;
     wil::unique_handle RssHandle;
+    UINT32 IndirectionTableSize;
+    UINT32 OldIndirectionTableSize;
+    UINT32 ResetIndirectionTableSize;
 
-    PrintProcArray(L"OffloadRssSingleSet:", XdpRssProcessorArray);
+    PrintProcArray(L"OffloadRssSingleSet:", ProcessorIndices);
 
-    GetXdpRssProcessors(FnMpIf, OldXdpRssProcessorArray);
+    CreateIndirectionTable(ProcessorIndices, IndirectionTable, &IndirectionTableSize);
+
+    GetXdpRssIndirectionTable(FnMpIf, OldIndirectionTable, OldIndirectionTableSize);
 
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-    ConfigureRssViaXdp(RssHandle, XdpRssProcessorArray);
-    VerifyRssSettings(FnMpIf, XdpRssProcessorArray);
-    VerifyRssDatapath(FnMpIf, XdpRssProcessorArray);
+    SetXdpRss(FnMpIf, RssHandle, IndirectionTable, IndirectionTableSize);
+    VerifyRssSettings(FnMpIf, IndirectionTable, IndirectionTableSize);
+    VerifyRssDatapath(FnMpIf, IndirectionTable, IndirectionTableSize);
 
     RssHandle.reset();
-    GetXdpRssProcessors(FnMpIf, ResetXdpRssProcessorArray);
-    TEST_EQUAL(ResetXdpRssProcessorArray, OldXdpRssProcessorArray);
+    GetXdpRssIndirectionTable(FnMpIf, ResetIndirectionTable, ResetIndirectionTableSize);
+    TEST_EQUAL(ResetIndirectionTableSize, OldIndirectionTableSize);
+    TEST_TRUE(
+        RtlEqualMemory(
+            ResetIndirectionTable.get(), OldIndirectionTable.get(), ResetIndirectionTableSize));
 }
 
 VOID
 OffloadRssSubsequentSet(
-    _In_ const std::vector<UINT32> &XdpRssProcessorArray1,
-    _In_ const std::vector<UINT32> &XdpRssProcessorArray2
+    _In_ const std::vector<UINT32> &ProcessorIndices1,
+    _In_ const std::vector<UINT32> &ProcessorIndices2
     )
 {
     wil::unique_handle RssHandle;
+    unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable1;
+    unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable2;
+    UINT32 IndirectionTable1Size;
+    UINT32 IndirectionTable2Size;
 
     TEST_WARNING("OffloadRssSubsequentSet");
-    PrintProcArray(L"XDP1:", XdpRssProcessorArray1);
-    PrintProcArray(L"XDP2:", XdpRssProcessorArray2);
+    PrintProcArray(L"XDP1:", ProcessorIndices1);
+    PrintProcArray(L"XDP2:", ProcessorIndices2);
+
+    CreateIndirectionTable(ProcessorIndices1, IndirectionTable1, &IndirectionTable1Size);
+    CreateIndirectionTable(ProcessorIndices2, IndirectionTable2, &IndirectionTable2Size);
 
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
 
-    ConfigureRssViaXdp(RssHandle, XdpRssProcessorArray1);
-    VerifyRssSettings(FnMpIf, XdpRssProcessorArray1);
-    VerifyRssDatapath(FnMpIf, XdpRssProcessorArray1);
+    SetXdpRss(FnMpIf, RssHandle, IndirectionTable1, IndirectionTable2Size);
+    VerifyRssSettings(FnMpIf, IndirectionTable1, IndirectionTable2Size);
+    VerifyRssDatapath(FnMpIf, IndirectionTable1, IndirectionTable2Size);
 
-    ConfigureRssViaXdp(RssHandle, XdpRssProcessorArray2);
-    VerifyRssSettings(FnMpIf, XdpRssProcessorArray2);
-    VerifyRssDatapath(FnMpIf, XdpRssProcessorArray2);
+    SetXdpRss(FnMpIf, RssHandle, IndirectionTable2, IndirectionTable2Size);
+    VerifyRssSettings(FnMpIf, IndirectionTable2, IndirectionTable2Size);
+    VerifyRssDatapath(FnMpIf, IndirectionTable2, IndirectionTable2Size);
 }
 
 VOID

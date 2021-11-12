@@ -6,6 +6,10 @@
 
 EXTERN_C_START
 
+#ifndef _KERNEL_MODE
+#include <xdpndisuser.h>
+#endif
+
 HRESULT
 FnMpOpenGeneric(
     _In_ UINT32 IfIndex,
@@ -14,6 +18,12 @@ FnMpOpenGeneric(
 
 HRESULT
 FnMpOpenNative(
+    _In_ UINT32 IfIndex,
+    _Out_ HANDLE *Handle
+    );
+
+HRESULT
+FnMpOpenAdapter(
     _In_ UINT32 IfIndex,
     _Out_ HANDLE *Handle
     );
@@ -108,12 +118,6 @@ FnMpGetLastMiniportPauseTimestamp(
     _Out_ LARGE_INTEGER *Timestamp
     );
 
-HRESULT
-FnMpGetNumActiveRssQueues(
-    _In_ HANDLE Handle,
-    _Out_ UINT32 *NumQueues
-    );
-
 #define FNMP_MIN_MTU 1514
 #define FNMP_MAX_MTU (16 * 1024 * 1024)
 #define FNMP_DEFAULT_MTU FNMP_MAX_MTU
@@ -122,6 +126,26 @@ HRESULT
 FnMpSetMtu(
     _In_ HANDLE Handle,
     _In_ UINT32 Mtu
+    );
+
+typedef struct _OID_KEY {
+    NDIS_OID Oid;
+    NDIS_REQUEST_TYPE RequestType;
+} OID_KEY;
+
+HRESULT
+FnMpOidFilter(
+    _In_ HANDLE Handle,
+    _In_ const OID_KEY *Keys,
+    _In_ UINT32 KeyCount
+    );
+
+HRESULT
+FnMpOidGetRequest(
+    _In_ HANDLE Handle,
+    _In_ OID_KEY Key,
+    _Inout_ UINT32 *InformationBufferLength,
+    _Out_opt_ VOID *InformationBuffer
     );
 
 EXTERN_C_END

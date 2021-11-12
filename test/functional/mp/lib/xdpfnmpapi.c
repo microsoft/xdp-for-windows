@@ -35,6 +35,21 @@ FnMpOpenNative(
 }
 
 HRESULT
+FnMpOpenAdapter(
+    _In_ UINT32 IfIndex,
+    _Out_ HANDLE *Handle
+    )
+{
+    XDPFNMP_OPEN_ADAPTER *OpenAdapter;
+    CHAR EaBuffer[XDPFNMP_OPEN_EA_LENGTH + sizeof(*OpenAdapter)];
+
+    OpenAdapter = FnMpInitializeEa(XDPFNMP_FILE_TYPE_ADAPTER, EaBuffer, sizeof(EaBuffer));
+    OpenAdapter->IfIndex = IfIndex;
+
+    return FnMpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer), Handle);
+}
+
+HRESULT
 FnMpRxEnqueue(
     _In_ HANDLE Handle,
     _In_ RX_FRAME *Frame,
@@ -209,22 +224,6 @@ FnMpGetLastMiniportPauseTimestamp(
 }
 
 HRESULT
-FnMpGetNumActiveRssQueues(
-    _In_ HANDLE Handle,
-    _Out_ UINT32 *NumQueues
-    )
-{
-    //
-    // Supports generic handles only.
-    // Returns the number of RSS queues currently represented in the indirection table.
-    //
-    return
-        FnMpIoctl(
-            Handle, IOCTL_MINIPORT_GET_NUM_ACTIVE_RSS_QUEUES, NULL, 0, NumQueues,
-            sizeof(*NumQueues), NULL, NULL);
-}
-
-HRESULT
 FnMpSetMtu(
     _In_ HANDLE Handle,
     _In_ UINT32 Mtu
@@ -240,4 +239,45 @@ FnMpSetMtu(
     In.Mtu = Mtu;
 
     return FnMpIoctl(Handle, IOCTL_MINIPORT_SET_MTU, &In, sizeof(In), NULL, 0, NULL, NULL);
+}
+
+HRESULT
+FnMpOidFilter(
+    _In_ HANDLE Handle,
+    _In_ const OID_KEY *Keys,
+    _In_ UINT32 KeyCount
+    )
+{
+    //
+    // Supports adapter handles only. Sets an OID filter for OID inspection.
+    // Filtered OIDs are pended and can be fetched with FnMpOidGetRequest.
+    // Handle closure will trigger the processing and completion of any
+    // outstanding OIDs.
+    //
+    return
+        FnMpIoctl(
+            Handle, IOCTL_OID_FILTER, (VOID *)Keys, sizeof(Keys[0]) * KeyCount, NULL, 0, NULL, NULL);
+}
+
+HRESULT
+FnMpOidGetRequest(
+    _In_ HANDLE Handle,
+    _In_ OID_KEY Key,
+    _Inout_ UINT32 *InformationBufferLength,
+    _Out_opt_ VOID *InformationBuffer
+    )
+{
+    OID_GET_REQUEST_IN In = {0};
+
+    //
+    // Supports adapter handles only. Gets the information buffer of an OID
+    // request previously pended by the OID filter set via FnMpOidFilter.
+    //
+
+    In.Key = Key;
+
+    return
+        FnMpIoctl(
+            Handle, IOCTL_OID_GET_REQUEST, &In, sizeof(In), InformationBuffer,
+            *InformationBufferLength, InformationBufferLength, NULL);
 }

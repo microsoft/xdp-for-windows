@@ -13,6 +13,7 @@
 #include <generic_x.h>
 #include <native_x.h>
 
+#include "adapter.h"
 #include "bounce.h"
 #include "dispatch.h"
 #include "ioctlbounce.h"

@@ -59,6 +59,7 @@ MpCreateAdapter(
     Adapter->IfIndex = IfIndex;
     Adapter->ReferenceCount = 1;
     InitializeListHead(&Adapter->AdapterListLink);
+    ExInitializePushLock(&Adapter->Lock);
 
     Adapter->Generic = GenericAdapterCreate(Adapter);
     if (Adapter->Generic == NULL) {

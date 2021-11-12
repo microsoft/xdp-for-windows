@@ -24,6 +24,7 @@
 
 typedef struct _ADAPTER_GENERIC ADAPTER_GENERIC;
 typedef struct _ADAPTER_NATIVE ADAPTER_NATIVE;
+typedef struct _ADAPTER_USER_CONTEXT ADAPTER_USER_CONTEXT;
 
 typedef struct DECLSPEC_CACHEALIGN {
     UINT32 QueueId;
@@ -50,7 +51,16 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RssEnabled;
     ULONG NumRssProcs;
     ULONG NumRssQueues;
-    ULONG RssAssignedProcessorCount;
+
+    EX_PUSH_LOCK Lock;
+    OID_KEY *OidFilterKeys;
+    UINT32 OidFilterKeyCount;
+    NDIS_OID_REQUEST *FilteredOidRequest;
+
+    //
+    // Context for an exclusive user mode handle for configuring the adapter.
+    //
+    ADAPTER_USER_CONTEXT *UserContext;
 
     ADAPTER_GENERIC *Generic;
     ADAPTER_NATIVE *Native;
