@@ -74,17 +74,38 @@ XdpToNdisRssFlags(
 {
     USHORT NdisRssFlags = 0;
 
-    if (XdpRssFlags & XDP_RSS_FLAG_HASH_TYPE_UNCHANGED) {
+    if (!(XdpRssFlags & XDP_RSS_FLAG_SET_HASH_TYPE)) {
         NdisRssFlags |= NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED;
     }
-    if (XdpRssFlags & XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED) {
+    if (!(XdpRssFlags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY)) {
         NdisRssFlags |= NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED;
     }
-    if (XdpRssFlags & XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED) {
+    if (!(XdpRssFlags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE)) {
         NdisRssFlags |= NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED;
     }
 
     return NdisRssFlags;
+}
+
+static
+USHORT
+NdisToXdpRssFlags(
+    _In_ UINT32 NdisRssFlags
+    )
+{
+    USHORT XdpRssFlags = 0;
+
+    if (!(NdisRssFlags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED)) {
+        XdpRssFlags |= XDP_RSS_FLAG_SET_HASH_TYPE;
+    }
+    if (!(NdisRssFlags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED)) {
+        XdpRssFlags |= XDP_RSS_FLAG_SET_HASH_SECRET_KEY;
+    }
+    if (!(NdisRssFlags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED)) {
+        XdpRssFlags |= XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+    }
+
+    return XdpRssFlags;
 }
 
 static
@@ -175,34 +196,32 @@ InheritXdpRssParams(
     )
 {
     if (InheritedXdpRssParams != NULL) {
-        ASSERT((InheritedXdpRssParams->Flags & XDP_RSS_FLAG_HASH_TYPE_UNCHANGED) == 0);
-        ASSERT((InheritedXdpRssParams->Flags & XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED) == 0);
-        ASSERT((InheritedXdpRssParams->Flags & XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED) == 0);
+        ASSERT(InheritedXdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_TYPE);
+        ASSERT(InheritedXdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY);
+        ASSERT(InheritedXdpRssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE);
 
-        if (XdpRssParams->Flags & XDP_RSS_FLAG_HASH_TYPE_UNCHANGED) {
+        if (!(XdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_TYPE)) {
             XdpRssParams->HashType = InheritedXdpRssParams->HashType;
-            XdpRssParams->Flags &= ~XDP_RSS_FLAG_HASH_TYPE_UNCHANGED;
+            XdpRssParams->Flags |= XDP_RSS_FLAG_SET_HASH_TYPE;
         }
-        if (XdpRssParams->Flags & XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED) {
+        if (!(XdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY)) {
             XdpRssParams->HashSecretKeySize = InheritedXdpRssParams->HashSecretKeySize;
             RtlCopyMemory(
                 &XdpRssParams->HashSecretKey, &InheritedXdpRssParams->HashSecretKey,
                 InheritedXdpRssParams->HashSecretKeySize);
-            XdpRssParams->Flags &= ~XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED;
+            XdpRssParams->Flags |= XDP_RSS_FLAG_SET_HASH_SECRET_KEY;
         }
-        if (XdpRssParams->Flags & XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED) {
+        if (!(XdpRssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE)) {
             XdpRssParams->IndirectionTableSize = InheritedXdpRssParams->IndirectionTableSize;
             RtlCopyMemory(
                 &XdpRssParams->IndirectionTable, &InheritedXdpRssParams->IndirectionTable,
                 InheritedXdpRssParams->IndirectionTableSize);
-            XdpRssParams->Flags &= ~XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED;
+            XdpRssParams->Flags |= XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
         }
     } else {
-        ASSERT(
-            (XdpRssParams->Flags &
-            (XDP_RSS_FLAG_HASH_TYPE_UNCHANGED |
-                XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED |
-                XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED)) == 0);
+        ASSERT(XdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_TYPE);
+        ASSERT(XdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY);
+        ASSERT(XdpRssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE);
     }
 }
 
@@ -344,6 +363,7 @@ CreateXdpRssParamsFromNdisRssParams(
         ASSERT(NdisRssParams->HashSecretKeySize <= sizeof(XdpRssParams->HashSecretKey));
 
         XdpRssParams->State = XdpOffloadStateEnabled;
+        XdpRssParams->Flags = NdisToXdpRssFlags(NdisRssParams->Flags);
         XdpRssParams->HashType =
             NdisToXdpRssHashType(
                 NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(NdisRssParams->HashInformation));
@@ -520,7 +540,7 @@ XdpLwfOffloadRssSet(
     //
     // Validate input.
     //
-    if ((RssParams->Flags & XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED) == 0) {
+    if (RssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
         UINT32 ProcessorCount = 0;
         CONST UINT32 NumEntries =
             RssParams->IndirectionTableSize / sizeof(RssParams->IndirectionTable[0]);
@@ -584,7 +604,7 @@ XdpLwfOffloadRssSet(
     RtlCopyMemory(XdpRssParams, RssParams, RssParamsLength);
 
     //
-    // Inherit from the current RSS settings to support *UNCHANGED flags.
+    // Inherit unspecified parameters from the current RSS settings.
     //
     InheritXdpRssParams(XdpRssParams, CurrentXdpRssParams);
 
@@ -666,7 +686,7 @@ XdpLwfOffloadRssUpdate(
     }
 
     //
-    // Inherit from the current upper edge settings to support *UNCHANGED flags.
+    // Inherit unspecified parameters from the current upper edge settings.
     //
     InheritXdpRssParams(XdpRssParams, Filter->Offload.UpperEdge.Rss);
 

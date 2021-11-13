@@ -84,6 +84,8 @@ XdpIrpRssGet(
         PROCESSOR_NUMBER *IndirectionTable;
 
         RssConfiguration = OutputBuffer;
+        RssConfiguration->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
+        RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
         RssConfiguration->HashType = RssParams.HashType;
         RssConfiguration->HashSecretKeyOffset = sizeof(*RssConfiguration);
         RssConfiguration->HashSecretKeySize = RssParams.HashSecretKeySize;
@@ -147,6 +149,15 @@ XdpIrpRssSet(
 
     RssConfiguration = InputBuffer;
 
+    if (RssConfiguration->Header.Revision > XDP_RSS_CONFIGURATION_REVISION_1 ||
+        RssConfiguration->Header.Size < XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1) {
+        TraceError(
+            TRACE_CORE, "Rss=%p Unsupported revision Revision=%u Size=%u",
+            RssObject, RssConfiguration->Header.Revision, RssConfiguration->Header.Size);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
     if ((RssConfiguration->Flags & ~XDP_RSS_VALID_FLAGS) != 0) {
         TraceError(
             TRACE_CORE, "Rss=%p Invalid flags Flags=%u",
@@ -196,7 +207,7 @@ XdpIrpRssSet(
         goto Exit;
     }
 
-    if ((RssConfiguration->Flags & XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED) == 0) {
+    if (RssConfiguration->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY) {
         if (RssConfiguration->HashSecretKeySize > sizeof(RssParams.HashSecretKey)) {
             TraceError(
                 TRACE_CORE,
@@ -209,7 +220,7 @@ XdpIrpRssSet(
         HashSecretKey = RTL_PTR_ADD(RssConfiguration, RssConfiguration->HashSecretKeyOffset);
     }
 
-    if ((RssConfiguration->Flags & XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED) == 0) {
+    if (RssConfiguration->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
         if (RssConfiguration->IndirectionTableSize > sizeof(RssParams.IndirectionTable)) {
             TraceError(
                 TRACE_CORE,

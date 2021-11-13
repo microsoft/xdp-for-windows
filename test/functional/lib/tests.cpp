@@ -2665,6 +2665,8 @@ GetXdpRss(
     TEST_TRUE(RssConfig.get() != NULL);
 
     TEST_HRESULT(XdpRssGet(RssHandle.get(), RssConfig.get(), &Size));
+    TEST_EQUAL(RssConfig->Header.Revision, XDP_RSS_CONFIGURATION_REVISION_1);
+    TEST_EQUAL(RssConfig->Header.Size, XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1);
 
     if (RssConfigSize != NULL) {
         *RssConfigSize = Size;
@@ -2714,7 +2716,7 @@ SetXdpRss(
     //
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
-    RtlZeroMemory(RssConfig.get(), RssConfigSize);
+    XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
 
@@ -2722,6 +2724,9 @@ SetXdpRss(
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
     RtlCopyMemory(IndirectionTableDst, IndirectionTable.get(), IndirectionTableSize);
 
+    RssConfig->Flags =
+        XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_HASH_SECRET_KEY |
+        XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
     RssConfig->HashType =
         XDP_RSS_HASH_TYPE_IPV4 | XDP_RSS_HASH_TYPE_IPV6 |
         XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_UDP_IPV4;
@@ -3039,9 +3044,8 @@ OffloadRssError()
 {
     wil::unique_handle RssHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
-    UINT32 HashSecretKeySize = 40;
     UINT32 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
-    UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
+    UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
 
     //
     // Open with invalid IfIndex.
@@ -3057,9 +3061,10 @@ OffloadRssError()
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
     RtlZeroMemory(RssConfig.get(), RssConfigSize);
-    RssConfig->Flags = XDP_RSS_FLAG_HASH_TYPE_UNCHANGED | XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED;
-    RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
-    RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
+    RssConfig->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
+    RssConfig->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
+    RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+    RssConfig->IndirectionTableOffset = sizeof(*RssConfig);
 
     PROCESSOR_NUMBER *IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
@@ -3112,7 +3117,7 @@ OffloadRssUnchanged()
     //
     RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
     UINT32 ExpectedHashType = RssConfig->HashType;
-    RssConfig->Flags = XDP_RSS_FLAG_HASH_TYPE_UNCHANGED;
+    RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_SECRET_KEY | XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
     RssConfig->HashType = 0;
     TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
     RssConfig = GetXdpRss(RssHandle);
@@ -3127,7 +3132,7 @@ OffloadRssUnchanged()
     UINT32 ExpectedHashSecretKeySize = RssConfig->HashSecretKeySize;
     ASSERT(ExpectedHashSecretKeySize <= sizeof(ExpectedHashSecretKey));
     RtlCopyMemory(&ExpectedHashSecretKey, HashSecretKey, RssConfig->HashSecretKeySize);
-    RssConfig->Flags = XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED;
+    RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
     RtlZeroMemory(HashSecretKey, RssConfig->HashSecretKeySize);
     RssConfig->HashSecretKeySize = 0;
     TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
@@ -3146,7 +3151,7 @@ OffloadRssUnchanged()
     UINT32 ExpectedIndirectionTableSize = RssConfig->IndirectionTableSize;
     ASSERT(ExpectedIndirectionTableSize <= sizeof(ExpectedIndirectionTable));
     RtlCopyMemory(&ExpectedIndirectionTable, IndirectionTable, RssConfig->IndirectionTableSize);
-    RssConfig->Flags = XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED;
+    RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_HASH_SECRET_KEY;
     RtlZeroMemory(IndirectionTable, RssConfig->IndirectionTableSize);
     RssConfig->IndirectionTableSize = 0;
     TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));

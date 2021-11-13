@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 #include <xdp/hookid.h>
+#include <xdp/objectheader.h>
 #include <xdp/program.h>
 
 #ifndef XDPAPI
@@ -40,18 +41,33 @@ XdpCreateProgram(
     );
 
 //
-// Query/configure RSS settings on an interface. Configured settings will remain
-// valid until the handle is closed.
-// To disable RSS, supply 0 for HashType.
+// RSS API.
 //
 
-#define XDP_RSS_FLAG_HASH_TYPE_UNCHANGED         0x0001
-#define XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED   0x0002
-#define XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED 0x0004
+//
+// Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
+//
+#define XDP_RSS_FLAG_SET_HASH_TYPE         0x0001
+//
+// Upon set, indicates XDP_RSS_CONFIGURATION.HashSecretKeySize and
+// XDP_RSS_CONFIGURATION.HashSecretKeyOffset should not be ignored.
+//
+#define XDP_RSS_FLAG_SET_HASH_SECRET_KEY   0x0002
+//
+// Upon set, indicates XDP_RSS_CONFIGURATION.IndirectionTableSize and
+// XDP_RSS_CONFIGURATION.IndirectionTableOffset should not be ignored.
+//
+#define XDP_RSS_FLAG_SET_INDIRECTION_TABLE 0x0004
+//
+// Upon set, indicates RSS should be disabled.
+// Upon get, indicates RSS is disabled.
+//
+#define XDP_RSS_FLAG_DISABLED              0x0008
 #define XDP_RSS_VALID_FLAGS ( \
-    XDP_RSS_FLAG_HASH_TYPE_UNCHANGED | \
-    XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED | \
-    XDP_RSS_FLAG_INDIRECTION_TABLE_UNCHANGED | \
+    XDP_RSS_FLAG_SET_HASH_TYPE | \
+    XDP_RSS_FLAG_SET_HASH_SECRET_KEY | \
+    XDP_RSS_FLAG_SET_INDIRECTION_TABLE | \
+    XDP_RSS_FLAG_DISABLED | \
     0)
 
 #define XDP_RSS_HASH_TYPE_IPV4        0x001
@@ -76,6 +92,8 @@ XdpCreateProgram(
     0)
 
 typedef struct _XDP_RSS_CONFIGURATION {
+    XDP_OBJECT_HEADER Header;
+
     UINT32 Flags;
 
     //
@@ -109,6 +127,29 @@ typedef struct _XDP_RSS_CONFIGURATION {
     UINT16 IndirectionTableSize;
 } XDP_RSS_CONFIGURATION;
 
+#define XDP_RSS_CONFIGURATION_REVISION_1 1
+
+#define XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_RSS_CONFIGURATION, IndirectionTableSize)
+
+//
+// Initializes a RSS configuration object.
+//
+inline
+VOID
+XdpInitializeRssConfiguration(
+    _Out_writes_bytes_(RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ UINT32 RssConfigurationSize
+    )
+{
+    RtlZeroMemory(RssConfiguration, RssConfigurationSize);
+    RssConfiguration->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
+    RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
+}
+
+//
+// Open a handle to query and/or set RSS settings on an interface.
+//
 HRESULT
 XDPAPI
 XdpRssOpen(
@@ -116,6 +157,11 @@ XdpRssOpen(
     _Out_ HANDLE *RssHandle
     );
 
+//
+// Set RSS settings on an interface. Configured settings will remain valid until
+// the handle is closed. Upon handle closure, RSS settings will revert back to
+// their original state.
+//
 HRESULT
 XDPAPI
 XdpRssSet(
@@ -124,6 +170,11 @@ XdpRssSet(
     _In_ UINT32 RssConfigurationSize
     );
 
+//
+// Query RSS settings on an interface. If the input RssConfigurationSize is too
+// small, HRESULT_FROM_WIN32(ERROR_MORE_DATA) will be returned and
+// RssConfigurationSize will return the required size.
+//
 HRESULT
 XDPAPI
 XdpRssGet(

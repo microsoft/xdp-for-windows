@@ -288,7 +288,7 @@ ProcessCommandSet(
     }
 
     RssConfig->IndirectionTableSize = (USHORT)(ProcessorArraySize * sizeof(PROCESSOR_NUMBER));
-    RssConfig->Flags = XDP_RSS_FLAG_HASH_TYPE_UNCHANGED | XDP_RSS_FLAG_HASH_SECRET_KEY_UNCHANGED;
+    RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
 
     Result = XdpRssSet(InterfaceConfig->RssHandle, RssConfig, RssConfigSize);
     if (FAILED(Result)) {
