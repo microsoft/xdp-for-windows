@@ -1437,7 +1437,8 @@ GenericRxBackfillAndTrailer()
 
 VOID
 GenericRxMatchUdp(
-    _In_ ADDRESS_FAMILY Af
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN MatchPort
     )
 {
     auto If = FnMpIf;
@@ -1470,8 +1471,12 @@ GenericRxMatchUdp(
             &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     XDP_RULE Rule;
-    Rule.Match = XDP_MATCH_UDP_DST;
-    Rule.Pattern.Port = LocalPort;
+    if (MatchPort) {
+        Rule.Match = XDP_MATCH_UDP_DST;
+        Rule.Pattern.Port = LocalPort;
+    } else {
+        Rule.Match = XDP_MATCH_UDP;
+    }
 
     //
     // Verify XDP pass action.
@@ -1503,18 +1508,25 @@ GenericRxMatchUdp(
     // Redirect action is implicitly covered by XSK tests.
     //
 
-    //
-    // Verify default action (when no rules match) is pass.
-    //
-    ProgramHandle.reset();
-    Rule.Pattern.Port = htons(ntohs(LocalPort) - 1);
+    if (MatchPort) {
+        //
+        // Verify default action (when no rules match) is pass. Test only makes sense when
+        // specific port matching is enabled.
+        //
+        ProgramHandle.reset();
+        Rule.Pattern.Port = htons(ntohs(LocalPort) - 1);
 
-    ProgramHandle =
-        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+    } else {
+        //
+        // TODO - Send and validate some non-UDP traffic.
+        //
+    }
 }
 
 VOID

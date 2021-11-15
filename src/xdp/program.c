@@ -421,6 +421,17 @@ XdpInspect(
             Matched = TRUE;
             break;
 
+        case XDP_MATCH_UDP:
+            if (!FrameCache.UdpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.UdpValid) {
+                Matched = TRUE;
+            }
+            break;
+
         case XDP_MATCH_UDP_DST:
             if (!FrameCache.UdpCached) {
                 XdpParseFrame(

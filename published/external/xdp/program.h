@@ -21,6 +21,10 @@ typedef enum _XDP_MATCH_TYPE {
     //
     XDP_MATCH_ALL,
     //
+    // Match all UDP frames.
+    //
+    XDP_MATCH_UDP,
+    //
     // Match frames with a specific UDP port number as their destination port.
     // The port number is specified by field Port in XDP_MATCH_PATTERN.
     //

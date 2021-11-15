@@ -127,11 +127,19 @@ public:
     }
 
     TEST_METHOD(GenericRxMatchUdpV4) {
-        GenericRxMatchUdp(AF_INET);
+        GenericRxMatchUdp(AF_INET, FALSE);
     }
 
     TEST_METHOD(GenericRxMatchUdpV6) {
-        GenericRxMatchUdp(AF_INET6);
+        GenericRxMatchUdp(AF_INET6, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpPortV4) {
+        GenericRxMatchUdp(AF_INET, TRUE);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpPortV6) {
+        GenericRxMatchUdp(AF_INET6, TRUE);
     }
 
     TEST_METHOD(GenericRxMatchIpPrefixV4) {
