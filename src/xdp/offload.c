@@ -149,7 +149,7 @@ XdpIrpRssSet(
 
     RssConfiguration = InputBuffer;
 
-    if (RssConfiguration->Header.Revision > XDP_RSS_CONFIGURATION_REVISION_1 ||
+    if (RssConfiguration->Header.Revision < XDP_RSS_CONFIGURATION_REVISION_1 ||
         RssConfiguration->Header.Size < XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1) {
         TraceError(
             TRACE_CORE, "Rss=%p Unsupported revision Revision=%u Size=%u",
