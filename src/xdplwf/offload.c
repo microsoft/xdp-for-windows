@@ -971,7 +971,7 @@ Exit:
 
     ExFreePoolWithTag(OffloadContext, POOLTAG_OFFLOAD);
 
-    TraceExit(TRACE_LWF);
+    TraceExitSuccess(TRACE_LWF);
 }
 
 static

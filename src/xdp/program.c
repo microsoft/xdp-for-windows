@@ -958,7 +958,7 @@ XdpIrpProgramClose(
     KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
     ASSERT(NT_SUCCESS(WorkItem.CompletionStatus));
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 
     return STATUS_SUCCESS;
 }

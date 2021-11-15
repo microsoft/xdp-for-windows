@@ -1001,5 +1001,5 @@ XdpGenericRxDeleteQueue(
     XdpLifetimeDelete(XdpGenericRxDeleteTxInspectEc, &RxQueue->DeleteEntry);
     KeWaitForSingleObject(&DeleteComplete, Executive, KernelMode, FALSE, NULL);
 
-    TraceExit(TRACE_GENERIC);
+    TraceExitSuccess(TRACE_GENERIC);
 }

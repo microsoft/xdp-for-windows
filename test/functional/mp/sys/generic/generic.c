@@ -19,7 +19,7 @@ MiniportRestartHandler(
 
     ExReInitializeRundownProtection(&Adapter->Generic->NblRundown);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -39,7 +39,7 @@ MiniportPauseHandler(
     Adapter->LastPauseTimestamp = KeQueryPerformanceCounter(NULL);
     ExWaitForRundownProtectionRelease(&Adapter->Generic->NblRundown);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }

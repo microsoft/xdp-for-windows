@@ -410,7 +410,7 @@ XdpIrpRssClose(
 
     ExFreePoolWithTag(RssObject, XDP_POOLTAG_RSS);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 
     return STATUS_SUCCESS;
 }

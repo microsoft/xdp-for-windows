@@ -1614,7 +1614,7 @@ XskIrpCleanup(
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
 
-    TraceExit(TRACE_XSK);
+    TraceExitSuccess(TRACE_XSK);
 
     return STATUS_SUCCESS;
 }
@@ -1803,7 +1803,7 @@ XskDetachRxIf(
         XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitSuccess(TRACE_XSK);
 }
 
 static
@@ -1862,7 +1862,7 @@ XskDetachTxIf(
         XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INTERFACE_DETACH);
     }
 
-    TraceExit(TRACE_XSK);
+    TraceExitSuccess(TRACE_XSK);
 }
 
 VOID
@@ -2187,7 +2187,7 @@ XskIrpClose(
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
 
-    TraceExit(TRACE_XSK);
+    TraceExitSuccess(TRACE_XSK);
 
     return STATUS_SUCCESS;
 }

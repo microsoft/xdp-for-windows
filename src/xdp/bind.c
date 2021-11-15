@@ -236,7 +236,7 @@ XdpIfpCloseNmrInterface(
     Interface->Nmr = NULL;
     XdpIfpDereferenceNmr(Nmr);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -254,7 +254,7 @@ XdpIfpInvokeCloseInterface(
             Interface->XdpDriverApi.InterfaceContext);
     }
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -287,7 +287,7 @@ XdpIfpCloseInterface(
         TraceVerbose(TRACE_CORE, "interface removal completed");
     }
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -716,7 +716,7 @@ XdpIfpStartRundown(
         XdpIfpDereferenceInterface(Interface);
     }
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -740,7 +740,7 @@ XdpIfpInterfaceRemove(
     //
     XdpIfpDereferenceInterface(Interface);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -765,7 +765,7 @@ XdpIfpInterfaceNmrDelete(
 
     XdpIfpDereferenceNmr(Nmr);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -1266,7 +1266,7 @@ XdpIfActivateRxQueue(
     Interface->XdpDriverApi.InterfaceDispatch->ActivateRxQueue(
         InterfaceRxQueue, XdpRxQueue, Config);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -1286,7 +1286,7 @@ XdpIfDeleteRxQueue(
 
     XdpIfpDereferenceProvider(Interface);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 static
@@ -1377,7 +1377,7 @@ XdpIfActivateTxQueue(
     Interface->XdpDriverApi.InterfaceDispatch->ActivateTxQueue(
         InterfaceTxQueue, XdpTxQueue, Config);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -1397,7 +1397,7 @@ XdpIfDeleteTxQueue(
 
     XdpIfpDereferenceProvider(Interface);
 
-    TraceExit(TRACE_CORE);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

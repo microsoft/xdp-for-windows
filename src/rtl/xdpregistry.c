@@ -162,7 +162,7 @@ XdpRegWatcherNotify(
         KeSetEvent(DeletedEvent, 0, FALSE);
     }
 
-    TraceExit(TRACE_RTL);
+    TraceExitSuccess(TRACE_RTL);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

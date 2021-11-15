@@ -369,7 +369,7 @@ MiniportHaltHandler(
 
     MpDereferenceAdapter(Adapter);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 }
 
 static
@@ -412,7 +412,7 @@ MiniportUnloadHandler(
     MpNativeCleanup();
     MpIoctlCleanup();
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     WPP_CLEANUP(DriverObject);
 }

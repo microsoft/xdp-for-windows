@@ -503,7 +503,7 @@ MpHalt(
 
     MpReturnAdapter(Adapter);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 }
 
 VOID
@@ -520,7 +520,7 @@ MpShutdown(
 
     StopHwDatapath(Adapter);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 }
 
 VOID
@@ -547,7 +547,7 @@ MpRestart(
 
     ExReInitializeRundownProtectionCacheAware(Adapter->NblRundown);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -565,7 +565,7 @@ MpPause(
 
     ExWaitForRundownProtectionReleaseCacheAware(Adapter->NblRundown);
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -622,7 +622,7 @@ MpUnload(
         MpGlobalContext.NdisMiniportDriverHandle = NULL;
     }
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     WPP_CLEANUP(DriverObject);
 }

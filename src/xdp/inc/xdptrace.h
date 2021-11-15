@@ -51,9 +51,9 @@
 // USEPREFIX(TraceEnter,"%!STDPREFIX! %!FUNC!:%!LINE! --->%!SPACE!");
 // FUNC TraceEnter{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,MSG,...);
 //
-// USEPREFIX(TraceExit,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE! ");
-// FUNC TraceExit{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,...);
-// USESUFFIX (TraceExit, "STATUS_SUCCESS");
+// USEPREFIX(TraceExitSuccess,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE! ");
+// FUNC TraceExitSuccess{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,...);
+// USESUFFIX (TraceExitSuccess, "STATUS_SUCCESS");
 //
 // USEPREFIX(TraceExitStatus,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE!");
 // FUNC TraceExitStatus{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS);

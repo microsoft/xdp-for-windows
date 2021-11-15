@@ -436,7 +436,7 @@ XdpGenericTxPauseQueue(
     KeWaitForSingleObject(&TxPauseComplete, Executive, KernelMode, FALSE, NULL);
     FRE_ASSERT(TxQueue->PauseComplete == NULL);
 
-    TraceExit(TRACE_GENERIC);
+    TraceExitSuccess(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -456,7 +456,7 @@ XdpGenericTxRestartQueue(
     TxQueue->Flags.Pause = FALSE;
     XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
 
-    TraceExit(TRACE_GENERIC);
+    TraceExitSuccess(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -477,7 +477,7 @@ XdpGenericTxPause(
         XdpGenericTxPauseQueue(Generic, TxQueue);
     }
 
-    TraceExit(TRACE_GENERIC);
+    TraceExitSuccess(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -517,7 +517,7 @@ XdpGenericTxRestart(
 
     Generic->Tx.Mtu = NewMtu;
 
-    TraceExit(TRACE_GENERIC);
+    TraceExitSuccess(TRACE_GENERIC);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -860,5 +860,5 @@ XdpGenericTxDeleteQueue(
     XdpLifetimeDelete(XdpGenericFreeTxQueue, &TxQueue->DeleteEntry);
     KeWaitForSingleObject(&DeleteComplete, Executive, KernelMode, FALSE, NULL);
 
-    TraceExit(TRACE_GENERIC);
+    TraceExitSuccess(TRACE_GENERIC);
 }

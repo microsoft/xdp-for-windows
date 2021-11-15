@@ -154,7 +154,7 @@ DriverUnload(
         FndisDeviceObject = NULL;
     }
 
-    TraceExit(TRACE_CONTROL);
+    TraceExitSuccess(TRACE_CONTROL);
 
     WPP_CLEANUP(DriverObject);
 }
