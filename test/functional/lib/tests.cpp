@@ -29,6 +29,7 @@
 #include <xdpapi.h>
 #include <pkthlp.h>
 #include <xdpfnmpapi.h>
+#include <xdpfnlwfapi.h>
 
 #include "xdptest.h"
 #include "tests.h"
@@ -820,6 +821,17 @@ MpOpenAdapter(
 {
     wil::unique_handle Handle;
     TEST_HRESULT(FnMpOpenAdapter(IfIndex, &Handle));
+    return Handle;
+}
+
+static
+wil::unique_handle
+LwfOpenDefault(
+    _In_ UINT32 IfIndex
+    )
+{
+    wil::unique_handle Handle;
+    TEST_HRESULT(FnLwfOpenDefault(IfIndex, &Handle));
     return Handle;
 }
 
@@ -2656,6 +2668,12 @@ FnMpNativeHandleTest()
 
     MpXdpRegister(NativeMp);
     MpXdpDeregister(NativeMp);
+}
+
+VOID
+FnLwfDefaultHandleTest()
+{
+    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
 }
 
 static

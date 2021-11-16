@@ -7,36 +7,36 @@
 //
 // This file implements common file handle and IOCTL helpers.
 //
-// TODO: merge with XDPFNLWF IOCTL helpers
+// TODO: merge with XDPFNMP IOCTL helpers
 //
 
 VOID *
-FnMpInitializeEa(
-    _In_ XDPFNMP_FILE_TYPE FileType,
+FnLwfInitializeEa(
+    _In_ XDPFNLWF_FILE_TYPE FileType,
     _Out_ VOID *EaBuffer,
     _In_ ULONG EaLength
     )
 {
     FILE_FULL_EA_INFORMATION *EaHeader = EaBuffer;
-    XDPFNMP_OPEN_PACKET *OpenPacket;
+    XDPFNLWF_OPEN_PACKET *OpenPacket;
 
-    if (EaLength < XDPFNMP_OPEN_EA_LENGTH) {
+    if (EaLength < XDPFNLWF_OPEN_EA_LENGTH) {
         __fastfail(FAST_FAIL_INVALID_ARG);
     }
 
     RtlZeroMemory(EaHeader, sizeof(*EaHeader));
-    EaHeader->EaNameLength = sizeof(XDPFNMP_OPEN_PACKET_NAME) - 1;
-    RtlCopyMemory(EaHeader->EaName, XDPFNMP_OPEN_PACKET_NAME, sizeof(XDPFNMP_OPEN_PACKET_NAME));
-    EaHeader->EaValueLength = (USHORT)(EaLength - sizeof(*EaHeader) - sizeof(XDPFNMP_OPEN_PACKET_NAME));
+    EaHeader->EaNameLength = sizeof(XDPFNLWF_OPEN_PACKET_NAME) - 1;
+    RtlCopyMemory(EaHeader->EaName, XDPFNLWF_OPEN_PACKET_NAME, sizeof(XDPFNLWF_OPEN_PACKET_NAME));
+    EaHeader->EaValueLength = (USHORT)(EaLength - sizeof(*EaHeader) - sizeof(XDPFNLWF_OPEN_PACKET_NAME));
 
-    OpenPacket = (XDPFNMP_OPEN_PACKET *)(EaHeader->EaName + sizeof(XDPFNMP_OPEN_PACKET_NAME));
+    OpenPacket = (XDPFNLWF_OPEN_PACKET *)(EaHeader->EaName + sizeof(XDPFNLWF_OPEN_PACKET_NAME));
     OpenPacket->ObjectType = FileType;
 
     return OpenPacket + 1;
 }
 
 HRESULT
-FnMpOpen(
+FnLwfOpen(
     _In_ ULONG Disposition,
     _In_opt_ VOID *EaBuffer,
     _In_ ULONG EaLength,
@@ -51,7 +51,7 @@ FnMpOpen(
     //
     // Open a handle to the XDP device.
     //
-    RtlInitUnicodeString(&DeviceName, XDPFNMP_DEVICE_NAME);
+    RtlInitUnicodeString(&DeviceName, XDPFNLWF_DEVICE_NAME);
     InitializeObjectAttributes(
         &ObjectAttributes, &DeviceName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -73,7 +73,7 @@ FnMpOpen(
 }
 
 HRESULT
-FnMpIoctl(
+FnLwfIoctl(
     _In_ HANDLE XdpHandle,
     _In_ ULONG Operation,
     _In_opt_ VOID *InBuffer,

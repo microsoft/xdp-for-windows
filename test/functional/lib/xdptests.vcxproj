@@ -37,6 +37,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\lwf\inc;
         $(SolutionDir)test\functional\mp\inc;
         $(SolutionDir)test\pkthlp;
         $(SolutionDir)submodules\wil\include;

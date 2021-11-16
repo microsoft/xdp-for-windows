@@ -27,11 +27,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -68,6 +68,9 @@ $XdpFnMpComponentId = "ms_xdpfnmp"
 $XdpFnMpDeviceId0 = "xdpfnmp0"
 $XdpFnMpDeviceId1 = "xdpfnmp1"
 $XdpFnMpServiceName = "XDPFNMP"
+$XdpFnLwfSys = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.sys"
+$XdpFnLwfInf = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.inf"
+$XdpFnLwfComponentId = "ms_xdpfnlwf"
 
 # Helper to reboot the machine
 function Uninstall-Failure {
@@ -449,6 +452,36 @@ function Uninstall-XdpFnMp {
     Write-Verbose "xdpfnmp.sys uninstall complete!"
 }
 
+# Installs the xdpfnlwf driver.
+function Install-XdpFnLwf {
+    if (!(Test-Path $XdpFnLwfSys)) {
+        Write-Error "$XdpFnLwfSys does not exist!"
+    }
+
+    Write-Verbose "netcfg.exe -v -l $XdpFnLwfInf -c s -i $XdpFnLwfComponentId"
+    netcfg.exe -v -l $XdpFnLwfInf -c s -i $XdpFnLwfComponentId | Write-Verbose
+    if ($LastExitCode) {
+        Write-Error "netcfg.exe exit code: $LastExitCode"
+    }
+
+    Start-Service-With-Retry xdpfnlwf
+
+    Write-Verbose "xdpfnlwf.sys install complete!"
+}
+
+# Uninstalls the xdpfnlwf driver.
+function Uninstall-XdpFnLwf {
+    Write-Verbose "netcfg.exe -u $XdpFnLwfComponentId"
+    cmd.exe /c "netcfg.exe -u $XdpFnLwfComponentId 2>&1" | Write-Verbose
+    if (!$?) {
+        Write-Host "netcfg.exe failed: $LastExitCode"
+    }
+
+    Uninstall-Driver "xdpfnlwf.inf"
+
+    Write-Verbose "xdpfnlwf.sys uninstall complete!"
+}
+
 if ($Install -eq "fndis") {
     Install-FakeNdis
 }
@@ -460,6 +493,9 @@ if ($Install -eq "xdpmp") {
 }
 if ($Install -eq "xdpfnmp") {
     Install-XdpFnMp
+}
+if ($Install -eq "xdpfnlwf") {
+    Install-XdpFnLwf
 }
 
 if ($Uninstall -eq "fndis") {
@@ -473,4 +509,7 @@ if ($Uninstall -eq "xdpmp") {
 }
 if ($Uninstall -eq "xdpfnmp") {
     Uninstall-XdpFnMp
+}
+if ($Uninstall -eq "xdpfnlwf") {
+    Uninstall-XdpFnLwf
 }

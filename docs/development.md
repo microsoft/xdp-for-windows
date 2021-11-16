@@ -43,7 +43,7 @@ One-time setup:
 
 ```Powershell
 .\tools\prepare-machine.ps1 -ForTest -NoReboot
-verifier.exe /standard /driver xdp.sys xdpfnmp.sys
+verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys
 shutdown.exe /r /f /t 0
 ```
 
@@ -52,7 +52,9 @@ Running the tests:
 ```Powershell
 .\tools\setup.ps1 -Install xdp
 .\tools\setup.ps1 -Install xdpfnmp
+.\tools\setup.ps1 -Install xdpfnlwf
 vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll
+.\tools\setup.ps1 -Uninstall xdpfnlwf
 .\tools\setup.ps1 -Uninstall xdpfnmp
 .\tools\setup.ps1 -Uninstall xdp
 ```

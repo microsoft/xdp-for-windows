@@ -211,4 +211,8 @@ public:
         ::OffloadRss();
     }
 #endif
+
+    TEST_METHOD(FnLwfDefaultHandleTest) {
+        ::FnLwfDefaultHandleTest();
+    }
 };
