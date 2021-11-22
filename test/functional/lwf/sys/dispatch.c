@@ -61,6 +61,8 @@ DriverUnload(
 {
     TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
 
+    FilterStop();
+
     if (XdpFnLwfDeviceObject != NULL) {
         IoDeleteDevice(XdpFnLwfDeviceObject);
         XdpFnLwfDeviceObject = NULL;
@@ -110,6 +112,11 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = IrpIoDispatch;
 #pragma warning(pop)
     DriverObject->DriverUnload = DriverUnload;
+
+    Status = FilterStart(DriverObject);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
 
     Status = STATUS_SUCCESS;
 

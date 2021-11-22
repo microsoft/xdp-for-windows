@@ -39,7 +39,7 @@ xdpfnlwf.sys,,,2
 HKR, Ndi, Service,, "xdpfnlwf"
 HKR, Ndi, CoServices, %REG_MULTI_SZ%, "xdpfnlwf"
 HKR, Ndi, HelpText,, %xdpfnlwf.DeviceDesc%
-HKR, Ndi, FilterClass,, default_class
+HKR, Ndi, FilterClass,, ms_firewall_upper
 HKR, Ndi, FilterType, %REG_DWORD%, %FILTER_TYPE_MODIFYING%
 HKR, Ndi, FilterRunType, %REG_DWORD%, %FILTER_RUN_TYPE_OPTIONAL%
 HKR, Ndi\Interfaces, UpperRange,, "noupper"
