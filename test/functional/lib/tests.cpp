@@ -2757,9 +2757,7 @@ SetXdpRss(
     RssConfig->Flags =
         XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_HASH_SECRET_KEY |
         XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
-    RssConfig->HashType =
-        XDP_RSS_HASH_TYPE_IPV4 | XDP_RSS_HASH_TYPE_IPV6 |
-        XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_UDP_IPV4;
+    RssConfig->HashType = XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_TCP_IPV6;
     RssConfig->HashSecretKeySize = HashSecretKeySize;
     RssConfig->IndirectionTableSize = (USHORT)IndirectionTableSize;
 

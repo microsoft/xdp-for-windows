@@ -540,6 +540,41 @@ XdpLwfOffloadRssSet(
     //
     // Validate input.
     //
+
+    if (RssParams->Flags & XDP_RSS_FLAG_SET_HASH_TYPE) {
+        if (((RssParams->HashType & XDP_RSS_HASH_TYPE_TCP_IPV4) &&
+                !(Filter->Offload.RssCaps.CapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4)) ||
+            ((RssParams->HashType & XDP_RSS_HASH_TYPE_TCP_IPV6) &&
+                !(Filter->Offload.RssCaps.CapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6)) ||
+            ((RssParams->HashType & XDP_RSS_HASH_TYPE_TCP_IPV6_EX) &&
+                !(Filter->Offload.RssCaps.CapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX)) ||
+            ((RssParams->HashType & XDP_RSS_HASH_TYPE_UDP_IPV4) &&
+                !(Filter->Offload.RssCaps.CapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4)) ||
+            ((RssParams->HashType & XDP_RSS_HASH_TYPE_UDP_IPV6) &&
+                !(Filter->Offload.RssCaps.CapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6)) ||
+            ((RssParams->HashType & XDP_RSS_HASH_TYPE_UDP_IPV6_EX) &&
+                !(Filter->Offload.RssCaps.CapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX))) {
+            TraceError(
+                TRACE_LWF,
+                "OffloadContext=%p Unsupported hash type HashType=0x%08x",
+                OffloadContext, RssParams->HashType);
+            Status = STATUS_NOT_SUPPORTED;
+            goto Exit;
+        }
+    }
+
+    if (RssParams->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY) {
+        if (RssParams->HashSecretKeySize > NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2) {
+            TraceError(
+                TRACE_LWF,
+                "OffloadContext=%p Unsupported hash secret key size HashSecretKeySize=%u Max=%u",
+                OffloadContext, RssParams->HashSecretKeySize,
+                NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2);
+            Status = STATUS_NOT_SUPPORTED;
+            goto Exit;
+        }
+    }
+
     if (RssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
         UINT32 ProcessorCount = 0;
         CONST UINT32 NumEntries =
@@ -548,6 +583,15 @@ XdpLwfOffloadRssSet(
             ALIGN_UP_BY(
                 (KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS) + 7) / 8, sizeof(ULONG));
         RTL_BITMAP ProcessorBitmap;
+
+        if (NumEntries > Filter->Offload.RssCaps.NumberOfIndirectionTableEntries) {
+            TraceError(
+                TRACE_LWF,
+                "OffloadContext=%p Unsupported indirection table entry count NumEntries=%u Max=%u",
+                OffloadContext, NumEntries, Filter->Offload.RssCaps.NumberOfIndirectionTableEntries);
+            Status = STATUS_NOT_SUPPORTED;
+            goto Exit;
+        }
 
         BitmapBuffer = ExAllocatePoolZero(NonPagedPoolNx, BufferSize, POOLTAG_OFFLOAD);
         if (BitmapBuffer == NULL) {
@@ -581,12 +625,22 @@ XdpLwfOffloadRssSet(
 
         ProcessorCount = RtlNumberOfSetBits(&ProcessorBitmap);
 
-        if (ProcessorCount > Filter->Offload.Rss.MaxReceiveQueueCount) {
+        //
+        // RSS allows more processors than receive queues, but the RSS
+        // implementation in TCPIP constrains the number of processors to the
+        // number of receive queues. The NDIS API to query the actual maximum
+        // processor count is unavailable to LWFs, so simply use the number of
+        // receive queues instead.
+        //
+        // TODO: can we query the max processor count some other way? (It can be
+        // queried via miniport and protocol driver handles, and WMI.)
+        //
+        if (ProcessorCount > Filter->Offload.RssCaps.NumberOfReceiveQueues) {
             TraceError(
                 TRACE_LWF,
-                "OffloadContext=%p Too many processors ProcessorCount=%u MaxReceiveQueueCount=%u",
-                OffloadContext, ProcessorCount, Filter->Offload.Rss.MaxReceiveQueueCount);
-            Status = STATUS_INVALID_PARAMETER;
+                "OffloadContext=%p Unsupported processor count ProcessorCount=%u Max=%u",
+                OffloadContext, ProcessorCount, Filter->Offload.RssCaps.NumberOfReceiveQueues);
+            Status = STATUS_NOT_SUPPORTED;
             goto Exit;
         }
     }
@@ -724,8 +778,6 @@ XdpLwfOffloadRssInitialize(
     // TODO: Merge generic RSS and RSS offload modules.
     //
 
-    Filter->Offload.Rss.MaxReceiveQueueCount = 1;
-
     Status =
         XdpLwfOidInternalRequest(
             Filter->NdisFilterHandle, NdisRequestQueryInformation,
@@ -744,17 +796,7 @@ XdpLwfOffloadRssInitialize(
         RssCaps.Header.Type == NDIS_OBJECT_TYPE_RSS_CAPABILITIES &&
         RssCaps.Header.Revision >= NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_1 &&
         RssCaps.Header.Size >= NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1) {
-        //
-        // RSS allows more processors than receive queues, but the RSS
-        // implementation in TCPIP constrains the number of processors to the
-        // number of receive queues. The NDIS API to query the actual maximum
-        // processor count is unavailable to LWFs, so simply use the number of
-        // receive queues instead.
-        //
-        // TODO: can we query the max processor count some other way? (It can be
-        // queried via miniport and protocol driver handles, and WMI.)
-        //
-        Filter->Offload.Rss.MaxReceiveQueueCount = max(1, RssCaps.NumberOfReceiveQueues);
+        Filter->Offload.RssCaps = RssCaps;
     }
 
     Status =

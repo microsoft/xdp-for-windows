@@ -7,13 +7,6 @@
 #include "oid.h"
 
 //
-// Hardware RSS capabilities.
-//
-typedef struct XDP_LWF_RSS {
-    ULONG MaxReceiveQueueCount;
-} XDP_LWF_RSS;
-
-//
 // Describes a set of interface offload configurations.
 //
 typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
@@ -25,9 +18,20 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
 // Per LWF filter state.
 //
 typedef struct _XDP_LWF_OFFLOAD {
-    XDP_LWF_RSS Rss;
+    //
+    // Hardware capabilities.
+    //
+    NDIS_RECEIVE_SCALE_CAPABILITIES RssCaps;
+
+    //
+    // Current settings.
+    //
     XDP_LWF_INTERFACE_OFFLOAD_SETTINGS UpperEdge;
     XDP_LWF_INTERFACE_OFFLOAD_SETTINGS LowerEdge;
+
+    //
+    // Offload handles.
+    //
     LIST_ENTRY InterfaceOffloadHandleListHead;
 } XDP_LWF_OFFLOAD;
 
