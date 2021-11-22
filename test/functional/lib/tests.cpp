@@ -839,8 +839,8 @@ static
 HRESULT
 MpRxTryEnqueue(
     _In_ const wil::unique_handle& Handle,
-    _In_ RX_FRAME *Frame,
-    _In_ RX_BUFFER *Buffer
+    _In_ DATA_FRAME *Frame,
+    _In_ DATA_BUFFER *Buffer
     )
 {
     return FnMpRxEnqueue(Handle.get(), Frame, Buffer);
@@ -850,8 +850,8 @@ static
 VOID
 MpRxEnqueue(
     _In_ const wil::unique_handle& Handle,
-    _In_ RX_FRAME *Frame,
-    _In_ RX_BUFFER *Buffer
+    _In_ DATA_FRAME *Frame,
+    _In_ DATA_BUFFER *Buffer
     )
 {
     TEST_HRESULT(MpRxTryEnqueue(Handle, Frame, Buffer));
@@ -866,11 +866,11 @@ MpRxTryEnqueueFrame(
     _In_ UINT32 FrameLength
     )
 {
-    RX_FRAME Frame = {0};
-    RX_BUFFER Buffer = {0};
+    DATA_FRAME Frame = {0};
+    DATA_BUFFER Buffer = {0};
 
     Frame.BufferCount = 1;
-    Frame.RssHashQueueId = HashQueueId;
+    Frame.Rx.RssHashQueueId = HashQueueId;
     Buffer.DataOffset = 0;
     Buffer.DataLength = FrameLength;
     Buffer.BufferLength = FrameLength;
@@ -894,7 +894,7 @@ static
 HRESULT
 MpRxTryFlush(
     _In_ const wil::unique_handle& Handle,
-    _In_opt_ RX_FLUSH_OPTIONS *Options = nullptr
+    _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
     return FnMpRxFlush(Handle.get(), Options);
@@ -904,7 +904,7 @@ static
 VOID
 MpRxFlush(
     _In_ const wil::unique_handle& Handle,
-    _In_opt_ RX_FLUSH_OPTIONS *Options = nullptr
+    _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
     TEST_HRESULT(MpRxTryFlush(Handle, Options));
@@ -964,20 +964,20 @@ MpTxGetFrame(
     _In_ const wil::unique_handle& Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
-    _Out_opt_ TX_FRAME *Frame
+    _Out_opt_ DATA_FRAME *Frame
     )
 {
     return FnMpTxGetFrame(Handle.get(), Index, FrameBufferLength, Frame);
 }
 
 static
-unique_malloc_ptr<TX_FRAME>
+unique_malloc_ptr<DATA_FRAME>
 MpTxAllocateAndGetFrame(
     _In_ const wil::unique_handle& Handle,
     _In_ UINT32 Index
     )
 {
-    unique_malloc_ptr<TX_FRAME> FrameBuffer;
+    unique_malloc_ptr<DATA_FRAME> FrameBuffer;
     UINT32 FrameLength = 0;
     HRESULT Result;
     Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
@@ -994,8 +994,8 @@ MpTxAllocateAndGetFrame(
     } while (!Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
-    TEST_TRUE(FrameLength >= sizeof(TX_FRAME));
-    FrameBuffer.reset((TX_FRAME *)malloc(FrameLength));
+    TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
+    FrameBuffer.reset((DATA_FRAME *)malloc(FrameLength));
     TEST_TRUE(FrameBuffer != NULL);
 
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
@@ -1353,15 +1353,15 @@ GenericRxSingleFrame()
     auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 
-    RX_FRAME Frame = {0};
-    RX_BUFFER Buffer = {0};
+    DATA_FRAME Frame = {0};
+    DATA_BUFFER Buffer = {0};
     CONST UCHAR BufferVa[] = "GenericRxSingleFrame";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
     //
     Frame.BufferCount = 1;
-    Frame.RssHashQueueId = FnMpIf.GetQueueId();
+    Frame.Rx.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = 0;
     Buffer.DataLength = sizeof(BufferVa);
     Buffer.BufferLength = Buffer.DataLength;
@@ -1410,15 +1410,15 @@ GenericRxBackfillAndTrailer()
     auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 
-    RX_FRAME Frame = {0};
-    RX_BUFFER Buffer = {0};
+    DATA_FRAME Frame = {0};
+    DATA_BUFFER Buffer = {0};
     CONST UCHAR BufferVa[] = "GenericRxBackfillAndTrailer";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
     //
     Frame.BufferCount = 1;
-    Frame.RssHashQueueId = FnMpIf.GetQueueId();
+    Frame.Rx.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = 3;
     Buffer.DataLength = 5;
     Buffer.BufferLength = sizeof(BufferVa);
@@ -1677,7 +1677,7 @@ GenericRxLowResources()
 
     SocketProduceRxFill(&Xsk, NumMatchFrames);
 
-    RX_FLUSH_OPTIONS FlushOptions = {0};
+    DATA_FLUSH_OPTIONS FlushOptions = {0};
     FlushOptions.Flags.LowResources = TRUE;
     MpRxFlush(GenericMp, &FlushOptions);
 
@@ -1761,13 +1761,13 @@ GenericRxMultiSocket()
 
     for (UINT16 Index = 0; Index < RTL_NUMBER_OF(Sockets); Index++) {
         auto &Socket = Sockets[Index].Xsk;
-        RX_FRAME Frame = {};
-        RX_BUFFER Buffer = {};
+        DATA_FRAME Frame = {};
+        DATA_BUFFER Buffer = {};
 
         SocketProduceRxFill(&Socket, 1);
 
         Frame.BufferCount = 1;
-        Frame.RssHashQueueId = FnMpIf.GetQueueId();
+        Frame.Rx.RssHashQueueId = FnMpIf.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = Sockets[Index].UdpFrameLength;
         Buffer.BufferLength = Buffer.DataLength;
@@ -1854,13 +1854,13 @@ GenericRxUdpFragmentBuffer(
             (UINT16)UdpPayload.size(), &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
             RemotePort));
 
-    std::vector<RX_BUFFER> Buffers;
+    std::vector<DATA_BUFFER> Buffers;
 
     //
     // Split up the UDP frame into RX fragment buffers.
     //
     for (UINT16 Index = 0; Index < Params->SplitCount; Index++) {
-        RX_BUFFER Buffer = {0};
+        DATA_BUFFER Buffer = {0};
 
         Buffer.DataOffset = Index == 0 ? Params->Backfill : 0;
         Buffer.DataLength = Params->SplitIndexes[Index] - UdpFrameOffset;
@@ -1876,7 +1876,7 @@ GenericRxUdpFragmentBuffer(
     //
     // Produce the final RX fragment buffer.
     //
-    RX_BUFFER Buffer = {0};
+    DATA_BUFFER Buffer = {0};
     Buffer.DataOffset = Buffers.size() == 0 ? Params->Backfill : 0;
     Buffer.DataLength = UdpFrameLength - UdpFrameOffset;
     Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength + Params->Trailer;
@@ -1884,9 +1884,9 @@ GenericRxUdpFragmentBuffer(
     Buffers.push_back(Buffer);
 
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    RX_FRAME Frame = {0};
+    DATA_FRAME Frame = {0};
     Frame.BufferCount = (UINT16)Buffers.size();
-    Frame.RssHashQueueId = If.GetQueueId();
+    Frame.Rx.RssHashQueueId = If.GetQueueId();
     MpRxEnqueue(GenericMp, &Frame, &Buffers[0]);
 
     //
@@ -2169,7 +2169,7 @@ GenericTxSingleFrame()
     auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
     TEST_EQUAL(1, MpTxFrame->BufferCount);
 
-    CONST TX_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
+    CONST DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
     TEST_EQUAL(TxFrameLength, MpTxBuffer->BufferLength);
 #pragma warning(push)
 #pragma warning(disable:6385)  // Reading invalid data from 'TxFrame':  the readable size is '_Old_10`8' bytes, but '29' bytes may be read.
@@ -2409,10 +2409,10 @@ GenericXskWait(
     UCHAR Payload[] = "GenericXskWait";
 
     auto RxIndicate = [&] {
-        RX_FRAME Frame = {0};
-        RX_BUFFER Buffer = {0};
+        DATA_FRAME Frame = {0};
+        DATA_BUFFER Buffer = {0};
         Frame.BufferCount = 1;
-        Frame.RssHashQueueId = If.GetQueueId();
+        Frame.Rx.RssHashQueueId = If.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = sizeof(Payload);
         Buffer.BufferLength = Buffer.DataLength;
@@ -2822,8 +2822,8 @@ IndicateOnAllActiveRssQueues(
             UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
             &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
-    RX_FRAME Frame = {0};
-    RX_BUFFER Buffer = {0};
+    DATA_FRAME Frame = {0};
+    DATA_BUFFER Buffer = {0};
     Frame.BufferCount = 1;
     Buffer.DataOffset = 0;
     Buffer.DataLength = UdpFrameLength;
@@ -2832,11 +2832,11 @@ IndicateOnAllActiveRssQueues(
 
     for (UINT32 i = 0; i < NumRssQueues; i++) {
         TEST_WARNING("Indicating on queue %u", i);
-        Frame.RssHashQueueId = i;
+        Frame.Rx.RssHashQueueId = i;
         UdpPayload[sizeof(UdpPayload) - 1] = (UCHAR)i;
         MpRxEnqueue(GenericMp, &Frame, &Buffer);
 
-        RX_FLUSH_OPTIONS FlushOptions = {0};
+        DATA_FLUSH_OPTIONS FlushOptions = {0};
         FlushOptions.Flags.RssCpu = TRUE;
         FlushOptions.RssCpuQueueId = i;
         MpRxFlush(GenericMp, &FlushOptions);

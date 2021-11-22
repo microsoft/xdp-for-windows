@@ -67,44 +67,44 @@ typedef struct _XDPFNMP_OPEN_ADAPTER {
 // Parameters for IOCTL_RX_ENQUEUE.
 //
 
-typedef struct _RX_ENQUEUE_IN {
-    RX_FRAME Frame;
-    RX_BUFFER *Buffers;
-} RX_ENQUEUE_IN;
+typedef struct _DATA_ENQUEUE_IN {
+    DATA_FRAME Frame;
+    DATA_BUFFER *Buffers;
+} DATA_ENQUEUE_IN;
 
 //
 // Parameters for IOCTL_RX_FLUSH.
 //
 
-typedef struct _RX_FLUSH_IN {
-    RX_FLUSH_OPTIONS Options;
-} RX_FLUSH_IN;
+typedef struct _DATA_FLUSH_IN {
+    DATA_FLUSH_OPTIONS Options;
+} DATA_FLUSH_IN;
 
 //
 // Parameters for IOCTL_TX_FILTER.
 //
 
-typedef struct _TX_FILTER_IN {
+typedef struct _DATA_FILTER_IN {
     UCHAR *Pattern;
     UCHAR *Mask;
     UINT32 Length;
-} TX_FILTER_IN;
+} DATA_FILTER_IN;
 
 //
 // Parameters for IOCTL_TX_GET_FRAME.
 //
 
-typedef struct _TX_GET_FRAME_IN {
+typedef struct _DATA_GET_FRAME_IN {
     UINT32 Index;
-} TX_GET_FRAME_IN;
+} DATA_GET_FRAME_IN;
 
 //
 // Parameters for IOCTL_TX_DEQUEUE_FRAME.
 //
 
-typedef struct _TX_DEQUEUE_FRAME_IN {
+typedef struct _DATA_DEQUEUE_FRAME_IN {
     UINT32 Index;
-} TX_DEQUEUE_FRAME_IN;
+} DATA_DEQUEUE_FRAME_IN;
 
 //
 // Parameters for IOCTL_MINIPORT_MTU.

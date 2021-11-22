@@ -28,26 +28,29 @@ FnMpOpenAdapter(
     _Out_ HANDLE *Handle
     );
 
-typedef struct _RX_FRAME {
-    UINT16 BufferCount;
-    UINT32 RssHashQueueId;
-} RX_FRAME;
-
-typedef struct _RX_BUFFER {
+typedef struct _DATA_BUFFER {
     CONST UCHAR *VirtualAddress;
     UINT32 DataOffset;
     UINT32 DataLength;
     UINT32 BufferLength;
-} RX_BUFFER;
+} DATA_BUFFER;
+
+typedef struct _DATA_FRAME {
+    DATA_BUFFER *Buffers;
+    UINT16 BufferCount;
+    struct {
+        UINT32 RssHashQueueId;
+    } Rx;
+} DATA_FRAME;
 
 HRESULT
 FnMpRxEnqueue(
     _In_ HANDLE Handle,
-    _In_ RX_FRAME *Frame,
-    _In_ RX_BUFFER *Buffers
+    _In_ DATA_FRAME *Frame,
+    _In_ DATA_BUFFER *Buffers
     );
 
-typedef struct _RX_FLUSH_OPTIONS {
+typedef struct _DATA_FLUSH_OPTIONS {
     struct {
         UINT32 DpcLevel : 1;
         UINT32 LowResources : 1;
@@ -55,12 +58,12 @@ typedef struct _RX_FLUSH_OPTIONS {
     } Flags;
 
     UINT32 RssCpuQueueId;
-} RX_FLUSH_OPTIONS;
+} DATA_FLUSH_OPTIONS;
 
 HRESULT
 FnMpRxFlush(
     _In_ HANDLE Handle,
-    _In_opt_ RX_FLUSH_OPTIONS *Options
+    _In_opt_ DATA_FLUSH_OPTIONS *Options
     );
 
 HRESULT
@@ -71,24 +74,12 @@ FnMpTxFilter(
     _In_ UINT32 Length
     );
 
-typedef struct _TX_BUFFER {
-    CONST UCHAR *VirtualAddress;
-    UINT32 DataOffset;
-    UINT32 DataLength;
-    UINT32 BufferLength;
-} TX_BUFFER;
-
-typedef struct _TX_FRAME {
-    TX_BUFFER *Buffers;
-    UINT8 BufferCount;
-} TX_FRAME;
-
 HRESULT
 FnMpTxGetFrame(
     _In_ HANDLE Handle,
     _In_ UINT32 FrameIndex,
     _Inout_ UINT32 *FrameBufferLength,
-    _Out_opt_ TX_FRAME *Frame
+    _Out_opt_ DATA_FRAME *Frame
     );
 
 HRESULT

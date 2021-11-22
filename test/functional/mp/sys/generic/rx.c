@@ -105,7 +105,7 @@ GenericIrpRxEnqueue(
 {
     ADAPTER_CONTEXT *Adapter = Rx->Generic->Adapter;
     NDIS_HANDLE NblPool = Adapter->Generic->NblPool;
-    RX_ENQUEUE_IN EnqueueIn = {0};
+    DATA_ENQUEUE_IN EnqueueIn = {0};
     NET_BUFFER_LIST *Nbl = NULL;
     NET_BUFFER *Nb;
     GENERIC_RX_NBL_CONTEXT *NblContext;
@@ -130,19 +130,19 @@ GenericIrpRxEnqueue(
     NblContext = GenericRxGetNblContext(Nbl);
     RtlZeroMemory(NblContext, sizeof(*NblContext));
 
-    if (EnqueueIn.Frame.RssHashQueueId != MAXUINT32) {
-        if (EnqueueIn.Frame.RssHashQueueId >= Adapter->NumRssQueues) {
+    if (EnqueueIn.Frame.Rx.RssHashQueueId != MAXUINT32) {
+        if (EnqueueIn.Frame.Rx.RssHashQueueId >= Adapter->NumRssQueues) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
         NET_BUFFER_LIST_SET_HASH_FUNCTION(Nbl, NdisHashFunctionToeplitz);
-        NET_BUFFER_LIST_SET_HASH_VALUE(Nbl, Adapter->RssQueues[EnqueueIn.Frame.RssHashQueueId].RssHash);
+        NET_BUFFER_LIST_SET_HASH_VALUE(Nbl, Adapter->RssQueues[EnqueueIn.Frame.Rx.RssHashQueueId].RssHash);
         NET_BUFFER_LIST_SET_HASH_TYPE(Nbl, NDIS_HASH_IPV4);
     }
 
     for (UINT32 BufferOffset = EnqueueIn.Frame.BufferCount; BufferOffset > 0; BufferOffset--) {
         CONST UINT32 BufferIndex = BufferOffset - 1;
-        CONST RX_BUFFER *RxBuffer = &EnqueueIn.Buffers[BufferIndex];
+        CONST DATA_BUFFER *RxBuffer = &EnqueueIn.Buffers[BufferIndex];
         UCHAR *MdlBuffer;
 
         if (RxBuffer->DataOffset > 0 && BufferIndex > 0) {
@@ -248,7 +248,7 @@ GenericIrpRxFlush(
 {
     KIRQL OldIrql;
     ADAPTER_CONTEXT *Adapter = Rx->Generic->Adapter;
-    CONST RX_FLUSH_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    CONST DATA_FLUSH_IN *In = Irp->AssociatedIrp.SystemBuffer;
     NBL_COUNTED_QUEUE Nbls;
     UINT32 NdisFlags = 0;
     BOOLEAN SetAffinity = FALSE;

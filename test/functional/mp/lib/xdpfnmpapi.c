@@ -52,11 +52,11 @@ FnMpOpenAdapter(
 HRESULT
 FnMpRxEnqueue(
     _In_ HANDLE Handle,
-    _In_ RX_FRAME *Frame,
-    _In_ RX_BUFFER *Buffers
+    _In_ DATA_FRAME *Frame,
+    _In_ DATA_BUFFER *Buffers
     )
 {
-    RX_ENQUEUE_IN In = {0};
+    DATA_ENQUEUE_IN In = {0};
 
     //
     // Supports generic and native handles.
@@ -72,10 +72,10 @@ FnMpRxEnqueue(
 HRESULT
 FnMpRxFlush(
     _In_ HANDLE Handle,
-    _In_opt_ RX_FLUSH_OPTIONS *Options
+    _In_opt_ DATA_FLUSH_OPTIONS *Options
     )
 {
-    RX_FLUSH_IN In = {0};
+    DATA_FLUSH_IN In = {0};
 
     //
     // Supports generic and native handles.
@@ -96,7 +96,7 @@ FnMpTxFilter(
     _In_ UINT32 Length
     )
 {
-    TX_FILTER_IN In = {0};
+    DATA_FILTER_IN In = {0};
 
     //
     // Sets a packet filter on the TX handle. Generic only. If an NBL matches
@@ -121,10 +121,10 @@ FnMpTxGetFrame(
     _In_ HANDLE Handle,
     _In_ UINT32 FrameIndex,
     _Inout_ UINT32 *FrameBufferLength,
-    _Out_opt_ TX_FRAME *Frame
+    _Out_opt_ DATA_FRAME *Frame
     )
 {
-    TX_GET_FRAME_IN In = {0};
+    DATA_GET_FRAME_IN In = {0};
     HRESULT Result;
 
     //
@@ -161,7 +161,7 @@ FnMpTxDequeueFrame(
     _In_ UINT32 FrameIndex
     )
 {
-    TX_DEQUEUE_FRAME_IN In = {0};
+    DATA_DEQUEUE_FRAME_IN In = {0};
 
     //
     // Dequeues a packet from the TX queue and appends it to the completion

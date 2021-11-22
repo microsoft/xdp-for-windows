@@ -6,7 +6,7 @@
 
 typedef struct _TX_FILTER {
     LIST_ENTRY Link;
-    TX_FILTER_IN Params;
+    DATA_FILTER_IN Params;
     UCHAR *ContiguousBuffer;
 } TX_FILTER;
 
@@ -230,7 +230,7 @@ GenericIrpTxFilter(
 {
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    TX_FILTER_IN FilterIn = {0};
+    DATA_FILTER_IN FilterIn = {0};
     UCHAR *ContiguousBuffer = NULL;
     KIRQL OldIrql;
 
@@ -282,15 +282,15 @@ GenericIrpTxGetFrame(
 {
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    TX_GET_FRAME_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    DATA_GET_FRAME_IN *In = Irp->AssociatedIrp.SystemBuffer;
     NET_BUFFER_LIST *Nbl;
     NET_BUFFER *NetBuffer;
     MDL *Mdl;
     UINT32 OutputSize;
     UINT32 DataBytes;
     UINT8 BufferCount;
-    TX_FRAME *TxFrame;
-    TX_BUFFER *TxBuffer;
+    DATA_FRAME *TxFrame;
+    DATA_BUFFER *TxBuffer;
     UCHAR *DataBuffer;
     KIRQL OldIrql;
 
@@ -341,7 +341,7 @@ GenericIrpTxGetFrame(
     }
 
     TxFrame = Irp->AssociatedIrp.SystemBuffer;
-    TxBuffer = (TX_BUFFER *)(TxFrame + 1);
+    TxBuffer = (DATA_BUFFER *)(TxFrame + 1);
     DataBuffer = (UCHAR *)(TxBuffer + BufferCount);
 
     TxFrame->BufferCount = BufferCount;
@@ -398,7 +398,7 @@ GenericIrpTxDequeueFrame(
 {
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    TX_DEQUEUE_FRAME_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    DATA_DEQUEUE_FRAME_IN *In = Irp->AssociatedIrp.SystemBuffer;
     NBL_COUNTED_QUEUE NblChain;
     NET_BUFFER_LIST *Nbl;
     KIRQL OldIrql;

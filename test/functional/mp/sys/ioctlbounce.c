@@ -6,7 +6,7 @@
 
 VOID
 IoctlCleanupRxEnqueue(
-    _Inout_ RX_ENQUEUE_IN *RxEnqueueIn
+    _Inout_ DATA_ENQUEUE_IN *RxEnqueueIn
     )
 {
     if (RxEnqueueIn->Buffers != NULL) {
@@ -24,12 +24,12 @@ NTSTATUS
 IoctlBounceRxEnqueue(
     _In_ CONST VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
-    _Out_ RX_ENQUEUE_IN *RxEnqueueIn
+    _Out_ DATA_ENQUEUE_IN *RxEnqueueIn
     )
 {
     NTSTATUS Status;
     BOUNCE_BUFFER Buffers, Buffer;
-    CONST RX_ENQUEUE_IN *IoBuffer = InputBuffer;
+    CONST DATA_ENQUEUE_IN *IoBuffer = InputBuffer;
     UINT32 BufferCount;
     SIZE_T BufferArraySize;
 
@@ -63,7 +63,7 @@ IoctlBounceRxEnqueue(
     // Copy the user buffer array into a trusted kernel buffer.
     //
     BufferArraySize = sizeof(*IoBuffer->Buffers) * BufferCount;
-    Status = BounceBuffer(&Buffers, IoBuffer->Buffers, BufferArraySize, __alignof(RX_BUFFER));
+    Status = BounceBuffer(&Buffers, IoBuffer->Buffers, BufferArraySize, __alignof(DATA_BUFFER));
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -72,7 +72,7 @@ IoctlBounceRxEnqueue(
 
     while (RxEnqueueIn->Frame.BufferCount < BufferCount) {
         CONST UINT32 BufferIndex = RxEnqueueIn->Frame.BufferCount;
-        CONST RX_BUFFER *RxBuffer = &RxEnqueueIn->Buffers[BufferIndex];
+        CONST DATA_BUFFER *RxBuffer = &RxEnqueueIn->Buffers[BufferIndex];
         UINT32 TotalLength;
 
         if (RxBuffer->BufferLength == 0) {
@@ -120,7 +120,7 @@ Exit:
 
 VOID
 IoctlCleanupTxFilter(
-    _In_ TX_FILTER_IN *TxFilterIn
+    _In_ DATA_FILTER_IN *TxFilterIn
     )
 {
     if (TxFilterIn->Mask != NULL) {
@@ -138,12 +138,12 @@ NTSTATUS
 IoctlBounceTxFilter(
     _In_ CONST VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
-    _Out_ TX_FILTER_IN *TxFilterIn
+    _Out_ DATA_FILTER_IN *TxFilterIn
     )
 {
     NTSTATUS Status;
     BOUNCE_BUFFER Pattern, Mask;
-    CONST TX_FILTER_IN *IoBuffer = InputBuffer;
+    CONST DATA_FILTER_IN *IoBuffer = InputBuffer;
 
     RtlZeroMemory(TxFilterIn, sizeof(*TxFilterIn));
     BounceInitialize(&Pattern);
