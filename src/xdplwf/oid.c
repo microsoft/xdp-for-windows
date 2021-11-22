@@ -189,7 +189,8 @@ XdpLwfOidRequest(
 
     switch (Action) {
     case XdpOidActionComplete:
-        NdisFOidRequestComplete(Filter->NdisFilterHandle, Request, CompletionStatus);
+        ASSERT(CompletionStatus != NDIS_STATUS_PENDING);
+        Status = CompletionStatus;
         break;
     case XdpOidActionPass:
         Status =
