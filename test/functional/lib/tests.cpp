@@ -3065,40 +3065,24 @@ static
 VOID
 IndicateOnAllActiveRssQueues(
     _In_ TestInterface &If,
-    _In_ UINT16 LocalPort,
     _In_ UINT32 NumRssQueues
     )
 {
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    UCHAR UdpPayload[] = "IndicateOnAllActiveRssQueuesQ#";
-    ETHERNET_ADDRESS LocalHw, RemoteHw;
-    INET_ADDR LocalIp, RemoteIp;
 
-    If.GetHwAddress(&LocalHw);
-    If.GetRemoteHwAddress(&RemoteHw);
-    If.GetIpv4Address(&LocalIp.Ipv4);
-    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
-
-    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
-    UINT32 UdpFrameLength = sizeof(UdpFrame);
-    UINT16 RemotePort = htons(1234);
-    TEST_TRUE(
-        PktBuildUdpFrame(
-            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
-            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    UCHAR Payload[] = "IndicateOnAllActiveRssQueuesQ#";
 
     DATA_FRAME Frame = {0};
     DATA_BUFFER Buffer = {0};
     Frame.BufferCount = 1;
     Buffer.DataOffset = 0;
-    Buffer.DataLength = UdpFrameLength;
+    Buffer.DataLength = sizeof(Payload);
     Buffer.BufferLength = Buffer.DataLength;
-    Buffer.VirtualAddress = UdpFrame;
+    Buffer.VirtualAddress = Payload;
 
     for (UINT32 i = 0; i < NumRssQueues; i++) {
-        TEST_WARNING("Indicating on queue %u", i);
         Frame.Input.RssHashQueueId = i;
-        UdpPayload[sizeof(UdpPayload) - 1] = (UCHAR)i;
+        Payload[sizeof(Payload) - 1] = (UCHAR)i;
         MpRxEnqueue(GenericMp, &Frame, &Buffer);
 
         DATA_FLUSH_OPTIONS FlushOptions = {0};
@@ -3160,12 +3144,6 @@ VerifyRssDatapath(
     )
 {
     std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP> RssProcessors;
-    std::vector<MY_SOCKET> XskSockArray;
-    std::vector<wil::unique_socket> WinSockArray;
-    UINT16 LocalPort = 0;
-    SYSTEM_INFO SystemInfo;
-
-    GetSystemInfo(&SystemInfo);
 
     //
     // Convert indirection table to processor set.
@@ -3178,160 +3156,50 @@ VerifyRssDatapath(
     }
 
     //
-    // Attempt to open a XSK socket and WinSock socket for each processor. The
-    // number of XSK sockets set up should equal the number of RSS queues
-    // supported by the adapter. The number of WinSock sockets set up should
-    // equal the number of processors.
+    // Force XDP to attach to the generic RX datapath.
+    // TODO: Remove this block once RSS offload is fixed to correctly add a
+    //       generic RX datapath reference itself.
     //
-    for (UINT32 i = 0; i < SystemInfo.dwNumberOfProcessors; i++) {
-        //
-        // XSK.
-        //
-        MY_SOCKET XskSocket;
-        XskSocket.Handle = CreateSocket();
-        XskSetupPreBind(&XskSocket, TRUE, FALSE);
-        // TODO: XskBind will not fail if you pass in an invalid queue ID.
-        if (SUCCEEDED(
-                XskBind(XskSocket.Handle.get(), If.GetIfIndex(), i, XSK_BIND_GENERIC, NULL))) {
-            XskSetupPostBind(&XskSocket, TRUE, FALSE);
-            XDP_RULE Rule = {};
-            Rule.Match = XDP_MATCH_ALL;
-            Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
-            Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-            Rule.Redirect.Target = XskSocket.Handle.get();
-            if (SUCCEEDED(
-                    XdpCreateProgram(
-                        If.GetIfIndex(), &XdpInspectRxL2, i, XDP_ATTACH_GENERIC, &Rule, 1,
-                        &XskSocket.RxProgram))) {
-                SocketProduceRxFill(&XskSocket, DEFAULT_RING_SIZE);
-                XskSockArray.push_back(std::move(XskSocket));
-                TEST_WARNING("Initialized XskSockArray[%llu]", XskSockArray.size() - 1);
-            }
-        }
-
-        //
-        // WinSock.
-        //
-        wil::unique_socket WinSocket(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
-        TEST_NOT_NULL(WinSocket.get());
-        DWORD BytesReturned;
-        TEST_EQUAL(
-            0,
-            WSAIoctl(
-                WinSocket.get(), SIO_CPU_AFFINITY, &i, sizeof(USHORT),
-                NULL, 0, &BytesReturned, NULL, NULL));
-        SOCKADDR_INET Address = {0};
-        Address.si_family = AF_INET;
-        if (i != 0) {
-            ASSERT(Address.si_family == AF_INET);
-            Address.Ipv4.sin_port = LocalPort;
-        }
-        TEST_EQUAL(0, bind(WinSocket.get(), (SOCKADDR *)&Address, sizeof(Address)));
-        INT AddressLength = sizeof(Address);
-        TEST_EQUAL(0, getsockname(WinSocket.get(), (SOCKADDR *)&Address, &AddressLength));
-        INT TimeoutMs = 1;
-        TEST_EQUAL(
-            0,
-            setsockopt(
-                WinSocket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
-        if (i == 0) {
-            LocalPort = SS_PORT(&Address);
-        }
-        WinSockArray.push_back(std::move(WinSocket));
-        TEST_WARNING("Initialized WinSockArray[%llu]", WinSockArray.size() - 1);
-    }
-    TEST_TRUE(WinSockArray.size() == SystemInfo.dwNumberOfProcessors);
+    wil::unique_handle ProgramHandle;
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_PASS;
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     //
-    // Validate XSK reception.
+    // Indicate RX on each miniport RSS queue and capture all packets after XDP
+    // passes them up.
     //
-    // Have the miniport indicate on all its active RSS queues. Only XSK
-    // sockets bound to an RSS queue that is present in the indirection table
-    // should have received traffic.
-    //
-    // WinSock sockets should not have received any traffic.
-    //
-    IndicateOnAllActiveRssQueues(If, LocalPort, RssProcessors.size());
-    for (UINT32 i = 0; i < XskSockArray.size(); i++) {
-        TEST_WARNING("VerifyRssDatapath xdpvalidate: Attempt to consume on XskSockArray[%u]", i);
-        if (i < RssProcessors.size()) {
-            SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 1);
-            XskRingConsumerRelease(&XskSockArray[i].Rings.Rx, 1);
-            SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 0);
-        } else {
-            SocketConsumerReserve(&XskSockArray[i].Rings.Rx, 0);
-        }
-    }
-    for (UINT32 i = 0; i < WinSockArray.size(); i++) {
-        CHAR RecvPayload[2048];
-        ULONG Bytes;
-        ULONG Error;
-        Bytes = recv(WinSockArray[i].get(), RecvPayload, sizeof(RecvPayload), 0);
-        Error = WSAGetLastError();
-        TEST_WARNING("VerifyRssDatapath xdpvalidate: WinSockArray[%u] Bytes=%d WSAGetLastError=%d", i, Bytes, Error);
-        TEST_EQUAL(SOCKET_ERROR, Bytes);
-        TEST_EQUAL(WSAETIMEDOUT, Error);
-    }
+
+    auto DefaultLwf = LwfOpenDefault(If.GetIfIndex());
+    UCHAR Pattern = 0x00;
+    UCHAR Mask = 0x00;
+    LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
+
+    IndicateOnAllActiveRssQueues(If, RssProcessors.size());
 
     //
-    // Close all XSK sockets and XDP programs.
+    // Verify that the resulting indications are as expected.
     //
-    XskSockArray.clear();
+    // XDP's current level of RSS offload data path translation is zeroing out
+    // the NBL hash OOB and maintaining the same processor for indication. So
+    // verify that a single packet was indicated on each processor in the
+    // miniport's RSS processor set and that its RSS hash is 0.
+    //
 
-    //
-    // Validate Winsock reception
-    //
-    // Have the miniport indicate on all its active RSS queues. Only the
-    // sockets assigned to a processor present in the indirection table should
-    // have received traffic.
-    //
-    // Currently, XDP RSS datapath translation is not implemented, so it is
-    // expected that packets are indicated on processors in the XDP RSS
-    // indirection table.
-    //
-    // On down-level systems, per proc UDP endpoint lookup is broken. Skip this
-    // validation.
-    //
-    //
-    RTL_OSVERSIONINFOW OsVersion = GetOSVersion();
-    if (!OsVersionIsFeOrLater(&OsVersion)) {
-        TEST_WARNING("Skipping due to version check");
-        return;
+    UINT32 NumRssProcessors = RssProcessors.size();
+    for (UINT32 Index = 0; Index < NumRssProcessors; Index++) {
+        auto Frame = LwfRxAllocateAndGetFrame(DefaultLwf, Index);
+        PROCESSOR_NUMBER Processor = Frame->Output.ProcessorNumber;
+        TEST_EQUAL(1, RssProcessors.erase(Processor));
+        TEST_EQUAL(0, Frame->Output.RssHash);
     }
-    IndicateOnAllActiveRssQueues(If, LocalPort, RssProcessors.size());
-    for (UINT32 i = 0; i < WinSockArray.size(); i++) {
-        CHAR RecvPayload[2048];
-        ULONG Bytes;
-        ULONG Error;
-        Bytes = recv(WinSockArray[i].get(), RecvPayload, sizeof(RecvPayload), 0);
-        Error = WSAGetLastError();
-        TEST_WARNING("VerifyRssDatapath tcpipvalidate: WinSockArray[%u] Bytes=%d WSAGetLastError=%d", i, Bytes, Error);
 
-        BOOLEAN Found = FALSE;
-        PROCESSOR_NUMBER Processor = {0};
-        //
-        // The below line assumes the test is running in CPU group 0, which is
-        // only guaranteed in a system with a single CPU group (assuming no
-        // affinitization).
-        //
-        Processor.Number = i;
-        for (auto Iter = RssProcessors.begin(); Iter != RssProcessors.end(); Iter++) {
-            //
-            // This test only supports RSS processors on CPU group 0.
-            //
-            TEST_EQUAL(Iter->Group, 0);
-            if (Iter->Group == Processor.Group && Iter->Number == Processor.Number) {
-                Found = TRUE;
-                break;
-            }
-        }
-        if (Found) {
-            TEST_TRUE(Bytes > 0);
-        } else {
-            TEST_EQUAL(SOCKET_ERROR, Bytes);
-            TEST_EQUAL(WSAETIMEDOUT, Error);
-        }
-    }
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        LwfRxGetFrame(DefaultLwf, NumRssProcessors, &FrameLength, NULL));
 }
 
 VOID
