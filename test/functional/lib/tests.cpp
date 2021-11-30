@@ -870,7 +870,7 @@ MpRxTryEnqueueFrame(
     DATA_BUFFER Buffer = {0};
 
     Frame.BufferCount = 1;
-    Frame.Rx.RssHashQueueId = HashQueueId;
+    Frame.Input.RssHashQueueId = HashQueueId;
     Buffer.DataOffset = 0;
     Buffer.DataLength = FrameLength;
     Buffer.BufferLength = FrameLength;
@@ -1030,6 +1030,127 @@ MpTxFlush(
     )
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
+}
+
+static
+VOID
+LwfTxEnqueue(
+    _In_ const wil::unique_handle& Handle,
+    _In_ DATA_FRAME *Frame,
+    _In_ DATA_BUFFER *Buffer
+    )
+{
+    TEST_HRESULT(FnLwfTxEnqueue(Handle.get(), Frame, Buffer));
+}
+
+static
+VOID
+LwfTxFlush(
+    _In_ const wil::unique_handle& Handle,
+    _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
+    )
+{
+    TEST_HRESULT(FnLwfTxFlush(Handle.get(), Options));
+}
+
+static
+VOID
+LwfRxFilter(
+    _In_ const wil::unique_handle& Handle,
+    _In_ VOID *Pattern,
+    _In_ VOID *Mask,
+    _In_ UINT32 Length
+    )
+{
+    TEST_HRESULT(FnLwfRxFilter(Handle.get(), Pattern, Mask, Length));
+}
+
+static
+HRESULT
+LwfRxGetFrame(
+    _In_ const wil::unique_handle& Handle,
+    _In_ UINT32 Index,
+    _Inout_ UINT32 *FrameBufferLength,
+    _Out_opt_ DATA_FRAME *Frame
+    )
+{
+    return FnLwfRxGetFrame(Handle.get(), Index, FrameBufferLength, Frame);
+}
+
+static
+unique_malloc_ptr<DATA_FRAME>
+LwfRxAllocateAndGetFrame(
+    _In_ const wil::unique_handle& Handle,
+    _In_ UINT32 Index
+    )
+{
+    unique_malloc_ptr<DATA_FRAME> FrameBuffer;
+    UINT32 FrameLength = 0;
+    HRESULT Result;
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+
+    //
+    // Poll FNLWF for RX: the driver doesn't support overlapped IO.
+    //
+    do {
+        Result = LwfRxGetFrame(Handle, Index, &FrameLength, NULL);
+        if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
+            break;
+        }
+        Sleep(100);
+    } while (!Watchdog.IsExpired());
+
+    TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
+    TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
+    FrameBuffer.reset((DATA_FRAME *)malloc(FrameLength));
+    TEST_TRUE(FrameBuffer != NULL);
+
+    TEST_HRESULT(LwfRxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
+
+    return FrameBuffer;
+}
+
+static
+VOID
+LwfRxDequeueFrame(
+    _In_ const wil::unique_handle& Handle,
+    _In_ UINT32 Index
+    )
+{
+    HRESULT Result;
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+
+    //
+    // Poll FNLWF for RX: the driver doesn't support overlapped IO.
+    //
+    do {
+        Result = FnLwfRxDequeueFrame(Handle.get(), Index);
+    } while (!Watchdog.IsExpired() && Result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND));
+
+    TEST_HRESULT(Result);
+}
+
+static
+VOID
+LwfRxFlush(
+    _In_ const wil::unique_handle& Handle
+    )
+{
+    TEST_HRESULT(FnLwfRxFlush(Handle.get()));
+}
+
+static
+HRESULT
+LwfOidSubmitRequest(
+    _In_ const wil::unique_handle& Handle,
+    _In_ OID_KEY Key,
+    _Inout_ UINT32 *InformationBufferLength,
+    _Inout_ VOID *InformationBuffer
+    )
+{
+    return
+        FnLwfOidSubmitRequest(
+            Handle.get(), Key, InformationBufferLength, InformationBuffer);
 }
 
 static
@@ -1361,7 +1482,7 @@ GenericRxSingleFrame()
     // Build one NBL and enqueue it in the functional miniport.
     //
     Frame.BufferCount = 1;
-    Frame.Rx.RssHashQueueId = FnMpIf.GetQueueId();
+    Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = 0;
     Buffer.DataLength = sizeof(BufferVa);
     Buffer.BufferLength = Buffer.DataLength;
@@ -1418,7 +1539,7 @@ GenericRxBackfillAndTrailer()
     // Build one NBL and enqueue it in the functional miniport.
     //
     Frame.BufferCount = 1;
-    Frame.Rx.RssHashQueueId = FnMpIf.GetQueueId();
+    Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = 3;
     Buffer.DataLength = 5;
     Buffer.BufferLength = sizeof(BufferVa);
@@ -1767,7 +1888,7 @@ GenericRxMultiSocket()
         SocketProduceRxFill(&Socket, 1);
 
         Frame.BufferCount = 1;
-        Frame.Rx.RssHashQueueId = FnMpIf.GetQueueId();
+        Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = Sockets[Index].UdpFrameLength;
         Buffer.BufferLength = Buffer.DataLength;
@@ -1886,7 +2007,7 @@ GenericRxUdpFragmentBuffer(
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     DATA_FRAME Frame = {0};
     Frame.BufferCount = (UINT16)Buffers.size();
-    Frame.Rx.RssHashQueueId = If.GetQueueId();
+    Frame.Input.RssHashQueueId = If.GetQueueId();
     MpRxEnqueue(GenericMp, &Frame, &Buffers[0]);
 
     //
@@ -2412,7 +2533,7 @@ GenericXskWait(
         DATA_FRAME Frame = {0};
         DATA_BUFFER Buffer = {0};
         Frame.BufferCount = 1;
-        Frame.Rx.RssHashQueueId = If.GetQueueId();
+        Frame.Input.RssHashQueueId = If.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = sizeof(Payload);
         Buffer.BufferLength = Buffer.DataLength;
@@ -2671,9 +2792,155 @@ FnMpNativeHandleTest()
 }
 
 VOID
-FnLwfDefaultHandleTest()
+FnLwfRx()
 {
+    auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
+
+    CONST UINT32 DataOffset = 3;
+    CONST UCHAR Payload[] = "FnLwfRx";
+    UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
+    UINT64 Mask = ~0ui64;
+    CONST UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
+    UCHAR BufferVa[BufferVaSize];
+
+    DATA_FRAME Frame = {0};
+    DATA_BUFFER Buffer = {0};
+    Frame.BufferCount = 1;
+    Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
+    Buffer.DataOffset = DataOffset;
+    Buffer.DataLength = sizeof(Pattern) + sizeof(Payload);
+    Buffer.BufferLength = BufferVaSize;
+    Buffer.VirtualAddress = BufferVa;
+
+    RtlCopyMemory(BufferVa + DataOffset, &Pattern, sizeof(Pattern));
+    RtlCopyMemory(BufferVa + DataOffset + sizeof(Pattern), Payload, sizeof(Payload));
+
+    LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
+
+    MpRxEnqueue(GenericMp, &Frame, &Buffer);
+    MpRxFlush(GenericMp);
+
+    auto LwfRxFrame = LwfRxAllocateAndGetFrame(DefaultLwf, 0);
+    TEST_EQUAL(LwfRxFrame->BufferCount, Frame.BufferCount);
+
+    CONST DATA_BUFFER *LwfRxBuffer = &LwfRxFrame->Buffers[0];
+    TEST_EQUAL(LwfRxBuffer->BufferLength, Buffer.BufferLength);
+    TEST_EQUAL(LwfRxBuffer->DataOffset, Buffer.DataOffset);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Buffer.VirtualAddress + Buffer.DataOffset,
+            LwfRxBuffer->VirtualAddress + LwfRxBuffer->DataOffset,
+            Buffer.DataLength));
+
+    LwfRxDequeueFrame(DefaultLwf, 0);
+    LwfRxFlush(DefaultLwf);
+}
+
+VOID
+FnLwfTx()
+{
+    auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
+    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
+
+    CONST UINT32 DataOffset = 3;
+    CONST UCHAR Payload[] = "FnLwfTx";
+    UINT64 Pattern = 0x39E8534AA85B4A98ui64;
+    UINT64 Mask = ~0ui64;
+    CONST UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
+    UCHAR BufferVa[BufferVaSize];
+
+    DATA_FRAME Frame = {0};
+    DATA_BUFFER Buffer = {0};
+    Frame.BufferCount = 1;
+    Buffer.DataOffset = DataOffset;
+    Buffer.DataLength = sizeof(Pattern) + sizeof(Payload);
+    Buffer.BufferLength = BufferVaSize;
+    Buffer.VirtualAddress = BufferVa;
+
+    RtlCopyMemory(BufferVa + DataOffset, &Pattern, sizeof(Pattern));
+    RtlCopyMemory(BufferVa + DataOffset + sizeof(Pattern), Payload, sizeof(Payload));
+
+    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+
+    LwfTxEnqueue(DefaultLwf, &Frame, &Buffer);
+    LwfTxFlush(DefaultLwf);
+
+    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+    TEST_EQUAL(MpTxFrame->BufferCount, Frame.BufferCount);
+
+    CONST DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
+    TEST_EQUAL(MpTxBuffer->BufferLength, Buffer.BufferLength);
+    TEST_EQUAL(MpTxBuffer->DataOffset, Buffer.DataOffset);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Buffer.VirtualAddress + Buffer.DataOffset,
+            MpTxBuffer->VirtualAddress + MpTxBuffer->DataOffset,
+            Buffer.DataLength));
+
+    MpTxDequeueFrame(GenericMp, 0);
+    MpTxFlush(GenericMp);
+}
+
+VOID
+FnLwfOid()
+{
+    HRESULT Result;
+    OID_KEY OidKeys[2] = {0};
+    UINT32 MpInfoBufferLength;
+    unique_malloc_ptr<VOID> MpInfoBuffer;
+    UINT32 LwfInfoBufferLength;
+    ULONG LwfInfoBuffer;
+    ULONG OriginalPacketFilter = 0;
+    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
+
+    //
+    // Get the existing packet filter from NDIS so we can tweak it to make sure
+    // the set OID makes it to the miniport. N.B. this get OID is handled by
+    // NDIS, not the miniport.
+    //
+    OidKeys[0].Oid = OID_GEN_CURRENT_PACKET_FILTER;
+    OidKeys[0].RequestType = NdisRequestQueryInformation;
+    LwfInfoBufferLength = sizeof(OriginalPacketFilter);
+    TEST_HRESULT(
+        LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &OriginalPacketFilter));
+
+    //
+    // Get.
+    //
+    OidKeys[0].Oid = OID_GEN_RECEIVE_BLOCK_SIZE;
+    OidKeys[0].RequestType = NdisRequestQueryInformation;
+
+    //
+    // Set.
+    //
+    OidKeys[1].Oid = OID_GEN_CURRENT_PACKET_FILTER;
+    OidKeys[1].RequestType = NdisRequestSetInformation;
+
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
+        auto AdapterMp = MpOpenAdapter(FnMpIf.GetIfIndex());
+
+        MpOidFilter(AdapterMp, &OidKeys[Index], 1);
+
+        LwfInfoBuffer = OriginalPacketFilter ^ (0x00000001);
+        LwfInfoBufferLength = sizeof(LwfInfoBuffer);
+        auto AsyncThread = std::async(
+            std::launch::async,
+            [&] {
+                return
+                    LwfOidSubmitRequest(
+                        DefaultLwf, OidKeys[Index], &LwfInfoBufferLength, &LwfInfoBuffer);
+            }
+        );
+
+        MpInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, OidKeys[Index], &MpInfoBufferLength);
+        AdapterMp.reset();
+
+        TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+        TEST_HRESULT(AsyncThread.get());
+
+        TEST_EQUAL(LwfInfoBufferLength, sizeof(ULONG));
+    }
 }
 
 static
@@ -2830,7 +3097,7 @@ IndicateOnAllActiveRssQueues(
 
     for (UINT32 i = 0; i < NumRssQueues; i++) {
         TEST_WARNING("Indicating on queue %u", i);
-        Frame.Rx.RssHashQueueId = i;
+        Frame.Input.RssHashQueueId = i;
         UdpPayload[sizeof(UdpPayload) - 1] = (UCHAR)i;
         MpRxEnqueue(GenericMp, &Frame, &Buffer);
 

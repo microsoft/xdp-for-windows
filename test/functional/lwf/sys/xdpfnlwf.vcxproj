@@ -7,6 +7,7 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <ItemGroup>
+    <ClCompile Include="default.c" />
     <ClCompile Include="dispatch.c" />
     <ClCompile Include="filter.c" />
     <ClCompile Include="oid.c" />
@@ -23,6 +24,14 @@
     <ResourceCompile Include="xdpfnlwf.rc">
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\bounce\bounce.vcxproj">
+      <Project>{4a8c9c36-9b11-4bcf-9c48-0f33d4470d66}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\fnio\fnio.vcxproj">
+      <Project>{d07edeb2-006f-4b32-8cd1-2b8fabd5879e}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{02b3662c-5ffe-4e6d-b55f-7927833fd7a7}</ProjectGuid>
@@ -53,6 +62,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)src\rtl\inc;
+        $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\lwf\inc;
         $(SolutionDir)test\functional\lwf\sys;
         %(AdditionalIncludeDirectories)

@@ -4,26 +4,28 @@
 
 #pragma once
 
+#include "precomp.h"
+
 VOID
-IoctlCleanupRxEnqueue(
-    _Inout_ DATA_ENQUEUE_IN *RxEnqueueIn
+FnIoIoctlCleanupFilter(
+    _In_ DATA_FILTER_IN *FilterIn
     );
 
 NTSTATUS
-IoctlBounceRxEnqueue(
+FnIoIoctlBounceFilter(
     _In_ CONST VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
-    _Out_ DATA_ENQUEUE_IN *RxEnqueueIn
+    _Out_ DATA_FILTER_IN *FilterIn
     );
 
 VOID
-IoctlCleanupTxFilter(
-    _In_ DATA_FILTER_IN *TxFilterIn
+FnIoIoctlCleanupEnqueue(
+    _Inout_ DATA_ENQUEUE_IN *EnqueueIn
     );
 
 NTSTATUS
-IoctlBounceTxFilter(
+FnIoIoctlBounceEnqueue(
     _In_ CONST VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
-    _Out_ DATA_FILTER_IN *TxFilterIn
+    _Out_ DATA_ENQUEUE_IN *EnqueueIn
     );

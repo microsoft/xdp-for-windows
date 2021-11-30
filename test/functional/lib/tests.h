@@ -93,7 +93,13 @@ VOID
 FnMpNativeHandleTest();
 
 VOID
-FnLwfDefaultHandleTest();
+FnLwfRx();
+
+VOID
+FnLwfTx();
+
+VOID
+FnLwfOid();
 
 VOID
 OffloadRss();

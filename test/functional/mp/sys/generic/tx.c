@@ -4,15 +4,8 @@
 
 #include "precomp.h"
 
-typedef struct _TX_FILTER {
-    LIST_ENTRY Link;
-    DATA_FILTER_IN Params;
-    UCHAR *ContiguousBuffer;
-} TX_FILTER;
-
 typedef struct _GENERIC_TX {
     GENERIC_CONTEXT *Generic;
-    TX_FILTER Filter;
     //
     // This driver allows NBLs to be held indefinitely by user mode, which is a
     // bad practice. Unfortunately, it is necessary to hold NBLs for some
@@ -20,29 +13,26 @@ typedef struct _GENERIC_TX {
     // optimization, etc.) so the only question is whether a watchdog is also
     // necessary. For now, don't bother.
     //
-    NBL_COUNTED_QUEUE NblQueue;
-    NBL_COUNTED_QUEUE NblReturn;
+    LIST_ENTRY DataFilterLink;
+    DATA_FILTER *DataFilter;
 } GENERIC_TX;
 
+static
 VOID
-_Requires_lock_held_(&Generic->Generic->Lock)
-GenericTxCleanupFilter(
-    _Inout_ GENERIC_TX *Generic
+_Requires_lock_held_(&Tx->Generic->Adapter->Generic->Lock)
+GenericTxClearFilter(
+    _Inout_ GENERIC_TX *Tx
     )
 {
-    TX_FILTER *Filter = &Generic->Filter;
-
-    if (!IsListEmpty(&Filter->Link)) {
-        RemoveEntryList(&Filter->Link);
-        InitializeListHead(&Filter->Link);
+    if (!IsListEmpty(&Tx->DataFilterLink)) {
+        RemoveEntryList(&Tx->DataFilterLink);
+        InitializeListHead(&Tx->DataFilterLink);
     }
 
-    if (Filter->ContiguousBuffer != NULL) {
-        ExFreePoolWithTag(Filter->ContiguousBuffer, POOLTAG_GENERIC_TX);
-        Filter->ContiguousBuffer = NULL;
+    if (Tx->DataFilter != NULL) {
+        FnIoDeleteFilter(Tx->DataFilter);
+        Tx->DataFilter = NULL;
     }
-
-    IoctlCleanupTxFilter(&Filter->Params);
 }
 
 VOID
@@ -63,29 +53,24 @@ GenericTxCleanup(
     )
 {
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    NBL_COUNTED_QUEUE ReturnQueue;
+    NET_BUFFER_LIST *NblChain = NULL;
+    SIZE_T NblCount = 0;
     KIRQL OldIrql;
-
-    NdisInitializeNblCountedQueue(&ReturnQueue);
 
     KeAcquireSpinLock(&AdapterGeneric->Lock, &OldIrql);
 
-    NdisAppendNblCountedQueueToNblCountedQueueFast(&ReturnQueue, &Tx->NblQueue);
-    NdisAppendNblCountedQueueToNblCountedQueueFast(&ReturnQueue, &Tx->NblReturn);
-
-    GenericTxCleanupFilter(Tx);
-    if (!IsListEmpty(&Tx->Filter.Link)) {
-        RemoveEntryList(&Tx->Filter.Link);
-        InitializeListHead(&Tx->Filter.Link);
+    if (Tx->DataFilter != NULL) {
+        NblCount = FnIoFlushAllFrames(Tx->DataFilter, &NblChain);
     }
+
+    GenericTxClearFilter(Tx);
 
     KeReleaseSpinLock(&AdapterGeneric->Lock, OldIrql);
 
     ExFreePoolWithTag(Tx, POOLTAG_GENERIC_TX);
 
-    if (!NdisIsNblCountedQueueEmpty(&ReturnQueue)) {
-        GenericTxCompleteNbls(
-            AdapterGeneric, NdisGetNblChainFromNblCountedQueue(&ReturnQueue), ReturnQueue.NblCount);
+    if (NblCount > 0) {
+        GenericTxCompleteNbls(AdapterGeneric, NblChain, NblCount);
     }
 }
 
@@ -104,9 +89,7 @@ GenericTxCreate(
     }
 
     Tx->Generic = Generic;
-    InitializeListHead(&Tx->Filter.Link);
-    NdisInitializeNblCountedQueue(&Tx->NblQueue);
-    NdisInitializeNblCountedQueue(&Tx->NblReturn);
+    InitializeListHead(&Tx->DataFilterLink);
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -122,38 +105,6 @@ Exit:
 }
 
 BOOLEAN
-_Requires_lock_held_(&Generic->Generic->Lock)
-GenericTxMatchFilter(
-    _In_ GENERIC_TX *Generic,
-    _In_ NET_BUFFER_LIST *Nbl
-    )
-{
-    TX_FILTER *Filter = &Generic->Filter;
-    NET_BUFFER *NetBuffer = NET_BUFFER_LIST_FIRST_NB(Nbl);
-    UINT32 DataLength = min(NET_BUFFER_DATA_LENGTH(NetBuffer), Filter->Params.Length);
-    UCHAR *Buffer;
-
-    if (NetBuffer->Next != NULL) {
-        //
-        // Generic XDP does not send multiple NBs per NBL and will not for the
-        // forseeable future, so skip over multi-NB NBLs.
-        //
-        return FALSE;
-    }
-
-    Buffer = NdisGetDataBuffer(NetBuffer, DataLength, Filter->ContiguousBuffer, 1, 0);
-    ASSERT(Buffer != NULL);
-
-    for (UINT32 Index = 0; Index < DataLength; Index++) {
-        if ((Buffer[Index] & Filter->Params.Mask[Index]) != Filter->Params.Pattern[Index]) {
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
-
-BOOLEAN
 _Requires_lock_held_(&Generic->Lock)
 GenericTxFilterNbl(
     _In_ ADAPTER_GENERIC *Generic,
@@ -163,11 +114,9 @@ GenericTxFilterNbl(
     LIST_ENTRY *Entry = Generic->TxFilterList.Flink;
 
     while (Entry != &Generic->TxFilterList) {
-        GENERIC_TX *Tx = CONTAINING_RECORD(Entry, GENERIC_TX, Filter.Link);
+        GENERIC_TX *Tx = CONTAINING_RECORD(Entry, GENERIC_TX, DataFilterLink);
         Entry = Entry->Flink;
-
-        if (GenericTxMatchFilter(Tx, Nbl)) {
-            NdisAppendSingleNblToNblCountedQueue(&Tx->NblQueue, Nbl);
+        if (FnIoFilterNbl(Tx->DataFilter, Nbl)) {
             return TRUE;
         }
     }
@@ -230,21 +179,24 @@ GenericIrpTxFilter(
 {
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    DATA_FILTER_IN FilterIn = {0};
-    UCHAR *ContiguousBuffer = NULL;
+    CONST DATA_FILTER_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    DATA_FILTER *DataFilter = NULL;
     KIRQL OldIrql;
+    BOOLEAN ClearOnly = FALSE;
 
-    Status =
-        IoctlBounceTxFilter(
-            Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.DeviceIoControl.InputBufferLength,
-            &FilterIn);
-    if (!NT_SUCCESS(Status)) {
+    if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
-    if (FilterIn.Length > 0) {
-        ContiguousBuffer = ExAllocatePoolZero(NonPagedPoolNx, FilterIn.Length, POOLTAG_GENERIC_TX);
-        if (ContiguousBuffer == NULL) {
+    if (In->Length == 0) {
+        ClearOnly = TRUE;
+    } else {
+        DataFilter =
+            FnIoCreateFilter(
+                Irp->AssociatedIrp.SystemBuffer,
+                IrpSp->Parameters.DeviceIoControl.InputBufferLength);
+        if (DataFilter == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
@@ -252,21 +204,22 @@ GenericIrpTxFilter(
 
     KeAcquireSpinLock(&AdapterGeneric->Lock, &OldIrql);
 
-    GenericTxCleanupFilter(Tx);
+    GenericTxClearFilter(Tx);
 
-    Tx->Filter.Params = FilterIn;
-    Tx->Filter.ContiguousBuffer = ContiguousBuffer;
-
-    if (Tx->Filter.Params.Length > 0) {
-        InsertTailList(&AdapterGeneric->TxFilterList, &Tx->Filter.Link);
+    if (!ClearOnly) {
+        Tx->DataFilter = DataFilter;
+        DataFilter = NULL;
+        InsertTailList(&AdapterGeneric->TxFilterList, &Tx->DataFilterLink);
     }
 
     KeReleaseSpinLock(&AdapterGeneric->Lock, OldIrql);
 
+    Status = STATUS_SUCCESS;
+
 Exit:
 
-    if (!NT_SUCCESS(Status)) {
-        IoctlCleanupTxFilter(&FilterIn);
+    if (DataFilter != NULL) {
+        FnIoDeleteFilter(DataFilter);
     }
 
     return Status;
@@ -283,103 +236,27 @@ GenericIrpTxGetFrame(
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
     DATA_GET_FRAME_IN *In = Irp->AssociatedIrp.SystemBuffer;
-    NET_BUFFER_LIST *Nbl;
-    NET_BUFFER *NetBuffer;
-    MDL *Mdl;
-    UINT32 OutputSize;
-    UINT32 DataBytes;
-    UINT8 BufferCount;
-    DATA_FRAME *TxFrame;
-    DATA_BUFFER *TxBuffer;
-    UCHAR *DataBuffer;
     KIRQL OldIrql;
 
     KeAcquireSpinLock(&AdapterGeneric->Lock, &OldIrql);
+
+    if (Tx->DataFilter == NULL) {
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
         Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
-    Nbl = Tx->NblQueue.Queue.First;
-    for (UINT32 NblIndex = 0; NblIndex < In->Index; NblIndex++) {
-        if (Nbl == NULL) {
-            Status = STATUS_NOT_FOUND;
-            goto Exit;
-        }
+    Status =
+        FnIoGetFilteredFrame(
+            Tx->DataFilter, In->Index,
+            (UINT32 *)&IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
+            Irp->AssociatedIrp.SystemBuffer);
 
-        Nbl = Nbl->Next;
-    }
-
-    if (Nbl == NULL) {
-        Status = STATUS_NOT_FOUND;
-        goto Exit;
-    }
-
-    NetBuffer = NET_BUFFER_LIST_FIRST_NB(Nbl);
-    DataBytes = NET_BUFFER_DATA_LENGTH(NetBuffer);
-    BufferCount = 0;
-
-    OutputSize = sizeof(*TxFrame);
-    OutputSize += NET_BUFFER_CURRENT_MDL_OFFSET(NetBuffer);
-    OutputSize += DataBytes;
-
-    for (Mdl = NET_BUFFER_CURRENT_MDL(NetBuffer); DataBytes > 0; Mdl = Mdl->Next) {
-        OutputSize += sizeof(*TxBuffer);
-        DataBytes -= min(Mdl->ByteCount, DataBytes);
-
-        if (!NT_SUCCESS(RtlUInt8Add(BufferCount, 1, &BufferCount))) {
-            Status = STATUS_INTEGER_OVERFLOW;
-            goto Exit;
-        }
-    }
-
-    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < OutputSize) {
-        Irp->IoStatus.Information = OutputSize;
-        Status = STATUS_BUFFER_OVERFLOW;
-        goto Exit;
-    }
-
-    TxFrame = Irp->AssociatedIrp.SystemBuffer;
-    TxBuffer = (DATA_BUFFER *)(TxFrame + 1);
-    DataBuffer = (UCHAR *)(TxBuffer + BufferCount);
-
-    TxFrame->BufferCount = BufferCount;
-    TxFrame->Buffers = RTL_PTR_SUBTRACT(TxBuffer, TxFrame);
-
-    Mdl = NET_BUFFER_CURRENT_MDL(NetBuffer);
-    DataBytes = NET_BUFFER_DATA_LENGTH(NetBuffer);
-
-    for (UINT32 BufferIndex = 0; BufferIndex < BufferCount; BufferIndex++) {
-        UCHAR *MdlBuffer;
-
-        MdlBuffer = MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority);
-        if (MdlBuffer == NULL) {
-            Status = STATUS_INSUFFICIENT_RESOURCES;
-            goto Exit;
-        }
-
-        TxBuffer[BufferIndex].DataOffset = 0;
-        TxBuffer[BufferIndex].DataLength = min(Mdl->ByteCount, DataBytes);
-        TxBuffer[BufferIndex].BufferLength = TxBuffer[BufferIndex].DataLength;
-
-        if (BufferIndex == 0) {
-            TxBuffer[BufferIndex].DataOffset = NET_BUFFER_CURRENT_MDL_OFFSET(NetBuffer);
-            TxBuffer[BufferIndex].BufferLength += TxBuffer[BufferIndex].DataOffset;
-            DataBuffer += TxBuffer[BufferIndex].DataOffset;
-        }
-
-        RtlCopyMemory(
-            DataBuffer, MdlBuffer + TxBuffer[BufferIndex].DataOffset,
-            TxBuffer[BufferIndex].DataLength);
-        TxBuffer[BufferIndex].VirtualAddress = RTL_PTR_SUBTRACT(DataBuffer, TxFrame);
-
-        DataBuffer += TxBuffer[BufferIndex].DataLength;
-        DataBytes -= TxBuffer[BufferIndex].DataLength;
-    }
-
-    Irp->IoStatus.Information = OutputSize;
-    Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
 Exit:
 
@@ -399,33 +276,21 @@ GenericIrpTxDequeueFrame(
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
     DATA_DEQUEUE_FRAME_IN *In = Irp->AssociatedIrp.SystemBuffer;
-    NBL_COUNTED_QUEUE NblChain;
-    NET_BUFFER_LIST *Nbl;
     KIRQL OldIrql;
 
-    NdisInitializeNblCountedQueue(&NblChain);
-
     KeAcquireSpinLock(&AdapterGeneric->Lock, &OldIrql);
+
+    if (Tx->DataFilter == NULL) {
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
         Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
-    Status = STATUS_NOT_FOUND;
-
-    for (UINT32 NblIndex = 0; !NdisIsNblCountedQueueEmpty(&Tx->NblQueue); NblIndex++) {
-        Nbl = NdisPopFirstNblFromNblCountedQueue(&Tx->NblQueue);
-
-        if (NblIndex == In->Index) {
-            NdisAppendSingleNblToNblCountedQueue(&Tx->NblReturn, Nbl);
-            Status = STATUS_SUCCESS;
-        } else {
-            NdisAppendSingleNblToNblCountedQueue(&NblChain, Nbl);
-        }
-    }
-
-    NdisAppendNblCountedQueueToNblCountedQueueFast(&Tx->NblQueue, &NblChain);
+    Status = FnIoDequeueFilteredFrame(Tx->DataFilter, In->Index);
 
 Exit:
 
@@ -444,25 +309,33 @@ GenericIrpTxFlush(
 {
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    NBL_COUNTED_QUEUE FlushChain;
+    NET_BUFFER_LIST *NblChain;
+    SIZE_T NblCount;
     KIRQL OldIrql;
 
     UNREFERENCED_PARAMETER(Irp);
     UNREFERENCED_PARAMETER(IrpSp);
 
-    NdisInitializeNblCountedQueue(&FlushChain);
-
     KeAcquireSpinLock(&AdapterGeneric->Lock, &OldIrql);
-    NdisAppendNblCountedQueueToNblCountedQueueFast(&FlushChain, &Tx->NblReturn);
+
+    if (Tx->DataFilter == NULL) {
+        KeReleaseSpinLock(&AdapterGeneric->Lock, OldIrql);
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
+
+    NblCount = FnIoFlushDequeuedFrames(Tx->DataFilter, &NblChain);
+
     KeReleaseSpinLock(&AdapterGeneric->Lock, OldIrql);
 
-    if (!NdisIsNblCountedQueueEmpty(&FlushChain)) {
+    if (NblCount > 0) {
         Status = STATUS_SUCCESS;
-        GenericTxCompleteNbls(
-            AdapterGeneric, NdisGetNblChainFromNblCountedQueue(&FlushChain), FlushChain.NblCount);
+        GenericTxCompleteNbls(AdapterGeneric, NblChain, NblCount);
     } else {
         Status = STATUS_NOT_FOUND;
     }
+
+Exit:
 
     return Status;
 }

@@ -15,8 +15,56 @@ FILTER_RESTART FilterRestart;
 FILTER_PAUSE FilterPause;
 FILTER_SET_MODULE_OPTIONS FilterSetOptions;
 
-static NDIS_HANDLE NdisDriverHandle = NULL;
-static UINT32 NdisVersion;
+GLOBAL_CONTEXT LwfGlobalContext;
+
+static
+VOID
+FilterReferenceFilter(
+    _In_ LWF_FILTER *Filter
+    )
+{
+    XdpIncrementReferenceCount(&Filter->ReferenceCount);
+}
+
+VOID
+FilterDereferenceFilter(
+    _In_ LWF_FILTER *Filter
+    )
+{
+    if (XdpDecrementReferenceCount(&Filter->ReferenceCount)) {
+        if (Filter->NblPool != NULL) {
+            NdisFreeNetBufferListPool(Filter->NblPool);
+        }
+        ExFreePoolWithTag(Filter, POOLTAG_FILTER);
+    }
+}
+
+LWF_FILTER *
+FilterFindAndReferenceFilter(
+    _In_ UINT32 IfIndex
+    )
+{
+    LIST_ENTRY *Entry;
+    LWF_FILTER *Filter = NULL;
+
+    ExAcquirePushLockShared(&LwfGlobalContext.Lock);
+
+    Entry = LwfGlobalContext.FilterList.Flink;
+    while (Entry != &LwfGlobalContext.FilterList) {
+        LWF_FILTER *Candidate = CONTAINING_RECORD(Entry, LWF_FILTER, FilterListLink);
+        Entry = Entry->Flink;
+
+        if (Candidate->MiniportIfIndex == IfIndex) {
+            Filter = Candidate;
+            FilterReferenceFilter(Filter);
+            break;
+        }
+    }
+
+    ExReleasePushLockShared(&LwfGlobalContext.Lock);
+
+    return Filter;
+}
 
 NTSTATUS
 FilterStart(
@@ -29,7 +77,9 @@ FilterStart(
     NDIS_STRING UniqueName = RTL_CONSTANT_STRING(FILTER_UNIQUE_NAME);
     NDIS_STRING FriendlyName = RTL_CONSTANT_STRING(FILTER_FRIENDLY_NAME);
 
-    NdisVersion = NdisGetVersion();
+    LwfGlobalContext.NdisVersion = NdisGetVersion();
+    KeInitializeSpinLock(&LwfGlobalContext.Lock);
+    InitializeListHead(&LwfGlobalContext.FilterList);
 
     RtlZeroMemory(&FChars, sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS));
 
@@ -37,19 +87,19 @@ FilterStart(
     FChars.Header.Size = sizeof(NDIS_FILTER_DRIVER_CHARACTERISTICS);
     FChars.Header.Revision = NDIS_FILTER_CHARACTERISTICS_REVISION_3;
 
-    if (NdisVersion >= NDIS_RUNTIME_VERSION_685) {
+    if (LwfGlobalContext.NdisVersion >= NDIS_RUNTIME_VERSION_685) {
         //
         // Fe (Iron) / 20348 / Windows Server 2022 or higher.
         //
         FChars.MajorNdisVersion = 6;
         FChars.MinorNdisVersion = 85;
-    } else if (NdisVersion >= NDIS_RUNTIME_VERSION_682) {
+    } else if (LwfGlobalContext.NdisVersion >= NDIS_RUNTIME_VERSION_682) {
         //
         // RS5 / 17763 / Windows 1809 / Windows Server 2019 or higher.
         //
         FChars.MajorNdisVersion = 6;
         FChars.MinorNdisVersion = 82;
-    } else if (NdisVersion >= NDIS_RUNTIME_VERSION_660) {
+    } else if (LwfGlobalContext.NdisVersion >= NDIS_RUNTIME_VERSION_660) {
         //
         // RS1 / 14393 / Windows 1607 / Windows Server 2016 or higher.
         //
@@ -57,7 +107,8 @@ FilterStart(
         FChars.MinorNdisVersion = 60;
     } else {
         TraceError(
-            TRACE_CONTROL, "NDIS version %u is not supported", NdisVersion);
+            TRACE_CONTROL, "NDIS version %u is not supported",
+            LwfGlobalContext.NdisVersion);
         Status = NDIS_STATUS_NOT_SUPPORTED;
         goto Exit;
     }
@@ -84,7 +135,7 @@ FilterStart(
 
     Status =
         NdisFRegisterFilterDriver(
-            DriverObject, NULL, &FChars, &NdisDriverHandle);
+            DriverObject, NULL, &FChars, &LwfGlobalContext.NdisDriverHandle);
     if (Status != NDIS_STATUS_SUCCESS) {
         TraceError(
             TRACE_CONTROL, "Failed to register filter driver Status=%!STATUS!",
@@ -102,9 +153,9 @@ FilterStop(
     VOID
     )
 {
-    if (NdisDriverHandle != NULL) {
-        NdisFDeregisterFilterDriver(NdisDriverHandle);
-        NdisDriverHandle = NULL;
+    if (LwfGlobalContext.NdisDriverHandle != NULL) {
+        NdisFDeregisterFilterDriver(LwfGlobalContext.NdisDriverHandle);
+        LwfGlobalContext.NdisDriverHandle = NULL;
     }
 }
 
@@ -138,6 +189,30 @@ FilterAttach(
     Filter->MiniportIfIndex = AttachParameters->BaseMiniportIfIndex;
     Filter->NdisFilterHandle = NdisFilterHandle;
     Filter->NdisState = FilterPaused;
+    XdpInitializeReferenceCount(&Filter->ReferenceCount);
+    InitializeListHead(&Filter->FilterListLink);
+    KeInitializeSpinLock(&Filter->Lock);
+    InitializeListHead(&Filter->RxFilterList);
+    ExInitializeRundownProtection(&Filter->NblRundown);
+    ExWaitForRundownProtectionRelease(&Filter->NblRundown);
+
+    NET_BUFFER_LIST_POOL_PARAMETERS PoolParams = {0};
+    PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+    PoolParams.Header.Size = sizeof(PoolParams);
+    PoolParams.fAllocateNetBuffer = TRUE;
+    PoolParams.PoolTag = POOLTAG_NBL;
+    PoolParams.ContextSize = FNIO_ENQUEUE_NBL_CONTEXT_SIZE;
+
+    Filter->NblPool = NdisAllocateNetBufferListPool(NULL, &PoolParams);
+    if (Filter->NblPool == NULL) {
+        Status = NDIS_STATUS_RESOURCES;
+        goto Exit;
+    }
+
+    ExAcquirePushLockExclusive(&LwfGlobalContext.Lock);
+    InsertTailList(&LwfGlobalContext.FilterList, &Filter->FilterListLink);
+    ExReleasePushLockExclusive(&LwfGlobalContext.Lock);
 
     RtlZeroMemory(&FilterAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
     FilterAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
@@ -181,6 +256,7 @@ FilterPause(
     TraceInfo(TRACE_CONTROL, "IfIndex=%u", Filter->MiniportIfIndex);
 
     Filter->NdisState = FilterPaused;
+    ExWaitForRundownProtectionRelease(&Filter->NblRundown);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -200,6 +276,7 @@ FilterRestart(
 
     TraceInfo(TRACE_CONTROL, "IfIndex=%u", Filter->MiniportIfIndex);
 
+    ExReInitializeRundownProtection(&Filter->NblRundown);
     Filter->NdisState = FilterRunning;
 
     return NDIS_STATUS_SUCCESS;
@@ -217,7 +294,13 @@ FilterDetach(
 
     TraceInfo(TRACE_CONTROL, "IfIndex=%u", Filter->MiniportIfIndex);
 
-    ExFreePoolWithTag(Filter, POOLTAG_FILTER);
+    ExAcquirePushLockExclusive(&LwfGlobalContext.Lock);
+    if (!IsListEmpty(&Filter->FilterListLink)) {
+        RemoveEntryList(&Filter->FilterListLink);
+    }
+    ExReleasePushLockExclusive(&LwfGlobalContext.Lock);
+
+    FilterDereferenceFilter(Filter);
 }
 
 _Use_decl_annotations_

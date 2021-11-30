@@ -6,9 +6,7 @@
 
 EXTERN_C_START
 
-#ifndef _KERNEL_MODE
-#include <xdpndisuser.h>
-#endif
+#include <fniotypes.h>
 
 HRESULT
 FnMpOpenGeneric(
@@ -28,37 +26,12 @@ FnMpOpenAdapter(
     _Out_ HANDLE *Handle
     );
 
-typedef struct _DATA_BUFFER {
-    CONST UCHAR *VirtualAddress;
-    UINT32 DataOffset;
-    UINT32 DataLength;
-    UINT32 BufferLength;
-} DATA_BUFFER;
-
-typedef struct _DATA_FRAME {
-    DATA_BUFFER *Buffers;
-    UINT16 BufferCount;
-    struct {
-        UINT32 RssHashQueueId;
-    } Rx;
-} DATA_FRAME;
-
 HRESULT
 FnMpRxEnqueue(
     _In_ HANDLE Handle,
     _In_ DATA_FRAME *Frame,
     _In_ DATA_BUFFER *Buffers
     );
-
-typedef struct _DATA_FLUSH_OPTIONS {
-    struct {
-        UINT32 DpcLevel : 1;
-        UINT32 LowResources : 1;
-        UINT32 RssCpu : 1;
-    } Flags;
-
-    UINT32 RssCpuQueueId;
-} DATA_FLUSH_OPTIONS;
 
 HRESULT
 FnMpRxFlush(
@@ -118,11 +91,6 @@ FnMpSetMtu(
     _In_ HANDLE Handle,
     _In_ UINT32 Mtu
     );
-
-typedef struct _OID_KEY {
-    NDIS_OID Oid;
-    NDIS_REQUEST_TYPE RequestType;
-} OID_KEY;
 
 HRESULT
 FnMpOidFilter(

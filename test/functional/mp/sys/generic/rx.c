@@ -9,35 +9,6 @@ typedef struct _GENERIC_RX {
     NBL_COUNTED_QUEUE Nbls;
 } GENERIC_RX;
 
-typedef struct DECLSPEC_ALIGN(MEMORY_ALLOCATION_ALIGNMENT) _GENERIC_RX_NBL_CONTEXT {
-    UINT32 TrailingMdlBytes;
-} GENERIC_RX_NBL_CONTEXT;
-
-CONST UINT16 GenericRxNblContextSize = sizeof(GENERIC_RX_NBL_CONTEXT);
-
-static
-GENERIC_RX_NBL_CONTEXT *
-GenericRxGetNblContext(
-    _In_ NET_BUFFER_LIST *NetBufferList
-    )
-{
-    return (GENERIC_RX_NBL_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
-}
-
-VOID
-GenericRxCleanupNbl(
-    _In_ NET_BUFFER_LIST *Nbl
-    )
-{
-    NET_BUFFER *Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);
-    GENERIC_RX_NBL_CONTEXT *NblContext = GenericRxGetNblContext(Nbl);
-
-    NET_BUFFER_DATA_LENGTH(Nb) += NblContext->TrailingMdlBytes;
-    NdisRetreatNetBufferDataStart(Nb, NET_BUFFER_DATA_OFFSET(Nb), 0, NULL);
-    NdisAdvanceNetBufferDataStart(Nb, NET_BUFFER_DATA_LENGTH(Nb), TRUE, NULL);
-    NdisFreeNetBufferList(Nbl);
-}
-
 UINT32
 GenericRxCleanupNblChain(
     _In_ NET_BUFFER_LIST *NblChain
@@ -48,7 +19,7 @@ GenericRxCleanupNblChain(
     while (NblChain != NULL) {
         NET_BUFFER_LIST *Nbl = NblChain;
         NblChain = Nbl->Next;
-        GenericRxCleanupNbl(Nbl);
+        FnIoEnqueueFrameReturn(Nbl);
         Count++;
     }
 
@@ -107,96 +78,26 @@ GenericIrpRxEnqueue(
     NDIS_HANDLE NblPool = Adapter->Generic->NblPool;
     DATA_ENQUEUE_IN EnqueueIn = {0};
     NET_BUFFER_LIST *Nbl = NULL;
-    NET_BUFFER *Nb;
-    GENERIC_RX_NBL_CONTEXT *NblContext;
     KIRQL OldIrql;
     NTSTATUS Status;
 
     Status =
-        IoctlBounceRxEnqueue(
+        FnIoEnqueueFrameBegin(
             Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.DeviceIoControl.InputBufferLength,
-            &EnqueueIn);
+            NblPool, &EnqueueIn, &Nbl);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    Nbl = NdisAllocateNetBufferAndNetBufferList(NblPool, sizeof(*NblContext), 0, NULL, 0, 0);
-    if (Nbl == NULL) {
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
-
-    Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);
-    NblContext = GenericRxGetNblContext(Nbl);
-    RtlZeroMemory(NblContext, sizeof(*NblContext));
-
-    if (EnqueueIn.Frame.Rx.RssHashQueueId != MAXUINT32) {
-        if (EnqueueIn.Frame.Rx.RssHashQueueId >= Adapter->NumRssQueues) {
+    if (EnqueueIn.Frame.Input.RssHashQueueId != MAXUINT32) {
+        if (EnqueueIn.Frame.Input.RssHashQueueId >= Adapter->NumRssQueues) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
         NET_BUFFER_LIST_SET_HASH_FUNCTION(Nbl, NdisHashFunctionToeplitz);
-        NET_BUFFER_LIST_SET_HASH_VALUE(Nbl, Adapter->RssQueues[EnqueueIn.Frame.Rx.RssHashQueueId].RssHash);
+        NET_BUFFER_LIST_SET_HASH_VALUE(
+            Nbl, Adapter->RssQueues[EnqueueIn.Frame.Input.RssHashQueueId].RssHash);
         NET_BUFFER_LIST_SET_HASH_TYPE(Nbl, NDIS_HASH_IPV4);
-    }
-
-    for (UINT32 BufferOffset = EnqueueIn.Frame.BufferCount; BufferOffset > 0; BufferOffset--) {
-        CONST UINT32 BufferIndex = BufferOffset - 1;
-        CONST DATA_BUFFER *RxBuffer = &EnqueueIn.Buffers[BufferIndex];
-        UCHAR *MdlBuffer;
-
-        if (RxBuffer->DataOffset > 0 && BufferIndex > 0) {
-            //
-            // Only the first MDL can have a data offset.
-            //
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        if (RxBuffer->DataOffset + RxBuffer->DataLength > RxBuffer->BufferLength &&
-            BufferOffset < EnqueueIn.Frame.BufferCount) {
-            //
-            // Only the last MDL can have a data trailer.
-            //
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        //
-        // Allocate an MDL and data to back the XDP buffer.
-        //
-        Status = NdisRetreatNetBufferDataStart(Nb, RxBuffer->BufferLength, 0, NULL);
-        if (Status != NDIS_STATUS_SUCCESS) {
-            Status = STATUS_NO_MEMORY;
-            goto Exit;
-        }
-
-        MdlBuffer = MmGetSystemAddressForMdlSafe(NET_BUFFER_CURRENT_MDL(Nb), LowPagePriority);
-        if (MdlBuffer == NULL) {
-            Status = STATUS_NO_MEMORY;
-            goto Exit;
-        }
-
-        //
-        // Copy the whole RX buffer, including leading and trailing bytes.
-        //
-        RtlCopyMemory(MdlBuffer, RxBuffer->VirtualAddress, RxBuffer->BufferLength);
-
-        //
-        // Fix up the trailing bytes of the final MDL.
-        //
-        if (BufferOffset == EnqueueIn.Frame.BufferCount) {
-            NblContext->TrailingMdlBytes =
-                RxBuffer->BufferLength - RxBuffer->DataLength - RxBuffer->DataOffset;
-            NET_BUFFER_DATA_LENGTH(Nb) -= NblContext->TrailingMdlBytes;
-        }
-
-        //
-        // Fix up the data offset for the leading MDL.
-        //
-        if (BufferIndex == 0) {
-            NdisAdvanceNetBufferDataStart(Nb, RxBuffer->DataOffset, FALSE, NULL);
-        }
     }
 
     KeAcquireSpinLock(&Rx->Generic->Lock, &OldIrql);
@@ -212,11 +113,11 @@ Exit:
 
     if (!NT_SUCCESS(Status)) {
         if (Nbl != NULL) {
-            GenericRxCleanupNbl(Nbl);
+            FnIoEnqueueFrameReturn(Nbl);
         }
     }
 
-    IoctlCleanupRxEnqueue(&EnqueueIn);
+    FnIoEnqueueFrameEnd(&EnqueueIn);
 
     return Status;
 }

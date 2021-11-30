@@ -49,8 +49,7 @@ AdapterCleanup(
         }
 
         ExAcquirePushLockExclusive(&UserContext->Adapter->Lock);
-        if (UserContext->Adapter->UserContext != NULL) {
-            ASSERT(UserContext->Adapter->UserContext == UserContext);
+        if (UserContext->Adapter->UserContext == UserContext) {
             UserContext->Adapter->UserContext = NULL;
         }
         ExReleasePushLockExclusive(&UserContext->Adapter->Lock);
@@ -69,9 +68,13 @@ AdapterIrpClose(
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
+    ADAPTER_USER_CONTEXT *UserContext = (ADAPTER_USER_CONTEXT *)IrpSp->FileObject->FsContext;
+
     UNREFERENCED_PARAMETER(Irp);
 
-    AdapterCleanup(IrpSp->FileObject->FsContext);
+    ASSERT(UserContext == UserContext->Adapter->UserContext);
+
+    AdapterCleanup(UserContext);
 
     return STATUS_SUCCESS;
 }

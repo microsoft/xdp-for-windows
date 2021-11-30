@@ -9,8 +9,6 @@
   <ItemGroup>
     <ClCompile Include="adapter.c" />
     <ClCompile Include="dispatch.c" />
-    <ClCompile Include="bounce.c" />
-    <ClCompile Include="ioctlbounce.c" />
     <ClCompile Include="miniport.c" />
     <ClCompile Include="oid.c" />
     <ClCompile Include="rss.c" />
@@ -29,6 +27,12 @@
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\bounce\bounce.vcxproj">
+      <Project>{4a8c9c36-9b11-4bcf-9c48-0f33d4470d66}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\fnio\fnio.vcxproj">
+      <Project>{d07edeb2-006f-4b32-8cd1-2b8fabd5879e}</Project>
     </ProjectReference>
     <ProjectReference Include="generic\xdpfnmpgeneric.vcxproj">
       <Project>{5140e124-dbcb-42f9-bd51-22ff8eac7d7c}</Project>
@@ -66,6 +70,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)src\rtl\inc;
+        $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\mp\inc;
         $(SolutionDir)test\functional\mp\sys;
         $(SolutionDir)test\functional\mp\sys\generic\inc;

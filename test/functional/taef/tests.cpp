@@ -212,7 +212,15 @@ public:
     }
 #endif
 
-    TEST_METHOD(FnLwfDefaultHandleTest) {
-        ::FnLwfDefaultHandleTest();
+    TEST_METHOD(FnLwfRx) {
+        ::FnLwfRx();
+    }
+
+    TEST_METHOD(FnLwfTx) {
+        ::FnLwfTx();
+    }
+
+    TEST_METHOD(FnLwfOid) {
+        ::FnLwfOid();
     }
 };

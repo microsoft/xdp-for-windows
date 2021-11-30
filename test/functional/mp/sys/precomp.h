@@ -16,7 +16,6 @@
 #include "adapter.h"
 #include "bounce.h"
 #include "dispatch.h"
-#include "ioctlbounce.h"
 #include "miniport.h"
 #include "pooltag.h"
 #include "oid.h"

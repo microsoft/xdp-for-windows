@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#define OID_GEN_RECEIVE_BLOCK_SIZE              0x0001010B
+#define OID_GEN_CURRENT_PACKET_FILTER           0x0001010E
 #define OID_GEN_RECEIVE_SCALE_PARAMETERS        0x00010204  // query and set
 
 typedef ULONG NDIS_OID, *PNDIS_OID;

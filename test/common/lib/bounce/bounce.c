@@ -2,7 +2,10 @@
 // Copyright (C) Microsoft Corporation. All rights reserved.
 //
 
-#include "precomp.h"
+#include <ntddk.h>
+#include "bounce.h"
+
+#define POOLTAG_BOUNCE          'BnfX' // XfnB
 
 VOID
 BounceInitialize(
@@ -64,7 +67,8 @@ BounceBuffer(
         goto Exit;
     }
 
-    Bounce->Buffer = ExAllocatePoolZero(NonPagedPoolNx, BufferSize, POOLTAG_BOUNCE);
+    Bounce->Buffer =
+        ExAllocatePoolZero(NonPagedPoolNx, BufferSize, POOLTAG_BOUNCE);
     if (Bounce->Buffer == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;

@@ -7,15 +7,10 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <ItemGroup>
-    <ClCompile Include="generic.c" />
-    <ClCompile Include="rx.c" />
-    <ClCompile Include="tx.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="precomp.h" />
+    <ClCompile Include="bounce.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5140e124-dbcb-42f9-bd51-22ff8eac7d7c}</ProjectGuid>
+    <ProjectGuid>{4a8c9c36-9b11-4bcf-9c48-0f33d4470d66}</ProjectGuid>
     <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
@@ -37,28 +32,15 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <TargetName>xdpfnmpgeneric</TargetName>
+    <TargetName>bounce</TargetName>
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
-        inc;
-        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\common\inc;
-        $(SolutionDir)test\functional\mp\inc;
-        $(SolutionDir)test\functional\mp\sys;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>
-        NDIS_MINIPORT_DRIVER;
-        NDIS685_MINIPORT=1;
-        %(PreprocessorDefinitions)
-      </PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>$(ProjectDir)..\trace.h</WppScanConfigurationData>
-      <WppRecorderEnabled>true</WppRecorderEnabled>
-      <WppAdditionalOptions>-p:xdpfnmp</WppAdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

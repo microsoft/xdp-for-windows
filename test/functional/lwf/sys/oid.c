@@ -17,6 +17,112 @@ typedef struct _XDP_OID_REQUEST {
 } XDP_OID_REQUEST;
 
 static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+OidInternalRequest(
+    _In_ NDIS_HANDLE NdisFilterHandle,
+    _In_ NDIS_REQUEST_TYPE RequestType,
+    _In_ NDIS_OID Oid,
+    _Inout_updates_bytes_to_(InformationBufferLength, *BytesProcessed)
+        VOID *InformationBuffer,
+    _In_ ULONG InformationBufferLength,
+    _In_opt_ ULONG OutputBufferLength,
+    _In_ ULONG MethodId,
+    _Out_ ULONG *BytesProcessed
+    )
+{
+    XDP_OID_REQUEST FilterRequest;
+    NDIS_OID_REQUEST *NdisRequest = &FilterRequest.Oid;
+    NDIS_STATUS Status;
+
+    *BytesProcessed = 0;
+    RtlZeroMemory(NdisRequest, sizeof(NDIS_OID_REQUEST));
+
+    KeInitializeEvent(&FilterRequest.CompletionEvent, NotificationEvent, FALSE);
+
+    NdisRequest->Header.Type = NDIS_OBJECT_TYPE_OID_REQUEST;
+    NdisRequest->Header.Revision = NDIS_OID_REQUEST_REVISION_2;
+    NdisRequest->Header.Size = sizeof(NDIS_OID_REQUEST);
+    NdisRequest->RequestType = RequestType;
+
+    switch (RequestType) {
+    case NdisRequestQueryInformation:
+        NdisRequest->DATA.QUERY_INFORMATION.Oid = Oid;
+        NdisRequest->DATA.QUERY_INFORMATION.InformationBuffer =
+            InformationBuffer;
+        NdisRequest->DATA.QUERY_INFORMATION.InformationBufferLength =
+            InformationBufferLength;
+        break;
+
+    case NdisRequestSetInformation:
+        NdisRequest->DATA.SET_INFORMATION.Oid = Oid;
+        NdisRequest->DATA.SET_INFORMATION.InformationBuffer =
+            InformationBuffer;
+        NdisRequest->DATA.SET_INFORMATION.InformationBufferLength =
+            InformationBufferLength;
+        break;
+
+    case NdisRequestMethod:
+        NdisRequest->DATA.METHOD_INFORMATION.Oid = Oid;
+        NdisRequest->DATA.METHOD_INFORMATION.MethodId = MethodId;
+        NdisRequest->DATA.METHOD_INFORMATION.InformationBuffer =
+            InformationBuffer;
+        NdisRequest->DATA.METHOD_INFORMATION.InputBufferLength =
+            InformationBufferLength;
+        NdisRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
+            OutputBufferLength;
+        break;
+
+    default:
+        ASSERT(FALSE);
+        break;
+    }
+
+    NdisRequest->RequestId = (VOID *)OidInternalRequest;
+
+    Status = NdisFOidRequest(NdisFilterHandle, NdisRequest);
+
+    if (Status == NDIS_STATUS_PENDING) {
+        KeWaitForSingleObject(
+            &FilterRequest.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+        Status = FilterRequest.Status;
+    }
+
+    if (Status == NDIS_STATUS_INVALID_LENGTH) {
+        // Map NDIS status to STATUS_BUFFER_TOO_SMALL.
+        Status = NDIS_STATUS_BUFFER_TOO_SHORT;
+    }
+
+    if (Status == NDIS_STATUS_SUCCESS) {
+        if (RequestType == NdisRequestSetInformation) {
+            *BytesProcessed = NdisRequest->DATA.SET_INFORMATION.BytesRead;
+        }
+
+        if (RequestType == NdisRequestQueryInformation) {
+            *BytesProcessed = NdisRequest->DATA.QUERY_INFORMATION.BytesWritten;
+        }
+
+        if (RequestType == NdisRequestMethod) {
+            *BytesProcessed = NdisRequest->DATA.METHOD_INFORMATION.BytesWritten;
+        }
+    } else if (Status == NDIS_STATUS_BUFFER_TOO_SHORT) {
+        if (RequestType == NdisRequestSetInformation) {
+            *BytesProcessed = NdisRequest->DATA.SET_INFORMATION.BytesNeeded;
+        }
+
+        if (RequestType == NdisRequestQueryInformation) {
+            *BytesProcessed = NdisRequest->DATA.QUERY_INFORMATION.BytesNeeded;
+        }
+
+        if (RequestType == NdisRequestMethod) {
+            *BytesProcessed = NdisRequest->DATA.METHOD_INFORMATION.BytesNeeded;
+        }
+    }
+
+    return XdpConvertNdisStatusToNtStatus(Status);
+}
+
+static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 OidInternalRequestComplete(
@@ -32,6 +138,57 @@ OidInternalRequestComplete(
     FilterRequest = CONTAINING_RECORD(Request, XDP_OID_REQUEST, Oid);
     FilterRequest->Status = Status;
     KeSetEvent(&FilterRequest->CompletionEvent, 0, FALSE);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+OidIrpSubmitRequest(
+    _In_ LWF_FILTER *Filter,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    OID_SUBMIT_REQUEST_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    ULONG BytesReturned;
+    NTSTATUS Status;
+    BOUNCE_BUFFER InfoBuffer;
+
+    BounceInitialize(&InfoBuffer);
+
+    if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    Status =
+        BounceBuffer(
+            &InfoBuffer, In->InformationBuffer, In->InformationBufferLength, __alignof(UCHAR));
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        OidInternalRequest(
+            Filter->NdisFilterHandle, In->Key.RequestType, In->Key.Oid, InfoBuffer.Buffer,
+            In->InformationBufferLength, 0, 0, &BytesReturned);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Irp->IoStatus.Information = BytesReturned;
+
+    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < BytesReturned) {
+        Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+
+    RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, InfoBuffer.Buffer, BytesReturned);
+
+Exit:
+
+    BounceCleanup(&InfoBuffer);
+
+    return Status;
 }
 
 _Use_decl_annotations_

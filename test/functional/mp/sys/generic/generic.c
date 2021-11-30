@@ -173,7 +173,7 @@ GenericAdapterCreate(
     PoolParams.Header.Size = sizeof(PoolParams);
     PoolParams.fAllocateNetBuffer = TRUE;
     PoolParams.PoolTag = POOLTAG_GENERIC_RX;
-    PoolParams.ContextSize = GenericRxNblContextSize;
+    PoolParams.ContextSize = FNIO_ENQUEUE_NBL_CONTEXT_SIZE;
 
     AdapterGeneric->NblPool = NdisAllocateNetBufferListPool(NULL, &PoolParams);
     if (AdapterGeneric->NblPool == NULL) {

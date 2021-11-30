@@ -5,26 +5,26 @@
 #include "precomp.h"
 
 VOID
-IoctlCleanupRxEnqueue(
-    _Inout_ DATA_ENQUEUE_IN *RxEnqueueIn
+FnIoIoctlCleanupEnqueue(
+    _Inout_ DATA_ENQUEUE_IN *EnqueueIn
     )
 {
-    if (RxEnqueueIn->Buffers != NULL) {
-        for (UINT32 BufferIndex = 0; BufferIndex < RxEnqueueIn->Frame.BufferCount; BufferIndex++) {
-            if (RxEnqueueIn->Buffers[BufferIndex].VirtualAddress != NULL) {
-                BounceFree(RxEnqueueIn->Buffers[BufferIndex].VirtualAddress);
+    if (EnqueueIn->Buffers != NULL) {
+        for (UINT32 BufferIndex = 0; BufferIndex < EnqueueIn->Frame.BufferCount; BufferIndex++) {
+            if (EnqueueIn->Buffers[BufferIndex].VirtualAddress != NULL) {
+                BounceFree(EnqueueIn->Buffers[BufferIndex].VirtualAddress);
             }
         }
 
-        BounceFree(RxEnqueueIn->Buffers);
+        BounceFree(EnqueueIn->Buffers);
     }
 }
 
 NTSTATUS
-IoctlBounceRxEnqueue(
+FnIoIoctlBounceEnqueue(
     _In_ CONST VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
-    _Out_ DATA_ENQUEUE_IN *RxEnqueueIn
+    _Out_ DATA_ENQUEUE_IN *EnqueueIn
     )
 {
     NTSTATUS Status;
@@ -33,7 +33,7 @@ IoctlBounceRxEnqueue(
     UINT32 BufferCount;
     SIZE_T BufferArraySize;
 
-    RtlZeroMemory(RxEnqueueIn, sizeof(*RxEnqueueIn));
+    RtlZeroMemory(EnqueueIn, sizeof(*EnqueueIn));
     BounceInitialize(&Buffers);
     BounceInitialize(&Buffer);
 
@@ -46,9 +46,9 @@ IoctlBounceRxEnqueue(
     // The first level of the input structure has already been bounced by the
     // IO manager. Zero unbounced fields from the output structure.
     //
-    *RxEnqueueIn = *IoBuffer;
-    RxEnqueueIn->Buffers = NULL;
-    RxEnqueueIn->Frame.BufferCount = 0;
+    *EnqueueIn = *IoBuffer;
+    EnqueueIn->Buffers = NULL;
+    EnqueueIn->Frame.BufferCount = 0;
 
     //
     // Each frame must have at least one buffer.
@@ -68,11 +68,11 @@ IoctlBounceRxEnqueue(
         goto Exit;
     }
 
-    RxEnqueueIn->Buffers = BounceRelease(&Buffers);
+    EnqueueIn->Buffers = BounceRelease(&Buffers);
 
-    while (RxEnqueueIn->Frame.BufferCount < BufferCount) {
-        CONST UINT32 BufferIndex = RxEnqueueIn->Frame.BufferCount;
-        CONST DATA_BUFFER *RxBuffer = &RxEnqueueIn->Buffers[BufferIndex];
+    while (EnqueueIn->Frame.BufferCount < BufferCount) {
+        CONST UINT32 BufferIndex = EnqueueIn->Frame.BufferCount;
+        CONST DATA_BUFFER *RxBuffer = &EnqueueIn->Buffers[BufferIndex];
         UINT32 TotalLength;
 
         if (RxBuffer->BufferLength == 0) {
@@ -100,16 +100,16 @@ IoctlBounceRxEnqueue(
             goto Exit;
         }
 
-        RxEnqueueIn->Buffers[BufferIndex] = *RxBuffer;
-        RxEnqueueIn->Buffers[BufferIndex].VirtualAddress = BounceRelease(&Buffer);
-        RxEnqueueIn->Frame.BufferCount++;
+        EnqueueIn->Buffers[BufferIndex] = *RxBuffer;
+        EnqueueIn->Buffers[BufferIndex].VirtualAddress = BounceRelease(&Buffer);
+        EnqueueIn->Frame.BufferCount++;
     }
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        IoctlCleanupRxEnqueue(RxEnqueueIn);
-        RtlZeroMemory(RxEnqueueIn, sizeof(*RxEnqueueIn));
+        FnIoIoctlCleanupEnqueue(EnqueueIn);
+        RtlZeroMemory(EnqueueIn, sizeof(*EnqueueIn));
     }
 
     BounceCleanup(&Buffer);
@@ -119,33 +119,33 @@ Exit:
 }
 
 VOID
-IoctlCleanupTxFilter(
-    _In_ DATA_FILTER_IN *TxFilterIn
+FnIoIoctlCleanupFilter(
+    _In_ DATA_FILTER_IN *FilterIn
     )
 {
-    if (TxFilterIn->Mask != NULL) {
-        BounceFree(TxFilterIn->Mask);
+    if (FilterIn->Mask != NULL) {
+        BounceFree(FilterIn->Mask);
     }
 
-    if (TxFilterIn->Pattern != NULL) {
-        BounceFree(TxFilterIn->Pattern);
+    if (FilterIn->Pattern != NULL) {
+        BounceFree(FilterIn->Pattern);
     }
 
-    RtlZeroMemory(TxFilterIn, sizeof(*TxFilterIn));
+    RtlZeroMemory(FilterIn, sizeof(*FilterIn));
 }
 
 NTSTATUS
-IoctlBounceTxFilter(
+FnIoIoctlBounceFilter(
     _In_ CONST VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
-    _Out_ DATA_FILTER_IN *TxFilterIn
+    _Out_ DATA_FILTER_IN *FilterIn
     )
 {
     NTSTATUS Status;
     BOUNCE_BUFFER Pattern, Mask;
     CONST DATA_FILTER_IN *IoBuffer = InputBuffer;
 
-    RtlZeroMemory(TxFilterIn, sizeof(*TxFilterIn));
+    RtlZeroMemory(FilterIn, sizeof(*FilterIn));
     BounceInitialize(&Pattern);
     BounceInitialize(&Mask);
 
@@ -172,15 +172,15 @@ IoctlBounceTxFilter(
         goto Exit;
     }
 
-    TxFilterIn->Pattern = BounceRelease(&Pattern);
-    TxFilterIn->Mask = BounceRelease(&Mask);
-    TxFilterIn->Length = IoBuffer->Length;
+    FilterIn->Pattern = BounceRelease(&Pattern);
+    FilterIn->Mask = BounceRelease(&Mask);
+    FilterIn->Length = IoBuffer->Length;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        IoctlCleanupTxFilter(TxFilterIn);
-        RtlZeroMemory(TxFilterIn, sizeof(*TxFilterIn));
+        FnIoIoctlCleanupFilter(FilterIn);
+        RtlZeroMemory(FilterIn, sizeof(*FilterIn));
     }
 
     BounceCleanup(&Mask);

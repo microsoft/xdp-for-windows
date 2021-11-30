@@ -11,7 +11,6 @@
 #include <xdpassert.h>
 
 #include <native_x.h>
-#include <ioctlbounce.h>
 #include <miniport.h>
 #include <pooltag.h>
 #include <trace.h>

@@ -13,8 +13,8 @@
 #include <xdpassert.h>
 #include <xdprtl.h>
 
+#include <fnio.h>
 #include <generic_x.h>
-#include <ioctlbounce.h>
 #include <miniport.h>
 #include <pooltag.h>
 #include <trace.h>

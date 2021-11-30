@@ -7,6 +7,148 @@
 
 DEVICE_OBJECT *XdpFnLwfDeviceObject;
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Must_inspect_result_
+NTSYSAPI
+BOOLEAN
+NTAPI
+RtlEqualString(
+    _In_ const STRING * String1,
+    _In_ const STRING * String2,
+    _In_ BOOLEAN CaseInSensitive
+    );
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+LwfIrpCreate(
+    _Inout_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    FILE_FULL_EA_INFORMATION *EaBuffer;
+    XDPFNLWF_OPEN_PACKET *OpenPacket = NULL;
+    UCHAR Disposition = 0;
+    STRING ExpectedEaName;
+    STRING ActualEaName = {0};
+    FILE_CREATE_ROUTINE *CreateRoutine = NULL;
+
+#ifdef _WIN64
+    if (IoIs32bitProcess(Irp)) {
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+#endif
+
+    EaBuffer = Irp->AssociatedIrp.SystemBuffer;
+
+    if (EaBuffer == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    if (EaBuffer->NextEntryOffset != 0) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    Disposition = (UCHAR)(IrpSp->Parameters.Create.Options >> 24);
+
+    ActualEaName.MaximumLength = EaBuffer->EaNameLength;
+    ActualEaName.Length = EaBuffer->EaNameLength;
+    ActualEaName.Buffer = EaBuffer->EaName;
+
+    RtlInitString(&ExpectedEaName, XDPFNLWF_OPEN_PACKET_NAME);
+    if (!RtlEqualString(&ExpectedEaName, &ActualEaName, FALSE)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (EaBuffer->EaValueLength < sizeof(XDPFNLWF_OPEN_PACKET)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+    OpenPacket = (XDPFNLWF_OPEN_PACKET *)(EaBuffer->EaName + EaBuffer->EaNameLength + 1);
+
+    switch (OpenPacket->ObjectType) {
+    case XDPFNLWF_FILE_TYPE_DEFAULT:
+        CreateRoutine = DefaultIrpCreate;
+        break;
+
+    default:
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    Status =
+        CreateRoutine(
+            Irp, IrpSp, Disposition, OpenPacket + 1,
+            EaBuffer->EaValueLength - sizeof(XDPFNLWF_OPEN_PACKET));
+
+    if (NT_SUCCESS(Status)) {
+        ASSERT(IrpSp->FileObject->FsContext != NULL);
+        ASSERT(((FILE_OBJECT_HEADER *)IrpSp->FileObject->FsContext)->Dispatch != NULL);
+    }
+
+Exit:
+
+    ASSERT(Status != STATUS_PENDING);
+
+    return Status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+LwfIrpCleanup(
+    _Inout_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    FILE_OBJECT_HEADER *FileHeader = IrpSp->FileObject->FsContext;
+
+    if (FileHeader != NULL && FileHeader->Dispatch->Cleanup != NULL) {
+        return FileHeader->Dispatch->Cleanup(Irp, IrpSp);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+LwfIrpClose(
+    _Inout_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    FILE_OBJECT_HEADER *FileHeader = IrpSp->FileObject->FsContext;
+
+    if (FileHeader != NULL && FileHeader->Dispatch->Close != NULL) {
+        return FileHeader->Dispatch->Close(Irp, IrpSp);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+LwfIrpIoctl(
+    _Inout_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    FILE_OBJECT_HEADER *FileHeader;
+    NTSTATUS Status = STATUS_NOT_SUPPORTED;
+
+    Irp->IoStatus.Information = 0;
+    FileHeader = IrpSp->FileObject->FsContext;
+
+    if (FileHeader != NULL && FileHeader->Dispatch->IoControl != NULL) {
+        Status = FileHeader->Dispatch->IoControl(Irp, IrpSp);
+    }
+
+    return Status;
+}
+
 static
 _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -29,15 +171,19 @@ IrpIoDispatch(
 
     switch (IrpSp->MajorFunction) {
         case IRP_MJ_CREATE:
-        Status = STATUS_SUCCESS;
+        Status = LwfIrpCreate(Irp, IrpSp);
         break;
 
     case IRP_MJ_CLEANUP:
-        Status = STATUS_SUCCESS;
+        Status = LwfIrpCleanup(Irp, IrpSp);
         break;
 
     case IRP_MJ_CLOSE:
-        Status = STATUS_SUCCESS;
+        Status = LwfIrpClose(Irp, IrpSp);
+        break;
+
+    case IRP_MJ_DEVICE_CONTROL:
+        Status = LwfIrpIoctl(Irp, IrpSp);
         break;
 
     default:
@@ -110,6 +256,7 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_CREATE] = IrpIoDispatch;
     DriverObject->MajorFunction[IRP_MJ_CLEANUP] = IrpIoDispatch;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = IrpIoDispatch;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = IrpIoDispatch;
 #pragma warning(pop)
     DriverObject->DriverUnload = DriverUnload;
 

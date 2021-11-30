@@ -4,24 +4,19 @@
 
 #pragma once
 
+#pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
+
 #include <ntddk.h>
+#include <ntintsafe.h>
 #include <ndis.h>
 #include <ndis/ndl/nblqueue.h>
 #include <ntintsafe.h>
-#include <xdpddi.h>
+
 #include <xdpassert.h>
-#include <xdprefcount.h>
-#include <xdpstatusconvert.h>
+#include <xdprtl.h>
 
 #include <bounce.h>
 #include <fnio.h>
 
-#include "default.h"
-#include "dispatch.h"
-#include "filter.h"
-#include "oid.h"
+#include "ioctlbounce.h"
 #include "pooltag.h"
-#include "rx.h"
-#include "trace.h"
-#include "tx.h"
-#include "xdpfnlwfioctl.h"

@@ -64,49 +64,6 @@ typedef struct _XDPFNMP_OPEN_ADAPTER {
     CTL_CODE(FILE_DEVICE_NETWORK, 11, METHOD_BUFFERED, FILE_WRITE_ACCESS)
 
 //
-// Parameters for IOCTL_RX_ENQUEUE.
-//
-
-typedef struct _DATA_ENQUEUE_IN {
-    DATA_FRAME Frame;
-    DATA_BUFFER *Buffers;
-} DATA_ENQUEUE_IN;
-
-//
-// Parameters for IOCTL_RX_FLUSH.
-//
-
-typedef struct _DATA_FLUSH_IN {
-    DATA_FLUSH_OPTIONS Options;
-} DATA_FLUSH_IN;
-
-//
-// Parameters for IOCTL_TX_FILTER.
-//
-
-typedef struct _DATA_FILTER_IN {
-    UCHAR *Pattern;
-    UCHAR *Mask;
-    UINT32 Length;
-} DATA_FILTER_IN;
-
-//
-// Parameters for IOCTL_TX_GET_FRAME.
-//
-
-typedef struct _DATA_GET_FRAME_IN {
-    UINT32 Index;
-} DATA_GET_FRAME_IN;
-
-//
-// Parameters for IOCTL_TX_DEQUEUE_FRAME.
-//
-
-typedef struct _DATA_DEQUEUE_FRAME_IN {
-    UINT32 Index;
-} DATA_DEQUEUE_FRAME_IN;
-
-//
 // Parameters for IOCTL_MINIPORT_MTU.
 //
 
