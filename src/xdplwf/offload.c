@@ -699,6 +699,10 @@ XdpLwfOffloadRssSet(
     OffloadContext->Settings.Rss = XdpRssParams;
     XdpRssParams = NULL;
 
+    if (OldXdpRssParams == NULL) {
+        XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    }
+
     TraceInfo(TRACE_LWF, "Filter=%p updated lower edge RSS settings", Filter);
 
 Exit:
@@ -852,7 +856,7 @@ Exit:
 
 static
 VOID
-XdpLwfOffloadRssUnInitialize(
+XdpLwfOffloadRssDeactivate(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
@@ -870,6 +874,8 @@ XdpLwfOffloadRssUnInitialize(
         //
         goto Exit;
     }
+
+    XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
 
     //
     // Set the miniport's RSS settings to what the upper layers expect.
@@ -983,6 +989,8 @@ XdpLwfCloseInterfaceOffloadHandle(
     //
 
     if (OffloadContext->Settings.Rss != NULL) {
+
+        XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
 
         //
         // Clear the lower edge setting to imply lower edge has no independent settings.
@@ -1270,6 +1278,30 @@ XdpLwfOffloadTransformNbls(
 }
 
 VOID
+XdpLwfOffloadDeactivate(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    //
+    // Invalidate all interface offload handles.
+    //
+    // TODO: Tie offload handle validity to XDPIF interface set lifetime and
+    //       notify XDPIF interface set clients upon interface set deletion.
+    //
+    while (!IsListEmpty(&Filter->Offload.InterfaceOffloadHandleListHead)) {
+        XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext =
+            CONTAINING_RECORD(Filter->Offload.InterfaceOffloadHandleListHead.Flink, XDP_LWF_INTERFACE_OFFLOAD_CONTEXT, Link);
+
+        RemoveEntryList(&OffloadContext->Link);
+        InitializeListHead(&OffloadContext->Link);
+        OffloadContext->IsInvalid = TRUE;
+        OffloadContext->Filter = NULL;
+    }
+
+    XdpLwfOffloadRssDeactivate(Filter);
+}
+
+VOID
 XdpLwfOffloadInitialize(
     _In_ XDP_LWF_FILTER *Filter
     )
@@ -1292,21 +1324,5 @@ XdpLwfOffloadUnInitialize(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
-    //
-    // Invalidate all interface offload handles.
-    //
-    // TODO: Tie offload handle validity to XDPIF interface set lifetime and
-    //       notify XDPIF interface set clients upon interface set deletion.
-    //
-    while (!IsListEmpty(&Filter->Offload.InterfaceOffloadHandleListHead)) {
-        XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext =
-            CONTAINING_RECORD(Filter->Offload.InterfaceOffloadHandleListHead.Flink, XDP_LWF_INTERFACE_OFFLOAD_CONTEXT, Link);
-
-        RemoveEntryList(&OffloadContext->Link);
-        InitializeListHead(&OffloadContext->Link);
-        OffloadContext->IsInvalid = TRUE;
-        OffloadContext->Filter = NULL;
-    }
-
-    XdpLwfOffloadRssUnInitialize(Filter);
+    UNREFERENCED_PARAMETER(Filter);
 }

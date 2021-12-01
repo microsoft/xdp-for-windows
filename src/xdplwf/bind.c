@@ -263,6 +263,8 @@ XdpLwfFilterDetach(
 
     TraceInfo(TRACE_GENERIC, "IfIndex=%u", Filter->MiniportIfIndex);
 
+    XdpLwfOffloadDeactivate(Filter);
+
     if (Filter->XdpIfInterfaceSetHandle != NULL) {
         XdpNativeDetachInterface(&Filter->Native);
         XdpGenericDetachInterface(&Filter->Generic);

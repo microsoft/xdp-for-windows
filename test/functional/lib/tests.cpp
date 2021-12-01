@@ -3156,18 +3156,6 @@ VerifyRssDatapath(
     }
 
     //
-    // Force XDP to attach to the generic RX datapath.
-    // TODO: Remove this block once RSS offload is fixed to correctly add a
-    //       generic RX datapath reference itself.
-    //
-    wil::unique_handle ProgramHandle;
-    XDP_RULE Rule;
-    Rule.Match = XDP_MATCH_ALL;
-    Rule.Action = XDP_PROGRAM_ACTION_PASS;
-    ProgramHandle =
-        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
-
-    //
     // Indicate RX on each miniport RSS queue and capture all packets after XDP
     // passes them up.
     //
