@@ -68,6 +68,7 @@ typedef struct _XDP_INTERFACE_NMR {
 typedef struct _XDP_INTERFACE_SET {
     LIST_ENTRY Link;
     NET_IFINDEX IfIndex;
+    XDP_REFERENCE_COUNT ReferenceCount;
     CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch;
     VOID *XdpIfInterfaceSetContext;
     XDP_INTERFACE *Interfaces[2];   // One interface for both generic and native.
@@ -161,6 +162,15 @@ XdpIfpReferenceInterface(
 
 static
 VOID
+XdpIfpReferenceIfSet(
+    _Inout_ XDP_INTERFACE_SET *IfSet
+    )
+{
+    XdpIncrementReferenceCount(&IfSet->ReferenceCount);
+}
+
+static
+VOID
 XdpIfpDereferenceInterface(
     _Inout_ XDP_INTERFACE *Interface
     )
@@ -174,12 +184,31 @@ XdpIfpDereferenceInterface(
     }
 }
 
+static
+VOID
+XdpIfpDereferenceIfSet(
+    _Inout_ XDP_INTERFACE_SET *IfSet
+    )
+{
+    if (XdpDecrementReferenceCount(&IfSet->ReferenceCount)) {
+        ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
+    }
+}
+
 VOID
 XdpIfDereferenceBinding(
     _In_ XDP_BINDING_HANDLE BindingHandle
     )
 {
     XdpIfpDereferenceInterface((XDP_INTERFACE *)BindingHandle);
+}
+
+VOID
+XdpIfDereferenceIfSet(
+    _In_ XDP_IFSET_HANDLE IfSetHandle
+    )
+{
+    XdpIfpDereferenceIfSet((XDP_INTERFACE_SET *)IfSetHandle);
 }
 
 static
@@ -611,6 +640,29 @@ XdpIfFindAndReferenceBinding(
     return (XDP_BINDING_HANDLE)Interface;
 }
 
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_IFSET_HANDLE
+XdpIfFindAndReferenceIfSet(
+    _In_ NET_IFINDEX IfIndex,
+    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ UINT32 HookCount,
+    _In_opt_ XDP_INTERFACE_MODE *RequiredMode
+    )
+{
+    XDP_INTERFACE *Interface = NULL;
+    XDP_INTERFACE_SET *IfSet = NULL;
+
+    ExAcquirePushLockShared(&XdpInterfaceSetsLock);
+    Interface = XdpIfpFindInterface(IfIndex, HookIds, HookCount, RequiredMode);
+    if (Interface != NULL) {
+        XdpIfpReferenceIfSet(Interface->IfSet);
+        IfSet = Interface->IfSet;
+    }
+    ExReleasePushLockShared(&XdpInterfaceSetsLock);
+
+    return (XDP_IFSET_HANDLE)IfSet;
+}
+
 VOID
 XdpIfQueueWorkItem(
     _In_ XDP_BINDING_WORKITEM *WorkItem
@@ -635,58 +687,58 @@ XdpIfGetCapabilities(
 
 NTSTATUS
 XdpIfOpenInterfaceOffloadHandle(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ CONST XDP_HOOK_ID *HookId,
     _Out_ VOID **InterfaceOffloadHandle
     )
 {
-    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
 
     return
-        Interface->IfSet->OffloadDispatch->OpenInterfaceOffloadHandle(
-            Interface->IfSet->XdpIfInterfaceSetContext, HookId, InterfaceOffloadHandle);
+        IfSet->OffloadDispatch->OpenInterfaceOffloadHandle(
+            IfSet->XdpIfInterfaceSetContext, HookId, InterfaceOffloadHandle);
 }
 
 VOID
 XdpIfCloseInterfaceOffloadHandle(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ VOID *InterfaceOffloadHandle
     )
 {
-    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
 
-    Interface->IfSet->OffloadDispatch->CloseInterfaceOffloadHandle(InterfaceOffloadHandle);
+    IfSet->OffloadDispatch->CloseInterfaceOffloadHandle(InterfaceOffloadHandle);
 }
 
 NTSTATUS
 XdpIfGetInterfaceOffload(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _Out_opt_ VOID *OffloadParams,
     _Inout_ UINT32 *OffloadParamsSize
     )
 {
-    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
 
     return
-        Interface->IfSet->OffloadDispatch->GetInterfaceOffload(
+        IfSet->OffloadDispatch->GetInterfaceOffload(
             InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
 }
 
 NTSTATUS
 XdpIfSetInterfaceOffload(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
     _In_ UINT32 OffloadParamsSize
     )
 {
-    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
 
     return
-        Interface->IfSet->OffloadDispatch->SetInterfaceOffload(
+        IfSet->OffloadDispatch->SetInterfaceOffload(
             InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
 }
 
@@ -838,6 +890,7 @@ XdpIfCreateInterfaceSet(
     IfSet->IfIndex = IfIndex;
     IfSet->OffloadDispatch = OffloadDispatch;
     IfSet->XdpIfInterfaceSetContext = InterfaceSetContext;
+    XdpInitializeReferenceCount(&IfSet->ReferenceCount);
     InitializeListHead(&IfSet->Link);
     InsertTailList(&XdpInterfaceSets, &IfSet->Link);
 
@@ -881,7 +934,7 @@ XdpIfDeleteInterfaceSet(
         IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
 
     RemoveEntryList(&IfSet->Link);
-    ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
+    XdpIfpDereferenceIfSet(IfSet);
 
     ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }
@@ -946,6 +999,7 @@ XdpIfAddInterfaces(
             goto Exit;
         }
 
+        XdpIfpReferenceIfSet(IfSet);
         ASSERT(IfSet->Interfaces[Interface->Capabilities.Mode] == NULL);
         IfSet->Interfaces[Interface->Capabilities.Mode] = Interface;
         *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Interface;
@@ -969,6 +1023,7 @@ Exit:
                 IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
                 *Interfaces[Index].InterfaceHandle = NULL;
                 XdpIfpDereferenceInterface(Interface);
+                XdpIfpDereferenceIfSet(IfSet);
             }
         }
     }
@@ -1001,6 +1056,7 @@ XdpIfRemoveInterfaces(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Removing",
             Interface->IfIndex, Interface->Capabilities.Mode);
         Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
+        XdpIfpDereferenceIfSet(Interface->IfSet);
         Interface->IfSet = NULL;
 
         Interface->RemoveWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;

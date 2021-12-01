@@ -856,12 +856,68 @@ XdpLwfOffloadRssUnInitialize(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
+    NTSTATUS Status;
+    XDP_OFFLOAD_PARAMS_RSS *OldXdpRssParams = NULL;
+    NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
+    UINT32 NdisRssParamsLength;
+    ULONG BytesReturned;
+
+    OldXdpRssParams = InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, NULL);
+    if (OldXdpRssParams == NULL) {
+        //
+        // No independently managed state; the miniport's RSS settings are
+        // already what the upper layers expect.
+        //
+        goto Exit;
+    }
+
     //
-    // TODO: Refcounting on upper/lower edge to set offloads based on upper edge settings.
+    // Set the miniport's RSS settings to what the upper layers expect.
     //
+
+    ASSERT(Filter->Offload.UpperEdge.Rss != NULL);
+
+    Status =
+        CreateNdisRssParamsFromXdpRssParams(
+            Filter->Offload.UpperEdge.Rss, &NdisRssParams, &NdisRssParamsLength);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpLwfOidInternalRequest(
+            Filter->NdisFilterHandle, NdisRequestSetInformation,
+            OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength,
+            0, 0, &BytesReturned);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Failed OID_GEN_RECEIVE_SCALE_PARAMETERS Status=%!STATUS!",
+            Filter, Status);
+        goto Exit;
+    }
+
+    //
+    // Update the generic state.
+    //
+    Status = XdpGenericRssUpdateIndirection(&Filter->Generic, NdisRssParams, NdisRssParamsLength);
+    // TODO: Need to guarantee both miniport and generic are in the same state.
+    ASSERT(NT_SUCCESS(Status));
+
+    TraceInfo(TRACE_LWF, "Filter=%p restored RSS settings with upper edge", Filter);
+
+Exit:
+
     if (Filter->Offload.UpperEdge.Rss != NULL) {
-        ExFreePoolWithTag(Filter->Offload.UpperEdge.Rss, POOLTAG_OFFLOAD);
-        Filter->Offload.UpperEdge.Rss = NULL;
+        OldXdpRssParams = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, NULL);
+    }
+
+    if (OldXdpRssParams != NULL) {
+        ExFreePoolWithTag(OldXdpRssParams, POOLTAG_OFFLOAD);
+    }
+
+    if (NdisRssParams != NULL) {
+        ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
     }
 }
 
@@ -1250,10 +1306,6 @@ XdpLwfOffloadUnInitialize(
         InitializeListHead(&OffloadContext->Link);
         OffloadContext->IsInvalid = TRUE;
         OffloadContext->Filter = NULL;
-
-        //
-        // TODO: Revert offload settings to the upper edge settings.
-        //
     }
 
     XdpLwfOffloadRssUnInitialize(Filter);

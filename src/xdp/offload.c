@@ -11,7 +11,7 @@
 
 typedef struct _XDP_RSS_OBJECT {
     XDP_FILE_OBJECT_HEADER Header;
-    XDP_BINDING_HANDLE IfHandle;
+    XDP_IFSET_HANDLE IfSetHandle;
     VOID *InterfaceOffloadHandle;
 } XDP_RSS_OBJECT;
 
@@ -52,7 +52,7 @@ XdpIrpRssGet(
     //
     Status =
         XdpIfGetInterfaceOffload(
-            RssObject->IfHandle, RssObject->InterfaceOffloadHandle,
+            RssObject->IfSetHandle, RssObject->InterfaceOffloadHandle,
             XdpOffloadRss, &RssParams, &RssParamsSize);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -268,7 +268,7 @@ XdpIrpRssSet(
     //
     Status =
         XdpIfSetInterfaceOffload(
-            RssObject->IfHandle, RssObject->InterfaceOffloadHandle,
+            RssObject->IfSetHandle, RssObject->InterfaceOffloadHandle,
             XdpOffloadRss, &RssParams, sizeof(RssParams));
 
 Exit:
@@ -303,7 +303,7 @@ XdpIrpCreateRss(
 #else
     NTSTATUS Status;
     CONST XDP_RSS_OPEN *Params = NULL;
-    XDP_BINDING_HANDLE BindingHandle = NULL;
+    XDP_IFSET_HANDLE IfSetHandle = NULL;
     VOID *InterfaceOffloadHandle = NULL;
     XDP_RSS_OBJECT *RssObject = NULL;
     CONST XDP_HOOK_ID HookId = {
@@ -314,7 +314,6 @@ XdpIrpCreateRss(
 
     UNREFERENCED_PARAMETER(Irp);
 
-
     if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
@@ -323,18 +322,17 @@ XdpIrpCreateRss(
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", Params->IfIndex);
 
-    BindingHandle =
-        XdpIfFindAndReferenceBinding(Params->IfIndex, &HookId, 1, NULL);
-    if (BindingHandle == NULL) {
+    IfSetHandle = XdpIfFindAndReferenceIfSet(Params->IfIndex, &HookId, 1, NULL);
+    if (IfSetHandle == NULL) {
         TraceError(
-            TRACE_CORE, "IfIndex=%u Failed to find binding", Params->IfIndex);
+            TRACE_CORE, "IfIndex=%u Failed to find interface set", Params->IfIndex);
         Status = STATUS_NOT_FOUND;
         goto Exit;
     }
 
     Status =
         XdpIfOpenInterfaceOffloadHandle(
-            BindingHandle, &HookId, &InterfaceOffloadHandle);
+            IfSetHandle, &HookId, &InterfaceOffloadHandle);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -351,10 +349,10 @@ XdpIrpCreateRss(
 
     RssObject->Header.ObjectType = XDP_OBJECT_TYPE_RSS;
     RssObject->Header.Dispatch = &XdpRssFileDispatch;
-    RssObject->IfHandle = BindingHandle;
+    RssObject->IfSetHandle = IfSetHandle;
     RssObject->InterfaceOffloadHandle = InterfaceOffloadHandle;
     IrpSp->FileObject->FsContext = RssObject;
-    BindingHandle = NULL;
+    IfSetHandle = NULL;
     InterfaceOffloadHandle = NULL;
     RssObject = NULL;
     Status = STATUS_SUCCESS;
@@ -365,10 +363,10 @@ Exit:
         ExFreePoolWithTag(RssObject, XDP_POOLTAG_RSS);
     }
     if (InterfaceOffloadHandle != NULL) {
-        XdpIfCloseInterfaceOffloadHandle(BindingHandle, InterfaceOffloadHandle);
+        XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
     }
-    if (BindingHandle != NULL) {
-        XdpIfDereferenceBinding(BindingHandle);
+    if (IfSetHandle != NULL) {
+        XdpIfDereferenceIfSet(IfSetHandle);
     }
 
     if (Params != NULL) {
@@ -399,12 +397,12 @@ XdpIrpRssClose(
 
     TraceEnter(TRACE_CORE, "Rss=%p", RssObject);
 
-    ASSERT(RssObject->IfHandle != NULL);
+    ASSERT(RssObject->IfSetHandle != NULL);
     ASSERT(RssObject->InterfaceOffloadHandle != NULL);
 
     XdpIfCloseInterfaceOffloadHandle(
-        RssObject->IfHandle, RssObject->InterfaceOffloadHandle);
-    XdpIfDereferenceBinding(RssObject->IfHandle);
+        RssObject->IfSetHandle, RssObject->InterfaceOffloadHandle);
+    XdpIfDereferenceIfSet(RssObject->IfSetHandle);
 
     TraceInfo(TRACE_CORE, "Rss=%p delete", RssObject);
 

@@ -10,6 +10,7 @@
 typedef struct _XDP_BINDING_HANDLE *XDP_BINDING_HANDLE;
 typedef struct _XDP_BINDING_CLIENT_ENTRY XDP_BINDING_CLIENT_ENTRY;
 typedef struct _XDP_BINDING_WORKITEM XDP_BINDING_WORKITEM;
+typedef struct _XDP_IFSET_HANDLE *XDP_IFSET_HANDLE;
 
 //
 // Serialized work queue callback.
@@ -39,9 +40,23 @@ XdpIfFindAndReferenceBinding(
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     );
 
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_IFSET_HANDLE
+XdpIfFindAndReferenceIfSet(
+    _In_ NET_IFINDEX IfIndex,
+    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ UINT32 HookCount,
+    _In_opt_ XDP_INTERFACE_MODE *RequiredMode
+    );
+
 VOID
 XdpIfDereferenceBinding(
     _In_ XDP_BINDING_HANDLE BindingHandle
+    );
+
+VOID
+XdpIfDereferenceIfSet(
+    _In_ XDP_IFSET_HANDLE IfSetHandle
     );
 
 VOID
@@ -63,20 +78,20 @@ XdpIfSupportsHookId(
 
 NTSTATUS
 XdpIfOpenInterfaceOffloadHandle(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ CONST XDP_HOOK_ID *HookId,
     _Out_ VOID **InterfaceOffloadHandle
     );
 
 VOID
 XdpIfCloseInterfaceOffloadHandle(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ VOID *InterfaceOffloadHandle
     );
 
 NTSTATUS
 XdpIfGetInterfaceOffload(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _Out_opt_ VOID *OffloadParams,
@@ -85,7 +100,7 @@ XdpIfGetInterfaceOffload(
 
 NTSTATUS
 XdpIfSetInterfaceOffload(
-    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,

@@ -3326,6 +3326,87 @@ OffloadRssUnchanged()
         RtlEqualMemory(IndirectionTable, &ExpectedIndirectionTable, ExpectedIndirectionTableSize));
 }
 
+VOID
+OffloadRssInterfaceRestart()
+{
+    wil::unique_handle RssHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
+    UINT32 RssConfigSize;
+    UINT32 OriginalRssConfigSize;
+    VOID *HashSecretKey;
+    VOID *OriginalHashSecretKey;
+    VOID *IndirectionTable;
+    VOID *OriginalIndirectionTable;
+
+    //
+    // Get original RSS settings and configure new settings.
+    //
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    OriginalRssConfig = GetXdpRss(RssHandle, &OriginalRssConfigSize);
+
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(OriginalRssConfigSize));
+    RtlCopyMemory(RssConfig.get(), OriginalRssConfig.get(), OriginalRssConfigSize);
+    RssConfigSize = OriginalRssConfigSize;
+
+    RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
+    RssConfig->HashType =
+        RssConfig->HashType ^ (XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_TCP_IPV6);
+
+    RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_SECRET_KEY;
+    TEST_TRUE(RssConfig->HashSecretKeySize > 0);
+    HashSecretKey = (UCHAR *)RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset);
+    ((UCHAR *)HashSecretKey)[0] = ~(((UCHAR *)HashSecretKey)[0]);
+
+    RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+    TEST_TRUE(RssConfig->IndirectionTableSize >= (2 * sizeof(PROCESSOR_NUMBER)));
+    RssConfig->IndirectionTableSize /= 2;
+
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+
+    FnMpIf.Restart();
+
+    //
+    // Verify old handle is invalid.
+    //
+
+    UINT32 Size = RssConfigSize;
+    TEST_EQUAL(
+        XdpRssGet(RssHandle.get(), RssConfig.get(), &Size),
+        HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
+
+    TEST_EQUAL(
+        XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize),
+        HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
+
+    RssHandle.reset();
+
+    //
+    // Verify original RSS settings are restored.
+    //
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+
+    TEST_EQUAL(RssConfig->Flags, OriginalRssConfig->Flags);
+    TEST_EQUAL(RssConfig->HashType, OriginalRssConfig->HashType);
+
+    TEST_EQUAL(RssConfig->HashSecretKeySize, OriginalRssConfig->HashSecretKeySize);
+    HashSecretKey = RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset);
+    OriginalHashSecretKey =
+        RTL_PTR_ADD(OriginalRssConfig.get(), OriginalRssConfig->HashSecretKeyOffset);
+    TEST_TRUE(
+        RtlEqualMemory(HashSecretKey, OriginalHashSecretKey, RssConfig->HashSecretKeySize));
+
+    TEST_EQUAL(RssConfig->IndirectionTableSize, OriginalRssConfig->IndirectionTableSize);
+    IndirectionTable = RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    OriginalIndirectionTable =
+        RTL_PTR_ADD(OriginalRssConfig.get(), OriginalRssConfig->IndirectionTableOffset);
+    TEST_TRUE(
+        RtlEqualMemory(IndirectionTable, OriginalIndirectionTable, RssConfig->IndirectionTableSize));
+}
+
 static
 VOID
 CreateIndirectionTable(
@@ -3426,6 +3507,7 @@ OffloadRss()
     //
     // OffloadRssError();
 
+    OffloadRssInterfaceRestart();
     OffloadRssUnchanged();
 
     OffloadRssSingleSet({0});
