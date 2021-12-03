@@ -6,11 +6,16 @@
 
 #include "oid.h"
 
+typedef struct _XDP_LWF_OFFLOAD_SETTING_RSS {
+    XDP_OFFLOAD_PARAMS_RSS Params;
+    XDP_REFERENCE_COUNT ReferenceCount;
+} XDP_LWF_OFFLOAD_SETTING_RSS;
+
 //
 // Describes a set of interface offload configurations.
 //
 typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
-    XDP_OFFLOAD_PARAMS_RSS *Rss;
+    XDP_LWF_OFFLOAD_SETTING_RSS *Rss;
     // ...
 } XDP_LWF_INTERFACE_OFFLOAD_SETTINGS;
 

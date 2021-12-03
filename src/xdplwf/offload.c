@@ -303,14 +303,15 @@ Exit:
 
 static
 NTSTATUS
-CreateXdpRssParamsFromNdisRssParams(
+InitializeXdpRssParamsFromNdisRssParams(
     _In_ CONST NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams,
     _In_ UINT32 NdisRssParamsLength,
-    _Out_ XDP_OFFLOAD_PARAMS_RSS **XdpRssParamsOut
+    _Out_ XDP_OFFLOAD_PARAMS_RSS *XdpRssParams
     )
 {
     NTSTATUS Status;
-    XDP_OFFLOAD_PARAMS_RSS *XdpRssParams;
+
+    RtlZeroMemory(XdpRssParams, sizeof(*XdpRssParams));
 
     if (NdisRssParamsLength < NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2 ||
         NdisRssParams->Header.Type != NDIS_OBJECT_TYPE_RSS_PARAMETERS ||
@@ -342,16 +343,6 @@ CreateXdpRssParamsFromNdisRssParams(
             NdisRssParamsLength);
         ASSERT(FALSE);
         Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
-
-    //
-    // TODO: pre-allocate params buffer during init.
-    //
-    XdpRssParams = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*XdpRssParams), POOLTAG_OFFLOAD);
-    if (XdpRssParams == NULL) {
-        TraceError(TRACE_LWF, "Failed to allocate XDP RSS params");
-        Status = STATUS_NO_MEMORY;
         goto Exit;
     }
 
@@ -391,7 +382,6 @@ CreateXdpRssParamsFromNdisRssParams(
         ASSERT(NdisRssParams->HashSecretKeySize == 0);
     }
 
-    *XdpRssParamsOut = XdpRssParams;
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -428,7 +418,7 @@ XdpLwfOffloadRssGet(
 {
     NTSTATUS Status;
     XDP_LWF_FILTER *Filter = OffloadContext->Filter;
-    XDP_OFFLOAD_PARAMS_RSS *XdpRssParams;
+    XDP_LWF_OFFLOAD_SETTING_RSS *CurrentRssSetting = NULL;
 
     ASSERT(RssParams != NULL);
     ASSERT(*RssParamsLength == sizeof(*RssParams));
@@ -441,24 +431,24 @@ XdpLwfOffloadRssGet(
     switch (OffloadContext->Edge) {
     case XdpOffloadEdgeLower:
         if (Filter->Offload.LowerEdge.Rss != NULL) {
-            XdpRssParams = Filter->Offload.LowerEdge.Rss;
+            CurrentRssSetting = Filter->Offload.LowerEdge.Rss;
         } else {
             //
             // No lower edge state implies lower and upper edge state are the same.
             //
-            XdpRssParams = Filter->Offload.UpperEdge.Rss;
+            CurrentRssSetting = Filter->Offload.UpperEdge.Rss;
         }
         break;
     case XdpOffloadEdgeUpper:
-        XdpRssParams = Filter->Offload.UpperEdge.Rss;
+        CurrentRssSetting = Filter->Offload.UpperEdge.Rss;
         break;
     default:
         ASSERT(FALSE);
-        XdpRssParams = NULL;
+        CurrentRssSetting = NULL;
         break;
     }
 
-    if (XdpRssParams == NULL) {
+    if (CurrentRssSetting == NULL) {
         //
         // RSS not initialized yet.
         //
@@ -467,12 +457,127 @@ XdpLwfOffloadRssGet(
             "OffloadContext=%p RSS params not found", OffloadContext);
         Status = STATUS_INVALID_DEVICE_STATE;
     } else {
-        RtlCopyMemory(RssParams, XdpRssParams, sizeof(*XdpRssParams));
-        *RssParamsLength = sizeof(*XdpRssParams);
+        RtlCopyMemory(RssParams, &CurrentRssSetting->Params, sizeof(CurrentRssSetting->Params));
+        *RssParamsLength = sizeof(CurrentRssSetting->Params);
         Status = STATUS_SUCCESS;
     }
 
     return Status;
+}
+
+static
+VOID
+RemoveLowerEdgeRssSetting(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    NTSTATUS Status;
+    XDP_OFFLOAD_PARAMS_RSS *XdpRssParams;
+    UINT32 NdisRssParamsLength;
+    ULONG BytesReturned;
+    NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
+
+    ASSERT(Filter->Offload.LowerEdge.Rss != NULL);
+
+    XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+
+    //
+    // Clear the lower edge setting to imply lower edge has no independent settings.
+    //
+    InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, NULL);
+
+    if (Filter->Offload.UpperEdge.Rss == NULL) {
+        //
+        // Upper edge RSS is not initialized.
+        //
+        TraceError(TRACE_LWF, "Filter=%p Upper edge RSS params not present", Filter);
+        goto Exit;
+    }
+
+    //
+    // Plumb the lower edge with the upper edge settings.
+    //
+    // The lower and upper edge settings could have diverged, so we must
+    // specify all parameters. None can be indicated as unchanged.
+    //
+    // TODO: When encountering failures here, we need to try our best to
+    //       not leave the NDIS stack in an inconsistent state. Add
+    //       retry logic.
+    //
+
+    XdpRssParams = &Filter->Offload.UpperEdge.Rss->Params;
+
+    InheritXdpRssParams(XdpRssParams, NULL);
+
+    Status =
+        CreateNdisRssParamsFromXdpRssParams(
+            XdpRssParams, &NdisRssParams, &NdisRssParamsLength);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Failed to create NDIS RSS params Status=%!STATUS!",
+            Filter, Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    Status =
+        XdpLwfOidInternalRequest(
+            Filter->NdisFilterHandle, NdisRequestSetInformation,
+            OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength, 0, 0,
+            &BytesReturned);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Failed OID_GEN_RECEIVE_SCALE_PARAMETERS Status=%!STATUS!",
+            Filter, Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    //
+    // Update the generic state.
+    //
+    Status = XdpGenericRssUpdateIndirection(&Filter->Generic, NdisRssParams, NdisRssParamsLength);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Failed to update generic indirection table Status=%!STATUS!",
+            Filter, Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+Exit:
+
+    if (NdisRssParams != NULL) {
+        ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
+    }
+}
+
+static
+VOID
+ReferenceRssSetting(
+    _In_ XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting
+    )
+{
+    XdpIncrementReferenceCount(&RssSetting->ReferenceCount);
+}
+
+static
+VOID
+DereferenceRssSetting(
+    _In_ XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting,
+    _In_opt_ XDP_LWF_FILTER *Filter
+    )
+{
+    if (XdpDecrementReferenceCount(&RssSetting->ReferenceCount)) {
+        if (Filter != NULL && Filter->Offload.LowerEdge.Rss == RssSetting) {
+            RemoveLowerEdgeRssSetting(Filter);
+        }
+
+        ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
+    }
 }
 
 static
@@ -486,9 +591,9 @@ XdpLwfOffloadRssSet(
     NTSTATUS Status;
     XDP_LWF_FILTER *Filter = OffloadContext->Filter;
     ULONG *BitmapBuffer = NULL;
-    XDP_OFFLOAD_PARAMS_RSS *CurrentXdpRssParams;
-    XDP_OFFLOAD_PARAMS_RSS *OldXdpRssParams = NULL;
-    XDP_OFFLOAD_PARAMS_RSS *XdpRssParams = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *CurrentRssSetting = NULL;
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
     UINT32 NdisRssParamsLength;
     ULONG BytesReturned;
@@ -501,7 +606,7 @@ XdpLwfOffloadRssSet(
     //
     switch (OffloadContext->Edge) {
     case XdpOffloadEdgeLower:
-        CurrentXdpRssParams = Filter->Offload.LowerEdge.Rss;
+        CurrentRssSetting = Filter->Offload.LowerEdge.Rss;
         break;
     case XdpOffloadEdgeUpper:
         //
@@ -514,7 +619,7 @@ XdpLwfOffloadRssSet(
         goto Exit;
     default:
         ASSERT(FALSE);
-        CurrentXdpRssParams = NULL;
+        CurrentRssSetting = NULL;
         break;
     }
 
@@ -522,8 +627,8 @@ XdpLwfOffloadRssSet(
     // Ensure compatibility with existing settings. Currently, only allow
     // overwrite of a configuration plumbed by the same offload context.
     //
-    if (CurrentXdpRssParams != NULL) {
-        if (CurrentXdpRssParams != OffloadContext->Settings.Rss) {
+    if (CurrentRssSetting != NULL) {
+        if (CurrentRssSetting != OffloadContext->Settings.Rss) {
             //
             // TODO: ref count the edge setting and make this policy less restrictive
             //
@@ -534,7 +639,7 @@ XdpLwfOffloadRssSet(
             goto Exit;
         }
     } else {
-        CurrentXdpRssParams = Filter->Offload.UpperEdge.Rss;
+        CurrentRssSetting = Filter->Offload.UpperEdge.Rss;
     }
 
     //
@@ -648,25 +753,30 @@ XdpLwfOffloadRssSet(
     //
     // Clone the input params.
     //
-    XdpRssParams = ExAllocatePoolZero(NonPagedPoolNx, RssParamsLength, POOLTAG_OFFLOAD);
-    if (XdpRssParams == NULL) {
+
+    RssSetting = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RssSetting), POOLTAG_OFFLOAD);
+    if (RssSetting == NULL) {
         TraceError(
-            TRACE_LWF, "OffloadContext=%p Failed to allocate XDP RSS params", OffloadContext);
+            TRACE_LWF, "OffloadContext=%p Failed to allocate XDP RSS setting", OffloadContext);
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
-    RtlCopyMemory(XdpRssParams, RssParams, RssParamsLength);
+
+    XdpInitializeReferenceCount(&RssSetting->ReferenceCount);
+    RtlCopyMemory(&RssSetting->Params, RssParams, RssParamsLength);
 
     //
     // Inherit unspecified parameters from the current RSS settings.
     //
-    InheritXdpRssParams(XdpRssParams, CurrentXdpRssParams);
+    InheritXdpRssParams(&RssSetting->Params, &CurrentRssSetting->Params);
 
     //
     // Form and issue the OID.
     //
 
-    Status = CreateNdisRssParamsFromXdpRssParams(XdpRssParams, &NdisRssParams, &NdisRssParamsLength);
+    Status =
+        CreateNdisRssParamsFromXdpRssParams(
+            &RssSetting->Params, &NdisRssParams, &NdisRssParamsLength);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -695,12 +805,14 @@ XdpLwfOffloadRssSet(
     // Update the tracking RSS state for the edge.
     //
 
-    OldXdpRssParams = InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, XdpRssParams);
-    OffloadContext->Settings.Rss = XdpRssParams;
-    XdpRssParams = NULL;
+    OldRssSetting = InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, RssSetting);
+    OffloadContext->Settings.Rss = RssSetting;
+    RssSetting = NULL;
 
-    if (OldXdpRssParams == NULL) {
+    if (OldRssSetting == NULL) {
         XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    } else {
+        DereferenceRssSetting(OldRssSetting, Filter);
     }
 
     TraceInfo(TRACE_LWF, "Filter=%p updated lower edge RSS settings", Filter);
@@ -708,19 +820,15 @@ XdpLwfOffloadRssSet(
 Exit:
 
     if (BitmapBuffer != NULL) {
-         ExFreePoolWithTag(BitmapBuffer, POOLTAG_OFFLOAD);
+        ExFreePoolWithTag(BitmapBuffer, POOLTAG_OFFLOAD);
     }
 
     if (NdisRssParams != NULL) {
         ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
     }
 
-    if (XdpRssParams != NULL) {
-        ExFreePoolWithTag(XdpRssParams, POOLTAG_OFFLOAD);
-    }
-
-    if (OldXdpRssParams != NULL) {
-        ExFreePoolWithTag(OldXdpRssParams, POOLTAG_OFFLOAD);
+    if (RssSetting != NULL) {
+        ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
     }
 
     return Status;
@@ -735,10 +843,22 @@ XdpLwfOffloadRssUpdate(
     )
 {
     NTSTATUS Status;
-    XDP_OFFLOAD_PARAMS_RSS *XdpRssParams = NULL;
-    XDP_OFFLOAD_PARAMS_RSS *OldXdpRssParams = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting = NULL;
 
-    Status = CreateXdpRssParamsFromNdisRssParams(NdisRssParams, NdisRssParamsLength, &XdpRssParams);
+    RssSetting = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RssSetting), POOLTAG_OFFLOAD);
+    if (RssSetting == NULL) {
+        TraceError(
+            TRACE_LWF, "Filter=%p Failed to allocate XDP RSS setting", Filter);
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    XdpInitializeReferenceCount(&RssSetting->ReferenceCount);
+
+    Status =
+        InitializeXdpRssParamsFromNdisRssParams(
+            NdisRssParams, NdisRssParamsLength, &RssSetting->Params);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -746,22 +866,24 @@ XdpLwfOffloadRssUpdate(
     //
     // Inherit unspecified parameters from the current upper edge settings.
     //
-    InheritXdpRssParams(XdpRssParams, Filter->Offload.UpperEdge.Rss);
+    if (Filter->Offload.UpperEdge.Rss != NULL) {
+        InheritXdpRssParams(&RssSetting->Params, &Filter->Offload.UpperEdge.Rss->Params);
+    }
 
-    OldXdpRssParams = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, XdpRssParams);
-    XdpRssParams = NULL;
+    OldRssSetting = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, RssSetting);
+    RssSetting = NULL;
     Status = STATUS_SUCCESS;
 
     TraceInfo(TRACE_LWF, "Filter=%p updated upper edge RSS settings", Filter);
 
 Exit:
 
-    if (OldXdpRssParams != NULL) {
-        ExFreePoolWithTag(OldXdpRssParams, POOLTAG_OFFLOAD);
+    if (OldRssSetting != NULL) {
+        ExFreePoolWithTag(OldRssSetting, POOLTAG_OFFLOAD);
     }
 
-    if (XdpRssParams != NULL) {
-        ExFreePoolWithTag(XdpRssParams, POOLTAG_OFFLOAD);
+    if (RssSetting != NULL) {
+        ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
     }
 
     return Status;
@@ -860,70 +982,23 @@ XdpLwfOffloadRssDeactivate(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
-    NTSTATUS Status;
-    XDP_OFFLOAD_PARAMS_RSS *OldXdpRssParams = NULL;
-    NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
-    UINT32 NdisRssParamsLength;
-    ULONG BytesReturned;
-
-    OldXdpRssParams = InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, NULL);
-    if (OldXdpRssParams == NULL) {
-        //
-        // No independently managed state; the miniport's RSS settings are
-        // already what the upper layers expect.
-        //
-        goto Exit;
-    }
-
-    XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting;
 
     //
-    // Set the miniport's RSS settings to what the upper layers expect.
+    // Restore the miniport's RSS settings to what the upper layers expect.
     //
-
-    ASSERT(Filter->Offload.UpperEdge.Rss != NULL);
-
-    Status =
-        CreateNdisRssParamsFromXdpRssParams(
-            Filter->Offload.UpperEdge.Rss, &NdisRssParams, &NdisRssParamsLength);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
-    Status =
-        XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, NdisRequestSetInformation,
-            OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength,
-            0, 0, &BytesReturned);
-    if (!NT_SUCCESS(Status)) {
-        TraceError(
-            TRACE_LWF,
-            "Filter=%p Failed OID_GEN_RECEIVE_SCALE_PARAMETERS Status=%!STATUS!",
-            Filter, Status);
-        goto Exit;
+    if (Filter->Offload.LowerEdge.Rss != NULL) {
+        RemoveLowerEdgeRssSetting(Filter);
     }
 
     //
-    // Update the generic state.
+    // Free the upper edge RSS settings.
     //
-    Status = XdpGenericRssUpdateIndirection(&Filter->Generic, NdisRssParams, NdisRssParamsLength);
-    // TODO: Need to guarantee both miniport and generic are in the same state.
-    ASSERT(NT_SUCCESS(Status));
-
-    TraceInfo(TRACE_LWF, "Filter=%p restored RSS settings with upper edge", Filter);
-
-Exit:
-
     if (Filter->Offload.UpperEdge.Rss != NULL) {
-        OldXdpRssParams = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, NULL);
-    }
-
-    if (OldXdpRssParams != NULL) {
-        ExFreePoolWithTag(OldXdpRssParams, POOLTAG_OFFLOAD);
-    }
-
-    if (NdisRssParams != NULL) {
-        ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
+        OldRssSetting = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, NULL);
+        if (OldRssSetting != NULL) {
+            ExFreePoolWithTag(OldRssSetting, POOLTAG_OFFLOAD);
+        }
     }
 }
 
@@ -974,9 +1049,17 @@ XdpLwfCloseInterfaceOffloadHandle(
 {
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
     XDP_LWF_FILTER *Filter = OffloadContext->Filter;
-    NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p", OffloadContext);
+
+    //
+    // Revert the handle's configured offloads.
+    //
+
+    if (OffloadContext->Settings.Rss != NULL) {
+        DereferenceRssSetting(OffloadContext->Settings.Rss, Filter);
+        OffloadContext->Settings.Rss = NULL;
+    }
 
     if (OffloadContext->IsInvalid) {
         goto Exit;
@@ -984,96 +1067,9 @@ XdpLwfCloseInterfaceOffloadHandle(
 
     RemoveEntryList(&OffloadContext->Link);
 
-    //
-    // Revert the handle's configured offloads.
-    //
-
-    if (OffloadContext->Settings.Rss != NULL) {
-
-        XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
-
-        //
-        // Clear the lower edge setting to imply lower edge has no independent settings.
-        //
-        ASSERT(Filter->Offload.LowerEdge.Rss == OffloadContext->Settings.Rss);
-        InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, NULL);
-
-        if (Filter->Offload.UpperEdge.Rss != NULL) {
-            NTSTATUS Status;
-            XDP_OFFLOAD_PARAMS_RSS *XdpRssParams;
-            UINT32 NdisRssParamsLength;
-            ULONG BytesReturned;
-
-            //
-            // Plumb the lower edge with the upper edge settings.
-            //
-            // The lower and upper edge settings could have diverged, so we must
-            // specify all parameters. None can be indicated as unchanged.
-            //
-            // TODO: When encountering failures here, we need to try our best to
-            //       not leave the NDIS stack in an inconsistent state. Add
-            //       retry logic.
-            //
-
-            XdpRssParams = Filter->Offload.UpperEdge.Rss;
-
-            InheritXdpRssParams(XdpRssParams, NULL);
-
-            Status =
-                CreateNdisRssParamsFromXdpRssParams(
-                    XdpRssParams, &NdisRssParams, &NdisRssParamsLength);
-            if (!NT_SUCCESS(Status)) {
-                TraceError(
-                    TRACE_LWF,
-                    "OffloadContext=%p Failed to create NDIS RSS params Status=%!STATUS!",
-                    OffloadContext, Status);
-                goto Exit;
-            }
-
-            Status =
-                XdpLwfOidInternalRequest(
-                    Filter->NdisFilterHandle, NdisRequestSetInformation,
-                    OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength, 0, 0,
-                    &BytesReturned);
-            if (!NT_SUCCESS(Status)) {
-                TraceError(
-                    TRACE_LWF,
-                    "OffloadContext=%p Failed OID_GEN_RECEIVE_SCALE_PARAMETERS Status=%!STATUS!",
-                    OffloadContext, Status);
-                ASSERT(FALSE);
-                goto Exit;
-            }
-
-            //
-            // Update the generic state.
-            //
-            Status = XdpGenericRssUpdateIndirection(&Filter->Generic, NdisRssParams, NdisRssParamsLength);
-            if (!NT_SUCCESS(Status)) {
-                TraceError(
-                    TRACE_LWF,
-                    "OffloadContext=%p Failed to update generic indirection table Status=%!STATUS!",
-                    OffloadContext, Status);
-                ASSERT(FALSE);
-            }
-        } else {
-            //
-            // Upper edge RSS is not initialized.
-            //
-            ASSERT(FALSE);
-        }
-    }
-
 Exit:
 
     TraceVerbose(TRACE_LWF, "OffloadContext=%p Deleted", OffloadContext);
-
-    if (NdisRssParams != NULL) {
-        ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
-    }
-
-    if (OffloadContext->Settings.Rss != NULL) {
-        ExFreePoolWithTag(OffloadContext->Settings.Rss, POOLTAG_OFFLOAD);
-    }
 
     ExFreePoolWithTag(OffloadContext, POOLTAG_OFFLOAD);
 
@@ -1282,6 +1278,8 @@ XdpLwfOffloadDeactivate(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
     //
     // Invalidate all interface offload handles.
     //
@@ -1299,6 +1297,8 @@ XdpLwfOffloadDeactivate(
     }
 
     XdpLwfOffloadRssDeactivate(Filter);
+
+    TraceExitSuccess(TRACE_LWF);
 }
 
 VOID
