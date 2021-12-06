@@ -517,7 +517,6 @@ RemoveLowerEdgeRssSetting(
             TRACE_LWF,
             "Filter=%p Failed to create NDIS RSS params Status=%!STATUS!",
             Filter, Status);
-        ASSERT(FALSE);
         goto Exit;
     }
 
@@ -531,7 +530,6 @@ RemoveLowerEdgeRssSetting(
             TRACE_LWF,
             "Filter=%p Failed OID_GEN_RECEIVE_SCALE_PARAMETERS Status=%!STATUS!",
             Filter, Status);
-        ASSERT(FALSE);
         goto Exit;
     }
 
@@ -544,7 +542,6 @@ RemoveLowerEdgeRssSetting(
             TRACE_LWF,
             "Filter=%p Failed to update generic indirection table Status=%!STATUS!",
             Filter, Status);
-        ASSERT(FALSE);
         goto Exit;
     }
 
