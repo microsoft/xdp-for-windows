@@ -409,15 +409,28 @@ XdpLwfConvertHookIdToOffloadEdge(
 }
 
 static
+VOID
+XdpLwfFreeRssSetting(
+    _In_ XDP_LIFETIME_ENTRY *Entry
+    )
+{
+    XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting =
+        CONTAINING_RECORD(Entry, XDP_LWF_OFFLOAD_SETTING_RSS, DeleteEntry);
+
+    ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
+}
+
+static
+_Requires_lock_held_(&Filter->Offload.Lock)
 NTSTATUS
 XdpLwfOffloadRssGet(
+    _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
     _Out_ XDP_OFFLOAD_PARAMS_RSS *RssParams,
     _Inout_ UINT32 *RssParamsLength
     )
 {
     NTSTATUS Status;
-    XDP_LWF_FILTER *Filter = OffloadContext->Filter;
     XDP_LWF_OFFLOAD_SETTING_RSS *CurrentRssSetting = NULL;
 
     ASSERT(RssParams != NULL);
@@ -466,6 +479,7 @@ XdpLwfOffloadRssGet(
 }
 
 static
+_Requires_lock_held_(&Filter->Offload.Lock)
 VOID
 RemoveLowerEdgeRssSetting(
     _In_ XDP_LWF_FILTER *Filter
@@ -484,7 +498,7 @@ RemoveLowerEdgeRssSetting(
     //
     // Clear the lower edge setting to imply lower edge has no independent settings.
     //
-    InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, NULL);
+    Filter->Offload.LowerEdge.Rss = NULL;
 
     if (Filter->Offload.UpperEdge.Rss == NULL) {
         //
@@ -553,15 +567,19 @@ Exit:
 }
 
 static
+_Requires_lock_held_(&Filter->Offload.Lock)
 VOID
 ReferenceRssSetting(
-    _In_ XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting
+    _In_ XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting,
+    _In_ XDP_LWF_FILTER *Filter
     )
 {
+    UNREFERENCED_PARAMETER(Filter);
     XdpIncrementReferenceCount(&RssSetting->ReferenceCount);
 }
 
 static
+_When_(Filter != NULL, _Requires_lock_held_(&Filter->Offload.Lock))
 VOID
 DereferenceRssSetting(
     _In_ XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting,
@@ -573,20 +591,21 @@ DereferenceRssSetting(
             RemoveLowerEdgeRssSetting(Filter);
         }
 
-        ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
+        XdpLifetimeDelete(XdpLwfFreeRssSetting, &RssSetting->DeleteEntry);
     }
 }
 
 static
+_Requires_lock_held_(&Filter->Offload.Lock)
 NTSTATUS
 XdpLwfOffloadRssSet(
+    _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
     _In_ XDP_OFFLOAD_PARAMS_RSS *RssParams,
     _In_ UINT32 RssParamsLength
     )
 {
     NTSTATUS Status;
-    XDP_LWF_FILTER *Filter = OffloadContext->Filter;
     ULONG *BitmapBuffer = NULL;
     XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting = NULL;
     XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting = NULL;
@@ -802,7 +821,8 @@ XdpLwfOffloadRssSet(
     // Update the tracking RSS state for the edge.
     //
 
-    OldRssSetting = InterlockedExchangePointer(&Filter->Offload.LowerEdge.Rss, RssSetting);
+    OldRssSetting = Filter->Offload.LowerEdge.Rss;
+    Filter->Offload.LowerEdge.Rss = RssSetting;
     OffloadContext->Settings.Rss = RssSetting;
     RssSetting = NULL;
 
@@ -832,6 +852,7 @@ Exit:
 }
 
 static
+_Requires_lock_held_(&Filter->Offload.Lock)
 NTSTATUS
 XdpLwfOffloadRssUpdate(
     _In_ XDP_LWF_FILTER *Filter,
@@ -867,7 +888,8 @@ XdpLwfOffloadRssUpdate(
         InheritXdpRssParams(&RssSetting->Params, &Filter->Offload.UpperEdge.Rss->Params);
     }
 
-    OldRssSetting = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, RssSetting);
+    OldRssSetting = Filter->Offload.UpperEdge.Rss;
+    Filter->Offload.UpperEdge.Rss = RssSetting;
     RssSetting = NULL;
     Status = STATUS_SUCCESS;
 
@@ -876,7 +898,7 @@ XdpLwfOffloadRssUpdate(
 Exit:
 
     if (OldRssSetting != NULL) {
-        ExFreePoolWithTag(OldRssSetting, POOLTAG_OFFLOAD);
+        XdpLifetimeDelete(XdpLwfFreeRssSetting, &OldRssSetting->DeleteEntry);
     }
 
     if (RssSetting != NULL) {
@@ -974,6 +996,7 @@ Exit:
 }
 
 static
+_Requires_lock_held_(&Filter->Offload.Lock)
 VOID
 XdpLwfOffloadRssDeactivate(
     _In_ XDP_LWF_FILTER *Filter
@@ -992,9 +1015,10 @@ XdpLwfOffloadRssDeactivate(
     // Free the upper edge RSS settings.
     //
     if (Filter->Offload.UpperEdge.Rss != NULL) {
-        OldRssSetting = InterlockedExchangePointer(&Filter->Offload.UpperEdge.Rss, NULL);
+        OldRssSetting = Filter->Offload.UpperEdge.Rss;
+        Filter->Offload.UpperEdge.Rss = NULL;
         if (OldRssSetting != NULL) {
-            ExFreePoolWithTag(OldRssSetting, POOLTAG_OFFLOAD);
+            XdpLifetimeDelete(XdpLwfFreeRssSetting, &OldRssSetting->DeleteEntry);
         }
     }
 }
@@ -1010,6 +1034,16 @@ XdpLwfOpenInterfaceOffloadHandle(
     NTSTATUS Status;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = NULL;
 
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+
+    if (Filter->NdisFilterHandle == NULL) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Detached filter", Filter);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
     OffloadContext =
         ExAllocatePoolZero(NonPagedPoolNx, sizeof(*OffloadContext), POOLTAG_OFFLOAD);
     if (OffloadContext == NULL) {
@@ -1023,6 +1057,7 @@ XdpLwfOpenInterfaceOffloadHandle(
     TraceVerbose(TRACE_LWF, "Filter=%p OffloadContext=%p Created", Filter, OffloadContext);
 
     InsertTailList(&Filter->Offload.InterfaceOffloadHandleListHead, &OffloadContext->Link);
+    XdpLwfReferenceFilter(Filter);
     OffloadContext->Filter = Filter;
     OffloadContext->Edge = XdpLwfConvertHookIdToOffloadEdge(HookId);
     *InterfaceOffloadHandle = OffloadContext;
@@ -1030,6 +1065,8 @@ XdpLwfOpenInterfaceOffloadHandle(
     Status = STATUS_SUCCESS;
 
 Exit:
+
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext != NULL) {
         ExFreePoolWithTag(OffloadContext, POOLTAG_OFFLOAD);
@@ -1049,12 +1086,15 @@ XdpLwfCloseInterfaceOffloadHandle(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p", OffloadContext);
 
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+
     //
     // Revert the handle's configured offloads.
     //
 
     if (OffloadContext->Settings.Rss != NULL) {
-        DereferenceRssSetting(OffloadContext->Settings.Rss, Filter);
+        DereferenceRssSetting(
+            OffloadContext->Settings.Rss, (OffloadContext->IsInvalid) ? NULL : Filter);
         OffloadContext->Settings.Rss = NULL;
     }
 
@@ -1066,9 +1106,13 @@ XdpLwfCloseInterfaceOffloadHandle(
 
 Exit:
 
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+
     TraceVerbose(TRACE_LWF, "OffloadContext=%p Deleted", OffloadContext);
 
     ExFreePoolWithTag(OffloadContext, POOLTAG_OFFLOAD);
+
+    XdpLwfDereferenceFilter(Filter);
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -1084,8 +1128,11 @@ XdpLwfGetInterfaceOffload(
 {
     NTSTATUS Status;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
+    XDP_LWF_FILTER *Filter = OffloadContext->Filter;
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
+
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext->IsInvalid) {
         TraceError(
@@ -1096,10 +1143,11 @@ XdpLwfGetInterfaceOffload(
         goto Exit;
     }
 
+    ASSERT(Filter != NULL);
     switch (OffloadType) {
     case XdpOffloadRss:
         ASSERT(OffloadParams != NULL);
-        Status = XdpLwfOffloadRssGet(OffloadContext, OffloadParams, OffloadParamsSize);
+        Status = XdpLwfOffloadRssGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
@@ -1108,6 +1156,8 @@ XdpLwfGetInterfaceOffload(
     }
 
 Exit:
+
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceExitStatus(TRACE_LWF);
 
@@ -1125,8 +1175,11 @@ XdpLwfSetInterfaceOffload(
 {
     NTSTATUS Status;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
+    XDP_LWF_FILTER *Filter = OffloadContext->Filter;
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
+
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext->IsInvalid) {
         TraceError(
@@ -1137,9 +1190,10 @@ XdpLwfSetInterfaceOffload(
         goto Exit;
     }
 
+    ASSERT(Filter != NULL);
     switch (OffloadType) {
     case XdpOffloadRss:
-        Status = XdpLwfOffloadRssSet(OffloadContext, OffloadParams, OffloadParamsSize);
+        Status = XdpLwfOffloadRssSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
@@ -1148,6 +1202,8 @@ XdpLwfSetInterfaceOffload(
     }
 
 Exit:
+
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceExitStatus(TRACE_LWF);
 
@@ -1166,6 +1222,8 @@ XdpLwfOffloadInspectOidRequest(
 
     *Action = XdpOidActionPass;
     *CompletionStatus = NDIS_STATUS_SUCCESS;
+
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (Request->RequestType == NdisRequestSetInformation &&
         Request->DATA.SET_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
@@ -1219,6 +1277,8 @@ XdpLwfOffloadInspectOidRequest(
     Status = STATUS_SUCCESS;
 
 Exit:
+
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
 
     return XdpConvertNtStatusToNdisStatus(Status);
 }
@@ -1277,6 +1337,8 @@ XdpLwfOffloadDeactivate(
 {
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+
     //
     // Invalidate all interface offload handles.
     //
@@ -1290,10 +1352,11 @@ XdpLwfOffloadDeactivate(
         RemoveEntryList(&OffloadContext->Link);
         InitializeListHead(&OffloadContext->Link);
         OffloadContext->IsInvalid = TRUE;
-        OffloadContext->Filter = NULL;
     }
 
     XdpLwfOffloadRssDeactivate(Filter);
+
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -1311,7 +1374,9 @@ XdpLwfOffloadInitialize(
     // inspect it and might still be in flight after we query NDIS.
     //
 
+    ExInitializePushLock(&Filter->Offload.Lock);
     InitializeListHead(&Filter->Offload.InterfaceOffloadHandleListHead);
+
 
     XdpLwfOffloadRssInitialize(Filter);
 }

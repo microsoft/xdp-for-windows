@@ -9,6 +9,7 @@
 typedef struct _XDP_LWF_OFFLOAD_SETTING_RSS {
     XDP_OFFLOAD_PARAMS_RSS Params;
     XDP_REFERENCE_COUNT ReferenceCount;
+    XDP_LIFETIME_ENTRY DeleteEntry;
 } XDP_LWF_OFFLOAD_SETTING_RSS;
 
 //
@@ -23,6 +24,9 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
 // Per LWF filter state.
 //
 typedef struct _XDP_LWF_OFFLOAD {
+    EX_PUSH_LOCK Lock;
+
+
     //
     // Hardware capabilities.
     //

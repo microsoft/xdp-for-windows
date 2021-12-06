@@ -18,6 +18,24 @@ FILTER_SET_MODULE_OPTIONS XdpLwfFilterSetOptions;
 NDIS_HANDLE XdpLwfNdisDriverHandle = NULL;
 UINT32 XdpLwfNdisVersion;
 
+VOID
+XdpLwfReferenceFilter(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    XdpIncrementReferenceCount(&Filter->ReferenceCount);
+}
+
+VOID
+XdpLwfDereferenceFilter(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    if (XdpDecrementReferenceCount(&Filter->ReferenceCount)) {
+        ExFreePoolWithTag(Filter, POOLTAG_FILTER);
+    }
+}
+
 NTSTATUS
 XdpLwfBindStart(
     _In_ DRIVER_OBJECT *DriverObject
@@ -132,6 +150,7 @@ XdpLwfFilterAttach(
     Filter->MiniportIfIndex = AttachParameters->BaseMiniportIfIndex;
     Filter->NdisFilterHandle = NdisFilterHandle;
     Filter->NdisState = FilterPaused;
+    XdpInitializeReferenceCount(&Filter->ReferenceCount);
 
     //
     // TODO: create a work item for the OIDs below.
@@ -274,7 +293,9 @@ XdpLwfFilterDetach(
 
     XdpLwfOffloadUnInitialize(Filter);
 
-    ExFreePoolWithTag(Filter, POOLTAG_FILTER);
+    Filter->NdisFilterHandle = NULL;
+
+    XdpLwfDereferenceFilter(Filter);
 }
 
 _Use_decl_annotations_

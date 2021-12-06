@@ -19,6 +19,7 @@ typedef struct _XDP_LWF_FILTER {
     NDIS_HANDLE NdisFilterHandle;
     NET_IFINDEX MiniportIfIndex;
     XDP_LWF_FILTER_STATE NdisState;
+    XDP_REFERENCE_COUNT ReferenceCount;
     XDPIF_INTERFACE_SET_HANDLE XdpIfInterfaceSetHandle;
 
     XDP_LWF_OFFLOAD Offload;
@@ -35,3 +36,13 @@ typedef struct _XDP_LWF_FILTER {
 #define POOLTAG_RECV                'rfdX'      // Xdfr
 #define POOLTAG_RSS                 'RfdX'      // XdfR
 #define POOLTAG_SEND                'SfdX'      // XdfS
+
+VOID
+XdpLwfReferenceFilter(
+    _In_ XDP_LWF_FILTER *Filter
+    );
+
+VOID
+XdpLwfDereferenceFilter(
+    _In_ XDP_LWF_FILTER *Filter
+    );
