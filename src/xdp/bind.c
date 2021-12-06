@@ -270,7 +270,7 @@ XdpIfpCloseNmrInterface(
 
 static
 VOID
-XdpIfpInvokeCloseInterface(
+XdpIfpInvokeDriverCloseInterface(
     _In_ XDP_INTERFACE *Interface
     )
 {
@@ -288,6 +288,19 @@ XdpIfpInvokeCloseInterface(
 
 static
 VOID
+XdpIfpCloseDriverInterface(
+    _In_ XDP_INTERFACE *Interface
+    )
+{
+    if (Interface->XdpDriverApi.InterfaceContext != NULL) {
+        XdpIfpInvokeDriverCloseInterface(Interface);
+        Interface->XdpDriverApi.InterfaceDispatch = NULL;
+        Interface->XdpDriverApi.InterfaceContext = NULL;
+    }
+}
+
+static
+VOID
 XdpIfpCloseInterface(
     _In_ XDP_INTERFACE *Interface
     )
@@ -296,24 +309,11 @@ XdpIfpCloseInterface(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Interface->XdpDriverApi.InterfaceContext != NULL) {
-        XdpIfpInvokeCloseInterface(Interface);
-        Interface->XdpDriverApi.InterfaceDispatch = NULL;
-        Interface->XdpDriverApi.InterfaceContext = NULL;
-    }
+    XdpIfpCloseDriverInterface(Interface);
 
     if (Interface->Nmr != NULL) {
         XdpIfpCloseNmrInterface(Interface);
         Interface->NmrDeleting = FALSE;
-
-        TraceVerbose(TRACE_CORE, "interface closed");
-    }
-
-    if (Interface->XdpIfApi.InterfaceRemoving && Interface->XdpIfApi.InterfaceContext != NULL) {
-        Interface->XdpIfApi.RemoveInterfaceComplete(Interface->XdpIfApi.InterfaceContext);
-        Interface->XdpIfApi.InterfaceContext = NULL;
-
-        TraceVerbose(TRACE_CORE, "interface removal completed");
     }
 
     TraceExitSuccess(TRACE_CORE);
@@ -321,7 +321,7 @@ XdpIfpCloseInterface(
 
 static
 NTSTATUS
-XdpIfpInvokeOpenInterface(
+XdpIfpInvokeDriverOpenInterface(
     _In_ XDP_INTERFACE *Interface,
     _In_opt_ VOID *InterfaceContext,
     _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch
@@ -482,7 +482,7 @@ XdpIfpOpenInterface(
     Interface->XdpDriverApi.InterfaceContext = InterfaceContext;
     Interface->XdpDriverApi.InterfaceDispatch = InterfaceDispatch;
 
-    Status = XdpIfpInvokeOpenInterface(Interface, InterfaceContext, InterfaceDispatch);
+    Status = XdpIfpInvokeDriverOpenInterface(Interface, InterfaceContext, InterfaceDispatch);
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Interface open failed",
@@ -752,10 +752,6 @@ XdpIfpStartRundown(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    if (Interface->XdpDriverApi.ProviderReference == 0) {
-        XdpIfpCloseInterface(Interface);
-    }
-
     while (!IsListEmpty(&Interface->Clients)) {
         XDP_BINDING_CLIENT_ENTRY *ClientEntry =
             CONTAINING_RECORD(Interface->Clients.Flink, XDP_BINDING_CLIENT_ENTRY, Link);
@@ -768,12 +764,16 @@ XdpIfpStartRundown(
         XdpIfpDereferenceInterface(Interface);
     }
 
+    if (Interface->XdpDriverApi.ProviderReference == 0) {
+        XdpIfpCloseDriverInterface(Interface);
+    }
+
     TraceExitSuccess(TRACE_CORE);
 }
 
 static
 VOID
-XdpIfpInterfaceRemove(
+XdpIfpRemoveXdpIfInterface(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
@@ -783,9 +783,22 @@ XdpIfpInterfaceRemove(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
+    ASSERT(!Interface->XdpIfApi.InterfaceRemoving);
     Interface->XdpIfApi.InterfaceRemoving = TRUE;
 
     XdpIfpStartRundown(Interface);
+
+    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+    Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
+    XdpIfpDereferenceIfSet(Interface->IfSet);
+    Interface->IfSet = NULL;
+    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
+
+    ASSERT(Interface->XdpIfApi.InterfaceContext != NULL);
+    Interface->XdpIfApi.RemoveInterfaceComplete(Interface->XdpIfApi.InterfaceContext);
+    Interface->XdpIfApi.InterfaceContext = NULL;
+
+    TraceVerbose(TRACE_CORE, "XDPIF interface removal completed");
 
     //
     // Release the initial interface reference.
@@ -813,6 +826,11 @@ XdpIfpInterfaceNmrDelete(
         Interface->NmrDeleting = TRUE;
 
         XdpIfpStartRundown(Interface);
+
+        if (Interface->Nmr != NULL) {
+            XdpIfpCloseNmrInterface(Interface);
+            Interface->NmrDeleting = FALSE;
+        }
     }
 
     XdpIfpDereferenceNmr(Nmr);
@@ -1047,24 +1065,17 @@ XdpIfRemoveInterfaces(
     // when a NIC is deleted.
     //
 
-    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
-
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_INTERFACE *Interface = (XDP_INTERFACE *)Interfaces[Index];
 
         TraceVerbose(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Removing",
             Interface->IfIndex, Interface->Capabilities.Mode);
-        Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
-        XdpIfpDereferenceIfSet(Interface->IfSet);
-        Interface->IfSet = NULL;
 
         Interface->RemoveWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
-        Interface->RemoveWorkItem.WorkRoutine = XdpIfpInterfaceRemove;
+        Interface->RemoveWorkItem.WorkRoutine = XdpIfpRemoveXdpIfInterface;
         XdpIfQueueWorkItem(&Interface->RemoveWorkItem);
     }
-
-    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -1237,7 +1248,7 @@ XdpIfpDereferenceProvider(
 static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfpInvokeCreateRxQueue(
+XdpIfpInvokeDriverCreateRxQueue(
     _In_ XDP_INTERFACE *Interface,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
@@ -1287,7 +1298,8 @@ XdpIfCreateRxQueue(
     }
 
     Status =
-        XdpIfpInvokeCreateRxQueue(Interface, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
+        XdpIfpInvokeDriverCreateRxQueue(
+            Interface, Config, InterfaceRxQueue, InterfaceRxQueueDispatch);
     if (!NT_SUCCESS(Status)) {
         XdpIfpDereferenceProvider(Interface);
         goto Exit;
@@ -1348,7 +1360,7 @@ XdpIfDeleteRxQueue(
 static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfpInvokeCreateTxQueue(
+XdpIfpInvokeDriverCreateTxQueue(
     _In_ XDP_INTERFACE *Interface,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
@@ -1398,7 +1410,8 @@ XdpIfCreateTxQueue(
     }
 
     Status =
-        XdpIfpInvokeCreateTxQueue(Interface, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
+        XdpIfpInvokeDriverCreateTxQueue(
+            Interface, Config, InterfaceTxQueue, InterfaceTxQueueDispatch);
     if (!NT_SUCCESS(Status)) {
         XdpIfpDereferenceProvider(Interface);
         goto Exit;
