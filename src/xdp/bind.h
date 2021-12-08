@@ -59,6 +59,11 @@ XdpIfDereferenceIfSet(
     _In_ XDP_IFSET_HANDLE IfSetHandle
     );
 
+XDP_IFSET_HANDLE
+XdpIfGetIfSetHandle(
+    _In_ XDP_BINDING_HANDLE BindingHandle
+    );
+
 VOID
 XdpIfQueueWorkItem(
     _In_ XDP_BINDING_WORKITEM *WorkItem
@@ -105,6 +110,13 @@ XdpIfSetInterfaceOffload(
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
     _In_ UINT32 OffloadParamsSize
+    );
+
+NTSTATUS
+XdpIfReferenceInterfaceOffload(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
     );
 
 //

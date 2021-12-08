@@ -38,6 +38,8 @@ typedef struct _XDP_TX_QUEUE {
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
+    VOID *InterfaceOffloadHandle;
+
     BOOLEAN DeleteNeeded;
     XDP_BINDING_WORKITEM DeleteWorkItem;
     XDP_TX_QUEUE_NOTIFY_DETAILS NotifyDetails;
@@ -713,6 +715,21 @@ XdpTxQueueCreate(
         }
     }
 
+    Status =
+        XdpIfOpenInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(TxQueue->Binding), &TxQueue->Key.HookId,
+            &TxQueue->InterfaceOffloadHandle);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpIfReferenceInterfaceOffload(
+            XdpIfGetIfSetHandle(TxQueue->Binding), TxQueue->InterfaceOffloadHandle, XdpOffloadRss);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     *NewTxQueue = TxQueue;
     Status = STATUS_SUCCESS;
 
@@ -806,6 +823,12 @@ XdpTxQueueDelete(
     _In_ XDP_TX_QUEUE *TxQueue
     )
 {
+    if (TxQueue->InterfaceOffloadHandle != NULL) {
+        XdpIfCloseInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(TxQueue->Binding), TxQueue->InterfaceOffloadHandle);
+        TxQueue->InterfaceOffloadHandle = NULL;
+    }
+
     if (TxQueue->InterfaceTxQueue != NULL) {
         XdpIfDeleteTxQueue(TxQueue->Binding, TxQueue->InterfaceTxQueue);
     }

@@ -516,6 +516,13 @@ XdpGenericDetachInterface(
         KeWaitForSingleObject(
             &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, NULL);
         Generic->XdpIfInterfaceHandle = NULL;
+    } else {
+        //
+        // N.B. Even if the generic interface was not successfully attached, the
+        // generic datapath can still be referenced for offload support. Set the
+        // interface removed event to kick the delay dereference datapath thread.
+        //
+        KeSetEvent(&Generic->InterfaceRemovedEvent, 0, FALSE);
     }
 
     XdpGenericCleanupInterface(Generic);

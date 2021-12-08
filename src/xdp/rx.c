@@ -75,6 +75,8 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
+    VOID *InterfaceOffloadHandle;
+
     LIST_ENTRY NotifyClients;
 } XDP_RX_QUEUE;
 
@@ -682,6 +684,12 @@ XdpRxQueueDetachInterface(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
+    if (RxQueue->InterfaceOffloadHandle != NULL) {
+        XdpIfCloseInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
+        RxQueue->InterfaceOffloadHandle = NULL;
+    }
+
     if (RxQueue->InterfaceRxQueue != NULL) {
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH);
         XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue);
@@ -805,6 +813,21 @@ XdpRxQueueAttachInterface(
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
+    }
+
+    Status =
+        XdpIfOpenInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), &RxQueue->Key.HookId,
+            &RxQueue->InterfaceOffloadHandle);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpIfReferenceInterfaceOffload(
+            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle, XdpOffloadRss);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
     }
 
     RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch;

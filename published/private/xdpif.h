@@ -217,8 +217,20 @@ XDP_SET_INTERFACE_OFFLOAD(
     );
 
 //
+// References the current state of an offload on an interface. This ensures the
+// current state of that offload doesn't change.
+//
+typedef
+NTSTATUS
+XDP_REFERENCE_INTERFACE_OFFLOAD(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
+    );
+
+//
 // Close an interface offload configuration handle.
-// This reverts any offload configuration done via the handle.
+// This reverts any offload configuration done or references added via the
+// handle.
 //
 typedef
 VOID
@@ -234,6 +246,7 @@ typedef struct _XDP_OFFLOAD_DISPATCH {
     XDP_OPEN_INTERFACE_OFFLOAD_HANDLE *OpenInterfaceOffloadHandle;
     XDP_GET_INTERFACE_OFFLOAD *GetInterfaceOffload;
     XDP_SET_INTERFACE_OFFLOAD *SetInterfaceOffload;
+    XDP_REFERENCE_INTERFACE_OFFLOAD *ReferenceInterfaceOffload;
     XDP_CLOSE_INTERFACE_OFFLOAD_HANDLE *CloseInterfaceOffloadHandle;
 } XDP_OFFLOAD_DISPATCH;
 

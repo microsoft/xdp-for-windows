@@ -211,6 +211,15 @@ XdpIfDereferenceIfSet(
     XdpIfpDereferenceIfSet((XDP_INTERFACE_SET *)IfSetHandle);
 }
 
+XDP_IFSET_HANDLE
+XdpIfGetIfSetHandle(
+    _In_ XDP_BINDING_HANDLE BindingHandle
+    )
+{
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    return (XDP_IFSET_HANDLE)Interface->IfSet;
+}
+
 static
 VOID
 XdpIfpDereferenceNmr(
@@ -740,6 +749,20 @@ XdpIfSetInterfaceOffload(
     return
         IfSet->OffloadDispatch->SetInterfaceOffload(
             InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+}
+
+NTSTATUS
+XdpIfReferenceInterfaceOffload(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
+    )
+{
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+
+    return
+        IfSet->OffloadDispatch->ReferenceInterfaceOffload(
+            InterfaceOffloadHandle, OffloadType);
 }
 
 static

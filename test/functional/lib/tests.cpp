@@ -97,6 +97,17 @@ typedef struct {
     std::stack<UINT64> FreeDescriptors;
 } MY_SOCKET;
 
+typedef struct {
+    BOOLEAN Rx;
+    BOOLEAN Tx;
+} RX_TX_TESTCASE;
+
+static RX_TX_TESTCASE RxTxTestCases[] = {
+    { TRUE, FALSE },
+    { FALSE, TRUE },
+    { TRUE, TRUE }
+};
+
 static CONST CHAR *PowershellPrefix;
 
 //
@@ -1404,27 +1415,7 @@ BindingTest(
     _In_ BOOLEAN RestartAdapter
     )
 {
-    struct BINDING_CASE {
-        BOOLEAN Rx;
-        BOOLEAN Tx;
-    };
-    std::vector<BINDING_CASE> Cases;
-
-    for (BOOLEAN Rx = FALSE; Rx <= TRUE; Rx++) {
-        for (BOOLEAN Tx = FALSE; Tx <= TRUE; Tx++) {
-            if (!Rx && !Tx) {
-                continue;
-            }
-
-            BINDING_CASE Case = {};
-            Case.Rx = Rx;
-            Case.Tx = Tx;
-
-            Cases.push_back(Case);
-        }
-    }
-
-    for (auto Case : Cases) {
+    for (auto Case : RxTxTestCases) {
         //
         // Create and close an XSK.
         //
@@ -3238,11 +3229,12 @@ OffloadRssError()
     //
 
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
-    RtlZeroMemory(RssConfig.get(), RssConfigSize);
-    RssConfig->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
-    RssConfig->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
+
+    XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+    RssConfig->IndirectionTableSize = IndirectionTableSize;
     RssConfig->IndirectionTableOffset = sizeof(*RssConfig);
 
     PROCESSOR_NUMBER *IndirectionTable =
@@ -3252,31 +3244,88 @@ OffloadRssError()
     RssHandle.reset();
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
 
-    struct RSS_ERROR_CASE {
-        BOOLEAN Rx;
-        BOOLEAN Tx;
-    };
-    std::vector<RSS_ERROR_CASE> Cases;
-
-    for (BOOLEAN Rx = FALSE; Rx <= TRUE; Rx++) {
-        for (BOOLEAN Tx = FALSE; Tx <= TRUE; Tx++) {
-            if (!Rx && !Tx) {
-                continue;
-            }
-
-            RSS_ERROR_CASE Case = {};
-            Case.Rx = Rx;
-            Case.Tx = Tx;
-
-            Cases.push_back(Case);
-        }
-    }
-
-    for (auto Case : Cases) {
+    for (auto Case : RxTxTestCases) {
         auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
         HRESULT Error = XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize);
-        TEST_WARNING("Error is %d\n", Error);
         TEST_EQUAL(Error, HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
+    }
+
+    //
+    // Set while another handle has already set.
+    //
+
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+
+    wil::unique_handle RssHandle2;
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle2));
+    TEST_EQUAL(
+        XdpRssSet(RssHandle2.get(), RssConfig.get(), RssConfigSize),
+        HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
+}
+
+VOID
+OffloadRssReference()
+{
+    wil::unique_handle RssHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> ModifiedRssConfig;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
+    UINT32 RssConfigSize;
+    UINT32 ModifiedRssConfigSize;
+    UINT32 OriginalRssConfigSize;
+
+    for (auto Case : RxTxTestCases) {
+        //
+        // Get original RSS settings.
+        //
+        TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+        OriginalRssConfig = GetXdpRss(RssHandle, &OriginalRssConfigSize);
+
+        //
+        // Configure new RSS settings.
+        //
+
+        ModifiedRssConfigSize = OriginalRssConfigSize;
+        ModifiedRssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(ModifiedRssConfigSize));
+
+        XdpInitializeRssConfiguration(ModifiedRssConfig.get(), ModifiedRssConfigSize);
+        ModifiedRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
+        ModifiedRssConfig->HashType =
+            OriginalRssConfig->HashType ^ (XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_TCP_IPV6);
+        TEST_TRUE(ModifiedRssConfig->HashType != OriginalRssConfig->HashType);
+
+        TEST_HRESULT(XdpRssSet(RssHandle.get(), ModifiedRssConfig.get(), ModifiedRssConfigSize));
+
+        {
+            //
+            // Bind socket (and setup RX program).
+            //
+            auto Socket =
+                SetupSocket(
+                    FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
+
+            //
+            // Close RSS handle.
+            //
+            RssHandle.reset();
+
+            //
+            // Verify RSS settings persist.
+            //
+            TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+            RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+            TEST_EQUAL(RssConfig->HashType, ModifiedRssConfig->HashType);
+
+            //
+            // Close socket.
+            //
+        }
+
+        //
+        // Verify RSS settings restored.
+        //
+        RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+        TEST_EQUAL(RssConfig->HashType, OriginalRssConfig->HashType);
     }
 }
 
@@ -3624,11 +3673,8 @@ OffloadRss()
         return;
     }
 
-    //
-    // TODO: Already bound sockets and created programs should prohibit RSS changes.
-    //
-    // OffloadRssError();
-
+    OffloadRssError();
+    OffloadRssReference();
     OffloadRssInterfaceRestart();
     OffloadRssUnchanged();
     OffloadRssUpperSet();

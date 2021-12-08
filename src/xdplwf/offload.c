@@ -59,10 +59,18 @@ XdpLwfSetInterfaceOffload(
     _In_ UINT32 OffloadParamsSize
     );
 
+static
+NTSTATUS
+XdpLwfReferenceInterfaceOffload(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
+    );
+
 CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
     .OpenInterfaceOffloadHandle = XdpLwfOpenInterfaceOffloadHandle,
     .GetInterfaceOffload = XdpLwfGetInterfaceOffload,
     .SetInterfaceOffload = XdpLwfSetInterfaceOffload,
+    .ReferenceInterfaceOffload = XdpLwfReferenceInterfaceOffload,
     .CloseInterfaceOffloadHandle = XdpLwfCloseInterfaceOffloadHandle,
 };
 
@@ -602,7 +610,8 @@ XdpLwfOffloadRssSet(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
     _In_ XDP_OFFLOAD_PARAMS_RSS *RssParams,
-    _In_ UINT32 RssParamsLength
+    _In_ UINT32 RssParamsLength,
+    _Out_ BOOLEAN *AttachRxDatapath
     )
 {
     NTSTATUS Status;
@@ -616,6 +625,8 @@ XdpLwfOffloadRssSet(
 
     ASSERT(RssParams != NULL);
     ASSERT(RssParamsLength == sizeof(*RssParams));
+
+    *AttachRxDatapath = FALSE;
 
     //
     // Determine the appropriate edge.
@@ -827,7 +838,7 @@ XdpLwfOffloadRssSet(
     RssSetting = NULL;
 
     if (OldRssSetting == NULL) {
-        XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+        *AttachRxDatapath = TRUE;
     } else {
         DereferenceRssSetting(OldRssSetting, Filter);
     }
@@ -843,6 +854,90 @@ Exit:
     if (NdisRssParams != NULL) {
         ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
     }
+
+    if (RssSetting != NULL) {
+        ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
+    }
+
+    return Status;
+}
+
+static
+_Requires_lock_held_(&Filter->Offload.Lock)
+NTSTATUS
+XdpLwfOffloadRssReference(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
+    _Out_ BOOLEAN *AttachRxDatapath
+    )
+{
+    NTSTATUS Status;
+    XDP_LWF_OFFLOAD_SETTING_RSS *CurrentRssSetting = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting = NULL;
+    XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting = NULL;
+
+    *AttachRxDatapath = FALSE;
+
+    //
+    // Always use lower edge. Upper edge hook points (RX inject, TX inspect)
+    // still rely on lower edge RSS settings.
+    //
+    CurrentRssSetting = Filter->Offload.LowerEdge.Rss;
+
+    if (OffloadContext->Settings.Rss != NULL) {
+        //
+        // Don't allow referencing when it has already been set or previously
+        // referenced by this handle.
+        //
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p RSS params already set", OffloadContext);
+        Status = STATUS_INVALID_DEVICE_REQUEST;
+        goto Exit;
+    }
+
+    if (CurrentRssSetting != NULL) {
+        //
+        // Simply reference the existing settings.
+        //
+        ReferenceRssSetting(CurrentRssSetting, Filter);
+        OffloadContext->Settings.Rss = CurrentRssSetting;
+    } else {
+        //
+        // Make the lower edge independent.
+        //
+
+        CurrentRssSetting = Filter->Offload.UpperEdge.Rss;
+        if (CurrentRssSetting == NULL) {
+            TraceError(
+                TRACE_LWF, "OffloadContext=%p Upper edge RSS settings not present", OffloadContext);
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+
+        RssSetting = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RssSetting), POOLTAG_OFFLOAD);
+        if (RssSetting == NULL) {
+            TraceError(
+                TRACE_LWF, "OffloadContext=%p Failed to allocate XDP RSS setting", OffloadContext);
+            Status = STATUS_NO_MEMORY;
+            goto Exit;
+        }
+
+        XdpInitializeReferenceCount(&RssSetting->ReferenceCount);
+        RtlCopyMemory(&RssSetting->Params, CurrentRssSetting, sizeof(*CurrentRssSetting));
+
+        OldRssSetting = Filter->Offload.LowerEdge.Rss;
+        Filter->Offload.LowerEdge.Rss = RssSetting;
+        OffloadContext->Settings.Rss = RssSetting;
+        RssSetting = NULL;
+        ASSERT(OldRssSetting == NULL);
+
+        *AttachRxDatapath = TRUE;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
 
     if (RssSetting != NULL) {
         ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
@@ -1143,7 +1238,6 @@ XdpLwfGetInterfaceOffload(
         goto Exit;
     }
 
-    ASSERT(Filter != NULL);
     switch (OffloadType) {
     case XdpOffloadRss:
         ASSERT(OffloadParams != NULL);
@@ -1176,6 +1270,7 @@ XdpLwfSetInterfaceOffload(
     NTSTATUS Status;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
     XDP_LWF_FILTER *Filter = OffloadContext->Filter;
+    BOOLEAN AttachRxDatapath = FALSE;
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
@@ -1190,10 +1285,11 @@ XdpLwfSetInterfaceOffload(
         goto Exit;
     }
 
-    ASSERT(Filter != NULL);
     switch (OffloadType) {
     case XdpOffloadRss:
-        Status = XdpLwfOffloadRssSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
+        Status =
+            XdpLwfOffloadRssSet(
+                Filter, OffloadContext, OffloadParams, OffloadParamsSize, &AttachRxDatapath);
         break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
@@ -1204,6 +1300,58 @@ XdpLwfSetInterfaceOffload(
 Exit:
 
     ExReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    if (AttachRxDatapath) {
+        XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    }
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
+}
+
+static
+NTSTATUS
+XdpLwfReferenceInterfaceOffload(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
+    )
+{
+    NTSTATUS Status;
+    XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
+    XDP_LWF_FILTER *Filter = OffloadContext->Filter;
+    BOOLEAN AttachRxDatapath = FALSE;
+
+    TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
+
+    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+
+    if (OffloadContext->IsInvalid) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p Interface offload context invalidated",
+            OffloadContext);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    switch (OffloadType) {
+    case XdpOffloadRss:
+        Status = XdpLwfOffloadRssReference(Filter, OffloadContext, &AttachRxDatapath);
+        break;
+    default:
+        TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
+        Status = STATUS_NOT_SUPPORTED;
+        break;
+    }
+
+Exit:
+
+    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    if (AttachRxDatapath) {
+        XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    }
 
     TraceExitStatus(TRACE_LWF);
 
