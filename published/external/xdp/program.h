@@ -39,6 +39,15 @@ typedef enum _XDP_MATCH_TYPE {
     // The address mask is specified by field IpMask in XDP_MATCH_PATTERN.
     //
     XDP_MATCH_IPV6_DST_MASK,
+    //
+    // Match UDP destination port and QUIC destination connection IDs. The supplied
+    // buffer must match the CID at the given offset.
+    //
+    XDP_MATCH_QUIC_FLOW,
+    //
+    // MUST BE LAST. Used to determine the number of match types.
+    //
+    XDP_MATCH_COUNT
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {
@@ -50,6 +59,13 @@ typedef struct _XDP_IP_ADDRESS_MASK {
     XDP_INET_ADDR Mask;
     XDP_INET_ADDR Address;
 } XDP_IP_ADDRESS_MASK;
+
+typedef struct _XDP_QUIC_FLOW {
+    UINT16 UdpPort;
+    UCHAR CidLength;
+    UCHAR CidOffset;
+    UCHAR CidData[20]; // Max allowed per QUIC v1 RFC
+} XDP_QUIC_FLOW;
 
 //
 // Defines a pattern to match frames.
@@ -67,6 +83,10 @@ typedef union _XDP_MATCH_PATTERN {
     // The result is compared to the Address field of XDP_IP_ADDRESS_MASK.
     //
     XDP_IP_ADDRESS_MASK IpMask;
+    //
+    // Match on UDP port and QUIC connection ID.
+    //
+    XDP_QUIC_FLOW QuicFlow;
 } XDP_MATCH_PATTERN;
 
 typedef enum _XDP_RULE_ACTION {

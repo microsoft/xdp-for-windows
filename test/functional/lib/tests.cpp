@@ -1590,7 +1590,7 @@ GenericRxBackfillAndTrailer()
 VOID
 GenericRxMatchUdp(
     _In_ ADDRESS_FAMILY Af,
-    _In_ BOOLEAN MatchPort
+    _In_ XDP_MATCH_TYPE MatchType
     )
 {
     auto If = FnMpIf;
@@ -1613,21 +1613,56 @@ GenericRxMatchUdp(
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    UCHAR UdpPayload[] = "GenericRxMatchUdp";
-    CHAR RecvPayload[sizeof(UdpPayload)];
-    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    const UCHAR GenericUdpPayload[] = "GenericRxMatchUdp";
+    const UCHAR QuicLongHdrUdpPayload[40] = {
+        0x80, // IsLongHeader
+        0x01, 0x00, 0x00, 0x00, // Version
+        0x08, // DestCidLength
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
+        0x00 // The rest
+    };
+    const UCHAR QuicShortHdrUdpPayload[20] = {
+        0x00, // IsLongHeader
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
+        0x00 // The rest
+    };
+    const UCHAR CorrectQuicCid[] = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+    };
+    const UCHAR IncorrectQuicCid[] = {
+        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00
+    };
+
+    CHAR RecvPayload[sizeof(QuicLongHdrUdpPayload)];
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(QuicLongHdrUdpPayload)];
+    const UCHAR* UdpPayload;
+    UINT16 UdpPayloadLength;
+    if (MatchType == XDP_MATCH_QUIC_FLOW) {
+        UdpPayload = QuicLongHdrUdpPayload;
+        UdpPayloadLength = sizeof(QuicLongHdrUdpPayload);
+    } else {
+        UdpPayload = GenericUdpPayload;
+        UdpPayloadLength = sizeof(GenericUdpPayload);
+    }
+
     UINT32 UdpFrameLength = sizeof(UdpFrame);
     TEST_TRUE(
         PktBuildUdpFrame(
-            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
             &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     XDP_RULE Rule;
-    if (MatchPort) {
-        Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Match = MatchType;
+    if (MatchType == XDP_MATCH_UDP_DST) {
         Rule.Pattern.Port = LocalPort;
-    } else {
-        Rule.Match = XDP_MATCH_UDP;
+    } else if (MatchType == XDP_MATCH_QUIC_FLOW) {
+        Rule.Pattern.QuicFlow.UdpPort = LocalPort;
+        Rule.Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
+        Rule.Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
+        memcpy(
+            Rule.Pattern.QuicFlow.CidData,
+            CorrectQuicCid + Rule.Pattern.QuicFlow.CidOffset,
+            Rule.Pattern.QuicFlow.CidLength);
     }
 
     //
@@ -1640,8 +1675,8 @@ GenericRxMatchUdp(
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+    TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
     //
     // Verify XDP drop action.
@@ -1660,7 +1695,7 @@ GenericRxMatchUdp(
     // Redirect action is implicitly covered by XSK tests.
     //
 
-    if (MatchPort) {
+    if (Rule.Match == XDP_MATCH_UDP_DST) {
         //
         // Verify default action (when no rules match) is pass. Test only makes sense when
         // specific port matching is enabled.
@@ -1672,8 +1707,58 @@ GenericRxMatchUdp(
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
-        TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+    } else if (Rule.Match == XDP_MATCH_QUIC_FLOW) {
+        //
+        // Verify short header QUIC packets.
+        //
+        UdpPayload = QuicShortHdrUdpPayload;
+        UdpPayloadLength = sizeof(QuicShortHdrUdpPayload);
+        UdpFrameLength = sizeof(UdpFrame);
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
+                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+
+        //
+        // Verify the CID matching part.
+        //
+        ProgramHandle.reset();
+        memcpy(
+            Rule.Pattern.QuicFlow.CidData,
+            IncorrectQuicCid + Rule.Pattern.QuicFlow.CidOffset,
+            Rule.Pattern.QuicFlow.CidLength);
+
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Verify the port matching part.
+        //
+        ProgramHandle.reset();
+        Rule.Pattern.QuicFlow.UdpPort = htons(ntohs(LocalPort) - 1);
+        memcpy(
+            Rule.Pattern.QuicFlow.CidData,
+            CorrectQuicCid + Rule.Pattern.QuicFlow.CidOffset,
+            Rule.Pattern.QuicFlow.CidLength);
+
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
     } else {
         //
         // TODO - Send and validate some non-UDP traffic.

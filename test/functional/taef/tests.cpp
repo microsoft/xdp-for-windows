@@ -4,6 +4,7 @@
 
 #include <winsock2.h>
 #include <CppUnitTest.h>
+#include <xdpapi.h>
 
 #include "xdptest.h"
 #include "tests.h"
@@ -127,19 +128,27 @@ public:
     }
 
     TEST_METHOD(GenericRxMatchUdpV4) {
-        GenericRxMatchUdp(AF_INET, FALSE);
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_UDP);
     }
 
     TEST_METHOD(GenericRxMatchUdpV6) {
-        GenericRxMatchUdp(AF_INET6, FALSE);
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_UDP);
     }
 
     TEST_METHOD(GenericRxMatchUdpPortV4) {
-        GenericRxMatchUdp(AF_INET, TRUE);
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_UDP_DST);
     }
 
     TEST_METHOD(GenericRxMatchUdpPortV6) {
-        GenericRxMatchUdp(AF_INET6, TRUE);
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_UDP_DST);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpQuicV4) {
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_QUIC_FLOW);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpQuicV6) {
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_QUIC_FLOW);
     }
 
     TEST_METHOD(GenericRxMatchIpPrefixV4) {

@@ -28,7 +28,7 @@ GenericRxBackfillAndTrailer();
 VOID
 GenericRxMatchUdp(
     _In_ ADDRESS_FAMILY Af,
-    _In_ BOOLEAN MatchPort
+    _In_ XDP_MATCH_TYPE MatchType
     );
 
 VOID

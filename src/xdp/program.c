@@ -41,6 +41,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
         IPV6_HEADER *Ip6Hdr;
     };
     UDP_HDR *UdpHdr;
+    UINT16 AvailableUdpPayloadLength; // Amount available in the current packet or fragment.
 } XDP_PROGRAM_FRAME_CACHE;
 
 typedef struct _XDP_PROGRAM {
@@ -341,6 +342,7 @@ XdpParseFrame(
         Cache->UdpHdr = (UDP_HDR *)&Va[Offset];
         Cache->UdpValid = TRUE;
         Offset += sizeof(*Cache->UdpHdr);
+        Cache->AvailableUdpPayloadLength = (UINT16)(Buffer->DataLength - Offset);
     }
 
     return;
@@ -381,6 +383,59 @@ Ipv6PrefixMatch(
     return
         ((Ip64[0] & Mask64[0]) == Prefix64[0]) &
         ((Ip64[1] & Mask64[1]) == Prefix64[1]);
+}
+
+#pragma pack(push)
+#pragma pack(1)
+typedef struct QUIC_HEADER_INVARIANT {
+    union {
+        struct {
+            UCHAR VARIANT : 7;
+            UCHAR IsLongHeader : 1;
+        };
+        struct {
+            UCHAR VARIANT : 7;
+            UCHAR IsLongHeader : 1;
+            UINT32 Version;
+            UCHAR DestCidLength;
+            UCHAR DestCid[0];
+        } LONG_HDR;
+        struct {
+            UCHAR VARIANT : 7;
+            UCHAR IsLongHeader : 1;
+            UCHAR DestCid[0];
+        } SHORT_HDR;
+    };
+} QUIC_HEADER_INVARIANT;
+#pragma pack(pop)
+
+static
+BOOLEAN
+QuicCidMatch(
+    _In_reads_(Length) CONST UCHAR* Payload,
+    _In_ UINT16 Length,
+    _In_ CONST XDP_QUIC_FLOW *Flow
+    )
+{
+    CONST QUIC_HEADER_INVARIANT *Header = (CONST QUIC_HEADER_INVARIANT *)Payload;
+    if (Length < sizeof(UCHAR)) {
+        return FALSE; // Not enough room to read the IsLongHeader bit
+    }
+
+    CONST UCHAR* DestCid;
+    if (Header->IsLongHeader) {
+        if (Length < 6 + Flow->CidOffset + Flow->CidLength) {  // 6 is sizeof(QUIC_HEADER_INVARIANT.LONG_HDR)
+            return FALSE; // Not enough room to read the CID
+        }
+        DestCid = Header->LONG_HDR.DestCid + Flow->CidOffset;
+    } else {
+        if (Length < 1 + Flow->CidOffset + Flow->CidLength) {  // 1 is sizeof(QUIC_HEADER_INVARIANT.SHORT_HDR)
+            return FALSE; // Not enough room to read the CID
+        }
+        DestCid = Header->SHORT_HDR.DestCid + Flow->CidOffset;
+    }
+
+    return memcmp(DestCid, Flow->CidData, Flow->CidLength) == 0;
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -469,6 +524,22 @@ XdpInspect(
                     &FrameCache.Ip6Hdr->DestinationAddress,
                     &Rule->Pattern.IpMask.Address.Ipv6,
                     &Rule->Pattern.IpMask.Mask.Ipv6)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_QUIC_FLOW:
+            if (!FrameCache.UdpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.UdpValid &&
+                FrameCache.UdpHdr->uh_dport == Rule->Pattern.QuicFlow.UdpPort &&
+                QuicCidMatch(
+                    (CONST UCHAR*)(FrameCache.UdpHdr + 1),
+                    FrameCache.AvailableUdpPayloadLength,
+                    &Rule->Pattern.QuicFlow)) {
                 Matched = TRUE;
             }
             break;
@@ -680,7 +751,7 @@ XdpCaptureProgram(
     for (ULONG Index = 0; Index < RuleCount; Index++) {
         XDP_RULE *Rule = &Program->Rules[Index];
 
-        if (Rule->Match < XDP_MATCH_ALL || Rule->Match > XDP_MATCH_IPV6_DST_MASK) {
+        if (Rule->Match < XDP_MATCH_ALL || Rule->Match >= XDP_MATCH_COUNT) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
