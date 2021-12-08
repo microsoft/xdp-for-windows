@@ -59,7 +59,7 @@ FnLwfOidSubmitRequest(
     _In_ HANDLE Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
-    _Inout_ VOID *InformationBuffer
+    _Inout_opt_ VOID *InformationBuffer
     );
 
 EXTERN_C_END

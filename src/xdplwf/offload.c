@@ -1219,6 +1219,8 @@ XdpLwfOffloadInspectOidRequest(
     )
 {
     NTSTATUS Status;
+    NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
+    UINT32 NdisRssParamsLength;
 
     *Action = XdpOidActionPass;
     *CompletionStatus = NDIS_STATUS_SUCCESS;
@@ -1267,11 +1269,46 @@ XdpLwfOffloadInspectOidRequest(
             *Action = XdpOidActionPass;
         }
     } else if (Request->RequestType == NdisRequestQueryInformation &&
-        Request->DATA.SET_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
+        Request->DATA.QUERY_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
+
         //
-        // TODO: Complete the OID and return upper edge settings, if any.
+        // Complete the OID and return upper edge settings, if any.
         //
-        ASSERT(FALSE);
+
+        *Action = XdpOidActionComplete;
+
+        if (Filter->Offload.UpperEdge.Rss == NULL) {
+            TraceError(TRACE_LWF, "Filter=%p Upper edge RSS params not present", Filter);
+            *CompletionStatus = NDIS_STATUS_FAILURE;
+            Status = STATUS_SUCCESS;
+            goto Exit;
+        }
+
+        Status =
+            CreateNdisRssParamsFromXdpRssParams(
+                &Filter->Offload.UpperEdge.Rss->Params, &NdisRssParams, &NdisRssParamsLength);
+        if (!NT_SUCCESS(Status)) {
+            TraceError(
+                TRACE_LWF,
+                "Filter=%p Failed to create NDIS RSS params Status=%!STATUS!",
+                Filter, Status);
+            *CompletionStatus = NDIS_STATUS_FAILURE;
+            Status = STATUS_SUCCESS;
+            goto Exit;
+        }
+
+        if (Request->DATA.QUERY_INFORMATION.InformationBufferLength < NdisRssParamsLength) {
+            Request->DATA.QUERY_INFORMATION.BytesNeeded = NdisRssParamsLength;
+            *CompletionStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+            Status = STATUS_SUCCESS;
+            goto Exit;
+        }
+
+        RtlCopyMemory(
+            Request->DATA.QUERY_INFORMATION.InformationBuffer,
+            NdisRssParams, NdisRssParamsLength);
+        Request->DATA.QUERY_INFORMATION.BytesWritten = NdisRssParamsLength;
+        *CompletionStatus = NDIS_STATUS_SUCCESS;
     }
 
     Status = STATUS_SUCCESS;
@@ -1279,6 +1316,10 @@ XdpLwfOffloadInspectOidRequest(
 Exit:
 
     ExReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    if (NdisRssParams != NULL) {
+        ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
+    }
 
     return XdpConvertNtStatusToNdisStatus(Status);
 }

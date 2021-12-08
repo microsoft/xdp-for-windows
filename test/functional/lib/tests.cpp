@@ -1145,12 +1145,40 @@ LwfOidSubmitRequest(
     _In_ const wil::unique_handle& Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
-    _Inout_ VOID *InformationBuffer
+    _Inout_opt_ VOID *InformationBuffer
     )
 {
     return
         FnLwfOidSubmitRequest(
             Handle.get(), Key, InformationBufferLength, InformationBuffer);
+}
+
+template <typename T>
+static
+unique_malloc_ptr<T>
+LwfOidAllocateAndSubmitRequest(
+    _In_ const wil::unique_handle& Handle,
+    _In_ OID_KEY Key,
+    _Out_ UINT32 *BytesReturned
+    )
+{
+    unique_malloc_ptr<T> InformationBuffer;
+    UINT32 InformationBufferLength = 0;
+    HRESULT Result;
+
+    Result = LwfOidSubmitRequest(Handle, Key, &InformationBufferLength, NULL);
+    TEST_EQUAL(Result, HRESULT_FROM_WIN32(ERROR_MORE_DATA));
+    TEST_TRUE(InformationBufferLength > 0);
+
+    InformationBuffer.reset((T *)malloc(InformationBufferLength));
+    TEST_TRUE(InformationBuffer.get() != NULL);
+
+    Result = LwfOidSubmitRequest(Handle, Key, &InformationBufferLength, InformationBuffer.get());
+    TEST_HRESULT(Result);
+    TEST_TRUE(InformationBufferLength > 0);
+    *BytesReturned = InformationBufferLength;
+
+    return InformationBuffer;
 }
 
 static
@@ -3395,6 +3423,112 @@ OffloadRssInterfaceRestart()
         RtlEqualMemory(IndirectionTable, OriginalIndirectionTable, RssConfig->IndirectionTableSize));
 }
 
+VOID
+OffloadRssUpperSet()
+{
+    wil::unique_handle RssHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> NdisRssParams;
+    unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> OriginalNdisRssParams;
+    NDIS_RECEIVE_SCALE_PARAMETERS UpperNdisRssParams = {0};
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> LowerRssConfig;
+    UINT32 RssConfigSize;
+    UINT32 NdisRssParamsSize;
+    UINT32 OriginalNdisRssParamsSize;
+    UINT32 UpperNdisRssParamsSize;
+    UINT32 LowerRssConfigSize;
+    CONST UINT32 LowerXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV4;
+    CONST UINT32 UpperXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV6;
+    CONST UINT32 UpperNdisRssHashType = NDIS_HASH_TCP_IPV6;
+    OID_KEY OidKey;
+    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
+
+    //
+    // Get original settings (both XDP and NDIS formats for convenience).
+    //
+
+    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    OidKey.RequestType = NdisRequestQueryInformation;
+    OriginalNdisRssParams =
+        LwfOidAllocateAndSubmitRequest<NDIS_RECEIVE_SCALE_PARAMETERS>(
+            DefaultLwf, OidKey, &OriginalNdisRssParamsSize);
+
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+
+    //
+    // Set lower edge settings via XDP.
+    //
+    LowerRssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    LowerRssConfigSize = RssConfigSize;
+    RtlCopyMemory(LowerRssConfig.get(), RssConfig.get(), RssConfigSize);
+    LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
+    LowerRssConfig->HashType = LowerXdpRssHashType;
+    TEST_HRESULT(XdpRssSet(RssHandle.get(), LowerRssConfig.get(), LowerRssConfigSize));
+
+    //
+    // Set upper edge settings via NDIS.
+    //
+    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    OidKey.RequestType = NdisRequestSetInformation;
+    UpperNdisRssParams.Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
+    UpperNdisRssParams.Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+    UpperNdisRssParams.Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+    UpperNdisRssParams.Flags =
+        NDIS_RSS_PARAM_FLAG_BASE_CPU_UNCHANGED |
+        NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED |
+        NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED;
+    UpperNdisRssParams.HashInformation =
+        NDIS_RSS_HASH_INFO_FROM_TYPE_AND_FUNC(
+            UpperNdisRssHashType, NdisHashFunctionToeplitz);
+    UpperNdisRssParamsSize = sizeof(UpperNdisRssParams);
+    TEST_HRESULT(
+        LwfOidSubmitRequest(
+            DefaultLwf, OidKey, &UpperNdisRssParamsSize, &UpperNdisRssParams));
+
+    //
+    // Upon test case exit, revert to original upper edge settings.
+    //
+    auto RssScopeGuard = wil::scope_exit([&]
+    {
+        if (OriginalNdisRssParams.get() != NULL) {
+            OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+            OidKey.RequestType = NdisRequestSetInformation;
+            LwfOidSubmitRequest(
+                DefaultLwf, OidKey, &OriginalNdisRssParamsSize, OriginalNdisRssParams.get());
+        }
+    });
+
+    //
+    // Verify upper edge settings.
+    //
+    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    OidKey.RequestType = NdisRequestQueryInformation;
+    NdisRssParams =
+        LwfOidAllocateAndSubmitRequest<NDIS_RECEIVE_SCALE_PARAMETERS>(
+            DefaultLwf, OidKey, &NdisRssParamsSize);
+    TEST_EQUAL(NdisRssParams->HashInformation, UpperNdisRssParams.HashInformation);
+    TEST_TRUE(UpperNdisRssParams.HashInformation != OriginalNdisRssParams->HashInformation);
+
+    //
+    // Verify lower edge settings persist.
+    //
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    TEST_EQUAL(RssConfig->HashType, LowerRssConfig->HashType);
+
+    //
+    // Reset lower edge settings.
+    //
+    RssHandle.reset();
+
+    //
+    // Verify lower edge settings now match upper edge.
+    //
+    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    TEST_EQUAL(RssConfig->HashType, UpperXdpRssHashType);
+}
+
 static
 VOID
 CreateIndirectionTable(
@@ -3497,6 +3631,7 @@ OffloadRss()
 
     OffloadRssInterfaceRestart();
     OffloadRssUnchanged();
+    OffloadRssUpperSet();
 
     OffloadRssSingleSet({0});
     OffloadRssSingleSet({1});

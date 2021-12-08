@@ -171,14 +171,15 @@ OidIrpSubmitRequest(
         OidInternalRequest(
             Filter->NdisFilterHandle, In->Key.RequestType, In->Key.Oid, InfoBuffer.Buffer,
             In->InformationBufferLength, 0, 0, &BytesReturned);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
 
     Irp->IoStatus.Information = BytesReturned;
 
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < BytesReturned) {
         Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
