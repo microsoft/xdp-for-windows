@@ -1655,6 +1655,11 @@ GenericRxMatchUdp(
     Rule.Match = MatchType;
     if (MatchType == XDP_MATCH_UDP_DST) {
         Rule.Pattern.Port = LocalPort;
+    } else if (MatchType == XDP_MATCH_IPV4_UDP_TUPLE || MatchType == XDP_MATCH_IPV6_UDP_TUPLE) {
+        Rule.Pattern.Tuple.SourcePort = RemotePort;
+        Rule.Pattern.Tuple.DestinationPort = LocalPort;
+        memcpy(&Rule.Pattern.Tuple.SourceAddress, &RemoteIp, sizeof(INET_ADDR));
+        memcpy(&Rule.Pattern.Tuple.DestinationAddress, &LocalIp, sizeof(INET_ADDR));
     } else if (MatchType == XDP_MATCH_QUIC_FLOW) {
         Rule.Pattern.QuicFlow.UdpPort = LocalPort;
         Rule.Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
@@ -1702,6 +1707,62 @@ GenericRxMatchUdp(
         //
         ProgramHandle.reset();
         Rule.Pattern.Port = htons(ntohs(LocalPort) - 1);
+
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+    } else if (Rule.Match == XDP_MATCH_IPV4_UDP_TUPLE || Rule.Match == XDP_MATCH_IPV6_UDP_TUPLE) {
+        //
+        // Verify source port matching.
+        //
+        ProgramHandle.reset();
+        Rule.Pattern.Tuple.SourcePort = htons(ntohs(RemotePort) - 1);
+
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Verify destination port matching.
+        //
+        ProgramHandle.reset();
+        Rule.Pattern.Tuple.SourcePort = RemotePort; // Revert previous test change
+        Rule.Pattern.Tuple.DestinationPort = htons(ntohs(LocalPort) - 1);
+
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Verify source address matching.
+        //
+        ProgramHandle.reset();
+        Rule.Pattern.Tuple.DestinationPort = LocalPort; // Revert previous test change
+        (*((UCHAR*)&Rule.Pattern.Tuple.SourceAddress))++;
+
+        ProgramHandle =
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Verify destination address matching.
+        //
+        ProgramHandle.reset();
+        (*((UCHAR*)&Rule.Pattern.Tuple.SourceAddress))--; // Revert previous test change
+        (*((UCHAR*)&Rule.Pattern.Tuple.DestinationAddress))++;
 
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);

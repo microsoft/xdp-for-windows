@@ -45,6 +45,16 @@ typedef enum _XDP_MATCH_TYPE {
     //
     XDP_MATCH_QUIC_FLOW,
     //
+    // Match frames with a specific source and destination IPv4 addresses and UDP
+    // port numbers.
+    //
+    XDP_MATCH_IPV4_UDP_TUPLE,
+    //
+    // Match frames with a specific source and destination IPv6 addresses and UDP
+    // port numbers.
+    //
+    XDP_MATCH_IPV6_UDP_TUPLE,
+    //
     // MUST BE LAST. Used to determine the number of match types.
     //
     XDP_MATCH_COUNT
@@ -59,6 +69,13 @@ typedef struct _XDP_IP_ADDRESS_MASK {
     XDP_INET_ADDR Mask;
     XDP_INET_ADDR Address;
 } XDP_IP_ADDRESS_MASK;
+
+typedef struct _XDP_TUPLE {
+    XDP_INET_ADDR SourceAddress;
+    XDP_INET_ADDR DestinationAddress;
+    UINT16 SourcePort;
+    UINT16 DestinationPort;
+} XDP_TUPLE;
 
 typedef struct _XDP_QUIC_FLOW {
     UINT16 UdpPort;
@@ -83,6 +100,10 @@ typedef union _XDP_MATCH_PATTERN {
     // The result is compared to the Address field of XDP_IP_ADDRESS_MASK.
     //
     XDP_IP_ADDRESS_MASK IpMask;
+    //
+    // Match on source and destination IP addresses and ports.
+    //
+    XDP_TUPLE Tuple;
     //
     // Match on UDP port and QUIC connection ID.
     //

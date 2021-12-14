@@ -143,6 +143,14 @@ public:
         GenericRxMatchUdp(AF_INET6, XDP_MATCH_UDP_DST);
     }
 
+    TEST_METHOD(GenericRxMatchUdpTupleV4) {
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_IPV4_UDP_TUPLE);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpTupleV6) {
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_IPV6_UDP_TUPLE);
+    }
+
     TEST_METHOD(GenericRxMatchUdpQuicV4) {
         GenericRxMatchUdp(AF_INET, XDP_MATCH_QUIC_FLOW);
     }

@@ -385,6 +385,31 @@ Ipv6PrefixMatch(
         ((Ip64[1] & Mask64[1]) == Prefix64[1]);
 }
 
+static
+BOOLEAN
+UdpTupleMatch(
+    _In_ XDP_MATCH_TYPE Type,
+    _In_ CONST XDP_PROGRAM_FRAME_CACHE *Cache,
+    _In_ CONST XDP_TUPLE *Tuple
+    )
+{
+    if (Cache->EthHdr->Type == RtlUshortByteSwap(ETHERNET_TYPE_IPV4)) {
+        return
+            Type == XDP_MATCH_IPV4_UDP_TUPLE &&
+            Cache->UdpHdr->uh_sport == Tuple->SourcePort &&
+            Cache->UdpHdr->uh_dport == Tuple->DestinationPort &&
+            IN4_ADDR_EQUAL(&Cache->Ip4Hdr->SourceAddress, &Tuple->SourceAddress.Ipv4) &&
+            IN4_ADDR_EQUAL(&Cache->Ip4Hdr->DestinationAddress, &Tuple->DestinationAddress.Ipv4);
+    } else { // IPv6
+        return
+            Type == XDP_MATCH_IPV6_UDP_TUPLE &&
+            Cache->UdpHdr->uh_sport == Tuple->SourcePort &&
+            Cache->UdpHdr->uh_dport == Tuple->DestinationPort &&
+            IN6_ADDR_EQUAL(&Cache->Ip6Hdr->SourceAddress, &Tuple->SourceAddress.Ipv6) &&
+            IN6_ADDR_EQUAL(&Cache->Ip6Hdr->DestinationAddress, &Tuple->DestinationAddress.Ipv6);
+    }
+}
+
 #pragma pack(push)
 #pragma pack(1)
 typedef struct QUIC_HEADER_INVARIANT {
@@ -540,6 +565,22 @@ XdpInspect(
                     (CONST UCHAR*)(FrameCache.UdpHdr + 1),
                     FrameCache.AvailableUdpPayloadLength,
                     &Rule->Pattern.QuicFlow)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_IPV4_UDP_TUPLE:
+        case XDP_MATCH_IPV6_UDP_TUPLE:
+            if (!FrameCache.UdpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.UdpValid &&
+                UdpTupleMatch(
+                    Rule->Match,
+                    &FrameCache,
+                    &Rule->Pattern.Tuple)) {
                 Matched = TRUE;
             }
             break;
