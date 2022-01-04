@@ -33,7 +33,10 @@
 
 #include "xdptest.h"
 #include "tests.h"
+#include "trace.h"
 #include "util.h"
+
+#include "tests.tmh"
 
 #define FNMP_IF_DESC "XDPFNMP"
 #define FNMP_IPV4_ADDRESS "192.168.200.1"
@@ -1371,6 +1374,7 @@ bool
 TestSetup()
 {
     WSADATA WsaData;
+    WPP_INIT_TRACING(NULL);
     PowershellPrefix = GetPowershellPrefix();
     TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
     TEST_EQUAL(0, system("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
@@ -1384,6 +1388,7 @@ TestCleanup()
 {
     TEST_EQUAL(0, system("netsh advfirewall firewall delete rule name=xdpfntest"));
     TEST_EQUAL(0, WSACleanup());
+    WPP_CLEANUP();
     return true;
 }
 
@@ -3259,21 +3264,24 @@ IndicateOnAllActiveRssQueues(
 
 static
 VOID
-PrintProcArray(const wchar_t* prefix, const std::vector<UINT32> &a)
+PrintProcArray(
+    _In_ const char* Prefix,
+    _In_ const std::vector<UINT32> &ProcArray
+    )
 {
-    std::wstring Msg;
+    std::string Msg;
 
-    Msg += prefix;
-    Msg += L"[";
-    for (int i = 0; i < a.size(); i++) {
-        Msg += std::to_wstring(a[i]);
-        if (i != a.size() - 1) {
-            Msg += L",";
+    Msg += Prefix;
+    Msg += "[";
+    for (int i = 0; i < ProcArray.size(); i++) {
+        Msg += std::to_string(ProcArray[i]);
+        if (i != ProcArray.size() - 1) {
+            Msg += ",";
         }
     }
-    Msg += L"]";
+    Msg += "]";
 
-    TEST_WARNING("%s", Msg.c_str());
+    TraceVerbose("%s", Msg.c_str());
 }
 
 static
@@ -3756,7 +3764,7 @@ OffloadRssSingleSet(
     UINT32 OldIndirectionTableSize;
     UINT32 ResetIndirectionTableSize;
 
-    PrintProcArray(L"OffloadRssSingleSet:", ProcessorIndices);
+    PrintProcArray("OffloadRssSingleSet:", ProcessorIndices);
 
     CreateIndirectionTable(ProcessorIndices, IndirectionTable, &IndirectionTableSize);
 
@@ -3787,9 +3795,9 @@ OffloadRssSubsequentSet(
     UINT32 IndirectionTable1Size;
     UINT32 IndirectionTable2Size;
 
-    TEST_WARNING("OffloadRssSubsequentSet");
-    PrintProcArray(L"XDP1:", ProcessorIndices1);
-    PrintProcArray(L"XDP2:", ProcessorIndices2);
+    TraceVerbose("OffloadRssSubsequentSet");
+    PrintProcArray("XDP1:", ProcessorIndices1);
+    PrintProcArray("XDP2:", ProcessorIndices2);
 
     CreateIndirectionTable(ProcessorIndices1, IndirectionTable1, &IndirectionTable1Size);
     CreateIndirectionTable(ProcessorIndices2, IndirectionTable2, &IndirectionTable2Size);

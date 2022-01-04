@@ -34,6 +34,11 @@
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>
+        tracewpp.exe -odir:$(IntDir) -scan:$(ProjectDir)trace.h $(ProjectDir)*.cpp -p:xdpfntest -cfgdir:"$(WindowsSdkDir)bin\$(TargetPlatformVersion)\WppConfig\Rev1"
+      </Command>
+    </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
@@ -41,6 +46,7 @@
         $(SolutionDir)test\functional\mp\inc;
         $(SolutionDir)test\pkthlp;
         $(SolutionDir)submodules\wil\include;
+        $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
     </ClCompile>

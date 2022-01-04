@@ -75,6 +75,11 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
+        <EventProvider Id="EP_XdpFnTestWpp" Name="D6143B62-9FD6-44BA-BA02-FAD9EA0C263D" Level="5">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
 
         <Profile Id="XdpFunctional.Verbose.File" Name="XdpFunctional" Description="XDP Functional Test" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>
@@ -83,6 +88,7 @@
                         <EventProviderId Value="EP_XdpWpp" />
                         <EventProviderId Value="EP_XdpFnMpWpp" />
                         <EventProviderId Value="EP_XdpFnLwfWpp" />
+                        <EventProviderId Value="EP_XdpFnTestWpp" />
                     </EventProviders>
                 </EventCollectorId>
             </Collectors>
