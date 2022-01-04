@@ -1468,20 +1468,39 @@ AdminFn(
         TraceVerbose("admin iter");
 
         if (!cleanDatapath && !(RandUlong() % 10)) {
+            INT exitCode;
             TraceVerbose("admin: restart adapter");
             RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
             sprintf_s(
                 cmdBuff, sizeof(cmdBuff),
                 "%s -Command \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | Restart-NetAdapter\"",
                 powershellPrefix, ifindex);
-            system(cmdBuff);
+            exitCode = system(cmdBuff);
+            TraceVerbose("admin: restart adapter exitCode=%d", exitCode);
         }
 
         if (!(RandUlong() % 10)) {
-            DWORD DelayDetachTimeout = RandUlong() % 10;
-            RegSetValueExA(
+            DWORD delayDetachTimeout = RandUlong() % 10;
+            LSTATUS regStatus;
+            TraceVerbose("admin: set delayDetachTimeout=%u", delayDetachTimeout);
+            regStatus = RegSetValueExA(
                 xdpParametersKey, delayDetachTimeoutRegName, 0, REG_DWORD,
-                (BYTE *)&DelayDetachTimeout, sizeof(DelayDetachTimeout));
+                (BYTE *)&delayDetachTimeout, sizeof(delayDetachTimeout));
+            TraceVerbose("admin: set delayDetachTimeout regStatus=%d", regStatus);
+        }
+
+        if (!(RandUlong() % 10)) {
+            DWORD rRxBatchInspection = RandUlong() % 2;
+            INT exitCode;
+            TraceVerbose("admin: set rRxBatchInspection=%u", rRxBatchInspection);
+            RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
+            sprintf_s(
+                cmdBuff, sizeof(cmdBuff),
+                "%s -Command \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | "
+                "Set-NetAdapterAdvancedProperty -RegistryKeyword RxBatchInspection -RegistryValue %d -NoRestart\"",
+                powershellPrefix, ifindex, rRxBatchInspection);
+            exitCode = system(cmdBuff);
+            TraceVerbose("admin: set rRxBatchInspection exitCode=%d", exitCode);
         }
     }
 
