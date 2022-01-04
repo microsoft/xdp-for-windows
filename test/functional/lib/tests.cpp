@@ -2829,7 +2829,7 @@ GenericLwfDelayDetach(
     DWORD DelayTimeoutSec;
     TEST_EQUAL(
         ERROR_SUCCESS,
-        RegCreateKeyEx(
+        RegCreateKeyExA(
             HKEY_LOCAL_MACHINE,
             "System\\CurrentControlSet\\Services\\Xdp\\Parameters",
             0, NULL, REG_OPTION_VOLATILE, KEY_WRITE, NULL, &XdpParametersKey, NULL));
@@ -2848,7 +2848,7 @@ GenericLwfDelayDetach(
     DelayTimeoutSec = DelayTimeoutMs / 1000;
     TEST_EQUAL(
         ERROR_SUCCESS,
-        RegSetValueEx(
+        RegSetValueExA(
             XdpParametersKey.get(),
             DelayDetachTimeoutRegName,
             0, REG_DWORD, (BYTE *)&DelayTimeoutSec, sizeof(DelayTimeoutSec)));
@@ -2856,7 +2856,7 @@ GenericLwfDelayDetach(
     {
         TEST_EQUAL(
             ERROR_SUCCESS,
-            RegDeleteValue(XdpParametersKey.get(), DelayDetachTimeoutRegName));
+            RegDeleteValueA(XdpParametersKey.get(), DelayDetachTimeoutRegName));
     });
     Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
@@ -2876,7 +2876,7 @@ GenericLwfDelayDetach(
     DelayTimeoutSec = DelayTimeoutMs / 1000;
     TEST_EQUAL(
         ERROR_SUCCESS,
-        RegSetValueEx(
+        RegSetValueExA(
             XdpParametersKey.get(),
             DelayDetachTimeoutRegName,
             0, REG_DWORD, (BYTE *)&DelayTimeoutSec, sizeof(DelayTimeoutSec)));
