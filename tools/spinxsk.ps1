@@ -54,7 +54,7 @@ param (
     [switch]$Stats = $false,
 
     [Parameter(Mandatory = $false)]
-    [Int32]$QueueCount = 0,
+    [Int32]$QueueCount = 2,
 
     [Parameter(Mandatory = $false)]
     [Int32]$FuzzerCount = 0,
@@ -123,14 +123,12 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
 
         $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
         $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
+        $Args += " -QueueCount $QueueCount"
         if ($Minutes -ne 0) {
             $Args += " -Minutes $ThisIterationMinutes"
         }
         if ($Stats) {
             $Args += " -Stats"
-        }
-        if ($QueueCount -ne 0) {
-            $Args += " -QueueCount $QueueCount"
         }
         if ($FuzzerCount -ne 0) {
             $Args += " -FuzzerCount $FuzzerCount"
