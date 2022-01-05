@@ -472,8 +472,10 @@ DriverEntry(
     ExInitializeDriverRuntime(0);
 
     WPP_INIT_TRACING(XdpDriverObject, RegistryPath);
+    EventRegisterMicrosoft_XDP();
 
     TraceEnter(TRACE_CORE, "DriverObject=%p", DriverObject);
+    EventWriteStartEvent(NULL, DriverObject);
 
     if (wcscat_s(
             XdpParametersKeyStorage, RTL_NUMBER_OF(XdpParametersKeyStorage),
@@ -524,5 +526,6 @@ DriverUnload(
 
     TraceExitStatus(TRACE_CORE);
 
+    EventUnregisterMicrosoft_XDP();
     WPP_CLEANUP(XdpDriverObject);
 }

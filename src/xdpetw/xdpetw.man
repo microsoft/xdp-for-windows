@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes'?>
+<instrumentationManifest
+    xmlns="http://schemas.microsoft.com/win/2004/08/events"
+    xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://schemas.microsoft.com/win/2004/08/events eventman.xsd"
+    >
+  <instrumentation>
+    <events>
+      <provider
+          guid="{580bbdea-b364-4369-b291-d3539e35d20b}"
+          messageFileName="%systemroot%\system32\drivers\xdp.sys"
+          name="Microsoft-XDP"
+          resourceFileName="%systemroot%\system32\drivers\xdp.sys"
+          symbol="MICROSOFT_XDP_PROVIDER"
+          >
+        <channels>
+          <channel
+              chid="CHID_XDP"
+              isolation="System"
+              name="Microsoft-XDP/Diagnostic"
+              symbol="CHANNEL_XDP"
+              type="Analytic"
+              />
+        </channels>
+        <templates>
+          <template tid="tid_dummy_template">
+            <data
+                inType="win:Pointer"
+                name="DriverObjPtr"
+                outType="win:HexInt64"
+                />
+          </template>
+        </templates>
+        <events>
+          <event
+              channel="CHID_XDP"
+              level="win:Informational"
+              message="$(string.StartEvent.EventMessage)"
+              opcode="win:Start"
+              symbol="StartEvent"
+              template="tid_dummy_template"
+              value="1"
+              />
+        </events>
+      </provider>
+    </events>
+  </instrumentation>
+  <localization xmlns="http://schemas.microsoft.com/win/2004/08/events">
+    <resources culture="en-US">
+      <stringTable>
+        <string
+            id="StartEvent.EventMessage"
+            value="Driver Loaded DriverObject=%1"
+            />
+      </stringTable>
+    </resources>
+  </localization>
+</instrumentationManifest>

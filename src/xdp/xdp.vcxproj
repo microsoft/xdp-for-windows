@@ -52,6 +52,7 @@
     <ResourceCompile Include="xdp.rc">
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;
+        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdpetw\;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
@@ -86,6 +87,9 @@
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)src\xdplwf\xdplwf.vcxproj">
       <Project>{63591dcb-0bbc-441c-a8a2-f882ee6a7d5c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdpetw\xdpetw.vcxproj">
+      <Project>{a87d995b-384f-4853-abdb-3ec024be18e3}</Project>
     </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -122,6 +126,7 @@
         $(SolutionDir)src\xdplwf\inc;
         $(SolutionDir)published\private;
         $(IntDir);
+        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdpetw\;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>

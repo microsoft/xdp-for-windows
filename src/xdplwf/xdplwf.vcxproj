@@ -21,6 +21,11 @@
   <ItemGroup>
     <ClInclude Include="precomp.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\xdpetw\xdpetw.vcxproj">
+      <Project>{a87d995b-384f-4853-abdb-3ec024be18e3}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{63591dcb-0bbc-441c-a8a2-f882ee6a7d5c}</ProjectGuid>
     <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
@@ -55,6 +60,7 @@
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdp\inc;
         $(IntDir);
+        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdpetw\;
         %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         NDIS_WDM=1;

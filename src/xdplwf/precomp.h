@@ -28,8 +28,9 @@
 #include <xdp/ndis6.h>
 
 #include <xdpassert.h>
-#include <xdplifetime.h>
+#include <xdpetw.h>
 #include <xdpif.h>
+#include <xdplifetime.h>
 #include <xdplwf.h>
 #include <xdpregistry.h>
 #include <xdprtl.h>
