@@ -8,6 +8,10 @@
 
 typedef struct _XDP_LWF_GENERIC XDP_LWF_GENERIC;
 
+typedef struct _XDP_LWF_GENERIC_TX_STATS {
+    UINT64 BatchesPosted;
+} XDP_LWF_GENERIC_TX_STATS;
+
 typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     ULONG QueueId;
     LIST_ENTRY Link;
@@ -32,6 +36,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
 
     ULONG BufferCount;
     ULONG OutstandingCount;
+    XDP_LWF_GENERIC_TX_STATS Stats;
     SLIST_HEADER NblComplete;
     NET_BUFFER_LIST *FreeNbls;
     NDIS_HANDLE NblPool;

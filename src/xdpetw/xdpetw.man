@@ -24,24 +24,300 @@
               type="Analytic"
               />
         </channels>
+        <levels>
+          <level
+            name="XdpPerIo"
+            symbol="LEVEL_XDP_PER_IO"
+            value="20"
+            />
+          <level
+            name="XdpPerFrame"
+            symbol="LEVEL_XDP_PER_FRAME"
+            value="25"
+            />
+        </levels>
+        <keywords>
+          <keyword
+            name="Tx"
+            mask="0x1"
+            symbol="TX_KEYWORD"
+            />
+          <keyword
+            name="Rx"
+            mask="0x2"
+            symbol="RX_KEYWORD"
+            />
+          <keyword
+            name="Xsk"
+            mask="0x4"
+            symbol="XSK_KEYWORD"
+            />
+          <keyword
+            name="Generic"
+            mask="0x8"
+            symbol="GENERIC_KEYWORD"
+            />
+        </keywords>
+        <opcodes>
+          <opcode
+            name="Xsk"
+            value="11"
+            />
+          <opcode
+            name="GenericTxQueue"
+            value="12"
+            />
+          <opcode
+            name="GenericRxFilter"
+            value="13"
+            />
+        </opcodes>
         <templates>
-          <template tid="tid_dummy_template">
+          <template tid="tid_Empty"/>
+          <template tid="tid_XskNotifyPoke">
             <data
                 inType="win:Pointer"
-                name="DriverObjPtr"
+                name="Xsk"
                 outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Flags"
+                outType="win:HexInt32"
+                />
+          </template>
+          <template tid="tid_XskCreateSocket">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="ProcessId"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_Xsk">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_XskTxEnqueue">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="XskTxIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="XdpTxIndex"
+                outType="win:HexInt32"
+                />
+          </template>
+          <template tid="tid_XskTxBind">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="XdpInterfaceQueue"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_GenericTxEnqueue">
+            <data
+                inType="win:Pointer"
+                name="TxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="XdpTxIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt64"
+                name="NblBatchIndex"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_GenericTxPostBatch">
+            <data
+                inType="win:Pointer"
+                name="TxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt64"
+                name="NblBatchIndex"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_GenericRxInspectBatch">
+            <data
+                inType="win:Pointer"
+                name="Generic"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_XskRxPostBatch">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="XskRxIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="BatchSize"
+                outType="win:HexInt32"
                 />
           </template>
         </templates>
         <events>
           <event
               channel="CHID_XDP"
-              level="win:Informational"
-              message="$(string.StartEvent.EventMessage)"
-              opcode="win:Start"
-              symbol="StartEvent"
-              template="tid_dummy_template"
+              keywords="Xsk Tx Rx"
+              level="XdpPerIo"
+              message="$(string.XskNotifyPokeStart.EventMessage)"
+              opcode="Xsk"
+              symbol="XskNotifyPokeStart"
+              template="tid_XskNotifyPoke"
               value="1"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Tx Rx"
+              level="XdpPerIo"
+              message="$(string.XskNotifyPokeStop.EventMessage)"
+              opcode="Xsk"
+              symbol="XskNotifyPokeStop"
+              template="tid_XskNotifyPoke"
+              value="2"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk"
+              level="win:Informational"
+              message="$(string.XskCreateSocket.EventMessage)"
+              opcode="Xsk"
+              symbol="XskCreateSocket"
+              template="tid_XskCreateSocket"
+              value="3"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk"
+              level="win:Informational"
+              message="$(string.XskCloseSocketStart.EventMessage)"
+              opcode="Xsk"
+              symbol="XskCloseSocketStart"
+              template="tid_Xsk"
+              value="4"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk"
+              level="win:Informational"
+              message="$(string.XskCloseSocketStop.EventMessage)"
+              opcode="Xsk"
+              symbol="XskCloseSocketStop"
+              template="tid_Xsk"
+              value="5"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Tx"
+              level="XdpPerFrame"
+              message="$(string.XskTxEnqueue.EventMessage)"
+              opcode="Xsk"
+              symbol="XskTxEnqueue"
+              template="tid_XskTxEnqueue"
+              value="6"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk"
+              level="win:Informational"
+              message="$(string.XskTxBind.EventMessage)"
+              opcode="Xsk"
+              symbol="XskTxBind"
+              template="tid_XskTxBind"
+              value="7"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Tx"
+              level="XdpPerFrame"
+              message="$(string.GenericTxEnqueue.EventMessage)"
+              opcode="GenericTxQueue"
+              symbol="GenericTxEnqueue"
+              template="tid_GenericTxEnqueue"
+              value="8"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Tx"
+              level="XdpPerIo"
+              message="$(string.GenericTxPostBatchStart.EventMessage)"
+              opcode="GenericTxQueue"
+              symbol="GenericTxPostBatchStart"
+              template="tid_GenericTxPostBatch"
+              value="9"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Tx"
+              level="XdpPerIo"
+              message="$(string.GenericTxPostBatchStop.EventMessage)"
+              opcode="GenericTxQueue"
+              symbol="GenericTxPostBatchStop"
+              template="tid_GenericTxPostBatch"
+              value="10"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Rx"
+              level="XdpPerIo"
+              message="$(string.GenericRxInspectStart.EventMessage)"
+              opcode="GenericRxFilter"
+              symbol="GenericRxInspectStart"
+              template="tid_GenericRxInspectBatch"
+              value="11"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Rx"
+              level="XdpPerIo"
+              message="$(string.GenericRxInspectStop.EventMessage)"
+              opcode="GenericRxFilter"
+              symbol="GenericRxInspectStop"
+              template="tid_GenericRxInspectBatch"
+              value="12"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Rx"
+              level="XdpPerIo"
+              message="$(string.XskRxPostBatch.EventMessage)"
+              opcode="Xsk"
+              symbol="XskRxPostBatch"
+              template="tid_XskRxPostBatch"
+              value="13"
               />
         </events>
       </provider>
@@ -51,8 +327,56 @@
     <resources culture="en-US">
       <stringTable>
         <string
-            id="StartEvent.EventMessage"
-            value="Driver Loaded DriverObject=%1"
+            id="XskNotifyPokeStart.EventMessage"
+            value="[ xsk][%1] notify poke Flags=%2"
+            />
+        <string
+            id="XskNotifyPokeStop.EventMessage"
+            value="[ xsk][%1] notify poke complete Flags=%2"
+            />
+        <string
+            id="XskCreateSocket.EventMessage"
+            value="[ xsk][%1] create socket ProcessId=%2"
+            />
+        <string
+            id="XskCloseSocketStart.EventMessage"
+            value="[ xsk][%1] close socket"
+            />
+        <string
+            id="XskCloseSocketStop.EventMessage"
+            value="[ xsk][%1] close socket complete"
+            />
+        <string
+            id="XskTxEnqueue.EventMessage"
+            value="[ xsk][%1] enqueue TX XskTxIndex=%2 XdpTxIndex=%3"
+            />
+        <string
+            id="XskTxBind.EventMessage"
+            value="[ xsk][%1] bind TX XdpInterfaceQueue=%2"
+            />
+        <string
+            id="GenericTxEnqueue.EventMessage"
+            value="[gxtq][%1] enqueue TX XdpTxIndex=%2 NblBatchIndex=%3"
+            />
+        <string
+            id="GenericTxPostBatchStart.EventMessage"
+            value="[gxtq][%1] post TX batch NblBatchIndex=%2"
+            />
+        <string
+            id="GenericTxPostBatchStop.EventMessage"
+            value="[gxtq][%1] post TX batch complete NblBatchIndex=%2"
+            />
+        <string
+            id="GenericRxInspectStart.EventMessage"
+            value="[gxrf][%1] inspect RX batch"
+            />
+        <string
+            id="GenericRxInspectStop.EventMessage"
+            value="[gxrf][%1] inspect RX batch complete"
+            />
+        <string
+            id="XskRxPostBatch.EventMessage"
+            value="[ xsk][%1] post RX batch XskRxIndex=%2 BatchSize=%3"
             />
       </stringTable>
     </resources>

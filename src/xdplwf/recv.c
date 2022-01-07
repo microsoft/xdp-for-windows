@@ -546,6 +546,8 @@ XdpGenericReceive(
     XDP_LWF_GENERIC_RX_QUEUE *RxQueue = NULL;
     XDP_RX_QUEUE_HANDLE XdpRxQueue = NULL;
 
+    EventWriteGenericRxInspectStart(&MICROSOFT_XDP_PROVIDER, Generic);
+
     NdisInitializeNblCountedQueue(PassList);
     NdisInitializeNblQueue(DropList);
     NdisInitializeNblQueue(&LowResourcesList);
@@ -628,6 +630,8 @@ XdpGenericReceive(
     if (OldIrql != DISPATCH_LEVEL) {
         KeLowerIrql(OldIrql);
     }
+
+    EventWriteGenericRxInspectStop(&MICROSOFT_XDP_PROVIDER, Generic);
 }
 
 _Use_decl_annotations_

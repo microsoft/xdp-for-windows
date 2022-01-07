@@ -475,7 +475,6 @@ DriverEntry(
     EventRegisterMicrosoft_XDP();
 
     TraceEnter(TRACE_CORE, "DriverObject=%p", DriverObject);
-    EventWriteStartEvent(NULL, DriverObject);
 
     if (wcscat_s(
             XdpParametersKeyStorage, RTL_NUMBER_OF(XdpParametersKeyStorage),

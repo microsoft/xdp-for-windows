@@ -277,7 +277,7 @@ XdpGenericInitiateTx(
         XDP_BUFFER *Buffer;
         XDP_BUFFER_MDL *BufferMdl;
 
-        Frame = XdpRingGetElement(FrameRing, FrameRing->ConsumerIndex++ & FrameRing->Mask);
+        Frame = XdpRingGetElement(FrameRing, FrameRing->ConsumerIndex & FrameRing->Mask);
         Buffer = &Frame->Buffer;
         BufferMdl = XdpGetMdlExtension(Buffer, &TxQueue->BufferMdlExtension);
 
@@ -286,9 +286,20 @@ XdpGenericInitiateTx(
         XdpGenericBuildTxNbl(TxQueue, Buffer, BufferMdl, Nbl);
 
         NdisAppendSingleNblToNblCountedQueue(&Nbls, Nbl);
+
+        EventWriteGenericTxEnqueue(
+            &MICROSOFT_XDP_PROVIDER, TxQueue, FrameRing->ConsumerIndex,
+            TxQueue->Stats.BatchesPosted);
+
+        FrameRing->ConsumerIndex++;
     }
 
+    ASSERT(Nbls.NblCount > 0);
+
     TxQueue->OutstandingCount += (ULONG)Nbls.NblCount;
+
+    EventWriteGenericTxPostBatchStart(
+        &MICROSOFT_XDP_PROVIDER, TxQueue, TxQueue->Stats.BatchesPosted);
 
     if (!TxQueue->Flags.RxInject) {
         NdisFSendNetBufferLists(
@@ -299,6 +310,11 @@ XdpGenericInitiateTx(
             TxQueue->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&Nbls),
             NDIS_DEFAULT_PORT_NUMBER, (ULONG)Nbls.NblCount, NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
     }
+
+    EventWriteGenericTxPostBatchStop(
+        &MICROSOFT_XDP_PROVIDER, TxQueue, TxQueue->Stats.BatchesPosted);
+
+    TxQueue->Stats.BatchesPosted++;
 
     return XdpGenericTxGetNbls(TxQueue) > 0 && XdpRingCount(FrameRing) > 0;
 }

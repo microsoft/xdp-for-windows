@@ -608,6 +608,10 @@ XskFillTx(
             Mdl->MdlOffset = RelativeAddress;
         }
 
+        EventWriteXskTxEnqueue(
+            &MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Ring.Shared->ConsumerIndex + i,
+            FrameRing->ProducerIndex);
+
         FrameRing->ProducerIndex++;
         ++BufferCount;
     }
@@ -890,10 +894,12 @@ XskIrpCreateSocket(
 
     IrpSp->FileObject->FsContext = Xsk;
 
+    EventWriteXskCreateSocket(
+        &MICROSOFT_XDP_PROVIDER, Xsk, PsGetCurrentProcessId());
+
 Exit:
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, Status);
-
     TraceExitStatus(TRACE_XSK);
 
     return Status;
@@ -2050,6 +2056,8 @@ XskBindTxIf(
     Xsk->Tx.Xdp.InterfaceNotify = InterfaceTxDispatch->InterfaceNotifyQueue;
     ExReleasePushLockExclusive(&Xsk->PollLock);
 
+    EventWriteXskTxBind(&MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Xdp.InterfaceQueue);
+
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -2129,6 +2137,7 @@ XskIrpClose(
     KIRQL OldIrql;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+    EventWriteXskCloseSocketStart(&MICROSOFT_XDP_PROVIDER, Xsk);
 
     UNREFERENCED_PARAMETER(Irp);
 
@@ -2185,8 +2194,8 @@ XskIrpClose(
 
     XskDereference(Xsk);
 
+    EventWriteXskCloseSocketStop(&MICROSOFT_XDP_PROVIDER, Xsk);
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
-
     TraceExitSuccess(TRACE_XSK);
 
     return STATUS_SUCCESS;
@@ -3449,6 +3458,8 @@ XskPoke(
 {
     NTSTATUS Status = STATUS_SUCCESS;
 
+    EventWriteXskNotifyPokeStart(&MICROSOFT_XDP_PROVIDER, Xsk, Flags);
+
     ExAcquirePushLockExclusive(&Xsk->PollLock);
 
     if (Xsk->PollMode == XSK_POLL_MODE_SOCKET &&
@@ -3490,6 +3501,8 @@ XskPoke(
     }
 
     ExReleasePushLockExclusive(&Xsk->PollLock);
+
+    EventWriteXskNotifyPokeStop(&MICROSOFT_XDP_PROVIDER, Xsk, Flags);
 
     return Status;
 }
@@ -3773,6 +3786,10 @@ XskReceiveSubmitBatch(
 
     if (RxProduced > 0) {
         XskRingProdSubmit(&Xsk->Rx.Ring, RxProduced);
+
+        EventWriteXskRxPostBatch(
+            &MICROSOFT_XDP_PROVIDER, Xsk,
+            Xsk->Rx.Ring.Shared->ProducerIndex - RxProduced, RxProduced);
 
         //
         // N.B. See comment in XskNotify.
