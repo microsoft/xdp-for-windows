@@ -50,25 +50,25 @@ shutdown.exe /r /f /t 0
 Running the tests:
 
 ```Powershell
-.\tools\setup.ps1 -Install xdp
-.\tools\setup.ps1 -Install xdpfnmp
-.\tools\setup.ps1 -Install xdpfnlwf
-vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll
-.\tools\setup.ps1 -Uninstall xdpfnlwf
-.\tools\setup.ps1 -Uninstall xdpfnmp
-.\tools\setup.ps1 -Uninstall xdp
+.\tools\functional.ps1
 ```
 
 Querying the list of test cases:
 
 ```Powershell
-vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll /lt
+.\tools\functional.ps1 -ListTestCases
 ```
 
 Running a specific test case:
 
 ```Powershell
-vstest.console.exe artifacts\bin\x64_Debug\xdpfunctionaltests.dll /TestCaseFilter:"Name=GenericBinding"
+.\tools\functional.ps1 -TestCaseFilter "Name=GenericBinding"
+```
+
+After the test, convert the logs:
+
+```Powershell
+.\tools\log.ps1 -Convert -Name xdpfunc
 ```
 
 ### Running spinxsk
