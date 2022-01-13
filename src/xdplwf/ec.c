@@ -363,6 +363,18 @@ XdpEcInitialize(
     KeSetTargetProcessorDpcEx(&Ec->Dpc, &ProcessorNumber);
     KeInitializeEvent(&Ec->PassiveEvent, SynchronizationEvent, FALSE);
 
+    //
+    // Use MediumHigh importance to append the DPC to the tail of the DPC queue
+    // (the same as the default) and force the DPC queue to be flushed. The
+    // default DPC flushing behavior depends on whether the DPC is queued from
+    // the target processor; if queued from another processor, the system is
+    // allowed to defer the DPC.
+    //
+    // Depending on the workload, either Medium or MediumHigh importance could
+    // be the best policy; TODO: allow DPC importance to be configured.
+    //
+    KeSetImportanceDpc(&Ec->Dpc, MediumHighImportance);
+
     Status =
         PsCreateSystemThread(
             &ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, XdpEcPassiveWorker, Ec);
