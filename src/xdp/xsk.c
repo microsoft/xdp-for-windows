@@ -803,10 +803,10 @@ XskReferenceDatapathHandle(
     XSK *Xsk = NULL;
 
     if (RequestorMode != KernelMode && !HandleBounced) {
-        try {
+        __try {
             ProbeForRead((VOID *)HandleBuffer, sizeof(HANDLE), PROBE_ALIGNMENT(HANDLE));
             TargetHandle = *(HANDLE *)HandleBuffer;
-        } except (EXCEPTION_EXECUTE_HANDLER) {
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
             Status = GetExceptionCode();
             goto Exit;
         }
@@ -2579,14 +2579,14 @@ XskSockoptSetUmem(
 
     Umem->ReferenceCount = 1;
 
-    try {
+    __try {
         if (RequestorMode != KernelMode) {
             ProbeForRead(
                 (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
                 PROBE_ALIGNMENT(XSK_UMEM_REG));
         }
         Umem->Reg = *(XSK_UMEM_REG*)SockoptInputBuffer;
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
@@ -2625,9 +2625,9 @@ XskSockoptSetUmem(
     Umem->OwningProcess = PsGetCurrentProcess();
     ObReferenceObject(Umem->OwningProcess);
 
-    try {
+    __try {
         MmProbeAndLockPages(Umem->Mapping.Mdl, RequestorMode, IoWriteAccess);
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
@@ -2732,12 +2732,12 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
-    try {
+    __try {
         if (RequestorMode != KernelMode) {
             ProbeForRead((VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(UINT32));
         }
         NumDescriptors = *(UINT32 *)SockoptInputBuffer;
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
@@ -2801,7 +2801,7 @@ XskSockoptSetRingSize(
     }
     MmBuildMdlForNonPagedPool(Mdl);
 
-    try {
+    __try {
         UserVa =
             MmMapLockedPagesSpecifyCache(
                 Mdl,
@@ -2814,7 +2814,7 @@ XskSockoptSetRingSize(
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
         }
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
@@ -2974,12 +2974,12 @@ XskSockoptSetHookId(
         goto Exit;
     }
 
-    try {
+    __try {
         if (RequestorMode != KernelMode) {
             ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(XDP_HOOK_ID));
         }
         HookId = *(CONST XDP_HOOK_ID *)SockoptIn;
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
@@ -3283,13 +3283,13 @@ XskSockoptSetPollMode(
         goto Exit;
     }
 
-    try {
+    __try {
         if (RequestorMode != KernelMode) {
             ProbeForRead(
                 (VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(XSK_POLL_MODE));
         }
         PollMode = *(XSK_POLL_MODE *)SockoptInputBuffer;
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
@@ -3421,7 +3421,7 @@ XskNotifyValidateParams(
         return STATUS_INVALID_PARAMETER;
     }
 
-    try {
+    __try {
         ASSERT(InputBuffer);
         if (ExGetPreviousMode() != KernelMode) {
             ProbeForRead(
@@ -3431,7 +3431,7 @@ XskNotifyValidateParams(
         *InFlags = ((XSK_NOTIFY_IN*)InputBuffer)->Flags;
         *TimeoutMilliseconds =
             ((XSK_NOTIFY_IN*)InputBuffer)->WaitTimeoutMilliseconds;
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         return GetExceptionCode();
     }
 

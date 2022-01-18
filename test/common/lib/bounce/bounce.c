@@ -74,10 +74,10 @@ BounceBuffer(
         goto Exit;
     }
 
-    try {
+    __try {
         ProbeForRead((VOID *)Buffer, BufferSize, Alignment);
         RtlCopyMemory(Bounce->Buffer, Buffer, BufferSize);
-    } except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
     }
