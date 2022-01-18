@@ -57,11 +57,6 @@
             mask="0x8"
             symbol="GENERIC_KEYWORD"
             />
-          <keyword
-            name="Ec"
-            mask="0x10"
-            symbol="EC_KEYWORD"
-            />
         </keywords>
         <opcodes>
           <opcode
@@ -75,10 +70,6 @@
           <opcode
             name="GenericRxFilter"
             value="13"
-            />
-          <opcode
-            name="ExecutionContext"
-            value="14"
             />
         </opcodes>
         <templates>
@@ -193,18 +184,6 @@
             <data
                 inType="win:UInt32"
                 name="BatchSize"
-                outType="win:HexInt32"
-                />
-          </template>
-          <template tid="tid_EcStateChange">
-            <data
-                inType="win:Pointer"
-                name="Ec"
-                outType="win:HexInt64"
-                />
-            <data
-                inType="win:UInt32"
-                name="NewState"
                 outType="win:HexInt32"
                 />
           </template>
@@ -340,16 +319,6 @@
               template="tid_XskRxPostBatch"
               value="13"
               />
-          <event
-              channel="CHID_XDP"
-              keywords="Ec"
-              level="XdpPerIo"
-              message="$(string.EcStateChange.EventMessage)"
-              opcode="ExecutionContext"
-              symbol="EcStateChange"
-              template="tid_EcStateChange"
-              value="14"
-              />
         </events>
       </provider>
     </events>
@@ -408,10 +377,6 @@
         <string
             id="XskRxPostBatch.EventMessage"
             value="[ xsk][%1] post RX batch XskRxIndex=%2 BatchSize=%3"
-            />
-        <string
-            id="EcStateChange.EventMessage"
-            value="[  ec][%1] state change NewState=%2"
             />
       </stringTable>
     </resources>
