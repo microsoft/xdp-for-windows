@@ -744,6 +744,32 @@ XdpProgramTraceObject(
             ASSERT(FALSE);
             break;
         }
+
+        switch (Rule->Action) {
+        case XDP_PROGRAM_ACTION_DROP:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_DROP",
+                ProgramObject, i);
+            break;
+
+        case XDP_PROGRAM_ACTION_PASS:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_PASS",
+                ProgramObject, i);
+            break;
+
+        case XDP_PROGRAM_ACTION_REDIRECT:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_REDIRECT "
+                "TargetType=%!REDIRECT_TARGET_TYPE! Target=%p",
+                ProgramObject, i, Rule->Redirect.TargetType, Rule->Redirect.Target);
+            break;
+
+        default:
+            ASSERT(FALSE);
+            break;
+        }
     }
 }
 
