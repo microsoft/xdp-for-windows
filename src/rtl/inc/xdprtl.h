@@ -38,6 +38,14 @@
 #define ReadUInt64NoFence ReadULong64NoFence
 #endif
 
+#ifndef htons
+#define htons _byteswap_ushort
+#endif
+
+#ifndef ntohs
+#define ntohs _byteswap_ushort
+#endif
+
 NTSTATUS
 RtlUInt32RoundUpToPowerOfTwo(
     _In_ UINT32 Value,

@@ -643,6 +643,7 @@ typedef struct _XDP_PROGRAM_OBJECT {
     XDP_BINDING_HANDLE IfHandle;
     XDP_RX_QUEUE *RxQueue;
     XDP_RX_QUEUE_NOTIFICATION_ENTRY RxQueueNotificationEntry;
+    ULONG_PTR CreatedByPid;
 
     XDP_PROGRAM Program;
 } XDP_PROGRAM_OBJECT;
@@ -661,6 +662,88 @@ static XDP_FILE_IRP_ROUTINE XdpIrpProgramClose;
 static XDP_FILE_DISPATCH XdpProgramFileDispatch = {
     .Close = XdpIrpProgramClose,
 };
+
+static
+VOID
+XdpProgramTraceObject(
+    _In_ CONST XDP_PROGRAM_OBJECT *ProgramObject
+    )
+{
+    TraceInfo(
+        TRACE_CORE, "Program=%p CreatedByPid=%Iu", ProgramObject, ProgramObject->CreatedByPid);
+
+    for (UINT32 i = 0; i < ProgramObject->Program.RuleCount; i++) {
+        CONST XDP_RULE *Rule = &ProgramObject->Program.Rules[i];
+
+        switch (Rule->Match) {
+        case XDP_MATCH_ALL:
+            TraceInfo(TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_ALL", ProgramObject, i);
+            break;
+
+        case XDP_MATCH_UDP:
+            TraceInfo(TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_UDP", ProgramObject, i);
+            break;
+
+        case XDP_MATCH_UDP_DST:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_UDP_DST Port=%u",
+                ProgramObject, i, ntohs(Rule->Pattern.Port));
+            break;
+
+        case XDP_MATCH_IPV4_DST_MASK:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV4_DST_MASK Ip=%!IPADDR! Mask=%!IPADDR!",
+                ProgramObject, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr,
+                Rule->Pattern.IpMask.Mask.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_IPV6_DST_MASK:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV6_DST_MASK Ip=%!IPV6ADDR! Mask=%!IPV6ADDR!",
+                ProgramObject, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte,
+                Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
+            break;
+
+        case XDP_MATCH_QUIC_FLOW:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW "
+                "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
+                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
+                WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
+            break;
+
+        case XDP_MATCH_IPV4_UDP_TUPLE:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV4_UDP_TUPLE "
+                "Source=%!IPADDR!:%u Destination=%!IPADDR!:%u",
+                ProgramObject, i, Rule->Pattern.Tuple.SourceAddress.Ipv4.s_addr,
+                ntohs(Rule->Pattern.Tuple.SourcePort),
+                Rule->Pattern.Tuple.DestinationAddress.Ipv4.s_addr,
+                ntohs(Rule->Pattern.Tuple.DestinationPort));
+            break;
+
+        case XDP_MATCH_IPV6_UDP_TUPLE:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV6_UDP_TUPLE "
+                "Source=[%!IPV6ADDR!]:%u Destination=[%!IPV6ADDR!]:%u",
+                ProgramObject, i, Rule->Pattern.Tuple.SourceAddress.Ipv6.u.Byte,
+                ntohs(Rule->Pattern.Tuple.SourcePort),
+                Rule->Pattern.Tuple.DestinationAddress.Ipv6.u.Byte,
+                ntohs(Rule->Pattern.Tuple.DestinationPort));
+            break;
+
+        default:
+            ASSERT(FALSE);
+            break;
+        }
+    }
+}
 
 static
 VOID
@@ -778,6 +861,7 @@ XdpCaptureProgram(
         goto Exit;
     }
     Program = &ProgramObject->Program;
+    ProgramObject->CreatedByPid = (ULONG_PTR)PsGetCurrentProcessId();
 
     __try {
         if (RequestorMode != KernelMode) {
@@ -910,6 +994,9 @@ XdpProgramAttach(
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
+
+    TraceInfo(TRACE_CORE, "RxQueue=%p Program=%p", ProgramObject->RxQueue, ProgramObject);
+    XdpProgramTraceObject(ProgramObject);
 
     //
     // Register for interface/queue removal notifications.

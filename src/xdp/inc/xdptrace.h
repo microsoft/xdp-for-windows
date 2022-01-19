@@ -68,7 +68,7 @@
 // CUSTOM_TYPE(XDP_MODE, ItemEnum(_XDP_INTERFACE_MODE));
 //
 // DEFINE_CPLX_TYPE(HEXDUMP, WPP_LOGHEXDUMP, WPP_HEXDUMP, ItemHEXDump, "s", _HEX_, 0, 2);
-//
+// DEFINE_CPLX_TYPE(IPV6ADDR, WPP_LOGIPV6, CONST UCHAR *, ItemIPV6Addr, "s", _IPV6_, 0);
 // end_wpp
 //
 
@@ -93,6 +93,7 @@
 #define WPP_LOGHEXDUMP(x) \
     WPP_LOGPAIR(sizeof(UINT16), &(x).Length) \
     WPP_LOGPAIR((x).Length, (x).Buffer)
+#define WPP_LOGIPV6(x) WPP_LOGPAIR(16, (x))
 
 typedef struct _WPP_HEXDUMP {
     CONST VOID *Buffer;
