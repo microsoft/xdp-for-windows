@@ -54,10 +54,6 @@ typedef enum _XDP_MATCH_TYPE {
     // port numbers.
     //
     XDP_MATCH_IPV6_UDP_TUPLE,
-    //
-    // MUST BE LAST. Used to determine the number of match types.
-    //
-    XDP_MATCH_COUNT
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {

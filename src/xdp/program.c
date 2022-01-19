@@ -417,7 +417,7 @@ typedef struct QUIC_HEADER_INVARIANT {
         struct {
             UCHAR VARIANT : 7;
             UCHAR IsLongHeader : 1;
-        };
+        } COMMON_HDR;
         struct {
             UCHAR VARIANT : 7;
             UCHAR IsLongHeader : 1;
@@ -437,24 +437,26 @@ typedef struct QUIC_HEADER_INVARIANT {
 static
 BOOLEAN
 QuicCidMatch(
-    _In_reads_(Length) CONST UCHAR* Payload,
+    _In_reads_(Length) CONST UCHAR *Payload,
     _In_ UINT16 Length,
     _In_ CONST XDP_QUIC_FLOW *Flow
     )
 {
     CONST QUIC_HEADER_INVARIANT *Header = (CONST QUIC_HEADER_INVARIANT *)Payload;
-    if (Length < sizeof(UCHAR)) {
+    if (Length < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, COMMON_HDR)) {
         return FALSE; // Not enough room to read the IsLongHeader bit
     }
 
-    CONST UCHAR* DestCid;
-    if (Header->IsLongHeader) {
-        if (Length < 6 + Flow->CidOffset + Flow->CidLength) {  // 6 is sizeof(QUIC_HEADER_INVARIANT.LONG_HDR)
+    CONST UCHAR *DestCid;
+    if (Header->COMMON_HDR.IsLongHeader) {
+        if (Length < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, LONG_HDR) +
+            Flow->CidOffset + Flow->CidLength) {
             return FALSE; // Not enough room to read the CID
         }
         DestCid = Header->LONG_HDR.DestCid + Flow->CidOffset;
     } else {
-        if (Length < 1 + Flow->CidOffset + Flow->CidLength) {  // 1 is sizeof(QUIC_HEADER_INVARIANT.SHORT_HDR)
+        if (Length < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, SHORT_HDR) +
+            Flow->CidOffset + Flow->CidLength) {
             return FALSE; // Not enough room to read the CID
         }
         DestCid = Header->SHORT_HDR.DestCid + Flow->CidOffset;
@@ -876,12 +878,25 @@ XdpCaptureProgram(
     for (ULONG Index = 0; Index < RuleCount; Index++) {
         XDP_RULE *Rule = &Program->Rules[Index];
 
-        if (Rule->Match < XDP_MATCH_ALL || Rule->Match >= XDP_MATCH_COUNT) {
+        if (Rule->Match < XDP_MATCH_ALL || Rule->Match > XDP_MATCH_IPV6_UDP_TUPLE) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
-        if (Rule->Action < XDP_PROGRAM_ACTION_DROP ||
-            Rule->Action > XDP_PROGRAM_ACTION_REDIRECT) {
+
+        //
+        // Validate each match condition. Many match conditions support all
+        // possible input pattern values.
+        //
+        switch (Rule->Match) {
+        case XDP_MATCH_QUIC_FLOW:
+            if (Rule->Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+            break;
+        }
+
+        if (Rule->Action < XDP_PROGRAM_ACTION_DROP || Rule->Action > XDP_PROGRAM_ACTION_REDIRECT) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -890,7 +905,6 @@ XdpCaptureProgram(
         // Capture object handle references in the context of the calling thread.
         // The handle will be validated further on the control path.
         //
-
         if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
 
             switch (Rule->Redirect.TargetType) {
