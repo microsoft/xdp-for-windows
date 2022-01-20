@@ -43,6 +43,9 @@ VOID
 GenericRxMultiSocket();
 
 VOID
+GenericRxMultiProgram();
+
+VOID
 GenericRxUdpFragmentHeaderData(
     _In_ ADDRESS_FAMILY Af
     );

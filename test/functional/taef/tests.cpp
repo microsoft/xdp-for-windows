@@ -103,6 +103,10 @@ public:
         ::GenericRxMultiSocket();
     }
 
+    TEST_METHOD(GenericRxMultiProgram) {
+        ::GenericRxMultiProgram();
+    }
+
     TEST_METHOD(GenericTxToRxInject) {
         ::GenericTxToRxInject();
     }

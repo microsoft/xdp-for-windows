@@ -25,8 +25,22 @@ extern "C" {
 // N.B. The current implementation supports only L2 RX inspect programs.
 //
 
-#define XDP_ATTACH_GENERIC  0x1
-#define XDP_ATTACH_NATIVE   0x2
+//
+// Attach to the interface using the generic XDP provider.
+//
+#define XDP_CREATE_PROGRAM_FLAG_GENERIC 0x1
+
+//
+// Attach to the interface using the native XDP provider. If the interface does
+// not support native XDP, the attach will fail.
+//
+#define XDP_CREATE_PROGRAM_FLAG_NATIVE  0x2
+
+//
+// Allow sharing the XDP queue with other XDP programs. All programs on the
+// interface must use this flag for sharing to be enabled.
+//
+#define XDP_CREATE_PROGRAM_FLAG_SHARE   0x4
 
 HRESULT
 XDPAPI

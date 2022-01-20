@@ -288,9 +288,9 @@ AttachXdpProgram(
     rule.Redirect.Target = Queue->sock;
 
     if (Queue->xdpMode == XdpModeGeneric) {
-        flags |= XDP_ATTACH_GENERIC;
+        flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
     } else if (Queue->xdpMode == XdpModeNative) {
-        flags |= XDP_ATTACH_NATIVE;
+        flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
     }
 
     res = XskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);

@@ -128,11 +128,17 @@ typedef struct {
 } XSK_DATAPATH_SHARED;
 
 typedef struct {
+    CRITICAL_SECTION Lock;
+    UINT32 HandleCount;
+    HANDLE Handles[8];
+} XSK_PROGRAM_SET;
+
+typedef struct {
     HANDLE threadHandle;
     XSK_DATAPATH_SHARED *shared;
 
     HANDLE sock;
-    HANDLE *rxProgram;
+    XSK_PROGRAM_SET *rxProgramSet;
 
     struct {
         BOOLEAN rx : 1;
@@ -177,8 +183,8 @@ struct QUEUE_CONTEXT {
     HANDLE sock;
     HANDLE sharedUmemSock;
 
-    HANDLE rxProgram;
-    HANDLE sharedUmemRxProgram;
+    XSK_PROGRAM_SET rxProgramSet;
+    XSK_PROGRAM_SET sharedUmemRxProgramSet;
 
     XSK_UMEM_REG umemReg;
     XDP_MODE xdpMode;
@@ -342,7 +348,7 @@ AttachXdpProgram(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
     _In_ BOOLEAN RxRequired,
-    _Inout_ HANDLE *RxProgramHandle
+    _Inout_ XSK_PROGRAM_SET *RxProgramSet
     )
 {
     XDP_RULE rule = {0};
@@ -358,9 +364,13 @@ AttachXdpProgram(
     rule.Redirect.Target = Sock;
 
     if (Queue->xdpMode == XdpModeGeneric) {
-        flags |= XDP_ATTACH_GENERIC;
+        flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
     } else if (Queue->xdpMode == XdpModeNative) {
-        flags |= XDP_ATTACH_NATIVE;
+        flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
+    }
+
+    if (RandUlong() % 4) {
+        flags |= XDP_CREATE_PROGRAM_FLAG_SHARE;
     }
 
     res = XskGetSockopt(Sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookIdSize);
@@ -373,9 +383,13 @@ AttachXdpProgram(
 
     res = XdpCreateProgram(ifindex, &hookId, Queue->queueId, flags, &rule, 1, &handle);
     if (SUCCEEDED(res)) {
-        if (InterlockedCompareExchangePointer(RxProgramHandle, handle, NULL) != NULL) {
+        EnterCriticalSection(&RxProgramSet->Lock);
+        if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
+            RxProgramSet->Handles[RxProgramSet->HandleCount++] = handle;
+        } else {
             CloseHandle(handle);
         }
+        LeaveCriticalSection(&RxProgramSet->Lock);
     }
 
 Exit:
@@ -385,10 +399,18 @@ Exit:
 
 VOID
 DetachXdpProgram(
-    _Inout_ HANDLE *RxProgramHandle
+    _Inout_ XSK_PROGRAM_SET *RxProgramSet
     )
 {
-    HANDLE handle = InterlockedExchangePointer(RxProgramHandle, NULL);
+    HANDLE handle = NULL;
+
+    EnterCriticalSection(&RxProgramSet->Lock);
+    if (RxProgramSet->HandleCount > 0) {
+        UINT32 detachIndex = RandUlong() % RxProgramSet->HandleCount;
+        handle = RxProgramSet->Handles[detachIndex];
+        RxProgramSet->Handles[detachIndex] = RxProgramSet->Handles[--RxProgramSet->HandleCount];
+    }
+    LeaveCriticalSection(&RxProgramSet->Lock);
 
     if (handle != NULL) {
         ASSERT_FRE(CloseHandle(handle));
@@ -447,8 +469,13 @@ CleanupQueue(
 {
     BOOL res;
 
-    DetachXdpProgram(&Queue->rxProgram);
-    DetachXdpProgram(&Queue->sharedUmemRxProgram);
+    while (Queue->rxProgramSet.HandleCount > 0) {
+        DetachXdpProgram(&Queue->rxProgramSet);
+    }
+
+    while (Queue->sharedUmemRxProgramSet.HandleCount > 0) {
+        DetachXdpProgram(&Queue->sharedUmemRxProgramSet);
+    }
 
     if (Queue->sock != NULL) {
         CloseHandle(Queue->sock);
@@ -473,6 +500,9 @@ CleanupQueue(
         ASSERT_FRE(res);
     }
 
+    DeleteCriticalSection(&Queue->sharedUmemRxProgramSet.Lock);
+    DeleteCriticalSection(&Queue->rxProgramSet.Lock);
+
     free(Queue);
 }
 
@@ -494,6 +524,8 @@ InitializeQueue(
 
     queue->queueId = QueueId;
     queue->fuzzerCount = fuzzerCount;
+    InitializeCriticalSection(&queue->rxProgramSet.Lock);
+    InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
@@ -564,11 +596,11 @@ InitializeQueue(
     queue->datapath2.shared = &queue->datapathShared;
 
     queue->datapath1.sock = queue->sock;
-    queue->datapath1.rxProgram = &queue->rxProgram;
+    queue->datapath1.rxProgramSet = &queue->rxProgramSet;
     if (queue->scenarioConfig.sockRxTxSeparateThreads) {
         queue->datapath1.flags.rx = TRUE;
         queue->datapath2.sock = queue->sock;
-        queue->datapath2.rxProgram = &queue->rxProgram;
+        queue->datapath2.rxProgramSet = &queue->rxProgramSet;
         queue->datapath2.flags.tx = TRUE;
     } else {
         if (queue->scenarioConfig.sockRx) {
@@ -579,12 +611,12 @@ InitializeQueue(
         }
         if (queue->scenarioConfig.sharedUmemSockRx) {
             queue->datapath2.sock = queue->sharedUmemSock;
-            queue->datapath2.rxProgram = &queue->sharedUmemRxProgram;
+            queue->datapath2.rxProgramSet = &queue->sharedUmemRxProgramSet;
             queue->datapath2.flags.rx = TRUE;
         }
         if (queue->scenarioConfig.sharedUmemSockTx) {
             queue->datapath2.sock = queue->sharedUmemSock;
-            queue->datapath2.rxProgram = &queue->sharedUmemRxProgram;
+            queue->datapath2.rxProgramSet = &queue->sharedUmemRxProgramSet;
             queue->datapath2.flags.tx = TRUE;
         }
     }
@@ -741,7 +773,7 @@ VOID
 FuzzSocketMisc(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
-    _Inout_ HANDLE *RxProgramHandle
+    _Inout_ XSK_PROGRAM_SET *RxProgramSet
     )
 {
     UINT32 optSize;
@@ -804,11 +836,16 @@ FuzzSocketMisc(
     }
 
     if (!cleanDatapath && !(RandUlong() % 3)) {
-        DetachXdpProgram(RxProgramHandle);
+        DetachXdpProgram(RxProgramSet);
 
-        WaitForSingleObject(stopEvent, 20);
+        if (RxProgramSet->HandleCount == 0) {
+            WaitForSingleObject(stopEvent, 20);
+            AttachXdpProgram(Queue, Sock, FALSE, RxProgramSet);
+        }
+    }
 
-        AttachXdpProgram(Queue, Sock, FALSE, RxProgramHandle);
+    if (!cleanDatapath && !(RandUlong() % 3)) {
+        AttachXdpProgram(Queue, Sock, FALSE, RxProgramSet);
     }
 }
 
@@ -847,8 +884,6 @@ CleanupDatapath(
     _Inout_ XSK_DATAPATH_WORKER *Datapath
     )
 {
-    DetachXdpProgram(Datapath->rxProgram);
-
     if (Datapath->rxFreeRingBase) {
         free(Datapath->rxFreeRingBase);
     }
@@ -925,7 +960,7 @@ InitializeDatapath(
 
     res =
         AttachXdpProgram(
-            Datapath->shared->queue, Datapath->sock, Datapath->flags.rx, Datapath->rxProgram);
+            Datapath->shared->queue, Datapath->sock, Datapath->flags.rx, Datapath->rxProgramSet);
     if (FAILED(res)) {
         goto Exit;
     }
@@ -1197,14 +1232,14 @@ XskFuzzerWorkerFn(
             queue, queue->sock,
             scenarioConfig->sockRx, scenarioConfig->sockTx,
             &scenarioConfig->isSockRxSet, &scenarioConfig->isSockTxSet);
-        FuzzSocketMisc(queue, queue->sock, &queue->rxProgram);
+        FuzzSocketMisc(queue, queue->sock, &queue->rxProgramSet);
 
         if (queue->sharedUmemSock != NULL) {
             FuzzSocketRxTxSetup(
                 queue, queue->sharedUmemSock,
                 scenarioConfig->sharedUmemSockRx, scenarioConfig->sharedUmemSockTx,
                 &scenarioConfig->isSharedUmemSockRxSet, &scenarioConfig->isSharedUmemSockTxSet);
-            FuzzSocketMisc(queue, queue->sharedUmemSock, &queue->sharedUmemRxProgram);
+            FuzzSocketMisc(queue, queue->sharedUmemSock, &queue->sharedUmemRxProgramSet);
         }
 
         if (ScenarioConfigBindReady(scenarioConfig)) {

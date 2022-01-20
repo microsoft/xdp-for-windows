@@ -80,6 +80,11 @@ typedef struct _XDP_RX_QUEUE {
     LIST_ENTRY NotifyClients;
 } XDP_RX_QUEUE;
 
+typedef struct _XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS {
+    XDP_RX_QUEUE *RxQueue;
+    XDP_PROGRAM *NewProgram;
+} XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS;
+
 static
 XDP_RX_QUEUE *
 XdpRxQueueFromHandle(
@@ -1094,6 +1099,20 @@ XdpRxQueueSync(
     KeWaitForSingleObject(&SyncEntry.Event, Executive, KernelMode, FALSE, NULL);
 }
 
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpRxQueueSwapProgram(
+    _In_opt_ VOID *CallbackContext
+    )
+{
+    XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS *SwapParams = CallbackContext;
+
+    ASSERT(CallbackContext != NULL);
+
+    SwapParams->RxQueue->Program = SwapParams->NewProgram;
+}
+
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
@@ -1102,19 +1121,40 @@ XdpRxQueueSetProgram(
 {
     NTSTATUS Status = STATUS_SUCCESS;
 
-    ASSERT((RxQueue->Program == NULL) != (Program == NULL));
+    TraceEnter(
+        TRACE_CORE, "RxQueue=%p Program=%p OldProgram=%p", RxQueue, Program, RxQueue->Program);
 
-    if (Program != NULL) {
+    if (Program != NULL && RxQueue->Program != NULL) {
+        //
+        // Swap the existing program for a new program; perform the swap on the
+        // data path execution context to ensure the old program is not touched
+        // after the swap is performed. The caller is responsible for cleaning
+        // up the old program.
+        //
+        XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS SwapParams = {0};
+        SwapParams.RxQueue = RxQueue;
+        SwapParams.NewProgram = Program;
+        XdpRxQueueSync(RxQueue, XdpRxQueueSwapProgram, &SwapParams);
+    } else if (Program != NULL) {
+        //
+        // Add a new program, which requires activating the underlying XDP RX
+        // queue on the interface.
+        //
         RxQueue->Program = Program;
         Status = XdpRxQueueAttachInterface(RxQueue);
         if (!NT_SUCCESS(Status)) {
             RxQueue->Program = NULL;
         }
     } else {
+        //
+        // Remove the program and detach from the underlying XDP RX queue on the
+        // interface.
+        //
         XdpRxQueueDetachInterface(RxQueue);
         RxQueue->Program = NULL;
     }
 
+    TraceExitStatus(TRACE_CORE);
     return Status;
 }
 

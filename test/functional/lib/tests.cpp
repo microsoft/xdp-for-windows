@@ -522,16 +522,18 @@ CreateXdpProg(
     _In_ UINT32 QueueId,
     _In_ XDP_MODE XdpMode,
     _In_ XDP_RULE *Rules,
-    _In_ UINT32 RuleCount
+    _In_ UINT32 RuleCount,
+    _In_ UINT32 Flags = 0
     )
 {
     wil::unique_handle ProgramHandle;
-    UINT32 Flags = 0;
+
+    ASSERT(Flags & (XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE) == 0);
 
     if (XdpMode == XDP_GENERIC) {
-        Flags |= XDP_ATTACH_GENERIC;
+        Flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
     } else if (XdpMode == XDP_NATIVE) {
-        Flags |= XDP_ATTACH_NATIVE;
+        Flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
     }
 
     TEST_HRESULT(
@@ -2080,6 +2082,101 @@ GenericRxMultiSocket()
                     XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
                 Buffer.VirtualAddress + Buffer.DataOffset,
                 Buffer.DataLength));
+    }
+}
+
+VOID
+GenericRxMultiProgram()
+{
+    auto If = FnMpIf;
+    ADDRESS_FAMILY Af = AF_INET;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    UCHAR UdpMatchPayload[] = "GenericRxMultiProgram";
+    struct {
+        MY_SOCKET Xsk;
+        wil::unique_handle ProgramHandle;
+        UINT16 LocalPort;
+        UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpMatchPayload)];
+        UINT32 UdpFrameLength;
+    } Sockets[4];
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    for (UINT16 Index = 0; Index < RTL_NUMBER_OF(Sockets); Index++) {
+        XDP_RULE Rule = {};
+
+        Sockets[Index].Xsk =
+            CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+        Sockets[Index].LocalPort = htons(1000 + Index);
+        Sockets[Index].UdpFrameLength = sizeof(Sockets[Index].UdpFrame);
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                Sockets[Index].UdpFrame, &Sockets[Index].UdpFrameLength, UdpMatchPayload,
+                sizeof(UdpMatchPayload), &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp,
+                Sockets[Index].LocalPort, htons(2000)));
+
+        Rule.Match = XDP_MATCH_UDP_DST;
+        Rule.Pattern.Port = Sockets[Index].LocalPort;
+        Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+        Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+        Rule.Redirect.Target = Sockets[Index].Xsk.Handle.get();
+
+        Sockets[Index].ProgramHandle =
+            CreateXdpProg(
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC,
+                &Rule, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
+    }
+
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    for (UINT16 Index = 0; Index < RTL_NUMBER_OF(Sockets); Index++) {
+        auto &Socket = Sockets[Index].Xsk;
+        DATA_FRAME Frame = {};
+        DATA_BUFFER Buffer = {};
+        BOOLEAN Detach = Index & 1;
+
+        if (Detach) {
+            //
+            // Ensure shared programs are properly detached.
+            //
+            Sockets[Index].ProgramHandle.reset();
+        }
+
+        SocketProduceRxFill(&Socket, 1);
+
+        Frame.BufferCount = 1;
+        Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
+        Buffer.DataOffset = 0;
+        Buffer.DataLength = Sockets[Index].UdpFrameLength;
+        Buffer.BufferLength = Buffer.DataLength;
+        Buffer.VirtualAddress = Sockets[Index].UdpFrame;
+        MpRxEnqueue(GenericMp, &Frame, &Buffer);
+        MpRxFlush(GenericMp);
+
+        //
+        // Verify the NBL propagated correctly to XSK.
+        //
+        if (Detach) {
+            UINT32 ConsumerIndex;
+            Sleep(TEST_TIMEOUT_ASYNC_MS);
+            TEST_EQUAL(0, XskRingConsumerReserve(&Socket.Rings.Rx, MAXUINT32, &ConsumerIndex));
+        } else {
+            UINT32 ConsumerIndex = SocketConsumerReserve(&Socket.Rings.Rx, 1);
+
+            TEST_EQUAL(1, XskRingConsumerReserve(&Socket.Rings.Rx, MAXUINT32, &ConsumerIndex));
+            auto RxDesc = SocketGetAndFreeRxDesc(&Socket, ConsumerIndex);
+            TEST_EQUAL(Buffer.DataLength, RxDesc->length);
+            TEST_TRUE(
+                RtlEqualMemory(
+                    Socket.Umem.Buffer.get() +
+                        XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+                    Buffer.VirtualAddress + Buffer.DataOffset,
+                    Buffer.DataLength));
+        }
     }
 }
 
