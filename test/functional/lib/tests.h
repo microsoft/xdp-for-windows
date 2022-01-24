@@ -46,6 +46,9 @@ VOID
 GenericRxMultiProgram();
 
 VOID
+GenericRxMultiProgramConflicts();
+
+VOID
 GenericRxUdpFragmentHeaderData(
     _In_ ADDRESS_FAMILY Af
     );
