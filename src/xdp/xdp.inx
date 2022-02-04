@@ -20,7 +20,7 @@ xdpapi.dll = 1
 %Msft% = MSFT,NT$ARCH$
 
 [MSFT.NT$ARCH$]
-%XdpDescription% = Install, ms_xdp
+%Xdp% = Install, ms_xdp
 
 [Install]
 Characteristics     = %NCF_LW_FILTER%
@@ -38,7 +38,7 @@ xdpapi.dll
 [XDP.NDI]
 HKR, Ndi, Service,, "xdp"
 HKR, Ndi, CoServices, %REG_MULTI_SZ%, "xdp"
-HKR, Ndi, HelpText,, %XdpDescription%
+HKR, Ndi, HelpText,, "%XdpDescription%"
 HKR, Ndi, FilterClass,, custom
 HKR, Ndi, FilterType, %REG_DWORD%, %FILTER_TYPE_MODIFYING%
 HKR, Ndi, FilterRunType, %REG_DWORD%, %FILTER_RUN_TYPE_OPTIONAL%
@@ -83,8 +83,9 @@ DelService = xdp, %SPSVCINST_STOPSERVICE%
 
 [Strings]
 ; localizable strings
-Msft            = "Microsoft Corporation"
-XdpDescription  = "XDP"
+Msft                = "Microsoft Corporation"
+Xdp                 = "XDP"
+XdpDescription      = "Microsoft XDP Platform Driver"
 
 ; non-localizable strings
 DIRID_SYSTEM                = 11
