@@ -24,11 +24,12 @@ Write-Host "Enable driver verifier"
 #       non-default value disables this behavior.
 # ""  - Pool tag filter
 # ""  - Application filter
-# 0   - Delay (in minutes) after boot until simulation engages
+# 1   - Delay (in minutes) after boot until simulation engages
+#       This is the lowest value configurable via verifier.exe.
 #
 # WARNING: xdp.sys itself may fail to load due to low resources simulation.
 #
-verifier.exe /standard /faults 599 `"`" `"`" 0 /driver xdp.sys
+verifier.exe /standard /faults 599 `"`" `"`" 1 /driver xdp.sys
 
 #
 # Disable TDX and its dependent service NetBT. These drivers are implicated in
