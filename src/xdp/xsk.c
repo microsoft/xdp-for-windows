@@ -3648,7 +3648,7 @@ Exit:
     // This IOCTL is assumed to never pend and code elsewhere takes advantage of
     // this assumption.
     //
-    FRE_ASSERT(Status != STATUS_PENDING);
+    ASSERT(Status != STATUS_PENDING);
 
     *Information = OutFlags;
     return Status;
