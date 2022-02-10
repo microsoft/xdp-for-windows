@@ -289,6 +289,7 @@ NdisPollCpuInsert(
 
     RtlZeroMemory(Ec, sizeof(*Ec));
     KeInitializeDpc(&Ec->CrossCpuDpc, NdisPollCrossCpuDpc, Q);
+    KeSetImportanceDpc(&Ec->CrossCpuDpc, MediumHighImportance);
     KeGetProcessorNumberFromIndex(Ec->OwningCpu, &ProcessorNumber);
     KeSetTargetProcessorDpcEx(&Ec->CrossCpuDpc, &ProcessorNumber);
 
