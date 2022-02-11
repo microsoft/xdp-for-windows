@@ -36,7 +36,7 @@ XdpRegQueryDwordValue(
 
     Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
     if (!NT_SUCCESS(Status)) {
-        return Status;
+        goto Exit;
     }
 
     RtlInitUnicodeString(&UnicodeName, ValueName);
@@ -58,6 +58,13 @@ XdpRegQueryDwordValue(
     }
 
     ZwClose(KeyHandle);
+
+Exit:
+
+    TraceInfo(
+        TRACE_CORE,
+        "KeyName=%S ValueName=%S Value=%u Status=%!STATUS!",
+        KeyName, ValueName, NT_SUCCESS(Status) ? *ValueData : 0, Status);
 
     return Status;
 }
