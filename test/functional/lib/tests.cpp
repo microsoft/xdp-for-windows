@@ -869,64 +869,44 @@ LwfOpenDefault(
     return Handle;
 }
 
+struct RX_FRAME {
+    DATA_FRAME Frame;
+    DATA_BUFFER SingleBufferStorage;
+
+    //
+    // Need to explicitly state default constructor when deleting other
+    // constructors.
+    //
+    RX_FRAME() = default;
+
+    //
+    // Delete the move and copy constructors. There are cases where a pointer
+    // inside of Frame points directly to SingleBufferStorage, and any of these
+    // constructors default implementations being called would break this
+    // invariant.
+    //
+    RX_FRAME(const RX_FRAME&) = delete;
+    RX_FRAME(RX_FRAME&&) = delete;
+
+    RX_FRAME& operator=(const RX_FRAME&) = delete;
+    RX_FRAME& operator=(RX_FRAME&&) = delete;
+};
+
+[[nodiscard]]
 static
 HRESULT
-MpRxTryEnqueue(
-    _In_ const wil::unique_handle& Handle,
-    _In_ DATA_FRAME *Frame,
-    _In_ DATA_BUFFER *Buffer
-    )
-{
-    return FnMpRxEnqueue(Handle.get(), Frame, Buffer);
-}
-
-static
-VOID
-MpRxEnqueue(
-    _In_ const wil::unique_handle& Handle,
-    _In_ DATA_FRAME *Frame,
-    _In_ DATA_BUFFER *Buffer
-    )
-{
-    TEST_HRESULT(MpRxTryEnqueue(Handle, Frame, Buffer));
-}
-
-static
-HRESULT
-MpRxTryEnqueueFrame(
-    _In_ const wil::unique_handle& Handle,
-    _In_ UINT32 HashQueueId,
-    _In_ VOID *FrameBuffer,
-    _In_ UINT32 FrameLength
-    )
-{
-    DATA_FRAME Frame = {0};
-    DATA_BUFFER Buffer = {0};
-
-    Frame.BufferCount = 1;
-    Frame.Input.RssHashQueueId = HashQueueId;
-    Buffer.DataOffset = 0;
-    Buffer.DataLength = FrameLength;
-    Buffer.BufferLength = FrameLength;
-    Buffer.VirtualAddress = (UCHAR *)FrameBuffer;
-    return MpRxTryEnqueue(Handle, &Frame, &Buffer);
-}
-
-static
-VOID
 MpRxEnqueueFrame(
     _In_ const wil::unique_handle& Handle,
-    _In_ UINT32 HashQueueId,
-    _In_ VOID *FrameBuffer,
-    _In_ UINT32 FrameLength
+    _In_ RX_FRAME *RxFrame
     )
 {
-    TEST_HRESULT(MpRxTryEnqueueFrame(Handle, HashQueueId, FrameBuffer, FrameLength));
+    return FnMpRxEnqueue(Handle.get(), &RxFrame->Frame);
 }
 
+[[nodiscard]]
 static
 HRESULT
-MpRxTryFlush(
+MpRxFlush(
     _In_ const wil::unique_handle& Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
@@ -934,50 +914,69 @@ MpRxTryFlush(
     return FnMpRxFlush(Handle.get(), Options);
 }
 
-static
-VOID
-MpRxFlush(
-    _In_ const wil::unique_handle& Handle,
-    _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
-    )
-{
-    TEST_HRESULT(MpRxTryFlush(Handle, Options));
-}
-
+[[nodiscard]]
 static
 HRESULT
-MpRxTryIndicateFrame(
+MpRxIndicateFrame(
     _In_ const wil::unique_handle& Handle,
-    _In_ UINT32 HashQueueId,
-    _In_ VOID *FrameBuffer,
-    _In_ UINT32 FrameLength
+    _In_ RX_FRAME *RxFrame
     )
 {
-    HRESULT Result;
-
-    Result = MpRxTryEnqueueFrame(Handle, HashQueueId, FrameBuffer, FrameLength);
-    if (FAILED(Result)) {
-        return Result;
+    HRESULT Status = MpRxEnqueueFrame(Handle, RxFrame);
+    if (!SUCCEEDED(Status)) {
+        return Status;
     }
-
-    Result = MpRxTryFlush(Handle);
-    if (FAILED(Result)) {
-        return Result;
-    }
-
-    return S_OK;
+    return MpRxFlush(Handle);
 }
 
 static
 VOID
-MpRxIndicateFrame(
-    _In_ const wil::unique_handle& Handle,
+RxInitializeFrame(
+    _Out_ RX_FRAME *Frame,
     _In_ UINT32 HashQueueId,
-    _In_ VOID *FrameBuffer,
+    _In_reads_(BuffersCount)
+        DATA_BUFFER *Buffers,
+    _In_ UINT16 BuffersCount
+    )
+{
+    RtlZeroMemory(Frame, sizeof(*Frame));
+    Frame->Frame.BufferCount = BuffersCount;
+    Frame->Frame.Input.RssHashQueueId = HashQueueId;
+    Frame->Frame.Buffers = Buffers;
+}
+
+static
+VOID
+RxInitializeFrame(
+    _Out_ RX_FRAME *Frame,
+    _In_ UINT32 HashQueueId,
+    _In_ DATA_BUFFER *Buffer
+    )
+{
+    RtlZeroMemory(Frame, sizeof(*Frame));
+    Frame->Frame.BufferCount = 1;
+    Frame->Frame.Input.RssHashQueueId = HashQueueId;
+    Frame->Frame.Buffers = Buffer;
+}
+
+static
+VOID
+RxInitializeFrame(
+    _Out_ RX_FRAME *Frame,
+    _In_ UINT32 HashQueueId,
+    _In_ UCHAR *FrameBuffer,
     _In_ UINT32 FrameLength
     )
 {
-    TEST_HRESULT(MpRxTryIndicateFrame(Handle, HashQueueId, FrameBuffer, FrameLength));
+    RtlZeroMemory(Frame, sizeof(*Frame));
+    Frame->Frame.BufferCount = 1;
+    Frame->Frame.Input.RssHashQueueId = HashQueueId;
+    Frame->Frame.Buffers = nullptr;
+    Frame->SingleBufferStorage.DataOffset = 0;
+    Frame->SingleBufferStorage.DataLength = FrameLength;
+    Frame->SingleBufferStorage.BufferLength = FrameLength;
+    Frame->SingleBufferStorage.VirtualAddress = FrameBuffer;
+    Frame->Frame.Buffers = &Frame->SingleBufferStorage;
 }
 
 static
@@ -1070,11 +1069,10 @@ static
 VOID
 LwfTxEnqueue(
     _In_ const wil::unique_handle& Handle,
-    _In_ DATA_FRAME *Frame,
-    _In_ DATA_BUFFER *Buffer
+    _In_ DATA_FRAME *Frame
     )
 {
-    TEST_HRESULT(FnLwfTxEnqueue(Handle.get(), Frame, Buffer));
+    TEST_HRESULT(FnLwfTxEnqueue(Handle.get(), Frame));
 }
 
 static
@@ -1357,7 +1355,9 @@ WaitForWfpQuarantine(
     Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(30));
     DWORD Bytes;
     do {
-        if (SUCCEEDED(MpRxTryIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength))) {
+        RX_FRAME RxFrame;
+        RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        if (SUCCEEDED(MpRxIndicateFrame(GenericMp, &RxFrame))) {
             Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
         } else {
             Bytes = -1;
@@ -1518,20 +1518,20 @@ GenericRxSingleFrame()
     auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 
-    DATA_FRAME Frame = {0};
     DATA_BUFFER Buffer = {0};
     CONST UCHAR BufferVa[] = "GenericRxSingleFrame";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
     //
-    Frame.BufferCount = 1;
-    Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = 0;
     Buffer.DataLength = sizeof(BufferVa);
     Buffer.BufferLength = Buffer.DataLength;
     Buffer.VirtualAddress = BufferVa;
-    MpRxEnqueue(GenericMp, &Frame, &Buffer);
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
     //
     // Produce one XSK fill descriptor.
@@ -1547,7 +1547,7 @@ GenericRxSingleFrame()
     //
     // Indicate the NBL to NDIS and XDP.
     //
-    MpRxFlush(GenericMp);
+    TEST_HRESULT(MpRxFlush(GenericMp));
 
     //
     // NDIS, XDP, and XSK are not required to indicate the frame to user space
@@ -1575,26 +1575,26 @@ GenericRxBackfillAndTrailer()
     auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 
-    DATA_FRAME Frame = {0};
     DATA_BUFFER Buffer = {0};
     CONST UCHAR BufferVa[] = "GenericRxBackfillAndTrailer";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
     //
-    Frame.BufferCount = 1;
-    Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = 3;
     Buffer.DataLength = 5;
     Buffer.BufferLength = sizeof(BufferVa);
     Buffer.VirtualAddress = BufferVa;
-    MpRxEnqueue(GenericMp, &Frame, &Buffer);
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
     //
     // Produce one XSK fill descriptor.
     //
     SocketProduceRxFill(&Socket, 1);
-    MpRxFlush(GenericMp);
+    TEST_HRESULT(MpRxFlush(GenericMp));
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Socket.Rings.Rx, 1);
 
@@ -1704,7 +1704,9 @@ GenericRxMatchUdp(
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1717,7 +1719,8 @@ GenericRxMatchUdp(
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
     TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
 
@@ -1736,7 +1739,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1750,7 +1754,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1764,7 +1769,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1778,7 +1784,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1792,7 +1799,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1808,7 +1816,8 @@ GenericRxMatchUdp(
                 UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
                 &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
 
@@ -1824,7 +1833,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1841,7 +1851,8 @@ GenericRxMatchUdp(
         ProgramHandle =
             CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-        MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
@@ -1906,7 +1917,9 @@ GenericRxMatchIpPrefix(
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
     TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
 
@@ -1919,7 +1932,8 @@ GenericRxMatchIpPrefix(
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    MpRxIndicateFrame(GenericMp, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
@@ -1977,20 +1991,30 @@ GenericRxLowResources()
     //
     CONST UINT32 NumMatchFrames = 4;
     CONST UINT32 NumNoMatchFrames = 4;
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
-    MpRxEnqueueFrame(GenericMp, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpNoMatchFrame, UdpNoMatchFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
     SocketProduceRxFill(&Xsk, NumMatchFrames);
 
     DATA_FLUSH_OPTIONS FlushOptions = {0};
     FlushOptions.Flags.LowResources = TRUE;
-    MpRxFlush(GenericMp, &FlushOptions);
+    TEST_HRESULT(MpRxFlush(GenericMp, &FlushOptions));
 
     //
     // Verify the match NBLs propagated correctly to XSK.
@@ -2072,19 +2096,17 @@ GenericRxMultiSocket()
 
     for (UINT16 Index = 0; Index < RTL_NUMBER_OF(Sockets); Index++) {
         auto &Socket = Sockets[Index].Xsk;
-        DATA_FRAME Frame = {};
-        DATA_BUFFER Buffer = {};
+        DATA_BUFFER Buffer = {0};
 
         SocketProduceRxFill(&Socket, 1);
 
-        Frame.BufferCount = 1;
-        Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = Sockets[Index].UdpFrameLength;
         Buffer.BufferLength = Buffer.DataLength;
         Buffer.VirtualAddress = Sockets[Index].UdpFrame;
-        MpRxEnqueue(GenericMp, &Frame, &Buffer);
-        MpRxFlush(GenericMp);
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
         UINT32 ConsumerIndex = SocketConsumerReserve(&Socket.Rings.Rx, 1);
 
@@ -2153,8 +2175,7 @@ GenericRxMultiProgram()
 
     for (UINT16 Index = 0; Index < RTL_NUMBER_OF(Sockets); Index++) {
         auto &Socket = Sockets[Index].Xsk;
-        DATA_FRAME Frame = {};
-        DATA_BUFFER Buffer = {};
+        DATA_BUFFER Buffer = {0};
         BOOLEAN Detach = Index & 1;
 
         if (Detach) {
@@ -2166,14 +2187,13 @@ GenericRxMultiProgram()
 
         SocketProduceRxFill(&Socket, 1);
 
-        Frame.BufferCount = 1;
-        Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = Sockets[Index].UdpFrameLength;
         Buffer.BufferLength = Buffer.DataLength;
         Buffer.VirtualAddress = Sockets[Index].UdpFrame;
-        MpRxEnqueue(GenericMp, &Frame, &Buffer);
-        MpRxFlush(GenericMp);
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
         //
         // Verify the NBL propagated correctly to XSK.
@@ -2247,6 +2267,248 @@ GenericRxMultiProgramConflicts()
         HRESULT_FROM_WIN32(ERROR_OBJECT_ALREADY_EXISTS),
         TryCreateXdpProg(
             failProgram, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1));
+}
+
+VOID
+GenericRxUdpFragmentQuicShortHeader(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    UINT32 UdpFrameOffset = 0;
+    UINT32 TotalOffset = 0;
+
+    auto UdpSocket = CreateUdpSocket(Af, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    wil::unique_handle ProgramHandle;
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    const UCHAR QuicShortHdrUdpPayload[QUIC_MAX_CID_LENGTH + 10] = { // 21 bytes is a full CID
+        0x00, // IsLongHeader
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
+        0x00 // The rest
+    };
+    const UCHAR CorrectQuicCid[] = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+    };
+
+    std::vector<DATA_BUFFER> Buffers;
+    DATA_BUFFER Buffer = {0};
+
+    XDP_RULE Rules[2];
+    Rules[0].Action = XDP_PROGRAM_ACTION_DROP;
+    Rules[0].Match = XDP_MATCH_QUIC_FLOW;
+    Rules[0].Pattern.QuicFlow.UdpPort = LocalPort;
+    Rules[0].Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
+    Rules[0].Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
+    memcpy(
+        Rules[0].Pattern.QuicFlow.CidData,
+        CorrectQuicCid + Rules[0].Pattern.QuicFlow.CidOffset,
+        Rules[0].Pattern.QuicFlow.CidLength);
+    Rules[1].Action = XDP_PROGRAM_ACTION_PASS;
+    Rules[1].Match = XDP_MATCH_ALL;
+
+    ProgramHandle =
+                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
+
+    CHAR RecvPayload[sizeof(QuicShortHdrUdpPayload)];
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(QuicShortHdrUdpPayload)];
+    const UCHAR* UdpPayload;
+    UINT16 UdpPayloadLength = 0;
+    UdpPayload = QuicShortHdrUdpPayload;
+
+    for (; UdpPayloadLength < sizeof(QuicShortHdrUdpPayload); UdpPayloadLength++) {
+        if (UdpPayloadLength ==
+                Rules[0].Pattern.QuicFlow.CidOffset +
+                Rules[0].Pattern.QuicFlow.CidLength + 1) {
+            Rules[0].Action = XDP_PROGRAM_ACTION_PASS;
+            Rules[1].Action = XDP_PROGRAM_ACTION_DROP;
+            ProgramHandle.reset();
+            ProgramHandle =
+                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
+        }
+
+        //
+        // Test a full length buffer
+        //
+
+        UINT32 UdpFrameLength = sizeof(UdpFrame);
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
+                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+        RX_FRAME RxFrame;
+        RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Test Payload Fragmented at all points
+        //
+
+        for (UINT16 FragmentOffset = 0; FragmentOffset < UdpPayloadLength; FragmentOffset++) {
+
+            Buffers.clear();
+            TotalOffset = 0;
+
+            std::memset(&Buffer, 0, sizeof(Buffer));
+            Buffer.DataOffset = 0;
+            Buffer.DataLength = UdpFrameLength - (FragmentOffset + 1);
+            Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
+            Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+            TotalOffset += Buffer.BufferLength;
+            Buffers.push_back(Buffer);
+
+            std::memset(&Buffer, 0, sizeof(Buffer));
+            Buffer.DataOffset = 0;
+            Buffer.DataLength = (FragmentOffset + 1);
+            Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
+            Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+            TotalOffset += Buffer.BufferLength;
+            Buffers.push_back(Buffer);
+
+            RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
+            TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
+            TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+        }
+    }
+}
+
+VOID
+GenericRxUdpFragmentQuicLongHeader(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    UINT32 UdpFrameOffset = 0;
+    UINT32 TotalOffset = 0;
+
+    auto UdpSocket = CreateUdpSocket(Af, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    wil::unique_handle ProgramHandle;
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    const UCHAR QuicLongHdrUdpPayload[40] = {
+        0x80, // IsLongHeader
+        0x01, 0x00, 0x00, 0x00, // Version
+        0x08, // DestCidLength
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
+        0x00 // The rest
+    };
+    const UCHAR CorrectQuicCid[] = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+    };
+
+    std::vector<DATA_BUFFER> Buffers;
+    DATA_BUFFER Buffer = {0};
+
+    XDP_RULE Rules[2];
+    Rules[0].Action = XDP_PROGRAM_ACTION_DROP;
+    Rules[0].Match = XDP_MATCH_QUIC_FLOW;
+    Rules[0].Pattern.QuicFlow.UdpPort = LocalPort;
+    Rules[0].Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
+    Rules[0].Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
+    memcpy(
+        Rules[0].Pattern.QuicFlow.CidData,
+        CorrectQuicCid + Rules[0].Pattern.QuicFlow.CidOffset,
+        Rules[0].Pattern.QuicFlow.CidLength);
+    Rules[1].Action = XDP_PROGRAM_ACTION_PASS;
+    Rules[1].Match = XDP_MATCH_ALL;
+
+    ProgramHandle =
+                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
+
+    CHAR RecvPayload[sizeof(QuicLongHdrUdpPayload)];
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(QuicLongHdrUdpPayload)];
+    const UCHAR* UdpPayload;
+    UINT16 UdpPayloadLength = 0;
+    UdpPayload = QuicLongHdrUdpPayload;
+
+    for (; UdpPayloadLength < sizeof(QuicLongHdrUdpPayload); UdpPayloadLength++) {
+        if (UdpPayloadLength == 14) { // 8 for CID length, 6 for long header length
+            Rules[0].Action = XDP_PROGRAM_ACTION_PASS;
+            Rules[1].Action = XDP_PROGRAM_ACTION_DROP;
+            ProgramHandle.reset();
+            ProgramHandle =
+                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
+        }
+
+        //
+        // Test a full length buffer
+        //
+
+        UINT32 UdpFrameLength = sizeof(UdpFrame);
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
+                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+        RX_FRAME RxFrame;
+        RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Test Payload Fragmented at all points
+        //
+
+        for (UINT16 FragmentOffset = 0; FragmentOffset < UdpPayloadLength; FragmentOffset++) {
+
+            Buffers.clear();
+            TotalOffset = 0;
+
+            std::memset(&Buffer, 0, sizeof(Buffer));
+            Buffer.DataOffset = 0;
+            Buffer.DataLength = UdpFrameLength - (FragmentOffset + 1);
+            Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
+            Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+            TotalOffset += Buffer.BufferLength;
+            Buffers.push_back(Buffer);
+
+            std::memset(&Buffer, 0, sizeof(Buffer));
+            Buffer.DataOffset = 0;
+            Buffer.DataLength = (FragmentOffset + 1);
+            Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
+            Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+            TotalOffset += Buffer.BufferLength;
+            Buffers.push_back(Buffer);
+
+            RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
+            TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
+            TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+        }
+    }
 }
 
 typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
@@ -2341,16 +2603,15 @@ GenericRxUdpFragmentBuffer(
     Buffers.push_back(Buffer);
 
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    DATA_FRAME Frame = {0};
-    Frame.BufferCount = (UINT16)Buffers.size();
-    Frame.Input.RssHashQueueId = If.GetQueueId();
-    MpRxEnqueue(GenericMp, &Frame, &Buffers[0]);
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
     //
     // Produce one XSK fill descriptor.
     //
     SocketProduceRxFill(&Xsk, 1);
-    MpRxFlush(GenericMp);
+    TEST_HRESULT(MpRxFlush(GenericMp));
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
 
@@ -2866,18 +3127,17 @@ GenericXskWait(
     UCHAR Payload[] = "GenericXskWait";
 
     auto RxIndicate = [&] {
-        DATA_FRAME Frame = {0};
         DATA_BUFFER Buffer = {0};
-        Frame.BufferCount = 1;
-        Frame.Input.RssHashQueueId = If.GetQueueId();
         Buffer.DataOffset = 0;
         Buffer.DataLength = sizeof(Payload);
         Buffer.BufferLength = Buffer.DataLength;
         Buffer.VirtualAddress = Payload;
 
-        MpRxEnqueue(GenericMp, &Frame, &Buffer);
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
         SocketProduceRxFill(&Xsk, 1);
-        MpRxFlush(GenericMp);
+        TEST_HRESULT(MpRxFlush(GenericMp));
     };
 
     auto TxIndicate = [&] {
@@ -3140,10 +3400,7 @@ FnLwfRx()
     CONST UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
     UCHAR BufferVa[BufferVaSize];
 
-    DATA_FRAME Frame = {0};
     DATA_BUFFER Buffer = {0};
-    Frame.BufferCount = 1;
-    Frame.Input.RssHashQueueId = FnMpIf.GetQueueId();
     Buffer.DataOffset = DataOffset;
     Buffer.DataLength = sizeof(Pattern) + sizeof(Payload);
     Buffer.BufferLength = BufferVaSize;
@@ -3154,11 +3411,13 @@ FnLwfRx()
 
     LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
 
-    MpRxEnqueue(GenericMp, &Frame, &Buffer);
-    MpRxFlush(GenericMp);
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    TEST_HRESULT(MpRxFlush(GenericMp));
 
     auto LwfRxFrame = LwfRxAllocateAndGetFrame(DefaultLwf, 0);
-    TEST_EQUAL(LwfRxFrame->BufferCount, Frame.BufferCount);
+    TEST_EQUAL(LwfRxFrame->BufferCount, Frame.Frame.BufferCount);
 
     CONST DATA_BUFFER *LwfRxBuffer = &LwfRxFrame->Buffers[0];
     TEST_EQUAL(LwfRxBuffer->BufferLength, Buffer.BufferLength);
@@ -3193,13 +3452,14 @@ FnLwfTx()
     Buffer.DataLength = sizeof(Pattern) + sizeof(Payload);
     Buffer.BufferLength = BufferVaSize;
     Buffer.VirtualAddress = BufferVa;
+    Frame.Buffers = &Buffer;
 
     RtlCopyMemory(BufferVa + DataOffset, &Pattern, sizeof(Pattern));
     RtlCopyMemory(BufferVa + DataOffset + sizeof(Pattern), Payload, sizeof(Payload));
 
     MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
-    LwfTxEnqueue(DefaultLwf, &Frame, &Buffer);
+    LwfTxEnqueue(DefaultLwf, &Frame);
     LwfTxFlush(DefaultLwf);
 
     auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
@@ -3408,23 +3668,22 @@ IndicateOnAllActiveRssQueues(
 
     UCHAR Payload[] = "IndicateOnAllActiveRssQueuesQ#";
 
-    DATA_FRAME Frame = {0};
     DATA_BUFFER Buffer = {0};
-    Frame.BufferCount = 1;
     Buffer.DataOffset = 0;
     Buffer.DataLength = sizeof(Payload);
     Buffer.BufferLength = Buffer.DataLength;
     Buffer.VirtualAddress = Payload;
 
     for (UINT32 i = 0; i < NumRssQueues; i++) {
-        Frame.Input.RssHashQueueId = i;
         Payload[sizeof(Payload) - 1] = (UCHAR)i;
-        MpRxEnqueue(GenericMp, &Frame, &Buffer);
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, i, &Buffer);
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
         DATA_FLUSH_OPTIONS FlushOptions = {0};
         FlushOptions.Flags.RssCpu = TRUE;
         FlushOptions.RssCpuQueueId = i;
-        MpRxFlush(GenericMp, &FlushOptions);
+        TEST_HRESULT(MpRxFlush(GenericMp, &FlushOptions));
     }
 }
 

@@ -63,7 +63,6 @@ typedef struct _DATA_FLUSH_OPTIONS {
 
 typedef struct _DATA_ENQUEUE_IN {
     DATA_FRAME Frame;
-    DATA_BUFFER *Buffers;
 } DATA_ENQUEUE_IN;
 
 //

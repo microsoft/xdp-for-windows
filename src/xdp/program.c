@@ -11,6 +11,30 @@
 #include <xdpudp.h>
 #include "program.tmh"
 
+#pragma pack(push)
+#pragma pack(1)
+typedef struct QUIC_HEADER_INVARIANT {
+    union {
+        struct {
+            UCHAR VARIANT : 7;
+            UCHAR IsLongHeader : 1;
+        } COMMON_HDR;
+        struct {
+            UCHAR VARIANT : 7;
+            UCHAR IsLongHeader : 1;
+            UINT32 Version;
+            UCHAR DestCidLength;
+            UCHAR DestCid[0];
+        } LONG_HDR;
+        struct {
+            UCHAR VARIANT : 7;
+            UCHAR IsLongHeader : 1;
+            UCHAR DestCid[0];
+        } SHORT_HDR;
+    };
+} QUIC_HEADER_INVARIANT;
+#pragma pack(pop)
+
 typedef struct _XDP_PROGRAM_FRAME_STORAGE {
     ETHERNET_HEADER EthHdr;
     union {
@@ -18,7 +42,16 @@ typedef struct _XDP_PROGRAM_FRAME_STORAGE {
         IPV6_HEADER Ip6Hdr;
     };
     UDP_HDR UdpHdr;
+    UINT8 QuicStorage[sizeof(QUIC_HEADER_INVARIANT) + QUIC_MAX_CID_LENGTH];
 } XDP_PROGRAM_FRAME_STORAGE;
+
+typedef struct _XDP_PROGRAM_PAYLOAD_CACHE {
+    XDP_BUFFER *Buffer;
+    UINT32 BufferDataOffset;
+    UINT32 FragmentIndex;
+    UINT32 FragmentCount;
+    BOOLEAN IsFragmentedBuffer;
+} XDP_PROGRAM_PAYLOAD_CACHE;
 
 typedef struct _XDP_PROGRAM_FRAME_CACHE {
     union {
@@ -31,6 +64,10 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 Ip6Valid : 1;
             UINT32 UdpCached : 1;
             UINT32 UdpValid : 1;
+            UINT32 TransportPayloadCached : 1;
+            UINT32 TransportPayloadValid : 1;
+            UINT32 QuicCached : 1;
+            UINT32 QuicValid : 1;
         };
         UINT32 Flags;
     };
@@ -41,7 +78,9 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
         IPV6_HEADER *Ip6Hdr;
     };
     UDP_HDR *UdpHdr;
-    UINT16 AvailableUdpPayloadLength; // Amount available in the current packet or fragment.
+    UINT8 QuicCidLength;
+    CONST UINT8* QuicCid;
+    XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
 } XDP_PROGRAM_FRAME_CACHE;
 
 typedef struct _XDP_PROGRAM {
@@ -69,9 +108,8 @@ XdpInitializeFrameCache(
 }
 
 static
-_Success_(return != FALSE)
-BOOLEAN
-XdpGetContiguousHeader(
+UINT32
+XdpGetContiguousHeaderLength(
     _In_ XDP_FRAME *Frame,
     _Inout_ XDP_BUFFER **Buffer,
     _Inout_ UINT32 *BufferDataOffset,
@@ -97,7 +135,7 @@ XdpGetContiguousHeader(
         //
         if (CopyLength == 0) {
             if (*FragmentsRemaining == 0) {
-                return FALSE;
+                break;
             } else {
                 *FragmentIndex = (*FragmentIndex + 1) & FragmentRing->Mask;
                 *FragmentsRemaining -= 1;
@@ -113,7 +151,7 @@ XdpGetContiguousHeader(
         if (Hdr == HeaderStorage && *BufferDataOffset + HeaderSize <= (*Buffer)->DataLength) {
             *Header = Va + (*Buffer)->DataOffset + *BufferDataOffset;
             *BufferDataOffset += HeaderSize;
-            return TRUE;
+            return HeaderSize;
         }
 
         RtlCopyMemory(Hdr, Va + (*Buffer)->DataOffset + *BufferDataOffset, CopyLength);
@@ -123,7 +161,31 @@ XdpGetContiguousHeader(
     }
 
     *Header = HeaderStorage;
-    return TRUE;
+    return (UINT32)(Hdr - (UCHAR*)HeaderStorage);
+}
+
+static
+_Success_(return != FALSE)
+BOOLEAN
+XdpGetContiguousHeader(
+    _In_ XDP_FRAME *Frame,
+    _Inout_ XDP_BUFFER **Buffer,
+    _Inout_ UINT32 *BufferDataOffset,
+    _Inout_ UINT32 *FragmentIndex,
+    _Inout_ UINT32 *FragmentsRemaining,
+    _In_ XDP_RING *FragmentRing,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ VOID *HeaderStorage,
+    _In_ UINT32 HeaderSize,
+    _Out_ VOID **Header
+    )
+{
+    ASSERT(HeaderSize != 0);
+    UINT32 ReadLength =
+        XdpGetContiguousHeaderLength(
+            Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining,
+            FragmentRing, VirtualAddressExtension, HeaderStorage, HeaderSize, Header);
+    return ReadLength == HeaderSize;
 }
 
 static
@@ -270,6 +332,14 @@ XdpParseFragmentedFrame(
         XdpParseFragmentedUdp(
             Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
             VirtualAddressExtension, Cache, Storage);
+        if (Cache->UdpValid) {
+            Cache->TransportPayload.Buffer = Buffer;
+            Cache->TransportPayload.BufferDataOffset = BufferDataOffset;
+            Cache->TransportPayload.FragmentCount = FragmentCount;
+            Cache->TransportPayload.FragmentIndex = FragmentIndex;
+            Cache->TransportPayload.IsFragmentedBuffer = TRUE;
+            Cache->TransportPayloadValid = TRUE;
+        }
     }
 }
 
@@ -297,6 +367,7 @@ XdpParseFrame(
     Cache->Ip4Cached = TRUE;
     Cache->Ip6Cached = TRUE;
     Cache->UdpCached = TRUE;
+    Cache->TransportPayloadCached = TRUE;
 
     //
     // Attempt to parse all headers in a single pass over the first buffer. If
@@ -342,10 +413,11 @@ XdpParseFrame(
         Cache->UdpHdr = (UDP_HDR *)&Va[Offset];
         Cache->UdpValid = TRUE;
         Offset += sizeof(*Cache->UdpHdr);
-        Cache->AvailableUdpPayloadLength = (UINT16)(Buffer->DataLength - Offset);
+        Cache->TransportPayload.Buffer = Buffer;
+        Cache->TransportPayload.BufferDataOffset = Offset;
+        Cache->TransportPayload.IsFragmentedBuffer = FALSE;
+        Cache->TransportPayloadValid = TRUE;
     }
-
-    return;
 
 BufferTooSmall:
 
@@ -410,59 +482,134 @@ UdpTupleMatch(
     }
 }
 
-#pragma pack(push)
-#pragma pack(1)
-typedef struct QUIC_HEADER_INVARIANT {
-    union {
-        struct {
-            UCHAR VARIANT : 7;
-            UCHAR IsLongHeader : 1;
-        } COMMON_HDR;
-        struct {
-            UCHAR VARIANT : 7;
-            UCHAR IsLongHeader : 1;
-            UINT32 Version;
-            UCHAR DestCidLength;
-            UCHAR DestCid[0];
-        } LONG_HDR;
-        struct {
-            UCHAR VARIANT : 7;
-            UCHAR IsLongHeader : 1;
-            UCHAR DestCid[0];
-        } SHORT_HDR;
-    };
-} QUIC_HEADER_INVARIANT;
-#pragma pack(pop)
-
 static
 BOOLEAN
 QuicCidMatch(
-    _In_reads_(Length) CONST UCHAR *Payload,
-    _In_ UINT16 Length,
+    _In_ CONST XDP_PROGRAM_FRAME_CACHE *QuicHeader,
     _In_ CONST XDP_QUIC_FLOW *Flow
     )
 {
-    CONST QUIC_HEADER_INVARIANT *Header = (CONST QUIC_HEADER_INVARIANT *)Payload;
-    if (Length < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, COMMON_HDR)) {
-        return FALSE; // Not enough room to read the IsLongHeader bit
+    ASSERT(Flow->CidOffset + Flow->CidLength <= QUIC_MAX_CID_LENGTH);
+    if (QuicHeader->QuicCidLength < Flow->CidOffset + Flow->CidLength) {
+        return FALSE;
+    }
+    return memcmp(&QuicHeader->QuicCid[Flow->CidOffset], Flow->CidData, Flow->CidLength) == 0;
+}
+
+static
+_Success_(return != FALSE)
+BOOLEAN
+XdpParseQuicHeaderPayload(
+    _In_ CONST UINT8 *Payload,
+    _In_ UINT32 DataLength,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    CONST QUIC_HEADER_INVARIANT* QuicHdr = (CONST QUIC_HEADER_INVARIANT*)Payload;
+
+    if (DataLength < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, COMMON_HDR)) {
+        return FALSE;
     }
 
-    CONST UCHAR *DestCid;
-    if (Header->COMMON_HDR.IsLongHeader) {
-        if (Length < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, LONG_HDR) +
-            Flow->CidOffset + Flow->CidLength) {
-            return FALSE; // Not enough room to read the CID
+    if (QuicHdr->COMMON_HDR.IsLongHeader) {
+        if (DataLength < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, LONG_HDR)) {
+            return FALSE;
         }
-        DestCid = Header->LONG_HDR.DestCid + Flow->CidOffset;
+        if (DataLength <
+                RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, LONG_HDR) +
+                QuicHdr->LONG_HDR.DestCidLength) {
+            return FALSE;
+        }
+        FrameCache->QuicCid = QuicHdr->LONG_HDR.DestCid;
+        FrameCache->QuicCidLength = QuicHdr->LONG_HDR.DestCidLength;
+        FrameCache->QuicValid = TRUE;
+        return TRUE;
+    }
+
+    FrameCache->QuicCidLength =
+        (UINT8)min(
+            DataLength - RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, SHORT_HDR),
+            QUIC_MAX_CID_LENGTH);
+    FrameCache->QuicCid = QuicHdr->SHORT_HDR.DestCid;
+    FrameCache->QuicValid = TRUE;
+    return FrameCache->QuicCidLength == QUIC_MAX_CID_LENGTH;
+}
+
+static
+VOID
+XdpParseFragmentedQuicHeader(
+    _In_ XDP_FRAME *Frame,
+    _In_ XDP_RING *FragmentRing,
+    _In_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *FrameStore,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    XDP_BUFFER *Buffer = FrameCache->TransportPayload.Buffer;
+    UINT32 BufferDataOffset = FrameCache->TransportPayload.BufferDataOffset;
+    UINT32 FragmentCount = FrameCache->TransportPayload.FragmentCount;
+    UINT8* QuicPayload = NULL;
+    UINT32 ReadLength;
+
+    if (FrameCache->TransportPayload.IsFragmentedBuffer) {
+        FragmentIndex = FrameCache->TransportPayload.FragmentIndex;
     } else {
-        if (Length < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, SHORT_HDR) +
-            Flow->CidOffset + Flow->CidLength) {
-            return FALSE; // Not enough room to read the CID
-        }
-        DestCid = Header->SHORT_HDR.DestCid + Flow->CidOffset;
+        //
+        // The first buffer is stored in the frame ring, so bias the fragment index
+        // so the initial increment yields the first buffer in the fragment ring.
+        //
+        FragmentIndex--;
+        FragmentCount = XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount;
     }
 
-    return memcmp(DestCid, Flow->CidData, Flow->CidLength) == 0;
+    ReadLength =
+        XdpGetContiguousHeaderLength(
+            Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount,
+            FragmentRing, VirtualAddressExtension, FrameStore->QuicStorage,
+            sizeof(QUIC_HEADER_INVARIANT) + QUIC_MAX_CID_LENGTH, &QuicPayload);
+
+    XdpParseQuicHeaderPayload(QuicPayload, ReadLength, FrameCache);
+}
+
+static
+VOID
+XdpParseQuicHeader(
+    _In_ XDP_FRAME *Frame,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ XDP_PROGRAM_PAYLOAD_CACHE *Payload,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *FrameStore,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    UINT32 BufferDataOffset = Payload->BufferDataOffset;
+    XDP_BUFFER *Buffer = Payload->Buffer;
+    UCHAR *Va = XdpGetVirtualAddressExtension(Payload->Buffer, VirtualAddressExtension)->VirtualAddress;
+    Va += Buffer->DataOffset;
+
+    FrameCache->QuicCached = TRUE;
+
+    if (Buffer->DataLength < BufferDataOffset) {
+        goto BufferTooSmall;
+    }
+
+    if (XdpParseQuicHeaderPayload(
+            &Va[BufferDataOffset], Buffer->DataLength - BufferDataOffset, FrameCache)) {
+        return;
+    }
+
+BufferTooSmall:
+
+    if (FragmentRing != NULL) {
+        ASSERT(FragmentExtension);
+        XdpParseFragmentedQuicHeader(
+            Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+            FrameStore, FrameCache);
+    }
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -556,16 +703,26 @@ XdpInspect(
             break;
 
         case XDP_MATCH_QUIC_FLOW:
-            if (!FrameCache.UdpCached) {
+            if (!FrameCache.UdpCached || !FrameCache.TransportPayloadCached) {
                 XdpParseFrame(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
             }
-            if (FrameCache.UdpValid &&
-                FrameCache.UdpHdr->uh_dport == Rule->Pattern.QuicFlow.UdpPort &&
+
+            if (!FrameCache.UdpValid || !FrameCache.TransportPayloadValid ||
+                FrameCache.UdpHdr->uh_dport != Rule->Pattern.QuicFlow.UdpPort) {
+                break;
+            }
+
+            if (!FrameCache.QuicCached) {
+                XdpParseQuicHeader(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache.TransportPayload, &Program->FrameStorage, &FrameCache);
+            }
+
+            if (FrameCache.QuicValid &&
                 QuicCidMatch(
-                    (CONST UCHAR*)(FrameCache.UdpHdr + 1),
-                    FrameCache.AvailableUdpPayloadLength,
+                    &FrameCache,
                     &Rule->Pattern.QuicFlow)) {
                 Matched = TRUE;
             }

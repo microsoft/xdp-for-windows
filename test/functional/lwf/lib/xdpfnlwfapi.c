@@ -22,8 +22,7 @@ FnLwfOpenDefault(
 HRESULT
 FnLwfTxEnqueue(
     _In_ HANDLE Handle,
-    _In_ DATA_FRAME *Frame,
-    _In_ DATA_BUFFER *Buffers
+    _In_ DATA_FRAME *Frame
     )
 {
     DATA_ENQUEUE_IN In = {0};
@@ -33,7 +32,6 @@ FnLwfTxEnqueue(
     //
 
     In.Frame = *Frame;
-    In.Buffers = Buffers;
 
     return FnLwfIoctl(Handle, IOCTL_TX_ENQUEUE, &In, sizeof(In), NULL, 0, NULL, NULL);
 }

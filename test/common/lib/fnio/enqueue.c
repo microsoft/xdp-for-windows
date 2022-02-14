@@ -47,7 +47,7 @@ FnIoEnqueueFrameBegin(
 
     for (UINT32 BufferOffset = EnqueueIn->Frame.BufferCount; BufferOffset > 0; BufferOffset--) {
         CONST UINT32 BufferIndex = BufferOffset - 1;
-        CONST DATA_BUFFER *RxBuffer = &EnqueueIn->Buffers[BufferIndex];
+        CONST DATA_BUFFER *RxBuffer = &EnqueueIn->Frame.Buffers[BufferIndex];
         UCHAR *MdlBuffer;
 
         if (RxBuffer->DataOffset > 0 && BufferIndex > 0) {

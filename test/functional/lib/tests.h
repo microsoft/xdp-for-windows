@@ -49,6 +49,16 @@ VOID
 GenericRxMultiProgramConflicts();
 
 VOID
+GenericRxUdpFragmentQuicShortHeader(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxUdpFragmentQuicLongHeader(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 GenericRxUdpFragmentHeaderData(
     _In_ ADDRESS_FAMILY Af
     );

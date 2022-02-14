@@ -49,6 +49,7 @@
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
+      <TreatSpecificWarningsAsErrors>4834</TreatSpecificWarningsAsErrors>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

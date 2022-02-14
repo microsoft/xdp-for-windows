@@ -29,8 +29,7 @@ FnMpOpenAdapter(
 HRESULT
 FnMpRxEnqueue(
     _In_ HANDLE Handle,
-    _In_ DATA_FRAME *Frame,
-    _In_ DATA_BUFFER *Buffers
+    _In_ DATA_FRAME *Frame
     );
 
 HRESULT

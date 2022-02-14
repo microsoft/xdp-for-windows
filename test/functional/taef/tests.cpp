@@ -199,6 +199,22 @@ public:
         GenericLwfDelayDetach(TRUE, TRUE);
     }
 
+    TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV4) {
+        GenericRxUdpFragmentQuicLongHeader(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV6) {
+        GenericRxUdpFragmentQuicLongHeader(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxUdpFragmentQuicShortHeaderV4) {
+        GenericRxUdpFragmentQuicShortHeader(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxUdpFragmentQuicShortHeaderV6) {
+        GenericRxUdpFragmentQuicShortHeader(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxUdpFragmentHeaderDataV4) {
         GenericRxUdpFragmentHeaderData(AF_INET);
     }
