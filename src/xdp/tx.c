@@ -60,6 +60,8 @@ typedef struct _XDP_TX_QUEUE {
     XDP_EXTENSION_SET *TxFrameCompletionExtensionSet;
     XDP_EXTENSION TxCompletionContextExtension;
     LIST_ENTRY ClientList;
+    LIST_ENTRY *FillEntry;
+    UINT32 OutstandingFrameCount;
     XDP_TX_QUEUE_DISPATCH Dispatch;
     XDP_QUEUE_SYNC Sync;
 #if DBG
@@ -91,6 +93,7 @@ XdpTxQueueDatapathComplete(
     )
 {
     XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
+    UINT32 CompletionCount;
 
     //
     // Review: This algorithm is somewhat naive: depending on the number of XSKs
@@ -112,7 +115,10 @@ XdpTxQueueDatapathComplete(
             //
             // Consumes one or more completions via the completion ring.
             //
-            XskFillTxCompletion(CompletionContext->Context);
+            CompletionCount = XskFillTxCompletion(CompletionContext->Context);
+
+            ASSERT(CompletionCount <= TxQueue->OutstandingFrameCount);
+            TxQueue->OutstandingFrameCount -= CompletionCount;
         }
     } else {
         XDP_RING *CompletionRing = TxQueue->CompletionRing;
@@ -129,7 +135,10 @@ XdpTxQueueDatapathComplete(
             //
             // Consumes one or more completions via the frame ring.
             //
-            XskFillTxCompletion(CompletionContext->Context);
+            CompletionCount = XskFillTxCompletion(CompletionContext->Context);
+
+            ASSERT(CompletionCount <= TxQueue->OutstandingFrameCount);
+            TxQueue->OutstandingFrameCount -= CompletionCount;
         }
     }
 }
@@ -141,18 +150,41 @@ XdpTxQueueDatapathFill(
     _In_ XDP_TX_QUEUE *TxQueue
     )
 {
-    LIST_ENTRY *Entry;
+    LIST_ENTRY *FirstEntry = TxQueue->FillEntry;
+    XDP_RING *FrameRing = TxQueue->FrameRing;
+    UINT32 TxAvailable;
 
-    //
-    // TODO: This algorithm is naive: the XSKs bound to this TX queue do not
-    // share the limited TX queue space efficiently.
-    //
-    for (Entry = TxQueue->ClientList.Flink; Entry != &TxQueue->ClientList; Entry = Entry->Flink) {
-        //
-        // To avoid the cost of dynamic dispatch on the data path (XSKs are the
-        // only implemented clients) directly invoke the XSK callback.
-        //
-        XskFillTx(CONTAINING_RECORD(Entry, XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY, Link));
+    if (TxQueue->CompletionRing == NULL) {
+        TxAvailable =
+            FrameRing->Mask + 1 - (FrameRing->ProducerIndex - FrameRing->Reserved);
+    } else {
+        TxAvailable = XdpRingFree(FrameRing);
+        TxAvailable -= min(TxAvailable, TxQueue->OutstandingFrameCount);
+    }
+
+    while (TxAvailable > 0) {
+        UINT32 FrameCount;
+
+        if (TxQueue->FillEntry == &TxQueue->ClientList) {
+            goto NextEntry;
+        }
+
+        FrameCount =
+            XskFillTx(
+                CONTAINING_RECORD(TxQueue->FillEntry, XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY, Link),
+                TxAvailable);
+
+        ASSERT(FrameCount <= TxAvailable);
+        TxAvailable -= FrameCount;
+        TxQueue->OutstandingFrameCount += FrameCount;
+
+NextEntry:
+
+        TxQueue->FillEntry = TxQueue->FillEntry->Flink;
+
+        if (TxQueue->FillEntry == FirstEntry) {
+            break;
+        }
     }
 }
 
@@ -747,6 +779,7 @@ XdpTxQueueCreate(
     InitializeListHead(&TxQueue->NotifyClients);
     XdpInitializeQueueInfo(&TxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     InitializeListHead(&TxQueue->ClientList);
+    TxQueue->FillEntry = &TxQueue->ClientList;
     XdpQueueSyncInitialize(&TxQueue->Sync);
     XdbgInitializeQueueEc(TxQueue);
 
@@ -1070,6 +1103,11 @@ XdpTxQueueAddDatapathClient(
     return STATUS_SUCCESS;
 }
 
+typedef struct _XDP_TX_QUEUE_SYNC_REMOVE_CLIENT {
+    XDP_TX_QUEUE *TxQueue;
+    XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry;
+} XDP_TX_QUEUE_SYNC_REMOVE_CLIENT;
+
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -1077,13 +1115,17 @@ XdpTxQueueSyncRemoveDatapathClient(
     _In_opt_ VOID *Context
     )
 {
-    XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry = Context;
+    XDP_TX_QUEUE_SYNC_REMOVE_CLIENT *Params = Context;
 
-    ASSERT(TxClientEntry != NULL);
-    ASSERT(!IsListEmpty(&TxClientEntry->Link));
+    ASSERT(Params != NULL);
+    ASSERT(!IsListEmpty(&Params->TxClientEntry->Link));
 
-    RemoveEntryList(&TxClientEntry->Link);
-    InitializeListHead(&TxClientEntry->Link);
+    if (Params->TxQueue->FillEntry == &Params->TxClientEntry->Link) {
+        Params->TxQueue->FillEntry = Params->TxClientEntry->Link.Flink;
+    }
+
+    RemoveEntryList(&Params->TxClientEntry->Link);
+    InitializeListHead(&Params->TxClientEntry->Link);
 }
 
 VOID
@@ -1092,9 +1134,13 @@ XdpTxQueueRemoveDatapathClient(
     _Inout_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry
     )
 {
+    XDP_TX_QUEUE_SYNC_REMOVE_CLIENT SyncParams = {0};
+
     TraceEnter(TRACE_CORE, "TxQueue=%p TxClientEntry=%p", TxQueue, TxClientEntry);
 
-    XdpTxQueueSync(TxQueue, XdpTxQueueSyncRemoveDatapathClient, TxClientEntry);
+    SyncParams.TxQueue = TxQueue;
+    SyncParams.TxClientEntry = TxClientEntry;
+    XdpTxQueueSync(TxQueue, XdpTxQueueSyncRemoveDatapathClient, &SyncParams);
 
     TraceExitSuccess(TRACE_CORE);
 }

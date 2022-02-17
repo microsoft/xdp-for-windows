@@ -492,9 +492,10 @@ XskFreeBounceBuffer(
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
+UINT32
 XskFillTx(
-    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry,
+    _In_ UINT32 XdpTxAvailable
     )
 {
     XSK *Xsk = CONTAINING_RECORD(DatapathClientEntry, XSK, Tx.Xdp.DatapathClientEntry);
@@ -502,15 +503,14 @@ XskFillTx(
     ULONGLONG Result;
     XSK_BUFFER_DESCRIPTOR *Descriptor;
     UINT32 Count;
-    UINT32 BufferCount = 0;
+    UINT32 FrameCount = 0;
     UINT32 TxIndex;
     UINT32 XskCompletionAvailable;
     UINT32 XskTxAvailable;
-    UINT32 XdpTxAvailable;
     XDP_RING *FrameRing = Xsk->Tx.Xdp.FrameRing;
 
     if (Xsk->State != XskBound) {
-        return;
+        return 0;
     }
 
     //
@@ -533,13 +533,6 @@ XskFillTx(
     //    - XSK TX operations outstanding
     //
 
-    if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
-        XdpTxAvailable = XdpRingFree(FrameRing);
-    } else {
-        XdpTxAvailable =
-            FrameRing->Mask + 1 - (FrameRing->ProducerIndex - FrameRing->Reserved);
-    }
-
     XskTxAvailable = XskRingConsPeek(&Xsk->Tx.Ring, MAXUINT32);
 
     XskCompletionAvailable = XskRingProdReserve(&Xsk->Tx.CompletionRing, MAXUINT32);
@@ -549,7 +542,7 @@ XskFillTx(
         // no longer valid. This implies an application programming error.
         //
         XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
-        return;
+        return 0;
     }
     XskCompletionAvailable -= Xsk->Tx.Xdp.OutstandingFrames;
 
@@ -622,12 +615,12 @@ XskFillTx(
             FrameRing->ProducerIndex);
 
         FrameRing->ProducerIndex++;
-        ++BufferCount;
+        FrameCount++;
     }
 
     XskRingConsRelease(&Xsk->Tx.Ring, Count);
 
-    Xsk->Tx.Xdp.OutstandingFrames += BufferCount;
+    Xsk->Tx.Xdp.OutstandingFrames += FrameCount;
 
     //
     // If input was processed, clear the need poke flag.
@@ -636,6 +629,8 @@ XskFillTx(
         (Xsk->Tx.Ring.Shared->Flags & XSK_RING_FLAG_NEED_POKE)) {
         InterlockedAnd((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
     }
+
+    return FrameCount;
 }
 
 static
@@ -670,7 +665,7 @@ XskTxCompleteRundown(
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
+UINT32
 XskFillTxCompletion(
     _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
     )
@@ -805,6 +800,8 @@ XskFillTxCompletion(
 
         XskTxCompleteRundown(Xsk);
     }
+
+    return Count;
 }
 
 NTSTATUS

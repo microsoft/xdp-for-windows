@@ -59,6 +59,9 @@ param (
     [switch]$Fndis = $false,
 
     [Parameter(Mandatory=$false)]
+    [int]$SocketCount = 1,
+
+    [Parameter(Mandatory=$false)]
     [string]$RawResultsFile = "",
 
     [Parameter(Mandatory=$false)]
@@ -70,11 +73,29 @@ function ExtractKppsStat {
         $FileName
         )
 
-    $s = Get-Content $FileName -Raw
-    $s = $s.SubString($s.IndexOf("avg=") + 4)
-    $s = $s.SubString(0, $s.IndexOf(" "))
+    #
+    # If multiple sockets are present, return the socket with the lowest Kpps.
+    #
+    $min = $null
 
-    return $s
+    foreach ($s in Get-Content $FileName) {
+        $index = $s.IndexOf("avg=")
+
+        if ($index -lt 0) {
+            continue
+        }
+
+        $s = $s.SubString($index + 4)
+        $s = [double]$s.SubString(0, $s.IndexOf(" "))
+
+        if ($min -eq $null) {
+            $min = $s
+        } elseif ($s -lt $min) {
+            $min = $s
+        }
+    }
+
+    return $min
 }
 
 function MeasureStandardDeviation {
@@ -166,6 +187,7 @@ foreach ($AdapterName in $AdapterNames) {
                                 -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
                                 -XdpReceiveBatch:$XdpReceiveBatch -RxInject:$RxInject `
                                 -TxInspect:$TxInspect -TxInspectContentionCount $TxInspectContentionCount `
+                                -SocketCount:$SocketCount `
                                 -Fndis:$Fndis -Config $Config -Arch $Arch -XperfFile $XperfFile
 
                             $kppsList += ExtractKppsStat $TmpFile

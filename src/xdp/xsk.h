@@ -15,15 +15,16 @@ XskReceiveBatchedExclusive(
     );
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
+UINT32
 XskFillTxCompletion(
     _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
     );
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
+UINT32
 XskFillTx(
-    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry,
+    _In_ UINT32 FrameQuota
     );
 
 NTSTATUS

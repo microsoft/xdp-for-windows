@@ -86,12 +86,14 @@ param (
     [switch]$Fndis = $false,
 
     [Parameter(Mandatory=$false)]
+    [int]$SocketCount = 1,
+
+    [Parameter(Mandatory=$false)]
     [string]$OutFile = "",
 
     [Parameter(Mandatory=$false)]
     [string]$XperfFile = ""
 )
-
 
 function Wait-NetAdapterUpStatus {
     [CmdletBinding()]
@@ -115,9 +117,9 @@ function Wait-NetAdapterUpStatus {
         if ([String]::IsNullOrEmpty($Status)) {
             $Status = "<Does not exist>"
         }
-        Write-Error "Nic $Name failed to be Up after $Timeout seconds. Final status is $Status."
+        Write-Error "NIC $Name failed to be Up after $Timeout seconds. Final status is $Status."
     } else {
-        Write-Verbose "Nic $Name is Up. Waited $Timer out of $Timeout seconds."
+        Write-Verbose "NIC $Name is Up. Waited $Timer out of $Timeout seconds."
     }
 }
 
@@ -133,6 +135,10 @@ $UdpSize = $IoSize - 8 - 20 - 14
 if ($UdpDstPort -eq 0 -and @("Winsock", "RIO").Contains($XdpMode)) {
     Write-Verbose "Using implicit UDP dest port 1234 for Winsock/RIO"
     $UdpDstPort = 1234
+}
+
+if ($SocketCount -ne 1 -and $Mode -ne "TX") {
+    Write-Error "SocketCount is currently supported only in TX mode"
 }
 
 $AdapterRss = Get-NetAdapterRss -Name $AdapterName
@@ -310,11 +316,14 @@ try {
     }
 
     if (@("System", "Generic", "Native").Contains($XdpMode)) {
-        $ArgList =
-            "$Mode -i $AdapterIndex -p $UdpDstPort -d $Duration $GlobalParams " +
-            "-t -ca $XskAffinity -group $XskGroup $ThreadParams -q -id 0 -c $BufferSize " +
+        $QueueParams =
+            "-q -id 0 -c $BufferSize " +
             "-u $($BufferCount * $BufferSize) -b $BatchSize -txio $IoSize " +
             "-poll $PollMode -xdp_mode $XdpMode $QueueParams"
+        $ArgList =
+            "$Mode -i $AdapterIndex -p $UdpDstPort -d $Duration $GlobalParams " +
+            "-t -ca $XskAffinity -group $XskGroup $ThreadParams " +
+            (($QueueParams + " ") * $SocketCount)
 
         Write-Verbose "xskbench.exe $ArgList"
         if ([string]::IsNullOrEmpty($OutFile)) {
