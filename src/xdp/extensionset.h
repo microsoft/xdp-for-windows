@@ -34,6 +34,12 @@ XdpExtensionSetEnableEntry(
     );
 
 VOID
+XdpExtensionSetSetInternalEntry(
+    _In_ XDP_EXTENSION_SET *ExtensionSet,
+    _In_z_ CONST WCHAR *ExtensionName
+    );
+
+VOID
 XdpExtensionSetResizeEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
     _In_z_ CONST WCHAR *ExtensionName,

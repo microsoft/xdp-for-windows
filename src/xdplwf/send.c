@@ -30,7 +30,8 @@ InterlockedPushListSList(
 
 typedef struct _NBL_TX_CONTEXT {
     XDP_LWF_GENERIC_TX_QUEUE *TxQueue;
-    UINT64 Address;
+    UINT64 BufferAddress;
+    XDP_TX_FRAME_COMPLETION_CONTEXT CompletionContext;
 } NBL_TX_CONTEXT;
 
 static
@@ -174,6 +175,7 @@ XdpGenericTxGetNbls(
 VOID
 XdpGenericBuildTxNbl(
     _In_ XDP_LWF_GENERIC_TX_QUEUE *TxQueue,
+    _In_ XDP_FRAME *Frame,
     _In_ XDP_BUFFER *Buffer,
     _In_ XDP_BUFFER_MDL *BufferMdl,
     _Inout_ NET_BUFFER_LIST *Nbl
@@ -194,7 +196,13 @@ XdpGenericBuildTxNbl(
     NET_BUFFER_CURRENT_MDL_OFFSET(Nb) = 0;
     NET_BUFFER_LIST_SET_HASH_VALUE(Nbl, TxQueue->RssQueue->RssHash);
     NblTxContext(Nbl)->TxQueue = TxQueue;
-    NblTxContext(Nbl)->Address = BufferMdl->MdlOffset;
+    NblTxContext(Nbl)->BufferAddress = BufferMdl->MdlOffset;
+
+    if (TxQueue->Flags.TxCompletionContextEnabled) {
+        NblTxContext(Nbl)->CompletionContext =
+            *XdpGetFrameTxCompletionContextExtension(
+                Frame, &TxQueue->FrameTxCompletionContextExtension);
+    }
 }
 
 VOID
@@ -216,7 +224,7 @@ XdpGenericCompleteTx(
 
     while (CompleteList != NULL) {
         NET_BUFFER_LIST *Nbl;
-        UINT64 *Completion;
+        XDP_TX_FRAME_COMPLETION *Completion;
 
         Nbl = CompleteList;
         CompleteList = CompleteList->Next;
@@ -224,7 +232,14 @@ XdpGenericCompleteTx(
         Completion = XdpRingGetElement(Ring, Ring->ProducerIndex++ & Ring->Mask);
 
         ASSERT(TxQueue == NblTxContext(Nbl)->TxQueue);
-        *Completion = NblTxContext(Nbl)->Address;
+        Completion->BufferAddress = NblTxContext(Nbl)->BufferAddress;
+
+        if (TxQueue->Flags.TxCompletionContextEnabled) {
+            XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext =
+                XdpGetTxCompletionContextExtension(
+                    Completion, &TxQueue->TxCompletionContextExtension);
+            *CompletionContext = NblTxContext(Nbl)->CompletionContext;
+        }
 
         // Return the NBL to the TX free list.
         NT_VERIFY(TxQueue->OutstandingCount-- > 0);
@@ -283,7 +298,7 @@ XdpGenericInitiateTx(
 
         Nbl = TxQueue->FreeNbls;
         TxQueue->FreeNbls = TxQueue->FreeNbls->Next;
-        XdpGenericBuildTxNbl(TxQueue, Buffer, BufferMdl, Nbl);
+        XdpGenericBuildTxNbl(TxQueue, Frame, Buffer, BufferMdl, Nbl);
 
         NdisAppendSingleNblToNblCountedQueue(&Nbls, Nbl);
 
@@ -345,7 +360,7 @@ XdpGenericDropTx(
         XDP_FRAME *Frame;
         XDP_BUFFER *Buffer;
         XDP_BUFFER_MDL *BufferMdl;
-        UINT64 *Completion;
+        XDP_TX_FRAME_COMPLETION *Completion;
 
         Frame = XdpRingGetElement(FrameRing, FrameRing->ConsumerIndex++ & FrameRing->Mask);
         Buffer = &Frame->Buffer;
@@ -355,7 +370,17 @@ XdpGenericDropTx(
         Completion =
             XdpRingGetElement(
                 CompletionRing, CompletionRing->ProducerIndex++ & CompletionRing->Mask);
-        *Completion = BufferMdl->MdlOffset;
+        Completion->BufferAddress = BufferMdl->MdlOffset;
+
+        if (TxQueue->Flags.TxCompletionContextEnabled) {
+            XDP_TX_FRAME_COMPLETION_CONTEXT *FrameCompletionContext =
+                XdpGetFrameTxCompletionContextExtension(
+                    Frame, &TxQueue->FrameTxCompletionContextExtension);
+            XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext =
+                XdpGetTxCompletionContextExtension(
+                    Completion, &TxQueue->TxCompletionContextExtension);
+            *CompletionContext = *FrameCompletionContext;
+        }
 
         if (XdpRingFree(CompletionRing) == 0) {
             XdpFlushTransmit(TxQueue->XdpTxQueue);
@@ -377,6 +402,11 @@ XdpGenericTxPoll(
     )
 {
     XDP_LWF_GENERIC_TX_QUEUE *TxQueue = PollContext;
+
+    if (TxQueue->NeedFlush) {
+        TxQueue->NeedFlush = FALSE;
+        XdpFlushTransmit(TxQueue->XdpTxQueue);
+    }
 
     XdpGenericCompleteTx(TxQueue);
 
@@ -543,7 +573,11 @@ XdpGenericTxNotify(
     _In_ ULONG Flags
     )
 {
-    if (Flags & XDP_NOTIFY_QUEUE_FLAG_TX) {
+    if (Flags & (XDP_NOTIFY_QUEUE_FLAG_TX | XDP_NOTIFY_QUEUE_FLAG_TX_FLUSH)) {
+        if (Flags & XDP_NOTIFY_QUEUE_FLAG_TX_FLUSH) {
+            TxQueue->NeedFlush = TRUE;
+        }
+
         XdpEcNotify(&TxQueue->Ec);
     }
 }
@@ -682,14 +716,14 @@ XdpGenericTxCreateQueue(
         NET_BUFFER *Nb;
         MDL *Mdl;
 
-        Nbl = NdisAllocateNetBufferList(TxQueue->NblPool, (USHORT)MdlSize, 0);
+        Nbl = NdisAllocateNetBufferList(TxQueue->NblPool, PoolParams.ContextSize, 0);
         if (Nbl == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
         Nbl->SourceHandle = Generic->NdisFilterHandle;
         Mdl = (MDL *)(NET_BUFFER_LIST_CONTEXT_DATA_START(Nbl) + sizeof(NBL_TX_CONTEXT));
-        MmInitializeMdl(Mdl, NULL, MAX_TX_BUFFER_LENGTH);
+        MmInitializeMdl(Mdl, (VOID *)(PAGE_SIZE - 1), MAX_TX_BUFFER_LENGTH);
         Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);
         NET_BUFFER_FIRST_MDL(Nb) = Mdl;
         NET_BUFFER_CURRENT_MDL(Nb) = Mdl;
@@ -723,6 +757,17 @@ XdpGenericTxCreateQueue(
     XdpInitializeExtensionInfo(
         &ExtensionInfo, XDP_BUFFER_EXTENSION_MDL_NAME,
         XDP_BUFFER_EXTENSION_MDL_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
+    XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+        XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+        XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+        XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
     XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
     XdpInitializeTxCapabilitiesSystemMdl(&TxCapabilities);
@@ -802,6 +847,21 @@ XdpGenericTxActivateQueue(
 
     TxQueue->FrameRing = XdpTxQueueGetFrameRing(Config);
     TxQueue->CompletionRing = XdpTxQueueGetCompletionRing(Config);
+
+    TxQueue->Flags.TxCompletionContextEnabled = XdpTxQueueIsTxCompletionContextEnabled(Config);
+
+    if (TxQueue->Flags.TxCompletionContextEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+            XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->FrameTxCompletionContextExtension);
+
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+            XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+            XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->TxCompletionContextExtension);
+    }
 
     WritePointerRelease(&TxQueue->XdpTxQueue, XdpTxQueue);
 

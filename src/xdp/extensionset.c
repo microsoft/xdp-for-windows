@@ -7,6 +7,7 @@
 typedef struct _XDP_EXTENSION_ENTRY {
     BOOLEAN Enabled;
     BOOLEAN InterfaceRegistered;
+    BOOLEAN InternalExtension;
     BOOLEAN Assigned;
     UINT8 Size;
     UINT8 Alignment;
@@ -117,7 +118,7 @@ XdpExtensionSetAssignLayout(
         for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
             XDP_EXTENSION_ENTRY *Entry = &ExtensionSet->Entries[Index];
 
-            FRE_ASSERT(!Entry->Enabled || Entry->InterfaceRegistered);
+            FRE_ASSERT(!Entry->Enabled || Entry->InternalExtension || Entry->InterfaceRegistered);
 
             if (!Entry->Enabled || Entry->Assigned) {
                 continue;
@@ -190,6 +191,28 @@ XdpExtensionSetEnableEntry(
     FRE_ASSERT(Entry != NULL);
 
     Entry->Enabled = TRUE;
+}
+
+VOID
+XdpExtensionSetSetInternalEntry(
+    _In_ XDP_EXTENSION_SET *ExtensionSet,
+    _In_z_ CONST WCHAR *ExtensionName
+    )
+{
+    XDP_EXTENSION_ENTRY *Entry;
+
+    //
+    // This routine marks an extension entry as internal to XDP: it can be
+    // enabled for use within XDP without the interface registering its
+    // extension info.
+    //
+    // TODO: This should also prohibit interfaces retrieving the extension.
+    //
+
+    Entry = XdpExtensionSetFindEntry(ExtensionSet, ExtensionName);
+    FRE_ASSERT(Entry != NULL);
+
+    Entry->InternalExtension = TRUE;
 }
 
 VOID

@@ -23,6 +23,8 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     XDP_RING *FrameRing;
     XDP_RING *CompletionRing;
     XDP_EXTENSION BufferMdlExtension;
+    XDP_EXTENSION FrameTxCompletionContextExtension;
+    XDP_EXTENSION TxCompletionContextExtension;
 
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
     XDP_EC Ec;
@@ -30,10 +32,12 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     struct {
         BOOLEAN Pause : 1;
         BOOLEAN RxInject : 1;
+        BOOLEAN TxCompletionContextEnabled : 1;
     } Flags;
 
     KEVENT *PauseComplete;
 
+    BOOLEAN NeedFlush;
     ULONG BufferCount;
     ULONG OutstandingCount;
     XDP_LWF_GENERIC_TX_STATS Stats;

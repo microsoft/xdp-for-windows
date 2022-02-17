@@ -14,6 +14,18 @@ XskReceiveBatchedExclusive(
     _In_ VOID *Target
     );
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XskFillTxCompletion(
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
+    );
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XskFillTx(
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
+    );
+
 NTSTATUS
 XskReferenceDatapathHandle(
     _In_ KPROCESSOR_MODE RequestorMode,

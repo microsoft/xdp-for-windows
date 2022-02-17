@@ -24,9 +24,9 @@ typedef enum _XDP_EXTENSION_TYPE {
     XDP_EXTENSION_TYPE_BUFFER,
 
     //
-    // A completion descriptor extension.
+    // A TX frame completion descriptor extension.
     //
-    XDP_EXTENSION_TYPE_COMPLETION,
+    XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION,
 } XDP_EXTENSION_TYPE;
 
 //

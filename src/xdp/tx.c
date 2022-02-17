@@ -17,20 +17,24 @@ typedef struct _XDP_TX_QUEUE_KEY {
     UINT32 QueueId;
 } XDP_TX_QUEUE_KEY;
 
+typedef enum _XDP_TX_QUEUE_STATE {
+    XdpTxQueueStateCreated,
+    XdpTxQueueStateActive,
+    XdpTxQueueStateDeleted,
+} XDP_TX_QUEUE_STATE;
+
 typedef struct _XDP_TX_QUEUE {
+    XDP_REFERENCE_COUNT InterlockedReferenceCount;
     XDP_REFERENCE_COUNT ReferenceCount;
     XDP_BINDING_HANDLE Binding;
     XDP_TX_QUEUE_KEY Key;
+    XDP_TX_QUEUE_STATE State;
     XDP_BINDING_CLIENT_ENTRY BindingClientEntry;
-
-    VOID *Client;
-    TX_QUEUE_DETACH_EVENT *ClientDetachEvent;
+    LIST_ENTRY NotifyClients;
 
     XDP_TX_CAPABILITIES InterfaceTxCapabilities;
     XDP_DMA_CAPABILITIES InterfaceDmaCapabilities;
 
-    XDP_INTERFACE_HANDLE InterfaceTxQueue;
-    XDP_INTERFACE_TX_QUEUE_DISPATCH *InterfaceTxDispatch;
     NDIS_HANDLE InterfacePollHandle;
 
     XDP_QUEUE_INFO QueueInfo;
@@ -44,35 +48,111 @@ typedef struct _XDP_TX_QUEUE {
     XDP_BINDING_WORKITEM DeleteWorkItem;
     XDP_TX_QUEUE_NOTIFY_DETAILS NotifyDetails;
 
+    //
+    // Data path fields.
+    //
+    XDP_INTERFACE_HANDLE InterfaceTxQueue;
+    XDP_INTERFACE_TX_QUEUE_DISPATCH *InterfaceTxDispatch;
     XDP_RING *FrameRing;
     XDP_RING *CompletionRing;
-
     XDP_EXTENSION_SET *FrameExtensionSet;
     XDP_EXTENSION_SET *BufferExtensionSet;
-
-    //
-    // TODO: Implement shared TX queues and fix this abstraction.
-    //
-    XDP_TX_QUEUE_HANDLE ExclusiveTxQueue;
+    XDP_EXTENSION_SET *TxFrameCompletionExtensionSet;
+    XDP_EXTENSION TxCompletionContextExtension;
+    LIST_ENTRY ClientList;
+    XDP_TX_QUEUE_DISPATCH Dispatch;
+    XDP_QUEUE_SYNC Sync;
+#if DBG
+    XDP_DBG_QUEUE_EC DbgEc;
+#endif
 } XDP_TX_QUEUE;
 
-static
+//
+// Data path routines.
+//
+
 VOID
-XdpTxQueueReference(
-    _Inout_ XDP_TX_QUEUE *TxQueue
+XdpTxQueueInvokeInterfaceNotify(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _In_ XDP_NOTIFY_QUEUE_FLAGS Flags
     )
 {
-    XdpIncrementReferenceCount(&TxQueue->ReferenceCount);
+    ASSERT(TxQueue->State == XdpTxQueueStateActive);
+
+    XdbgNotifyQueueEc(TxQueue, Flags);
+    TxQueue->InterfaceTxDispatch->InterfaceNotifyQueue(TxQueue->InterfaceTxQueue, Flags);
 }
 
 static
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XdpTxQueueDereference(
-    _Inout_ XDP_TX_QUEUE *TxQueue
+XdpTxQueueDatapathComplete(
+    _In_ XDP_TX_QUEUE *TxQueue
     )
 {
-    if (XdpDecrementReferenceCount(&TxQueue->ReferenceCount)) {
-        ExFreePoolWithTag(TxQueue, XDP_POOLTAG_TXQUEUE);
+    XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
+
+    //
+    // Review: This algorithm is somewhat naive: depending on the number of XSKs
+    // bound to the queue, it may be advantageous to pre-sort completions to
+    // enable better batching, and/or to defer the XSK completion epilogues to
+    // the end of this routine.
+    //
+
+    if (TxQueue->CompletionRing == NULL) {
+        XDP_RING *FrameRing = TxQueue->FrameRing;
+        XDP_FRAME *Frame;
+
+        while ((FrameRing->ConsumerIndex - FrameRing->Reserved) > 0) {
+            Frame = XdpRingGetElement(FrameRing, FrameRing->Reserved & FrameRing->Mask);
+            CompletionContext =
+                XdpGetFrameTxCompletionContextExtension(
+                    Frame, &TxQueue->TxCompletionContextExtension);
+
+            //
+            // Consumes one or more completions via the completion ring.
+            //
+            XskFillTxCompletion(CompletionContext->Context);
+        }
+    } else {
+        XDP_RING *CompletionRing = TxQueue->CompletionRing;
+        XDP_TX_FRAME_COMPLETION *FrameCompletion;
+
+        while (XdpRingCount(CompletionRing) > 0) {
+            FrameCompletion =
+                XdpRingGetElement(
+                    CompletionRing, CompletionRing->ConsumerIndex & CompletionRing->Mask);
+            CompletionContext =
+                XdpGetTxCompletionContextExtension(
+                    FrameCompletion, &TxQueue->TxCompletionContextExtension);
+
+            //
+            // Consumes one or more completions via the frame ring.
+            //
+            XskFillTxCompletion(CompletionContext->Context);
+        }
+    }
+}
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpTxQueueDatapathFill(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    LIST_ENTRY *Entry;
+
+    //
+    // TODO: This algorithm is naive: the XSKs bound to this TX queue do not
+    // share the limited TX queue space efficiently.
+    //
+    for (Entry = TxQueue->ClientList.Flink; Entry != &TxQueue->ClientList; Entry = Entry->Flink) {
+        //
+        // To avoid the cost of dynamic dispatch on the data path (XSKs are the
+        // only implemented clients) directly invoke the XSK callback.
+        //
+        XskFillTx(CONTAINING_RECORD(Entry, XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY, Link));
     }
 }
 
@@ -82,19 +162,62 @@ XdpFlushTransmit(
     _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue
     )
 {
+    XDP_TX_QUEUE *TxQueue = CONTAINING_RECORD(XdpTxQueue, XDP_TX_QUEUE, Dispatch);
+
+    XdbgEnterQueueEc(TxQueue, TRUE);
+
+    XdpTxQueueDatapathComplete(TxQueue);
+    XdpTxQueueDatapathFill(TxQueue);
+
+    XdpQueueDatapathSync(&TxQueue->Sync);
+
+    XdbgExitQueueEc(TxQueue);
+}
+
+static CONST XDP_TX_QUEUE_DISPATCH XdpTxDispatch = {
+    .FlushTransmit = XdpFlushTransmit,
+};
+
+//
+// Control path routines.
+//
+
+static
+VOID
+XdpTxQueueInterlockedReference(
+    _Inout_ XDP_TX_QUEUE *TxQueue
+    )
+{
     //
-    // Use the TX dispatch table, even within XDP.
+    // Unlike XdpTxQueueReference, this reference count can be called from
+    // any thread context and protects only the XDP_TX_QUEUE pool allocation.
     //
-    XdpFlushTransmitThunk(XdpTxQueue);
+    XdpIncrementReferenceCount(&TxQueue->InterlockedReferenceCount);
+}
+
+static
+VOID
+XdpTxQueueInterlockedDereference(
+    _Inout_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    //
+    // Unlike XdpTxQueueInterlockedDereference, this reference count can be
+    // called from any thread context and protects only the XDP_TX_QUEUE pool
+    // allocation.
+    //
+    if (XdpDecrementReferenceCount(&TxQueue->InterlockedReferenceCount)) {
+        ExFreePoolWithTag(TxQueue, XDP_POOLTAG_TXQUEUE);
+    }
 }
 
 static CONST XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
     {
-        .Info.ExtensionName     = XDP_FRAME_EXTENSION_TX_COMPLETION_CONTEXT_NAME,
-        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_TX_COMPLETION_CONTEXT_VERSION_1,
+        .Info.ExtensionName     = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+        .Info.ExtensionVersion  = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
-        .Size                   = sizeof(XDP_FRAME_TX_COMPLETION_CONTEXT),
-        .Alignment              = __alignof(XDP_FRAME_TX_COMPLETION_CONTEXT),
+        .Size                   = sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT),
+        .Alignment              = __alignof(XDP_TX_FRAME_COMPLETION_CONTEXT),
     },
     {
         .Info.ExtensionName     = XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_NAME,
@@ -136,6 +259,16 @@ static CONST XDP_EXTENSION_REGISTRATION XdpTxBufferExtensions[] = {
     },
 };
 
+static CONST XDP_EXTENSION_REGISTRATION XdpTxFrameCompletionExtensions[] = {
+    {
+        .Info.ExtensionName     = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+        .Info.ExtensionVersion  = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION,
+        .Size                   = sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT),
+        .Alignment              = __alignof(XDP_TX_FRAME_COMPLETION_CONTEXT),
+    },
+};
+
 static
 XDP_TX_QUEUE *
 XdpTxQueueFromConfigCreate(
@@ -162,6 +295,10 @@ XdpTxQueueGetExtensionSet(
 
     case XDP_EXTENSION_TYPE_BUFFER:
         ExtensionSet = TxQueue->BufferExtensionSet;
+        break;
+
+    case XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION:
+        ExtensionSet = TxQueue->TxFrameCompletionExtensionSet;
         break;
 
     default:
@@ -351,7 +488,7 @@ XdpTxQueueIsTxCompletionContextEnabled(
 
     return
         XdpExtensionSetIsExtensionEnabled(
-            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TX_COMPLETION_CONTEXT_NAME);
+            TxQueue->FrameExtensionSet, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME);
 }
 
 BOOLEAN
@@ -405,10 +542,6 @@ XdpTxQueueFromNotify(
     return CONTAINING_RECORD(TxQueueNotifyHandle, XDP_TX_QUEUE, NotifyDetails);
 }
 
-typedef enum _XDP_TX_QUEUE_NOTIFICATION_TYPE {
-    XDP_TX_QUEUE_NOTIFICATION_DETACH,
-} XDP_TX_QUEUE_NOTIFICATION_TYPE;
-
 static
 VOID
 XdpTxQueueNotifyClients(
@@ -416,18 +549,19 @@ XdpTxQueueNotifyClients(
     _In_ XDP_TX_QUEUE_NOTIFICATION_TYPE NotificationType
     )
 {
-    ASSERT(NotificationType == XDP_TX_QUEUE_NOTIFICATION_DETACH);
-    UNREFERENCED_PARAMETER(NotificationType);
+    LIST_ENTRY *Entry = TxQueue->NotifyClients.Flink;
 
     TraceInfo(
         TRACE_CORE, "TxQueue=%p NotificationType=%!TX_QUEUE_NOTIFICATION_TYPE!",
         TxQueue, NotificationType);
 
-    if (TxQueue->ClientDetachEvent != NULL) {
-        TX_QUEUE_DETACH_EVENT *ClientDetachEvent = TxQueue->ClientDetachEvent;
+    while (Entry != &TxQueue->NotifyClients) {
+        XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
 
-        TxQueue->ClientDetachEvent = NULL;
-        ClientDetachEvent(TxQueue, TxQueue->Client);
+        NotifyEntry = CONTAINING_RECORD(Entry, XDP_TX_QUEUE_NOTIFICATION_ENTRY, Link);
+        Entry = Entry->Flink;
+
+        NotifyEntry->NotifyRoutine(NotifyEntry, NotificationType);
     }
 }
 
@@ -440,7 +574,7 @@ XdpTxQueueDeleteWorker(
     XDP_TX_QUEUE *TxQueue = CONTAINING_RECORD(Item, XDP_TX_QUEUE, DeleteWorkItem);
 
     XdpTxQueueNotifyClients(TxQueue, XDP_TX_QUEUE_NOTIFICATION_DETACH);
-    XdpTxQueueDereference(TxQueue);
+    XdpTxQueueInterlockedDereference(TxQueue);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -469,7 +603,7 @@ XdpTxQueueNotify(
         if (!InterlockedExchange8((CHAR *)&TxQueue->DeleteNeeded, 1)) {
             TxQueue->DeleteWorkItem.BindingHandle = TxQueue->Binding;
             TxQueue->DeleteWorkItem.WorkRoutine = XdpTxQueueDeleteWorker;
-            XdpTxQueueReference(TxQueue);
+            XdpTxQueueInterlockedReference(TxQueue);
             XdpIfQueueWorkItem(&TxQueue->DeleteWorkItem);
         }
         break;
@@ -520,25 +654,6 @@ static CONST XDP_TX_QUEUE_NOTIFY_DISPATCH XdpTxNotifyDispatch = {
     .Notify                         = XdpTxQueueNotify,
 };
 
-NTSTATUS
-XdpTxQueueActivateExclusive(
-    _In_ XDP_TX_QUEUE *TxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxDispatch,
-    _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue
-    )
-{
-    ASSERT(TxQueue->ExclusiveTxQueue != NULL);
-
-    XdpIfActivateTxQueue(
-        TxQueue->Binding, TxQueue->InterfaceTxQueue, TxQueue->ExclusiveTxQueue,
-        (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
-
-    *InterfaceTxDispatch = TxQueue->InterfaceTxDispatch;
-    *InterfaceTxQueue = TxQueue->InterfaceTxQueue;
-
-    return STATUS_SUCCESS;
-}
-
 static
 XDP_TX_QUEUE *
 XdpTxQueueFromBindingEntry(
@@ -580,22 +695,21 @@ XdpTxQueueInitializeKey(
     Key->QueueId = QueueId;
 }
 
+static
 NTSTATUS
 XdpTxQueueCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ UINT32 QueueId,
     _In_ CONST XDP_HOOK_ID *HookId,
-    _In_ VOID *Client,
-    _In_ TX_QUEUE_DETACH_EVENT *DetachHandler,
-    _In_opt_ XDP_TX_QUEUE_HANDLE ExclusiveTxQueue,
+    _In_ UINT32 QueueId,
     _Out_ XDP_TX_QUEUE **NewTxQueue
     )
 {
     XDP_TX_QUEUE_KEY Key;
     XDP_TX_QUEUE *TxQueue = NULL;
     NTSTATUS Status;
-    UINT32 BufferSize, FrameSize, FrameOffset, FrameCount;
-    UINT8 BufferAlignment, FrameAlignment;
+    UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
+    UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
+    XDP_EXTENSION_INFO ExtensionInfo;
 
     *NewTxQueue = NULL;
 
@@ -613,7 +727,7 @@ XdpTxQueueCreate(
     }
 
     XdpTxQueueInitializeKey(&Key, HookId, QueueId);
-    if (XdpIfFindClientEntry(Binding, &TxQueueBindingClient, &Key) != NULL) {
+    if (!NT_VERIFY(XdpIfFindClientEntry(Binding, &TxQueueBindingClient, &Key) == NULL)) {
         Status = STATUS_DUPLICATE_OBJECTID;
         goto Exit;
     }
@@ -624,14 +738,19 @@ XdpTxQueueCreate(
         goto Exit;
     }
 
+    XdpInitializeReferenceCount(&TxQueue->InterlockedReferenceCount);
+    XdpInitializeReferenceCount(&TxQueue->ReferenceCount);
     TxQueue->Binding = Binding;
     TxQueue->Key = Key;
+    TxQueue->State = XdpTxQueueStateCreated;
     XdpIfInitializeClientEntry(&TxQueue->BindingClientEntry);
+    InitializeListHead(&TxQueue->NotifyClients);
     XdpInitializeQueueInfo(&TxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
-    XdpInitializeReferenceCount(&TxQueue->ReferenceCount);
-    TxQueue->Client = Client;
-    TxQueue->ClientDetachEvent = DetachHandler;
-    TxQueue->ExclusiveTxQueue = ExclusiveTxQueue;
+    InitializeListHead(&TxQueue->ClientList);
+    XdpQueueSyncInitialize(&TxQueue->Sync);
+    XdbgInitializeQueueEc(TxQueue);
+
+    TxQueue->Dispatch = XdpTxDispatch;
     TxQueue->ConfigCreate.Dispatch = &XdpTxConfigCreateDispatch;
     TxQueue->ConfigActivate.Dispatch = &XdpTxConfigActivateDispatch;
     TxQueue->NotifyDetails.Dispatch = &XdpTxNotifyDispatch;
@@ -660,6 +779,14 @@ XdpTxQueueCreate(
     }
 
     Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION, XdpTxFrameCompletionExtensions,
+            RTL_NUMBER_OF(XdpTxFrameCompletionExtensions), &TxQueue->TxFrameCompletionExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
         XdpIfCreateTxQueue(
             Binding, (XDP_TX_QUEUE_CONFIG_CREATE)&TxQueue->ConfigCreate,
             &TxQueue->InterfaceTxQueue, &TxQueue->InterfaceTxDispatch);
@@ -672,6 +799,24 @@ XdpTxQueueCreate(
     //
     FRE_ASSERT(TxQueue->InterfaceTxCapabilities.Header.Revision >= XDP_TX_CAPABILITIES_REVISION_1);
     FRE_ASSERT(TxQueue->InterfaceTxCapabilities.Header.Size >= XDP_SIZEOF_TX_CAPABILITIES_REVISION_1);
+
+    //
+    // We don't support exclusive TX queues yet, so all TX queues need
+    // completion contexts enabled.
+    //
+    XdpExtensionSetEnableEntry(
+        TxQueue->FrameExtensionSet, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME);
+    XdpExtensionSetEnableEntry(
+        TxQueue->TxFrameCompletionExtensionSet, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME);
+
+    if (!TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled) {
+        //
+        // The frame completion extension is only used by XDP itself for in-order
+        // TX completions.
+        //
+        XdpExtensionSetSetInternalEntry(
+            TxQueue->FrameExtensionSet, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME);
+    }
 
     Status =
         XdpExtensionSetAssignLayout(
@@ -709,10 +854,35 @@ XdpTxQueueCreate(
 
     if (TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled) {
         Status =
-            XdpRingAllocate(sizeof(VOID *), FrameCount, __alignof(VOID *), &TxQueue->CompletionRing);
+            XdpExtensionSetAssignLayout(
+                TxQueue->TxFrameCompletionExtensionSet, sizeof(XDP_TX_FRAME_COMPLETION),
+                __alignof(XDP_TX_FRAME_COMPLETION), &TxCompletionSize, &TxCompletionAlignment);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
+
+        Status =
+            XdpRingAllocate(
+                TxCompletionSize, FrameCount, TxCompletionAlignment, &TxQueue->CompletionRing);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+            XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+            XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+        XdpTxQueueGetExtension(
+            (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate, &ExtensionInfo,
+            &TxQueue->TxCompletionContextExtension);
+    } else {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+            XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+            XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(
+            (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate, &ExtensionInfo,
+            &TxQueue->TxCompletionContextExtension);
     }
 
     Status =
@@ -742,11 +912,191 @@ Exit:
 
     if (!NT_SUCCESS(Status)) {
         if (TxQueue != NULL) {
-            XdpTxQueueClose(TxQueue);
+            XdpTxQueueDereference(TxQueue);
         }
     }
 
     return Status;
+}
+
+static
+VOID
+XdpTxQueueReference(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    XdpIncrementReferenceCount(&TxQueue->ReferenceCount);
+}
+
+static
+XDP_TX_QUEUE *
+XdpTxQueueFind(
+    _In_ XDP_BINDING_HANDLE Binding,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ UINT32 QueueId
+    )
+{
+    XDP_TX_QUEUE_KEY Key;
+    XDP_BINDING_CLIENT_ENTRY *ClientEntry;
+    XDP_TX_QUEUE *TxQueue;
+
+    XdpTxQueueInitializeKey(&Key, HookId, QueueId);
+    ClientEntry = XdpIfFindClientEntry(Binding, &TxQueueBindingClient, &Key);
+    if (ClientEntry == NULL) {
+        return NULL;
+    }
+
+    TxQueue = XdpTxQueueFromBindingEntry(ClientEntry);
+    XdpTxQueueReference(TxQueue);
+
+    return TxQueue;
+}
+
+NTSTATUS
+XdpTxQueueFindOrCreate(
+    _In_ XDP_BINDING_HANDLE Binding,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ UINT32 QueueId,
+    _Out_ XDP_TX_QUEUE **TxQueue
+    )
+{
+    *TxQueue = XdpTxQueueFind(Binding, HookId, QueueId);
+    if (*TxQueue != NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    return XdpTxQueueCreate(Binding, HookId, QueueId, TxQueue);
+}
+
+VOID
+XdpTxQueueRegisterNotifications(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _Inout_ XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry,
+    _In_ XDP_TX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
+    )
+{
+    NotifyEntry->NotifyRoutine = NotifyRoutine;
+    InsertTailList(&TxQueue->NotifyClients, &NotifyEntry->Link);
+}
+
+VOID
+XdpTxQueueDeregisterNotifications(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _Inout_ XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    )
+{
+    UNREFERENCED_PARAMETER(TxQueue);
+
+    RemoveEntryList(&NotifyEntry->Link);
+}
+
+VOID
+XdpTxQueueSync(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _In_ XDP_QUEUE_SYNC_CALLBACK *Callback,
+    _In_opt_ VOID *CallbackContext
+    )
+{
+    XDP_QUEUE_BLOCKING_SYNC_CONTEXT SyncEntry = {0};
+    XDP_NOTIFY_QUEUE_FLAGS NotifyFlags = XDP_NOTIFY_QUEUE_FLAG_TX_FLUSH;
+
+    //
+    // Serialize a callback with the datapath execution context. This routine
+    // must be called from the interface binding thread.
+    //
+
+    if (TxQueue->State != XdpTxQueueStateActive) {
+        //
+        // If the TX queue is not active (i.e. the XDP data path cannot be
+        // invoked by interfaces), simply invoke the callback.
+        //
+        Callback(CallbackContext);
+        return;
+    }
+
+    XdpQueueBlockingSyncInsert(&TxQueue->Sync, &SyncEntry, Callback, CallbackContext);
+
+    XdpTxQueueInvokeInterfaceNotify(TxQueue, NotifyFlags);
+
+    KeWaitForSingleObject(&SyncEntry.Event, Executive, KernelMode, FALSE, NULL);
+}
+
+typedef struct _XDP_TX_QUEUE_SYNC_ADD_CLIENT {
+    XDP_TX_QUEUE *TxQueue;
+    XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry;
+} XDP_TX_QUEUE_SYNC_ADD_CLIENT;
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpTxQueueSyncAddDatapathClient(
+    _In_opt_ VOID *Context
+    )
+{
+    XDP_TX_QUEUE_SYNC_ADD_CLIENT *Params = Context;
+
+    ASSERT(Params != NULL);
+
+    InsertTailList(&Params->TxQueue->ClientList, &Params->TxClientEntry->Link);
+}
+
+NTSTATUS
+XdpTxQueueAddDatapathClient(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _Inout_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry,
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE TxClientType
+    )
+{
+    XDP_TX_QUEUE_SYNC_ADD_CLIENT SyncParams = {0};
+
+    TraceEnter(TRACE_CORE, "TxQueue=%p TxClientEntry=%p", TxQueue, TxClientEntry);
+
+    ASSERT(TxClientType == XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE_XSK);
+    UNREFERENCED_PARAMETER(TxClientType);
+
+    SyncParams.TxQueue = TxQueue;
+    SyncParams.TxClientEntry = TxClientEntry;
+    XdpTxQueueSync(TxQueue, XdpTxQueueSyncAddDatapathClient, &SyncParams);
+
+    if (TxQueue->State == XdpTxQueueStateCreated) {
+        XdpIfActivateTxQueue(
+            TxQueue->Binding, TxQueue->InterfaceTxQueue, (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
+            (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
+
+        TxQueue->State = XdpTxQueueStateActive;
+    }
+
+    TraceExitSuccess(TRACE_CORE);
+    return STATUS_SUCCESS;
+}
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpTxQueueSyncRemoveDatapathClient(
+    _In_opt_ VOID *Context
+    )
+{
+    XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry = Context;
+
+    ASSERT(TxClientEntry != NULL);
+    ASSERT(!IsListEmpty(&TxClientEntry->Link));
+
+    RemoveEntryList(&TxClientEntry->Link);
+    InitializeListHead(&TxClientEntry->Link);
+}
+
+VOID
+XdpTxQueueRemoveDatapathClient(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _Inout_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *TxClientEntry
+    )
+{
+    TraceEnter(TRACE_CORE, "TxQueue=%p TxClientEntry=%p", TxQueue, TxClientEntry);
+
+    XdpTxQueueSync(TxQueue, XdpTxQueueSyncRemoveDatapathClient, TxClientEntry);
+
+    TraceExitSuccess(TRACE_CORE);
 }
 
 CONST XDP_TX_CAPABILITIES *
@@ -823,6 +1173,12 @@ XdpTxQueueDelete(
     _In_ XDP_TX_QUEUE *TxQueue
     )
 {
+    TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
+    TraceInfo(TRACE_CORE, "Deleting TxQueue=%p", TxQueue);
+
+    ASSERT(IsListEmpty(&TxQueue->NotifyClients));
+    ASSERT(IsListEmpty(&TxQueue->ClientList));
+
     if (TxQueue->InterfaceOffloadHandle != NULL) {
         XdpIfCloseInterfaceOffloadHandle(
             XdpIfGetIfSetHandle(TxQueue->Binding), TxQueue->InterfaceOffloadHandle);
@@ -832,11 +1188,17 @@ XdpTxQueueDelete(
     if (TxQueue->InterfaceTxQueue != NULL) {
         XdpIfDeleteTxQueue(TxQueue->Binding, TxQueue->InterfaceTxQueue);
     }
+
+    TxQueue->State = XdpTxQueueStateDeleted;
+
     if (TxQueue->CompletionRing != NULL) {
         XdpRingFreeRing(TxQueue->CompletionRing);
     }
     if (TxQueue->FrameRing != NULL) {
         XdpRingFreeRing(TxQueue->FrameRing);
+    }
+    if (TxQueue->TxFrameCompletionExtensionSet != NULL) {
+        XdpExtensionSetCleanup(TxQueue->TxFrameCompletionExtensionSet);
     }
     if (TxQueue->BufferExtensionSet != NULL) {
         XdpExtensionSetCleanup(TxQueue->BufferExtensionSet);
@@ -847,19 +1209,18 @@ XdpTxQueueDelete(
 
     XdpIfDeregisterClient(TxQueue->Binding, &TxQueue->BindingClientEntry);
 
-    XdpTxQueueDereference(TxQueue);
+    XdpTxQueueInterlockedDereference(TxQueue);
+    TraceExitSuccess(TRACE_CORE);
 }
 
 VOID
-XdpTxQueueClose(
+XdpTxQueueDereference(
     _In_ XDP_TX_QUEUE *TxQueue
     )
 {
-    //
-    // Currently only one, exclusive client is supported.
-    //
-    TraceInfo(TRACE_CORE, "Deleting TxQueue=%p", TxQueue);
-    XdpTxQueueDelete(TxQueue);
+    if (XdpDecrementReferenceCount(&TxQueue->ReferenceCount)) {
+        XdpTxQueueDelete(TxQueue);
+    }
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

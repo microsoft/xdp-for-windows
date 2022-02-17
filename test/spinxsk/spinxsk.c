@@ -575,7 +575,7 @@ InitializeQueue(
     if (!queue->scenarioConfig.sockRx && (RandUlong() % 2)) {
         queue->scenarioConfig.sharedUmemSockRx = TRUE;
     }
-    if (!queue->scenarioConfig.sockTx && (RandUlong() % 2)) {
+    if (RandUlong() % 2) {
         queue->scenarioConfig.sharedUmemSockTx = TRUE;
     }
 

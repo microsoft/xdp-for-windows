@@ -88,6 +88,9 @@ VOID
 GenericTxOutOfOrder();
 
 VOID
+GenericTxSharing();
+
+VOID
 GenericTxPoke();
 
 VOID

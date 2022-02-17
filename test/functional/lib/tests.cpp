@@ -2963,6 +2963,69 @@ GenericTxOutOfOrder()
 }
 
 VOID
+GenericTxSharing()
+{
+    auto If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    MY_SOCKET Sockets[4] = {};
+
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(Sockets); i++) {
+        Sockets[i] =
+            CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+    }
+
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(Sockets); i++) {
+        auto &Xsk = Sockets[i];
+        UINT64 Pattern = 0xA5CC7729CE99C16Aui64 + i;
+        UINT64 Mask = ~0ui64;
+
+        MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+
+        UINT16 FrameOffset = 13;
+        UCHAR Payload[] = "GenericTxSharing";
+        UINT64 TxBuffer = SocketFreePop(&Xsk);
+        UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer + FrameOffset;
+        UINT32 TxFrameLength = sizeof(Pattern) + sizeof(Payload);
+        ASSERT(FrameOffset + TxFrameLength <= Xsk.Umem.Reg.chunkSize);
+
+        RtlCopyMemory(TxFrame, &Pattern, sizeof(Pattern));
+        RtlCopyMemory(TxFrame + sizeof(Pattern), Payload, sizeof(Payload));
+
+        UINT32 ProducerIndex;
+        TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+        XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
+        TxDesc->address = TxBuffer;
+        XskDescriptorSetOffset(&TxDesc->address, FrameOffset);
+        TxDesc->length = TxFrameLength;
+        XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+        UINT32 NotifyResult;
+        TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+        TEST_EQUAL(0, NotifyResult);
+
+        auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+        TEST_EQUAL(1, MpTxFrame->BufferCount);
+
+        CONST DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
+        TEST_EQUAL(TxFrameLength, MpTxBuffer->BufferLength);
+#pragma warning(push)
+#pragma warning(disable:6385)  // Reading invalid data from 'TxFrame':  the readable size is '_Old_10`8' bytes, but '29' bytes may be read.
+        TEST_TRUE(
+            RtlEqualMemory(
+                TxFrame, MpTxBuffer->VirtualAddress + MpTxBuffer->DataOffset,
+                TxFrameLength));
+#pragma warning(pop)
+
+        MpTxDequeueFrame(GenericMp, 0);
+        MpTxFlush(GenericMp);
+
+        UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
+        TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    }
+}
+
+VOID
 GenericTxPoke()
 {
     auto If = FnMpIf;

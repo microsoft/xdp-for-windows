@@ -126,6 +126,17 @@ typedef struct _XDP_FRAME {
 } XDP_FRAME;
 
 //
+// Represents a TX frame completion. This structure is used only by interfaces
+// with out-of-order TX completion enabled.
+//
+typedef struct _XDP_TX_FRAME_COMPLETION {
+    //
+    // The address of the first buffer in the completed frame.
+    //
+    UINT64 BufferAddress;
+} XDP_TX_FRAME_COMPLETION;
+
+//
 // Action returned by XDP receive inspection. The interface performs the action.
 //
 typedef enum _XDP_RX_ACTION {

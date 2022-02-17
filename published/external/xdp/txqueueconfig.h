@@ -248,7 +248,8 @@ XdpTxQueueGetFragmentRing(
     );
 
 //
-// Gets the XDP completion ring. Each element is a TODO.
+// Gets the XDP completion ring. Each element is an XDP_TX_FRAME_COMPLETION
+// followed by extensions.
 //
 XDP_RING *
 XdpTxQueueGetCompletionRing(

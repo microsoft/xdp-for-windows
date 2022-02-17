@@ -123,6 +123,10 @@ public:
         ::GenericTxOutOfOrder();
     }
 
+    TEST_METHOD(GenericTxSharing) {
+        ::GenericTxSharing();
+    }
+
     TEST_METHOD(GenericTxPoke) {
         ::GenericTxPoke();
     }

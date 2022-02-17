@@ -22,7 +22,6 @@
 #include <xdp/framefragment.h>
 #include <xdp/frameinterfacecontext.h>
 #include <xdp/framerxaction.h>
-#include <xdp/frametxcompletioncontext.h>
 #include <xdp/guid.h>
 #include <xdp/interfaceconfig.h>
 #include <xdp/ndis6.h>
@@ -32,4 +31,5 @@
 #include <xdp/queueinfo.h>
 #include <xdp/rtl.h>
 #include <xdp/rxqueueconfig.h>
+#include <xdp/txframecompletioncontext.h>
 #include <xdp/txqueueconfig.h>

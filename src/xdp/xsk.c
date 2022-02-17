@@ -96,12 +96,6 @@ typedef struct _XSK_RX {
     XSK_RX_XDP Xdp;
 } XSK_RX;
 
-typedef struct _XSK_TX_XDP_EXTENSION_FLAGS {
-    BOOLEAN VirtualAddress : 1;
-    BOOLEAN LogicalAddress : 1;
-    BOOLEAN Mdl : 1;
-} XSK_TX_XDP_EXTENSION_FLAGS;
-
 typedef struct _XSK_TX_XDP {
     //
     // XDP data path fields.
@@ -111,25 +105,29 @@ typedef struct _XSK_TX_XDP {
     XDP_EXTENSION VaExtension;
     XDP_EXTENSION LaExtension;
     XDP_EXTENSION MdlExtension;
-    XSK_TX_XDP_EXTENSION_FLAGS ExtensionFlags;
-    BOOLEAN OutOfOrderCompletion;
+    XDP_EXTENSION FrameTxCompletionExtension;
+    XDP_EXTENSION TxCompletionExtension;
     UINT32 OutstandingFrames;
     UINT32 MaxBufferLength;
     UINT32 MaxFrameLength;
-    XDP_INTERFACE_HANDLE InterfaceQueue;
-    XDP_INTERFACE_NOTIFY_QUEUE *InterfaceNotify;
+    struct {
+        BOOLEAN VirtualAddressExt : 1;
+        BOOLEAN LogicalAddressExt : 1;
+        BOOLEAN MdlExt : 1;
+        BOOLEAN CompletionContext : 1;
+        BOOLEAN OutOfOrderCompletion : 1;
+        BOOLEAN QueueActive : 1;
+    } Flags;
     NDIS_POLL_BACKCHANNEL *PollHandle;
-    XDP_TX_QUEUE_DISPATCH ExclusiveDispatch;
-#if DBG
-    XDP_DBG_QUEUE_EC DbgEc;
-#endif
+    XDP_TX_QUEUE *Queue;
 
     //
     // Control path fields.
     //
     XDP_BINDING_HANDLE IfHandle;
     XDP_HOOK_ID HookId;
-    XDP_TX_QUEUE *Queue;
+    XDP_TX_QUEUE_NOTIFICATION_ENTRY QueueNotificationEntry;
+    XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY DatapathClientEntry;
     KEVENT OutstandingFlushComplete;
 } XSK_TX_XDP;
 
@@ -246,7 +244,9 @@ XskRingProdReserve(
     _In_ UINT32 Count
     )
 {
-    UINT32 Available = Ring->Size - (Ring->Shared->ProducerIndex - Ring->Shared->ConsumerIndex);
+    UINT32 Available =
+        Ring->Size - (ReadUInt32NoFence(&Ring->Shared->ProducerIndex) -
+            ReadUInt32NoFence(&Ring->Shared->ConsumerIndex));
     return min(Available, Count);
 }
 
@@ -258,7 +258,8 @@ XskRingConsPeek(
     )
 {
     UINT32 Available =
-        ReadUInt32Acquire(&Ring->Shared->ProducerIndex) - Ring->Shared->ConsumerIndex;
+        ReadUInt32Acquire(&Ring->Shared->ProducerIndex) -
+            ReadUInt32NoFence(&Ring->Shared->ConsumerIndex);
     return min(Available, Count);
 }
 
@@ -490,13 +491,13 @@ XskFreeBounceBuffer(
     }
 }
 
-static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XskFillTx(
-    _In_ XSK *Xsk
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
     )
 {
+    XSK *Xsk = CONTAINING_RECORD(DatapathClientEntry, XSK, Tx.Xdp.DatapathClientEntry);
     NTSTATUS Status;
     ULONGLONG Result;
     XSK_BUFFER_DESCRIPTOR *Descriptor;
@@ -532,7 +533,7 @@ XskFillTx(
     //    - XSK TX operations outstanding
     //
 
-    if (Xsk->Tx.Xdp.OutOfOrderCompletion) {
+    if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
         XdpTxAvailable = XdpRingFree(FrameRing);
     } else {
         XdpTxAvailable =
@@ -559,8 +560,10 @@ XskFillTx(
         XDP_BUFFER *Buffer;
         UINT64 AddressDescriptor, RelativeAddress;
         UMEM_MAPPING *Mapping;
+        XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
 
-        TxIndex = (Xsk->Tx.Ring.Shared->ConsumerIndex + i) & (Xsk->Tx.Ring.Mask);
+        TxIndex =
+            (ReadUInt32NoFence(&Xsk->Tx.Ring.Shared->ConsumerIndex) + i) & (Xsk->Tx.Ring.Mask);
         Descriptor = XskKernelRingGetElement(&Xsk->Tx.Ring, TxIndex);
 
         Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
@@ -591,21 +594,27 @@ XskFillTx(
             continue;
         }
 
-        if (Xsk->Tx.Xdp.ExtensionFlags.VirtualAddress) {
+        if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
             XDP_BUFFER_VIRTUAL_ADDRESS *Va;
             Va = XdpGetVirtualAddressExtension(Buffer, &Xsk->Tx.Xdp.VaExtension);
             Va->VirtualAddress = &Mapping->SystemAddress[RelativeAddress];
         }
-        if (Xsk->Tx.Xdp.ExtensionFlags.LogicalAddress) {
+        if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
             XDP_BUFFER_LOGICAL_ADDRESS *La;
             La = XdpGetLogicalAddressExtension(Buffer, &Xsk->Tx.Xdp.LaExtension);
             La->LogicalAddress = Mapping->DmaAddress.QuadPart + RelativeAddress;
         }
-        if (Xsk->Tx.Xdp.ExtensionFlags.Mdl) {
+        if (Xsk->Tx.Xdp.Flags.MdlExt) {
             XDP_BUFFER_MDL *Mdl;
             Mdl = XdpGetMdlExtension(Buffer, &Xsk->Tx.Xdp.MdlExtension);
             Mdl->Mdl = Mapping->Mdl;
             Mdl->MdlOffset = RelativeAddress;
+        }
+        if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+            CompletionContext =
+                XdpGetFrameTxCompletionContextExtension(
+                    Frame, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
+            CompletionContext->Context = &Xsk->Tx.Xdp.DatapathClientEntry;
         }
 
         EventWriteXskTxEnqueue(
@@ -649,44 +658,64 @@ XskWriteUmemTxCompletion(
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XskFillTxCompletion(
+XskTxCompleteRundown(
     _In_ XSK *Xsk
     )
 {
+    if (Xsk->State > XskBound) {
+        if (Xsk->Tx.Xdp.OutstandingFrames == 0) {
+            KeSetEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, 0, FALSE);
+        }
+    }
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XskFillTxCompletion(
+    _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
+    )
+{
+    XSK *Xsk = CONTAINING_RECORD(DatapathClientEntry, XSK, Tx.Xdp.DatapathClientEntry);
     XSK_SHARED_RING *Ring = Xsk->Tx.CompletionRing.Shared;
-    UINT32 LocalProducerIndex = Ring->ProducerIndex;
+    UINT32 ProducerIndex = ReadUInt32NoFence(&Ring->ProducerIndex);
+    UINT32 OriginalProducerIndex = ProducerIndex;
     UINT32 Count;
     UINT64 RelativeAddress;
     UMEM_MAPPING *Mapping = XskGetTxMapping(Xsk);
+    XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
 
-    if (Xsk->Tx.Xdp.OutOfOrderCompletion) {
+    if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
         XDP_RING *XdpRing = Xsk->Tx.Xdp.CompletionRing;
-        UINT64 *Completion;
-
-        if (!NT_VERIFY(XskRingProdReserve(&Xsk->Tx.CompletionRing, MAXUINT32) >=
-                XdpRingCount(XdpRing))) {
-            //
-            // If the above condition does not hold, the XSK TX completion ring is
-            // no longer valid. This implies an application programming error.
-            //
-            XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
-            return;
-        }
+        XDP_TX_FRAME_COMPLETION *Completion;
 
         //
         // Move all entries from the XDP TX completion ring to the XSK TX completion
         // ring. We have ensured sufficient XSK TX completion ring space when we
         // consumed from the XSK TX ring.
         //
-        while (XdpRingCount(XdpRing) > 0) {
-            Completion = XdpRingGetElement(XdpRing, XdpRing->ConsumerIndex++ & XdpRing->Mask);
+        ASSERT(XdpRingCount(XdpRing) > 0);
+        do {
+            Completion = XdpRingGetElement(XdpRing, XdpRing->ConsumerIndex & XdpRing->Mask);
 
-            if (Xsk->Tx.Xdp.ExtensionFlags.VirtualAddress) {
-                RelativeAddress = *Completion - (UINT64)Mapping->SystemAddress;
-            } else if (Xsk->Tx.Xdp.ExtensionFlags.LogicalAddress) {
-                RelativeAddress = *Completion - Mapping->DmaAddress.QuadPart;
-            } else if (Xsk->Tx.Xdp.ExtensionFlags.Mdl) {
-                RelativeAddress = *Completion;
+            if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+                CompletionContext =
+                    XdpGetTxCompletionContextExtension(
+                        Completion, &Xsk->Tx.Xdp.TxCompletionExtension);
+                if (CompletionContext->Context != &Xsk->Tx.Xdp.DatapathClientEntry) {
+                    //
+                    // We must have completed at least the first frame.
+                    //
+                    ASSERT((ProducerIndex - OriginalProducerIndex) > 0);
+                    break;
+                }
+            }
+
+            if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
+                RelativeAddress = Completion->BufferAddress - (UINT64)Mapping->SystemAddress;
+            } else if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
+                RelativeAddress = Completion->BufferAddress - Mapping->DmaAddress.QuadPart;
+            } else if (Xsk->Tx.Xdp.Flags.MdlExt) {
+                RelativeAddress = Completion->BufferAddress;
             } else {
                 //
                 // One of the above extensions must have be enabled.
@@ -695,39 +724,45 @@ XskFillTxCompletion(
                 RelativeAddress = 0;
             }
 
-            XskWriteUmemTxCompletion(Xsk, LocalProducerIndex++, RelativeAddress);
-        }
+            XskWriteUmemTxCompletion(Xsk, ProducerIndex++, RelativeAddress);
+            XdpRing->ConsumerIndex++;
+        } while (XdpRingCount(XdpRing) > 0);
     } else {
         XDP_RING *XdpRing = Xsk->Tx.Xdp.FrameRing;
         XDP_FRAME *Frame;
-
-        if (!NT_VERIFY(XskRingProdReserve(&Xsk->Tx.CompletionRing, MAXUINT32) >=
-                (XdpRing->ConsumerIndex - XdpRing->Reserved))) {
-            //
-            // If the above condition does not hold, the XSK TX completion ring is
-            // no longer valid. This implies an application programming error.
-            //
-            XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
-            return;
-        }
 
         //
         // Move all completed entries from the XDP TX ring to the XSK TX completion
         // ring. We have ensured sufficient XSK TX completion ring space when we
         // consumed from the XSK TX ring.
         //
-        while ((XdpRing->ConsumerIndex - XdpRing->Reserved) > 0) {
-            Frame = XdpRingGetElement(XdpRing, XdpRing->Reserved++ & XdpRing->Mask);
 
-            if (Xsk->Tx.Xdp.ExtensionFlags.VirtualAddress) {
+        ASSERT((XdpRing->ConsumerIndex - XdpRing->Reserved) > 0);
+        do {
+            Frame = XdpRingGetElement(XdpRing, XdpRing->Reserved & XdpRing->Mask);
+
+            if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+                CompletionContext =
+                    XdpGetFrameTxCompletionContextExtension(
+                        Frame, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
+                if (CompletionContext->Context != &Xsk->Tx.Xdp.DatapathClientEntry) {
+                    //
+                    // We must have completed at least the first frame.
+                    //
+                    ASSERT((ProducerIndex - OriginalProducerIndex) > 0);
+                    break;
+                }
+            }
+
+            if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
                 XDP_BUFFER_VIRTUAL_ADDRESS *Va;
                 Va = XdpGetVirtualAddressExtension(&Frame->Buffer, &Xsk->Tx.Xdp.VaExtension);
                 RelativeAddress = Va->VirtualAddress - Mapping->SystemAddress;
-            } else if (Xsk->Tx.Xdp.ExtensionFlags.LogicalAddress) {
+            } else if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
                 XDP_BUFFER_LOGICAL_ADDRESS *La;
                 La = XdpGetLogicalAddressExtension(&Frame->Buffer, &Xsk->Tx.Xdp.LaExtension);
                 RelativeAddress = La->LogicalAddress - Mapping->DmaAddress.QuadPart;
-            } else if (Xsk->Tx.Xdp.ExtensionFlags.Mdl) {
+            } else if (Xsk->Tx.Xdp.Flags.MdlExt) {
                 XDP_BUFFER_MDL *Mdl;
                 Mdl = XdpGetMdlExtension(&Frame->Buffer, &Xsk->Tx.Xdp.MdlExtension);
                 RelativeAddress = Mdl->MdlOffset;
@@ -739,16 +774,24 @@ XskFillTxCompletion(
                 RelativeAddress = 0;
             }
 
-            XskWriteUmemTxCompletion(Xsk, LocalProducerIndex++, RelativeAddress);
-        }
+            XskWriteUmemTxCompletion(Xsk, ProducerIndex++, RelativeAddress);
+        } while ((XdpRing->ConsumerIndex - ++XdpRing->Reserved) > 0);
     }
 
-    Count = LocalProducerIndex - Ring->ProducerIndex;
+    Count = ProducerIndex - OriginalProducerIndex;
 
     if (Count > 0) {
         Xsk->Tx.Xdp.OutstandingFrames -= Count;
 
-        XskRingProdSubmit(&Xsk->Tx.CompletionRing, Count);
+        //
+        // If the below condition does not hold, the XSK TX completion ring is
+        // no longer valid. This implies an application programming error.
+        //
+        if (NT_VERIFY(XskRingProdReserve(&Xsk->Tx.CompletionRing, Count) == Count)) {
+            XskRingProdSubmit(&Xsk->Tx.CompletionRing, Count);
+        } else {
+            XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
+        }
 
         //
         // N.B. See comment in XskNotify.
@@ -759,35 +802,10 @@ XskFillTxCompletion(
             (Xsk->IoWaitFlags & XSK_NOTIFY_WAIT_TX)) {
             XskSignalReadyIo(Xsk, XSK_NOTIFY_WAIT_TX);
         }
-    }
 
-    if (Xsk->State > XskBound) {
-        if (Xsk->Tx.Xdp.OutstandingFrames == 0) {
-            KeSetEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, 0, FALSE);
-        }
+        XskTxCompleteRundown(Xsk);
     }
 }
-
-static
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-XskFlushTransmit(
-    _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue
-    )
-{
-    XSK *Xsk = CONTAINING_RECORD(XdpTxQueue, XSK, Tx.Xdp.ExclusiveDispatch);
-
-    XdbgEnterQueueEc(&Xsk->Tx.Xdp, TRUE);
-
-    XskFillTxCompletion(Xsk);
-    XskFillTx(Xsk);
-
-    XdbgExitQueueEc(&Xsk->Tx.Xdp);
-}
-
-static CONST XDP_TX_QUEUE_DISPATCH XskTxDispatch = {
-    .FlushTransmit = XskFlushTransmit,
-};
 
 NTSTATUS
 XskReferenceDatapathHandle(
@@ -890,7 +908,6 @@ XskIrpCreateSocket(
     KeInitializeEvent(&Xsk->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&Xsk->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
-    XdbgInitializeQueueEc(&Xsk->Tx.Xdp);
 
     IrpSp->FileObject->FsContext = Xsk;
 
@@ -1190,11 +1207,10 @@ XskReleasePollModeBusyTx(
         // Ensure the XSK ring need poke flag is set after releasing the busy
         // reference.
         //
-        if (Xsk->Tx.Xdp.InterfaceNotify != NULL) {
+        if (Xsk->Tx.Xdp.Flags.QueueActive) {
             XDP_NOTIFY_QUEUE_FLAGS NotifyFlags = XDP_NOTIFY_QUEUE_FLAG_TX;
 
-            XdbgNotifyQueueEc(&Xsk->Tx.Xdp, NotifyFlags);
-            Xsk->Tx.Xdp.InterfaceNotify(Xsk->Tx.Xdp.InterfaceQueue, NotifyFlags);
+            XdpTxQueueInvokeInterfaceNotify(Xsk->Tx.Xdp.Queue, NotifyFlags);
         }
     }
 }
@@ -1823,31 +1839,34 @@ XskDetachTxIf(
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (Xsk->Tx.Xdp.Queue != NULL) {
-        if (Xsk->Tx.Xdp.InterfaceQueue != NULL) {
-            if (Xsk->Tx.Xdp.InterfaceNotify != NULL) {
-                //
-                // Wait for all outstanding TX packets to complete.
-                //
-                NT_VERIFY(XskPoke(Xsk, XSK_NOTIFY_POKE_TX, 0) == STATUS_SUCCESS);
-                KeWaitForSingleObject(
-                    &Xsk->Tx.Xdp.OutstandingFlushComplete, Executive, KernelMode, FALSE, NULL);
-                ASSERT(Xsk->Tx.Xdp.OutstandingFrames == 0);
+        if (Xsk->Tx.Xdp.Flags.QueueActive) {
+            //
+            // Wait for all outstanding TX frames to complete. We need to
+            // synchronize with the data path: if there are frames outstanding,
+            // then the OutstandingFlushComplete event will be set as part of
+            // the regular data path. If no frames are outstanding, to ensure
+            // the OutstandingFrames count is compared to zero within the data
+            // path's execution context, an extra callback is required.
+            //
+            ASSERT(Xsk->State > XskBound);
+            XdpTxQueueSync(Xsk->Tx.Xdp.Queue, XskTxCompleteRundown, Xsk);
+            KeWaitForSingleObject(
+                &Xsk->Tx.Xdp.OutstandingFlushComplete, Executive, KernelMode, FALSE, NULL);
+            ASSERT(Xsk->Tx.Xdp.OutstandingFrames == 0);
 
-                ExAcquirePushLockExclusive(&Xsk->PollLock);
-                Xsk->Tx.Xdp.InterfaceNotify = NULL;
-                ExReleasePushLockExclusive(&Xsk->PollLock);
-            } else {
-                ASSERT(Xsk->Tx.Xdp.OutstandingFrames == 0);
-            }
+            ExAcquirePushLockExclusive(&Xsk->PollLock);
+            Xsk->Tx.Xdp.Flags.QueueActive = FALSE;
+            ExReleasePushLockExclusive(&Xsk->PollLock);
 
-            Xsk->Tx.Xdp.InterfaceQueue = NULL;
+            XdpTxQueueRemoveDatapathClient(Xsk->Tx.Xdp.Queue, &Xsk->Tx.Xdp.DatapathClientEntry);
         }
 
         XskCleanupDma(Xsk);
 
         XskFreeBounceBuffer(&Xsk->Tx.Bounce);
 
-        XdpTxQueueClose(Xsk->Tx.Xdp.Queue);
+        XdpTxQueueDeregisterNotifications(Xsk->Tx.Xdp.Queue, &Xsk->Tx.Xdp.QueueNotificationEntry);
+        XdpTxQueueDereference(Xsk->Tx.Xdp.Queue);
         Xsk->Tx.Xdp.Queue = NULL;
     }
 
@@ -1872,15 +1891,17 @@ XskDetachTxIf(
 }
 
 VOID
-XskDetachTxEvent(
-    _In_ XDP_TX_QUEUE *TxQueue,
-    _In_ VOID *Client
+XskNotifyTxQueue(
+    _In_ XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
+    _In_ XDP_TX_QUEUE_NOTIFICATION_TYPE NotificationType
     )
 {
-    XSK *Xsk = Client;
+    XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Tx.Xdp.QueueNotificationEntry);
     KIRQL OldIrql;
 
-    UNREFERENCED_PARAMETER(TxQueue);
+    if (NotificationType != XDP_TX_QUEUE_NOTIFICATION_DETACH) {
+        return;
+    }
 
     //
     // Set the state to detached, except when socket closure has raced this
@@ -1978,7 +1999,6 @@ XskBindTxIf(
 {
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
-    CONST XDP_INTERFACE_TX_QUEUE_DISPATCH *InterfaceTxDispatch;
     XDP_TX_QUEUE_CONFIG_ACTIVATE Config;
     CONST XDP_TX_CAPABILITIES *InterfaceCapabilities;
     XDP_EXTENSION_INFO ExtensionInfo;
@@ -1989,38 +2009,58 @@ XskBindTxIf(
     ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
     ASSERT (Xsk->Tx.Ring.Size > 0);
     Xsk->Tx.Xdp.IfHandle = WorkItem->IfWorkItem.BindingHandle;
-    Xsk->Tx.Xdp.ExclusiveDispatch = XskTxDispatch;
 
     Status =
-        XdpTxQueueCreate(
-            Xsk->Tx.Xdp.IfHandle, WorkItem->QueueId, &Xsk->Tx.Xdp.HookId, Xsk, XskDetachTxEvent,
-            (XDP_TX_QUEUE_HANDLE)&Xsk->Tx.Xdp.ExclusiveDispatch, &Xsk->Tx.Xdp.Queue);
+        XdpTxQueueFindOrCreate(
+            Xsk->Tx.Xdp.IfHandle, &Xsk->Tx.Xdp.HookId, WorkItem->QueueId, &Xsk->Tx.Xdp.Queue);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
+    XdpTxQueueRegisterNotifications(
+        Xsk->Tx.Xdp.Queue, &Xsk->Tx.Xdp.QueueNotificationEntry, XskNotifyTxQueue);
+
     InterfaceCapabilities = XdpTxQueueGetCapabilities(Xsk->Tx.Xdp.Queue);
     Xsk->Tx.Xdp.MaxBufferLength = InterfaceCapabilities->MaximumBufferSize;
     Xsk->Tx.Xdp.MaxFrameLength = InterfaceCapabilities->MaximumFrameSize;
-    Xsk->Tx.Xdp.OutOfOrderCompletion = InterfaceCapabilities->OutOfOrderCompletionEnabled;
 
     Config = XdpTxQueueGetConfig(Xsk->Tx.Xdp.Queue);
 
+    Xsk->Tx.Xdp.Flags.OutOfOrderCompletion = XdpTxQueueIsOutOfOrderCompletionEnabled(Config);
+    Xsk->Tx.Xdp.Flags.CompletionContext = XdpTxQueueIsTxCompletionContextEnabled(Config);
+
     Xsk->Tx.Xdp.FrameRing = XdpTxQueueGetFrameRing(Config);
-    if (Xsk->Tx.Xdp.OutOfOrderCompletion) {
-        Xsk->Tx.Xdp.CompletionRing = XdpTxQueueGetCompletionRing(Config);
+
+    if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+            XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+            XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
     }
 
-    Xsk->Tx.Xdp.ExtensionFlags.VirtualAddress = XdpTxQueueIsVirtualAddressEnabled(Config);
-    if (Xsk->Tx.Xdp.ExtensionFlags.VirtualAddress) {
+    if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
+        Xsk->Tx.Xdp.CompletionRing = XdpTxQueueGetCompletionRing(Config);
+
+        if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+                XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+                XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.TxCompletionExtension);
+        }
+    }
+
+    Xsk->Tx.Xdp.Flags.VirtualAddressExt = XdpTxQueueIsVirtualAddressEnabled(Config);
+    if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
         XdpInitializeExtensionInfo(
             &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
             XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.VaExtension);
     }
 
-    Xsk->Tx.Xdp.ExtensionFlags.LogicalAddress = XdpTxQueueIsLogicalAddressEnabled(Config);
-    if (Xsk->Tx.Xdp.ExtensionFlags.LogicalAddress) {
+    Xsk->Tx.Xdp.Flags.LogicalAddressExt = XdpTxQueueIsLogicalAddressEnabled(Config);
+    if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
         XdpInitializeExtensionInfo(
             &ExtensionInfo, XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_NAME,
             XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
@@ -2032,8 +2072,8 @@ XskBindTxIf(
         }
     }
 
-    Xsk->Tx.Xdp.ExtensionFlags.Mdl = XdpTxQueueIsMdlEnabled(Config);
-    if (Xsk->Tx.Xdp.ExtensionFlags.Mdl) {
+    Xsk->Tx.Xdp.Flags.MdlExt = XdpTxQueueIsMdlEnabled(Config);
+    if (Xsk->Tx.Xdp.Flags.MdlExt) {
         XdpInitializeExtensionInfo(
             &ExtensionInfo, XDP_BUFFER_EXTENSION_MDL_NAME,
             XDP_BUFFER_EXTENSION_MDL_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
@@ -2046,17 +2086,16 @@ XskBindTxIf(
     }
 
     Status =
-        XdpTxQueueActivateExclusive(
-            Xsk->Tx.Xdp.Queue, &InterfaceTxDispatch, &Xsk->Tx.Xdp.InterfaceQueue);
+        XdpTxQueueAddDatapathClient(
+            Xsk->Tx.Xdp.Queue, &Xsk->Tx.Xdp.DatapathClientEntry,
+            XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE_XSK);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
     ExAcquirePushLockExclusive(&Xsk->PollLock);
-    Xsk->Tx.Xdp.InterfaceNotify = InterfaceTxDispatch->InterfaceNotifyQueue;
+    Xsk->Tx.Xdp.Flags.QueueActive = TRUE;
     ExReleasePushLockExclusive(&Xsk->PollLock);
-
-    EventWriteXskTxBind(&MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Xdp.InterfaceQueue);
 
     Status = STATUS_SUCCESS;
 
@@ -3491,9 +3530,8 @@ XskPoke(
             //
             InterlockedAnd((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
 
-            if (Xsk->Tx.Xdp.InterfaceNotify != NULL) {
-                XdbgNotifyQueueEc(&Xsk->Tx.Xdp, NotifyFlags);
-                Xsk->Tx.Xdp.InterfaceNotify(Xsk->Tx.Xdp.InterfaceQueue, NotifyFlags);
+            if (Xsk->Tx.Xdp.Flags.QueueActive) {
+                XdpTxQueueInvokeInterfaceNotify(Xsk->Tx.Xdp.Queue, NotifyFlags);
             } else {
                 Status = STATUS_DEVICE_REMOVED;
             }
@@ -3707,8 +3745,8 @@ XskReceiveSingleFrame(
     XSK_BUFFER_DESCRIPTOR *Descriptor;
 
     RingIndex =
-        (Xsk->Rx.FillRing.Shared->ConsumerIndex + FillOffset) &
-            (Xsk->Rx.FillRing.Mask);
+        (ReadUInt32NoFence(&Xsk->Rx.FillRing.Shared->ConsumerIndex) + FillOffset) &
+            Xsk->Rx.FillRing.Mask;
     UmemAddress = *(UINT64 *)XskKernelRingGetElement(&Xsk->Rx.FillRing, RingIndex);
 
     if (UmemAddress > Xsk->Umem->Reg.totalSize - Xsk->Umem->Reg.chunkSize) {
@@ -3756,7 +3794,9 @@ XskReceiveSingleFrame(
         }
     }
 
-    RingIndex = (Xsk->Rx.Ring.Shared->ProducerIndex + *CompletionOffset) & (Xsk->Rx.Ring.Mask);
+    RingIndex =
+        (ReadUInt32NoFence(&Xsk->Rx.Ring.Shared->ProducerIndex) + *CompletionOffset) &
+            Xsk->Rx.Ring.Mask;
     Descriptor = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
     Descriptor->address = UmemAddress;
     ASSERT(Xsk->Umem->Reg.headroom <= MAXUINT16);

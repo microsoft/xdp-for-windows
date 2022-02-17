@@ -26,6 +26,7 @@
 #include <xdp/framefragment.h>
 #include <xdp/hookid.h>
 #include <xdp/ndis6.h>
+#include <xdp/txframecompletioncontext.h>
 
 #include <xdpassert.h>
 #include <xdpetw.h>
