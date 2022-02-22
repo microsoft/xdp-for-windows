@@ -48,7 +48,7 @@ typedef struct _UMEM {
     UMEM_MAPPING Mapping;
     VOID *ReservedMapping;
     VOID *OwningProcess;
-    LONG ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
 } UMEM;
 
 typedef enum _ALLOCATION_SOURCE {
@@ -141,7 +141,7 @@ typedef struct _XSK_TX {
 
 typedef struct _XSK {
     XDP_FILE_OBJECT_HEADER Header;
-    INT64 ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     XSK_STATE State;
     UMEM *Umem;
     XSK_RX Rx;
@@ -205,7 +205,7 @@ XskReference(
     _In_ XSK* Xsk
     )
 {
-    FRE_ASSERT(InterlockedIncrementAcquire64(&Xsk->ReferenceCount) > 1);
+    XdpIncrementReferenceCount(&Xsk->ReferenceCount);
 }
 
 static
@@ -214,9 +214,7 @@ XskDereference(
     _In_ XSK* Xsk
     )
 {
-    INT64 NewCount = InterlockedDecrementRelease64(&Xsk->ReferenceCount);
-    FRE_ASSERT(NewCount >= 0);
-    if (NewCount == 0) {
+    if (XdpDecrementReferenceCount(&Xsk->ReferenceCount)) {
         ExFreePoolWithTag(Xsk, POOLTAG_XSK);
     }
 }
@@ -893,7 +891,7 @@ XskIrpCreateSocket(
 
     Xsk->Header.ObjectType = XDP_OBJECT_TYPE_XSK;
     Xsk->Header.Dispatch = &XskFileDispatch;
-    Xsk->ReferenceCount = 1;
+    XdpInitializeReferenceCount(&Xsk->ReferenceCount);
     Xsk->State = XskUnbound;
     Xsk->Rx.Xdp.HookId.Layer = XDP_HOOK_L2;
     Xsk->Rx.Xdp.HookId.Direction = XDP_HOOK_RX;
@@ -2114,7 +2112,7 @@ XskReferenceUmem(
     UMEM *Umem
     )
 {
-    InterlockedIncrement(&Umem->ReferenceCount);
+    XdpIncrementReferenceCount(&Umem->ReferenceCount);
 }
 
 static
@@ -2123,7 +2121,7 @@ XskDereferenceUmem(
     UMEM *Umem
     )
 {
-    if (InterlockedDecrement(&Umem->ReferenceCount) == 0) {
+    if (XdpDecrementReferenceCount(&Umem->ReferenceCount)) {
         TraceInfo(TRACE_XSK, "Destroying Umem=%p", Umem);
 
         if (Umem->Mapping.Mdl != NULL) {
@@ -2613,7 +2611,7 @@ XskSockoptSetUmem(
         goto Exit;
     }
 
-    Umem->ReferenceCount = 1;
+    XdpInitializeReferenceCount(&Umem->ReferenceCount);
 
     __try {
         if (RequestorMode != KernelMode) {

@@ -203,6 +203,7 @@ XdpGenericDelayDereferenceDatapath(
         ExReleasePushLockExclusive(&Generic->Lock);
     } while (TRUE);
 
+    FRE_ASSERT(Datapath->ReferenceCount > 0);
     if (--Datapath->ReferenceCount == 0) {
         TraceVerbose(
             TRACE_GENERIC, "IfIndex=%u Requesting %s datapath detach",
@@ -231,6 +232,7 @@ XdpGenericReferenceDatapath(
 {
     *NeedRestart = FALSE;
 
+    FRE_ASSERT(Datapath->ReferenceCount >= 0);
     if (Datapath->ReferenceCount++ == 0) {
         XdpGenericReference(Generic);
         *NeedRestart = TRUE;
@@ -272,6 +274,7 @@ XdpGenericDereferenceDatapath(
         *NeedRestart = TRUE;
     }
 
+    FRE_ASSERT(Datapath->ReferenceCount > 0);
     --Datapath->ReferenceCount;
 
     if (*NeedRestart) {

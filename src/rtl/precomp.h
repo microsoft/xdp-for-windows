@@ -34,6 +34,7 @@ ZwNotifyChangeKey(
 
 #include <xdpassert.h>
 #include <xdplifetime.h>
+#include <xdprefcount.h>
 #include <xdpregistry.h>
 #include <xdprtl.h>
 #include <xdptimer.h>

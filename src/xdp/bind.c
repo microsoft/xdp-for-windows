@@ -23,7 +23,7 @@ typedef struct _XDP_INTERFACE_NMR XDP_INTERFACE_NMR;
 typedef struct _XDP_INTERFACE {
     NET_IFINDEX IfIndex;
     XDP_INTERFACE_SET *IfSet;
-    LONG ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     CONST XDP_CAPABILITIES_INTERNAL Capabilities;
     XDP_WORK_QUEUE *WorkQueue;
     XDP_BINDING_WORKITEM RemoveWorkItem;   // Guaranteed item for remove.
@@ -61,7 +61,7 @@ typedef struct _XDP_INTERFACE_NMR {
     //
     XDP_PROVIDER_HANDLE NmrHandle;
     KEVENT DetachNotification;
-    UINT32 ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     XDP_BINDING_WORKITEM WorkItem;
 } XDP_INTERFACE_NMR;
 
@@ -157,7 +157,7 @@ XdpIfpReferenceInterface(
     _Inout_ XDP_INTERFACE *Interface
     )
 {
-    InterlockedIncrement(&Interface->ReferenceCount);
+    XdpIncrementReferenceCount(&Interface->ReferenceCount);
 }
 
 static
@@ -175,7 +175,7 @@ XdpIfpDereferenceInterface(
     _Inout_ XDP_INTERFACE *Interface
     )
 {
-    if (InterlockedDecrement(&Interface->ReferenceCount) == 0) {
+    if (XdpDecrementReferenceCount(&Interface->ReferenceCount)) {
         ASSERT(Interface->XdpDriverApi.ProviderReference == 0);
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
@@ -463,7 +463,7 @@ XdpIfpOpenInterface(
     }
 
     XdpIfpReferenceInterface(Interface);
-    Interface->Nmr->ReferenceCount = 2;
+    XdpInitializeReferenceCountEx(&Interface->Nmr->ReferenceCount, 2);
     Interface->Nmr->WorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
     Interface->Nmr->WorkItem.WorkRoutine = XdpIfpInterfaceNmrDelete;
     KeInitializeEvent(&Interface->Nmr->DetachNotification, NotificationEvent, FALSE);
@@ -1020,12 +1020,12 @@ XdpIfAddInterfaces(
             goto Exit;
         }
 
+        XdpInitializeReferenceCount(&Interface->ReferenceCount);
         Interface->IfIndex = IfSet->IfIndex;
         Interface->IfSet = IfSet;
         Interface->XdpIfApi.RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
         Interface->XdpIfApi.InterfaceContext = AddIf->InterfaceContext;
         Interface->XdpDriverApi.OpenConfig.Dispatch = &XdpOpenDispatch;
-        Interface->ReferenceCount = 1;
         RtlCopyMemory(
             (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities,
             AddIf->InterfaceCapabilities,

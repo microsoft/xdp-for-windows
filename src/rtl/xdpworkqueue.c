@@ -12,7 +12,7 @@ typedef struct _XDP_WORK_QUEUE {
         EX_PUSH_LOCK PushLock;
         KSPIN_LOCK SpinLock;
     };
-    LONG ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     XDP_WORK_QUEUE_ROUTINE *Routine;
     SINGLE_LIST_ENTRY *Head;
     SINGLE_LIST_ENTRY *Tail;
@@ -76,8 +76,8 @@ XdpCreateWorkQueue(
         KeInitializeSpinLock(&WorkQueue->SpinLock);
     }
 
+    XdpInitializeReferenceCount(&WorkQueue->ReferenceCount);
     WorkQueue->MaxIrql = MaxIrql;
-    WorkQueue->ReferenceCount = 1;
     WorkQueue->Routine = WorkQueueRoutine;
     WorkQueue->IoWorkItem =
         ExAllocatePoolZero(
@@ -98,8 +98,7 @@ XdpReferenceWorkQueue(
     _In_ XDP_WORK_QUEUE *WorkQueue
     )
 {
-    ASSERT(WorkQueue->ReferenceCount > 0);
-    InterlockedIncrement(&WorkQueue->ReferenceCount);
+    XdpIncrementReferenceCount(&WorkQueue->ReferenceCount);
 }
 
 static
@@ -108,8 +107,7 @@ XdpDereferenceWorkQueue(
     _In_ XDP_WORK_QUEUE *WorkQueue
     )
 {
-    ASSERT(WorkQueue->ReferenceCount > 0);
-    if (InterlockedDecrement(&WorkQueue->ReferenceCount) == 0) {
+    if (XdpDecrementReferenceCount(&WorkQueue->ReferenceCount)) {
         ASSERT(WorkQueue->Tail == NULL);
         IoUninitializeWorkItem(WorkQueue->IoWorkItem);
         ExFreePoolWithTag(WorkQueue->IoWorkItem, XDP_POOLTAG_WORKQUEUE);

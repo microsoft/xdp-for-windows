@@ -8,7 +8,7 @@ typedef struct _EX_TIMER EX_TIMER;
 typedef struct _IO_WORKITEM IO_WORKITEM;
 
 typedef struct _XDP_TIMER {
-    UINT32 ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     EX_PUSH_LOCK PushLock;
     KSPIN_LOCK SpinLock;
     EX_TIMER *ExTimer;
@@ -33,7 +33,7 @@ XdpTimerReference(
     _Inout_ XDP_TIMER *Timer
     )
 {
-    FRE_ASSERT(InterlockedIncrement((LONG *)&Timer->ReferenceCount) > 1);
+    XdpIncrementReferenceCount(&Timer->ReferenceCount);
 }
 
 static
@@ -42,10 +42,7 @@ XdpTimerDereference(
     _Inout_ XDP_TIMER *Timer
     )
 {
-    UINT32 NewValue = InterlockedDecrement((LONG *)&Timer->ReferenceCount);
-    FRE_ASSERT(NewValue != MAXUINT32);
-
-    if (NewValue == 0) {
+    if (XdpDecrementReferenceCount(&Timer->ReferenceCount)) {
         KEVENT *CleanupEvent = Timer->CleanupEvent;
 
         if (Timer->ExTimer != NULL) {
@@ -85,7 +82,7 @@ XdpTimerCreate(
         goto Exit;
     }
 
-    Timer->ReferenceCount = 1;
+    XdpInitializeReferenceCount(&Timer->ReferenceCount);
     ExInitializePushLock(&Timer->PushLock);
     KeInitializeSpinLock(&Timer->SpinLock);
     Timer->TimerRoutine = TimerRoutine;

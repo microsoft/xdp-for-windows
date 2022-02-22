@@ -19,6 +19,17 @@ XdpInitializeReferenceCount(
 
 inline
 VOID
+XdpInitializeReferenceCountEx(
+    _Out_ XDP_REFERENCE_COUNT *RefCount,
+    _In_ SSIZE_T Bias
+    )
+{
+    FRE_ASSERT(Bias > 0);
+    *RefCount = Bias;
+}
+
+inline
+VOID
 XdpIncrementReferenceCount(
     _Inout_ XDP_REFERENCE_COUNT *RefCount
     )

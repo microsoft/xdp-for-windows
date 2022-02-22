@@ -18,7 +18,7 @@ typedef struct _XDP_LWF_FILTER XDP_LWF_FILTER;
 
 typedef struct _XDP_LWF_DATAPATH_BYPASS {
     BOOLEAN Inserted;           // LWF handlers are inserted on the NDIS data path.
-    ULONG ReferenceCount;       // Number of data path clients.
+    INT64 ReferenceCount;       // Number of data path clients.
     KEVENT ReadyEvent;          // Set when the inserted data path is restarted.
     UINT64 LastDereferenceTimestamp;
 } XDP_LWF_DATAPATH_BYPASS;

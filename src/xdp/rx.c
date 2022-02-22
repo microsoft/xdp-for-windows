@@ -58,7 +58,7 @@ typedef struct _XDP_RX_QUEUE {
     // Control path fields. TODO: Move to a separate, paged structure.
     //
 
-    ULONG ReferenceCount;
+    RTL_REFERENCE_COUNT ReferenceCount;
     XDP_BINDING_HANDLE Binding;
     XDP_RX_QUEUE_KEY Key;
     XDP_BINDING_CLIENT_ENTRY BindingClientEntry;
@@ -349,7 +349,7 @@ XdpRxQueueReference(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    NT_VERIFY(RxQueue->ReferenceCount++ > 0);
+    XdpIncrementReferenceCount(&RxQueue->ReferenceCount);
 }
 
 static CONST XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
@@ -966,7 +966,7 @@ XdpRxQueueCreate(
         goto Exit;
     }
 
-    RxQueue->ReferenceCount = 1;
+    XdpInitializeReferenceCount(&RxQueue->ReferenceCount);
     RxQueue->State = XdpRxQueueStateUnbound;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
     InitializeListHead(&RxQueue->NotifyClients);
@@ -1187,8 +1187,7 @@ XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    ASSERT(RxQueue->ReferenceCount > 0);
-    if (--RxQueue->ReferenceCount == 0) {
+    if (XdpDecrementReferenceCount(&RxQueue->ReferenceCount)) {
         TraceInfo(TRACE_CORE, "Deleting RxQueue=%p", RxQueue);
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
         ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
