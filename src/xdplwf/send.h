@@ -38,7 +38,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     KEVENT *PauseComplete;
 
     BOOLEAN NeedFlush;
-    ULONG BufferCount;
+    ULONG FrameCount;
     ULONG OutstandingCount;
     XDP_LWF_GENERIC_TX_STATS Stats;
     SLIST_HEADER NblComplete;

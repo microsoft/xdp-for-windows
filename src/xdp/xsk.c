@@ -663,7 +663,7 @@ XskTxCompleteRundown(
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
-UINT32
+VOID
 XskFillTxCompletion(
     _In_ XDP_TX_QUEUE_DATAPATH_CLIENT_ENTRY *DatapathClientEntry
     )
@@ -798,8 +798,6 @@ XskFillTxCompletion(
 
         XskTxCompleteRundown(Xsk);
     }
-
-    return Count;
 }
 
 NTSTATUS

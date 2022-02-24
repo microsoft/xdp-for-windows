@@ -6,8 +6,8 @@
 #include "send.tmh"
 
 #define MAX_TX_BUFFER_LENGTH 65536
-#define DEFAULT_TX_BUFFER_COUNT 32
-#define MAX_TX_BUFFER_COUNT 8096
+#define DEFAULT_TX_FRAME_COUNT 32
+#define MAX_TX_FRAME_COUNT 8096
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
@@ -169,7 +169,7 @@ XdpGenericTxGetNbls(
     _In_ XDP_LWF_GENERIC_TX_QUEUE *TxQueue
     )
 {
-    return TxQueue->BufferCount - TxQueue->OutstandingCount;
+    return TxQueue->FrameCount - TxQueue->OutstandingCount;
 }
 
 VOID
@@ -700,18 +700,18 @@ XdpGenericTxCreateQueue(
 
     Status =
         XdpRegQueryDwordValue(
-            XDP_LWF_PARAMETERS_KEY, L"GenericTxBufferCount", &TxQueue->BufferCount);
+            XDP_LWF_PARAMETERS_KEY, L"GenericTxFrameCount", &TxQueue->FrameCount);
     if (!NT_SUCCESS(Status)) {
-        TxQueue->BufferCount = DEFAULT_TX_BUFFER_COUNT;
+        TxQueue->FrameCount = DEFAULT_TX_FRAME_COUNT;
         Status = STATUS_SUCCESS;
-    } else if (TxQueue->BufferCount == 0 || TxQueue->BufferCount > MAX_TX_BUFFER_COUNT) {
+    } else if (TxQueue->FrameCount == 0 || TxQueue->FrameCount > MAX_TX_FRAME_COUNT) {
         TraceWarn(
-            TRACE_GENERIC, "IfIndex=%u QueueId=%u Invalid TX buffer count. Using default instead.",
+            TRACE_GENERIC, "IfIndex=%u QueueId=%u Invalid TX frame count. Using default instead.",
             Generic->IfIndex, QueueInfo->QueueId);
-        TxQueue->BufferCount = DEFAULT_TX_BUFFER_COUNT;
+        TxQueue->FrameCount = DEFAULT_TX_FRAME_COUNT;
     }
 
-    for (ULONG Index = 0; Index < TxQueue->BufferCount; Index++) {
+    for (ULONG Index = 0; Index < TxQueue->FrameCount; Index++) {
         NET_BUFFER_LIST *Nbl;
         NET_BUFFER *Nb;
         MDL *Mdl;

@@ -61,7 +61,6 @@ typedef struct _XDP_TX_QUEUE {
     XDP_EXTENSION TxCompletionContextExtension;
     LIST_ENTRY ClientList;
     LIST_ENTRY *FillEntry;
-    UINT32 OutstandingFrameCount;
     XDP_TX_QUEUE_DISPATCH Dispatch;
     XDP_QUEUE_SYNC Sync;
 #if DBG
@@ -93,7 +92,6 @@ XdpTxQueueDatapathComplete(
     )
 {
     XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
-    UINT32 CompletionCount;
 
     //
     // Review: This algorithm is somewhat naive: depending on the number of XSKs
@@ -115,10 +113,7 @@ XdpTxQueueDatapathComplete(
             //
             // Consumes one or more completions via the completion ring.
             //
-            CompletionCount = XskFillTxCompletion(CompletionContext->Context);
-
-            ASSERT(CompletionCount <= TxQueue->OutstandingFrameCount);
-            TxQueue->OutstandingFrameCount -= CompletionCount;
+            XskFillTxCompletion(CompletionContext->Context);
         }
     } else {
         XDP_RING *CompletionRing = TxQueue->CompletionRing;
@@ -135,10 +130,7 @@ XdpTxQueueDatapathComplete(
             //
             // Consumes one or more completions via the frame ring.
             //
-            CompletionCount = XskFillTxCompletion(CompletionContext->Context);
-
-            ASSERT(CompletionCount <= TxQueue->OutstandingFrameCount);
-            TxQueue->OutstandingFrameCount -= CompletionCount;
+            XskFillTxCompletion(CompletionContext->Context);
         }
     }
 }
@@ -159,7 +151,6 @@ XdpTxQueueDatapathFill(
             FrameRing->Mask + 1 - (FrameRing->ProducerIndex - FrameRing->Reserved);
     } else {
         TxAvailable = XdpRingFree(FrameRing);
-        TxAvailable -= min(TxAvailable, TxQueue->OutstandingFrameCount);
     }
 
     while (TxAvailable > 0) {
@@ -176,7 +167,6 @@ XdpTxQueueDatapathFill(
 
         ASSERT(FrameCount <= TxAvailable);
         TxAvailable -= FrameCount;
-        TxQueue->OutstandingFrameCount += FrameCount;
 
 NextEntry:
 
