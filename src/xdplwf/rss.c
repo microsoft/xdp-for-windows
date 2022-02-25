@@ -7,7 +7,7 @@
 
 static
 VOID
-XdpGenericRssFreeIndirection(
+XdpGenericRssFreeLifetimeIndirection(
     _In_ XDP_LIFETIME_ENTRY *Entry
     )
 {
@@ -17,22 +17,47 @@ XdpGenericRssFreeIndirection(
     ExFreePoolWithTag(IndirectionTable, POOLTAG_RSS);
 }
 
+VOID
+XdpGenericRssFreeIndirection(
+    _Inout_ XDP_LWF_GENERIC_INDIRECTION_STORAGE *Indirection
+    )
+{
+    if (Indirection->NewIndirectionTable != NULL) {
+        ExFreePoolWithTag(Indirection->NewIndirectionTable, POOLTAG_RSS);
+        Indirection->NewIndirectionTable = NULL;
+    }
+
+    if (Indirection->NewQueues != NULL) {
+        ExFreePoolWithTag(Indirection->NewQueues, POOLTAG_RSS);
+        Indirection->NewQueues = NULL;
+    }
+}
+
 NTSTATUS
-XdpGenericRssUpdateIndirection(
+XdpGenericRssCreateIndirection(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ NDIS_RECEIVE_SCALE_PARAMETERS *RssParams,
-    _In_ ULONG RssParamsLength
+    _In_ ULONG RssParamsLength,
+    _Inout_ XDP_LWF_GENERIC_INDIRECTION_STORAGE *Indirection
     )
 {
     NTSTATUS Status;
-    XDP_LWF_GENERIC_RSS *Rss = &Generic->Rss;
     XDP_LWF_GENERIC_RSS_QUEUE *NewQueues = NULL;
     ULONG AssignedQueues = 0;
-    XDP_LWF_GENERIC_INDIRECTION_TABLE *OldIndirectionTable, *NewIndirectionTable = NULL;
+    XDP_LWF_GENERIC_INDIRECTION_TABLE *NewIndirectionTable = NULL;
     ULONG EntryCount;
     ULONG MaxProcessors = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
     PROCESSOR_NUMBER *RssTable;
     PROCESSOR_NUMBER DisabledRssTable;
+
+    //
+    // XdpGenericRssCreateIndirection preallocates all data structures needed to
+    // update the RSS indirection table before applying changes to NDIS. This is
+    // so NDIS does not get out of sync with us, as could happen if this was done
+    // after NDIS changes were applied and the allocations failed.
+    //
+
+    RtlZeroMemory(Indirection, sizeof(*Indirection));
 
     if (KeGetCurrentIrql() == DISPATCH_LEVEL) {
         //
@@ -137,32 +162,11 @@ XdpGenericRssUpdateIndirection(
         NewIndirectionTable->Entries[Index].QueueIndex = QueueIndex;
     }
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
-
-    if (AssignedQueues > Rss->QueueCount) {
-        //
-        // If generic RSS is not initialized, skip the OID. We'll figure it out
-        // later.
-        //
-        ASSERT(Rss->QueueCount == 0);
-        Status = (Rss->QueueCount == 0) ? STATUS_SUCCESS : STATUS_INVALID_PARAMETER;
-        ExReleasePushLockExclusive(&Generic->Lock);
-        goto Exit;
-    }
-
-    for (ULONG QueueIndex = 0; QueueIndex < AssignedQueues; QueueIndex++) {
-        Rss->Queues[QueueIndex].IdealProcessor = NewQueues[QueueIndex].IdealProcessor;
-        Rss->Queues[QueueIndex].RssHash = NewQueues[QueueIndex].RssHash;
-    }
-
-    OldIndirectionTable = Rss->IndirectionTable;
-    Rss->IndirectionTable = NewIndirectionTable;
+    Indirection->AssignedQueues = AssignedQueues;
+    Indirection->NewIndirectionTable = NewIndirectionTable;
+    Indirection->NewQueues = NewQueues;
     NewIndirectionTable = NULL;
-
-    ExReleasePushLockExclusive(&Generic->Lock);
-
-    XdpLifetimeDelete(
-        XdpGenericRssFreeIndirection, &OldIndirectionTable->DeleteEntry);
+    NewQueues = NULL;
 
     Status = STATUS_SUCCESS;
 
@@ -181,6 +185,66 @@ Exit:
     }
 
     return Status;
+}
+
+VOID
+XdpGenericRssApplyIndirection(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _Inout_ XDP_LWF_GENERIC_INDIRECTION_STORAGE *Indirection
+    )
+{
+    XDP_LWF_GENERIC_RSS *Rss = &Generic->Rss;
+    XDP_LWF_GENERIC_INDIRECTION_TABLE *OldIndirectionTable;
+
+    //
+    // Applies an indirection table created by XdpGenericRssCreateIndirection.
+    // This procedure cannot fail unless the RSS queue count becomes out of sync.
+    //
+
+    if (Indirection->NewIndirectionTable == NULL) {
+        ASSERT(Indirection->AssignedQueues == 0);
+        goto Exit;
+    }
+
+    ExAcquirePushLockExclusive(&Generic->Lock);
+
+    if (Indirection->AssignedQueues > Rss->QueueCount) {
+        //
+        // If generic RSS is not initialized, skip the OID. We'll figure it out
+        // later.
+        //
+        ASSERT(Rss->QueueCount == 0);
+        if (Rss->QueueCount > 0) {
+            TraceError(
+                TRACE_LWF,
+                "IfIndex=%u Queue count incompatible with new indirection table",
+                Generic->IfIndex);
+        }
+        ExReleasePushLockExclusive(&Generic->Lock);
+        goto Exit;
+    }
+
+    for (ULONG QueueIndex = 0; QueueIndex < Indirection->AssignedQueues; QueueIndex++) {
+        Rss->Queues[QueueIndex].IdealProcessor = Indirection->NewQueues[QueueIndex].IdealProcessor;
+        Rss->Queues[QueueIndex].RssHash = Indirection->NewQueues[QueueIndex].RssHash;
+    }
+
+    OldIndirectionTable = Rss->IndirectionTable;
+    Rss->IndirectionTable = Indirection->NewIndirectionTable;
+    Indirection->NewIndirectionTable = NULL;
+
+    ExReleasePushLockExclusive(&Generic->Lock);
+
+    XdpLifetimeDelete(
+        XdpGenericRssFreeLifetimeIndirection, &OldIndirectionTable->DeleteEntry);
+
+Exit:
+
+    TraceInfo(
+        TRACE_GENERIC, "IfIndex=%u AssignedQueues=%u",
+        Generic->IfIndex, Indirection->AssignedQueues);
+
+    XdpGenericRssFreeIndirection(Indirection);
 }
 
 XDP_LWF_GENERIC_RSS_QUEUE *
@@ -261,23 +325,29 @@ XdpGenericRssInspectOidRequest(
     )
 {
     NTSTATUS Status;
+    XDP_LWF_GENERIC_INDIRECTION_STORAGE Indirection = {0};
 
     if (Request->RequestType == NdisRequestSetInformation &&
         Request->DATA.SET_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
 
         Status =
-            XdpGenericRssUpdateIndirection(
+            XdpGenericRssCreateIndirection(
                 Generic,
                 Request->DATA.SET_INFORMATION.InformationBuffer,
-                Request->DATA.SET_INFORMATION.InformationBufferLength);
+                Request->DATA.SET_INFORMATION.InformationBufferLength,
+                &Indirection);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
+
+        XdpGenericRssApplyIndirection(Generic, &Indirection);
     }
 
     Status = STATUS_SUCCESS;
 
 Exit:
+
+    XdpGenericRssFreeIndirection(&Indirection);
 
     return XdpConvertNtStatusToNdisStatus(Status);
 }
@@ -296,6 +366,7 @@ XdpGenericRssInitialize(
     XDP_LWF_GENERIC_RSS_QUEUE *Queues = NULL;
     XDP_LWF_GENERIC_RSS_CLEANUP *QueueCleanup = NULL;
     XDP_LWF_GENERIC_INDIRECTION_TABLE *IndirectionTable = NULL;
+    XDP_LWF_GENERIC_INDIRECTION_STORAGE Indirection = {0};
 
     Status =
         XdpLwfOidInternalRequest(
@@ -414,10 +485,14 @@ XdpGenericRssInitialize(
         goto Exit;
     }
 
-    Status = XdpGenericRssUpdateIndirection(Generic, RssParams, BytesReturned);
+    Status =
+        XdpGenericRssCreateIndirection(
+            Generic, RssParams, BytesReturned, &Indirection);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
+
+    XdpGenericRssApplyIndirection(Generic, &Indirection);
 
     Status = STATUS_SUCCESS;
 
@@ -437,12 +512,13 @@ Exit:
 
     if (QueueCleanup != NULL) {
         ExFreePoolWithTag(QueueCleanup, POOLTAG_RSS);
-
     }
 
     if (Queues != NULL) {
         ExFreePoolWithTag(Queues, POOLTAG_RSS);
     }
+
+    XdpGenericRssFreeIndirection(&Indirection);
 
     return Status;
 }
@@ -490,6 +566,6 @@ XdpGenericRssCleanup(
     }
 
     if (IndirectionTable != NULL) {
-        XdpLifetimeDelete(XdpGenericRssFreeIndirection, &IndirectionTable->DeleteEntry);
+        XdpLifetimeDelete(XdpGenericRssFreeLifetimeIndirection, &IndirectionTable->DeleteEntry);
     }
 }

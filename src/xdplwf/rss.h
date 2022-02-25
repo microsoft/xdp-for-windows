@@ -60,11 +60,29 @@ XdpGenericRssInspectOidRequest(
     _In_ NDIS_OID_REQUEST *Request
     );
 
+typedef struct _XDP_LWF_GENERIC_INDIRECTION_STORAGE {
+    XDP_LWF_GENERIC_INDIRECTION_TABLE *NewIndirectionTable;
+    XDP_LWF_GENERIC_RSS_QUEUE *NewQueues;
+    ULONG AssignedQueues;
+} XDP_LWF_GENERIC_INDIRECTION_STORAGE;
+
+VOID
+XdpGenericRssFreeIndirection(
+    _Inout_ XDP_LWF_GENERIC_INDIRECTION_STORAGE *Indirection
+    );
+
 NTSTATUS
-XdpGenericRssUpdateIndirection(
+XdpGenericRssCreateIndirection(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ NDIS_RECEIVE_SCALE_PARAMETERS *RssParams,
-    _In_ ULONG RssParamsLength
+    _In_ ULONG RssParamsLength,
+    _Inout_ XDP_LWF_GENERIC_INDIRECTION_STORAGE *Indirection
+    );
+
+VOID
+XdpGenericRssApplyIndirection(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _Inout_ XDP_LWF_GENERIC_INDIRECTION_STORAGE *Indirection
     );
 
 NTSTATUS

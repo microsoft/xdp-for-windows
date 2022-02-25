@@ -498,6 +498,7 @@ RemoveLowerEdgeRssSetting(
     UINT32 NdisRssParamsLength;
     ULONG BytesReturned;
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
+    XDP_LWF_GENERIC_INDIRECTION_STORAGE Indirection = {0};
 
     ASSERT(Filter->Offload.LowerEdge.Rss != NULL);
 
@@ -543,6 +544,13 @@ RemoveLowerEdgeRssSetting(
     }
 
     Status =
+        XdpGenericRssCreateIndirection(
+            &Filter->Generic, NdisRssParams, NdisRssParamsLength, &Indirection);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
         XdpLwfOidInternalRequest(
             Filter->NdisFilterHandle, NdisRequestSetInformation,
             OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength, 0, 0,
@@ -555,23 +563,15 @@ RemoveLowerEdgeRssSetting(
         goto Exit;
     }
 
-    //
-    // Update the generic state.
-    //
-    Status = XdpGenericRssUpdateIndirection(&Filter->Generic, NdisRssParams, NdisRssParamsLength);
-    if (!NT_SUCCESS(Status)) {
-        TraceError(
-            TRACE_LWF,
-            "Filter=%p Failed to update generic indirection table Status=%!STATUS!",
-            Filter, Status);
-        goto Exit;
-    }
+    XdpGenericRssApplyIndirection(&Filter->Generic, &Indirection);
 
 Exit:
 
     if (NdisRssParams != NULL) {
         ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
     }
+
+    XdpGenericRssFreeIndirection(&Indirection);
 }
 
 static
@@ -622,6 +622,7 @@ XdpLwfOffloadRssSet(
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
     UINT32 NdisRssParamsLength;
     ULONG BytesReturned;
+    XDP_LWF_GENERIC_INDIRECTION_STORAGE Indirection = {0};
 
     ASSERT(RssParams != NULL);
     ASSERT(RssParamsLength == sizeof(*RssParams));
@@ -809,6 +810,13 @@ XdpLwfOffloadRssSet(
     }
 
     Status =
+        XdpGenericRssCreateIndirection(
+            &Filter->Generic, NdisRssParams, NdisRssParamsLength, &Indirection);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
         XdpLwfOidInternalRequest(
             Filter->NdisFilterHandle, NdisRequestSetInformation,
             OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength, 0, 0,
@@ -821,12 +829,7 @@ XdpLwfOffloadRssSet(
         goto Exit;
     }
 
-    //
-    // Update the generic state.
-    //
-    Status = XdpGenericRssUpdateIndirection(&Filter->Generic, NdisRssParams, NdisRssParamsLength);
-    // TODO: Need to guarantee both miniport and generic are in the same state.
-    ASSERT(NT_SUCCESS(Status));
+    XdpGenericRssApplyIndirection(&Filter->Generic, &Indirection);
 
     //
     // Update the tracking RSS state for the edge.
@@ -858,6 +861,8 @@ Exit:
     if (RssSetting != NULL) {
         ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
     }
+
+    XdpGenericRssFreeIndirection(&Indirection);
 
     return Status;
 }
