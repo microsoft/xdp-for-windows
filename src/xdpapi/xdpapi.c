@@ -106,10 +106,15 @@ DllMain(
 
     switch (Reason) {
     case DLL_PROCESS_ATTACH:
+#ifndef _MT
         //
-        // Disable DLL_THREAD_ATTACH/DETACH notifications.
+        // Disable DLL_THREAD_ATTACH/DETACH notifications if using shared CRT.
+        // This must not be called if using static CRT.
         //
         DisableThreadLibraryCalls(ModuleHandle);
+#else
+        UNREFERENCED_PARAMETER(ModuleHandle);
+#endif
         break;
 
     default:
