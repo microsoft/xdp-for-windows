@@ -163,12 +163,20 @@ public:
         GenericRxMatchUdp(AF_INET6, XDP_MATCH_IPV6_UDP_TUPLE);
     }
 
-    TEST_METHOD(GenericRxMatchUdpQuicV4) {
-        GenericRxMatchUdp(AF_INET, XDP_MATCH_QUIC_FLOW);
+    TEST_METHOD(GenericRxMatchUdpQuicSrcV4) {
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_QUIC_FLOW_SRC_CID);
     }
 
-    TEST_METHOD(GenericRxMatchUdpQuicV6) {
-        GenericRxMatchUdp(AF_INET6, XDP_MATCH_QUIC_FLOW);
+    TEST_METHOD(GenericRxMatchUdpQuicSrcV6) {
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_QUIC_FLOW_SRC_CID);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpQuicDstV4) {
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_QUIC_FLOW_DST_CID);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpQuicDstV6) {
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_QUIC_FLOW_DST_CID);
     }
 
     TEST_METHOD(GenericRxMatchIpPrefixV4) {

@@ -40,10 +40,16 @@ typedef enum _XDP_MATCH_TYPE {
     //
     XDP_MATCH_IPV6_DST_MASK,
     //
-    // Match UDP destination port and QUIC destination connection IDs. The supplied
-    // buffer must match the CID at the given offset.
+    // Match UDP destination port and QUIC source connection IDs in long header
+    // QUIC packets. The supplied buffer must match the CID at the given offset.
     //
-    XDP_MATCH_QUIC_FLOW,
+    XDP_MATCH_QUIC_FLOW_SRC_CID,
+    //
+    // Match UDP destination port and QUIC destination connection IDs in short
+    // header QUIC packets. The supplied buffer must match the CID at the given
+    // offset.
+    //
+    XDP_MATCH_QUIC_FLOW_DST_CID,
     //
     // Match frames with a specific source and destination IPv4 addresses and UDP
     // port numbers.

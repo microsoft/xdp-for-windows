@@ -25,6 +25,8 @@ typedef struct QUIC_HEADER_INVARIANT {
             UINT32 Version;
             UCHAR DestCidLength;
             UCHAR DestCid[0];
+            //UCHAR SourceCidLength;
+            //UCHAR SourceCid[SourceCidLength];
         } LONG_HDR;
         struct {
             UCHAR VARIANT : 7;
@@ -42,7 +44,11 @@ typedef struct _XDP_PROGRAM_FRAME_STORAGE {
         IPV6_HEADER Ip6Hdr;
     };
     UDP_HDR UdpHdr;
-    UINT8 QuicStorage[sizeof(QUIC_HEADER_INVARIANT) + QUIC_MAX_CID_LENGTH];
+    // Invariant header + 1 for SourceCidLength + 2x CIDS
+    UINT8 QuicStorage[
+        sizeof(QUIC_HEADER_INVARIANT) +
+        sizeof(UCHAR) +
+        QUIC_MAX_CID_LENGTH * 2];
 } XDP_PROGRAM_FRAME_STORAGE;
 
 typedef struct _XDP_PROGRAM_PAYLOAD_CACHE {
@@ -68,6 +74,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 TransportPayloadValid : 1;
             UINT32 QuicCached : 1;
             UINT32 QuicValid : 1;
+            UINT32 QuicIsLongHeader : 1;
         };
         UINT32 Flags;
     };
@@ -79,7 +86,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     };
     UDP_HDR *UdpHdr;
     UINT8 QuicCidLength;
-    CONST UINT8* QuicCid;
+    CONST UINT8* QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
 } XDP_PROGRAM_FRAME_CACHE;
 
@@ -485,10 +492,14 @@ UdpTupleMatch(
 static
 BOOLEAN
 QuicCidMatch(
+    _In_ XDP_MATCH_TYPE Type,
     _In_ CONST XDP_PROGRAM_FRAME_CACHE *QuicHeader,
     _In_ CONST XDP_QUIC_FLOW *Flow
     )
 {
+    if ((Type == XDP_MATCH_QUIC_FLOW_SRC_CID) != (QuicHeader->QuicIsLongHeader == 1)) {
+        return FALSE;
+    }
     ASSERT(Flow->CidOffset + Flow->CidLength <= QUIC_MAX_CID_LENGTH);
     if (QuicHeader->QuicCidLength < Flow->CidOffset + Flow->CidLength) {
         return FALSE;
@@ -517,12 +528,24 @@ XdpParseQuicHeaderPayload(
         }
         if (DataLength <
                 RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, LONG_HDR) +
-                QuicHdr->LONG_HDR.DestCidLength) {
+                QuicHdr->LONG_HDR.DestCidLength + sizeof(UCHAR)) {
             return FALSE;
         }
-        FrameCache->QuicCid = QuicHdr->LONG_HDR.DestCid;
-        FrameCache->QuicCidLength = QuicHdr->LONG_HDR.DestCidLength;
+        FrameCache->QuicCidLength =
+            QuicHdr->LONG_HDR.DestCid[QuicHdr->LONG_HDR.DestCidLength];
+        if (DataLength <
+                RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, LONG_HDR) +
+                QuicHdr->LONG_HDR.DestCidLength +
+                sizeof(UCHAR) +
+                FrameCache->QuicCidLength) {
+            return FALSE;
+        }
+        FrameCache->QuicCid =
+            QuicHdr->LONG_HDR.DestCid +
+            QuicHdr->LONG_HDR.DestCidLength +
+            sizeof(UCHAR);
         FrameCache->QuicValid = TRUE;
+        FrameCache->QuicIsLongHeader = TRUE;
         return TRUE;
     }
 
@@ -532,6 +555,7 @@ XdpParseQuicHeaderPayload(
             QUIC_MAX_CID_LENGTH);
     FrameCache->QuicCid = QuicHdr->SHORT_HDR.DestCid;
     FrameCache->QuicValid = TRUE;
+    FrameCache->QuicIsLongHeader = FALSE;
     return FrameCache->QuicCidLength == QUIC_MAX_CID_LENGTH;
 }
 
@@ -568,7 +592,7 @@ XdpParseFragmentedQuicHeader(
         XdpGetContiguousHeaderLength(
             Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount,
             FragmentRing, VirtualAddressExtension, FrameStore->QuicStorage,
-            sizeof(QUIC_HEADER_INVARIANT) + QUIC_MAX_CID_LENGTH, &QuicPayload);
+            ARRAYSIZE(FrameStore->QuicStorage), &QuicPayload);
 
     XdpParseQuicHeaderPayload(QuicPayload, ReadLength, FrameCache);
 }
@@ -702,7 +726,8 @@ XdpInspect(
             }
             break;
 
-        case XDP_MATCH_QUIC_FLOW:
+        case XDP_MATCH_QUIC_FLOW_SRC_CID:
+        case XDP_MATCH_QUIC_FLOW_DST_CID:
             if (!FrameCache.UdpCached || !FrameCache.TransportPayloadCached) {
                 XdpParseFrame(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
@@ -722,6 +747,7 @@ XdpInspect(
 
             if (FrameCache.QuicValid &&
                 QuicCidMatch(
+                    Rule->Match,
                     &FrameCache,
                     &Rule->Pattern.QuicFlow)) {
                 Matched = TRUE;
@@ -875,10 +901,20 @@ XdpProgramTraceObject(
                 Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
             break;
 
-        case XDP_MATCH_QUIC_FLOW:
+        case XDP_MATCH_QUIC_FLOW_SRC_CID:
             TraceInfo(
                 TRACE_CORE,
-                "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW "
+                "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW_SRC_CID "
+                "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
+                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
+                WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
+            break;
+
+        case XDP_MATCH_QUIC_FLOW_DST_CID:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW_DST_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
                 ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
@@ -1196,7 +1232,8 @@ XdpCaptureProgram(
         // possible input pattern values.
         //
         switch (Rule->Match) {
-        case XDP_MATCH_QUIC_FLOW:
+        case XDP_MATCH_QUIC_FLOW_SRC_CID:
+        case XDP_MATCH_QUIC_FLOW_DST_CID:
             if (Rule->Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
                 Status = STATUS_INVALID_PARAMETER;
                 goto Exit;

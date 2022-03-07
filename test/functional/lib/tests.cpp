@@ -1644,7 +1644,9 @@ GenericRxMatchUdp(
         0x01, 0x00, 0x00, 0x00, // Version
         0x08, // DestCidLength
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
-        0x00 // The rest
+        0x08, // SrcCidLength
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // SrcCid
+        0x00  // The rest
     };
     const UCHAR QuicShortHdrUdpPayload[20] = {
         0x00, // IsLongHeader
@@ -1662,9 +1664,12 @@ GenericRxMatchUdp(
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(QuicLongHdrUdpPayload)];
     const UCHAR* UdpPayload;
     UINT16 UdpPayloadLength;
-    if (MatchType == XDP_MATCH_QUIC_FLOW) {
+    if (MatchType == XDP_MATCH_QUIC_FLOW_SRC_CID) {
         UdpPayload = QuicLongHdrUdpPayload;
         UdpPayloadLength = sizeof(QuicLongHdrUdpPayload);
+    } else if (MatchType == XDP_MATCH_QUIC_FLOW_DST_CID) {
+        UdpPayload = QuicShortHdrUdpPayload;
+        UdpPayloadLength = sizeof(QuicShortHdrUdpPayload);
     } else {
         UdpPayload = GenericUdpPayload;
         UdpPayloadLength = sizeof(GenericUdpPayload);
@@ -1685,7 +1690,8 @@ GenericRxMatchUdp(
         Rule.Pattern.Tuple.DestinationPort = LocalPort;
         memcpy(&Rule.Pattern.Tuple.SourceAddress, &RemoteIp, sizeof(INET_ADDR));
         memcpy(&Rule.Pattern.Tuple.DestinationAddress, &LocalIp, sizeof(INET_ADDR));
-    } else if (MatchType == XDP_MATCH_QUIC_FLOW) {
+    } else if (MatchType == XDP_MATCH_QUIC_FLOW_SRC_CID ||
+               MatchType == XDP_MATCH_QUIC_FLOW_DST_CID) {
         Rule.Pattern.QuicFlow.UdpPort = LocalPort;
         Rule.Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
         Rule.Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
@@ -1804,12 +1810,18 @@ GenericRxMatchUdp(
         TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
-    } else if (Rule.Match == XDP_MATCH_QUIC_FLOW) {
+    } else if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID ||
+               Rule.Match == XDP_MATCH_QUIC_FLOW_DST_CID) {
         //
-        // Verify short header QUIC packets.
+        // Verify other header QUIC packets don't match.
         //
-        UdpPayload = QuicShortHdrUdpPayload;
-        UdpPayloadLength = sizeof(QuicShortHdrUdpPayload);
+        if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID) {
+            UdpPayload = QuicShortHdrUdpPayload;
+            UdpPayloadLength = sizeof(QuicShortHdrUdpPayload);
+        } else {
+            UdpPayload = QuicLongHdrUdpPayload;
+            UdpPayloadLength = sizeof(QuicLongHdrUdpPayload);
+        }
         UdpFrameLength = sizeof(UdpFrame);
         TEST_TRUE(
             PktBuildUdpFrame(
@@ -1818,8 +1830,24 @@ GenericRxMatchUdp(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-        TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+
+        //
+        // Revert UDP payload change from test above.
+        //
+        if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID) {
+            UdpPayload = QuicLongHdrUdpPayload;
+            UdpPayloadLength = sizeof(QuicLongHdrUdpPayload);
+        } else {
+            UdpPayload = QuicShortHdrUdpPayload;
+            UdpPayloadLength = sizeof(QuicShortHdrUdpPayload);
+        }
+        UdpFrameLength = sizeof(UdpFrame);
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
+                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
         //
         // Verify the CID matching part.
@@ -2310,7 +2338,7 @@ GenericRxUdpFragmentQuicShortHeader(
 
     XDP_RULE Rules[2];
     Rules[0].Action = XDP_PROGRAM_ACTION_DROP;
-    Rules[0].Match = XDP_MATCH_QUIC_FLOW;
+    Rules[0].Match = XDP_MATCH_QUIC_FLOW_DST_CID;
     Rules[0].Pattern.QuicFlow.UdpPort = LocalPort;
     Rules[0].Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
     Rules[0].Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
@@ -2422,8 +2450,11 @@ GenericRxUdpFragmentQuicLongHeader(
         0x01, 0x00, 0x00, 0x00, // Version
         0x08, // DestCidLength
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
-        0x00 // The rest
+        0x08, // SrcCidLength
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // SrcCid
+        0x00  // The rest
     };
+    const UINT16 MinQuicHdrLength = 1 + 4 + 1 + 8 + 1 + 8; // Up to the SrcCid
     const UCHAR CorrectQuicCid[] = {
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
     };
@@ -2433,7 +2464,7 @@ GenericRxUdpFragmentQuicLongHeader(
 
     XDP_RULE Rules[2];
     Rules[0].Action = XDP_PROGRAM_ACTION_DROP;
-    Rules[0].Match = XDP_MATCH_QUIC_FLOW;
+    Rules[0].Match = XDP_MATCH_QUIC_FLOW_SRC_CID;
     Rules[0].Pattern.QuicFlow.UdpPort = LocalPort;
     Rules[0].Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
     Rules[0].Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
@@ -2454,7 +2485,7 @@ GenericRxUdpFragmentQuicLongHeader(
     UdpPayload = QuicLongHdrUdpPayload;
 
     for (; UdpPayloadLength < sizeof(QuicLongHdrUdpPayload); UdpPayloadLength++) {
-        if (UdpPayloadLength == 14) { // 8 for CID length, 6 for long header length
+        if (UdpPayloadLength == MinQuicHdrLength) {
             Rules[0].Action = XDP_PROGRAM_ACTION_PASS;
             Rules[1].Action = XDP_PROGRAM_ACTION_DROP;
             ProgramHandle.reset();
