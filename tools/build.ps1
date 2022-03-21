@@ -33,7 +33,8 @@ tools/prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
 msbuild.exe xdp.sln `
     -t:restore `
-    -p:RestorePackagesConfig=true
+    -p:RestorePackagesConfig=true `
+    -p:RestoreConfigFile=src\xdp\nuget.config
 
 msbuild.exe xdp.sln `
     /p:Configuration=$Flavor `
