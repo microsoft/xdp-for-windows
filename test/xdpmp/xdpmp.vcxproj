@@ -9,8 +9,8 @@
   <ItemGroup>
     <ClCompile Include="hwring.c" />
     <ClCompile Include="miniport.c" />
-    <ClCompile Include="pace.c" />
     <ClCompile Include="poll.c" />
+    <ClCompile Include="ratesim.c" />
     <ClCompile Include="rss.c" />
     <ClCompile Include="rx.c" />
     <ClCompile Include="tx.c" />

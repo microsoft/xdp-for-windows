@@ -61,7 +61,7 @@ param (
     [switch]$Stats = $false,
 
     [Parameter(Mandatory=$false)]
-    [switch]$Pacing = $false,
+    [switch]$RateSimulation = $false,
 
     [Parameter(Mandatory=$false)]
     [switch]$LargePages = $false,
@@ -162,8 +162,8 @@ try {
     #
     # Configure XDPMP.
     #
-    if ($Pacing -and $Adapter.InterfaceDescription -notlike "XDPMP*") {
-        Write-Error "Pacing is supported only by XDPMP" -ErrorAction Stop
+    if ($RateSimulation -and $Adapter.InterfaceDescription -notlike "XDPMP*") {
+        Write-Error "Rate simulation is supported only by XDPMP" -ErrorAction Stop
     }
     if ($Adapter.InterfaceDescription -like "XDPMP*") {
         if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
@@ -218,25 +218,25 @@ try {
         Restart-NetAdapter $AdapterName
         Wait-NetAdapterUpStatus -Name $AdapterName
 
-        $RxPacingRate = 1
-        $TxPacingRate = 1
+        $RxSimRate = 1
+        $TxSimRate = 1
         if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
-            $RxPacingRate = 0xFFFFFFFFl
+            $RxSimRate = 0xFFFFFFFFl
             if ($Pacing) {
-                $RxPacingRate = 1000
+                $RxSimRate = 1000
             }
         }
         if ((@("TX", "FWD").Contains($Mode) -and -not $RxInject) -or
             ($Mode -eq "RX" -and $TxInspect)) {
-            $TxPacingRate = 0xFFFFFFFFl
+            $TxSimRate = 0xFFFFFFFFl
             if ($Pacing) {
-                $TxPacingRate = 1000
+                $TxSimRate = 1000
             }
         }
 
-        Write-Verbose "Setting XDPMP pacing to RX:$RxPacingRate TX:$TxPacingRate"
-        & $RootDir\tools\xdpmppace.ps1 -AdapterName $AdapterName `
-            -RxFramesPerInterval $RxPacingRate -TxFramesPerInterval $TxPacingRate
+        Write-Verbose "Setting XDPMP rate simulation to RX:$RxSimRate TX:$TxSimRate"
+        & $RootDir\tools\xdpmpratesim.ps1 -AdapterName $AdapterName `
+            -RxFramesPerInterval $RxSimRate -TxFramesPerInterval $TxSimRate
     }
 
     #
@@ -385,8 +385,8 @@ try {
     }
 
     if ($Adapter.InterfaceDescription -like "XDPMP*") {
-        Write-Verbose "Stopping XDPMP pacing"
-        & $RootDir\tools\xdpmppace.ps1 -AdapterName $AdapterName `
+        Write-Verbose "Stopping XDPMP rate simulation"
+        & $RootDir\tools\xdpmpratesim.ps1 -AdapterName $AdapterName `
             -RxFramesPerInterval 1 -TxFramesPerInterval 0xFFFFFFFFl
     }
 }

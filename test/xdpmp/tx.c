@@ -368,7 +368,7 @@ MpSendNetBufferLists(
             // Trigger an interrupt (if armed) so each TX is completed ASAP.
             // This is required for a software driver only.
             //
-            MpPaceInterrupt(AdapterQueue);
+            MpRateSimInterrupt(AdapterQueue);
         }
     }
 

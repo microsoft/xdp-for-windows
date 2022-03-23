@@ -23,7 +23,7 @@
         } \
     }
 
-typedef XdpMpPacing XDPMP_PACING_WMI;
+typedef XdpMpRateSim XDPMP_RATE_SIM_WMI;
 
 typedef enum {
     XDP_STATE_INACTIVE,
@@ -66,7 +66,7 @@ typedef struct {
     UINT32 DataLength;
     UINT32 RecycleIndex;
 
-    UINT32 PacingFramesAvailable;
+    UINT32 RateSimFramesAvailable;
 
     struct {
         UINT64 RxFrames;
@@ -93,7 +93,7 @@ typedef struct {
     HW_RING *HwRing;
     TX_SHADOW_DESCRIPTOR *ShadowRing;
 
-    UINT32 PacingFramesAvailable;
+    UINT32 RateSimFramesAvailable;
 
     struct {
         UINT64 TxFrames;
@@ -140,7 +140,7 @@ typedef struct DECLSPEC_CACHEALIGN {
         UINT32 RxFrameRate;
         UINT32 TxFrameRate;
         PKEVENT CleanupEvent;
-    } Pacing;
+    } RateSim;
 
 #if DBG
     LONG ActivePolls;
@@ -185,7 +185,7 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RxPatternLength;
     UCHAR RxPattern[128];
     BOOLEAN RxBatchInspectionEnabled;
-    XDPMP_PACING_WMI Pacing;
+    XDPMP_RATE_SIM_WMI RateSim;
     FNDIS_NPI_CLIENT FndisClient;
     ADAPTER_POLL_PROVIDER PollProvider;
     ADAPTER_POLL_DISPATCH PollDispatch;

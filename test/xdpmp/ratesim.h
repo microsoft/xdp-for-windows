@@ -5,38 +5,38 @@
 #pragma once
 
 VOID
-MpPace(
+MpRateSim(
     _Inout_ ADAPTER_QUEUE *RssQueue
     );
 
 VOID
-MpPaceInterrupt(
+MpRateSimInterrupt(
     _In_ ADAPTER_QUEUE *RssQueue
     );
 
 VOID
-MpPaceEnableInterrupt(
+MpRateSimEnableInterrupt(
     _In_ ADAPTER_QUEUE *RssQueue
     );
 
 NDIS_STATUS
-MpUpdatePace(
+MpUpdateRateSim(
     _In_ ADAPTER_CONTEXT *Adapter,
-    _In_ CONST XDPMP_PACING_WMI *PacingWmi
+    _In_ CONST XDPMP_RATE_SIM_WMI *RateSimWmi
     );
 
 VOID
-MpStartPace(
+MpStartRateSim(
     _In_ ADAPTER_QUEUE *RssQueue
     );
 
 NDIS_STATUS
-MpInitializePace(
+MpInitializeRateSim(
     _Inout_ ADAPTER_QUEUE *RssQueue,
     _In_ ADAPTER_CONTEXT *Adapter
     );
 
 VOID
-MpCleanupPace(
+MpCleanupRateSim(
     _In_ ADAPTER_QUEUE *RssQueue
     );

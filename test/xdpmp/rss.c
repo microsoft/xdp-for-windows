@@ -32,7 +32,7 @@ MpPoll(
     ASSERT(InterlockedIncrement(&RssQueue->ActivePolls) == 1);
 #endif
 
-    MpPace(RssQueue);
+    MpRateSim(RssQueue);
 
     MpReceive(&RssQueue->Rq, &Poll->Receive, &XdpPoll.Receive);
     MpTransmit(&RssQueue->Tq, &Poll->Transmit, &XdpPoll.Transmit);
@@ -64,7 +64,7 @@ MpInterruptControl(
     ADAPTER_QUEUE *RssQueue = (ADAPTER_QUEUE *)MiniportPollContext;
 
     if (InterruptParameters->Enabled) {
-        MpPaceEnableInterrupt(RssQueue);
+        MpRateSimEnableInterrupt(RssQueue);
     }
 }
 

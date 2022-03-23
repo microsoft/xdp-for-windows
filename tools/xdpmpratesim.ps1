@@ -1,5 +1,5 @@
 #
-# Wrapper script for dynamic pacing.
+# Wrapper script for XDPMP dynamic packet rate simulation.
 #
 
 param (
@@ -23,31 +23,31 @@ $IfDesc = $Adapter.InterfaceDescription
 $Retries = 10
 do {
     try {
-        $PacingConfig = Get-WmiObject -Namespace root\wmi -Class XdpMpPacing -Filter "InstanceName = '$IfDesc'"
-        if ($PacingConfig -eq $null) {
+        $Config = Get-WmiObject -Namespace root\wmi -Class XdpMpRateSim -Filter "InstanceName = '$IfDesc'"
+        if ($Config -eq $null) {
             throw "WMI object not found."
         }
 
         if ($RxFramesPerInterval -gt 0) {
-            $PacingConfig.RxFramesPerInterval = $RxFramesPerInterval
+            $Config.RxFramesPerInterval = $RxFramesPerInterval
         }
 
         if ($TxFramesPerInterval -gt 0) {
-            $PacingConfig.TxFramesPerInterval = $TxFramesPerInterval
+            $Config.TxFramesPerInterval = $TxFramesPerInterval
         }
 
-        $PacingConfig.Put() | Out-Null
+        $Config.Put() | Out-Null
 
         break
     } catch {
         Write-Warning "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
 
         if ($Retries-- -eq 0) {
-            Write-Error "Failed to configure pacing."
+            Write-Error "Failed to configure rate simulation."
             break
         }
 
-        Write-Warning "Retrying pacing configuration."
+        Write-Warning "Retrying rate simulation configuration."
         Sleep -Milliseconds 500
     }
 } while ($true)

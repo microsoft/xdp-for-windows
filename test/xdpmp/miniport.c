@@ -59,7 +59,7 @@ CONST XDP_VERSION XdpDriverApiVersion = {
 //
 // Define custom OIDs in the vendor-private range [0xFF00000, 0xFFFFFFFF].
 //
-#define OID_XDPMP_PACING 0xFF00000
+#define OID_XDPMP_RATE_SIM 0xFF00000
 
 GLOBAL_CONTEXT MpGlobalContext = {0};
 
@@ -106,16 +106,16 @@ NDIS_OID MpSupportedOidArray[] =
 
     OID_GEN_RECEIVE_SCALE_PARAMETERS,
 
-    OID_XDPMP_PACING,
+    OID_XDPMP_RATE_SIM,
 
     OID_XDP_QUERY_CAPABILITIES,
 };
 
 static CONST NDIS_GUID MpCustomGuidArray[] = {
     {
-        XdpMpPacingGuid,
-        OID_XDPMP_PACING,
-        sizeof(XDPMP_PACING_WMI),
+        XdpMpRateSimGuid,
+        OID_XDPMP_RATE_SIM,
+        sizeof(XDPMP_RATE_SIM_WMI),
         fNDIS_GUID_TO_OID,
     },
 };
@@ -195,7 +195,7 @@ StartHwDatapath(
     for (ULONG Index = 0; Index < Adapter->NumRssQueues; Index++) {
         ADAPTER_QUEUE *RssQueue = &Adapter->RssQueues[Index];
 
-        Status = MpInitializePace(RssQueue, Adapter);
+        Status = MpInitializeRateSim(RssQueue, Adapter);
         if (Status != NDIS_STATUS_SUCCESS) {
             goto Exit;
         }
@@ -205,7 +205,7 @@ StartHwDatapath(
             goto Exit;
         }
 
-        MpStartPace(RssQueue);
+        MpStartRateSim(RssQueue);
 
         //
         // Only one queue is active until RSS is activated.
@@ -228,7 +228,7 @@ StopHwDatapath(
 
         RssQueue->HwActiveRx = FALSE;
 
-        MpCleanupPace(RssQueue);
+        MpCleanupRateSim(RssQueue);
     }
 }
 
@@ -1023,9 +1023,9 @@ MpReadConfiguration(
         }
     }
 
-    Adapter->Pacing.IntervalUs = 1000;             // 1ms
-    Adapter->Pacing.RxFramesPerInterval = 1000;    // 1Mpps
-    Adapter->Pacing.TxFramesPerInterval = 1000;    // 1Mpps
+    Adapter->RateSim.IntervalUs = 1000;             // 1ms
+    Adapter->RateSim.RxFramesPerInterval = 1000;    // 1Mpps
+    Adapter->RateSim.TxFramesPerInterval = 1000;    // 1Mpps
 
     RegValue = FALSE;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxBatchInspection, &RegValue);
@@ -1302,9 +1302,9 @@ MpQueryInformationHandler(
             DataLength = sizeof(NDIS_STATISTICS_INFO);
             break;
 
-        case OID_XDPMP_PACING:
-            DataPointer = &Adapter->Pacing;
-            DataLength = sizeof(Adapter->Pacing);
+        case OID_XDPMP_RATE_SIM:
+            DataPointer = &Adapter->RateSim;
+            DataLength = sizeof(Adapter->RateSim);
             break;
 
         case OID_XDP_QUERY_CAPABILITIES:
@@ -1475,9 +1475,9 @@ MpSetInformationHandler(
             Status = NDIS_STATUS_SUCCESS;
             break;
 
-        case OID_XDPMP_PACING:
+        case OID_XDPMP_RATE_SIM:
         {
-            Status = MpUpdatePace(Adapter, InformationBuffer);
+            Status = MpUpdateRateSim(Adapter, InformationBuffer);
             break;
         }
 

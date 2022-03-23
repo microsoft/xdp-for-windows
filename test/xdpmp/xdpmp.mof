@@ -2,8 +2,8 @@
     guid("{DDC93DC5-12C8-4F9C-9164-180310A0D877}"),
     localeid(0x409),
     WmiExpense(1),
-    Description("XDP Miniport Pacing")]
-class XdpMpPacing
+    Description("XDP Miniport Rate Simulator")]
+class XdpMpRateSim
 {
     [key, read]
     string   InstanceName;           // Instance name returned from WMI
@@ -12,7 +12,7 @@ class XdpMpPacing
     boolean  Active;
 
     [read, write,
-    Description("The pacing interval in microseconds."),
+    Description("The rate simulation interval in microseconds."),
     WmiDataId(1)] uint32   IntervalUs;
 
     [read, write,

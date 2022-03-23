@@ -5,16 +5,17 @@
 #include "precomp.h"
 
 //
-// The miniport pacing module attempts to simulate varying load levels and
-// completion latency using timers instead of hardware queues.
+// The miniport rate simulator module attempts to emulate varying load levels
+// and completion latency using timers instead of hardware queues. This module
+// is for testing only and is not necessary for NICs connected to a medium.
 //
 
 VOID
-MpPaceInterrupt(
+MpRateSimInterrupt(
     _In_ ADAPTER_QUEUE *RssQueue
     )
 {
-    if (InterlockedExchange8((CHAR *)&RssQueue->Pacing.HwArmed, FALSE)) {
+    if (InterlockedExchange8((CHAR *)&RssQueue->RateSim.HwArmed, FALSE)) {
         RssQueue->Adapter->PollDispatch.RequestPoll(RssQueue->NdisPollHandle, 0);
     }
 }
@@ -24,7 +25,7 @@ _IRQL_requires_(DISPATCH_LEVEL)
 _IRQL_requires_same_
 _Function_class_(NDIS_TIMER_FUNCTION)
 VOID
-MpPaceTimeout(
+MpRateSimTimeout(
     VOID *SystemSpecific1,
     VOID *FunctionContext,
     VOID *SystemSpecific2,
@@ -37,26 +38,26 @@ MpPaceTimeout(
     UNREFERENCED_PARAMETER(SystemSpecific2);
     UNREFERENCED_PARAMETER(SystemSpecific3);
 
-    MpPaceInterrupt(RssQueue);
+    MpRateSimInterrupt(RssQueue);
 }
 
 VOID
-MpPace(
+MpRateSim(
     _Inout_ ADAPTER_QUEUE *RssQueue
     )
 {
-    UINT32 RxFrameRate = ReadUInt32Acquire(&RssQueue->Pacing.RxFrameRate);
-    UINT32 TxFrameRate = ReadUInt32Acquire(&RssQueue->Pacing.TxFrameRate);
+    UINT32 RxFrameRate = ReadUInt32Acquire(&RssQueue->RateSim.RxFrameRate);
+    UINT32 TxFrameRate = ReadUInt32Acquire(&RssQueue->RateSim.TxFrameRate);
 
     //
     // Produce continuous batches of frames while the hardware queue is
     // active.
     //
     if (RxFrameRate == MAXUINT32) {
-        RssQueue->Rq.PacingFramesAvailable = RxFrameRate;
+        RssQueue->Rq.RateSimFramesAvailable = RxFrameRate;
     }
     if (TxFrameRate == MAXUINT32) {
-        RssQueue->Tq.PacingFramesAvailable = TxFrameRate;
+        RssQueue->Tq.RateSimFramesAvailable = TxFrameRate;
     }
 
     //
@@ -66,38 +67,38 @@ MpPace(
     if (RxFrameRate < MAXUINT32 || TxFrameRate < MAXUINT32) {
         LARGE_INTEGER CurrentQpc = KeQueryPerformanceCounter(NULL);
 
-        if (CurrentQpc.QuadPart >= RssQueue->Pacing.ExpirationQpc) {
+        if (CurrentQpc.QuadPart >= RssQueue->RateSim.ExpirationQpc) {
             //
             // Timer expired. Produce a new batch of frames.
             //
-            RssQueue->Rq.PacingFramesAvailable = RxFrameRate;
-            RssQueue->Tq.PacingFramesAvailable = TxFrameRate;
+            RssQueue->Rq.RateSimFramesAvailable = RxFrameRate;
+            RssQueue->Tq.RateSimFramesAvailable = TxFrameRate;
 
             //
             // Set next timeout. If we missed an entire interval, restart from
             // scratch.
             //
-            RssQueue->Pacing.ExpirationQpc += RssQueue->Pacing.IntervalQpc;
-            if (RssQueue->Pacing.ExpirationQpc <= CurrentQpc.QuadPart) {
-                RssQueue->Pacing.ExpirationQpc = CurrentQpc.QuadPart + RssQueue->Pacing.IntervalQpc;
+            RssQueue->RateSim.ExpirationQpc += RssQueue->RateSim.IntervalQpc;
+            if (RssQueue->RateSim.ExpirationQpc <= CurrentQpc.QuadPart) {
+                RssQueue->RateSim.ExpirationQpc = CurrentQpc.QuadPart + RssQueue->RateSim.IntervalQpc;
             }
         }
 
-        ASSERT(CurrentQpc.QuadPart < RssQueue->Pacing.ExpirationQpc);
+        ASSERT(CurrentQpc.QuadPart < RssQueue->RateSim.ExpirationQpc);
     }
 
     if (!RssQueue->HwActiveRx) {
-        RssQueue->Rq.PacingFramesAvailable = 0;
+        RssQueue->Rq.RateSimFramesAvailable = 0;
     }
 
-    RssQueue->Rq.PacingFramesAvailable -=
-        HwRingHwComplete(RssQueue->Rq.HwRing, RssQueue->Rq.PacingFramesAvailable);
-    RssQueue->Tq.PacingFramesAvailable -=
-        HwRingHwComplete(RssQueue->Tq.HwRing, RssQueue->Tq.PacingFramesAvailable);
+    RssQueue->Rq.RateSimFramesAvailable -=
+        HwRingHwComplete(RssQueue->Rq.HwRing, RssQueue->Rq.RateSimFramesAvailable);
+    RssQueue->Tq.RateSimFramesAvailable -=
+        HwRingHwComplete(RssQueue->Tq.HwRing, RssQueue->Tq.RateSimFramesAvailable);
 }
 
 VOID
-MpPaceEnableInterrupt(
+MpRateSimEnableInterrupt(
     _In_ ADAPTER_QUEUE *RssQueue
     )
 {
@@ -108,20 +109,20 @@ MpPaceEnableInterrupt(
     //
     // If the queue is being torn down, do not set a new timer.
     //
-    CleanupEvent = ReadPointerNoFence(&RssQueue->Pacing.CleanupEvent);
+    CleanupEvent = ReadPointerNoFence(&RssQueue->RateSim.CleanupEvent);
     if (CleanupEvent != NULL) {
-        RssQueue->Pacing.CleanupEvent = NULL;
-        RssQueue->Pacing.TimerHandle = NULL;
+        RssQueue->RateSim.CleanupEvent = NULL;
+        RssQueue->RateSim.TimerHandle = NULL;
         KeSetEvent(CleanupEvent, 0, FALSE);
     }
-    if (RssQueue->Pacing.TimerHandle == NULL) {
+    if (RssQueue->RateSim.TimerHandle == NULL) {
         return;
     }
 
     //
     // If the timer is already armed, do nothing.
     //
-    if (InterlockedExchange8((CHAR *)&RssQueue->Pacing.HwArmed, TRUE)) {
+    if (InterlockedExchange8((CHAR *)&RssQueue->RateSim.HwArmed, TRUE)) {
         return;
     }
 
@@ -131,33 +132,33 @@ MpPaceEnableInterrupt(
     // Set next timeout. If we missed an entire interval, restart from
     // scratch.
     //
-    if (CurrentQpc.QuadPart >= RssQueue->Pacing.ExpirationQpc) {
-        RssQueue->Pacing.ExpirationQpc += RssQueue->Pacing.IntervalQpc;
-        if (RssQueue->Pacing.ExpirationQpc <= CurrentQpc.QuadPart) {
-            RssQueue->Pacing.ExpirationQpc = CurrentQpc.QuadPart + RssQueue->Pacing.IntervalQpc;
+    if (CurrentQpc.QuadPart >= RssQueue->RateSim.ExpirationQpc) {
+        RssQueue->RateSim.ExpirationQpc += RssQueue->RateSim.IntervalQpc;
+        if (RssQueue->RateSim.ExpirationQpc <= CurrentQpc.QuadPart) {
+            RssQueue->RateSim.ExpirationQpc = CurrentQpc.QuadPart + RssQueue->RateSim.IntervalQpc;
         }
     }
 
-    ASSERT(CurrentQpc.QuadPart < RssQueue->Pacing.ExpirationQpc);
-    DueTime.QuadPart = RssQueue->Pacing.ExpirationQpc - CurrentQpc.QuadPart;
+    ASSERT(CurrentQpc.QuadPart < RssQueue->RateSim.ExpirationQpc);
+    DueTime.QuadPart = RssQueue->RateSim.ExpirationQpc - CurrentQpc.QuadPart;
     DueTime.QuadPart *= -10i64 * 1000 * 1000;
-    DueTime.QuadPart /= RssQueue->Pacing.FrequencyQpc;
+    DueTime.QuadPart /= RssQueue->RateSim.FrequencyQpc;
 
-    NdisSetTimerObject(RssQueue->Pacing.TimerHandle, DueTime, 0, NULL);
+    NdisSetTimerObject(RssQueue->RateSim.TimerHandle, DueTime, 0, NULL);
 }
 
 NDIS_STATUS
-MpUpdatePace(
+MpUpdateRateSim(
     _In_ ADAPTER_CONTEXT *Adapter,
-    _In_ CONST XDPMP_PACING_WMI *PacingWmi
+    _In_ CONST XDPMP_RATE_SIM_WMI *RateSimWmi
     )
 {
 
-    if (PacingWmi->RxFramesPerInterval == 0 || PacingWmi->TxFramesPerInterval == 0) {
+    if (RateSimWmi->RxFramesPerInterval == 0 || RateSimWmi->TxFramesPerInterval == 0) {
         return NDIS_STATUS_INVALID_PARAMETER;
     }
 
-    Adapter->Pacing = *PacingWmi;
+    Adapter->RateSim = *RateSimWmi;
 
     for (UINT32 Index = 0; Index < Adapter->NumRssQueues; Index++) {
         ADAPTER_QUEUE *RssQueue = &Adapter->RssQueues[Index];
@@ -165,25 +166,25 @@ MpUpdatePace(
         //
         // For simplicity, only frame rate is currently implemented.
         //
-        RssQueue->Pacing.RxFrameRate = PacingWmi->RxFramesPerInterval;
-        RssQueue->Pacing.TxFrameRate = PacingWmi->TxFramesPerInterval;
+        RssQueue->RateSim.RxFrameRate = RateSimWmi->RxFramesPerInterval;
+        RssQueue->RateSim.TxFrameRate = RateSimWmi->TxFramesPerInterval;
     }
 
     return NDIS_STATUS_SUCCESS;
 }
 
 VOID
-MpStartPace(
+MpStartRateSim(
     _In_ ADAPTER_QUEUE *RssQueue
     )
 {
     LARGE_INTEGER DueTime;
     DueTime.QuadPart = -1;   // Immediately.
-    NdisSetTimerObject(RssQueue->Pacing.TimerHandle, DueTime, 0, NULL);
+    NdisSetTimerObject(RssQueue->RateSim.TimerHandle, DueTime, 0, NULL);
 }
 
 NDIS_STATUS
-MpInitializePace(
+MpInitializeRateSim(
     _Inout_ ADAPTER_QUEUE *RssQueue,
     _In_ ADAPTER_CONTEXT *Adapter
     )
@@ -198,22 +199,22 @@ MpInitializePace(
     TimerParams.Header.Revision = NDIS_TIMER_CHARACTERISTICS_REVISION_1;
     TimerParams.Header.Size = sizeof(TimerParams);
     TimerParams.AllocationTag = POOLTAG_QUEUE;
-    TimerParams.TimerFunction = MpPaceTimeout;
+    TimerParams.TimerFunction = MpRateSimTimeout;
     TimerParams.FunctionContext = RssQueue;
     Status =
         NdisAllocateTimerObject(
-            Adapter->MiniportHandle, &TimerParams, &RssQueue->Pacing.TimerHandle);
+            Adapter->MiniportHandle, &TimerParams, &RssQueue->RateSim.TimerHandle);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
 
-    RssQueue->Pacing.HwArmed = TRUE;
-    RssQueue->Pacing.FrequencyQpc = FrequencyQpc.QuadPart;
-    RssQueue->Pacing.ExpirationQpc = 0;
-    RssQueue->Pacing.RxFrameRate = Adapter->Pacing.RxFramesPerInterval;
-    RssQueue->Pacing.TxFrameRate = Adapter->Pacing.TxFramesPerInterval;
-    RssQueue->Pacing.IntervalQpc =
-        (Adapter->Pacing.IntervalUs * RssQueue->Pacing.FrequencyQpc) / 1000 / 1000;
+    RssQueue->RateSim.HwArmed = TRUE;
+    RssQueue->RateSim.FrequencyQpc = FrequencyQpc.QuadPart;
+    RssQueue->RateSim.ExpirationQpc = 0;
+    RssQueue->RateSim.RxFrameRate = Adapter->RateSim.RxFramesPerInterval;
+    RssQueue->RateSim.TxFrameRate = Adapter->RateSim.TxFramesPerInterval;
+    RssQueue->RateSim.IntervalQpc =
+        (Adapter->RateSim.IntervalUs * RssQueue->RateSim.FrequencyQpc) / 1000 / 1000;
 
 Exit:
 
@@ -221,22 +222,22 @@ Exit:
 }
 
 VOID
-MpCleanupPace(
+MpCleanupRateSim(
     _In_ ADAPTER_QUEUE *RssQueue
     )
 {
-    NDIS_HANDLE TimerHandle = RssQueue->Pacing.TimerHandle;
+    NDIS_HANDLE TimerHandle = RssQueue->RateSim.TimerHandle;
     KEVENT CleanupEvent;
 
     //
     // Prevent new timers being armed.
     //
     KeInitializeEvent(&CleanupEvent, NotificationEvent, FALSE);
-    RssQueue->Pacing.CleanupEvent = &CleanupEvent;
+    RssQueue->RateSim.CleanupEvent = &CleanupEvent;
     RssQueue->Adapter->PollDispatch.RequestPoll(RssQueue->NdisPollHandle, 0);
     KeWaitForSingleObject(&CleanupEvent, Executive, KernelMode, FALSE, NULL);
-    ASSERT(RssQueue->Pacing.CleanupEvent == NULL);
-    ASSERT(RssQueue->Pacing.TimerHandle == NULL);
+    ASSERT(RssQueue->RateSim.CleanupEvent == NULL);
+    ASSERT(RssQueue->RateSim.TimerHandle == NULL);
 
     //
     // Cancel and wait for any outstanding timer to execute.
