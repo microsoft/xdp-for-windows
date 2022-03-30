@@ -35,7 +35,8 @@ function Check-And-Remove-Driver($Driver, $Component) {
         $AllDrivers = driverquery /v /fo list
     }
 
-    if (Check-Driver) {
+    if (Check-Driver $Driver) {
+        $AllDrivers | Write-Verbose
         Write-Error "$Driver loaded!"
     }
 }
