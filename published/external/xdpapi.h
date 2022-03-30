@@ -186,8 +186,8 @@ XdpRssSet(
 
 //
 // Query RSS settings on an interface. If the input RssConfigurationSize is too
-// small, HRESULT_FROM_WIN32(ERROR_MORE_DATA) will be returned and
-// RssConfigurationSize will return the required size.
+// small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned. Call
+// with a NULL RssConfiguration to get the length.
 //
 HRESULT
 XDPAPI

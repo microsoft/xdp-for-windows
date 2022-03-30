@@ -26,9 +26,8 @@ static
 NTSTATUS
 XdpIrpRssGet(
     _In_ XDP_RSS_OBJECT *RssObject,
-    _Out_opt_ VOID *OutputBuffer,
-    _In_ SIZE_T OutputBufferLength,
-    _Out_ SIZE_T *BytesReturned
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
     )
 {
     NTSTATUS Status;
@@ -36,6 +35,9 @@ XdpIrpRssGet(
     XDP_OFFLOAD_PARAMS_RSS RssParams;
     UINT32 RssParamsSize = sizeof(RssParams);
     UINT32 RequiredSize;
+    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    SIZE_T OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
 
     TraceEnter(TRACE_CORE, "Rss=%p", RssObject);
 
@@ -68,37 +70,41 @@ XdpIrpRssGet(
         sizeof(*RssConfiguration) + RssParams.HashSecretKeySize +
         RssParams.IndirectionTableSize;
 
-    *BytesReturned = RequiredSize;
-
+    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+        *BytesReturned = RequiredSize;
+        Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+    
     if (OutputBufferLength < RequiredSize) {
         TraceError(
             TRACE_CORE,
             "Rss=%p Output buffer length too small OutputBufferLength=%llu RequiredSize=%u",
             RssObject, (UINT64)OutputBufferLength, RequiredSize);
-        Status = STATUS_BUFFER_OVERFLOW;
+        Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
-    if (OutputBuffer != NULL) {
-        UCHAR *HashSecretKey;
-        PROCESSOR_NUMBER *IndirectionTable;
+    *BytesReturned = RequiredSize;
 
-        RssConfiguration = OutputBuffer;
-        RssConfiguration->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
-        RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
-        RssConfiguration->HashType = RssParams.HashType;
-        RssConfiguration->HashSecretKeyOffset = sizeof(*RssConfiguration);
-        RssConfiguration->HashSecretKeySize = RssParams.HashSecretKeySize;
-        RssConfiguration->IndirectionTableOffset =
-            RssConfiguration->HashSecretKeyOffset + RssConfiguration->HashSecretKeySize;
-        RssConfiguration->IndirectionTableSize = RssParams.IndirectionTableSize;
+    UCHAR *HashSecretKey;
+    PROCESSOR_NUMBER *IndirectionTable;
 
-        HashSecretKey = RTL_PTR_ADD(RssConfiguration, RssConfiguration->HashSecretKeyOffset);
-        IndirectionTable = RTL_PTR_ADD(RssConfiguration, RssConfiguration->IndirectionTableOffset);
+    RssConfiguration = OutputBuffer;
+    RssConfiguration->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
+    RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
+    RssConfiguration->HashType = RssParams.HashType;
+    RssConfiguration->HashSecretKeyOffset = sizeof(*RssConfiguration);
+    RssConfiguration->HashSecretKeySize = RssParams.HashSecretKeySize;
+    RssConfiguration->IndirectionTableOffset =
+        RssConfiguration->HashSecretKeyOffset + RssConfiguration->HashSecretKeySize;
+    RssConfiguration->IndirectionTableSize = RssParams.IndirectionTableSize;
 
-        RtlCopyMemory(HashSecretKey, &RssParams.HashSecretKey, RssParams.HashSecretKeySize);
-        RtlCopyMemory(IndirectionTable, &RssParams.IndirectionTable, RssParams.IndirectionTableSize);
-    }
+    HashSecretKey = RTL_PTR_ADD(RssConfiguration, RssConfiguration->HashSecretKeyOffset);
+    IndirectionTable = RTL_PTR_ADD(RssConfiguration, RssConfiguration->IndirectionTableOffset);
+
+    RtlCopyMemory(HashSecretKey, &RssParams.HashSecretKey, RssParams.HashSecretKeySize);
+    RtlCopyMemory(IndirectionTable, &RssParams.IndirectionTable, RssParams.IndirectionTableSize);
 
 Exit:
 
@@ -430,11 +436,7 @@ XdpIrpRssDeviceIoControl(
 
     switch (IoControlCode) {
     case IOCTL_RSS_GET:
-        Status =
-            XdpIrpRssGet(
-                RssObject, Irp->AssociatedIrp.SystemBuffer,
-                IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
-                &Irp->IoStatus.Information);
+        Status = XdpIrpRssGet(RssObject, Irp, IrpSp);
         break;
     case IOCTL_RSS_SET:
         Status =

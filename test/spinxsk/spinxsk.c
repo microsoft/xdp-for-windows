@@ -182,6 +182,7 @@ struct QUEUE_CONTEXT {
 
     HANDLE sock;
     HANDLE sharedUmemSock;
+    HANDLE rss;
 
     XSK_PROGRAM_SET rxProgramSet;
     XSK_PROGRAM_SET sharedUmemRxProgramSet;
@@ -483,6 +484,9 @@ CleanupQueue(
     if (Queue->sharedUmemSock != NULL) {
         CloseHandle(Queue->sharedUmemSock);
     }
+    if (Queue->rss != NULL) {
+        CloseHandle(Queue->rss);
+    }
 
     if (Queue->fuzzerShared.pauseEvent != NULL) {
         CloseHandle(Queue->fuzzerShared.pauseEvent);
@@ -504,6 +508,123 @@ CleanupQueue(
     DeleteCriticalSection(&Queue->rxProgramSet.Lock);
 
     free(Queue);
+}
+
+VOID
+FuzzRss(
+    _In_ QUEUE_CONTEXT *queue
+    )
+{
+    XDP_RSS_CONFIGURATION* RssConfiguration = NULL;
+    DWORD* ProcessorGroups = NULL;
+
+    WORD ActiveProcGroups = GetActiveProcessorGroupCount();
+    if (ActiveProcGroups == 0) {
+        return;
+    }
+
+    ProcessorGroups = malloc(sizeof(DWORD) * ActiveProcGroups);
+    if (ProcessorGroups == NULL) {
+        return;
+    }
+
+    DWORD ActualNumProcessors = 0;
+    for (DWORD i = 0; i < ActiveProcGroups; i++) {
+        DWORD NumProcsInGroup = GetActiveProcessorCount(i);
+        ProcessorGroups[i] = NumProcsInGroup;
+        ActualNumProcessors += NumProcsInGroup;
+    }
+
+    if (ActualNumProcessors < 2) {
+        goto Exit;
+    }
+
+    if (RandUlong() % 4 != 0) {
+        goto Exit;
+    }
+
+    UINT32 NumProcessors = (RandUlong() % ActualNumProcessors) + 1;
+
+    if (queue->rss != NULL) {
+        CloseHandle(queue->rss);
+        queue->rss = NULL;
+    }
+
+    HRESULT res = XdpRssOpen(ifindex, &queue->rss);
+    if (FAILED(res)) {
+        goto Exit;
+    }
+
+    UINT32 HashSecretKeySize = RandUlong() % 41;
+    UINT32 IndirectionTableSize = NumProcessors * sizeof(PROCESSOR_NUMBER);
+    UINT32 RssConfigSize =
+        sizeof(XDP_RSS_CONFIGURATION) +
+        HashSecretKeySize +
+        IndirectionTableSize;
+
+    RssConfiguration = malloc(RssConfigSize);
+    if (RssConfiguration == NULL) {
+        CloseHandle(queue->rss);
+        queue->rss = NULL;
+        goto Exit;
+    }
+    RtlZeroMemory(RssConfiguration, RssConfigSize);
+    RssConfiguration->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
+    RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
+    RssConfiguration->HashSecretKeyOffset = (RandUlong() % 64 == 0) ? RandUlong() : sizeof(XDP_RSS_CONFIGURATION);
+    UINT32 ActualIndirectionTableOffset =  sizeof(XDP_RSS_CONFIGURATION) + HashSecretKeySize;
+    RssConfiguration->IndirectionTableOffset = (RandUlong() % 64 == 0) ? RandUlong() : ActualIndirectionTableOffset;
+
+    PROCESSOR_NUMBER *IndirectionTableDst =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfiguration, ActualIndirectionTableOffset);
+
+    for (UINT32 ProcNumIndex = 0; ProcNumIndex < NumProcessors; ProcNumIndex++) {
+        UINT32 SelectedGroup = RandUlong() % ActiveProcGroups;
+        UINT32 SelectedProcNumber = RandUlong() % ProcessorGroups[SelectedGroup];
+
+        IndirectionTableDst[ProcNumIndex].Group = SelectedGroup;
+        IndirectionTableDst[ProcNumIndex].Number = SelectedProcNumber;
+    }
+
+    RssConfiguration->Flags = (RandUlong() % 64 == 0) ? RandUlong() :
+        XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_HASH_SECRET_KEY |
+        XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+    RssConfiguration->HashType = (RandUlong() % 64 == 0) ? RandUlong() : XDP_RSS_VALID_HASH_TYPES;
+    RssConfiguration->HashSecretKeySize = (RandUlong() % 64 == 0) ? RandUlong() : HashSecretKeySize;
+    RssConfiguration->IndirectionTableSize = (RandUlong() % 64 == 0) ? RandUlong() : (USHORT)IndirectionTableSize;
+
+    //
+    // It's OK is XdpRssSet fails, as spin is to make sure random inputs don't
+    // crash the system.
+    //
+    (void)XdpRssSet(queue->rss, RssConfiguration, RssConfigSize);
+
+    free(RssConfiguration);
+    RssConfiguration = NULL;
+
+    UINT32 OutputRssSize = 0;
+    res = XdpRssGet(queue->rss, NULL, &OutputRssSize);
+    if (res != HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
+        goto Exit;
+    }
+
+    RssConfiguration = malloc((UINT64)OutputRssSize * 2);
+    if (RssConfiguration == NULL) {
+        goto Exit;
+    }
+
+    OutputRssSize = RandUlong() % (OutputRssSize * 2);
+
+#pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
+    XdpRssGet(queue->rss, RssConfiguration, &OutputRssSize);
+
+Exit:
+    if (RssConfiguration != NULL) {
+        free(RssConfiguration);
+    }
+    if (ProcessorGroups != NULL) {
+        free(ProcessorGroups);
+    }
 }
 
 HRESULT
@@ -1227,6 +1348,8 @@ XskFuzzerWorkerFn(
         }
 
         FuzzSocketUmemSetup(queue, queue->sock, &scenarioConfig->isUmemRegistered);
+
+        FuzzRss(queue);
 
         FuzzSocketRxTxSetup(
             queue, queue->sock,
