@@ -5,6 +5,8 @@ This checks for the presence of any XDP drivers currently loaded.
 
 #>
 
+[cmdletbinding()]Param()
+
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
@@ -12,7 +14,7 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 
 # Cache driverquery output.
-$AllDrivers = driverquery /v
+$AllDrivers = driverquery /v /fo list
 
 # Checks for the presence of a loaded driver.
 function Check-Driver($Driver) {
@@ -26,21 +28,24 @@ function Check-Driver($Driver) {
 # Checks for the presence of a loaded driver and attempts to uninstall it.
 function Check-And-Remove-Driver($Driver, $Component) {
     if (Check-Driver $Driver) {
+        Write-Host "Detected $Driver is loaded. Uninstalling $Component..."
         & $RootDir\tools\setup.ps1 -Uninstall $Component
 
         # Update cached driverquery output.
-        $AllDrivers = driverquery /v
+        $AllDrivers = driverquery /v /fo list
     }
 
-    Check-Driver $Driver
+    if (Check-Driver) {
+        Write-Error "$Driver loaded!"
+    }
 }
 
 # Check for any XDP drivers.
-if (Check-And-Remove-Driver "fndis.sys" "fndis") { Write-Error "fndis.sys loaded!" }
-if (Check-And-Remove-Driver "xdpfnmp.sys" "xdpfnmp") { Write-Error "xdpfnmp.sys loaded!" }
-if (Check-And-Remove-Driver "xdpfnlwf.sys" "xdpfnlwf") { Write-Error "xdpfnmp.sys loaded!" }
-if (Check-And-Remove-Driver "xdpmp.sys" "xdpmp") { Write-Error "xdpmp.sys loaded!" }
-if (Check-And-Remove-Driver "xdp.sys" "xdp") { Write-Error "xdp.sys loaded!" }
+Check-And-Remove-Driver "fndis.sys" "fndis"
+Check-And-Remove-Driver "xdpfnmp.sys" "xdpfnmp"
+Check-And-Remove-Driver "xdpfnlwf.sys" "xdpfnlwf"
+Check-And-Remove-Driver "xdpmp.sys" "xdpmp"
+Check-And-Remove-Driver "xdp.sys" "xdp"
 
 # Yay! No XDP drivers found.
 Write-Host "No loaded XDP drivers found!"
