@@ -44,9 +44,6 @@ param (
     [switch]$LargePages = $false,
 
     [Parameter(Mandatory=$false)]
-    [switch]$XdpReceiveBatch = $false,
-
-    [Parameter(Mandatory=$false)]
     [switch]$RxInject = $false,
 
     [Parameter(Mandatory=$false)]
@@ -155,9 +152,6 @@ foreach ($AdapterName in $AdapterNames) {
                     if ($TxInspect) {
                         $Options += "-TXINSPECT"
                     }
-                    if ($XdpReceiveBatch) {
-                        $Options += "-RXBATCH"
-                    }
                     if ($Fndis) {
                         $Options += "-FNDIS"
                     }
@@ -185,10 +179,10 @@ foreach ($AdapterName in $AdapterNames) {
                                 -IoSize $IoBufferPair.IoSize -BatchSize $XskBatchSize `
                                 -Wait:$Wait -Duration $Duration -OutFile $TmpFile `
                                 -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
-                                -XdpReceiveBatch:$XdpReceiveBatch -RxInject:$RxInject `
-                                -TxInspect:$TxInspect -TxInspectContentionCount $TxInspectContentionCount `
-                                -SocketCount:$SocketCount `
-                                -Fndis:$Fndis -Config $Config -Arch $Arch -XperfFile $XperfFile
+                                -RxInject:$RxInject -TxInspect:$TxInspect `
+                                -TxInspectContentionCount $TxInspectContentionCount `
+                                -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
+                                -Arch $Arch -XperfFile $XperfFile
 
                             $kppsList += ExtractKppsStat $TmpFile
                         }

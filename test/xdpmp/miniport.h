@@ -54,10 +54,6 @@ typedef struct {
     XDP_EXTENSION BufferVaExtension;
     XDP_EXTENSION RxActionExtension;
 
-    struct {
-        BOOLEAN BatchInspection : 1;
-    } Flags;
-
     HW_RING *HwRing;
     UCHAR *BufferArray;
     UINT32 *RecycleArray;
@@ -184,7 +180,6 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RxDataLength;
     ULONG RxPatternLength;
     UCHAR RxPattern[128];
-    BOOLEAN RxBatchInspectionEnabled;
     XDPMP_RATE_SIM_WMI RateSim;
     FNDIS_NPI_CLIENT FndisClient;
     ADAPTER_POLL_PROVIDER PollProvider;

@@ -67,9 +67,6 @@ param (
     [switch]$LargePages = $false,
 
     [Parameter(Mandatory=$false)]
-    [switch]$XdpReceiveBatch = $false,
-
-    [Parameter(Mandatory=$false)]
     [switch]$RxInject = $false,
 
     [Parameter(Mandatory=$false)]
@@ -195,15 +192,6 @@ try {
                 Set-NetAdapterAdvancedProperty $AdapterName -RegistryKeyword RxPattern -RegistryValue $UdpPattern -NoRestart
             }
         }
-
-        if ($XdpReceiveBatch) {
-            $XdpReceiveBatchValue = 1
-        } else {
-            $XdpReceiveBatchValue = 0
-        }
-
-        Write-Verbose "Setting XDPMP RX batch to $XdpReceiveBatchValue"
-        Set-NetAdapterAdvancedProperty $AdapterName -RegistryKeyword RxBatchInspection -RegistryValue $XdpReceiveBatchValue -NoRestart
 
         if ($Fndis) {
             $PollProvider = "FNDIS"

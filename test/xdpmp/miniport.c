@@ -15,7 +15,6 @@ NDIS_STRING RegNumRxBuffers = NDIS_STRING_CONST("NumRxBuffers");
 NDIS_STRING RegRxBufferLength = NDIS_STRING_CONST("RxBufferLength");
 NDIS_STRING RegRxDataLength = NDIS_STRING_CONST("RxDataLength");
 NDIS_STRING RegRxPattern = NDIS_STRING_CONST("RxPattern");
-NDIS_STRING RegRxBatchInspection = NDIS_STRING_CONST("RxBatchInspection");
 NDIS_STRING RegPollProvider = NDIS_STRING_CONST("PollProvider");
 
 PCSTR MpDriverFriendlyName = "XDPMP";
@@ -931,7 +930,6 @@ MpReadConfiguration(
     NDIS_STATUS Status;
     NDIS_CONFIGURATION_OBJECT ConfigObject;
     NDIS_CONFIGURATION_PARAMETER *ConfigParam;
-    INT RegValue;
 
     ConfigObject.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
     ConfigObject.Header.Revision = NDIS_CONFIGURATION_OBJECT_REVISION_1;
@@ -1026,10 +1024,6 @@ MpReadConfiguration(
     Adapter->RateSim.IntervalUs = 1000;             // 1ms
     Adapter->RateSim.RxFramesPerInterval = 1000;    // 1Mpps
     Adapter->RateSim.TxFramesPerInterval = 1000;    // 1Mpps
-
-    RegValue = FALSE;
-    TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxBatchInspection, &RegValue);
-    Adapter->RxBatchInspectionEnabled = !!RegValue;
 
     Adapter->PollProvider = PollProviderNdis;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegPollProvider, &Adapter->PollProvider);

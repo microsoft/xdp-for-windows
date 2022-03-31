@@ -43,95 +43,6 @@ MpReceiveRecycle(
 
 static
 VOID
-MpXdpReceiveReturn(
-    ADAPTER_RX_QUEUE *Rq
-    )
-{
-    XDP_RING *FrameRing;
-    XDP_FRAME *Frame;
-    XDP_BUFFER_VIRTUAL_ADDRESS *Va;
-
-    FrameRing = Rq->FrameRing;
-
-    while (FrameRing->ConsumerIndex - FrameRing->NextIndex > 0) {
-        Frame = XdpRingGetElement(FrameRing, FrameRing->NextIndex++ & FrameRing->Mask);
-        Va = XdpGetVirtualAddressExtension(&Frame->Buffer, &Rq->BufferVaExtension);
-
-        //
-        // Return the hardware descriptor of a XDP frame to the hardware receive queue.
-        //
-        MpReceiveRecycle(Rq, (UINT32)(Va->VirtualAddress - Rq->BufferArray));
-    }
-}
-
-static
-VOID
-MpXdpFlushReceive(
-    ADAPTER_RX_QUEUE *Rq
-    )
-{
-    if (ReadUInt32Acquire((UINT32 *)&Rq->XdpState) != XDP_STATE_INACTIVE) {
-        if (XdpRingCount(Rq->FrameRing) > 0 || Rq->NeedFlush) {
-            Rq->NeedFlush = FALSE;
-            XdpFlushReceive(Rq->XdpRxQueue);
-        }
-
-        //
-        // Check for and complete any previously-pending frames.
-        //
-        MpXdpReceiveReturn(Rq);
-    }
-}
-
-static
-XDP_RX_ACTION
-MpXdpReceive(
-    ADAPTER_RX_QUEUE *Rq,
-    UINT32 HwRxDescriptor,
-    UINT32 *DataOffset,
-    UINT32 *DataLength
-    )
-{
-    XDP_RING *FrameRing;
-    XDP_FRAME *Frame;
-    XDP_BUFFER_VIRTUAL_ADDRESS *Va;
-    XDP_RX_ACTION Action;
-
-    if (ReadUInt32Acquire((UINT32 *)&Rq->XdpState) != XDP_STATE_ACTIVE) {
-        //
-        // XDP is not activated on this receive queue; skip XDP.
-        //
-        return XDP_RX_ACTION_PASS;
-    }
-
-    FrameRing = Rq->FrameRing;
-    Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex++ & FrameRing->Mask);
-
-    Frame->Buffer.BufferLength = Rq->BufferLength;
-    Frame->Buffer.DataOffset = *DataOffset;
-    Frame->Buffer.DataLength = *DataLength;
-
-    Va = XdpGetVirtualAddressExtension(&Frame->Buffer, &Rq->BufferVaExtension);
-    Va->VirtualAddress = Rq->BufferArray + HwRxDescriptor;
-
-    Action = XdpReceive(Rq->XdpRxQueue);
-
-    //
-    // XDP inspection may have modified the frame. Return the updated values.
-    //
-    *DataOffset = Frame->Buffer.DataOffset;
-    *DataLength = Frame->Buffer.DataLength;
-
-    //
-    // Check for and complete any previously-pending frames.
-    //
-    MpXdpReceiveReturn(Rq);
-
-    return Action;
-}
-
-static
-VOID
 MpNdisReceive(
     ADAPTER_RX_QUEUE *Rq,
     UINT32 HwRxDescriptor,
@@ -151,77 +62,6 @@ MpNdisReceive(
     NET_BUFFER_LIST_SET_HASH_TYPE(NetBufferList, NDIS_HASH_IPV4);
 
     CountedNblChainAppend(NblChain, NetBufferList);
-}
-
-static
-UINT32
-MpReceiveUseXdpSingleFrameApi(
-    ADAPTER_RX_QUEUE *Rq,
-    UINT32 FrameQuota,
-    COUNTED_NBL_CHAIN *NblChain
-    )
-{
-    UINT32 XdpAbsorbed = 0;
-
-    while (FrameQuota-- > 0 && HwRingConsPeek(Rq->HwRing) > 0) {
-        XDP_RX_ACTION Action;
-        UINT32 *HwRxDescriptor;
-        UINT32 DataOffset = 0;
-        UINT32 DataLength = Rq->DataLength;
-
-        //
-        // Retrieve the next descriptor from hardware.
-        //
-        HwRxDescriptor = HwRingConsPopElement(Rq->HwRing);
-
-        //
-        // Invoke XDP on the frame.
-        //
-        Action = MpXdpReceive(Rq, *HwRxDescriptor, &DataOffset, &DataLength);
-
-        switch (Action) {
-        case XDP_RX_ACTION_PASS:
-            //
-            // Pass the frame onto the regular NDIS receive path.
-            //
-            Rq->Stats.RxFrames++;
-            Rq->Stats.RxBytes += DataLength;
-            MpNdisReceive(Rq, *HwRxDescriptor, DataOffset, DataLength, NblChain);
-            break;
-
-        case XDP_RX_ACTION_DROP:
-            //
-            // Drop the frame.
-            //
-            XdpAbsorbed++;
-            Rq->Stats.RxDrops++;
-            MpReceiveRecycle(Rq, *HwRxDescriptor);
-            break;
-
-        case XDP_RX_ACTION_PEND:
-            //
-            // The frame has been pended by XDP and will be returned by advancing
-            // the frame ring's consumer index. See MpXdpReceiveReturn.
-            //
-            // Nothing more needs to be done here.
-            //
-            XdpAbsorbed++;
-            Rq->Stats.RxFrames++;
-            Rq->Stats.RxBytes += DataLength;
-            break;
-
-        default:
-            ASSERT(FALSE);
-            break;
-        }
-    }
-
-    //
-    // Flush any receive indications pending in XDP.
-    //
-    MpXdpFlushReceive(Rq);
-
-    return XdpAbsorbed;
 }
 
 static
@@ -367,13 +207,8 @@ MpReceive(
         KeSetEvent(Rq->DeleteComplete, 0, FALSE);
     }
 
-    if (Rq->Flags.BatchInspection) {
-        XdpPoll->FramesAbsorbed +=
-            MpReceiveUseXdpMultiFrameApi(Rq, Poll->MaxNblsToIndicate, &NblChain);
-    } else {
-        XdpPoll->FramesAbsorbed +=
-            MpReceiveUseXdpSingleFrameApi(Rq, Poll->MaxNblsToIndicate, &NblChain);
-    }
+    XdpPoll->FramesAbsorbed +=
+        MpReceiveUseXdpMultiFrameApi(Rq, Poll->MaxNblsToIndicate, &NblChain);
 
     //
     // If NBLs were created, return those to NDIS, as long as the adapter is not
@@ -498,7 +333,6 @@ MpInitializeReceiveQueue(
     Rq->BufferLength = Adapter->RxBufferLength;
     Rq->DataLength = Adapter->RxDataLength;
     Rq->NblRundown = Adapter->NblRundown;
-    Rq->Flags.BatchInspection = Adapter->RxBatchInspectionEnabled;
 
     Rq->BufferArray =
         ExAllocatePoolZero(
@@ -635,10 +469,8 @@ MpXdpCreateRxQueue(
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
 
-    if (Rq->Flags.BatchInspection) {
-        XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.RxAction);
-        RxCapabilities.RxBatchingEnabled = TRUE;
-    }
+    XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.RxAction);
+    RxCapabilities.RxBatchingEnabled = TRUE;
 
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
@@ -673,10 +505,8 @@ MpXdpActivateRxQueue(
     XdpRxQueueGetExtension(
         Config, &MpSupportedXdpExtensions.VirtualAddress, &Rq->BufferVaExtension);
 
-    if (Rq->Flags.BatchInspection) {
-        XdpRxQueueGetExtension(
-            Config, &MpSupportedXdpExtensions.RxAction, &Rq->RxActionExtension);
-    }
+    XdpRxQueueGetExtension(
+        Config, &MpSupportedXdpExtensions.RxAction, &Rq->RxActionExtension);
 
     WriteUInt32Release((UINT32 *)&Rq->XdpState, XDP_STATE_ACTIVE);
 }
