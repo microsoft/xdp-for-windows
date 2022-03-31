@@ -67,16 +67,17 @@ GenericIrpGetMiniportPauseTimestamp(
     LARGE_INTEGER Timestamp = Generic->Adapter->LastPauseTimestamp;
 
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(Timestamp)) {
-        Status = STATUS_BUFFER_OVERFLOW;
+        Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
     *(LARGE_INTEGER *)Irp->AssociatedIrp.SystemBuffer = Timestamp;
     Status = STATUS_SUCCESS;
 
+    Irp->IoStatus.Information = sizeof(Timestamp);
+
 Exit:
 
-    Irp->IoStatus.Information = sizeof(Timestamp);
     return Status;
 }
 

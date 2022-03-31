@@ -197,13 +197,7 @@ RxIrpGetFrame(
         goto Exit;
     }
 
-    Status =
-        FnIoGetFilteredFrame(
-            Rx->DataFilter, In->Index,
-            (UINT32 *)&IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
-            Irp->AssociatedIrp.SystemBuffer);
-
-    Irp->IoStatus.Information = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    Status = FnIoGetFilteredFrame(Rx->DataFilter, In->Index, Irp, IrpSp);
 
 Exit:
 

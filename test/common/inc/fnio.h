@@ -37,8 +37,8 @@ NTSTATUS
 FnIoGetFilteredFrame(
     _In_ DATA_FILTER *Filter,
     _In_ UINT32 Index,
-    _Inout_ UINT32 *OutputBufferLength,
-    _Out_ VOID *OutputBuffer
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
     );
 
 _IRQL_requires_max_(DISPATCH_LEVEL)

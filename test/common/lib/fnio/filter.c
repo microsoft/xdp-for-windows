@@ -122,8 +122,8 @@ NTSTATUS
 FnIoGetFilteredFrame(
     _In_ DATA_FILTER *Filter,
     _In_ UINT32 Index,
-    _Inout_ UINT32 *OutputBufferLength,
-    _Out_ VOID *OutputBuffer
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
     )
 {
     NTSTATUS Status;
@@ -136,6 +136,12 @@ FnIoGetFilteredFrame(
     DATA_FRAME *Frame;
     DATA_BUFFER *Buffer;
     UCHAR *Data;
+    UINT32 OutputBufferLength =
+        IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
+
+    *BytesReturned = 0;
 
     Nbl = Filter->NblQueue.Queue.First;
     for (UINT32 NblIndex = 0; NblIndex < Index; NblIndex++) {
@@ -170,9 +176,14 @@ FnIoGetFilteredFrame(
         }
     }
 
-    if (*OutputBufferLength < OutputSize) {
-        *OutputBufferLength = OutputSize;
+    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+        *BytesReturned = OutputSize;
         Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+
+    if (OutputBufferLength < OutputSize) {
+        Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
@@ -217,7 +228,7 @@ FnIoGetFilteredFrame(
         DataBytes -= Buffer[BufferIndex].DataLength;
     }
 
-    *OutputBufferLength = OutputSize;
+    *BytesReturned = OutputSize;
     Status = STATUS_SUCCESS;
 
 Exit:

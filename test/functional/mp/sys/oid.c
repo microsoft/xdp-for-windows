@@ -618,6 +618,11 @@ MpIrpOidGetRequest(
     VOID *InformationBuffer;
     UINT32 InformationBufferLength;
     BOOLEAN IsLockHeld = FALSE;
+    UINT32 OutputBufferLength =
+        IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
+
+    *BytesReturned = 0;
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -656,15 +661,20 @@ MpIrpOidGetRequest(
         goto Exit;
     }
 
-    Irp->IoStatus.Information = InformationBufferLength;
+    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+        *BytesReturned = InformationBufferLength;
+        Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
 
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < InformationBufferLength) {
-        Status = STATUS_BUFFER_OVERFLOW;
+        Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
     RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, InformationBuffer, InformationBufferLength);
     Status = STATUS_SUCCESS;
+    *BytesReturned = InformationBufferLength;
 
 Exit:
 

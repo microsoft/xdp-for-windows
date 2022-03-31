@@ -149,11 +149,16 @@ OidIrpSubmitRequest(
     )
 {
     OID_SUBMIT_REQUEST_IN *In = Irp->AssociatedIrp.SystemBuffer;
-    ULONG BytesReturned;
+    UINT32 OutputBufferLength =
+        IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
     NTSTATUS Status;
     BOUNCE_BUFFER InfoBuffer;
+    ULONG RequiredSize = 0;
 
     BounceInitialize(&InfoBuffer);
+    *BytesReturned = 0;
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
         Status = STATUS_BUFFER_TOO_SMALL;
@@ -170,11 +175,11 @@ OidIrpSubmitRequest(
     Status =
         OidInternalRequest(
             Filter->NdisFilterHandle, In->Key.RequestType, In->Key.Oid, InfoBuffer.Buffer,
-            In->InformationBufferLength, 0, 0, &BytesReturned);
+            In->InformationBufferLength, 0, 0, &RequiredSize);
 
-    Irp->IoStatus.Information = BytesReturned;
-
-    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < BytesReturned) {
+    if (Status == STATUS_BUFFER_TOO_SMALL &&
+        (OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+        *BytesReturned = RequiredSize;
         Status = STATUS_BUFFER_OVERFLOW;
         goto Exit;
     }
@@ -183,7 +188,14 @@ OidIrpSubmitRequest(
         goto Exit;
     }
 
-    RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, InfoBuffer.Buffer, BytesReturned);
+    if (OutputBufferLength < RequiredSize) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    *BytesReturned = RequiredSize;
+
+    RtlCopyMemory(OutputBuffer, InfoBuffer.Buffer, RequiredSize);
 
 Exit:
 
