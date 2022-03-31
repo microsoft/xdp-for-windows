@@ -245,6 +245,8 @@ function Uninstall-Xdp {
 
     Uninstall-Driver "xdp.inf"
 
+    Cleanup-Service xdp
+
     Write-Verbose "xdp.sys uninstall complete!"
 }
 
@@ -478,6 +480,8 @@ function Uninstall-XdpFnLwf {
     }
 
     Uninstall-Driver "xdpfnlwf.inf"
+
+    Cleanup-Service xdpfnlwf
 
     Write-Verbose "xdpfnlwf.sys uninstall complete!"
 }
