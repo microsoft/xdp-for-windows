@@ -1646,20 +1646,6 @@ AdminFn(
                 (BYTE *)&delayDetachTimeout, sizeof(delayDetachTimeout));
             TraceVerbose("admin: set delayDetachTimeout regStatus=%d", regStatus);
         }
-
-        if (!(RandUlong() % 10)) {
-            DWORD rRxBatchInspection = RandUlong() % 2;
-            INT exitCode;
-            TraceVerbose("admin: set rRxBatchInspection=%u", rRxBatchInspection);
-            RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
-            sprintf_s(
-                cmdBuff, sizeof(cmdBuff),
-                "%s -Command \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | "
-                "Set-NetAdapterAdvancedProperty -RegistryKeyword RxBatchInspection -RegistryValue %d -NoRestart\"",
-                powershellPrefix, ifindex, rRxBatchInspection);
-            exitCode = system(cmdBuff);
-            TraceVerbose("admin: set rRxBatchInspection exitCode=%d", exitCode);
-        }
     }
 
     //
