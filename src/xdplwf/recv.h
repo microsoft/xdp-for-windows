@@ -11,7 +11,9 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     XDP_RING *FrameRing;
     XDP_RING *FragmentRing;
     XDP_EXTENSION BufferVaExtension;
+    XDP_EXTENSION RxActionExtension;
     XDP_EXTENSION FragmentExtension;
+    XDP_EXTENSION FrameInterfaceContextExtension;
 
     //
     // For RX inspect, the EcLock provides mutual exclusion on the data path,

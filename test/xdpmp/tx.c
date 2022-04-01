@@ -19,7 +19,7 @@ XdpRingCountInOrder(
     _In_ XDP_RING *Ring
     )
 {
-    return (Ring->ProducerIndex - Ring->NextIndex);
+    return (Ring->ProducerIndex - Ring->InterfaceReserved);
 }
 
 UINT32
@@ -116,7 +116,7 @@ MpTransmitProcessCompletions(
                 }
             } else {
                 ASSERT(XdpActive);
-                ASSERT((FrameRing->NextIndex - FrameRing->ConsumerIndex) > 0);
+                ASSERT((FrameRing->InterfaceReserved - FrameRing->ConsumerIndex) > 0);
 #if DBG
                 XDP_FRAME *Frame =
                     XdpRingGetElement(
@@ -189,7 +189,7 @@ MpTransmitProcessPosts(
 
             for (UINT32 Index = 0; Index < Count; Index++) {
                 XDP_FRAME *Frame =
-                    XdpRingGetElement(FrameRing, FrameRing->NextIndex++ & FrameRing->Mask);
+                    XdpRingGetElement(FrameRing, FrameRing->InterfaceReserved++ & FrameRing->Mask);
                 XDP_BUFFER_VIRTUAL_ADDRESS *Va =
                     XdpGetVirtualAddressExtension(&Frame->Buffer, &Tq->BufferVaExtension);
                 TX_HW_DESCRIPTOR *HwDescriptor =

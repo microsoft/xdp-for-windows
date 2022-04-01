@@ -18,10 +18,9 @@ typedef struct DECLSPEC_CACHEALIGN _XDP_RING {
     UINT32 ConsumerIndex;
 
     //
-    // If in-order TX completion is enabled, the NIC driver may optionally use
-    // this to track which elements have been consumed.
+    // The interface may use this field for any purpose.
     //
-    UINT32 NextIndex;
+    UINT32 InterfaceReserved;
 
     //
     // Reserved for the XDP platform.

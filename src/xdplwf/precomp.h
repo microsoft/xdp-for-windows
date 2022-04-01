@@ -24,6 +24,8 @@
 #include <xdp/control.h>
 #include <xdp/datapath.h>
 #include <xdp/framefragment.h>
+#include <xdp/frameinterfacecontext.h>
+#include <xdp/framerxaction.h>
 #include <xdp/hookid.h>
 #include <xdp/ndis6.h>
 #include <xdp/txframecompletioncontext.h>
