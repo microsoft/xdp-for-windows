@@ -1214,7 +1214,6 @@ XdpRxStart(
     VOID
     )
 {
-    XdpRxRegistryUpdate();
     XdpRegWatcherAddClient(XdpRegWatcher, XdpRxRegistryUpdate, &XdpRxRegWatcherEntry);
     return STATUS_SUCCESS;
 }

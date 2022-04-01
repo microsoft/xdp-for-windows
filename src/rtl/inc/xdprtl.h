@@ -51,3 +51,14 @@ RtlUInt32RoundUpToPowerOfTwo(
     _In_ UINT32 Value,
     _Out_ UINT32 *Result
     );
+
+UINT32
+RtlRandomNumber(
+    VOID
+    );
+
+UINT32
+RtlRandomNumberInRange(
+    _In_ UINT32 Min,
+    _In_ UINT32 Max
+    );

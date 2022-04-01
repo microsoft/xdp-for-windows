@@ -12,6 +12,14 @@ XdpRegQueryDwordValue(
     _Out_ ULONG *ValueData
     );
 
+__declspec(code_seg("PAGE"))
+NTSTATUS
+XdpRegQueryBoolean(
+    _In_z_ CONST WCHAR *KeyName,
+    _In_z_ CONST WCHAR *ValueName,
+    _Out_ BOOLEAN *ValueData
+    );
+
 //
 // The XDP registry watcher uses ZwNotifyChangeKey to register for value changes
 // of a registry key and triggers notifications to a list of clients. The

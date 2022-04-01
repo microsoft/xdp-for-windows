@@ -8,7 +8,7 @@
 
 #include <ntdef.h>
 #include <ntstatus.h>
-#include <wdm.h>
+#include <ntifs.h>
 #include <ntintsafe.h>
 
 #define RTL_IS_POWER_OF_TWO(Value) \

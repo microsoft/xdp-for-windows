@@ -69,6 +69,27 @@ Exit:
     return Status;
 }
 
+__declspec(code_seg("PAGE"))
+NTSTATUS
+XdpRegQueryBoolean(
+    _In_z_ CONST WCHAR *KeyName,
+    _In_z_ CONST WCHAR *ValueName,
+    _Out_ BOOLEAN *ValueData
+    )
+{
+    DWORD Value;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    Status = XdpRegQueryDwordValue(KeyName, ValueName, &Value);
+    if (NT_SUCCESS(Status)) {
+        *ValueData = !!Value;
+    }
+
+    return Status;
+}
+
 typedef struct _XDP_REG_WATCHER {
     HANDLE Key;
     EX_PUSH_LOCK Lock;
@@ -112,7 +133,6 @@ Exit:
 
     return Status;
 }
-
 
 static
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -183,8 +203,14 @@ XdpRegWatcherAddClient(
     ClientEntry->Callback = ClientCallback;
 
     ExAcquirePushLockExclusive(&Watcher->Lock);
+    ASSERT(ClientEntry->Link.Flink == NULL);
     InsertTailList(&Watcher->ClientList, &ClientEntry->Link);
     ExReleasePushLockExclusive(&Watcher->Lock);
+
+    //
+    // Perform an initial callback after registration.
+    //
+    ClientCallback();
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

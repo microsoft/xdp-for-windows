@@ -1279,7 +1279,6 @@ XdpTxStart(
     VOID
     )
 {
-    XdpTxRegistryUpdate();
     XdpRegWatcherAddClient(XdpRegWatcher, XdpTxRegistryUpdate, &XdpTxRegWatcherEntry);
     return STATUS_SUCCESS;
 }

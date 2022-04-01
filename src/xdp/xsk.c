@@ -3987,7 +3987,6 @@ XskStart(
     )
 {
     RtlZeroMemory(&XskGlobals, sizeof(XskGlobals));
-    XskRegistryUpdate();
     XdpRegWatcherAddClient(XdpRegWatcher, XskRegistryUpdate, &XskRegWatcherEntry);
     return STATUS_SUCCESS;
 }

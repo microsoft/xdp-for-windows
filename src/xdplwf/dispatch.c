@@ -7,6 +7,28 @@
 DRIVER_OBJECT *XdpLwfDriverObject;
 CONST WCHAR *XDP_LWF_PARAMETERS_KEY;
 XDP_REG_WATCHER *XdpLwfRegWatcher = NULL;
+XDP_REG_WATCHER_CLIENT_ENTRY XdpLwfRegWatcherEntry = {0};
+
+#if DBG
+static BOOLEAN XdpLwfFaultInjectEnabled = FALSE;
+#endif
+
+static
+VOID
+XdpLwfRegistryUpdate(
+    VOID
+    )
+{
+#if DBG
+    NTSTATUS Status;
+
+    Status =
+        XdpRegQueryBoolean(XDP_LWF_PARAMETERS_KEY, L"XdpFaultInject", &XdpLwfFaultInjectEnabled);
+    if (!NT_SUCCESS(Status)) {
+        XdpLwfFaultInjectEnabled = FALSE;
+    }
+#endif
+}
 
 NTSTATUS
 XdpLwfStart(
@@ -19,11 +41,18 @@ XdpLwfStart(
     XdpLwfDriverObject = DriverObject;
     XDP_LWF_PARAMETERS_KEY = RegistryPath;
 
+    //
+    // Load initial configuration before doing anything else.
+    //
+    XdpLwfRegistryUpdate();
+
     XdpLwfRegWatcher = XdpRegWatcherCreate(XDP_LWF_PARAMETERS_KEY, XdpLwfDriverObject, NULL);
     if (XdpLwfRegWatcher == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
+
+    XdpRegWatcherAddClient(XdpLwfRegWatcher, XdpLwfRegistryUpdate, &XdpLwfRegWatcherEntry);
 
     Status = XdpLifetimeStart(XdpLwfDriverObject, NULL);
     if (!NT_SUCCESS(Status)) {
@@ -56,6 +85,7 @@ XdpLwfStop(
     XdpLwfBindStop();
     XdpGenericStop();
     XdpLifetimeStop();
+    XdpRegWatcherRemoveClient(XdpLwfRegWatcher, &XdpLwfRegWatcherEntry);
 
     if (XdpLwfRegWatcher != NULL) {
         XdpRegWatcherDelete(XdpLwfRegWatcher);
@@ -63,4 +93,16 @@ XdpLwfStop(
     }
 
     XdpLwfDriverObject = NULL;
+}
+
+BOOLEAN
+XdpLwfFaultInject(
+    VOID
+    )
+{
+#if DBG
+    return XdpLwfFaultInjectEnabled && RtlRandomNumberInRange(0, 100) == 0;
+#else
+    return FALSE;
+#endif
 }
