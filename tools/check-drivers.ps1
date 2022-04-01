@@ -42,11 +42,11 @@ function Check-And-Remove-Driver($Driver, $Component) {
 }
 
 # Check for any XDP drivers.
-Check-And-Remove-Driver "fndis.sys" "fndis"
 Check-And-Remove-Driver "xdpfnmp.sys" "xdpfnmp"
 Check-And-Remove-Driver "xdpfnlwf.sys" "xdpfnlwf"
 Check-And-Remove-Driver "xdpmp.sys" "xdpmp"
 Check-And-Remove-Driver "xdp.sys" "xdp"
+Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Yay! No XDP drivers found.
 Write-Host "No loaded XDP drivers found!"
