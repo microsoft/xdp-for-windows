@@ -175,6 +175,7 @@ typedef struct {
 typedef struct {
     HANDLE threadHandle;
     XSK_FUZZER_SHARED *shared;
+    HANDLE fuzzerRss;
 } XSK_FUZZER_WORKER;
 
 struct QUEUE_CONTEXT {
@@ -183,6 +184,7 @@ struct QUEUE_CONTEXT {
     HANDLE sock;
     HANDLE sharedUmemSock;
     HANDLE rss;
+    SRWLOCK rssLock;
 
     XSK_PROGRAM_SET rxProgramSet;
     XSK_PROGRAM_SET sharedUmemRxProgramSet;
@@ -388,7 +390,7 @@ AttachXdpProgram(
         if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
             RxProgramSet->Handles[RxProgramSet->HandleCount++] = handle;
         } else {
-            CloseHandle(handle);
+            ASSERT_FRE(CloseHandle(handle));
         }
         LeaveCriticalSection(&RxProgramSet->Lock);
     }
@@ -479,20 +481,20 @@ CleanupQueue(
     }
 
     if (Queue->sock != NULL) {
-        CloseHandle(Queue->sock);
+        ASSERT_FRE(CloseHandle(Queue->sock));
     }
     if (Queue->sharedUmemSock != NULL) {
-        CloseHandle(Queue->sharedUmemSock);
+        ASSERT_FRE(CloseHandle(Queue->sharedUmemSock));
     }
     if (Queue->rss != NULL) {
-        CloseHandle(Queue->rss);
+        ASSERT_FRE(CloseHandle(Queue->rss));
     }
 
     if (Queue->fuzzerShared.pauseEvent != NULL) {
-        CloseHandle(Queue->fuzzerShared.pauseEvent);
+        ASSERT_FRE(CloseHandle(Queue->fuzzerShared.pauseEvent));
     }
     if (Queue->scenarioConfig.completeEvent != NULL) {
-        CloseHandle(Queue->scenarioConfig.completeEvent);
+        ASSERT_FRE(CloseHandle(Queue->scenarioConfig.completeEvent));
     }
 
     if (Queue->fuzzers != NULL) {
@@ -511,7 +513,8 @@ CleanupQueue(
 }
 
 VOID
-FuzzRss(
+FuzzRssSet(
+    _In_ XSK_FUZZER_WORKER *fuzzer,
     _In_ QUEUE_CONTEXT *queue
     )
 {
@@ -520,12 +523,12 @@ FuzzRss(
 
     WORD ActiveProcGroups = GetActiveProcessorGroupCount();
     if (ActiveProcGroups == 0) {
-        return;
+        goto Exit;
     }
 
     ProcessorGroups = malloc(sizeof(DWORD) * ActiveProcGroups);
     if (ProcessorGroups == NULL) {
-        return;
+        goto Exit;
     }
 
     DWORD ActualNumProcessors = 0;
@@ -535,25 +538,7 @@ FuzzRss(
         ActualNumProcessors += NumProcsInGroup;
     }
 
-    if (ActualNumProcessors < 2) {
-        goto Exit;
-    }
-
-    if (RandUlong() % 4 != 0) {
-        goto Exit;
-    }
-
     UINT32 NumProcessors = (RandUlong() % ActualNumProcessors) + 1;
-
-    if (queue->rss != NULL) {
-        CloseHandle(queue->rss);
-        queue->rss = NULL;
-    }
-
-    HRESULT res = XdpRssOpen(ifindex, &queue->rss);
-    if (FAILED(res)) {
-        goto Exit;
-    }
 
     UINT32 HashSecretKeySize = RandUlong() % 41;
     UINT32 IndirectionTableSize = NumProcessors * sizeof(PROCESSOR_NUMBER);
@@ -564,8 +549,6 @@ FuzzRss(
 
     RssConfiguration = malloc(RssConfigSize);
     if (RssConfiguration == NULL) {
-        CloseHandle(queue->rss);
-        queue->rss = NULL;
         goto Exit;
     }
     RtlZeroMemory(RssConfiguration, RssConfigSize);
@@ -597,13 +580,50 @@ FuzzRss(
     // It's OK is XdpRssSet fails, as spin is to make sure random inputs don't
     // crash the system.
     //
-    (void)XdpRssSet(queue->rss, RssConfiguration, RssConfigSize);
 
-    free(RssConfiguration);
-    RssConfiguration = NULL;
+    if (fuzzer->fuzzerRss != NULL) {
+        (void)XdpRssSet(fuzzer->fuzzerRss, RssConfiguration, RssConfigSize);
+    } else {
+        AcquireSRWLockShared(&queue->rssLock);
+        if (queue->rss) {
+            (void)XdpRssSet(queue->rss, RssConfiguration, RssConfigSize);
+        }
+        ReleaseSRWLockShared(&queue->rssLock);
+    }
+
+Exit:
+
+    if (RssConfiguration != NULL) {
+        free(RssConfiguration);
+    }
+    if (ProcessorGroups != NULL) {
+        free(ProcessorGroups);
+    }
+}
+
+VOID
+FuzzRssGet(
+    _In_ XSK_FUZZER_WORKER *fuzzer,
+    _In_ QUEUE_CONTEXT *queue
+    )
+{
+    XDP_RSS_CONFIGURATION* RssConfiguration = NULL;
+    DWORD* ProcessorGroups = NULL;
+    HRESULT res;
 
     UINT32 OutputRssSize = 0;
-    res = XdpRssGet(queue->rss, NULL, &OutputRssSize);
+    if (fuzzer->fuzzerRss != NULL) {
+        res = XdpRssGet(fuzzer->fuzzerRss, NULL, &OutputRssSize);
+    } else {
+        AcquireSRWLockShared(&queue->rssLock);
+        if (queue->rss) {
+            res = XdpRssGet(queue->rss, NULL, &OutputRssSize);
+        } else {
+            res = E_INVALIDARG;
+        }
+        ReleaseSRWLockShared(&queue->rssLock);
+    }
+
     if (res != HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
         goto Exit;
     }
@@ -615,15 +635,81 @@ FuzzRss(
 
     OutputRssSize = RandUlong() % (OutputRssSize * 2);
 
+    if (fuzzer->fuzzerRss != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-    XdpRssGet(queue->rss, RssConfiguration, &OutputRssSize);
+        XdpRssGet(fuzzer->fuzzerRss, RssConfiguration, &OutputRssSize);
+    } else {
+        AcquireSRWLockShared(&queue->rssLock);
+        if (queue->rss) {
+#pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
+            XdpRssGet(queue->rss, RssConfiguration, &OutputRssSize);
+        }
+        ReleaseSRWLockShared(&queue->rssLock);
+    }
 
 Exit:
+
     if (RssConfiguration != NULL) {
         free(RssConfiguration);
     }
     if (ProcessorGroups != NULL) {
         free(ProcessorGroups);
+    }
+}
+
+VOID
+FuzzRss(
+    _In_ XSK_FUZZER_WORKER *fuzzer,
+    _In_ QUEUE_CONTEXT *queue
+    )
+{
+    if (RandUlong() % 50 == 0) {
+        // Close Local
+        if (fuzzer->fuzzerRss) {
+            ASSERT_FRE(CloseHandle(fuzzer->fuzzerRss));
+            fuzzer->fuzzerRss = NULL;
+        }
+    }
+
+    if (RandUlong() % 50 == 0) {
+        // Close Shared
+        HANDLE sharedToClose = NULL;
+        AcquireSRWLockExclusive(&queue->rssLock);
+        sharedToClose = queue->rss;
+        queue->rss = NULL;
+        ReleaseSRWLockExclusive(&queue->rssLock);
+
+        if (sharedToClose != NULL) {
+            ASSERT_FRE(CloseHandle(sharedToClose));
+            sharedToClose = NULL;
+        }
+    }
+
+    if (RandUlong() % 10 == 0) {
+        // Open Local
+        if (fuzzer->fuzzerRss) {
+            ASSERT_FRE(CloseHandle(fuzzer->fuzzerRss));
+            fuzzer->fuzzerRss = NULL;
+        }
+
+        XdpRssOpen(ifindex, &fuzzer->fuzzerRss);
+    }
+
+    if (RandUlong() % 25 == 0) {
+        // swap local and shared
+        AcquireSRWLockExclusive(&queue->rssLock);
+        HANDLE tmp = queue->rss;
+        queue->rss = fuzzer->fuzzerRss;
+        fuzzer->fuzzerRss = tmp;
+        ReleaseSRWLockExclusive(&queue->rssLock);
+    }
+
+    if (RandUlong() % 10 == 0) {
+        FuzzRssSet(fuzzer, queue);
+    }
+
+    if (RandUlong() % 10 == 0) {
+        FuzzRssGet(fuzzer, queue);
     }
 }
 
@@ -647,6 +733,7 @@ InitializeQueue(
     queue->fuzzerCount = fuzzerCount;
     InitializeCriticalSection(&queue->rxProgramSet.Lock);
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
+    InitializeSRWLock(&queue->rssLock);
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
@@ -1349,7 +1436,7 @@ XskFuzzerWorkerFn(
 
         FuzzSocketUmemSetup(queue, queue->sock, &scenarioConfig->isUmemRegistered);
 
-        FuzzRss(queue);
+        FuzzRss(fuzzer, queue);
 
         FuzzSocketRxTxSetup(
             queue, queue->sock,
@@ -1382,6 +1469,10 @@ XskFuzzerWorkerFn(
             }
             WaitForSingleObject(stopEvent, 50);
         }
+    }
+
+    if (fuzzer->fuzzerRss != NULL) {
+        ASSERT_FRE(CloseHandle(fuzzer->fuzzerRss));
     }
 
     TraceExit("q[%u]f[0x%p]", queue->queueId, fuzzer->threadHandle);
@@ -1541,7 +1632,7 @@ QueueWorkerFn(
                 #pragma warning(push)
                 #pragma warning(disable:6387) // threadHandle is not NULL.
                 WaitForSingleObject(queue->datapath1.threadHandle, INFINITE);
-                CloseHandle(queue->datapath1.threadHandle);
+                ASSERT_FRE(CloseHandle(queue->datapath1.threadHandle));
                 queue->datapath1.threadHandle = NULL;
                 #pragma warning(pop)
             }
@@ -1549,7 +1640,7 @@ QueueWorkerFn(
                 #pragma warning(push)
                 #pragma warning(disable:6387) // threadHandle is not NULL.
                 WaitForSingleObject(queue->datapath2.threadHandle, INFINITE);
-                CloseHandle(queue->datapath2.threadHandle);
+                ASSERT_FRE(CloseHandle(queue->datapath2.threadHandle));
                 queue->datapath2.threadHandle = NULL;
                 #pragma warning(pop)
             }
@@ -1564,7 +1655,7 @@ QueueWorkerFn(
             #pragma warning(push)
             #pragma warning(disable:6387) // threadHandle is not NULL.
             WaitForSingleObject(queue->fuzzers[i].threadHandle, INFINITE);
-            CloseHandle(queue->fuzzers[i].threadHandle);
+            ASSERT_FRE(CloseHandle(queue->fuzzers[i].threadHandle));
             queue->fuzzers[i].threadHandle = NULL;
             #pragma warning(pop)
         }
@@ -1869,7 +1960,7 @@ main(
         #pragma warning(push)
         #pragma warning(disable:6387) // threadHandle is not NULL.
         WaitForSingleObject(queueWorker->threadHandle, INFINITE);
-        CloseHandle(queueWorker->threadHandle);
+        ASSERT_FRE(CloseHandle(queueWorker->threadHandle));
         queueWorker->threadHandle = NULL;
         #pragma warning(pop)
     }
@@ -1882,12 +1973,12 @@ main(
 
     TraceVerbose("main: waiting for admin...");
     WaitForSingleObject(adminThread, INFINITE);
-    CloseHandle(adminThread);
+    ASSERT_FRE(CloseHandle(adminThread));
     adminThread = NULL;
 
     TraceVerbose("main: waiting for watchdog...");
     WaitForSingleObject(watchdogThread, INFINITE);
-    CloseHandle(watchdogThread);
+    ASSERT_FRE(CloseHandle(watchdogThread));
     watchdogThread = NULL;
 
     free(queueWorkers);
