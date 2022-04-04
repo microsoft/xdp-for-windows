@@ -97,15 +97,15 @@ if (!(Test-Path $XdpFnLwfSys)) { Write-Error "$XdpFnLwfSys does not exist!" }
 if (!(Test-Path $XdpFnLwfInf)) { Write-Error "$XdpFnLwfInf does not exist!" }
 
 # Sign the driver files.
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpSys
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $FndisSys
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $FndisSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpMpSys
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpMpSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpFnMpSys
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnMpSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpFnLwfSys
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnLwfSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Build up the catalogs.
@@ -119,13 +119,13 @@ if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
 
 # Sign the catalogs.
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpCat
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpMpCat
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpMpCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpFnMpCat
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnMpCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $XdpFnLwfCat
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnLwfCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Copy the cert to the artifacts dir.
