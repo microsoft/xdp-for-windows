@@ -1039,7 +1039,6 @@ XdpGenericRxCreateQueue(
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     RxCapabilities.MaximumFragments = RxQueue->FragmentLimit;
-    RxCapabilities.RxBatchingEnabled = TRUE;
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeRxDescriptorContexts(&DescriptorContexts);

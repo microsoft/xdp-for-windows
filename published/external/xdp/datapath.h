@@ -165,59 +165,6 @@ typedef enum _XDP_RX_ACTION {
 } XDP_RX_ACTION;
 
 //
-// XDP single-frame receive inspection routine. This routine must be invoked
-// from an exclusive execution context, i.e. not invoked concurrently with any
-// other inspection on the provided XDP receive queue.
-//
-// Examines the head of an XDP receive queue and returns an XDP action. XDP pops
-// the head of the producer queue (i.e. decrement ProducerIndex on frame (and
-// fragment) rings) if and only if XDP_RX_ACTION_PEND is not returned. In other
-// words, if XDP does not pend the frame, it retreats the descriptor rings for
-// reuse by the network adapter. This enables XDP to batch more expensive
-// receive operations, such as redirection to AF_XDP sockets.
-//
-// As long as a frame is within the producer and consumer indexes, the XDP
-// platform owns the frame, and interfaces must not modify or free the
-// underlying buffers. When XDP advances the frame (and fragment) ring consumer
-// index, each frame (and fragment) is returned to the XDP interface.
-//
-// If the receive ring is full, XDP automatically performs a flush operation and
-// returns all frames to the XDP interface.
-//
-// Implicit input parameters:
-//
-//      FrameRing->ProducerIndex:
-//          The (ProducerIndex - 1) frame element is inspected.
-//
-//      FragmentRing->ProducerIndex:
-//          If fragments are enabled, the fragment producer index is used to
-//          resolve the frame fragments.
-//
-// Implicit output parameters:
-//
-//      FrameRing->ProducerIndex:
-//          If the frame is not pended, the producer index is decremented.
-//
-//      FrameRing->ConsumerIndex:
-//          If the queue was full, the consumer index is advanced, and all
-//          previous frames are returned to the XDP interface.
-//
-//      FragmentRing->ProducerIndex:
-//          If fragments are enabled and the frame is not pended, the producer
-//          index is decremented by the number of fragments in the frame.
-//
-//      FragmentRing->ConsumerIndex:
-//          If fragments are enabled and the queue was full, the consumer index
-//          is advanced and all previous frames are returned to the XDP
-//          interface.
-//
-_IRQL_requires_max_(DISPATCH_LEVEL)
-XDP_RX_ACTION
-XdpReceive(
-    _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
-    );
-
-//
 // XDP multi-frame receive inspection routine. This routine must be invoked from
 // an exclusive execution context, i.e. not invoked concurrently with any other
 // inspection on the provided XDP receive queue.

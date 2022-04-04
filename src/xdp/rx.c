@@ -134,75 +134,6 @@ XdpFlushReceive(
     XdbgExitQueueEc(RxQueue);
 }
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-XDP_RX_ACTION
-XdpReceive(
-    _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
-    )
-{
-    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
-    XDP_RING *FrameRing = RxQueue->FrameRing;
-    XDP_RING *FragmentRing = RxQueue->FragmentRing;
-    UINT32 FrameIndex = (FrameRing->ProducerIndex - 1) & FrameRing->Mask;
-    UINT32 FragmentIndex = 0;
-    XDP_FRAME *Frame;
-    XDP_FRAME_FRAGMENT *Fragment = NULL;
-    XDP_RX_ACTION Action;
-
-    XdbgEnterQueueEc(RxQueue, FALSE);
-
-    //
-    // XdpReceive assumes a single element queued at a time. Look at the element
-    // most recently pushed onto the ring and flush on behalf of the caller only
-    // when the queue becomes full.
-    //
-#if DBG
-    ASSERT(RxQueue->FrameConsumerIndex + 1 == FrameRing->ProducerIndex);
-#endif
-
-    Frame = XdpRingGetElement(FrameRing, FrameIndex);
-
-    if (FragmentRing != NULL) {
-        Fragment = XdpGetFragmentExtension(Frame, &RxQueue->FragmentExtension);
-        FragmentIndex = FragmentRing->ProducerIndex - Fragment->FragmentBufferCount;
-        FragmentIndex &= FragmentRing->Mask;
-    }
-
-    Action =
-        XdpInspect(
-            RxQueue->Program, &RxQueue->RedirectContext, RxQueue->FrameRing, FrameIndex,
-            RxQueue->FragmentRing, &RxQueue->FragmentExtension, FragmentIndex,
-            &RxQueue->VirtualAddressExtension);
-
-    if (Action != XDP_RX_ACTION_PEND) {
-        //
-        // We're not pending the packet, so free the head of the frame
-        // ring back to the XDP interface for reuse.
-        //
-        FrameRing->ProducerIndex--;
-
-        if (FragmentRing != NULL) {
-            FragmentRing->ProducerIndex -= Fragment->FragmentBufferCount;
-        }
-    } else {
-#if DBG
-        RxQueue->FrameConsumerIndex++;
-#endif
-    }
-
-    //
-    // Finally, if we've filled up the receive queue, perform a flush on
-    // behalf of the caller.
-    //
-    if (XdpRingFree(FrameRing) == 0 || (FragmentRing != NULL && XdpRingFree(FragmentRing) == 0)) {
-        XdppFlushReceive(RxQueue);
-    }
-
-    XdbgExitQueueEc(RxQueue);
-
-    return Action;
-}
-
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -211,8 +142,6 @@ XdppReceiveBatch(
     )
 {
     XDP_RING *FrameRing = RxQueue->FrameRing;
-
-    ASSERT(RxQueue->InterfaceRxCapabilities.RxBatchingEnabled);
 
     //
     // XdpReceiveBatch makes no assumptions on the number of elements queued at
@@ -306,7 +235,6 @@ XdpReceiveXskExclusiveBatch(
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
     XdbgEnterQueueEc(RxQueue, TRUE);
-    ASSERT(RxQueue->InterfaceRxCapabilities.RxBatchingEnabled);
 
     //
     // Attempt to pass the entire batch to XSK.
@@ -324,7 +252,6 @@ XdpReceiveXskExclusiveBatch(
 }
 
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
-    .Receive        = XdpReceive,
     .ReceiveBatch   = XdpReceiveBatch,
     .FlushReceive   = XdpFlushReceive,
 };
@@ -334,7 +261,6 @@ static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
 // traffic.
 //
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxExclusiveXskDispatch = {
-    .Receive        = XdpReceive,
     .ReceiveBatch   = XdpReceiveXskExclusiveBatch,
     .FlushReceive   = XdpFlushReceive,
 };
@@ -462,12 +388,10 @@ XdpRxQueueSetCapabilities(
     FRE_ASSERT(Capabilities->VirtualAddressSupported);
     XdpExtensionSetEnableEntry(RxQueue->BufferExtensionSet, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME);
 
+    XdpExtensionSetEnableEntry(RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_RX_ACTION_NAME);
+
     if (Capabilities->MaximumFragments > 0) {
         XdpExtensionSetEnableEntry(RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_FRAGMENT_NAME);
-    }
-
-    if (Capabilities->RxBatchingEnabled) {
-        XdpExtensionSetEnableEntry(RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_RX_ACTION_NAME);
     }
 }
 
@@ -592,19 +516,6 @@ XdpRxQueueIsVirtualAddressEnabled(
     return
         XdpExtensionSetIsExtensionEnabled(
             RxQueue->BufferExtensionSet, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME);
-}
-
-BOOLEAN
-XdpRxQueueIsRxBatchEnabled(
-    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
-    )
-{
-    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
-
-    return
-        RxQueue->InterfaceRxCapabilities.RxBatchingEnabled &&
-        XdpExtensionSetIsExtensionEnabled(
-            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_RX_ACTION_NAME);
 }
 
 UINT8
@@ -852,6 +763,11 @@ XdpRxQueueAttachInterface(
         ConfigActivate);
     RxQueue->State = XdpRxQueueStateActive;
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_RX_ACTION_NAME,
+        XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->RxActionExtension);
+
     if (XdpRxQueueIsVirtualAddressEnabled(ConfigActivate)) {
         XdpInitializeExtensionInfo(
             &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
@@ -864,13 +780,6 @@ XdpRxQueueAttachInterface(
             &ExtensionInfo, XDP_FRAME_EXTENSION_FRAGMENT_NAME,
             XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->FragmentExtension);
-    }
-
-    if (XdpRxQueueIsRxBatchEnabled(ConfigActivate)) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_FRAME_EXTENSION_RX_ACTION_NAME,
-            XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
-        XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->RxActionExtension);
     }
 
 Exit:

@@ -1496,6 +1496,11 @@ XskNotifyAttachRxQueue(
         XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
     XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.VaExtension);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_RX_ACTION_NAME,
+        XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.RxActionExtension);
+
     if (XdpRxQueueGetMaximumFragments(Config) > 1) {
         Xsk->Rx.Xdp.FragmentRing = XdpRxQueueGetFragmentRing(Config);
 
@@ -1503,13 +1508,6 @@ XskNotifyAttachRxQueue(
             &ExtensionInfo, XDP_FRAME_EXTENSION_FRAGMENT_NAME,
             XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.FragmentExtension);
-    }
-
-    if (XdpRxQueueIsRxBatchEnabled(Config)) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_FRAME_EXTENSION_RX_ACTION_NAME,
-            XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
-        XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.RxActionExtension);
     }
 
     XskAcquirePollLock(Xsk);

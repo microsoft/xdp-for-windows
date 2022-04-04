@@ -53,12 +53,6 @@ typedef struct _XDP_RX_CAPABILITIES {
     UINT8 MaximumFragments;
 
     //
-    // Enables XDP_FRAME_RX_ACTION frame extension and the XDP_RECEIVE_BATCH
-    // callback.
-    //
-    BOOLEAN RxBatchingEnabled;
-
-    //
     // The XDP_RX_ACTION_TX action is supported on this RX queue.
     //
     BOOLEAN TxActionSupported;

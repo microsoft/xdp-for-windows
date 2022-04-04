@@ -88,11 +88,6 @@ XdpRxQueueGetConfig(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
-BOOLEAN
-XdpRxQueueIsRxBatchEnabled(
-    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
-    );
-
 UINT8
 XdpRxQueueGetMaximumFragments(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig

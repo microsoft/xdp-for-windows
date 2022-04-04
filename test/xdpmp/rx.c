@@ -467,11 +467,9 @@ MpXdpCreateRxQueue(
 
     XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.VirtualAddress);
 
-    XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
-
     XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.RxAction);
-    RxCapabilities.RxBatchingEnabled = TRUE;
 
+    XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeExclusivePollInfo(&PollInfo, AdapterQueue->NdisPollHandle);
