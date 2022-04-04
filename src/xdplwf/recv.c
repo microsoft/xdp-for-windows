@@ -618,9 +618,6 @@ XdpGenericReceivePostInspectNbs(
                 NdisAppendSingleNblToNblCountedQueue(PassList, ActionNbl);
                 break;
 
-            case XDP_RX_ACTION_PEND:
-                __fallthrough;
-
             case XDP_RX_ACTION_DROP:
                 NdisAppendSingleNblToNblQueue(DropList, ActionNbl);
                 break;

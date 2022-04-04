@@ -107,17 +107,8 @@ MpReceiveProcessBatch(
 
         case XDP_RX_ACTION_DROP:
             //
-            // Drop the frame.
-            //
-            XdpAbsorbed++;
-            Rq->Stats.RxDrops++;
-            MpReceiveRecycle(Rq, HwRxDescriptor);
-            break;
-
-        case XDP_RX_ACTION_PEND:
-            //
-            // XdpReceiveBatch returns XDP_RX_ACTION_PEND when it absorbs a frame.
-            // Simply return the hardware descriptor.
+            // Drop the frame. For statistical purposes, treat the frame as
+            // if it were successfully indicated to the local NDIS stack.
             //
             XdpAbsorbed++;
             Rq->Stats.RxFrames++;

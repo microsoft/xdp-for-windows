@@ -786,7 +786,7 @@ XdpInspect(
                     RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
                     Rule->Redirect.Target);
 
-                Action = XDP_RX_ACTION_PEND;
+                Action = XDP_RX_ACTION_DROP;
                 break;
 
             case XDP_PROGRAM_ACTION_DROP:

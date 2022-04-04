@@ -140,7 +140,7 @@ typedef struct _XDP_TX_FRAME_COMPLETION {
 //
 typedef enum _XDP_RX_ACTION {
     //
-    // The interface must drop the frame.
+    // The interface must drop the frame without indicating an NBL to NDIS.
     //
     XDP_RX_ACTION_DROP,
 
@@ -149,13 +149,6 @@ typedef enum _XDP_RX_ACTION {
     // interfaces, the data path should indicate an NBL to the NDIS receive API.
     //
     XDP_RX_ACTION_PASS,
-
-    //
-    // The interface must halt processing the frame, but the underlying buffers
-    // must remain valid until XDP releases the descriptor by advancing the
-    // frame ring consumer index.
-    //
-    XDP_RX_ACTION_PEND,
 
     //
     // Optional. The interface must halt RX processing of the frame and inject
