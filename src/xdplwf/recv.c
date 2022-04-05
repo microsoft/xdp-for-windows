@@ -893,9 +893,9 @@ XdpGenericAttachIfRx(
     BOOLEAN NeedRestart;
     LARGE_INTEGER Timeout;
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
     XdpGenericReferenceDatapath(Generic, Datapath, &NeedRestart);
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (NeedRestart) {
         TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting RX datapath attach", Generic->IfIndex);
@@ -917,9 +917,9 @@ XdpGenericDetachIfRx(
 {
     BOOLEAN NeedRestart;
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
     XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (NeedRestart) {
         TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting RX datapath detach", Generic->IfIndex);

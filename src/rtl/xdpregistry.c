@@ -150,7 +150,7 @@ XdpRegWatcherNotify(
 
     TraceEnter(TRACE_RTL, "Watcher=%p", Watcher);
 
-    ExAcquirePushLockExclusive(&Watcher->Lock);
+    RtlAcquirePushLockExclusive(&Watcher->Lock);
 
     //
     // ZwNotifyChangeKey is single shot registration. Re-register below.
@@ -183,7 +183,7 @@ XdpRegWatcherNotify(
         }
     }
 
-    ExReleasePushLockExclusive(&Watcher->Lock);
+    RtlReleasePushLockExclusive(&Watcher->Lock);
 
     if (DeletedEvent != NULL) {
         KeSetEvent(DeletedEvent, 0, FALSE);
@@ -202,10 +202,10 @@ XdpRegWatcherAddClient(
 {
     ClientEntry->Callback = ClientCallback;
 
-    ExAcquirePushLockExclusive(&Watcher->Lock);
+    RtlAcquirePushLockExclusive(&Watcher->Lock);
     ASSERT(ClientEntry->Link.Flink == NULL);
     InsertTailList(&Watcher->ClientList, &ClientEntry->Link);
-    ExReleasePushLockExclusive(&Watcher->Lock);
+    RtlReleasePushLockExclusive(&Watcher->Lock);
 
     //
     // Perform an initial callback after registration.
@@ -226,10 +226,10 @@ XdpRegWatcherRemoveClient(
     //
 
     if (ClientEntry->Link.Flink != NULL) {
-        ExAcquirePushLockExclusive(&Watcher->Lock);
+        RtlAcquirePushLockExclusive(&Watcher->Lock);
         RemoveEntryList(&ClientEntry->Link);
         RtlZeroMemory(ClientEntry, sizeof(*ClientEntry));
-        ExReleasePushLockExclusive(&Watcher->Lock);
+        RtlReleasePushLockExclusive(&Watcher->Lock);
     }
 }
 
@@ -309,7 +309,7 @@ XdpRegWatcherDelete(
     KEVENT DeletedEvent;
     BOOLEAN ShouldWait = FALSE;
 
-    ExAcquirePushLockExclusive(&Watcher->Lock);
+    RtlAcquirePushLockExclusive(&Watcher->Lock);
 
     ASSERT(IsListEmpty(&Watcher->ClientList));
 
@@ -329,7 +329,7 @@ XdpRegWatcherDelete(
         ZwClose(Watcher->Key);
     }
 
-    ExReleasePushLockExclusive(&Watcher->Lock);
+    RtlReleasePushLockExclusive(&Watcher->Lock);
 
     if (ShouldWait) {
         //

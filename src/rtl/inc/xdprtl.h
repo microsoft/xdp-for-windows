@@ -52,6 +52,37 @@ RtlUInt32RoundUpToPowerOfTwo(
     _Out_ UINT32 *Result
     );
 
+#ifdef KERNEL_MODE
+
+_IRQL_requires_max_(APC_LEVEL)
+_Acquires_exclusive_lock_(Lock)
+VOID
+RtlAcquirePushLockExclusive(
+    _Inout_ EX_PUSH_LOCK *Lock
+    );
+
+_IRQL_requires_max_(APC_LEVEL)
+_Releases_exclusive_lock_(Lock)
+VOID
+RtlReleasePushLockExclusive(
+    _Inout_ EX_PUSH_LOCK *Lock
+    );
+
+_IRQL_requires_max_(APC_LEVEL)
+_Acquires_shared_lock_(Lock)
+VOID
+RtlAcquirePushLockShared(
+    _Inout_ EX_PUSH_LOCK *Lock
+    );
+
+_IRQL_requires_max_(APC_LEVEL)
+_Releases_shared_lock_(Lock)
+VOID
+RtlReleasePushLockShared(
+    _Inout_ EX_PUSH_LOCK *Lock
+    );
+#endif
+
 UINT32
 RtlRandomNumber(
     VOID

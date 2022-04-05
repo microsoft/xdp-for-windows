@@ -625,7 +625,7 @@ XdpGenericTxCreateQueue(
         .SubLayer   = XDP_HOOK_INJECT,
     };
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     QueueInfo = XdpTxQueueGetTargetQueueInfo(Config);
 
@@ -783,7 +783,7 @@ XdpGenericTxCreateQueue(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (NT_SUCCESS(Status)) {
         LARGE_INTEGER Timeout;
@@ -835,7 +835,7 @@ XdpGenericTxActivateQueue(
     XDP_LWF_GENERIC *Generic = TxQueue->Generic;
     XDP_EXTENSION_INFO ExtensionInfo;
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     XdpInitializeExtensionInfo(
         &ExtensionInfo, XDP_BUFFER_EXTENSION_MDL_NAME,
@@ -865,7 +865,7 @@ XdpGenericTxActivateQueue(
 
     WritePointerRelease(&TxQueue->XdpTxQueue, XdpTxQueue);
 
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 }
 
 VOID
@@ -897,7 +897,7 @@ XdpGenericTxDeleteQueue(
 
     ASSERT(TxQueue->OutstandingCount == 0);
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     NT_VERIFY(InterlockedExchangePointer(
         TxQueue->Flags.RxInject ?
@@ -924,7 +924,7 @@ XdpGenericTxDeleteQueue(
             &Generic->Rx.Datapath : &Generic->Tx.Datapath;
     XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
 
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (NeedRestart) {
         TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting TX datapath detach", Generic->IfIndex);

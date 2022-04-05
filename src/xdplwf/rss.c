@@ -206,7 +206,7 @@ XdpGenericRssApplyIndirection(
         goto Exit;
     }
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     if (Indirection->AssignedQueues > Rss->QueueCount) {
         //
@@ -220,7 +220,7 @@ XdpGenericRssApplyIndirection(
                 "IfIndex=%u Queue count incompatible with new indirection table",
                 Generic->IfIndex);
         }
-        ExReleasePushLockExclusive(&Generic->Lock);
+        RtlReleasePushLockExclusive(&Generic->Lock);
         goto Exit;
     }
 
@@ -233,7 +233,7 @@ XdpGenericRssApplyIndirection(
     Rss->IndirectionTable = Indirection->NewIndirectionTable;
     Indirection->NewIndirectionTable = NULL;
 
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     XdpLifetimeDelete(
         XdpGenericRssFreeLifetimeIndirection, &OldIndirectionTable->DeleteEntry);
@@ -437,7 +437,7 @@ XdpGenericRssInitialize(
         Entry->QueueIndex = 0;
     }
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
     Rss->QueueCount = QueueCount;
     Rss->Queues = Queues;
     Rss->QueueCleanup = QueueCleanup;
@@ -446,7 +446,7 @@ XdpGenericRssInitialize(
     Queues = NULL;
     QueueCleanup = NULL;
     IndirectionTable = NULL;
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     //
     // Attempt to query the indirection table.
@@ -545,7 +545,7 @@ XdpGenericRssCleanup(
     XDP_LWF_GENERIC_INDIRECTION_TABLE *IndirectionTable = NULL;
     XDP_LWF_GENERIC_RSS_CLEANUP *QueueCleanup = NULL;
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     if (Rss->QueueCleanup != NULL) {
         QueueCleanup = Rss->QueueCleanup;
@@ -559,7 +559,7 @@ XdpGenericRssCleanup(
         Rss->IndirectionTable = NULL;
     }
 
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (QueueCleanup != NULL) {
         XdpLifetimeDelete(XdpGenericRssCleanupQueues, &QueueCleanup->DeleteEntry);

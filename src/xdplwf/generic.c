@@ -89,12 +89,12 @@ XdpGenericPause(
 {
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is pausing", Generic->IfIndex);
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
     KeClearEvent(&Generic->Tx.Datapath.ReadyEvent);
     KeClearEvent(&Generic->Rx.Datapath.ReadyEvent);
 
     XdpGenericTxPause(Generic);
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is paused", Generic->IfIndex);
 }
@@ -119,7 +119,7 @@ XdpGenericRestart(
         }
     }
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
     if (Generic->Tx.Datapath.Inserted) {
         KeSetEvent(&Generic->Tx.Datapath.ReadyEvent, 0, FALSE);
     }
@@ -128,7 +128,7 @@ XdpGenericRestart(
     }
 
     XdpGenericTxRestart(Generic, NewMtu);
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is restarted", Generic->IfIndex);
 }
@@ -190,7 +190,7 @@ XdpGenericDelayDereferenceDatapath(
             KeWaitForSingleObject(
                 &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, &Timeout);
 
-        ExAcquirePushLockExclusive(&Generic->Lock);
+        RtlAcquirePushLockExclusive(&Generic->Lock);
 
         CurrentTimestamp = KeQueryInterruptTime();
         FRE_ASSERT(CurrentTimestamp >= Datapath->LastDereferenceTimestamp);
@@ -200,7 +200,7 @@ XdpGenericDelayDereferenceDatapath(
             break;
         }
 
-        ExReleasePushLockExclusive(&Generic->Lock);
+        RtlReleasePushLockExclusive(&Generic->Lock);
     } while (TRUE);
 
     FRE_ASSERT(Datapath->ReferenceCount > 0);
@@ -211,7 +211,7 @@ XdpGenericDelayDereferenceDatapath(
         KeClearEvent(&Datapath->ReadyEvent);
         NeedRestart = TRUE;
     }
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (NeedRestart) {
         XdpGenericRequestRestart(Generic);
@@ -296,7 +296,7 @@ XdpGenericFilterSetOptions(
     Handlers.Header.Revision = NDIS_FILTER_PARTIAL_CHARACTERISTICS_REVISION_1;
     Handlers.Header.Size = NDIS_SIZEOF_FILTER_PARTIAL_CHARACTERISTICS_REVISION_1;
 
-    ExAcquirePushLockExclusive(&Generic->Lock);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     if (Generic->Rx.Datapath.ReferenceCount > 0) {
         Handlers.ReceiveNetBufferListsHandler = XdpGenericReceiveNetBufferLists;
@@ -309,7 +309,7 @@ XdpGenericFilterSetOptions(
         TxInserted = TRUE;
     }
 
-    ExReleasePushLockExclusive(&Generic->Lock);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     Status =
         NdisSetOptionalHandlers(
@@ -320,10 +320,10 @@ XdpGenericFilterSetOptions(
         Generic->IfIndex, RxInserted, TxInserted, Status);
 
     if (Status == NDIS_STATUS_SUCCESS) {
-        ExAcquirePushLockExclusive(&Generic->Lock);
+        RtlAcquirePushLockExclusive(&Generic->Lock);
         Generic->Rx.Datapath.Inserted = RxInserted;
         Generic->Tx.Datapath.Inserted = TxInserted;
-        ExReleasePushLockExclusive(&Generic->Lock);
+        RtlReleasePushLockExclusive(&Generic->Lock);
     }
 
     return Status;

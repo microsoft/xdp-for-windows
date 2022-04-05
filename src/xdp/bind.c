@@ -639,12 +639,12 @@ XdpIfFindAndReferenceBinding(
 {
     XDP_INTERFACE *Interface = NULL;
 
-    ExAcquirePushLockShared(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockShared(&XdpInterfaceSetsLock);
     Interface = XdpIfpFindInterface(IfIndex, HookIds, HookCount, RequiredMode);
     if (Interface != NULL) {
         XdpIfpReferenceInterface(Interface);
     }
-    ExReleasePushLockShared(&XdpInterfaceSetsLock);
+    RtlReleasePushLockShared(&XdpInterfaceSetsLock);
 
     return (XDP_BINDING_HANDLE)Interface;
 }
@@ -661,13 +661,13 @@ XdpIfFindAndReferenceIfSet(
     XDP_INTERFACE *Interface = NULL;
     XDP_INTERFACE_SET *IfSet = NULL;
 
-    ExAcquirePushLockShared(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockShared(&XdpInterfaceSetsLock);
     Interface = XdpIfpFindInterface(IfIndex, HookIds, HookCount, RequiredMode);
     if (Interface != NULL) {
         XdpIfpReferenceIfSet(Interface->IfSet);
         IfSet = Interface->IfSet;
     }
-    ExReleasePushLockShared(&XdpInterfaceSetsLock);
+    RtlReleasePushLockShared(&XdpInterfaceSetsLock);
 
     return (XDP_IFSET_HANDLE)IfSet;
 }
@@ -811,11 +811,11 @@ XdpIfpRemoveXdpIfInterface(
 
     XdpIfpStartRundown(Interface);
 
-    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
     Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
     XdpIfpDereferenceIfSet(Interface->IfSet);
     Interface->IfSet = NULL;
-    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     ASSERT(Interface->XdpIfApi.InterfaceContext != NULL);
     Interface->XdpIfApi.RemoveInterfaceComplete(Interface->XdpIfApi.InterfaceContext);
@@ -912,7 +912,7 @@ XdpIfCreateInterfaceSet(
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", IfIndex);
 
-    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     //
     // Check for duplicate interface set.
@@ -944,7 +944,7 @@ XdpIfCreateInterfaceSet(
 
 Exit:
 
-    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -964,7 +964,7 @@ XdpIfDeleteInterfaceSet(
     // when a NIC is deleted.
     //
 
-    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(IfSet->Interfaces); Index++) {
         FRE_ASSERT(IfSet->Interfaces[Index] == NULL);
@@ -977,7 +977,7 @@ XdpIfDeleteInterfaceSet(
     RemoveEntryList(&IfSet->Link);
     XdpIfpDereferenceIfSet(IfSet);
 
-    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -998,7 +998,7 @@ XdpIfAddInterfaces(
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", IfSet->IfIndex);
 
-    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_ADD_INTERFACE *AddIf = &Interfaces[Index];
@@ -1069,7 +1069,7 @@ Exit:
         }
     }
 
-    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1516,9 +1516,9 @@ XdpIfStop(
         return;
     }
 
-    ExAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
     ASSERT(IsListEmpty(&XdpInterfaceSets));
 
-    ExReleasePushLockExclusive(&XdpInterfaceSetsLock);
+    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 }

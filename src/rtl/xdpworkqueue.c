@@ -31,14 +31,14 @@ XdpIoWorkItemRoutine(
 
 #define XdpWorkQueueAcquireLock(WorkQueue, OldIrql) \
     if ((WorkQueue)->MaxIrql < DISPATCH_LEVEL) { \
-        ExAcquirePushLockExclusive(&(WorkQueue)->PushLock); \
+        RtlAcquirePushLockExclusive(&(WorkQueue)->PushLock); \
     } else { \
         KeAcquireSpinLock(&(WorkQueue)->SpinLock, OldIrql); \
     }
 
 #define XdpWorkQueueReleaseLock(WorkQueue, OldIrql) \
     if ((WorkQueue)->MaxIrql < DISPATCH_LEVEL) { \
-        ExReleasePushLockExclusive(&(WorkQueue)->PushLock); \
+        RtlReleasePushLockExclusive(&(WorkQueue)->PushLock); \
     } else { \
         KeReleaseSpinLock(&(WorkQueue)->SpinLock, OldIrql); \
     }

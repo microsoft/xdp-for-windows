@@ -28,6 +28,9 @@
     <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\rtl\rtl.vcxproj">
+      <Project>{043c2162-639f-4fc8-b72c-f7c1bacb9db3}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\common\lib\bounce\bounce.vcxproj">
       <Project>{4a8c9c36-9b11-4bcf-9c48-0f33d4470d66}</Project>
     </ProjectReference>

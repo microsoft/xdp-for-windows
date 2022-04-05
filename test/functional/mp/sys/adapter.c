@@ -48,11 +48,11 @@ AdapterCleanup(
             MpOidClearFilter(UserContext->Adapter);
         }
 
-        ExAcquirePushLockExclusive(&UserContext->Adapter->Lock);
+        RtlAcquirePushLockExclusive(&UserContext->Adapter->Lock);
         if (UserContext->Adapter->UserContext == UserContext) {
             UserContext->Adapter->UserContext = NULL;
         }
-        ExReleasePushLockExclusive(&UserContext->Adapter->Lock);
+        RtlReleasePushLockExclusive(&UserContext->Adapter->Lock);
 
         MpDereferenceAdapter(UserContext->Adapter);
     }
@@ -123,17 +123,17 @@ AdapterIrpCreate(
         goto Exit;
     }
 
-    ExAcquirePushLockExclusive(&UserContext->Adapter->Lock);
+    RtlAcquirePushLockExclusive(&UserContext->Adapter->Lock);
 
     if (UserContext->Adapter->UserContext != NULL) {
         Status = STATUS_DUPLICATE_OBJECTID;
-        ExReleasePushLockExclusive(&UserContext->Adapter->Lock);
+        RtlReleasePushLockExclusive(&UserContext->Adapter->Lock);
         goto Exit;
     }
 
     UserContext->Adapter->UserContext = UserContext;
 
-    ExReleasePushLockExclusive(&UserContext->Adapter->Lock);
+    RtlReleasePushLockExclusive(&UserContext->Adapter->Lock);
 
     IrpSp->FileObject->FsContext = UserContext;
     Status = STATUS_SUCCESS;

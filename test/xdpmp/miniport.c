@@ -796,6 +796,7 @@ MpGetAdapter(
 {
     ADAPTER_CONTEXT *Adapter = NULL;
 
+    KeEnterCriticalRegion();
     ExAcquirePushLockExclusive(&MpGlobalContext.Lock);
 
     Adapter = MpAllocateAdapter(NdisMiniportHandle);
@@ -805,6 +806,7 @@ MpGetAdapter(
     }
 
     ExReleasePushLockExclusive(&MpGlobalContext.Lock);
+    KeLeaveCriticalRegion();
 
     return Adapter;
 }
@@ -825,12 +827,14 @@ MpReturnAdapter(
         Adapter->RxNblPool = NULL;
     }
 
+    KeEnterCriticalRegion();
     ExAcquirePushLockExclusive(&MpGlobalContext.Lock);
 
     Adapter->MiniportHandle = NULL;
     RemoveEntryList(&Adapter->AdapterListLink);
 
     ExReleasePushLockExclusive(&MpGlobalContext.Lock);
+    KeLeaveCriticalRegion();
 
     MpFreeAdapter(Adapter);
 }

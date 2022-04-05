@@ -170,11 +170,11 @@ XdpTimerCancel(
 {
     BOOLEAN Canceled;
 
-    ExAcquirePushLockExclusive(&Timer->PushLock);
+    RtlAcquirePushLockExclusive(&Timer->PushLock);
 
     Canceled = XdpTimerCancelUnderPushLock(Timer);
 
-    ExReleasePushLockExclusive(&Timer->PushLock);
+    RtlReleasePushLockExclusive(&Timer->PushLock);
 
     return Canceled;
 }
@@ -199,7 +199,7 @@ XdpTimerStart(
     //
     // Acquire a pushlock to serialize multiple timer starts.
     //
-    ExAcquirePushLockExclusive(&Timer->PushLock);
+    RtlAcquirePushLockExclusive(&Timer->PushLock);
 
     //
     // First, cancel any outstanding timer. This ensures the work item is
@@ -236,7 +236,7 @@ XdpTimerStart(
 
     KeReleaseSpinLock(&Timer->SpinLock, OldIrql);
 
-    ExReleasePushLockExclusive(&Timer->PushLock);
+    RtlReleasePushLockExclusive(&Timer->PushLock);
 
     return Canceled;
 }

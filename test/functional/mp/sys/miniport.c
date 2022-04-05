@@ -116,7 +116,7 @@ MpFindAdapter(
     LIST_ENTRY *Entry;
     ADAPTER_CONTEXT *Adapter = NULL;
 
-    ExAcquirePushLockShared(&MpGlobalContext.Lock);
+    RtlAcquirePushLockShared(&MpGlobalContext.Lock);
 
     Entry = MpGlobalContext.AdapterList.Flink;
     while (Entry != &MpGlobalContext.AdapterList) {
@@ -130,7 +130,7 @@ MpFindAdapter(
         }
     }
 
-    ExReleasePushLockShared(&MpGlobalContext.Lock);
+    RtlReleasePushLockShared(&MpGlobalContext.Lock);
 
     return Adapter;
 }
@@ -332,9 +332,9 @@ MiniportInitializeHandler(
         goto Exit;
     }
 
-    ExAcquirePushLockExclusive(&MpGlobalContext.Lock);
+    RtlAcquirePushLockExclusive(&MpGlobalContext.Lock);
     InsertTailList(&MpGlobalContext.AdapterList, &Adapter->AdapterListLink);
-    ExReleasePushLockExclusive(&MpGlobalContext.Lock);
+    RtlReleasePushLockExclusive(&MpGlobalContext.Lock);
 
 Exit:
 
@@ -360,12 +360,12 @@ MiniportHaltHandler(
 
     UNREFERENCED_PARAMETER(HaltAction);
 
-    ExAcquirePushLockExclusive(&MpGlobalContext.Lock);
+    RtlAcquirePushLockExclusive(&MpGlobalContext.Lock);
     Adapter->MiniportHandle = NULL;
     if (!IsListEmpty(&Adapter->AdapterListLink)) {
         RemoveEntryList(&Adapter->AdapterListLink);
     }
-    ExReleasePushLockExclusive(&MpGlobalContext.Lock);
+    RtlReleasePushLockExclusive(&MpGlobalContext.Lock);
 
     MpDereferenceAdapter(Adapter);
 

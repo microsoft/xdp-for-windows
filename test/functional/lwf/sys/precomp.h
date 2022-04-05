@@ -11,6 +11,7 @@
 #include <xdpddi.h>
 #include <xdpassert.h>
 #include <xdprefcount.h>
+#include <xdprtl.h>
 #include <xdpstatusconvert.h>
 
 #include <bounce.h>

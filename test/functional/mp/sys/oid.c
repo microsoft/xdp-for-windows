@@ -59,7 +59,7 @@ MpFilterOid(
     // Pend the OID if we have a matching filter.
     //
 
-    ExAcquirePushLockExclusive(&Adapter->Lock);
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
 
     for (UINT32 Index = 0; Index < Adapter->OidFilterKeyCount; Index++) {
         OID_KEY *Filter = &Adapter->OidFilterKeys[Index];
@@ -72,7 +72,7 @@ MpFilterOid(
         }
     }
 
-    ExReleasePushLockExclusive(&Adapter->Lock);
+    RtlReleasePushLockExclusive(&Adapter->Lock);
 
     return Status;
 }
@@ -494,10 +494,10 @@ MpOidCompleteRequest(
     NDIS_STATUS Status;
     NDIS_OID_REQUEST *Request;
 
-    ExAcquirePushLockExclusive(&Adapter->Lock);
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
     Request = Adapter->FilteredOidRequest;
     Adapter->FilteredOidRequest = NULL;
-    ExReleasePushLockExclusive(&Adapter->Lock);
+    RtlReleasePushLockExclusive(&Adapter->Lock);
 
     if (Request == NULL) {
         return;
@@ -526,7 +526,7 @@ MpOidClearFilter(
     _In_ ADAPTER_CONTEXT *Adapter
     )
 {
-    ExAcquirePushLockExclusive(&Adapter->Lock);
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
 
     if (Adapter->OidFilterKeys != NULL) {
         ExFreePoolWithTag(Adapter->OidFilterKeys, POOLTAG_OID);
@@ -534,7 +534,7 @@ MpOidClearFilter(
         Adapter->OidFilterKeyCount = 0;
     }
 
-    ExReleasePushLockExclusive(&Adapter->Lock);
+    RtlReleasePushLockExclusive(&Adapter->Lock);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -572,7 +572,7 @@ MpIrpOidSetFilter(
         }
     }
 
-    ExAcquirePushLockExclusive(&Adapter->Lock);
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
     IsLockHeld = TRUE;
 
     if (Adapter->OidFilterKeys != NULL) {
@@ -598,7 +598,7 @@ MpIrpOidSetFilter(
 Exit:
 
     if (IsLockHeld) {
-        ExReleasePushLockExclusive(&Adapter->Lock);
+        RtlReleasePushLockExclusive(&Adapter->Lock);
     }
 
     return Status;
@@ -631,7 +631,7 @@ MpIrpOidGetRequest(
 
     In = (OID_GET_REQUEST_IN *)Irp->AssociatedIrp.SystemBuffer;
 
-    ExAcquirePushLockExclusive(&Adapter->Lock);
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
     IsLockHeld = TRUE;
 
     Request = Adapter->FilteredOidRequest;
@@ -679,7 +679,7 @@ MpIrpOidGetRequest(
 Exit:
 
     if (IsLockHeld) {
-        ExReleasePushLockExclusive(&Adapter->Lock);
+        RtlReleasePushLockExclusive(&Adapter->Lock);
     }
 
     return Status;

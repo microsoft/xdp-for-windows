@@ -137,7 +137,7 @@ NdisPollMigrateQueue(
 {
     NTSTATUS Status;
 
-    ExAcquirePushLockExclusive(&Q->Lock);
+    RtlAcquirePushLockExclusive(&Q->Lock);
 
     if (Ec == NULL) {
         RtlFailFast(FAST_FAIL_INVALID_ARG);
@@ -181,7 +181,7 @@ NdisPollMigrateQueue(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Q->Lock);
+    RtlReleasePushLockExclusive(&Q->Lock);
 
     return Status;
 }
@@ -221,7 +221,7 @@ NdisPollAddBusyReference(
 {
     NTSTATUS Status = STATUS_INVALID_DEVICE_STATE;
 
-    ExAcquirePushLockExclusive(&Q->Lock);
+    RtlAcquirePushLockExclusive(&Q->Lock);
 
     //
     // Only the default EC supports busy references.
@@ -233,7 +233,7 @@ NdisPollAddBusyReference(
         Status = STATUS_SUCCESS;
     }
 
-    ExReleasePushLockExclusive(&Q->Lock);
+    RtlReleasePushLockExclusive(&Q->Lock);
 
     return Status;
 }
@@ -244,10 +244,10 @@ NdisPollReleaseBusyReference(
     _In_ PNDIS_POLL_QUEUE Q
     )
 {
-    ExAcquirePushLockExclusive(&Q->Lock);
+    RtlAcquirePushLockExclusive(&Q->Lock);
     ASSERT(Q->Ec == Q->Reserved);
     NT_VERIFY(Q->BusyReferences-- > 0);
-    ExReleasePushLockExclusive(&Q->Lock);
+    RtlReleasePushLockExclusive(&Q->Lock);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -261,7 +261,7 @@ NdisPollFindAndReferenceQueueByHandle(
     PNDIS_POLL_QUEUE Q = NULL;
     PLIST_ENTRY Entry;
 
-    ExAcquirePushLockShared(&PollQueueLock);
+    RtlAcquirePushLockShared(&PollQueueLock);
     Entry = PollQueueList.Flink;
     while (Entry != &PollQueueList) {
         PNDIS_POLL_QUEUE Candidate =
@@ -274,7 +274,7 @@ NdisPollFindAndReferenceQueueByHandle(
             break;
         }
     }
-    ExReleasePushLockShared(&PollQueueLock);
+    RtlReleasePushLockShared(&PollQueueLock);
 
     if (Q == NULL) {
         Status = STATUS_NOT_FOUND;
@@ -327,9 +327,9 @@ FNdisRegisterPoll(
     Q->Poll = Characteristics->PollHandler;
     Q->Interrupt = Characteristics->SetPollNotificationHandler;
 
-    ExAcquirePushLockExclusive(&PollQueueLock);
+    RtlAcquirePushLockExclusive(&PollQueueLock);
     InsertTailList(&PollQueueList, &Q->QueueLink);
-    ExReleasePushLockExclusive(&PollQueueLock);
+    RtlReleasePushLockExclusive(&PollQueueLock);
 
     *PollHandle = (NDIS_POLL_HANDLE)Q;
     Status = STATUS_SUCCESS;
@@ -349,16 +349,16 @@ FNdisDeregisterPoll(
 {
     PNDIS_POLL_QUEUE Q = (PNDIS_POLL_QUEUE)PollHandle;
 
-    ExAcquirePushLockExclusive(&PollQueueLock);
+    RtlAcquirePushLockExclusive(&PollQueueLock);
     RemoveEntryList(&Q->QueueLink);
-    ExReleasePushLockExclusive(&PollQueueLock);
+    RtlReleasePushLockExclusive(&PollQueueLock);
 
-    ExAcquirePushLockExclusive(&Q->Lock);
+    RtlAcquirePushLockExclusive(&Q->Lock);
     Q->Deleted = TRUE;
     // Ensure any DPCs queued by the ISR have completed.
     KeRemoveQueueDpcEx(&Q->Dpc, TRUE);
     Q->Cleanup(Q);
-    ExReleasePushLockExclusive(&Q->Lock);
+    RtlReleasePushLockExclusive(&Q->Lock);
     NdisPollDereferenceQueue(Q);
 }
 
@@ -372,10 +372,10 @@ FNdisSetPollAffinity(
     PNDIS_POLL_QUEUE Q = (PNDIS_POLL_QUEUE)PollHandle;
     ULONG Processor = KeGetProcessorIndexFromNumber((PROCESSOR_NUMBER *)PollAffinity);
 
-    ExAcquirePushLockExclusive(&Q->Lock);
+    RtlAcquirePushLockExclusive(&Q->Lock);
     Q->IdealProcessor = Processor;
     Q->Update(Q);
-    ExReleasePushLockExclusive(&Q->Lock);
+    RtlReleasePushLockExclusive(&Q->Lock);
 }
 
 _IRQL_requires_max_(HIGH_LEVEL)

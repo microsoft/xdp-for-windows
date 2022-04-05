@@ -223,7 +223,7 @@ MpIoctlReference(
     // the device only if non-zero miniports are active.
     //
 
-    ExAcquirePushLockExclusive(&IoctlDeviceLock);
+    RtlAcquirePushLockExclusive(&IoctlDeviceLock);
 
     if (IoctlDeviceReferenceCount == 0) {
         NdisInitUnicodeString(&DeviceName, XDPFNMP_DEVICE_NAME);
@@ -253,7 +253,7 @@ MpIoctlReference(
         IoctlDeviceReferenceCount++;
     }
 
-    ExReleasePushLockExclusive(&IoctlDeviceLock);
+    RtlReleasePushLockExclusive(&IoctlDeviceLock);
 
     return Status;
 }
@@ -263,7 +263,7 @@ MpIoctlDereference(
     VOID
     )
 {
-    ExAcquirePushLockExclusive(&IoctlDeviceLock);
+    RtlAcquirePushLockExclusive(&IoctlDeviceLock);
 
     if (--IoctlDeviceReferenceCount == 0) {
         ASSERT(IoctlDeviceObject != NULL);
@@ -272,7 +272,7 @@ MpIoctlDereference(
         IoctlDeviceObject = NULL;
     }
 
-    ExReleasePushLockExclusive(&IoctlDeviceLock);
+    RtlReleasePushLockExclusive(&IoctlDeviceLock);
 }
 
 NDIS_STATUS

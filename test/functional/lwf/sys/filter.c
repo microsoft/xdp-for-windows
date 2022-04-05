@@ -47,7 +47,7 @@ FilterFindAndReferenceFilter(
     LIST_ENTRY *Entry;
     LWF_FILTER *Filter = NULL;
 
-    ExAcquirePushLockShared(&LwfGlobalContext.Lock);
+    RtlAcquirePushLockShared(&LwfGlobalContext.Lock);
 
     Entry = LwfGlobalContext.FilterList.Flink;
     while (Entry != &LwfGlobalContext.FilterList) {
@@ -61,7 +61,7 @@ FilterFindAndReferenceFilter(
         }
     }
 
-    ExReleasePushLockShared(&LwfGlobalContext.Lock);
+    RtlReleasePushLockShared(&LwfGlobalContext.Lock);
 
     return Filter;
 }
@@ -210,9 +210,9 @@ FilterAttach(
         goto Exit;
     }
 
-    ExAcquirePushLockExclusive(&LwfGlobalContext.Lock);
+    RtlAcquirePushLockExclusive(&LwfGlobalContext.Lock);
     InsertTailList(&LwfGlobalContext.FilterList, &Filter->FilterListLink);
-    ExReleasePushLockExclusive(&LwfGlobalContext.Lock);
+    RtlReleasePushLockExclusive(&LwfGlobalContext.Lock);
 
     RtlZeroMemory(&FilterAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
     FilterAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
@@ -294,11 +294,11 @@ FilterDetach(
 
     TraceInfo(TRACE_CONTROL, "IfIndex=%u", Filter->MiniportIfIndex);
 
-    ExAcquirePushLockExclusive(&LwfGlobalContext.Lock);
+    RtlAcquirePushLockExclusive(&LwfGlobalContext.Lock);
     if (!IsListEmpty(&Filter->FilterListLink)) {
         RemoveEntryList(&Filter->FilterListLink);
     }
-    ExReleasePushLockExclusive(&LwfGlobalContext.Lock);
+    RtlReleasePushLockExclusive(&LwfGlobalContext.Lock);
 
     FilterDereferenceFilter(Filter);
 }

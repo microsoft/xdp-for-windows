@@ -940,7 +940,7 @@ XskAcquirePollLock(
 {
     InterlockedIncrement((LONG *)&Xsk->PollWaiters);
     XskPollSocketNotify(Xsk);
-    ExAcquirePushLockExclusive(&Xsk->PollLock);
+    RtlAcquirePushLockExclusive(&Xsk->PollLock);
     InterlockedDecrement((LONG *)&Xsk->PollWaiters);
 }
 
@@ -950,7 +950,7 @@ XskReleasePollLock(
     _In_ XSK *Xsk
     )
 {
-    ExReleasePushLockExclusive(&Xsk->PollLock);
+    RtlReleasePushLockExclusive(&Xsk->PollLock);
 }
 
 static
@@ -1845,9 +1845,9 @@ XskDetachTxIf(
                 &Xsk->Tx.Xdp.OutstandingFlushComplete, Executive, KernelMode, FALSE, NULL);
             ASSERT(Xsk->Tx.Xdp.OutstandingFrames == 0);
 
-            ExAcquirePushLockExclusive(&Xsk->PollLock);
+            RtlAcquirePushLockExclusive(&Xsk->PollLock);
             Xsk->Tx.Xdp.Flags.QueueActive = FALSE;
-            ExReleasePushLockExclusive(&Xsk->PollLock);
+            RtlReleasePushLockExclusive(&Xsk->PollLock);
 
             XdpTxQueueRemoveDatapathClient(Xsk->Tx.Xdp.Queue, &Xsk->Tx.Xdp.DatapathClientEntry);
         }
@@ -2084,9 +2084,9 @@ XskBindTxIf(
         goto Exit;
     }
 
-    ExAcquirePushLockExclusive(&Xsk->PollLock);
+    RtlAcquirePushLockExclusive(&Xsk->PollLock);
     Xsk->Tx.Xdp.Flags.QueueActive = TRUE;
-    ExReleasePushLockExclusive(&Xsk->PollLock);
+    RtlReleasePushLockExclusive(&Xsk->PollLock);
 
     Status = STATUS_SUCCESS;
 
@@ -3216,8 +3216,8 @@ XskPollSocket(
             //
             // Give the control path a chance to acquire the poll lock.
             //
-            ExReleasePushLockExclusive(&Xsk->PollLock);
-            ExAcquirePushLockExclusive(&Xsk->PollLock);
+            RtlReleasePushLockExclusive(&Xsk->PollLock);
+            RtlAcquirePushLockExclusive(&Xsk->PollLock);
 
             if (Xsk->PollMode != XSK_POLL_MODE_SOCKET ||
                 (Xsk->Rx.Xdp.PollHandle == NULL && Xsk->Tx.Xdp.PollHandle == NULL)) {
@@ -3490,7 +3490,7 @@ XskPoke(
 
     EventWriteXskNotifyPokeStart(&MICROSOFT_XDP_PROVIDER, Xsk, Flags);
 
-    ExAcquirePushLockExclusive(&Xsk->PollLock);
+    RtlAcquirePushLockExclusive(&Xsk->PollLock);
 
     if (Xsk->PollMode == XSK_POLL_MODE_SOCKET &&
         (Xsk->Rx.Xdp.PollHandle != NULL || Xsk->Tx.Xdp.PollHandle != NULL)) {
@@ -3529,7 +3529,7 @@ XskPoke(
         }
     }
 
-    ExReleasePushLockExclusive(&Xsk->PollLock);
+    RtlReleasePushLockExclusive(&Xsk->PollLock);
 
     EventWriteXskNotifyPokeStop(&MICROSOFT_XDP_PROVIDER, Xsk, Flags);
 

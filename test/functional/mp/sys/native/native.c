@@ -47,7 +47,7 @@ NativeAddExclusiveContext(
     LIST_ENTRY *Entry;
     BOOLEAN Success = TRUE;
 
-    ExAcquirePushLockShared(&NativeContextListLock);
+    RtlAcquirePushLockShared(&NativeContextListLock);
 
     Entry = NativeContextList.Flink;
     while (Entry != &NativeContextList) {
@@ -64,7 +64,7 @@ NativeAddExclusiveContext(
         InsertTailList(&NativeContextList, &Native->ContextListLink);
     }
 
-    ExReleasePushLockShared(&NativeContextListLock);
+    RtlReleasePushLockShared(&NativeContextListLock);
 
     return Success;
 }
@@ -78,7 +78,7 @@ NativeRemoveContext(
     LIST_ENTRY *Entry;
     BOOLEAN Success = FALSE;
 
-    ExAcquirePushLockShared(&NativeContextListLock);
+    RtlAcquirePushLockShared(&NativeContextListLock);
 
     Entry = NativeContextList.Flink;
     while (Entry != &NativeContextList) {
@@ -92,7 +92,7 @@ NativeRemoveContext(
         }
     }
 
-    ExReleasePushLockShared(&NativeContextListLock);
+    RtlReleasePushLockShared(&NativeContextListLock);
 
     return Success;
 }
@@ -183,7 +183,7 @@ NativeIrpXdpRegister(
     UNREFERENCED_PARAMETER(Irp);
     UNREFERENCED_PARAMETER(IrpSp);
 
-    ExAcquirePushLockExclusive(&Native->Lock);
+    RtlAcquirePushLockExclusive(&Native->Lock);
 
     if (Native->XdpRegistration != NULL) {
         Status = STATUS_INVALID_DEVICE_STATE;
@@ -195,7 +195,7 @@ NativeIrpXdpRegister(
                 Native, &MpXdpDispatch, &Native->XdpRegistration);
     }
 
-    ExReleasePushLockExclusive(&Native->Lock);
+    RtlReleasePushLockExclusive(&Native->Lock);
 
     return Status;
 }
@@ -213,7 +213,7 @@ NativeIrpXdpDeregister(
     UNREFERENCED_PARAMETER(Irp);
     UNREFERENCED_PARAMETER(IrpSp);
 
-    ExAcquirePushLockExclusive(&Native->Lock);
+    RtlAcquirePushLockExclusive(&Native->Lock);
 
     if (Native->XdpRegistration == NULL) {
         Status = STATUS_INVALID_DEVICE_STATE;
@@ -223,7 +223,7 @@ NativeIrpXdpDeregister(
         Status = STATUS_SUCCESS;
     }
 
-    ExReleasePushLockExclusive(&Native->Lock);
+    RtlReleasePushLockExclusive(&Native->Lock);
 
     return Status;
 }

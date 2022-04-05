@@ -9,6 +9,7 @@
 #include <ntintsafe.h>
 #include <xdpddi.h>
 #include <xdpassert.h>
+#include <xdprtl.h>
 
 #include <generic_x.h>
 #include <native_x.h>

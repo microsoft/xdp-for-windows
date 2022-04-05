@@ -93,7 +93,7 @@ XdpNmrProviderAttachClient(
     // the lifetime of the provider.
     //
 
-    ExAcquirePushLockExclusive(&Provider->Lock);
+    RtlAcquirePushLockExclusive(&Provider->Lock);
 
     if (Provider->BindingHandle != NULL || Provider->Closed) {
         Status = STATUS_DEVICE_NOT_READY;
@@ -103,7 +103,7 @@ XdpNmrProviderAttachClient(
         Status = STATUS_SUCCESS;
     }
 
-    ExReleasePushLockExclusive(&Provider->Lock);
+    RtlReleasePushLockExclusive(&Provider->Lock);
 
 Exit:
 
@@ -128,12 +128,12 @@ XdpNmrDetach(
     // once.
     //
 
-    ExAcquirePushLockExclusive(&Provider->Lock);
+    RtlAcquirePushLockExclusive(&Provider->Lock);
 
     NeedDetach = !Provider->Closed;
     Provider->Closed = TRUE;
 
-    ExReleasePushLockExclusive(&Provider->Lock);
+    RtlReleasePushLockExclusive(&Provider->Lock);
 
     if (NeedDetach) {
         Provider->DetachHandler(Provider->ProviderContext);
@@ -227,7 +227,7 @@ XdpOpenProvider(
         goto Exit;
     }
 
-    ExAcquirePushLockExclusive(&Provider->Lock);
+    RtlAcquirePushLockExclusive(&Provider->Lock);
 
     if (Provider->BindingHandle != NULL) {
         *NpiGetInterfaceContext = Provider->NpiClient->GetInterfaceContext;
@@ -238,7 +238,7 @@ XdpOpenProvider(
         Status = STATUS_NOINTERFACE;
     }
 
-    ExReleasePushLockExclusive(&Provider->Lock);
+    RtlReleasePushLockExclusive(&Provider->Lock);
 
     if (!NT_SUCCESS(Status)) {
         goto Exit;

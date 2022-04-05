@@ -1134,7 +1134,7 @@ XdpLwfOpenInterfaceOffloadHandle(
     NTSTATUS Status;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = NULL;
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (Filter->NdisFilterHandle == NULL) {
         TraceError(
@@ -1166,7 +1166,7 @@ XdpLwfOpenInterfaceOffloadHandle(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext != NULL) {
         ExFreePoolWithTag(OffloadContext, POOLTAG_OFFLOAD);
@@ -1186,7 +1186,7 @@ XdpLwfCloseInterfaceOffloadHandle(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p", OffloadContext);
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     //
     // Revert the handle's configured offloads.
@@ -1206,7 +1206,7 @@ XdpLwfCloseInterfaceOffloadHandle(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceVerbose(TRACE_LWF, "OffloadContext=%p Deleted", OffloadContext);
 
@@ -1232,7 +1232,7 @@ XdpLwfGetInterfaceOffload(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext->IsInvalid) {
         TraceError(
@@ -1256,7 +1256,7 @@ XdpLwfGetInterfaceOffload(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceExitStatus(TRACE_LWF);
 
@@ -1279,7 +1279,7 @@ XdpLwfSetInterfaceOffload(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext->IsInvalid) {
         TraceError(
@@ -1304,7 +1304,7 @@ XdpLwfSetInterfaceOffload(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (AttachRxDatapath) {
         XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
@@ -1329,7 +1329,7 @@ XdpLwfReferenceInterfaceOffload(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (OffloadContext->IsInvalid) {
         TraceError(
@@ -1352,7 +1352,7 @@ XdpLwfReferenceInterfaceOffload(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (AttachRxDatapath) {
         XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
@@ -1378,7 +1378,7 @@ XdpLwfOffloadInspectOidRequest(
     *Action = XdpOidActionPass;
     *CompletionStatus = NDIS_STATUS_SUCCESS;
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     if (Request->RequestType == NdisRequestSetInformation &&
         Request->DATA.SET_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
@@ -1468,7 +1468,7 @@ XdpLwfOffloadInspectOidRequest(
 
 Exit:
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (NdisRssParams != NULL) {
         ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
@@ -1531,7 +1531,7 @@ XdpLwfOffloadDeactivate(
 {
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
-    ExAcquirePushLockExclusive(&Filter->Offload.Lock);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
     //
     // Invalidate all interface offload handles.
@@ -1550,7 +1550,7 @@ XdpLwfOffloadDeactivate(
 
     XdpLwfOffloadRssDeactivate(Filter);
 
-    ExReleasePushLockExclusive(&Filter->Offload.Lock);
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceExitSuccess(TRACE_LWF);
 }
