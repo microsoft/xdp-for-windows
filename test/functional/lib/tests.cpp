@@ -4125,6 +4125,22 @@ OffloadRssInterfaceRestart()
     //
 
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+
+    //
+    // Wait for the interface to be up and RSS to be configured by the upper
+    // layer protocol.
+    //
+    Stopwatch<std::chrono::milliseconds> Watchdog(MP_RESTART_TIMEOUT);
+    HRESULT Result = S_OK;
+    do {
+        UINT32 Size = 0;
+        Result = XdpRssGet(RssHandle.get(), NULL, &Size);
+        if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
+            break;
+        }
+    } while (!Watchdog.IsExpired());
+    TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
+
     RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
 
     TEST_EQUAL(RssConfig->Flags, OriginalRssConfig->Flags);
