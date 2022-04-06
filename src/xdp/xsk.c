@@ -3937,14 +3937,6 @@ XskIrpDeviceIoControl(
     case IOCTL_XSK_SET_SOCKOPT:
         Status = XskIrpSetSockopt(Irp, IrpSp);
         break;
-    case IOCTL_XSK_NOTIFY:
-        Status =
-            XskNotify(
-                (XDP_FILE_OBJECT_HEADER *)IrpSp->FileObject,
-                Irp->AssociatedIrp.SystemBuffer,
-                IrpSp->Parameters.DeviceIoControl.InputBufferLength,
-                &Irp->IoStatus.Information);
-        break;
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
