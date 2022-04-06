@@ -7,5 +7,5 @@ used to send and receive packets at high rates by bypassing most of the OS netwo
 
 ## Documentation
 
-    * [Usage](./docs/usage.md)
-    * [Development](./docs/development.md)
+* [Usage](./docs/usage.md)
+* [Development](./docs/development.md)
