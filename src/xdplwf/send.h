@@ -80,25 +80,6 @@ XdpGenericTxRestart(
     _In_ UINT32 NewMtu
     );
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS
-XdpGenericTxCreateQueue(
-    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
-    _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
-    _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericTxActivateQueue(
-    _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue,
-    _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue,
-    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE Config
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericTxDeleteQueue(
-    _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue
-    );
+XDP_CREATE_TX_QUEUE XdpGenericTxCreateQueue;
+XDP_ACTIVATE_TX_QUEUE XdpGenericTxActivateQueue;
+XDP_DELETE_TX_QUEUE XdpGenericTxDeleteQueue;

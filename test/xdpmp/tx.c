@@ -504,7 +504,7 @@ MpXdpCreateTxQueue(
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 MpXdpActivateTxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue,
     _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue,
@@ -526,6 +526,8 @@ MpXdpActivateTxQueue(
         Config, &MpSupportedXdpExtensions.VirtualAddress, &Tq->BufferVaExtension);
 
     WriteUInt32Release((UINT32 *)&Tq->XdpState, XDP_STATE_ACTIVE);
+
+    return STATUS_SUCCESS;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

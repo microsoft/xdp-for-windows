@@ -758,9 +758,18 @@ XdpRxQueueAttachInterface(
     }
 
     XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
-    XdpIfActivateRxQueue(
-        RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
-        ConfigActivate);
+
+    Status =
+        XdpIfActivateRxQueue(
+            RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
+            ConfigActivate);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
+            RxQueue, Status);
+        goto Exit;
+    }
+
     RxQueue->State = XdpRxQueueStateActive;
 
     XdpInitializeExtensionInfo(

@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - (Native drivers) Rename `XDP_RING::NextIndex` to `XDP_RING::InterfaceReserved`
+- (Native drivers) `XDP_ACTIVATE_RX_QUEUE` and `XDP_ACTIVATE_TX_QUEUE` now return `NTSTATUS` instead
+  of `VOID`.
 
 ### Removed
 

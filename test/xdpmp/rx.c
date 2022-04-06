@@ -473,7 +473,7 @@ MpXdpCreateRxQueue(
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 MpXdpActivateRxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue,
@@ -498,6 +498,8 @@ MpXdpActivateRxQueue(
         Config, &MpSupportedXdpExtensions.RxAction, &Rq->RxActionExtension);
 
     WriteUInt32Release((UINT32 *)&Rq->XdpState, XDP_STATE_ACTIVE);
+
+    return STATUS_SUCCESS;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

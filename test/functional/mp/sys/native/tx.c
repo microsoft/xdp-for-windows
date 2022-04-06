@@ -27,7 +27,7 @@ MpXdpCreateTxQueue(
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 MpXdpActivateTxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue,
     _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue,
@@ -37,6 +37,8 @@ MpXdpActivateTxQueue(
     UNREFERENCED_PARAMETER(InterfaceTxQueue);
     UNREFERENCED_PARAMETER(XdpTxQueue);
     UNREFERENCED_PARAMETER(Config);
+
+    return STATUS_NOT_SUPPORTED;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

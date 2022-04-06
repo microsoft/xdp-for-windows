@@ -54,3 +54,8 @@ BOOLEAN
 XdpIsFeOrLater(
     VOID
     );
+
+BOOLEAN
+XdpFaultInject(
+    VOID
+    );

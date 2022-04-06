@@ -927,7 +927,7 @@ XdpGenericDetachIfRx(
     }
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpGenericRxCreateQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
@@ -1061,8 +1061,8 @@ Exit:
     return Status;
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
 XdpGenericRxActivateQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue,
@@ -1099,6 +1099,8 @@ XdpGenericRxActivateQueue(
     XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameInterfaceContextExtension);
 
     WritePointerRelease(&RxQueue->XdpRxQueue, XdpRxQueue);
+
+    return STATUS_SUCCESS;
 }
 
 static
@@ -1131,7 +1133,7 @@ XdpGenericRxDeleteTxInspectEc(
     XdpLifetimeDelete(XdpGenericRxDeleteQueueEntry, &RxQueue->DeleteEntry);
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpGenericRxDeleteQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue

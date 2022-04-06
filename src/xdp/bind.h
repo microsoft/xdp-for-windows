@@ -196,7 +196,7 @@ XdpIfCreateRxQueue(
     );
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 XdpIfActivateRxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
@@ -221,7 +221,7 @@ XdpIfCreateTxQueue(
     );
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 XdpIfActivateTxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue,

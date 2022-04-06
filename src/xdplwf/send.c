@@ -598,7 +598,7 @@ static CONST XDP_INTERFACE_TX_QUEUE_DISPATCH TxDispatch = {
     .InterfaceNotifyQueue = XdpGenericTxNotifyQueue,
 };
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpGenericTxCreateQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
@@ -823,8 +823,8 @@ Exit:
     return Status;
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
 XdpGenericTxActivateQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue,
     _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue,
@@ -866,6 +866,8 @@ XdpGenericTxActivateQueue(
     WritePointerRelease(&TxQueue->XdpTxQueue, XdpTxQueue);
 
     RtlReleasePushLockExclusive(&Generic->Lock);
+
+    return STATUS_SUCCESS;
 }
 
 VOID
@@ -881,7 +883,7 @@ XdpGenericFreeTxQueue(
     ExFreePoolWithTag(TxQueue, POOLTAG_SEND);
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpGenericTxDeleteQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue

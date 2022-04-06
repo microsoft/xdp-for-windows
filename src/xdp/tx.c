@@ -1071,26 +1071,39 @@ XdpTxQueueAddDatapathClient(
     )
 {
     XDP_TX_QUEUE_SYNC_ADD_CLIENT SyncParams = {0};
+    NTSTATUS Status;
 
     TraceEnter(TRACE_CORE, "TxQueue=%p TxClientEntry=%p", TxQueue, TxClientEntry);
 
     ASSERT(TxClientType == XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE_XSK);
     UNREFERENCED_PARAMETER(TxClientType);
 
-    SyncParams.TxQueue = TxQueue;
-    SyncParams.TxClientEntry = TxClientEntry;
-    XdpTxQueueSync(TxQueue, XdpTxQueueSyncAddDatapathClient, &SyncParams);
-
     if (TxQueue->State == XdpTxQueueStateCreated) {
-        XdpIfActivateTxQueue(
-            TxQueue->Binding, TxQueue->InterfaceTxQueue, (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
-            (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
+        Status =
+            XdpIfActivateTxQueue(
+                TxQueue->Binding, TxQueue->InterfaceTxQueue,
+                (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
+                (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
+        if (!NT_SUCCESS(Status)) {
+            TraceError(
+                TRACE_CORE, "TxQueue=%p XdpIfActivateTxQueue failed Status=%!STATUS!",
+                TxQueue, Status);
+            goto Exit;
+        }
 
         TxQueue->State = XdpTxQueueStateActive;
     }
 
-    TraceExitSuccess(TRACE_CORE);
-    return STATUS_SUCCESS;
+    SyncParams.TxQueue = TxQueue;
+    SyncParams.TxClientEntry = TxClientEntry;
+    XdpTxQueueSync(TxQueue, XdpTxQueueSyncAddDatapathClient, &SyncParams);
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+    return Status;
 }
 
 typedef struct _XDP_TX_QUEUE_SYNC_REMOVE_CLIENT {

@@ -33,6 +33,11 @@ CONST WCHAR *XDP_PARAMETERS_KEY = XdpParametersKeyStorage;
 DRIVER_OBJECT *XdpDriverObject;
 DEVICE_OBJECT *XdpDeviceObject;
 XDP_REG_WATCHER *XdpRegWatcher;
+XDP_REG_WATCHER_CLIENT_ENTRY XdpRegWatcherEntry = {0};
+
+#if DBG
+static BOOLEAN XdpFaultInjectEnabled = FALSE;
+#endif
 
 #pragma NDIS_INIT_FUNCTION(DriverEntry)
 
@@ -45,6 +50,18 @@ XdpIsFeOrLater(
         (XdpOsVersion.dwMajorVersion > 10 || (XdpOsVersion.dwMajorVersion == 10 &&
         (XdpOsVersion.dwMinorVersion > 0 || (XdpOsVersion.dwMinorVersion == 0 &&
         (XdpOsVersion.dwBuildNumber >= 20100)))));
+}
+
+BOOLEAN
+XdpFaultInject(
+    VOID
+    )
+{
+#if DBG
+    return XdpFaultInjectEnabled && RtlRandomNumberInRange(0, 100) == 0;
+#else
+    return FALSE;
+#endif
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -353,6 +370,23 @@ Exit:
     return Status;
 }
 
+static
+VOID
+XdpRegistryUpdate(
+    VOID
+    )
+{
+#if DBG
+    NTSTATUS Status;
+
+    Status =
+        XdpRegQueryBoolean(XDP_PARAMETERS_KEY, L"XdpFaultInject", &XdpFaultInjectEnabled);
+    if (!NT_SUCCESS(Status)) {
+        XdpFaultInjectEnabled = FALSE;
+    }
+#endif
+}
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
@@ -370,6 +404,7 @@ XdpStop(
     XdpTxStop();
     XdpRxStop();
     XdpPollStop();
+    XdpRegWatcherRemoveClient(XdpRegWatcher, &XdpRegWatcherEntry);
 
     if (XdpRegWatcher != NULL) {
         XdpRegWatcherDelete(XdpRegWatcher);
@@ -409,11 +444,18 @@ XdpStart(
         XDP_VERSION_STR, XdpOsVersion.dwMajorVersion, XdpOsVersion.dwMinorVersion,
         XdpOsVersion.dwBuildNumber);
 
+    //
+    // Load initial configuration before doing anything else.
+    //
+    XdpRegistryUpdate();
+
     XdpRegWatcher = XdpRegWatcherCreate(XDP_PARAMETERS_KEY, XdpDriverObject, NULL);
     if (XdpRegWatcher == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
+
+    XdpRegWatcherAddClient(XdpRegWatcher, XdpRegistryUpdate, &XdpRegWatcherEntry);
 
     Status = XdpPollStart();
     if (!NT_SUCCESS(Status)) {

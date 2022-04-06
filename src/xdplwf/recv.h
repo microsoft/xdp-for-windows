@@ -66,28 +66,9 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
 FILTER_RETURN_NET_BUFFER_LISTS XdpGenericReturnNetBufferLists;
 FILTER_RECEIVE_NET_BUFFER_LISTS XdpGenericReceiveNetBufferLists;
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS
-XdpGenericRxCreateQueue(
-    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
-    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
-    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericRxActivateQueue(
-    _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
-    _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue,
-    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE Config
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericRxDeleteQueue(
-    _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
-    );
+XDP_CREATE_RX_QUEUE XdpGenericRxCreateQueue;
+XDP_ACTIVATE_RX_QUEUE XdpGenericRxActivateQueue;
+XDP_DELETE_RX_QUEUE XdpGenericRxDeleteQueue;
 
 #define XDP_LWF_GENERIC_INSPECT_FLAG_DISPATCH   0x1
 #define XDP_LWF_GENERIC_INSPECT_FLAG_RESOURCES  0x2

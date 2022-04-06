@@ -1285,10 +1285,30 @@ XdpIfpInvokeDriverCreateRxQueue(
         Interface->IfIndex, Interface->Capabilities.Mode,
         XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
 
+    if (XdpFaultInject()) {
+        Status = STATUS_NO_MEMORY;
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u CreateRxQueue fault inject",
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
+        goto Exit;
+    }
+
     Status =
         Interface->XdpDriverApi.InterfaceDispatch->CreateRxQueue(
             Interface->XdpDriverApi.InterfaceContext, Config, InterfaceRxQueue,
             InterfaceRxQueueDispatch);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u CreateRxQueue failed Status=%!STATUS!",
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            XdpRxQueueGetTargetQueueInfo(Config)->QueueId, Status);
+        goto Exit;
+    }
+
+Exit:
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1340,7 +1360,7 @@ Exit:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 XdpIfActivateRxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
@@ -1349,15 +1369,37 @@ XdpIfActivateRxQueue(
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    NTSTATUS Status;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
 
-    Interface->XdpDriverApi.InterfaceDispatch->ActivateRxQueue(
-        InterfaceRxQueue, XdpRxQueue, Config);
+    if (XdpFaultInject()) {
+        Status = STATUS_NO_MEMORY;
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p ActivateRxQueue fault inject",
+            Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
+        goto Exit;
+    }
 
-    TraceExitSuccess(TRACE_CORE);
+    Status =
+        Interface->XdpDriverApi.InterfaceDispatch->ActivateRxQueue(
+            InterfaceRxQueue, XdpRxQueue, Config);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p ActivateRxQueue failed Status=%!STATUS!",
+            Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue, Status);
+        goto Exit;
+    }
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -1397,10 +1439,30 @@ XdpIfpInvokeDriverCreateTxQueue(
         Interface->IfIndex, Interface->Capabilities.Mode,
         XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
 
+    if (XdpFaultInject()) {
+        Status = STATUS_NO_MEMORY;
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u CreateTxQueue fault inject",
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            XdpTxQueueGetTargetQueueInfo(Config)->QueueId);
+        goto Exit;
+    }
+
     Status =
         Interface->XdpDriverApi.InterfaceDispatch->CreateTxQueue(
             Interface->XdpDriverApi.InterfaceContext, Config, InterfaceTxQueue,
             InterfaceTxQueueDispatch);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u CreateTxQueue failed Status=%!STATUS!",
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            XdpTxQueueGetTargetQueueInfo(Config)->QueueId, Status);
+        goto Exit;
+    }
+
+Exit:
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1452,7 +1514,7 @@ Exit:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-VOID
+NTSTATUS
 XdpIfActivateTxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceTxQueue,
@@ -1461,15 +1523,37 @@ XdpIfActivateTxQueue(
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    NTSTATUS Status;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue);
 
-    Interface->XdpDriverApi.InterfaceDispatch->ActivateTxQueue(
-        InterfaceTxQueue, XdpTxQueue, Config);
+    if (XdpFaultInject()) {
+        Status = STATUS_NO_MEMORY;
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p ActivateTxQueue fault inject",
+            Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue);
+        goto Exit;
+    }
 
-    TraceExitSuccess(TRACE_CORE);
+    Status =
+        Interface->XdpDriverApi.InterfaceDispatch->ActivateTxQueue(
+            InterfaceTxQueue, XdpTxQueue, Config);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p ActivateTxQueue failed Status=%!STATUS!",
+            Interface->IfIndex, Interface->Capabilities.Mode, InterfaceTxQueue, Status);
+        goto Exit;
+    }
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
