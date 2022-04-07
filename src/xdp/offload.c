@@ -299,14 +299,6 @@ XdpIrpCreateRss(
     _In_ SIZE_T InputBufferLength
     )
 {
-#if !DBG
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IrpSp);
-    UNREFERENCED_PARAMETER(Disposition);
-    UNREFERENCED_PARAMETER(InputBuffer);
-    UNREFERENCED_PARAMETER(InputBufferLength);
-    return STATUS_NOT_SUPPORTED;
-#else
     NTSTATUS Status;
     CONST XDP_RSS_OPEN *Params = NULL;
     XDP_IFSET_HANDLE IfSetHandle = NULL;
@@ -385,7 +377,6 @@ Exit:
     TraceExitStatus(TRACE_CORE);
 
     return Status;
-#endif
 }
 
 static

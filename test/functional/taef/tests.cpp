@@ -259,11 +259,9 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
-#if DBG
     TEST_METHOD(OffloadRss) {
         ::OffloadRss();
     }
-#endif
 
     TEST_METHOD(FnLwfRx) {
         ::FnLwfRx();
