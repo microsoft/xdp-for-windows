@@ -177,12 +177,12 @@ typedef enum _XDP_RX_ACTION {
 // Implicit output parameters:
 //
 //      FrameRing->ConsumerIndex:
-//          If the queue was full, the consumer index is advanced and all
-//          previous frames are returned to the XDP interface.
+//          The consumer index is advanced and all frames are returned to the
+//          XDP interface.
 //
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XdpReceiveBatch(
+XdpReceive(
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
     );
 

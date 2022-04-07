@@ -679,7 +679,7 @@ XdpGenericReceiveInspect(
         // than the dispatch table since XDP may substitute for an optimized
         // routine.
         //
-        XdpReceiveBatchThunk(XdpRxQueue);
+        XdpReceiveThunk(XdpRxQueue);
 
         //
         // Apply XDP actions from the XDP receive ring to the NBL chain.

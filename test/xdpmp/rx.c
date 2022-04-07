@@ -83,7 +83,7 @@ MpReceiveProcessBatch(
     //
     // Inspect a batch of frames.
     //
-    XdpReceiveBatch(Rq->XdpRxQueue);
+    XdpReceive(Rq->XdpRxQueue);
 
     //
     // Perform action for each frame in the batch.

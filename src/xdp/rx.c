@@ -144,7 +144,7 @@ XdppReceiveBatch(
     XDP_RING *FrameRing = RxQueue->FrameRing;
 
     //
-    // XdpReceiveBatch makes no assumptions on the number of elements queued at
+    // XdpReceive makes no assumptions on the number of elements queued at
     // a time. Look at all elements in the ring and always flush on behalf of
     // the caller.
     //
@@ -189,7 +189,7 @@ XdppReceiveBatch(
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XdpReceiveBatch(
+XdpReceive(
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
     )
 {
@@ -252,8 +252,8 @@ XdpReceiveXskExclusiveBatch(
 }
 
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
-    .ReceiveBatch   = XdpReceiveBatch,
-    .FlushReceive   = XdpFlushReceive,
+    .Receive = XdpReceive,
+    .FlushReceive = XdpFlushReceive,
 };
 
 //
@@ -261,8 +261,8 @@ static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
 // traffic.
 //
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxExclusiveXskDispatch = {
-    .ReceiveBatch   = XdpReceiveXskExclusiveBatch,
-    .FlushReceive   = XdpFlushReceive,
+    .Receive = XdpReceiveXskExclusiveBatch,
+    .FlushReceive = XdpFlushReceive,
 };
 
 //
