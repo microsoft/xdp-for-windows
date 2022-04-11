@@ -431,6 +431,14 @@ XdpGenericReceivePreInspectNbs(
         DataLength -= Buffer->DataLength;
         FragmentCount = 0;
 
+        //
+        // NDIS components may request that packets sent locally be looped back
+        // on the receive path. Skip inspection of these packets.
+        //
+        if (NdisTestNblFlag(*Nbl, NDIS_NBL_FLAGS_IS_LOOPBACK_PACKET)) {
+            goto Next;
+        }
+
         SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
         SystemVa->VirtualAddress =
             MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
@@ -570,9 +578,13 @@ XdpGenericReceivePostInspectNbs(
             FrameRing->InterfaceReserved++;
         } else {
             //
-            // This NB was dropped prior to XDP inspection.
+            // This NB's action was decided prior to XDP inspection.
             //
-            XdpRxAction = XDP_RX_ACTION_DROP;
+            if (NdisTestNblFlag(NblHead, NDIS_NBL_FLAGS_IS_LOOPBACK_PACKET)) {
+                XdpRxAction = XDP_RX_ACTION_PASS;
+            } else {
+                XdpRxAction = XDP_RX_ACTION_DROP;
+            }
         }
 
         //
