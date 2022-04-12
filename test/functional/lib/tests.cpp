@@ -3516,6 +3516,113 @@ GenericLwfDelayDetach(
 }
 
 VOID
+GenericLoopback(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    UINT32 UdpFrameOffset = 0;
+    UINT32 TotalOffset = 0;
+    SOCKADDR_INET LocalSockAddr = {0};
+
+    auto If = FnMpIf;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
+    SocketProduceRxFill(&Xsk, 1);
+
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
+
+    RemotePort = htons(4321);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    LocalSockAddr.si_family = Af;
+
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+        LocalSockAddr.Ipv4.sin_addr = LocalIp.Ipv4;
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+        LocalSockAddr.Ipv6.sin6_addr = LocalIp.Ipv6;
+    }
+
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    Rule.Redirect.Target = Xsk.Handle.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    wil::unique_socket RawSocket(socket(Af, SOCK_RAW, IPPROTO_IP));
+    TEST_NOT_NULL(RawSocket.get());
+
+    TEST_EQUAL(0, bind(RawSocket.get(), (SOCKADDR *)&LocalSockAddr, sizeof(LocalSockAddr)));
+
+    DWORD Opt = RCVALL_ON;
+    DWORD BytesReturned;
+    TEST_EQUAL(
+        0,
+        WSAIoctl(
+            RawSocket.get(), SIO_RCVALL, &Opt, sizeof(Opt), NULL, 0, &BytesReturned, NULL, NULL));
+
+    //
+    // When promiscuous mode is enabled from a RAW socket in TCPIP, locally sent
+    // frames should get looped back at L2. These looped frames should be
+    // ignored by XDP and be passed up the stack.
+    //
+
+    //
+    // Send a frame.
+    //
+
+    UCHAR UdpPayload[] = "GenericLoopback";
+    CHAR RecvPayload[sizeof(UdpPayload)] = {0};
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    UINT64 TxBuffer = SocketFreePop(&Xsk);
+    UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+    ASSERT(UdpFrameLength <= Xsk.Umem.Reg.chunkSize);
+
+    RtlCopyMemory(TxFrame, UdpFrame, UdpFrameLength);
+
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+    XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
+    TxDesc->address = TxBuffer;
+    TxDesc->length = UdpFrameLength;
+    XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+    UINT32 NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    TEST_EQUAL(0, NotifyResult);
+
+    //
+    // Verify that TCPIP received the frame.
+    //
+
+    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+
+    //
+    // Verify that the XSK did not receive the frame.
+    //
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+}
+
+VOID
 FnMpNativeHandleTest()
 {
     auto NativeMp = MpOpenNative(FnMpIf.GetIfIndex());

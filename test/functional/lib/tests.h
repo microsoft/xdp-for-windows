@@ -109,6 +109,11 @@ GenericLwfDelayDetach(
     );
 
 VOID
+GenericLoopback(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 FnMpNativeHandleTest();
 
 VOID

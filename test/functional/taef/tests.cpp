@@ -259,6 +259,14 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
+    TEST_METHOD(GenericLoopbackV4) {
+        GenericLoopback(AF_INET);
+    }
+
+    TEST_METHOD(GenericLoopbackV6) {
+        GenericLoopback(AF_INET6);
+    }
+
     TEST_METHOD(OffloadRssError) {
         ::OffloadRssError();
     }
