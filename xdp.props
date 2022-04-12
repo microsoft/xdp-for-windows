@@ -2,8 +2,8 @@
   <!-- Defines the XDP version numbers -->
   <PropertyGroup>
     <XdpMajorVersion>0</XdpMajorVersion>
-    <XdpMinorVersion>15</XdpMinorVersion>
-    <XdpPatchVersion>1</XdpPatchVersion>
+    <XdpMinorVersion>16</XdpMinorVersion>
+    <XdpPatchVersion>0</XdpPatchVersion>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
   <ItemGroup Label="ProjectConfigurations">
