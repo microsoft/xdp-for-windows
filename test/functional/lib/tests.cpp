@@ -147,6 +147,41 @@ OsVersionIsFeOrLater(
         (OsVersion->dwBuildNumber >= 20100)))));
 }
 
+UINT32
+GetProcessorCount(
+    _In_opt_ UINT16 Group = ALL_PROCESSOR_GROUPS
+    )
+{
+    UINT32 Count = GetActiveProcessorCount(Group);
+    TEST_NOT_EQUAL(0, Count);
+    return Count;
+}
+
+VOID
+ProcessorIndexToProcessorNumber(
+    _In_ UINT32 ProcIndex,
+    _Out_ PROCESSOR_NUMBER *ProcNumber
+    )
+{
+    UINT16 Group = 0;
+
+    //
+    // Convert a convenient group-agnostic processor index (not necessarily
+    // matching the kernel/NT processor index) into the group-relative processor
+    // number.
+    //
+
+    RtlZeroMemory(ProcNumber, sizeof(*ProcNumber));
+
+    while (GetProcessorCount(Group) < ProcIndex) {
+        ProcIndex -= GetProcessorCount(Group);
+        Group++;
+    }
+
+    ProcNumber->Group = Group;
+    ProcNumber->Number = (UINT8)ProcIndex;
+}
+
 class TestInterface {
 private:
     CONST CHAR *_IfDesc;
@@ -3905,6 +3940,15 @@ OffloadRssError()
     UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
 
     //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
+    //
     // Open with invalid IfIndex.
     //
     TEST_EQUAL(
@@ -3960,6 +4004,15 @@ OffloadRssReference()
     UINT32 RssConfigSize;
     UINT32 ModifiedRssConfigSize;
     UINT32 OriginalRssConfigSize;
+
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
 
     for (auto Case : RxTxTestCases) {
         //
@@ -4024,6 +4077,15 @@ OffloadRssUnchanged()
     UINT32 RssConfigSize;
     UCHAR *HashSecretKey;
     PROCESSOR_NUMBER *IndirectionTable;
+
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
 
     TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
 
@@ -4090,6 +4152,15 @@ OffloadRssInterfaceRestart()
     VOID *OriginalHashSecretKey;
     VOID *IndirectionTable;
     VOID *OriginalIndirectionTable;
+
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
 
     //
     // Get original RSS settings and configure new settings.
@@ -4196,6 +4267,15 @@ OffloadRssUpperSet()
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
 
     //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
+    //
     // Get original settings (both XDP and NDIS formats for convenience).
     //
 
@@ -4296,7 +4376,7 @@ CreateIndirectionTable(
 
     RtlZeroMemory(IndirectionTable.get(), *IndirectionTableSize);
     for (UINT32 i = 0; i < ProcessorIndices.size(); i++) {
-        (IndirectionTable.get() + i)->Number = ProcessorIndices[i];
+        ProcessorIndexToProcessorNumber(ProcessorIndices[i], &IndirectionTable.get()[i]);
     }
 }
 
@@ -4363,24 +4443,16 @@ OffloadRssSubsequentSet(
 }
 
 VOID
-OffloadRss()
+OffloadRssSet()
 {
     //
     // Only run if we have at least 2 LPs.
     // Our expected test automation environment is at least a 2VP VM.
     //
-    SYSTEM_INFO SystemInfo;
-    GetSystemInfo(&SystemInfo);
-    if (SystemInfo.dwNumberOfProcessors < 2) {
-        TEST_WARNING("OffloadRss test requires at least 2 logical processors. Skipping.");
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
         return;
     }
-
-    OffloadRssError();
-    OffloadRssReference();
-    OffloadRssInterfaceRestart();
-    OffloadRssUnchanged();
-    OffloadRssUpperSet();
 
     OffloadRssSingleSet({0});
     OffloadRssSingleSet({1});
@@ -4388,7 +4460,7 @@ OffloadRss()
 
     OffloadRssSubsequentSet({0}, {1});
 
-    if (SystemInfo.dwNumberOfProcessors >= 4) {
+    if (GetProcessorCount() >= 4) {
         OffloadRssSingleSet({0,2});
         OffloadRssSingleSet({1,3});
         OffloadRssSingleSet({0,1,2,3});

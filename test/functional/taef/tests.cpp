@@ -259,8 +259,25 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
-    TEST_METHOD(OffloadRss) {
-        ::OffloadRss();
+    TEST_METHOD(OffloadRssError) {
+        ::OffloadRssError();
+    }
+
+    TEST_METHOD(OffloadRssReference) {
+        ::OffloadRssReference();
+    }
+
+    TEST_METHOD(OffloadRssInterfaceRestart) {
+        ::OffloadRssInterfaceRestart();
+    }
+    TEST_METHOD(OffloadRssUnchanged) {
+        ::OffloadRssUnchanged();
+    }
+    TEST_METHOD(OffloadRssUpperSet) {
+        ::OffloadRssUpperSet();
+    }
+    TEST_METHOD(OffloadRssSet) {
+        ::OffloadRssSet();
     }
 
     TEST_METHOD(FnLwfRx) {

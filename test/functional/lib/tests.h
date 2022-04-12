@@ -121,4 +121,19 @@ VOID
 FnLwfOid();
 
 VOID
-OffloadRss();
+OffloadRssError();
+
+VOID
+OffloadRssReference();
+
+VOID
+OffloadRssInterfaceRestart();
+
+VOID
+OffloadRssUnchanged();
+
+VOID
+OffloadRssUpperSet();
+
+VOID
+OffloadRssSet();
