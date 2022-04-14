@@ -124,8 +124,8 @@ XdpIrpCreate(
         CreateRoutine = XskIrpCreateSocket;
         break;
 
-    case XDP_OBJECT_TYPE_RSS:
-        CreateRoutine = XdpIrpCreateRss;
+    case XDP_OBJECT_TYPE_INTERFACE:
+        CreateRoutine = XdpIrpCreateInterface;
         break;
 
     default:

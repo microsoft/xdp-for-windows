@@ -3792,7 +3792,7 @@ FnLwfOid()
 static
 unique_malloc_ptr<XDP_RSS_CONFIGURATION>
 GetXdpRss(
-    _In_ const wil::unique_handle &RssHandle,
+    _In_ const wil::unique_handle &InterfaceHandle,
     _Out_opt_ UINT32 *RssConfigSize = NULL
     )
 {
@@ -3801,13 +3801,13 @@ GetXdpRss(
 
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_MORE_DATA),
-        XdpRssGet(RssHandle.get(), NULL, &Size));
+        XdpRssGet(InterfaceHandle.get(), NULL, &Size));
     TEST_TRUE(Size >= sizeof(*RssConfig.get()));
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(Size));
     TEST_TRUE(RssConfig.get() != NULL);
 
-    TEST_HRESULT(XdpRssGet(RssHandle.get(), RssConfig.get(), &Size));
+    TEST_HRESULT(XdpRssGet(InterfaceHandle.get(), RssConfig.get(), &Size));
     TEST_EQUAL(RssConfig->Header.Revision, XDP_RSS_CONFIGURATION_REVISION_1);
     TEST_EQUAL(RssConfig->Header.Size, XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1);
 
@@ -3826,10 +3826,10 @@ GetXdpRssIndirectionTable(
     _Out_ UINT32 &IndirectionTableSizeOut
     )
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
 
-    TEST_HRESULT(XdpRssOpen(If.GetIfIndex(), &RssHandle));
-    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(RssHandle);
+    TEST_HRESULT(XdpInterfaceOpen(If.GetIfIndex(), &InterfaceHandle));
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(InterfaceHandle);
 
     IndirectionTableOut.reset((PROCESSOR_NUMBER *)malloc(RssConfig->IndirectionTableSize));
 
@@ -3843,7 +3843,7 @@ static
 VOID
 SetXdpRss(
     _In_ const TestInterface &If,
-    _In_ const wil::unique_handle &RssHandle,
+    _In_ const wil::unique_handle &InterfaceHandle,
     _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
     _In_ UINT32 IndirectionTableSize
     )
@@ -3887,7 +3887,7 @@ SetXdpRss(
     auto AsyncThread = std::async(
         std::launch::async,
         [&] {
-            return XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize);
+            return XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize);
         }
     );
 
@@ -4041,7 +4041,7 @@ VerifyRssDatapath(
 VOID
 OffloadRssError()
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT32 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
     UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
@@ -4060,13 +4060,13 @@ OffloadRssError()
     //
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
-        XdpRssOpen(MAXUINT32, &RssHandle));
+        XdpInterfaceOpen(MAXUINT32, &InterfaceHandle));
 
     //
     // Set while XSK is bound.
     //
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
 
@@ -4078,13 +4078,13 @@ OffloadRssError()
     PROCESSOR_NUMBER *IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
     IndirectionTable[0].Number = 1;
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
-    RssHandle.reset();
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
+    InterfaceHandle.reset();
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
 
     for (auto Case : RxTxTestCases) {
         auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
-        HRESULT Error = XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize);
+        HRESULT Error = XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize);
         TEST_EQUAL(Error, HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
     }
 
@@ -4092,19 +4092,19 @@ OffloadRssError()
     // Set while another handle has already set.
     //
 
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
 
-    wil::unique_handle RssHandle2;
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle2));
+    wil::unique_handle InterfaceHandle2;
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle2));
     TEST_EQUAL(
-        XdpRssSet(RssHandle2.get(), RssConfig.get(), RssConfigSize),
+        XdpRssSet(InterfaceHandle2.get(), RssConfig.get(), RssConfigSize),
         HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
 }
 
 VOID
 OffloadRssReference()
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> ModifiedRssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
@@ -4125,8 +4125,8 @@ OffloadRssReference()
         //
         // Get original RSS settings.
         //
-        TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-        OriginalRssConfig = GetXdpRss(RssHandle, &OriginalRssConfigSize);
+        TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+        OriginalRssConfig = GetXdpRss(InterfaceHandle, &OriginalRssConfigSize);
 
         //
         // Configure new RSS settings.
@@ -4141,7 +4141,7 @@ OffloadRssReference()
             OriginalRssConfig->HashType ^ (XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_TCP_IPV6);
         TEST_TRUE(ModifiedRssConfig->HashType != OriginalRssConfig->HashType);
 
-        TEST_HRESULT(XdpRssSet(RssHandle.get(), ModifiedRssConfig.get(), ModifiedRssConfigSize));
+        TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), ModifiedRssConfig.get(), ModifiedRssConfigSize));
 
         {
             //
@@ -4154,13 +4154,13 @@ OffloadRssReference()
             //
             // Close RSS handle.
             //
-            RssHandle.reset();
+            InterfaceHandle.reset();
 
             //
             // Verify RSS settings persist.
             //
-            TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-            RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+            TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+            RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
             TEST_EQUAL(RssConfig->HashType, ModifiedRssConfig->HashType);
 
             //
@@ -4171,7 +4171,7 @@ OffloadRssReference()
         //
         // Verify RSS settings restored.
         //
-        RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+        RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
         TEST_EQUAL(RssConfig->HashType, OriginalRssConfig->HashType);
     }
 }
@@ -4179,7 +4179,7 @@ OffloadRssReference()
 VOID
 OffloadRssUnchanged()
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT32 RssConfigSize;
     UCHAR *HashSecretKey;
@@ -4194,23 +4194,23 @@ OffloadRssUnchanged()
         return;
     }
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
 
     //
     // Hash type.
     //
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
     UINT32 ExpectedHashType = RssConfig->HashType;
     RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_SECRET_KEY | XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
     RssConfig->HashType = 0;
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
-    RssConfig = GetXdpRss(RssHandle);
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
+    RssConfig = GetXdpRss(InterfaceHandle);
     TEST_EQUAL(RssConfig->HashType, ExpectedHashType);
 
     //
     // Hash secret key.
     //
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
     HashSecretKey = (UCHAR *)RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset);
     UCHAR ExpectedHashSecretKey[40];
     UINT32 ExpectedHashSecretKeySize = RssConfig->HashSecretKeySize;
@@ -4219,8 +4219,8 @@ OffloadRssUnchanged()
     RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
     RtlZeroMemory(HashSecretKey, RssConfig->HashSecretKeySize);
     RssConfig->HashSecretKeySize = 0;
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
-    RssConfig = GetXdpRss(RssHandle);
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
+    RssConfig = GetXdpRss(InterfaceHandle);
     TEST_EQUAL(RssConfig->HashSecretKeySize, ExpectedHashSecretKeySize);
     HashSecretKey = (UCHAR *)RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset);
     TEST_TRUE(RtlEqualMemory(HashSecretKey, &ExpectedHashSecretKey, ExpectedHashSecretKeySize));
@@ -4228,7 +4228,7 @@ OffloadRssUnchanged()
     //
     // Indirection table.
     //
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
     IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
     PROCESSOR_NUMBER ExpectedIndirectionTable[128];
@@ -4238,8 +4238,8 @@ OffloadRssUnchanged()
     RssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_HASH_SECRET_KEY;
     RtlZeroMemory(IndirectionTable, RssConfig->IndirectionTableSize);
     RssConfig->IndirectionTableSize = 0;
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
-    RssConfig = GetXdpRss(RssHandle);
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
+    RssConfig = GetXdpRss(InterfaceHandle);
     TEST_EQUAL(RssConfig->IndirectionTableSize, ExpectedIndirectionTableSize);
     IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
@@ -4250,7 +4250,7 @@ OffloadRssUnchanged()
 VOID
 OffloadRssInterfaceRestart()
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
     UINT32 RssConfigSize;
@@ -4273,8 +4273,8 @@ OffloadRssInterfaceRestart()
     // Get original RSS settings and configure new settings.
     //
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-    OriginalRssConfig = GetXdpRss(RssHandle, &OriginalRssConfigSize);
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    OriginalRssConfig = GetXdpRss(InterfaceHandle, &OriginalRssConfigSize);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(OriginalRssConfigSize));
     RtlCopyMemory(RssConfig.get(), OriginalRssConfig.get(), OriginalRssConfigSize);
@@ -4293,7 +4293,7 @@ OffloadRssInterfaceRestart()
     TEST_TRUE(RssConfig->IndirectionTableSize >= (2 * sizeof(PROCESSOR_NUMBER)));
     RssConfig->IndirectionTableSize /= 2;
 
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize));
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
 
     FnMpIf.Restart();
 
@@ -4303,20 +4303,20 @@ OffloadRssInterfaceRestart()
 
     UINT32 Size = RssConfigSize;
     TEST_EQUAL(
-        XdpRssGet(RssHandle.get(), RssConfig.get(), &Size),
+        XdpRssGet(InterfaceHandle.get(), RssConfig.get(), &Size),
         HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
 
     TEST_EQUAL(
-        XdpRssSet(RssHandle.get(), RssConfig.get(), RssConfigSize),
+        XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize),
         HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
 
-    RssHandle.reset();
+    InterfaceHandle.reset();
 
     //
     // Verify original RSS settings are restored.
     //
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
 
     //
     // Wait for the interface to be up and RSS to be configured by the upper
@@ -4326,14 +4326,14 @@ OffloadRssInterfaceRestart()
     HRESULT Result = S_OK;
     do {
         UINT32 Size = 0;
-        Result = XdpRssGet(RssHandle.get(), NULL, &Size);
+        Result = XdpRssGet(InterfaceHandle.get(), NULL, &Size);
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
     } while (!Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
 
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
 
     TEST_EQUAL(RssConfig->Flags, OriginalRssConfig->Flags);
     TEST_EQUAL(RssConfig->HashType, OriginalRssConfig->HashType);
@@ -4356,7 +4356,7 @@ OffloadRssInterfaceRestart()
 VOID
 OffloadRssUpperSet()
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> NdisRssParams;
     unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> OriginalNdisRssParams;
@@ -4392,8 +4392,8 @@ OffloadRssUpperSet()
         LwfOidAllocateAndSubmitRequest<NDIS_RECEIVE_SCALE_PARAMETERS>(
             DefaultLwf, OidKey, &OriginalNdisRssParamsSize);
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
 
     //
     // Set lower edge settings via XDP.
@@ -4403,7 +4403,7 @@ OffloadRssUpperSet()
     RtlCopyMemory(LowerRssConfig.get(), RssConfig.get(), RssConfigSize);
     LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
     LowerRssConfig->HashType = LowerXdpRssHashType;
-    TEST_HRESULT(XdpRssSet(RssHandle.get(), LowerRssConfig.get(), LowerRssConfigSize));
+    TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), LowerRssConfig.get(), LowerRssConfigSize));
 
     //
     // Set upper edge settings via NDIS.
@@ -4452,19 +4452,19 @@ OffloadRssUpperSet()
     //
     // Verify lower edge settings persist.
     //
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
     TEST_EQUAL(RssConfig->HashType, LowerRssConfig->HashType);
 
     //
     // Reset lower edge settings.
     //
-    RssHandle.reset();
+    InterfaceHandle.reset();
 
     //
     // Verify lower edge settings now match upper edge.
     //
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-    RssConfig = GetXdpRss(RssHandle, &RssConfigSize);
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
     TEST_EQUAL(RssConfig->HashType, UpperXdpRssHashType);
 }
 
@@ -4495,7 +4495,7 @@ OffloadRssSingleSet(
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
     unique_malloc_ptr<PROCESSOR_NUMBER> OldIndirectionTable;
     unique_malloc_ptr<PROCESSOR_NUMBER> ResetIndirectionTable;
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     UINT32 IndirectionTableSize;
     UINT32 OldIndirectionTableSize;
     UINT32 ResetIndirectionTableSize;
@@ -4506,12 +4506,12 @@ OffloadRssSingleSet(
 
     GetXdpRssIndirectionTable(FnMpIf, OldIndirectionTable, OldIndirectionTableSize);
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
-    SetXdpRss(FnMpIf, RssHandle, IndirectionTable, IndirectionTableSize);
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    SetXdpRss(FnMpIf, InterfaceHandle, IndirectionTable, IndirectionTableSize);
     VerifyRssSettings(FnMpIf, IndirectionTable, IndirectionTableSize);
     VerifyRssDatapath(FnMpIf, IndirectionTable, IndirectionTableSize);
 
-    RssHandle.reset();
+    InterfaceHandle.reset();
     GetXdpRssIndirectionTable(FnMpIf, ResetIndirectionTable, ResetIndirectionTableSize);
     TEST_EQUAL(ResetIndirectionTableSize, OldIndirectionTableSize);
     TEST_TRUE(
@@ -4525,7 +4525,7 @@ OffloadRssSubsequentSet(
     _In_ const std::vector<UINT32> &ProcessorIndices2
     )
 {
-    wil::unique_handle RssHandle;
+    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable1;
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable2;
     UINT32 IndirectionTable1Size;
@@ -4538,13 +4538,13 @@ OffloadRssSubsequentSet(
     CreateIndirectionTable(ProcessorIndices1, IndirectionTable1, &IndirectionTable1Size);
     CreateIndirectionTable(ProcessorIndices2, IndirectionTable2, &IndirectionTable2Size);
 
-    TEST_HRESULT(XdpRssOpen(FnMpIf.GetIfIndex(), &RssHandle));
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
 
-    SetXdpRss(FnMpIf, RssHandle, IndirectionTable1, IndirectionTable2Size);
+    SetXdpRss(FnMpIf, InterfaceHandle, IndirectionTable1, IndirectionTable2Size);
     VerifyRssSettings(FnMpIf, IndirectionTable1, IndirectionTable2Size);
     VerifyRssDatapath(FnMpIf, IndirectionTable1, IndirectionTable2Size);
 
-    SetXdpRss(FnMpIf, RssHandle, IndirectionTable2, IndirectionTable2Size);
+    SetXdpRss(FnMpIf, InterfaceHandle, IndirectionTable2, IndirectionTable2Size);
     VerifyRssSettings(FnMpIf, IndirectionTable2, IndirectionTable2Size);
     VerifyRssDatapath(FnMpIf, IndirectionTable2, IndirectionTable2Size);
 }

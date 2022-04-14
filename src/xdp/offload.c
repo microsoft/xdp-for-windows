@@ -3,29 +3,29 @@
 //
 
 //
-// This module implements RSS file object routines.
+// This module implements interface file object routines.
 //
 
 #include "precomp.h"
 #include "offload.tmh"
 
-typedef struct _XDP_RSS_OBJECT {
+typedef struct _XDP_INTERFACE_OBJECT {
     XDP_FILE_OBJECT_HEADER Header;
     XDP_IFSET_HANDLE IfSetHandle;
     VOID *InterfaceOffloadHandle;
-} XDP_RSS_OBJECT;
+} XDP_INTERFACE_OBJECT;
 
-static XDP_FILE_IRP_ROUTINE XdpIrpRssDeviceIoControl;
-static XDP_FILE_IRP_ROUTINE XdpIrpRssClose;
-static XDP_FILE_DISPATCH XdpRssFileDispatch = {
-    .IoControl  = XdpIrpRssDeviceIoControl,
-    .Close = XdpIrpRssClose,
+static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceDeviceIoControl;
+static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceClose;
+static XDP_FILE_DISPATCH XdpInterfaceFileDispatch = {
+    .IoControl  = XdpIrpInterfaceDeviceIoControl,
+    .Close = XdpIrpInterfaceClose,
 };
 
 static
 NTSTATUS
-XdpIrpRssGet(
-    _In_ XDP_RSS_OBJECT *RssObject,
+XdpIrpInterfaceOffloadRssGet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _In_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp
     )
@@ -39,7 +39,7 @@ XdpIrpRssGet(
     SIZE_T OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     SIZE_T *BytesReturned = &Irp->IoStatus.Information;
 
-    TraceEnter(TRACE_CORE, "Rss=%p", RssObject);
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
     //
     // TODO: sync with interface work queue?
@@ -54,7 +54,7 @@ XdpIrpRssGet(
     //
     Status =
         XdpIfGetInterfaceOffload(
-            RssObject->IfSetHandle, RssObject->InterfaceOffloadHandle,
+            InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
             XdpOffloadRss, &RssParams, &RssParamsSize);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -79,8 +79,8 @@ XdpIrpRssGet(
     if (OutputBufferLength < RequiredSize) {
         TraceError(
             TRACE_CORE,
-            "Rss=%p Output buffer length too small OutputBufferLength=%llu RequiredSize=%u",
-            RssObject, (UINT64)OutputBufferLength, RequiredSize);
+            "Interface=%p Output buffer length too small OutputBufferLength=%llu RequiredSize=%u",
+            InterfaceObject, (UINT64)OutputBufferLength, RequiredSize);
         Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
@@ -109,8 +109,8 @@ XdpIrpRssGet(
 Exit:
 
     TraceInfo(
-        TRACE_CORE, "Rss=%p Status=%!STATUS! OutputBuffer=%!HEXDUMP!",
-        RssObject, Status, WppHexDump(OutputBuffer, OutputBufferLength));
+        TRACE_CORE, "Interface=%p Status=%!STATUS! OutputBuffer=%!HEXDUMP!",
+        InterfaceObject, Status, WppHexDump(OutputBuffer, OutputBufferLength));
 
     TraceExitStatus(TRACE_CORE);
 
@@ -119,8 +119,8 @@ Exit:
 
 static
 NTSTATUS
-XdpIrpRssSet(
-    _In_ XDP_RSS_OBJECT *RssObject,
+XdpIrpInterfaceOffloadRssSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _In_ VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
@@ -133,7 +133,7 @@ XdpIrpRssSet(
     UINT32 Size1;
     UINT32 Size2;
 
-    TraceEnter(TRACE_CORE, "Rss=%p", RssObject);
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
     //
     // TODO: sync with interface work queue?
@@ -147,8 +147,8 @@ XdpIrpRssSet(
     if (InputBufferLength < sizeof(*RssConfiguration)) {
         TraceError(
             TRACE_CORE,
-            "Rss=%p Input buffer length too small InputBufferLength=%llu",
-            RssObject, (UINT64)InputBufferLength);
+            "Interface=%p Input buffer length too small InputBufferLength=%llu",
+            InterfaceObject, (UINT64)InputBufferLength);
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -158,24 +158,24 @@ XdpIrpRssSet(
     if (RssConfiguration->Header.Revision < XDP_RSS_CONFIGURATION_REVISION_1 ||
         RssConfiguration->Header.Size < XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1) {
         TraceError(
-            TRACE_CORE, "Rss=%p Unsupported revision Revision=%u Size=%u",
-            RssObject, RssConfiguration->Header.Revision, RssConfiguration->Header.Size);
+            TRACE_CORE, "Interface=%p Unsupported revision Revision=%u Size=%u",
+            InterfaceObject, RssConfiguration->Header.Revision, RssConfiguration->Header.Size);
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
     if ((RssConfiguration->Flags & ~XDP_RSS_VALID_FLAGS) != 0) {
         TraceError(
-            TRACE_CORE, "Rss=%p Invalid flags Flags=%u",
-            RssObject, RssConfiguration->Flags);
+            TRACE_CORE, "Interface=%p Invalid flags Flags=%u",
+            InterfaceObject, RssConfiguration->Flags);
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
     if ((RssConfiguration->HashType & ~XDP_RSS_VALID_HASH_TYPES) != 0) {
         TraceError(
-            TRACE_CORE, "Rss=%p Invalid hash type HashType=%u",
-            RssObject, RssConfiguration->HashType);
+            TRACE_CORE, "Interface=%p Invalid hash type HashType=%u",
+            InterfaceObject, RssConfiguration->HashType);
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -187,8 +187,8 @@ XdpIrpRssSet(
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE,
-            "Rss=%p Hash secret key overflow HashSecretKeyOffset=%u HashSecretKeySize=%u",
-            RssObject, RssConfiguration->HashSecretKeyOffset, RssConfiguration->HashSecretKeySize);
+            "Interface=%p Hash secret key overflow HashSecretKeyOffset=%u HashSecretKeySize=%u",
+            InterfaceObject, RssConfiguration->HashSecretKeyOffset, RssConfiguration->HashSecretKeySize);
         goto Exit;
     }
 
@@ -199,16 +199,16 @@ XdpIrpRssSet(
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE,
-            "Rss=%p Indirection table overflow IndirectionTableOffset=%u IndirectionTableSize=%u",
-            RssObject, RssConfiguration->IndirectionTableOffset, RssConfiguration->IndirectionTableSize);
+            "Interface=%p Indirection table overflow IndirectionTableOffset=%u IndirectionTableSize=%u",
+            InterfaceObject, RssConfiguration->IndirectionTableOffset, RssConfiguration->IndirectionTableSize);
         goto Exit;
     }
 
     if (InputBufferLength < max(Size1, Size2)) {
         TraceError(
             TRACE_CORE,
-            "Rss=%p Input buffer length too small InputBufferLength=%llu RequiredSize=%u",
-            RssObject, (UINT64)InputBufferLength, max(Size1, Size2));
+            "Interface=%p Input buffer length too small InputBufferLength=%llu RequiredSize=%u",
+            InterfaceObject, (UINT64)InputBufferLength, max(Size1, Size2));
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -217,8 +217,8 @@ XdpIrpRssSet(
         if (RssConfiguration->HashSecretKeySize > sizeof(RssParams.HashSecretKey)) {
             TraceError(
                 TRACE_CORE,
-                "Rss=%p Hash secret key size too large HashSecretKeySize=%u",
-                RssObject, RssConfiguration->HashSecretKeySize);
+                "Interface=%p Hash secret key size too large HashSecretKeySize=%u",
+                InterfaceObject, RssConfiguration->HashSecretKeySize);
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -230,8 +230,8 @@ XdpIrpRssSet(
         if (RssConfiguration->IndirectionTableSize > sizeof(RssParams.IndirectionTable)) {
             TraceError(
                 TRACE_CORE,
-                "Rss=%p Indirection table size too large IndirectionTableSize=%u",
-                RssObject, RssConfiguration->IndirectionTableSize);
+                "Interface=%p Indirection table size too large IndirectionTableSize=%u",
+                InterfaceObject, RssConfiguration->IndirectionTableSize);
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -240,8 +240,8 @@ XdpIrpRssSet(
             !RTL_IS_POWER_OF_TWO(RssConfiguration->IndirectionTableSize)) {
             TraceError(
                 TRACE_CORE,
-                "Rss=%p Invalid indirection table size IndirectionTableSize=%u",
-                RssObject, RssConfiguration->IndirectionTableSize);
+                "Interface=%p Invalid indirection table size IndirectionTableSize=%u",
+                InterfaceObject, RssConfiguration->IndirectionTableSize);
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -274,14 +274,14 @@ XdpIrpRssSet(
     //
     Status =
         XdpIfSetInterfaceOffload(
-            RssObject->IfSetHandle, RssObject->InterfaceOffloadHandle,
+            InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
             XdpOffloadRss, &RssParams, sizeof(RssParams));
 
 Exit:
 
     TraceInfo(
-        TRACE_CORE, "Rss=%p Status=%!STATUS! InputBuffer=%!HEXDUMP!",
-        RssObject, Status, WppHexDump(InputBuffer, InputBufferLength));
+        TRACE_CORE, "Interface=%p Status=%!STATUS! InputBuffer=%!HEXDUMP!",
+        InterfaceObject, Status, WppHexDump(InputBuffer, InputBufferLength));
 
     TraceExitStatus(TRACE_CORE);
 
@@ -291,7 +291,7 @@ Exit:
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
-XdpIrpCreateRss(
+XdpIrpCreateInterface(
     _Inout_ IRP *Irp,
     _Inout_ IO_STACK_LOCATION *IrpSp,
     _In_ UCHAR Disposition,
@@ -300,10 +300,10 @@ XdpIrpCreateRss(
     )
 {
     NTSTATUS Status;
-    CONST XDP_RSS_OPEN *Params = NULL;
+    CONST XDP_INTERFACE_OPEN *Params = NULL;
     XDP_IFSET_HANDLE IfSetHandle = NULL;
     VOID *InterfaceOffloadHandle = NULL;
-    XDP_RSS_OBJECT *RssObject = NULL;
+    XDP_INTERFACE_OBJECT *InterfaceObject = NULL;
     CONST XDP_HOOK_ID HookId = {
         .Layer = XDP_HOOK_L2,
         .Direction = XDP_HOOK_RX,
@@ -335,9 +335,9 @@ XdpIrpCreateRss(
         goto Exit;
     }
 
-    RssObject =
-        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RssObject), XDP_POOLTAG_RSS);
-    if (RssObject == NULL) {
+    InterfaceObject =
+        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*InterfaceObject), XDP_POOLTAG_INTERFACE);
+    if (InterfaceObject == NULL) {
         TraceError(
             TRACE_CORE,
             "IfIndex=%u Failed to allocate RSS object", Params->IfIndex);
@@ -345,20 +345,20 @@ XdpIrpCreateRss(
         goto Exit;
     }
 
-    RssObject->Header.ObjectType = XDP_OBJECT_TYPE_RSS;
-    RssObject->Header.Dispatch = &XdpRssFileDispatch;
-    RssObject->IfSetHandle = IfSetHandle;
-    RssObject->InterfaceOffloadHandle = InterfaceOffloadHandle;
-    IrpSp->FileObject->FsContext = RssObject;
+    InterfaceObject->Header.ObjectType = XDP_OBJECT_TYPE_INTERFACE;
+    InterfaceObject->Header.Dispatch = &XdpInterfaceFileDispatch;
+    InterfaceObject->IfSetHandle = IfSetHandle;
+    InterfaceObject->InterfaceOffloadHandle = InterfaceOffloadHandle;
+    IrpSp->FileObject->FsContext = InterfaceObject;
     IfSetHandle = NULL;
     InterfaceOffloadHandle = NULL;
-    RssObject = NULL;
+    InterfaceObject = NULL;
     Status = STATUS_SUCCESS;
 
 Exit:
 
-    if (RssObject != NULL) {
-        ExFreePoolWithTag(RssObject, XDP_POOLTAG_RSS);
+    if (InterfaceObject != NULL) {
+        ExFreePoolWithTag(InterfaceObject, XDP_POOLTAG_INTERFACE);
     }
     if (InterfaceOffloadHandle != NULL) {
         XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
@@ -370,8 +370,8 @@ Exit:
     if (Params != NULL) {
         TraceInfo(
             TRACE_CORE,
-            "Rss=%p create IfIndex=%u Status=%!STATUS!",
-            RssObject, Params->IfIndex, Status);
+            "Interface=%p create IfIndex=%u Status=%!STATUS!",
+            InterfaceObject, Params->IfIndex, Status);
     }
 
     TraceExitStatus(TRACE_CORE);
@@ -383,27 +383,27 @@ static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
-XdpIrpRssClose(
+XdpIrpInterfaceClose(
     _Inout_ IRP *Irp,
     _Inout_ IO_STACK_LOCATION *IrpSp
     )
 {
-    XDP_RSS_OBJECT *RssObject = IrpSp->FileObject->FsContext;
+    XDP_INTERFACE_OBJECT *InterfaceObject = IrpSp->FileObject->FsContext;
 
     UNREFERENCED_PARAMETER(Irp);
 
-    TraceEnter(TRACE_CORE, "Rss=%p", RssObject);
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
-    ASSERT(RssObject->IfSetHandle != NULL);
-    ASSERT(RssObject->InterfaceOffloadHandle != NULL);
+    ASSERT(InterfaceObject->IfSetHandle != NULL);
+    ASSERT(InterfaceObject->InterfaceOffloadHandle != NULL);
 
     XdpIfCloseInterfaceOffloadHandle(
-        RssObject->IfSetHandle, RssObject->InterfaceOffloadHandle);
-    XdpIfDereferenceIfSet(RssObject->IfSetHandle);
+        InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle);
+    XdpIfDereferenceIfSet(InterfaceObject->IfSetHandle);
 
-    TraceInfo(TRACE_CORE, "Rss=%p delete", RssObject);
+    TraceInfo(TRACE_CORE, "Interface=%p delete", InterfaceObject);
 
-    ExFreePoolWithTag(RssObject, XDP_POOLTAG_RSS);
+    ExFreePoolWithTag(InterfaceObject, XDP_POOLTAG_INTERFACE);
 
     TraceExitSuccess(TRACE_CORE);
 
@@ -412,27 +412,27 @@ XdpIrpRssClose(
 
 _Use_decl_annotations_
 NTSTATUS
-XdpIrpRssDeviceIoControl(
+XdpIrpInterfaceDeviceIoControl(
     IRP *Irp,
     IO_STACK_LOCATION *IrpSp
     )
 {
     NTSTATUS Status;
     ULONG IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
-    XDP_RSS_OBJECT *RssObject = IrpSp->FileObject->FsContext;
+    XDP_INTERFACE_OBJECT *InterfaceObject = IrpSp->FileObject->FsContext;
 
-    TraceEnter(TRACE_CORE, "Rss=%p", RssObject);
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
     Irp->IoStatus.Information = 0;
 
     switch (IoControlCode) {
-    case IOCTL_RSS_GET:
-        Status = XdpIrpRssGet(RssObject, Irp, IrpSp);
+    case IOCTL_INTERFACE_OFFLOAD_RSS_GET:
+        Status = XdpIrpInterfaceOffloadRssGet(InterfaceObject, Irp, IrpSp);
         break;
-    case IOCTL_RSS_SET:
+    case IOCTL_INTERFACE_OFFLOAD_RSS_SET:
         Status =
-            XdpIrpRssSet(
-                RssObject, Irp->AssociatedIrp.SystemBuffer,
+            XdpIrpInterfaceOffloadRssSet(
+                InterfaceObject, Irp->AssociatedIrp.SystemBuffer,
                 IrpSp->Parameters.DeviceIoControl.InputBufferLength);
         break;
     default:
@@ -442,7 +442,7 @@ XdpIrpRssDeviceIoControl(
 
 Exit:
 
-    TraceInfo(TRACE_CORE, "Rss=%p Ioctl=%u Status=%!STATUS!", RssObject, IoControlCode, Status);
+    TraceInfo(TRACE_CORE, "Interface=%p Ioctl=%u Status=%!STATUS!", InterfaceObject, IoControlCode, Status);
 
     TraceExitStatus(TRACE_CORE);
 

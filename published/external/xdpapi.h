@@ -54,8 +54,23 @@ XdpCreateProgram(
     _Out_ HANDLE *Program
     );
 
+
 //
-// RSS API.
+// Interface API.
+//
+
+//
+// Open a handle to get/set offloads/configurations/properties on an interface.
+//
+HRESULT
+XDPAPI
+XdpInterfaceOpen(
+    _In_ UINT32 InterfaceIndex,
+    _Out_ HANDLE *InterfaceHandle
+    );
+
+//
+// RSS offload.
 //
 
 //
@@ -162,16 +177,6 @@ XdpInitializeRssConfiguration(
 }
 
 //
-// Open a handle to query and/or set RSS settings on an interface.
-//
-HRESULT
-XDPAPI
-XdpRssOpen(
-    _In_ UINT32 InterfaceIndex,
-    _Out_ HANDLE *RssHandle
-    );
-
-//
 // Set RSS settings on an interface. Configured settings will remain valid until
 // the handle is closed. Upon handle closure, RSS settings will revert back to
 // their original state.
@@ -179,7 +184,7 @@ XdpRssOpen(
 HRESULT
 XDPAPI
 XdpRssSet(
-    _In_ HANDLE RssHandle,
+    _In_ HANDLE InterfaceHandle,
     _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     );
@@ -192,7 +197,7 @@ XdpRssSet(
 HRESULT
 XDPAPI
 XdpRssGet(
-    _In_ HANDLE RssHandle,
+    _In_ HANDLE InterfaceHandle,
     _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
     );

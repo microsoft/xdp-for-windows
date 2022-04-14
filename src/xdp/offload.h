@@ -7,7 +7,7 @@
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
-XdpIrpCreateRss(
+XdpIrpCreateInterface(
     _Inout_ IRP *Irp,
     _Inout_ IO_STACK_LOCATION *IrpSp,
     _In_ UCHAR Disposition,

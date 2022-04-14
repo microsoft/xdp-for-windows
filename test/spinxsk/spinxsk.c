@@ -175,7 +175,7 @@ typedef struct {
 typedef struct {
     HANDLE threadHandle;
     XSK_FUZZER_SHARED *shared;
-    HANDLE fuzzerRss;
+    HANDLE fuzzerInterface;
 } XSK_FUZZER_WORKER;
 
 struct QUEUE_CONTEXT {
@@ -581,8 +581,8 @@ FuzzRssSet(
     // crash the system.
     //
 
-    if (fuzzer->fuzzerRss != NULL) {
-        (void)XdpRssSet(fuzzer->fuzzerRss, RssConfiguration, RssConfigSize);
+    if (fuzzer->fuzzerInterface != NULL) {
+        (void)XdpRssSet(fuzzer->fuzzerInterface, RssConfiguration, RssConfigSize);
     } else {
         AcquireSRWLockShared(&queue->rssLock);
         if (queue->rss) {
@@ -612,8 +612,8 @@ FuzzRssGet(
     HRESULT res;
 
     UINT32 OutputRssSize = 0;
-    if (fuzzer->fuzzerRss != NULL) {
-        res = XdpRssGet(fuzzer->fuzzerRss, NULL, &OutputRssSize);
+    if (fuzzer->fuzzerInterface != NULL) {
+        res = XdpRssGet(fuzzer->fuzzerInterface, NULL, &OutputRssSize);
     } else {
         AcquireSRWLockShared(&queue->rssLock);
         if (queue->rss) {
@@ -635,9 +635,9 @@ FuzzRssGet(
 
     OutputRssSize = RandUlong() % (OutputRssSize * 2);
 
-    if (fuzzer->fuzzerRss != NULL) {
+    if (fuzzer->fuzzerInterface != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-        XdpRssGet(fuzzer->fuzzerRss, RssConfiguration, &OutputRssSize);
+        XdpRssGet(fuzzer->fuzzerInterface, RssConfiguration, &OutputRssSize);
     } else {
         AcquireSRWLockShared(&queue->rssLock);
         if (queue->rss) {
@@ -665,9 +665,9 @@ FuzzRss(
 {
     if (RandUlong() % 50 == 0) {
         // Close Local
-        if (fuzzer->fuzzerRss) {
-            ASSERT_FRE(CloseHandle(fuzzer->fuzzerRss));
-            fuzzer->fuzzerRss = NULL;
+        if (fuzzer->fuzzerInterface) {
+            ASSERT_FRE(CloseHandle(fuzzer->fuzzerInterface));
+            fuzzer->fuzzerInterface = NULL;
         }
     }
 
@@ -687,20 +687,20 @@ FuzzRss(
 
     if (RandUlong() % 10 == 0) {
         // Open Local
-        if (fuzzer->fuzzerRss) {
-            ASSERT_FRE(CloseHandle(fuzzer->fuzzerRss));
-            fuzzer->fuzzerRss = NULL;
+        if (fuzzer->fuzzerInterface) {
+            ASSERT_FRE(CloseHandle(fuzzer->fuzzerInterface));
+            fuzzer->fuzzerInterface = NULL;
         }
 
-        XdpRssOpen(ifindex, &fuzzer->fuzzerRss);
+        XdpInterfaceOpen(ifindex, &fuzzer->fuzzerInterface);
     }
 
     if (RandUlong() % 25 == 0) {
         // swap local and shared
         AcquireSRWLockExclusive(&queue->rssLock);
         HANDLE tmp = queue->rss;
-        queue->rss = fuzzer->fuzzerRss;
-        fuzzer->fuzzerRss = tmp;
+        queue->rss = fuzzer->fuzzerInterface;
+        fuzzer->fuzzerInterface = tmp;
         ReleaseSRWLockExclusive(&queue->rssLock);
     }
 
@@ -1471,8 +1471,8 @@ XskFuzzerWorkerFn(
         }
     }
 
-    if (fuzzer->fuzzerRss != NULL) {
-        ASSERT_FRE(CloseHandle(fuzzer->fuzzerRss));
+    if (fuzzer->fuzzerInterface != NULL) {
+        ASSERT_FRE(CloseHandle(fuzzer->fuzzerInterface));
     }
 
     TraceExit("q[%u]f[0x%p]", queue->queueId, fuzzer->threadHandle);
