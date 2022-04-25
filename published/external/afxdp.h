@@ -33,7 +33,7 @@ extern "C" {
 #define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MASK \
     (XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MAX << XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT)
 
-typedef struct XSK_BUFFER_DESCRIPTOR {
+typedef struct _XSK_BUFFER_DESCRIPTOR {
     // Bits 0:47 encode the address of the chunk, relative to UMEM start address.
     // Bits 48:63 encode the packet offset within the chunk.
     UINT64 address;
@@ -42,6 +42,32 @@ typedef struct XSK_BUFFER_DESCRIPTOR {
     // Must be 0.
     UINT32 reserved;
 } XSK_BUFFER_DESCRIPTOR;
+
+//
+// Descriptor format for RX/TX frames. Each frame consists of one or more
+// buffers; any buffer beyond the first buffer is stored on a separate fragment
+// buffer ring.
+//
+typedef struct _XSK_FRAME_DESCRIPTOR {
+    //
+    // The first buffer in the frame.
+    //
+    XSK_BUFFER_DESCRIPTOR buffer;
+
+    //
+    // Followed by various descriptor extensions, e.g:
+    //
+    //   - Additional fragment count
+    //   - Offload metadata (e.g. Layout, Checksum, GSO, GRO)
+    //
+    // To retrieve extensions, use the appropriate extension helper routine.
+    //
+} XSK_FRAME_DESCRIPTOR;
+
+//
+// Ensure frame-unaware apps can treat the frame ring as a buffer ring.
+//
+C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, buffer) == 0);
 
 //
 // Flags for the shared ring flags field.
@@ -226,7 +252,7 @@ XskGetSockopt(
 
 #define XSK_SOCKOPT_UMEM_REG 1
 
-typedef struct XSK_UMEM_REG {
+typedef struct _XSK_UMEM_REG {
     UINT64 totalSize;
     UINT32 chunkSize;
     UINT32 headroom;
@@ -261,9 +287,9 @@ typedef struct XSK_UMEM_REG {
 
 #define XSK_SOCKOPT_RING_INFO 6
 
-typedef struct XSK_RING_INFO {
+typedef struct _XSK_RING_INFO {
     BYTE *ring;
-    UINT32 descriptorsOffset;   // XSK_PACKET_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
+    UINT32 descriptorsOffset;   // XSK_FRAME_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
     UINT32 producerIndexOffset; // UINT32
     UINT32 consumerIndexOffset; // UINT32
     UINT32 flagsOffset;         // UINT32
@@ -272,7 +298,7 @@ typedef struct XSK_RING_INFO {
     UINT32 reserved;
 } XSK_RING_INFO;
 
-typedef struct XSK_RING_INFO_SET {
+typedef struct _XSK_RING_INFO_SET {
     XSK_RING_INFO fill;
     XSK_RING_INFO completion;
     XSK_RING_INFO rx;
@@ -289,7 +315,7 @@ typedef struct XSK_RING_INFO_SET {
 
 #define XSK_SOCKOPT_STATISTICS 7
 
-typedef struct XSK_STATISTICS {
+typedef struct _XSK_STATISTICS {
     UINT64 rxDropped;
     UINT64 rxTruncated;
     UINT64 rxInvalidDescriptors;

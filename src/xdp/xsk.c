@@ -22,7 +22,7 @@ typedef struct _XSK_SHARED_RING {
     UINT32 Reserved;
     //
     // Followed by power-of-two array of ring elements, starting on 8-byte alignment.
-    // XSK_BUFFER_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
+    // XSK_FRAME_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
     //
 } XSK_SHARED_RING;
 
@@ -499,7 +499,8 @@ XskFillTx(
     XSK *Xsk = CONTAINING_RECORD(DatapathClientEntry, XSK, Tx.Xdp.DatapathClientEntry);
     NTSTATUS Status;
     ULONGLONG Result;
-    XSK_BUFFER_DESCRIPTOR *Descriptor;
+    XSK_FRAME_DESCRIPTOR *XskFrame;
+    XSK_BUFFER_DESCRIPTOR *XskBuffer;
     UINT32 Count;
     UINT32 FrameCount = 0;
     UINT32 TxIndex;
@@ -555,15 +556,16 @@ XskFillTx(
 
         TxIndex =
             (ReadUInt32NoFence(&Xsk->Tx.Ring.Shared->ConsumerIndex) + i) & (Xsk->Tx.Ring.Mask);
-        Descriptor = XskKernelRingGetElement(&Xsk->Tx.Ring, TxIndex);
+        XskFrame = XskKernelRingGetElement(&Xsk->Tx.Ring, TxIndex);
+        XskBuffer = &XskFrame->buffer;
 
         Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
         Buffer = &Frame->Buffer;
 
-        AddressDescriptor = ReadUInt64NoFence(&Descriptor->address);
+        AddressDescriptor = ReadUInt64NoFence(&XskBuffer->address);
         RelativeAddress = XskDescriptorGetAddress(AddressDescriptor);
         Buffer->DataOffset = XskDescriptorGetOffset(AddressDescriptor);
-        Buffer->DataLength = ReadUInt32NoFence(&Descriptor->length);
+        Buffer->DataLength = ReadUInt32NoFence(&XskBuffer->length);
         Buffer->BufferLength = Buffer->DataLength + Buffer->DataOffset;
 
         Status = RtlUInt64Add(RelativeAddress, Buffer->DataLength, &Result);
@@ -2780,7 +2782,7 @@ XskSockoptSetRingSize(
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_RX_RING_SIZE:
     case XSK_SOCKOPT_TX_RING_SIZE:
-        DescriptorSize = sizeof(XSK_BUFFER_DESCRIPTOR);
+        DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
         break;
     case XSK_SOCKOPT_RX_FILL_RING_SIZE:
     case XSK_SOCKOPT_TX_COMPLETION_RING_SIZE:
@@ -3733,7 +3735,8 @@ XskReceiveSingleFrame(
     UINT32 CopyLength;
     UINT32 RingIndex;
 
-    XSK_BUFFER_DESCRIPTOR *Descriptor;
+    XSK_FRAME_DESCRIPTOR *XskFrame;
+    XSK_BUFFER_DESCRIPTOR *XskBuffer;
 
     RingIndex =
         (ReadUInt32NoFence(&Xsk->Rx.FillRing.Shared->ConsumerIndex) + FillOffset) &
@@ -3788,11 +3791,12 @@ XskReceiveSingleFrame(
     RingIndex =
         (ReadUInt32NoFence(&Xsk->Rx.Ring.Shared->ProducerIndex) + *CompletionOffset) &
             Xsk->Rx.Ring.Mask;
-    Descriptor = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
-    Descriptor->address = UmemAddress;
+    XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
+    XskBuffer = &XskFrame->buffer;
+    XskBuffer->address = UmemAddress;
     ASSERT(Xsk->Umem->Reg.headroom <= MAXUINT16);
-    XskDescriptorSetOffset(&Descriptor->address, (UINT16)Xsk->Umem->Reg.headroom);
-    Descriptor->length = UmemOffset - Xsk->Umem->Reg.headroom + CopyLength;
+    XskDescriptorSetOffset(&XskBuffer->address, (UINT16)Xsk->Umem->Reg.headroom);
+    XskBuffer->length = UmemOffset - Xsk->Umem->Reg.headroom + CopyLength;
 
     ++*CompletionOffset;
 }
