@@ -287,6 +287,9 @@ public:
     TEST_METHOD(OffloadRssSet) {
         ::OffloadRssSet();
     }
+    TEST_METHOD(OffloadRssCapabilities) {
+        ::OffloadRssCapabilities();
+    }
 
     TEST_METHOD(FnLwfRx) {
         ::FnLwfRx();

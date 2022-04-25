@@ -8,6 +8,9 @@ EXTERN_C_START
 
 #include <fniotypes.h>
 
+#define FNMP_DEFAULT_RSS_QUEUES 4
+#define FNMP_MAX_RSS_INDIR_COUNT 128
+
 HRESULT
 FnMpOpenGeneric(
     _In_ UINT32 IfIndex,

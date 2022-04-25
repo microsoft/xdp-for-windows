@@ -163,7 +163,7 @@ MpReadConfiguration(
     Adapter->RssEnabled = 0;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRSS, &Adapter->RssEnabled);
 
-    Adapter->NumRssQueues = 4;
+    Adapter->NumRssQueues = FNMP_DEFAULT_RSS_QUEUES;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegNumRssQueues, &Adapter->NumRssQueues);
     if (Adapter->NumRssQueues == 0 || Adapter->NumRssQueues > MAX_RSS_QUEUES) {
         Status = NDIS_STATUS_INVALID_PARAMETER;
@@ -303,7 +303,7 @@ MiniportInitializeHandler(
         RssCaps.Header.Size = sizeof(RssCaps);
         RssCaps.NumberOfInterruptMessages = MAX_RSS_QUEUES;
         RssCaps.NumberOfReceiveQueues = Adapter->NumRssQueues;
-        RssCaps.NumberOfIndirectionTableEntries = MAX_RSS_INDIR_COUNT;
+        RssCaps.NumberOfIndirectionTableEntries = FNMP_MAX_RSS_INDIR_COUNT;
         RssCaps.CapabilitiesFlags =
             NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
             NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 |

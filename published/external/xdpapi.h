@@ -73,6 +73,90 @@ XdpInterfaceOpen(
 // RSS offload.
 //
 
+#define XDP_RSS_HASH_TYPE_IPV4        0x001
+#define XDP_RSS_HASH_TYPE_TCP_IPV4    0x002
+#define XDP_RSS_HASH_TYPE_UDP_IPV4    0x004
+#define XDP_RSS_HASH_TYPE_IPV6        0x008
+#define XDP_RSS_HASH_TYPE_TCP_IPV6    0x010
+#define XDP_RSS_HASH_TYPE_UDP_IPV6    0x020
+#define XDP_RSS_HASH_TYPE_IPV6_EX     0x040
+#define XDP_RSS_HASH_TYPE_TCP_IPV6_EX 0x080
+#define XDP_RSS_HASH_TYPE_UDP_IPV6_EX 0x100
+#define XDP_RSS_VALID_HASH_TYPES ( \
+    XDP_RSS_HASH_TYPE_IPV4 | \
+    XDP_RSS_HASH_TYPE_TCP_IPV4 | \
+    XDP_RSS_HASH_TYPE_UDP_IPV4 | \
+    XDP_RSS_HASH_TYPE_IPV6 | \
+    XDP_RSS_HASH_TYPE_TCP_IPV6 | \
+    XDP_RSS_HASH_TYPE_UDP_IPV6 | \
+    XDP_RSS_HASH_TYPE_IPV6_EX | \
+    XDP_RSS_HASH_TYPE_TCP_IPV6_EX | \
+    XDP_RSS_HASH_TYPE_UDP_IPV6_EX | \
+    0)
+
+typedef struct _XDP_RSS_CAPABILITIES {
+    XDP_OBJECT_HEADER Header;
+    UINT32 Flags;
+
+    //
+    // Supported hash types. Contains OR'd XDP_RSS_HASH_TYPE_* flags, or 0 to
+    // indicate RSS is not supported.
+    //
+    UINT32 HashTypes;
+
+    //
+    // Maximum hash secret key size, in bytes.
+    //
+    UINT32 HashSecretKeySize;
+
+    //
+    // Number of hardware receive queues.
+    //
+    UINT32 NumberOfReceiveQueues;
+
+    //
+    // Maximum number of indirection table entries.
+    //
+    UINT32 NumberOfIndirectionTableEntries;
+} XDP_RSS_CAPABILITIES;
+
+#define XDP_RSS_CAPABILITIES_REVISION_1 1
+
+#define XDP_SIZEOF_RSS_CAPABILITIES_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_RSS_CAPABILITIES, NumberOfReceiveQueues)
+
+#define XDP_RSS_CAPABILITIES_REVISION_2 2
+
+#define XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_RSS_CAPABILITIES, NumberOfIndirectionTableEntries)
+
+//
+// Initializes an RSS capabilities object.
+//
+inline
+VOID
+XdpInitializeRssCapabilities(
+    _Out_ XDP_RSS_CAPABILITIES *RssCapabilities
+    )
+{
+    RtlZeroMemory(RssCapabilities, sizeof(*RssCapabilities));
+    RssCapabilities->Header.Revision = XDP_RSS_CAPABILITIES_REVISION_1;
+    RssCapabilities->Header.Size = XDP_SIZEOF_RSS_CAPABILITIES_REVISION_1;
+}
+
+//
+// Query RSS capabilities on an interface. If the input RssCapabilitiesSize is
+// too small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned.
+// Call with a NULL RssCapabilities to get the length.
+//
+HRESULT
+XDPAPI
+XdpRssGetCapabilities(
+    _In_ HANDLE InterfaceHandle,
+    _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Inout_ UINT32 *RssCapabilitiesSize
+    );
+
 //
 // Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
 //
@@ -97,27 +181,6 @@ XdpInterfaceOpen(
     XDP_RSS_FLAG_SET_HASH_SECRET_KEY | \
     XDP_RSS_FLAG_SET_INDIRECTION_TABLE | \
     XDP_RSS_FLAG_DISABLED | \
-    0)
-
-#define XDP_RSS_HASH_TYPE_IPV4        0x001
-#define XDP_RSS_HASH_TYPE_TCP_IPV4    0x002
-#define XDP_RSS_HASH_TYPE_UDP_IPV4    0x004
-#define XDP_RSS_HASH_TYPE_IPV6        0x008
-#define XDP_RSS_HASH_TYPE_TCP_IPV6    0x010
-#define XDP_RSS_HASH_TYPE_UDP_IPV6    0x020
-#define XDP_RSS_HASH_TYPE_IPV6_EX     0x040
-#define XDP_RSS_HASH_TYPE_TCP_IPV6_EX 0x080
-#define XDP_RSS_HASH_TYPE_UDP_IPV6_EX 0x100
-#define XDP_RSS_VALID_HASH_TYPES ( \
-    XDP_RSS_HASH_TYPE_IPV4 | \
-    XDP_RSS_HASH_TYPE_TCP_IPV4 | \
-    XDP_RSS_HASH_TYPE_UDP_IPV4 | \
-    XDP_RSS_HASH_TYPE_IPV6 | \
-    XDP_RSS_HASH_TYPE_TCP_IPV6 | \
-    XDP_RSS_HASH_TYPE_UDP_IPV6 | \
-    XDP_RSS_HASH_TYPE_IPV6_EX | \
-    XDP_RSS_HASH_TYPE_TCP_IPV6_EX | \
-    XDP_RSS_HASH_TYPE_UDP_IPV6_EX | \
     0)
 
 typedef struct _XDP_RSS_CONFIGURATION {

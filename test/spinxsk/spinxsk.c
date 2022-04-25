@@ -577,7 +577,7 @@ FuzzRssSet(
     RssConfiguration->IndirectionTableSize = (RandUlong() % 64 == 0) ? RandUlong() : (USHORT)IndirectionTableSize;
 
     //
-    // It's OK is XdpRssSet fails, as spin is to make sure random inputs don't
+    // It's OK if XdpRssSet fails, as spin is to make sure random inputs don't
     // crash the system.
     //
 
@@ -585,7 +585,7 @@ FuzzRssSet(
         (void)XdpRssSet(fuzzer->fuzzerInterface, RssConfiguration, RssConfigSize);
     } else {
         AcquireSRWLockShared(&queue->rssLock);
-        if (queue->rss) {
+        if (queue->rss != NULL) {
             (void)XdpRssSet(queue->rss, RssConfiguration, RssConfigSize);
         }
         ReleaseSRWLockShared(&queue->rssLock);
@@ -603,57 +603,105 @@ Exit:
 
 VOID
 FuzzRssGet(
-    _In_ XSK_FUZZER_WORKER *fuzzer,
-    _In_ QUEUE_CONTEXT *queue
+    _In_ XSK_FUZZER_WORKER *Fuzzer,
+    _In_ QUEUE_CONTEXT *Queue
     )
 {
-    XDP_RSS_CONFIGURATION* RssConfiguration = NULL;
-    DWORD* ProcessorGroups = NULL;
+    XDP_RSS_CONFIGURATION* rssConfiguration = NULL;
     HRESULT res;
+    UINT32 size = 0;
 
-    UINT32 OutputRssSize = 0;
-    if (fuzzer->fuzzerInterface != NULL) {
-        res = XdpRssGet(fuzzer->fuzzerInterface, NULL, &OutputRssSize);
+    if (Fuzzer->fuzzerInterface != NULL) {
+        res = XdpRssGet(Fuzzer->fuzzerInterface, NULL, &size);
     } else {
-        AcquireSRWLockShared(&queue->rssLock);
-        if (queue->rss) {
-            res = XdpRssGet(queue->rss, NULL, &OutputRssSize);
+        AcquireSRWLockShared(&Queue->rssLock);
+        if (Queue->rss != NULL) {
+            res = XdpRssGet(Queue->rss, NULL, &size);
         } else {
             res = E_INVALIDARG;
         }
-        ReleaseSRWLockShared(&queue->rssLock);
+        ReleaseSRWLockShared(&Queue->rssLock);
     }
 
     if (res != HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
         goto Exit;
     }
 
-    RssConfiguration = malloc((UINT64)OutputRssSize * 2);
-    if (RssConfiguration == NULL) {
+    rssConfiguration = malloc((UINT64)size * 2);
+    if (rssConfiguration == NULL) {
         goto Exit;
     }
 
-    OutputRssSize = RandUlong() % (OutputRssSize * 2);
+    size = RandUlong() % (size * 2);
 
-    if (fuzzer->fuzzerInterface != NULL) {
+    if (Fuzzer->fuzzerInterface != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-        XdpRssGet(fuzzer->fuzzerInterface, RssConfiguration, &OutputRssSize);
+        XdpRssGet(Fuzzer->fuzzerInterface, rssConfiguration, &size);
     } else {
-        AcquireSRWLockShared(&queue->rssLock);
-        if (queue->rss) {
+        AcquireSRWLockShared(&Queue->rssLock);
+        if (Queue->rss != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-            XdpRssGet(queue->rss, RssConfiguration, &OutputRssSize);
+            XdpRssGet(Queue->rss, rssConfiguration, &size);
         }
-        ReleaseSRWLockShared(&queue->rssLock);
+        ReleaseSRWLockShared(&Queue->rssLock);
     }
 
 Exit:
 
-    if (RssConfiguration != NULL) {
-        free(RssConfiguration);
+    if (rssConfiguration != NULL) {
+        free(rssConfiguration);
     }
-    if (ProcessorGroups != NULL) {
-        free(ProcessorGroups);
+}
+
+VOID
+FuzzRssGetCapabilities(
+    _In_ XSK_FUZZER_WORKER *Fuzzer,
+    _In_ QUEUE_CONTEXT *Queue
+    )
+{
+    XDP_RSS_CAPABILITIES* rssCapabilities = NULL;
+    HRESULT res;
+    UINT32 size = 0;
+
+    if (Fuzzer->fuzzerInterface != NULL) {
+        res = XdpRssGetCapabilities(Fuzzer->fuzzerInterface, NULL, &size);
+    } else {
+        AcquireSRWLockShared(&Queue->rssLock);
+        if (Queue->rss != NULL) {
+            res = XdpRssGetCapabilities(Queue->rss, NULL, &size);
+        } else {
+            res = E_INVALIDARG;
+        }
+        ReleaseSRWLockShared(&Queue->rssLock);
+    }
+
+    if (res != HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
+        goto Exit;
+    }
+
+    rssCapabilities = malloc((UINT64)size * 2);
+    if (rssCapabilities == NULL) {
+        goto Exit;
+    }
+
+    size = RandUlong() % (size * 2);
+
+    if (Fuzzer->fuzzerInterface != NULL) {
+#pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
+        XdpRssGetCapabilities(Fuzzer->fuzzerInterface, rssCapabilities, &size);
+    } else {
+        AcquireSRWLockShared(&Queue->rssLock);
+        if (Queue->rss != NULL) {
+#pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
+            XdpRssGetCapabilities(Queue->rss, rssCapabilities, &size);
+        }
+        ReleaseSRWLockShared(&Queue->rssLock);
+    }
+
+Exit:
+
+    if (rssCapabilities != NULL) {
+        free(rssCapabilities);
     }
 }
 
@@ -710,6 +758,10 @@ FuzzRss(
 
     if (RandUlong() % 10 == 0) {
         FuzzRssGet(fuzzer, queue);
+    }
+
+    if (RandUlong() % 10 == 0) {
+        FuzzRssGetCapabilities(fuzzer, queue);
     }
 }
 

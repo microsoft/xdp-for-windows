@@ -27,6 +27,8 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_CONTEXT {
     BOOLEAN IsInvalid;
 } XDP_LWF_INTERFACE_OFFLOAD_CONTEXT;
 
+#define RSS_HASH_SECRET_KEY_MAX_SIZE NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2
+
 static
 NTSTATUS
 XdpLwfOpenInterfaceOffloadHandle(
@@ -39,6 +41,15 @@ static
 VOID
 XdpLwfCloseInterfaceOffloadHandle(
     _In_ VOID *InterfaceOffloadHandle
+    );
+
+static
+NTSTATUS
+XdpLwfGetInterfaceOffloadCapabilities(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _Out_opt_ VOID *OffloadCapabilities,
+    _Inout_ UINT32 *OffloadCapabilitiesSize
     );
 
 static
@@ -68,6 +79,7 @@ XdpLwfReferenceInterfaceOffload(
 
 CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
     .OpenInterfaceOffloadHandle = XdpLwfOpenInterfaceOffloadHandle,
+    .GetInterfaceOffloadCapabilities = XdpLwfGetInterfaceOffloadCapabilities,
     .GetInterfaceOffload = XdpLwfGetInterfaceOffload,
     .SetInterfaceOffload = XdpLwfSetInterfaceOffload,
     .ReferenceInterfaceOffload = XdpLwfReferenceInterfaceOffload,
@@ -194,6 +206,42 @@ NdisToXdpRssHashType(
 
     ASSERT(XdpRssHashType != 0);
     return XdpRssHashType;
+}
+
+static
+ULONG
+NdisToXdpRssHashTypeCapabilities(
+    _In_ NDIS_RSS_CAPS_FLAGS NdisCapabilitiesFlags
+    )
+{
+    ULONG XdpRssHashTypeCapabilities = 0;
+
+    if (NdisCapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4) {
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_TCP_IPV4;
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_IPV4;
+    }
+    if (NdisCapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4) {
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_UDP_IPV4;
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_IPV4;
+    }
+    if (NdisCapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6) {
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_TCP_IPV6;
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_IPV6;
+    }
+    if (NdisCapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6) {
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_UDP_IPV6;
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_IPV6;
+    }
+    if (NdisCapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX) {
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_TCP_IPV6_EX;
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_IPV6_EX;
+    }
+    if (NdisCapabilitiesFlags & NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX) {
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_UDP_IPV6_EX;
+        XdpRssHashTypeCapabilities |= XDP_RSS_HASH_TYPE_IPV6_EX;
+    }
+
+    return XdpRssHashTypeCapabilities;
 }
 
 static
@@ -426,6 +474,43 @@ XdpLwfFreeRssSetting(
         CONTAINING_RECORD(Entry, XDP_LWF_OFFLOAD_SETTING_RSS, DeleteEntry);
 
     ExFreePoolWithTag(RssSetting, POOLTAG_OFFLOAD);
+}
+
+static
+_Requires_lock_held_(&Filter->Offload.Lock)
+NTSTATUS
+XdpLwfOffloadRssGetCapabilities(
+    _In_ XDP_LWF_FILTER *Filter,
+    _Out_ XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Inout_ UINT32 *RssCapabilitiesLength
+    )
+{
+    NDIS_RECEIVE_SCALE_CAPABILITIES *NdisRssCaps = &Filter->Offload.RssCaps;
+    ASSERT(RssCapabilities != NULL);
+    ASSERT(*RssCapabilitiesLength == sizeof(*RssCapabilities));
+
+    RtlZeroMemory(RssCapabilities, sizeof(*RssCapabilities));
+
+    if (NdisRssCaps->Header.Revision >= NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2) {
+        RssCapabilities->Header.Revision = XDP_RSS_CAPABILITIES_REVISION_2;
+        RssCapabilities->Header.Size = XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2;
+    } else {
+        RssCapabilities->Header.Revision = XDP_RSS_CAPABILITIES_REVISION_1;
+        RssCapabilities->Header.Size = XDP_SIZEOF_RSS_CAPABILITIES_REVISION_1;
+    }
+
+    RssCapabilities->HashTypes =
+        NdisToXdpRssHashTypeCapabilities(NdisRssCaps->CapabilitiesFlags);
+    RssCapabilities->HashSecretKeySize = RSS_HASH_SECRET_KEY_MAX_SIZE;
+    RssCapabilities->NumberOfReceiveQueues = NdisRssCaps->NumberOfReceiveQueues;
+    if (NdisRssCaps->Header.Revision >= NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2) {
+        RssCapabilities->NumberOfIndirectionTableEntries =
+            NdisRssCaps->NumberOfIndirectionTableEntries;
+    }
+
+    *RssCapabilitiesLength = RssCapabilities->Header.Size;
+
+    return STATUS_SUCCESS;
 }
 
 static
@@ -697,12 +782,12 @@ XdpLwfOffloadRssSet(
     }
 
     if (RssParams->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY) {
-        if (RssParams->HashSecretKeySize > NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2) {
+        if (RssParams->HashSecretKeySize > RSS_HASH_SECRET_KEY_MAX_SIZE) {
             TraceError(
                 TRACE_LWF,
                 "OffloadContext=%p Unsupported hash secret key size HashSecretKeySize=%u Max=%u",
                 OffloadContext, RssParams->HashSecretKeySize,
-                NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2);
+                RSS_HASH_SECRET_KEY_MAX_SIZE);
             Status = STATUS_NOT_SUPPORTED;
             goto Exit;
         }
@@ -1215,6 +1300,54 @@ Exit:
     XdpLwfDereferenceFilter(Filter);
 
     TraceExitSuccess(TRACE_LWF);
+}
+
+static
+NTSTATUS
+XdpLwfGetInterfaceOffloadCapabilities(
+    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _Out_opt_ VOID *OffloadCapabilities,
+    _Inout_ UINT32 *OffloadCapabilitiesSize
+    )
+{
+    NTSTATUS Status;
+    XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
+    XDP_LWF_FILTER *Filter = OffloadContext->Filter;
+
+    TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
+
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
+
+    if (OffloadContext->IsInvalid) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p Interface offload context invalidated",
+            OffloadContext);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    switch (OffloadType) {
+    case XdpOffloadRss:
+        ASSERT(OffloadCapabilities != NULL);
+        Status =
+            XdpLwfOffloadRssGetCapabilities(
+                Filter, OffloadCapabilities, OffloadCapabilitiesSize);
+        break;
+    default:
+        TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
+        Status = STATUS_NOT_SUPPORTED;
+        break;
+    }
+
+Exit:
+
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
 }
 
 static

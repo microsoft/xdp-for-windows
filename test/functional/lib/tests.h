@@ -142,3 +142,6 @@ OffloadRssUpperSet();
 
 VOID
 OffloadRssSet();
+
+VOID
+OffloadRssCapabilities();

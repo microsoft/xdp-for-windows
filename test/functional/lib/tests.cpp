@@ -4576,6 +4576,35 @@ OffloadRssSet()
     }
 }
 
+VOID
+OffloadRssCapabilities()
+{
+    wil::unique_handle InterfaceHandle;
+    unique_malloc_ptr<XDP_RSS_CAPABILITIES> RssCapabilities;
+    UINT32 Size = 0;
+
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        XdpRssGetCapabilities(InterfaceHandle.get(), NULL, &Size));
+    TEST_EQUAL(Size, XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2);
+
+    RssCapabilities.reset((XDP_RSS_CAPABILITIES *)malloc(Size));
+    TEST_TRUE(RssCapabilities.get() != NULL);
+
+    TEST_HRESULT(XdpRssGetCapabilities(InterfaceHandle.get(), RssCapabilities.get(), &Size));
+    TEST_EQUAL(RssCapabilities->Header.Revision, XDP_RSS_CAPABILITIES_REVISION_2);
+    TEST_EQUAL(RssCapabilities->Header.Size, XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2);
+    TEST_EQUAL(
+        RssCapabilities->HashTypes,
+        (XDP_RSS_HASH_TYPE_IPV4 | XDP_RSS_HASH_TYPE_IPV6 |
+            XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_TCP_IPV6));
+    TEST_EQUAL(RssCapabilities->HashSecretKeySize, 40);
+    TEST_EQUAL(RssCapabilities->NumberOfReceiveQueues, FNMP_DEFAULT_RSS_QUEUES);
+    TEST_EQUAL(RssCapabilities->NumberOfIndirectionTableEntries, FNMP_MAX_RSS_INDIR_COUNT);
+}
+
 /**
  * TODO:
  *

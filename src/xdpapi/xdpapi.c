@@ -59,6 +59,26 @@ XdpInterfaceOpen(
 
 HRESULT
 XDPAPI
+XdpRssGetCapabilities(
+    _In_ HANDLE InterfaceHandle,
+    _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Inout_ UINT32 *RssCapabilitiesSize
+    )
+{
+    BOOL Success =
+        XdpIoctl(
+            InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_GET_CAPABILITIES,
+            NULL, 0, RssCapabilities, *RssCapabilitiesSize,
+            (ULONG *)RssCapabilitiesSize, NULL);
+    if (!Success) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
+HRESULT
+XDPAPI
 XdpRssSet(
     _In_ HANDLE InterfaceHandle,
     _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,

@@ -9,7 +9,6 @@
 #define MAX_MULTICAST_ADDRESSES 16
 
 #define MAX_RSS_QUEUES 64
-#define MAX_RSS_INDIR_COUNT 128
 
 #define TRY_READ_INT_CONFIGURATION(hConfig, Keyword, pValue) \
     { \

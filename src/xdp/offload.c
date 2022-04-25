@@ -24,6 +24,71 @@ static XDP_FILE_DISPATCH XdpInterfaceFileDispatch = {
 
 static
 NTSTATUS
+XdpIrpInterfaceOffloadRssGetCapabilities(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    XDP_RSS_CAPABILITIES RssCapabilities;
+    UINT32 RssCapabilitiesSize = sizeof(RssCapabilities);
+    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    SIZE_T OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
+
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    //
+    // TODO: sync with interface work queue?
+    // If we require GENERIC binding and use work queue, we can guarantee sync.
+    //
+
+    RtlZeroMemory(OutputBuffer, OutputBufferLength);
+    *BytesReturned = 0;
+
+    //
+    // Issue the internal request.
+    //
+    Status =
+        XdpIfGetInterfaceOffloadCapabilities(
+            InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
+            XdpOffloadRss, &RssCapabilities, &RssCapabilitiesSize);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+        *BytesReturned = RssCapabilitiesSize;
+        Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+
+    if (OutputBufferLength < RssCapabilitiesSize) {
+        TraceError(
+            TRACE_CORE,
+            "Interface=%p Output buffer length too small OutputBufferLength=%llu RequiredSize=%u",
+            InterfaceObject, (UINT64)OutputBufferLength, RssCapabilitiesSize);
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    RtlCopyMemory(OutputBuffer, &RssCapabilities, RssCapabilitiesSize);
+    *BytesReturned = RssCapabilitiesSize;
+
+Exit:
+
+    TraceInfo(
+        TRACE_CORE, "Interface=%p Status=%!STATUS! OutputBuffer=%!HEXDUMP!",
+        InterfaceObject, Status, WppHexDump(OutputBuffer, OutputBufferLength));
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+static
+NTSTATUS
 XdpIrpInterfaceOffloadRssGet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _In_ IRP *Irp,
@@ -426,6 +491,9 @@ XdpIrpInterfaceDeviceIoControl(
     Irp->IoStatus.Information = 0;
 
     switch (IoControlCode) {
+    case IOCTL_INTERFACE_OFFLOAD_RSS_GET_CAPABILITIES:
+        Status = XdpIrpInterfaceOffloadRssGetCapabilities(InterfaceObject, Irp, IrpSp);
+        break;
     case IOCTL_INTERFACE_OFFLOAD_RSS_GET:
         Status = XdpIrpInterfaceOffloadRssGet(InterfaceObject, Irp, IrpSp);
         break;
