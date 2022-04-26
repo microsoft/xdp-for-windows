@@ -80,6 +80,7 @@ typedef struct _XSK_RX_XDP {
     XDP_EXTENSION RxActionExtension;
     NDIS_POLL_BACKCHANNEL *PollHandle;
     struct {
+        UINT8 NotificationsRegistered : 1;
         UINT8 DatapathAttached : 1;
     } Flags;
 
@@ -118,6 +119,7 @@ typedef struct _XSK_TX_XDP {
         BOOLEAN MdlExt : 1;
         BOOLEAN CompletionContext : 1;
         BOOLEAN OutOfOrderCompletion : 1;
+        BOOLEAN QueueInserted : 1;
         BOOLEAN QueueActive : 1;
     } Flags;
     NDIS_POLL_BACKCHANNEL *PollHandle;
@@ -1799,8 +1801,12 @@ XskDetachRxIf(
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
     if (Xsk->Rx.Xdp.Queue != NULL) {
-        XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
-        XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
+        if (Xsk->Rx.Xdp.Flags.NotificationsRegistered) {
+            XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
+            XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
+            Xsk->Rx.Xdp.Flags.NotificationsRegistered = FALSE;
+        }
+
         XskNotifyDetachRxQueue(Xsk);
         XskNotifyDetachRxQueueComplete(Xsk);
         XdpRxQueueDereference(Xsk->Rx.Xdp.Queue);
@@ -1851,8 +1857,11 @@ XskDeactivateTxIf(
         RtlAcquirePushLockExclusive(&Xsk->PollLock);
         Xsk->Tx.Xdp.Flags.QueueActive = FALSE;
         RtlReleasePushLockExclusive(&Xsk->PollLock);
+    }
 
+    if (Xsk->Tx.Xdp.Flags.QueueInserted) {
         XdpTxQueueRemoveDatapathClient(Xsk->Tx.Xdp.Queue, &Xsk->Tx.Xdp.DatapathClientEntry);
+        Xsk->Tx.Xdp.Flags.QueueInserted = FALSE;
     }
 
     XskCleanupDma(Xsk);
@@ -1979,9 +1988,6 @@ XskBindRxIf(
         goto Exit;
     }
 
-    XdpRxQueueRegisterNotifications(
-        Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry, XskNotifyRxQueue);
-
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -1989,6 +1995,38 @@ Exit:
     if (!NT_SUCCESS(Status)) {
         XskDetachRxIf(Xsk);
     }
+
+    TraceExitStatus(TRACE_XSK);
+
+    WorkItem->CompletionStatus = Status;
+    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
+}
+
+static
+VOID
+XskActivateCommitRxIf(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
+    XSK *Xsk = WorkItem->Xsk;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    if (Xsk->Rx.Xdp.IfHandle == NULL) {
+        ASSERT(Xsk->State > XskActive);
+        Status = STATUS_DELETE_PENDING;
+        goto Exit;
+    }
+
+    XdpRxQueueRegisterNotifications(
+        Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry, XskNotifyRxQueue);
+    Xsk->Rx.Xdp.Flags.NotificationsRegistered = TRUE;
+
+    Status = STATUS_SUCCESS;
+
+Exit:
 
     TraceExitStatus(TRACE_XSK);
 
@@ -2133,9 +2171,7 @@ XskActivateTxIf(
         goto Exit;
     }
 
-    RtlAcquirePushLockExclusive(&Xsk->PollLock);
-    Xsk->Tx.Xdp.Flags.QueueActive = TRUE;
-    RtlReleasePushLockExclusive(&Xsk->PollLock);
+    Xsk->Tx.Xdp.Flags.QueueInserted = TRUE;
 
     Status = STATUS_SUCCESS;
 
@@ -2144,6 +2180,40 @@ Exit:
     if (!NT_SUCCESS(Status)) {
         XskDeactivateTxIf(Xsk);
     }
+
+    TraceExitStatus(TRACE_XSK);
+
+    WorkItem->CompletionStatus = Status;
+    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
+}
+
+static
+VOID
+XskActivateCommitTxIf(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
+    XSK *Xsk = WorkItem->Xsk;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    ASSERT(Xsk->Tx.Ring.Size > 0);
+
+    if (Xsk->Tx.Xdp.Queue == NULL) {
+        ASSERT(Xsk->State > XskActive);
+        Status = STATUS_DELETE_PENDING;
+        goto Exit;
+    }
+
+    RtlAcquirePushLockExclusive(&Xsk->PollLock);
+    Xsk->Tx.Xdp.Flags.QueueActive = TRUE;
+    RtlReleasePushLockExclusive(&Xsk->PollLock);
+
+    Status = STATUS_SUCCESS;
+
+Exit:
 
     TraceExitStatus(TRACE_XSK);
 
@@ -2459,10 +2529,11 @@ XskIrpActivateSocket(
     XSK *Xsk = IrpSp->FileObject->FsContext;
     UMEM *Umem;
     XSK_ACTIVATE_IN Activate = {0};
-    XSK_BINDING_WORKITEM WorkItem = {0};
+    XSK_BINDING_WORKITEM RxWorkItem = {0}, TxWorkItem = {0};
     UMEM *ReferencedSharedUmem = NULL;
     KIRQL OldIrql;
     BOOLEAN ActivateIfInitiated = FALSE;
+    BOOLEAN ActivateIfCommitted = FALSE;
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(Activate)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -2541,19 +2612,20 @@ XskIrpActivateSocket(
     Xsk->Umem = Umem;
     ActivateIfInitiated = TRUE;
 
-    KeInitializeEvent(&WorkItem.CompletionEvent, SynchronizationEvent, FALSE);
+    KeInitializeEvent(&RxWorkItem.CompletionEvent, SynchronizationEvent, FALSE);
+    KeInitializeEvent(&TxWorkItem.CompletionEvent, SynchronizationEvent, FALSE);
 
     if (Xsk->Tx.Xdp.IfHandle != NULL) {
-        WorkItem.Xsk = Xsk;
-        WorkItem.IfWorkItem.WorkRoutine = XskActivateTxIf;
-        WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
+        TxWorkItem.Xsk = Xsk;
+        TxWorkItem.IfWorkItem.WorkRoutine = XskActivateTxIf;
+        TxWorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
 
-        XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+        XdpIfQueueWorkItem(&TxWorkItem.IfWorkItem);
 
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
-        KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
-        Status = WorkItem.CompletionStatus;
+        KeWaitForSingleObject(&TxWorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+        Status = TxWorkItem.CompletionStatus;
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
@@ -2561,30 +2633,81 @@ XskIrpActivateSocket(
         KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     }
 
+    //
+    // The RX and TX queues have been configured as far as possible without
+    // observably activating the data path. We are now committed to activation
+    // or terminal failure; the XSK can no longer be reverted to XskBound state.
+    //
+
+    ActivateIfCommitted = TRUE;
+    ReferencedSharedUmem = NULL;
+
+    if (Xsk->State != XskActivating) {
+        Status = STATUS_DELETE_PENDING;
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        goto Exit;
+    }
+
+    if (Xsk->Tx.Xdp.IfHandle != NULL) {
+        TxWorkItem.Xsk = Xsk;
+        TxWorkItem.IfWorkItem.WorkRoutine = XskActivateCommitTxIf;
+        TxWorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
+
+        XdpIfQueueWorkItem(&TxWorkItem.IfWorkItem);
+    } else {
+        TxWorkItem.CompletionStatus = STATUS_SUCCESS;
+        KeSetEvent(&TxWorkItem.CompletionEvent, 0, FALSE);
+    }
+
+    if (Xsk->Rx.Xdp.IfHandle != NULL) {
+        RxWorkItem.Xsk = Xsk;
+        RxWorkItem.IfWorkItem.WorkRoutine = XskActivateCommitRxIf;
+        RxWorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
+
+        XdpIfQueueWorkItem(&RxWorkItem.IfWorkItem);
+    } else {
+        RxWorkItem.CompletionStatus = STATUS_SUCCESS;
+        KeSetEvent(&RxWorkItem.CompletionEvent, 0, FALSE);
+    }
+
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
-    ReferencedSharedUmem = NULL;
+    KeWaitForSingleObject(&TxWorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(TxWorkItem.CompletionStatus)) {
+        Status = TxWorkItem.CompletionStatus;
+    }
+
+    KeWaitForSingleObject(&RxWorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(RxWorkItem.CompletionStatus)) {
+        Status = RxWorkItem.CompletionStatus;
+    }
 
 Exit:
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
-    if (ReferencedSharedUmem != NULL) {
-        XskDereferenceUmem(ReferencedSharedUmem);
+    //
+    // Once we committed to XSK activation, any failure to activate implies the
+    // socket is already in a terminal state.
+    //
+    if (ActivateIfCommitted) {
+        ASSERT(NT_SUCCESS(Status) || Xsk->State > XskActive);
     }
 
     if (ActivateIfInitiated) {
         if (Xsk->Umem == ReferencedSharedUmem) {
-            ASSERT(!NT_SUCCESS(Status));
+            ASSERT(!NT_SUCCESS(Status) && Xsk->Umem != NULL);
             Xsk->Umem = NULL;
         }
+
         //
-        // N.B. Current synchronization allows the socket to be closed and state
-        // set to XskClosing while activation is in progress. This is OK as
-        // socket cleanup will happen after all file object references are
-        // released and we currently are holding a reference to service this
-        // IOCTL. Do not overwrite the state in this case.
+        // N.B. XSK synchronization allows the socket to be closed and state set
+        // to XskClosing while activation is in progress. This is OK as socket
+        // cleanup will happen after all file object references are released and
+        // we currently are holding a reference to service this IOCTL. Do not
+        // overwrite the state in this case.
         //
+
         if (Xsk->State == XskActivating) {
             if (NT_SUCCESS(Status)) {
                 Xsk->State = XskActive;
@@ -2595,6 +2718,10 @@ Exit:
     }
 
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
+    if (ReferencedSharedUmem != NULL) {
+        XskDereferenceUmem(ReferencedSharedUmem);
+    }
 
     TraceInfo(
         TRACE_XSK, "Xsk=%p Flags=%x SharedUmemSock=%p Status=%!STATUS!",
@@ -3988,8 +4115,7 @@ XskReceive(
     UINT32 ReservedCount;
     UINT32 RxCount = 0;
 
-    if (!Xsk->Rx.Xdp.Flags.DatapathAttached ||
-        ReadUInt32Acquire((UINT32 *)&Xsk->State) != XskActive) {
+    if (!Xsk->Rx.Xdp.Flags.DatapathAttached) {
         goto Exit;
     }
 
@@ -4020,8 +4146,7 @@ XskReceiveBatchedExclusive(
     UINT32 ReservedCount;
     UINT32 RxCount = 0;
 
-    if (!Xsk->Rx.Xdp.Flags.DatapathAttached ||
-        ReadUInt32Acquire((UINT32 *)&Xsk->State) != XskActive) {
+    if (!Xsk->Rx.Xdp.Flags.DatapathAttached) {
         return FALSE;
     }
 
