@@ -786,6 +786,8 @@ XskFillTxCompletion(
         //
         if (NT_VERIFY(XskRingProdReserve(&Xsk->Tx.CompletionRing, Count) == Count)) {
             XskRingProdSubmit(&Xsk->Tx.CompletionRing, Count);
+            EventWriteXskTxCompleteBatch(
+                &MICROSOFT_XDP_PROVIDER, Xsk, OriginalProducerIndex, Count);
         } else {
             XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
         }

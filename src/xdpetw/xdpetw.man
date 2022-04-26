@@ -187,6 +187,35 @@
                 outType="win:HexInt32"
                 />
           </template>
+          <template tid="tid_GenericTxCompleteBatch">
+            <data
+                inType="win:Pointer"
+                name="TxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt64"
+                name="BatchSize"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_XskTxCompleteBatch">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="XskTxIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="BatchSize"
+                outType="win:HexInt32"
+                />
+          </template>
         </templates>
         <events>
           <event
@@ -319,6 +348,26 @@
               template="tid_XskRxPostBatch"
               value="13"
               />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Tx"
+              level="XdpPerIo"
+              message="$(string.GenericTxCompleteBatch.EventMessage)"
+              opcode="GenericTxQueue"
+              symbol="GenericTxCompleteBatch"
+              template="tid_GenericTxCompleteBatch"
+              value="14"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Tx"
+              level="XdpPerIo"
+              message="$(string.XskTxCompleteBatch.EventMessage)"
+              opcode="Xsk"
+              symbol="XskTxCompleteBatch"
+              template="tid_XskTxCompleteBatch"
+              value="15"
+              />
         </events>
       </provider>
     </events>
@@ -377,6 +426,14 @@
         <string
             id="XskRxPostBatch.EventMessage"
             value="[ xsk][%1] post RX batch XskRxIndex=%2 BatchSize=%3"
+            />
+        <string
+            id="GenericTxCompleteBatch.EventMessage"
+            value="[gxtq][%1] complete TX batch BatchSize=%2"
+            />
+        <string
+            id="XskTxCompleteBatch.EventMessage"
+            value="[ xsk][%1] complete TX batch XskTxIndex=%2 BatchSize=%3"
             />
       </stringTable>
     </resources>

@@ -76,6 +76,8 @@ XdpGenericInjectCompleteFlush(
     } else {
         XDP_LWF_GENERIC_TX_QUEUE *TxQueue = (XDP_LWF_GENERIC_TX_QUEUE *)ClassificationResult;
 
+        EventWriteGenericTxCompleteBatch(&MICROSOFT_XDP_PROVIDER, TxQueue, Queue->NblCount);
+
         InterlockedPushListSList(
             &TxQueue->NblComplete,
             (SLIST_ENTRY *)&Queue->Queue.First->Next,
