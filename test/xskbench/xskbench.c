@@ -438,6 +438,7 @@ SetupSock(
                 Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
         ASSERT_FRE(res == S_OK);
+        bindFlags |= XSK_BIND_RX;
     }
     if (Queue->flags.tx) {
         printf_verbose("configuring tx ring with size %d\n", Queue->ringsize);
@@ -446,6 +447,7 @@ SetupSock(
                 Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
         ASSERT_FRE(res == S_OK);
+        bindFlags |= XSK_BIND_TX;
     }
 
     if (Queue->xdpMode == XdpModeGeneric) {
