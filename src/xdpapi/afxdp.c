@@ -37,17 +37,15 @@ XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
-    _In_ UINT32 flags,
-    _In_opt_ HANDLE sharedUmemSock
+    _In_ UINT32 flags
     )
 {
     BOOL res;
-    XSK_BIND_IN bind = { 0 };
+    XSK_BIND_IN bind = {0};
 
     bind.IfIndex = ifIndex;
     bind.QueueId = queueId;
     bind.Flags = flags;
-    bind.SharedUmemSock = sharedUmemSock;
 
     res =
         XdpIoctl(
@@ -55,6 +53,37 @@ XskBind(
             IOCTL_XSK_BIND,
             &bind,
             sizeof(bind),
+            NULL,
+            0,
+            NULL,
+            NULL);
+    if (res == 0) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
+HRESULT
+XDPAPI
+XskActivate(
+    _In_ HANDLE socket,
+    _In_ UINT32 flags,
+    _In_opt_ HANDLE sharedUmemSock
+    )
+{
+    BOOL res;
+    XSK_ACTIVATE_IN activate = {0};
+
+    activate.Flags = flags;
+    activate.SharedUmemSock = sharedUmemSock;
+
+    res =
+        XdpIoctl(
+            socket,
+            IOCTL_XSK_ACTIVATE,
+            &activate,
+            sizeof(activate),
             NULL,
             0,
             NULL,
@@ -76,7 +105,7 @@ XskSetSockopt(
     )
 {
     BOOL res;
-    XSK_SET_SOCKOPT_IN sockopt = { 0 };
+    XSK_SET_SOCKOPT_IN sockopt = {0};
 
     sockopt.Option = optionName;
     sockopt.InputBuffer = optionValue;
@@ -141,8 +170,8 @@ XskNotifySocket(
 {
     BOOL res;
     DWORD bytesReturned;
-    XSK_NOTIFY_IN notify = { 0 };
-    OVERLAPPED overlapped = { 0 };
+    XSK_NOTIFY_IN notify = {0};
+    OVERLAPPED overlapped = {0};
 
     //
     // N.B. We know that the notify IOCTL will never pend, so we pass an empty

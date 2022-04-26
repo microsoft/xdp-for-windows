@@ -538,18 +538,6 @@ SetTxHookId(
 }
 
 static
-VOID
-BindSocket(
-    _In_ HANDLE Socket,
-    NET_IFINDEX IfIndex,
-    UINT32 QueueId,
-    UINT32 Flags
-    )
-{
-    TEST_HRESULT(XskBind(Socket, IfIndex, QueueId, Flags, NULL));
-}
-
-static
 HRESULT
 TryCreateXdpProg(
     _Out_ wil::unique_handle &ProgramHandle,
@@ -697,6 +685,14 @@ CreateAndBindSocket(
 
     XskSetupPreBind(&Socket, Rx, Tx, RxHookId, TxHookId);
 
+    if (Rx) {
+        BindFlags |= XSK_BIND_RX;
+    }
+
+    if (Tx) {
+        BindFlags |= XSK_BIND_TX;
+    }
+
     if (XdpMode == XDP_GENERIC) {
         BindFlags |= XSK_BIND_GENERIC;
     } else if (XdpMode == XDP_NATIVE) {
@@ -710,7 +706,7 @@ CreateAndBindSocket(
     Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
     HRESULT BindResult;
     do {
-        BindResult = XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags, NULL);
+        BindResult = XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags);
         if (SUCCEEDED(BindResult)) {
             break;
         } else {
@@ -718,6 +714,8 @@ CreateAndBindSocket(
         }
     } while (!Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
+
+    TEST_HRESULT(XskActivate(Socket.Handle.get(), 0, NULL));
 
     XskSetupPostBind(&Socket, Rx, Tx);
 

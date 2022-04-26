@@ -107,24 +107,14 @@ XskCreate(
 // XskBind
 //
 // Binds an AF_XDP socket to a network interface queue. An AF_XDP socket
-// can only be bound to a single network interface queue. Conversely, a
-// network interface queue can only have a single AF_XDP socket bound to it
-// (system-wide). An AF_XDP socket cannot send or receive data until it is
-// successfully bound. An AF_XDP socket can share a UMEM registered with another
-// AF_XDP socket by supplying the handle of the socket already registered with a
-// UMEM as sharedUmemSock. If sharing is not desired, NULL must be supplied as
-// sharedUmemSock.
-//
-// Before calling XskBind:
-// 1) The socket object must have at least TX + TX completion or RX + RX fill
-//    rings configured
-// 2) a. The socket object must have a UMEM registered
-//       OR
-//    b. The sharedUmemSock parameter must be a handle to another socket object
-//       that has a UMEM registered
+// can only be bound to a single network interface queue.
 //
 // Valid values for flags parameter:
 //
+// XSK_BIND_RX
+//      The AF_XDP socket is bound to the RX data path.
+// XSK_BIND_TX
+//      The AF_XDP socket is bound to the TX data path.
 // XSK_BIND_GENERIC
 //      The AF_XDP socket is bound using a generic XDP interface provider.
 //      This flag cannot be combined with XSK_BIND_NATIVE.
@@ -133,8 +123,10 @@ XskCreate(
 //      This flag cannot be combined with XSK_BIND_GENERIC.
 //
 
-#define XSK_BIND_GENERIC            0x1
-#define XSK_BIND_NATIVE             0x2
+#define XSK_BIND_RX                 0x1
+#define XSK_BIND_TX                 0x2
+#define XSK_BIND_GENERIC            0x4
+#define XSK_BIND_NATIVE             0x8
 
 HRESULT
 XDPAPI
@@ -142,6 +134,35 @@ XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
+    _In_ UINT32 flags
+    );
+
+//
+// XskActivate
+//
+// Activate the data path of an AF_XDP socket. An AF_XDP socket cannot send or
+// receive data until it is successfully activated. An AF_XDP socket can only be
+// activated after it has been successfully bound. An AF_XDP socket can share a
+// UMEM registered with another AF_XDP socket by supplying the handle of the
+// socket already registered with a UMEM as sharedUmemSock. If sharing is not
+// desired, NULL must be supplied as sharedUmemSock.
+//
+// Before calling XskActivate:
+// 1) The socket object must have at least TX + TX completion and RX + RX fill
+//    rings configured if bound to the TX and RX data paths, respectively.
+// 2) a. The socket object must have a UMEM registered OR b. The sharedUmemSock
+//       parameter must be a handle to another socket object that has a UMEM
+//       registered
+//
+// Valid values for flags parameter:
+//
+//  None.
+//
+
+HRESULT
+XDPAPI
+XskActivate(
+    _In_ HANDLE socket,
     _In_ UINT32 flags,
     _In_opt_ HANDLE sharedUmemSock
     );

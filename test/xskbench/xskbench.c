@@ -460,7 +460,7 @@ SetupSock(
         hookId.Direction = XDP_HOOK_RX;
         hookId.SubLayer = XDP_HOOK_INJECT;
 
-        printf_verbose("configuring tx inject to rx");
+        printf_verbose("configuring tx inject to rx\n");
         res = XskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
         ASSERT_FRE(res == S_OK);
     }
@@ -471,14 +471,18 @@ SetupSock(
         hookId.Direction = XDP_HOOK_TX;
         hookId.SubLayer = XDP_HOOK_INSPECT;
 
-        printf_verbose("configuring rx from tx inspect");
+        printf_verbose("configuring rx from tx inspect\n");
         res = XskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
         ASSERT_FRE(res == S_OK);
     }
 
     printf_verbose(
         "binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
-    res = XskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags, NULL);
+    res = XskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags);
+    ASSERT_FRE(res == S_OK);
+
+    printf_verbose("activating sock\n");
+    res = XskActivate(Queue->sock, 0, NULL);
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("XSK_SOCKOPT_RING_INFO\n");

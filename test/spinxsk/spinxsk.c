@@ -111,7 +111,9 @@ typedef struct {
     BOOLEAN isSharedUmemSockRxSet;
     BOOLEAN isSharedUmemSockTxSet;
     BOOLEAN isSockBound;
+    BOOLEAN isSockActivated;
     BOOLEAN isSharedUmemSockBound;
+    BOOLEAN isSharedUmemSockActivated;
     BOOLEAN isUmemRegistered;
     HANDLE completeEvent;
 } SCENARIO_CONFIG;
@@ -212,12 +214,16 @@ typedef struct {
     ULONG txTotal;
     ULONG bindSuccess;
     ULONG bindTotal;
+    ULONG activateSuccess;
+    ULONG activateTotal;
     ULONG sharedRxSuccess;
     ULONG sharedRxTotal;
     ULONG sharedTxSuccess;
     ULONG sharedTxTotal;
     ULONG sharedBindSuccess;
     ULONG sharedBindTotal;
+    ULONG sharedActivateSuccess;
+    ULONG sharedActivateTotal;
     ULONG setupSuccess;
 } SETUP_STATS;
 
@@ -264,7 +270,7 @@ Pct(
 }
 
 BOOLEAN
-ScenarioConfigBindReady(
+ScenarioConfigActivateReady(
     _In_ CONST SCENARIO_CONFIG *ScenarioConfig
     )
 {
@@ -296,11 +302,11 @@ ScenarioConfigComplete(
     if (!ReadBooleanAcquire(&ScenarioConfig->isUmemRegistered)) {
         return FALSE;
     }
-    if (!ReadBooleanAcquire(&ScenarioConfig->isSockBound)) {
+    if (!ReadBooleanAcquire(&ScenarioConfig->isSockActivated)) {
         return FALSE;
     }
     if ((ScenarioConfig->sharedUmemSockRx || ScenarioConfig->sharedUmemSockTx) &&
-        !ReadBooleanAcquire(&ScenarioConfig->isSharedUmemSockBound)) {
+        !ReadBooleanAcquire(&ScenarioConfig->isSharedUmemSockActivated)) {
         return FALSE;
     }
 
@@ -1113,7 +1119,8 @@ VOID
 FuzzSocketBind(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
-    _In_opt_ HANDLE SharedUmemSock,
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx,
     _Inout_ BOOLEAN *WasSockBound
     )
 {
@@ -1121,6 +1128,13 @@ FuzzSocketBind(
     UINT32 bindFlags = 0;
 
     if (RandUlong() % 2) {
+        if (Rx) {
+            bindFlags |= XSK_BIND_RX;
+        }
+
+        if (Tx) {
+            bindFlags |= XSK_BIND_TX;
+        }
 
         if (Queue->xdpMode == XdpModeGeneric) {
             bindFlags |= XSK_BIND_GENERIC;
@@ -1132,9 +1146,32 @@ FuzzSocketBind(
             bindFlags |= 0x1 << (RandUlong() % 32);
         }
 
-        res = XskBind(Sock, ifindex, Queue->queueId, bindFlags, SharedUmemSock);
+        res = XskBind(Sock, ifindex, Queue->queueId, bindFlags);
         if (SUCCEEDED(res)) {
             WriteBooleanRelease(WasSockBound, TRUE);
+        }
+    }
+}
+
+VOID
+FuzzSocketActivate(
+    _In_ QUEUE_CONTEXT *Queue,
+    _In_ HANDLE Sock,
+    _In_opt_ HANDLE SharedUmemSock,
+    _Inout_ BOOLEAN *WasSockActivated
+    )
+{
+    HRESULT res;
+    UINT32 activateFlags = 0;
+
+    if (RandUlong() % 2) {
+        if (!(RandUlong() % 10)) {
+            activateFlags = RandUlong() & RandUlong();
+        }
+
+        res = XskActivate(Sock, activateFlags, SharedUmemSock);
+        if (SUCCEEDED(res)) {
+            WriteBooleanRelease(WasSockActivated, TRUE);
         }
     }
 }
@@ -1504,13 +1541,20 @@ XskFuzzerWorkerFn(
             FuzzSocketMisc(queue, queue->sharedUmemSock, &queue->sharedUmemRxProgramSet);
         }
 
-        if (ScenarioConfigBindReady(scenarioConfig)) {
-            FuzzSocketBind(queue, queue->sock, NULL, &scenarioConfig->isSockBound);
-            if (queue->sharedUmemSock != NULL) {
-                FuzzSocketBind(
-                    queue, queue->sharedUmemSock, queue->sock,
-                    &scenarioConfig->isSharedUmemSockBound);
-            }
+        FuzzSocketBind(
+            queue, queue->sock, scenarioConfig->sockRx, scenarioConfig->sockTx,
+            &scenarioConfig->isSockBound);
+        if (queue->sharedUmemSock != NULL) {
+            FuzzSocketBind(
+                queue, queue->sharedUmemSock, scenarioConfig->sharedUmemSockRx,
+                scenarioConfig->sharedUmemSockTx, &scenarioConfig->isSharedUmemSockBound);
+        }
+
+        FuzzSocketActivate(queue, queue->sock, NULL, &scenarioConfig->isSockActivated);
+        if (queue->sharedUmemSock != NULL) {
+            FuzzSocketActivate(
+                queue, queue->sharedUmemSock, queue->sock,
+                &scenarioConfig->isSharedUmemSockActivated);
         }
 
         if (ScenarioConfigComplete(scenarioConfig)) {
@@ -1543,6 +1587,7 @@ UpdateSetupStats(
     ++QueueWorker->setupStats.initSuccess;
     ++QueueWorker->setupStats.umemTotal;
     ++QueueWorker->setupStats.bindTotal;
+    ++QueueWorker->setupStats.activateTotal;
 
     if (Queue->scenarioConfig.isUmemRegistered) {
         ++QueueWorker->setupStats.umemSuccess;
@@ -1562,6 +1607,9 @@ UpdateSetupStats(
     if (Queue->scenarioConfig.isSockBound) {
         ++QueueWorker->setupStats.bindSuccess;
     }
+    if (Queue->scenarioConfig.isSockActivated) {
+        ++QueueWorker->setupStats.activateSuccess;
+    }
     if (Queue->scenarioConfig.sharedUmemSockRx) {
         ++QueueWorker->setupStats.sharedRxTotal;
         if (Queue->scenarioConfig.isSharedUmemSockRxSet) {
@@ -1576,8 +1624,12 @@ UpdateSetupStats(
     }
     if (Queue->scenarioConfig.sharedUmemSockRx || Queue->scenarioConfig.sharedUmemSockTx) {
         ++QueueWorker->setupStats.sharedBindTotal;
+        ++QueueWorker->setupStats.sharedActivateTotal;
         if (Queue->scenarioConfig.isSharedUmemSockBound) {
             ++QueueWorker->setupStats.sharedBindSuccess;
+        }
+        if (Queue->scenarioConfig.isSharedUmemSockActivated) {
+            ++QueueWorker->setupStats.sharedActivateSuccess;
         }
     }
     if (ScenarioConfigComplete(&Queue->scenarioConfig)) {
@@ -1595,22 +1647,26 @@ PrintSetupStats(
 
     printf(
         "\tbreakdown\n"
-        "\tinit:       (%lu / %lu) %lu%%\n"
-        "\tumem:       (%lu / %lu) %lu%%\n"
-        "\trx:         (%lu / %lu) %lu%%\n"
-        "\ttx:         (%lu / %lu) %lu%%\n"
-        "\tbind:       (%lu / %lu) %lu%%\n"
-        "\tsharedRx:   (%lu / %lu) %lu%%\n"
-        "\tsharedTx:   (%lu / %lu) %lu%%\n"
-        "\tsharedBind: (%lu / %lu) %lu%%\n",
+        "\tinit:           (%lu / %lu) %lu%%\n"
+        "\tumem:           (%lu / %lu) %lu%%\n"
+        "\trx:             (%lu / %lu) %lu%%\n"
+        "\ttx:             (%lu / %lu) %lu%%\n"
+        "\tbind:           (%lu / %lu) %lu%%\n"
+        "\tactivate:       (%lu / %lu) %lu%%\n"
+        "\tsharedRx:       (%lu / %lu) %lu%%\n"
+        "\tsharedTx:       (%lu / %lu) %lu%%\n"
+        "\tsharedBind:     (%lu / %lu) %lu%%\n"
+        "\tsharedActivate: (%lu / %lu) %lu%%\n",
         setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
         setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
         setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
         setupStats->txSuccess, setupStats->txTotal, Pct(setupStats->txSuccess, setupStats->txTotal),
         setupStats->bindSuccess, setupStats->bindTotal, Pct(setupStats->bindSuccess, setupStats->bindTotal),
+        setupStats->activateSuccess, setupStats->activateTotal, Pct(setupStats->activateSuccess, setupStats->activateTotal),
         setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
         setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
-        setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal));
+        setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal),
+        setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal, Pct(setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal));
 }
 
 DWORD
