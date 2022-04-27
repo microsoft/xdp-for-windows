@@ -3106,7 +3106,7 @@ XskSockoptSetRingSize(
             MmMapLockedPagesSpecifyCache(
                 Mdl,
                 RequestorMode,
-                MmNonCached,
+                MmCached,
                 NULL, // RequestedAddress
                 FALSE,// BugCheckOnFailure
                 NormalPagePriority | MdlMappingNoExecute);
