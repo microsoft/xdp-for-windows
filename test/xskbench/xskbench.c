@@ -965,6 +965,11 @@ ProcessTx(
         XskRingProducerSubmit(&Queue->freeRing, available);
 
         Queue->packetCount += available;
+
+        if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+                Queue->txRing.size) {
+            notifyFlags |= XSK_NOTIFY_POKE_TX;
+        }
     }
 
     available =
@@ -1091,6 +1096,11 @@ ProcessFwd(
         XskRingProducerSubmit(&Queue->freeRing, available);
 
         Queue->packetCount += available;
+
+        if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+                Queue->txRing.size) {
+            notifyFlags |= XSK_NOTIFY_POKE_TX;
+        }
     }
 
     //

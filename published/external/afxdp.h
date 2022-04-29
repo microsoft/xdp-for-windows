@@ -82,9 +82,10 @@ C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, buffer) == 0);
 //
 // XSK_RING_FLAG_NEED_POKE (Read only)
 //     The driver must be poked in order to make IO progress on this ring. This
-//     flag is set by the driver when it is stalled due to lack of IO posted by
-//     the application. Applications should check for this flag on the RX fill
-//     and TX rings after producing on them. The driver must be poked using
+//     flag is set by the driver when it is stalled due to lack of IO posted or
+//     IO completions consumed by the application. Applications should check for
+//     this flag on the RX fill and TX rings after producing on them or after
+//     consuming from the TX completion ring. The driver must be poked using
 //     XskNotifySocket with the appropriate poke flags. See XskNotifySocket for
 //     more information.
 //
@@ -190,21 +191,14 @@ XskActivate(
 //         on the RX fill ring and the RX fill ring is marked as needing a poke.
 //     XSK_NOTIFY_POKE_TX
 //         Poke the driver to perform TX. Apps poke TX when entries are produced
-//         on the TX ring and the TX ring is marked as needing a poke.
+//         on the TX ring or consumed from the TX completion ring and the TX
+//         ring is marked as needing a poke.
 //     XSK_NOTIFY_WAIT_RX
 //         Wait until a RX ring entry is available.
 //     XSK_NOTIFY_WAIT_TX
 //         Wait until a TX completion ring entry is available.
 //
 // Output result field may be any combination of the following:
-//    XSK_NOTIFY_POKE_RESULT_RX_FILL_UNAVAILABLE
-//        RX cannot be initiated because there are not enough RX fill ring
-//        entries available for the driver. The app must produce RX fill ring
-//        entries and poke RX again.
-//    XSK_NOTIFY_POKE_RESULT_TX_COMP_UNAVAILABLE
-//        TX cannot be initiated because there are not enough TX completion ring
-//        entries available for the driver. The app must consume TX completion ring
-//        entries and poke TX again.
 //    XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE
 //        RX ring entry is available.
 //    XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE
@@ -216,10 +210,8 @@ XskActivate(
 #define XSK_NOTIFY_WAIT_RX (1 << 2)
 #define XSK_NOTIFY_WAIT_TX (1 << 3)
 
-#define XSK_NOTIFY_POKE_RESULT_RX_FILL_UNAVAILABLE (1 << 0)
-#define XSK_NOTIFY_POKE_RESULT_TX_COMP_UNAVAILABLE (1 << 1)
-#define XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE        (1 << 2)
-#define XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE   (1 << 3)
+#define XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE        (1 << 0)
+#define XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE   (1 << 1)
 
 HRESULT
 XDPAPI

@@ -71,7 +71,7 @@ XskRingConsumerReserve(
     UINT32 consumer = *ring->sharedConsumer;
     UINT32 available = ReadUInt32Acquire(ring->sharedProducer) - consumer;
     *index = consumer;
-    return available < maxCount ? available : maxCount;;
+    return available < maxCount ? available : maxCount;
 }
 
 inline

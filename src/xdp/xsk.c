@@ -200,9 +200,6 @@ static XDP_FILE_DISPATCH XskFileDispatch = {
     .Close      = XskIrpClose,
 };
 
-C_ASSERT(XSK_NOTIFY_WAIT_RX == XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE);
-C_ASSERT(XSK_NOTIFY_WAIT_TX == XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE);
-
 static
 VOID
 XskReference(
@@ -231,6 +228,8 @@ XskSignalReadyIo(
     )
 {
     KIRQL OldIrql;
+
+    ASSERT((ReadyFlags & (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX)) == ReadyFlags);
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if ((Xsk->IoWaitFlags & ReadyFlags) != 0) {
@@ -493,6 +492,27 @@ XskFreeBounceBuffer(
     }
 }
 
+static
+FORCEINLINE
+UINT32
+XskGetAvailableTxCompletion(
+    _In_ XSK *Xsk
+    )
+{
+    UINT32 XskCompletionAvailable = XskRingProdReserve(&Xsk->Tx.CompletionRing, MAXUINT32);
+
+    if (!NT_VERIFY(XskCompletionAvailable >= Xsk->Tx.Xdp.OutstandingFrames)) {
+        //
+        // If the above condition does not hold, the XSK TX completion ring is
+        // no longer valid. This implies an application programming error.
+        //
+        XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
+        return 0;
+    }
+
+    return XskCompletionAvailable - Xsk->Tx.Xdp.OutstandingFrames;
+}
+
 _IRQL_requires_max_(DISPATCH_LEVEL)
 UINT32
 XskFillTx(
@@ -518,11 +538,13 @@ XskFillTx(
 
     //
     // The need poke flag is cleared when a poke request is submitted. If no
-    // input is available and no packets are outstanding, set the need poke flag
-    // and then re-check for input.
+    // input is available and no packets are outstanding, or if the TX queue is
+    // blocked by a full TX completion queue, set the need poke flag and then
+    // re-check for available TX/completion.
     //
-    if (Xsk->Tx.Xdp.PollHandle == NULL && XskRingConsPeek(&Xsk->Tx.Ring, 1) == 0 &&
-        Xsk->Tx.Xdp.OutstandingFrames == 0) {
+    if (Xsk->Tx.Xdp.PollHandle == NULL &&
+        ((XskRingConsPeek(&Xsk->Tx.Ring, 1) == 0 && Xsk->Tx.Xdp.OutstandingFrames == 0) ||
+         (XskGetAvailableTxCompletion(Xsk) == 0))) {
         InterlockedOr((LONG *)&Xsk->Tx.Ring.Shared->Flags, XSK_RING_FLAG_NEED_POKE);
     }
 
@@ -538,16 +560,7 @@ XskFillTx(
 
     XskTxAvailable = XskRingConsPeek(&Xsk->Tx.Ring, MAXUINT32);
 
-    XskCompletionAvailable = XskRingProdReserve(&Xsk->Tx.CompletionRing, MAXUINT32);
-    if (!NT_VERIFY(XskCompletionAvailable >= Xsk->Tx.Xdp.OutstandingFrames)) {
-        //
-        // If the above condition does not hold, the XSK TX completion ring is
-        // no longer valid. This implies an application programming error.
-        //
-        XskKernelRingSetError(&Xsk->Tx.CompletionRing, XSK_ERROR_INVALID_RING);
-        return 0;
-    }
-    XskCompletionAvailable -= Xsk->Tx.Xdp.OutstandingFrames;
+    XskCompletionAvailable = XskGetAvailableTxCompletion(Xsk);
 
     Count = min(min(XdpTxAvailable, XskTxAvailable), XskCompletionAvailable);
 
@@ -1591,6 +1604,31 @@ XskValidateDatapathHandle(
     }
 
     return STATUS_SUCCESS;
+}
+
+static
+UINT32
+XskWaitInFlagsToOutFlags(
+    _In_ UINT32 NotifyFlags
+    )
+{
+    UINT32 NotifyResult = 0;
+
+    ASSERT((NotifyFlags & (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX)) == NotifyFlags);
+
+    //
+    // Sets all wait output flags given the input wait flags.
+    //
+
+    if (NotifyFlags & XSK_NOTIFY_WAIT_RX) {
+        NotifyResult |= XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE;
+    }
+
+    if (NotifyFlags & XSK_NOTIFY_WAIT_TX) {
+        NotifyResult |= XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE;
+    }
+
+    return NotifyResult;
 }
 
 static
@@ -3385,16 +3423,16 @@ XskQueryReadyIo(
     _In_ UINT32 InFlags
     )
 {
-    UINT32 OutFlags = 0;
+    UINT32 SatisfiedFlags = 0;
 
     if (InFlags & XSK_NOTIFY_WAIT_TX && XskRingConsPeek(&Xsk->Tx.CompletionRing, 1) > 0) {
-        OutFlags |= XSK_NOTIFY_WAIT_TX;
+        SatisfiedFlags |= XSK_NOTIFY_WAIT_TX;
     }
     if (InFlags & XSK_NOTIFY_WAIT_RX && XskRingConsPeek(&Xsk->Rx.Ring, 1) > 0) {
-        OutFlags |= XSK_NOTIFY_WAIT_RX;
+        SatisfiedFlags |= XSK_NOTIFY_WAIT_RX;
     }
 
-    return OutFlags;
+    return SatisfiedFlags;
 }
 
 static
@@ -3862,7 +3900,7 @@ XskNotify(
     //
     ReadyFlags = XskQueryReadyIo(Xsk, InFlags);
     if (ReadyFlags != 0) {
-        OutFlags |= ReadyFlags;
+        OutFlags |= XskWaitInFlagsToOutFlags(ReadyFlags);
         ASSERT(Status == STATUS_SUCCESS);
         goto Exit;
     }
@@ -3938,7 +3976,7 @@ XskNotify(
     ReadyFlags = XskQueryReadyIo(Xsk, InFlags);
     if (ReadyFlags != 0) {
         Status = STATUS_SUCCESS;
-        OutFlags |= ReadyFlags;
+        OutFlags |= XskWaitInFlagsToOutFlags(ReadyFlags);
     }
 
 Exit:

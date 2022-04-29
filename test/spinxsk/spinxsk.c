@@ -1383,6 +1383,12 @@ ProcessPkts(
             XskRingProducerSubmit(&Datapath->txFreeRing, available);
 
             Datapath->txPacketCount += available;
+
+            if (XskRingProducerReserve(&Datapath->txRing, MAXUINT32, &producerIndex) !=
+                    Datapath->txRing.size) {
+                notifyFlags |= XSK_NOTIFY_POKE_TX;
+            }
+
             QueryPerformanceCounter((LARGE_INTEGER*)&Datapath->txWatchdogPerfCount);
         }
 
