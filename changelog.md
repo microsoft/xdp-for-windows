@@ -2,17 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.16.1] - 2022-05-02
 
 ### Added
 
 - (AF_XDP) Add XskActivate API to enable AF_XDP transmit and receive data paths. This routine
   requires the socket is already bound to an XDP queue using XskBind.
+- (AF_XDP) Add RSS capabilities API.
 
 ### Changed
 
 - (AF_XDP) The XskBind API no longer requires descriptor rings be configured and no longer activates
   the data path. Instead, applications indicate whether RX and/or TX should be bound using flags.
+- (AF_XDP) Renamed `XdpRssOpen` to `XdpInterfaceOpen`
+- (AF_XDP) Obligate applications to invoke `XskNotifySocket` after dequeuing elements from the TX
+  completion ring when elements are already on the TX ring, and rely on the updated
+  `XSK_RING_FLAG_NEED_POKE` flag to elide unnecessary system calls.
 
 ## [0.16.0] - 2022-04-12
 
