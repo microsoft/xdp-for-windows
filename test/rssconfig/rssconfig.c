@@ -274,7 +274,7 @@ ProcessCommandSet(
         goto Exit;
     }
 
-    RtlZeroMemory(RssConfig, RssConfigSize);
+    XdpInitializeRssConfiguration(RssConfig, RssConfigSize);
     RssConfig->IndirectionTableOffset = sizeof(*RssConfig);
 
     PROCESSOR_NUMBER *IndirectionTable = RTL_PTR_ADD(RssConfig, RssConfig->IndirectionTableOffset);
