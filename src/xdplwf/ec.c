@@ -10,6 +10,23 @@
 //
 #define MAX_ITERATIONS_PER_DPC 8
 
+typedef enum _XDP_EC_STATE {
+    EcIdle,
+    EcCleanedUp,
+    EcPassiveWait,
+    EcPassiveWake,
+    EcPassiveQueue,
+    EcPoll,
+    EcDpcQueueMigrate,
+    EcPassive,
+    EcDpcQueue,
+    EcDpcArm,
+    EcDpcDequeue,
+    EcDisarm,
+    EcEnterInline,
+    EcExitInline,
+} XDP_EC_STATE;
+
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -46,11 +63,14 @@ XdpEcPassiveWorker(
     KeSetPriorityThread(KeGetCurrentThread(), 12);
 
     while (TRUE) {
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcPassiveWait);
         KeWaitForSingleObject(&Ec->PassiveEvent, Executive, KernelMode, FALSE, NULL);
 
         if (Ec->CleanupPassiveThread) {
             break;
         }
+
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcPassiveWake);
 
         if (CurrentProcessor != Ec->OwningProcessor) {
             CurrentProcessor = Ec->OwningProcessor;
@@ -60,6 +80,7 @@ XdpEcPassiveWorker(
             KeSetSystemGroupAffinityThread(&Affinity, NULL);
         }
 
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcPassiveQueue);
         KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
     }
 
@@ -98,6 +119,8 @@ XdpEcPoll(
     LARGE_INTEGER CurrentTick;
     UINT32 Iteration = 0;
 
+    EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcPoll);
+
     ASSERT(Ec->OwningProcessor == KeGetCurrentProcessorIndex());
 
     NeedYieldCheck = !Ec->SkipYieldCheck;
@@ -112,6 +135,7 @@ XdpEcPoll(
         Ec->OwningProcessor = ULONG_MAX;
         KeGetProcessorNumberFromIndex(*Ec->IdealProcessor, &ProcessorNumber);
         KeSetTargetProcessorDpcEx(&Ec->Dpc, &ProcessorNumber);
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDpcQueueMigrate);
         KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
         return;
     }
@@ -134,6 +158,7 @@ XdpEcPoll(
                 // starvation can occur in the degenerate case.
                 //
                 Ec->SkipYieldCheck = TRUE;
+                EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcPassive);
                 KeSetEvent(&Ec->PassiveEvent, 0, FALSE);
                 return;
             }
@@ -145,11 +170,13 @@ XdpEcPoll(
     } while (NeedPoll && ++Iteration < MAX_ITERATIONS_PER_DPC);
 
     if (NeedPoll) {
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDpcQueue);
         KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
     } else {
         //
         // No more work. Re-arm the EC and re-check the poll callback.
         //
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDpcArm);
         InterlockedExchange8((CHAR *)&Ec->Armed, TRUE);
 
         if (XdpEcInvokePoll(Ec)) {
@@ -203,6 +230,8 @@ XdpEcDpcThunk(
     XDP_EC *Ec = DeferredContext;
     ULONG CurrentProcessor = KeGetCurrentProcessorIndex();
 
+    EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDpcDequeue);
+
     UNREFERENCED_PARAMETER(Dpc);
     UNREFERENCED_PARAMETER(SystemArgument1);
     UNREFERENCED_PARAMETER(SystemArgument2);
@@ -232,12 +261,15 @@ XdpEcNotifyEx(
     )
 {
     if (InterlockedExchange8((CHAR *)&Ec->Armed, FALSE)) {
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDisarm);
+
         KIRQL OldIrql = KeRaiseIrqlToDpcLevel();
         ULONG CurrentProcessor = KeGetCurrentProcessorIndex();
 
         if (CanInline && XdpEcIsSerializable(Ec, CurrentProcessor)) {
             XdpEcPoll(Ec);
         } else {
+            EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDpcQueue);
             KeInsertQueueDpc(&Ec->Dpc, NULL, NULL);
         }
 
@@ -265,6 +297,7 @@ XdpEcEnterInline(
 {
     if (XdpEcIsSerializable(Ec, CurrentProcessor)) {
         Ec->InPoll = TRUE;
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcEnterInline);
         return TRUE;
     }
 
@@ -280,6 +313,7 @@ XdpEcExitInline(
     ASSERT(KeGetCurrentProcessorIndex() == Ec->OwningProcessor);
     ASSERT(Ec->InPoll);
     Ec->InPoll = FALSE;
+    EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcExitInline);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -301,6 +335,7 @@ XdpEcCleanup(
         KeSetEvent(&Ec->PassiveEvent, 0, FALSE);
         KeWaitForSingleObject(Ec->PassiveThread, Executive, KernelMode, FALSE, NULL);
         ObDereferenceObject(Ec->PassiveThread);
+        EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcCleanedUp);
     }
 }
 
@@ -352,6 +387,7 @@ XdpEcInitialize(
             ThreadHandle, THREAD_ALL_ACCESS, *PsThreadType, KernelMode, &Ec->PassiveThread, NULL);
     FRE_ASSERT(NT_SUCCESS(Status));
 
+    EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcIdle);
     Status = STATUS_SUCCESS;
 
 Exit:
