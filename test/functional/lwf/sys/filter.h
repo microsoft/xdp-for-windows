@@ -5,7 +5,7 @@
 #pragma once
 
 typedef enum _LWF_FILTER_STATE {
-    FilterStateUnspecified,
+    FilterDetached,
     FilterPaused,
     FilterPausing,
     FilterRunning,
@@ -20,6 +20,7 @@ typedef struct _LWF_FILTER {
     KSPIN_LOCK Lock;
 
     EX_RUNDOWN_REF NblRundown;
+    EX_RUNDOWN_REF OidRundown;
     NDIS_HANDLE NblPool;
     LIST_ENTRY RxFilterList;
 } LWF_FILTER;

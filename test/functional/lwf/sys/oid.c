@@ -20,7 +20,7 @@ static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 OidInternalRequest(
-    _In_ NDIS_HANDLE NdisFilterHandle,
+    _In_ LWF_FILTER *Filter,
     _In_ NDIS_REQUEST_TYPE RequestType,
     _In_ NDIS_OID Oid,
     _Inout_updates_bytes_to_(InformationBufferLength, *BytesProcessed)
@@ -80,7 +80,18 @@ OidInternalRequest(
 
     NdisRequest->RequestId = (VOID *)OidInternalRequest;
 
-    Status = NdisFOidRequest(NdisFilterHandle, NdisRequest);
+    if (ExAcquireRundownProtection(&Filter->OidRundown)) {
+        Status = NdisFOidRequest(Filter->NdisFilterHandle, NdisRequest);
+
+        //
+        // NDIS will not detach the filter until all outstanding OIDs are
+        // completed, so we can release the rundown as soon as NdisFOidRequest
+        // returns.
+        //
+        ExReleaseRundownProtection(&Filter->OidRundown);
+    } else {
+        Status = NDIS_STATUS_ADAPTER_REMOVED;
+    }
 
     if (Status == NDIS_STATUS_PENDING) {
         KeWaitForSingleObject(
@@ -174,7 +185,7 @@ OidIrpSubmitRequest(
 
     Status =
         OidInternalRequest(
-            Filter->NdisFilterHandle, In->Key.RequestType, In->Key.Oid, InfoBuffer.Buffer,
+            Filter, In->Key.RequestType, In->Key.Oid, InfoBuffer.Buffer,
             In->InformationBufferLength, 0, 0, &RequiredSize);
 
     if (Status == STATUS_BUFFER_TOO_SMALL &&

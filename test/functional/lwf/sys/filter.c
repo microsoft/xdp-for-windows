@@ -196,6 +196,14 @@ FilterAttach(
     ExInitializeRundownProtection(&Filter->NblRundown);
     ExWaitForRundownProtectionRelease(&Filter->NblRundown);
 
+    //
+    // The filter can initiate OIDs as soon as the filter attributes are set.
+    // The filter cannot inject OIDs beforehand, but any of those code paths
+    // are unreachable prior to attributes being set and the filter being
+    // inserted in the global list.
+    //
+    ExInitializeRundownProtection(&Filter->OidRundown);
+
     NET_BUFFER_LIST_POOL_PARAMETERS PoolParams = {0};
     PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
@@ -210,10 +218,6 @@ FilterAttach(
         goto Exit;
     }
 
-    RtlAcquirePushLockExclusive(&LwfGlobalContext.Lock);
-    InsertTailList(&LwfGlobalContext.FilterList, &Filter->FilterListLink);
-    RtlReleasePushLockExclusive(&LwfGlobalContext.Lock);
-
     RtlZeroMemory(&FilterAttributes, sizeof(NDIS_FILTER_ATTRIBUTES));
     FilterAttributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
     FilterAttributes.Header.Size = sizeof(NDIS_FILTER_ATTRIBUTES);
@@ -224,6 +228,11 @@ FilterAttach(
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
+
+    RtlAcquirePushLockExclusive(&LwfGlobalContext.Lock);
+    ASSERT(IsListEmpty(&Filter->FilterListLink));
+    InsertTailList(&LwfGlobalContext.FilterList, &Filter->FilterListLink);
+    RtlReleasePushLockExclusive(&LwfGlobalContext.Lock);
 
     Filter = NULL;
 
@@ -294,11 +303,15 @@ FilterDetach(
 
     TraceInfo(TRACE_CONTROL, "IfIndex=%u", Filter->MiniportIfIndex);
 
+    Filter->NdisState = FilterDetached;
+
     RtlAcquirePushLockExclusive(&LwfGlobalContext.Lock);
     if (!IsListEmpty(&Filter->FilterListLink)) {
         RemoveEntryList(&Filter->FilterListLink);
     }
     RtlReleasePushLockExclusive(&LwfGlobalContext.Lock);
+
+    ExWaitForRundownProtectionRelease(&Filter->OidRundown);
 
     FilterDereferenceFilter(Filter);
 }
