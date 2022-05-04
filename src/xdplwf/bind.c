@@ -127,6 +127,7 @@ XdpLwfFilterAttach(
 {
     XDP_LWF_FILTER *Filter = NULL;
     NDIS_STATUS Status;
+    NTSTATUS LocalStatus = STATUS_SUCCESS;
     NDIS_FILTER_ATTRIBUTES FilterAttributes;
     XDP_ADD_INTERFACE AddIf[2];
     UINT32 IfCount = 0;
@@ -151,6 +152,26 @@ XdpLwfFilterAttach(
     Filter->NdisFilterHandle = NdisFilterHandle;
     Filter->NdisState = FilterPaused;
     XdpInitializeReferenceCount(&Filter->ReferenceCount);
+    XdpLwfOffloadInitialize(Filter);
+
+    Status =
+        XdpIfCreateInterfaceSet(
+            Filter->MiniportIfIndex, &XdpLwfOffloadDispatch, Filter,
+            &Filter->XdpIfInterfaceSetHandle);
+    if (!NT_SUCCESS(Status)) {
+        ASSERT(Filter->XdpIfInterfaceSetHandle == NULL);
+        Status = XdpConvertNtStatusToNdisStatus(Status);
+        goto Exit;
+    }
+
+    Status =
+        XdpGenericAttachInterface(
+            &Filter->Generic, Filter, Filter->NdisFilterHandle, Filter->MiniportIfIndex,
+            &AddIf[Index]);
+    if (NT_SUCCESS(Status)) {
+        IfCount++;
+        Index++;
+    }
 
     //
     // TODO: create a work item for the OIDs below.
@@ -170,36 +191,25 @@ XdpLwfFilterAttach(
         goto Exit;
     }
 
-    XdpLwfOffloadInitialize(Filter);
+    //
+    // We're now committed to succeeding, since there's no inverse to
+    // NdisFSetAttributes. Any subsequent failures must be absorbed.
+    //
+    Status = NDIS_STATUS_SUCCESS;
 
-    Status =
-        XdpIfCreateInterfaceSet(
-            Filter->MiniportIfIndex, &XdpLwfOffloadDispatch, Filter,
-            &Filter->XdpIfInterfaceSetHandle);
-    if (!NT_SUCCESS(Status)) {
-        ASSERT(Filter->XdpIfInterfaceSetHandle == NULL);
-        Status = XdpConvertNtStatusToNdisStatus(Status);
-        goto Exit;
-    }
+    XdpLwfOffloadRssInitialize(Filter);
 
-    Status =
-        XdpGenericAttachInterface(
-            &Filter->Generic, Filter, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
-    if (NT_SUCCESS(Status)) {
-        IfCount++;
-        Index++;
-    }
-
-    Status =
+    LocalStatus =
         XdpNativeAttachInterface(
-            &Filter->Native, Filter, Filter->NdisFilterHandle, Filter->MiniportIfIndex, &AddIf[Index]);
-    if (NT_SUCCESS(Status)) {
+            &Filter->Native, Filter, Filter->NdisFilterHandle, Filter->MiniportIfIndex,
+            &AddIf[Index]);
+    if (NT_SUCCESS(LocalStatus)) {
         IfCount++;
         Index++;
     }
 
     if (IfCount == 0) {
-        ASSERT(!NT_SUCCESS(Status));
+        ASSERT(!NT_SUCCESS(LocalStatus));
         goto Exit;
     }
 
@@ -210,9 +220,8 @@ XdpLwfFilterAttach(
     // interface is not yet added. "Optimal" has a flexible definition based on
     // the XSK's requirements.
     //
-    Status = XdpIfAddInterfaces(Filter->XdpIfInterfaceSetHandle, &AddIf[0], IfCount);
-    if (!NT_SUCCESS(Status)) {
-        Status = XdpConvertNtStatusToNdisStatus(Status);
+    LocalStatus = XdpIfAddInterfaces(Filter->XdpIfInterfaceSetHandle, &AddIf[0], IfCount);
+    if (!NT_SUCCESS(LocalStatus)) {
         goto Exit;
     }
 
@@ -221,10 +230,10 @@ XdpLwfFilterAttach(
 Exit:
 
     TraceInfo(
-        TRACE_GENERIC, "IfIndex=%u Status=%!STATUS!",
-        AttachParameters->BaseMiniportIfIndex, Status);
+        TRACE_GENERIC, "IfIndex=%u Status=%!STATUS! LocalStatus=%!STATUS!",
+        AttachParameters->BaseMiniportIfIndex, Status, LocalStatus);
 
-    if (Filter != NULL) {
+    if (Status != NDIS_STATUS_SUCCESS && Filter != NULL) {
         XdpLwfFilterDetach((NDIS_HANDLE)Filter);
     }
 

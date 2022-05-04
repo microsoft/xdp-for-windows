@@ -76,6 +76,11 @@ XdpLwfOffloadDeactivate(
     );
 
 VOID
+XdpLwfOffloadRssInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    );
+
+VOID
 XdpLwfOffloadInitialize(
     _In_ XDP_LWF_FILTER *Filter
     );

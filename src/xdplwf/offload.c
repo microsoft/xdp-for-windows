@@ -1093,7 +1093,6 @@ Exit:
     return Status;
 }
 
-static
 VOID
 XdpLwfOffloadRssInitialize(
     _In_ XDP_LWF_FILTER *Filter
@@ -1674,7 +1673,9 @@ XdpLwfOffloadDeactivate(
     //
     while (!IsListEmpty(&Filter->Offload.InterfaceOffloadHandleListHead)) {
         XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext =
-            CONTAINING_RECORD(Filter->Offload.InterfaceOffloadHandleListHead.Flink, XDP_LWF_INTERFACE_OFFLOAD_CONTEXT, Link);
+            CONTAINING_RECORD(
+                Filter->Offload.InterfaceOffloadHandleListHead.Flink,
+                XDP_LWF_INTERFACE_OFFLOAD_CONTEXT, Link);
 
         RemoveEntryList(&OffloadContext->Link);
         InitializeListHead(&OffloadContext->Link);
@@ -1703,9 +1704,6 @@ XdpLwfOffloadInitialize(
 
     ExInitializePushLock(&Filter->Offload.Lock);
     InitializeListHead(&Filter->Offload.InterfaceOffloadHandleListHead);
-
-
-    XdpLwfOffloadRssInitialize(Filter);
 }
 
 VOID
