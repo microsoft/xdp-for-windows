@@ -426,6 +426,8 @@ XdpParseFrame(
         Cache->TransportPayloadValid = TRUE;
     }
 
+    return;
+
 BufferTooSmall:
 
     if (FragmentRing != NULL) {
