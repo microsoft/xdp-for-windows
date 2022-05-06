@@ -85,6 +85,24 @@
  HKR, Ndi\Params\*MaxRssProcessors,   step,              0, "1"
  HKR, Ndi\Params\*MaxRssProcessors,   Optional,          0, "0"
 
+; *UDPChecksumOffloadIPv4
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4,         ParamDesc,      0, "UDPChecksumOffloadIPv4"
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4,         type,           0, "enum"
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4,         default,        0, "0"
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,    "0",            0, %DISABLED_STR%
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,    "1",            0, %ENABLED_TX_STR%
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,    "2",            0, %ENABLED_RX_STR%
+ HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,    "3",            0, %ENABLED_RX_TX_STR%
+
+; UDPChecksumOffloadIPv4Capability
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability,         ParamDesc,      0, "UDPChecksumOffloadIPv4Capability"
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability,         type,           0, "enum"
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability,         default,        0, "0"
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability\Enum,    "0",            0, %DISABLED_STR%
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability\Enum,    "1",            0, %ENABLED_TX_STR%
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability\Enum,    "2",            0, %ENABLED_RX_STR%
+ HKR, Ndi\Params\UDPChecksumOffloadIPv4Capability\Enum,    "3",            0, %ENABLED_RX_TX_STR%
+
 [SourceDisksNames]
  ; diskid = description[, [tagfile] [, <unused>, subdir]]
  1 = %xdpfnmp.DeviceDesc%,,,
@@ -124,7 +142,10 @@
 [Strings]
 Msft = "Microsoft"
 
-xdpfnmp.DeviceDesc        = "XDPFNMP"
-xdpfnmp.Service.DispName  = "XDP Functional Test Miniport Adapter Driver"
-ENABLED_STR              = "Enabled"
-DISABLED_STR             = "Disabled"
+xdpfnmp.DeviceDesc          = "XDPFNMP"
+xdpfnmp.Service.DispName    = "XDP Functional Test Miniport Adapter Driver"
+ENABLED_STR                 = "Enabled"
+DISABLED_STR                = "Disabled"
+ENABLED_TX_STR              = "TX Enabled"
+ENABLED_RX_STR              = "RX Enabled"
+ENABLED_RX_TX_STR           = "RX & TX Enabled"

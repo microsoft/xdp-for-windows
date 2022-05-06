@@ -12,6 +12,7 @@
     <ClCompile Include="filter.c" />
     <ClCompile Include="oid.c" />
     <ClCompile Include="rx.c" />
+    <ClCompile Include="status.c" />
     <ClCompile Include="tx.c" />
   </ItemGroup>
   <ItemGroup>

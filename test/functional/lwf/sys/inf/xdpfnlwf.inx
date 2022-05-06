@@ -33,7 +33,7 @@ CopyFiles           = xdpfnlwf.CopyFiles
 AddReg              = xdpfnlwf.ndi.reg
 
 [xdpfnlwf.CopyFiles]
-xdpfnlwf.sys,,,2
+xdpfnlwf.sys
 
 [xdpfnlwf.ndi.reg]
 HKR, Ndi, Service,, "xdpfnlwf"

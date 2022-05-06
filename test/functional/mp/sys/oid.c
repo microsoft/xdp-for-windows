@@ -40,6 +40,8 @@ CONST NDIS_OID MpSupportedOidArray[] =
     OID_OFFLOAD_ENCAPSULATION,
     OID_GEN_RECEIVE_SCALE_PARAMETERS,
     OID_XDP_QUERY_CAPABILITIES,
+    OID_TCP_OFFLOAD_PARAMETERS,
+    OID_TCP_OFFLOAD_HW_PARAMETERS,
 };
 
 CONST UINT32 MpSupportedOidArraySize = sizeof(MpSupportedOidArray);
@@ -439,6 +441,31 @@ MpProcessSetOid(
 
             MpSetRss(Adapter, InformationBuffer, InformationBufferLength);
             Status = NDIS_STATUS_SUCCESS;
+
+            break;
+
+        case OID_TCP_OFFLOAD_PARAMETERS:
+            if (InformationBufferLength < NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1) {
+                Status = NDIS_STATUS_INVALID_LENGTH;
+                break;
+            }
+
+            Status =
+                MpSetOffloadParameters(
+                    Adapter, &Adapter->OffloadConfig, InformationBuffer, InformationBufferLength,
+                    NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG);
+            break;
+
+        case OID_TCP_OFFLOAD_HW_PARAMETERS:
+            if (InformationBufferLength < NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1) {
+                Status = NDIS_STATUS_INVALID_LENGTH;
+                break;
+            }
+
+            Status =
+                MpSetOffloadParameters(
+                    Adapter, &Adapter->OffloadCapabilities, InformationBuffer,
+                    InformationBufferLength, NDIS_STATUS_TASK_OFFLOAD_HARDWARE_CAPABILITIES);
 
             break;
 

@@ -45,6 +45,14 @@ DefaultIrpDeviceIoControl(
         Status = OidIrpSubmitRequest(Default->Filter, Irp, IrpSp);
         break;
 
+    case IOCTL_STATUS_SET_FILTER:
+        Status = StatusIrpFilter(Default->Status, Irp, IrpSp);
+        break;
+
+    case IOCTL_STATUS_GET_INDICATION:
+        Status = StatusIrpGetIndication(Default->Status, Irp, IrpSp);
+        break;
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
@@ -61,6 +69,10 @@ DefaultCleanup(
     _In_ DEFAULT_CONTEXT *Default
     )
 {
+    if (Default->Status != NULL) {
+        StatusCleanup(Default->Status);
+    }
+
     if (Default->Tx != NULL) {
         TxCleanup(Default->Tx);
     }
@@ -142,6 +154,12 @@ DefaultIrpCreate(
 
     Default->Tx = TxCreate(Default);
     if (Default->Tx == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    Default->Status = StatusCreate(Default);
+    if (Default->Status == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }

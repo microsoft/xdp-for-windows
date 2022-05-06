@@ -321,6 +321,15 @@ public:
         sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
         TEST_EQUAL(0, system(CmdBuff));
     }
+
+    VOID
+    Reset() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName *", PowershellPrefix, _IfDesc);
+        TEST_EQUAL(0, system(CmdBuff));
+    }
 };
 
 template<class T>
@@ -1244,6 +1253,70 @@ LwfOidAllocateAndSubmitRequest(
     *BytesReturned = InformationBufferLength;
 
     return InformationBuffer;
+}
+
+static
+VOID
+LwfStatusSetFilter(
+    _In_ const wil::unique_handle& Handle,
+    _In_ NDIS_STATUS StatusCode,
+    _In_ BOOLEAN BlockIndications,
+    _In_ BOOLEAN QueueIndications
+    )
+{
+    TEST_HRESULT(
+        FnLwfStatusSetFilter(Handle.get(), StatusCode, BlockIndications, QueueIndications));
+}
+
+static
+HRESULT
+LwfStatusGetIndication(
+    _In_ const wil::unique_handle& Handle,
+    _Inout_ UINT32 *StatusBufferLength,
+    _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
+    )
+{
+    return FnLwfStatusGetIndication(Handle.get(), StatusBufferLength, StatusBuffer);
+}
+
+template <typename T>
+static
+unique_malloc_ptr<T>
+LwfStatusAllocateAndGetIndication(
+    _In_ const wil::unique_handle& Handle,
+    _Out_ UINT32 *StatusBufferLength
+    )
+{
+    HRESULT Result;
+    unique_malloc_ptr<T> StatusBuffer;
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+
+    *StatusBufferLength = 0;
+
+    //
+    // Poll FNLWF for status indication: the driver doesn't support overlapped IO.
+    //
+    do {
+        Result = LwfStatusGetIndication(Handle, StatusBufferLength, NULL);
+        if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
+            break;
+        }
+        Sleep(100);
+    } while (!Watchdog.IsExpired());
+
+    if (SUCCEEDED(Result)) {
+        TEST_EQUAL(0, *StatusBufferLength);
+    } else {
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
+        TEST_NOT_EQUAL(0, *StatusBufferLength);
+
+        StatusBuffer.reset((T *)malloc(*StatusBufferLength));
+        TEST_TRUE(StatusBuffer != NULL);
+
+        TEST_HRESULT(LwfStatusGetIndication(Handle, StatusBufferLength, StatusBuffer.get()));
+    }
+
+    return StatusBuffer;
 }
 
 static
@@ -4601,6 +4674,113 @@ OffloadRssCapabilities()
     TEST_EQUAL(RssCapabilities->HashSecretKeySize, 40);
     TEST_EQUAL(RssCapabilities->NumberOfReceiveQueues, FNMP_DEFAULT_RSS_QUEUES);
     TEST_EQUAL(RssCapabilities->NumberOfIndirectionTableEntries, FNMP_MAX_RSS_INDIR_COUNT);
+}
+
+static
+VOID
+InitializeOffloadParams(
+    _Out_ NDIS_OFFLOAD_PARAMETERS *Params
+    )
+{
+    RtlZeroMemory(Params, sizeof(*Params));
+    Params->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    Params->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_1;
+    Params->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1;
+}
+
+VOID
+OffloadSetHardwareCapabilities()
+{
+    const auto &If = FnMpIf;
+    auto DefaultLwf = LwfOpenDefault(If.GetIfIndex());
+    auto RegistryScopeGuard = wil::scope_exit([&]
+    {
+        //
+        // Reset all NIC advanced properties; without using undocumented APIs,
+        // setting current configuration via OIDs is persistent.
+        //
+        If.Reset();
+    });
+
+    //
+    // Send a private OID to the FNMP from FNLWF to update the advertised HW
+    // capabilities. This should generate a status indication.
+    //
+
+    struct {
+        UINT32 Oid;
+        UINT32 Status;
+    } Configs[] = {
+        {
+            OID_TCP_OFFLOAD_HW_PARAMETERS,
+            NDIS_STATUS_TASK_OFFLOAD_HARDWARE_CAPABILITIES,
+        },
+        {
+            OID_TCP_OFFLOAD_PARAMETERS,
+            NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG,
+        },
+    };
+
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(Configs); i++) {
+        LwfStatusSetFilter(DefaultLwf, Configs[i].Status, TRUE, TRUE);
+
+        OID_KEY OidKey;
+        NDIS_OFFLOAD_PARAMETERS OffloadParams;
+        InitializeOffloadParams(&OffloadParams);
+        OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED;
+        OidKey.Oid = Configs[i].Oid;
+        OidKey.RequestType = NdisRequestSetInformation;
+        UINT32 OidBufferSize = sizeof(OffloadParams);
+        TEST_HRESULT(LwfOidSubmitRequest(DefaultLwf, OidKey, &OidBufferSize, &OffloadParams));
+
+        UINT32 NdisOffloadSize;
+        unique_malloc_ptr<NDIS_OFFLOAD> Offload =
+            LwfStatusAllocateAndGetIndication<NDIS_OFFLOAD>(DefaultLwf, &NdisOffloadSize);
+
+        TEST_TRUE(NdisOffloadSize >= NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1);
+        TEST_TRUE(Offload->Header.Revision >= NDIS_OFFLOAD_REVISION_1);
+        TEST_EQUAL(NDIS_OBJECT_TYPE_OFFLOAD, Offload->Header.Type);
+        TEST_EQUAL(NDIS_OFFLOAD_SUPPORTED, Offload->Checksum.IPv4Transmit.UdpChecksum);
+    }
+
+    If.Reset();
+    DefaultLwf = LwfOpenDefault(If.GetIfIndex());
+
+    //
+    // Set the HW capabilities and current config via registry, restart the NIC,
+    // and verify the current config matches the registry.
+    //
+
+    OID_KEY OidKey;
+    OidKey.Oid = OID_TCP_OFFLOAD_CURRENT_CONFIG;
+    OidKey.RequestType = NdisRequestQueryInformation;
+    UINT32 NdisOffloadSize;
+    unique_malloc_ptr<NDIS_OFFLOAD> Offload =
+        LwfOidAllocateAndSubmitRequest<NDIS_OFFLOAD>(DefaultLwf, OidKey, &NdisOffloadSize);
+
+    TEST_TRUE(NdisOffloadSize >= NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1);
+    TEST_TRUE(Offload->Header.Revision >= NDIS_OFFLOAD_REVISION_1);
+    TEST_EQUAL(NDIS_OBJECT_TYPE_OFFLOAD, Offload->Header.Type);
+    TEST_EQUAL(NDIS_OFFLOAD_NOT_SUPPORTED, Offload->Checksum.IPv4Transmit.UdpChecksum);
+
+    CHAR CmdBuff[256];
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4Capability -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
+    TEST_EQUAL(0, system(CmdBuff));
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled'", PowershellPrefix, If.GetIfDesc());
+    TEST_EQUAL(0, system(CmdBuff));
+
+    DefaultLwf = LwfOpenDefault(If.GetIfIndex());
+
+    Offload =
+        LwfOidAllocateAndSubmitRequest<NDIS_OFFLOAD>(DefaultLwf, OidKey, &NdisOffloadSize);
+
+    TEST_TRUE(NdisOffloadSize >= NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1);
+    TEST_TRUE(Offload->Header.Revision >= NDIS_OFFLOAD_REVISION_1);
+    TEST_EQUAL(NDIS_OBJECT_TYPE_OFFLOAD, Offload->Header.Type);
+    TEST_EQUAL(NDIS_OFFLOAD_SUPPORTED, Offload->Checksum.IPv4Transmit.UdpChecksum);
 }
 
 /**

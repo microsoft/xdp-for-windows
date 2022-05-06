@@ -174,3 +174,33 @@ FnLwfOidSubmitRequest(
             Handle, IOCTL_OID_SUBMIT_REQUEST, &In, sizeof(In), InformationBuffer,
             *InformationBufferLength, InformationBufferLength, NULL);
 }
+
+HRESULT
+FnLwfStatusSetFilter(
+    _In_ HANDLE Handle,
+    _In_ NDIS_STATUS StatusCode,
+    _In_ BOOLEAN BlockIndications,
+    _In_ BOOLEAN QueueIndications
+    )
+{
+    STATUS_FILTER_IN In = {0};
+
+    In.StatusCode = StatusCode;
+    In.BlockIndications = BlockIndications;
+    In.QueueIndications = QueueIndications;
+
+    return FnLwfIoctl(Handle, IOCTL_STATUS_SET_FILTER, &In, sizeof(In), NULL, 0, 0, NULL);
+}
+
+HRESULT
+FnLwfStatusGetIndication(
+    _In_ HANDLE Handle,
+    _Inout_ UINT32 *StatusBufferLength,
+    _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
+    )
+{
+    return
+        FnLwfIoctl(
+            Handle, IOCTL_STATUS_GET_INDICATION, NULL, 0, StatusBuffer, *StatusBufferLength,
+            StatusBufferLength, NULL);
+}

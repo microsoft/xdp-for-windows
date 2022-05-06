@@ -128,6 +128,7 @@ FilterStart(
     FChars.SetFilterModuleOptionsHandler     = FilterSetOptions;
     FChars.OidRequestHandler                 = FilterOidRequest;
     FChars.OidRequestCompleteHandler         = FilterOidRequestComplete;
+    FChars.StatusHandler                     = FilterStatus;
     FChars.ReturnNetBufferListsHandler       = FilterReturnNetBufferLists;
     FChars.ReceiveNetBufferListsHandler      = FilterReceiveNetBufferLists;
     FChars.SendNetBufferListsHandler         = FilterSendNetBufferLists;
@@ -193,6 +194,7 @@ FilterAttach(
     InitializeListHead(&Filter->FilterListLink);
     KeInitializeSpinLock(&Filter->Lock);
     InitializeListHead(&Filter->RxFilterList);
+    InitializeListHead(&Filter->StatusFilterList);
     ExInitializeRundownProtection(&Filter->NblRundown);
     ExWaitForRundownProtectionRelease(&Filter->NblRundown);
 

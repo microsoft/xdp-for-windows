@@ -12,7 +12,7 @@
 
 EXTERN_C_START
 
-#ifndef _KERNEL_MODE
+#ifndef KERNEL_MODE
 #include <xdpndisuser.h>
 #endif
 

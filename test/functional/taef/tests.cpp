@@ -278,15 +278,19 @@ public:
     TEST_METHOD(OffloadRssInterfaceRestart) {
         ::OffloadRssInterfaceRestart();
     }
+
     TEST_METHOD(OffloadRssUnchanged) {
         ::OffloadRssUnchanged();
     }
+
     TEST_METHOD(OffloadRssUpperSet) {
         ::OffloadRssUpperSet();
     }
+
     TEST_METHOD(OffloadRssSet) {
         ::OffloadRssSet();
     }
+
     TEST_METHOD(OffloadRssCapabilities) {
         ::OffloadRssCapabilities();
     }
@@ -301,5 +305,9 @@ public:
 
     TEST_METHOD(FnLwfOid) {
         ::FnLwfOid();
+    }
+
+    TEST_METHOD(OffloadSetHardwareCapabilities) {
+        ::OffloadSetHardwareCapabilities();
     }
 };

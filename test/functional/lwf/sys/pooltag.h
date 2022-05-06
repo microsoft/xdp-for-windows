@@ -9,4 +9,5 @@
 #define POOLTAG_OID                 'OfFX'      // XFfO
 #define POOLTAG_DEFAULT             'DfFX'      // XFfD
 #define POOLTAG_DEFAULT_RX          'RfFX'      // XFfR
+#define POOLTAG_DEFAULT_STATUS      'SfFX'      // XFfS
 #define POOLTAG_DEFAULT_TX          'TfFX'      // XFfT

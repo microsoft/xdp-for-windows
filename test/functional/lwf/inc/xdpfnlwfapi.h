@@ -61,4 +61,19 @@ FnLwfOidSubmitRequest(
     _Inout_opt_ VOID *InformationBuffer
     );
 
+HRESULT
+FnLwfStatusSetFilter(
+    _In_ HANDLE Handle,
+    _In_ NDIS_STATUS StatusCode,
+    _In_ BOOLEAN BlockIndications,
+    _In_ BOOLEAN QueueIndications
+    );
+
+HRESULT
+FnLwfStatusGetIndication(
+    _In_ HANDLE Handle,
+    _Inout_ UINT32 *StatusBufferLength,
+    _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
+    );
+
 EXTERN_C_END

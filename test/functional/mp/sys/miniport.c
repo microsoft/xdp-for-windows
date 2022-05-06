@@ -7,7 +7,8 @@
 
 NDIS_STRING RegRSS = NDIS_STRING_CONST("*RSS");
 NDIS_STRING RegNumRssQueues = NDIS_STRING_CONST("*NumRssQueues");
-NDIS_STRING RegRxQueueSizeExp = NDIS_STRING_CONST("RxQueueSizeExp");
+NDIS_STRING RegUdpChecksumOffloadIPv4 = NDIS_STRING_CONST("*UDPChecksumOffloadIPv4");
+NDIS_STRING RegUdpChecksumOffloadIPv4Capability = NDIS_STRING_CONST("UDPChecksumOffloadIPv4Capability");
 
 UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 
@@ -136,6 +137,16 @@ MpFindAdapter(
 }
 
 static
+BOOLEAN
+MpValidateChecksumConfig(
+    _In_ CHECKSUM_OFFLOAD_STATE HardwareCapability,
+    _In_ CHECKSUM_OFFLOAD_STATE CurrentConfig
+    )
+{
+    return (CurrentConfig & HardwareCapability) == CurrentConfig;
+}
+
+static
 NDIS_STATUS
 MpReadConfiguration(
    _Inout_ ADAPTER_CONTEXT *Adapter
@@ -170,6 +181,30 @@ MpReadConfiguration(
         goto Exit;
     }
 
+    Adapter->OffloadCapabilities.UdpChecksumOffloadIPv4 = ChecksumOffloadDisabled;
+    TRY_READ_INT_CONFIGURATION(
+        ConfigHandle, RegUdpChecksumOffloadIPv4Capability,
+        &Adapter->OffloadCapabilities.UdpChecksumOffloadIPv4);
+    if ((UINT32)Adapter->OffloadCapabilities.UdpChecksumOffloadIPv4 > ChecksumOffloadRxTx) {
+        Status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    Adapter->OffloadConfig.UdpChecksumOffloadIPv4 = ChecksumOffloadDisabled;
+    TRY_READ_INT_CONFIGURATION(
+        ConfigHandle, RegUdpChecksumOffloadIPv4, &Adapter->OffloadConfig.UdpChecksumOffloadIPv4);
+    if ((UINT32)Adapter->OffloadConfig.UdpChecksumOffloadIPv4 > ChecksumOffloadRxTx) {
+        Status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (!MpValidateChecksumConfig(
+            Adapter->OffloadCapabilities.UdpChecksumOffloadIPv4,
+            Adapter->OffloadConfig.UdpChecksumOffloadIPv4)) {
+        Status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
     Status = NDIS_STATUS_SUCCESS;
 
 Exit:
@@ -182,29 +217,135 @@ Exit:
 }
 
 static
+VOID
+MpFillOffload(
+    _Out_ NDIS_OFFLOAD *Offload,
+    _In_ CONST ADAPTER_OFFLOAD *AdapterOffload
+    )
+{
+    CONST UINT32 Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+
+    RtlZeroMemory(Offload, sizeof(*Offload));
+
+    Offload->Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
+    Offload->Header.Revision = NDIS_OFFLOAD_REVISION_7;
+    Offload->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_7;
+
+    if (AdapterOffload->UdpChecksumOffloadIPv4 & ChecksumOffloadTx) {
+        Offload->Checksum.IPv4Transmit.Encapsulation = Encapsulation;
+        Offload->Checksum.IPv4Transmit.UdpChecksum = NDIS_OFFLOAD_SUPPORTED;
+    }
+}
+
+static
 NDIS_STATUS
 MpSetOffloadAttributes(
     _Inout_ ADAPTER_CONTEXT *Adapter
     )
 {
     NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES OffloadAttributes = {0};
-    NDIS_OFFLOAD DefaultConfig = {0};
+    NDIS_OFFLOAD DefaultConfig;
+    NDIS_OFFLOAD HwCapabilities;
 
-    DefaultConfig.Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
-    DefaultConfig.Header.Revision = NDIS_OFFLOAD_REVISION_6;
-    DefaultConfig.Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_6;
+    MpFillOffload(&DefaultConfig, &Adapter->OffloadConfig);
+    MpFillOffload(&HwCapabilities, &Adapter->OffloadCapabilities);
 
     OffloadAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES;
     OffloadAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
     OffloadAttributes.Header.Size = sizeof(NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES);
 
     OffloadAttributes.DefaultOffloadConfiguration = &DefaultConfig;
-    OffloadAttributes.HardwareOffloadCapabilities = &DefaultConfig;
+    OffloadAttributes.HardwareOffloadCapabilities = &HwCapabilities;
 
     return
         NdisMSetMiniportAttributes(
             Adapter->MiniportHandle,
             (NDIS_MINIPORT_ADAPTER_ATTRIBUTES *)&OffloadAttributes);
+}
+
+static
+VOID
+MpUpdateChecksumParameter(
+    _Inout_ CHECKSUM_OFFLOAD_STATE *OffloadState,
+    _In_ UCHAR ParameterValue
+    )
+{
+    switch (ParameterValue) {
+    case NDIS_OFFLOAD_PARAMETERS_NO_CHANGE:
+        break;
+
+    case NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED:
+        *OffloadState = ChecksumOffloadDisabled;
+        break;
+
+    case NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED:
+        *OffloadState = ChecksumOffloadTx;
+        break;
+
+    case NDIS_OFFLOAD_PARAMETERS_RX_ENABLED_TX_DISABLED:
+        *OffloadState = ChecksumOffloadRx;
+        break;
+
+    case NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED:
+        *OffloadState = ChecksumOffloadRxTx;
+        break;
+
+    default:
+        ASSERT(FALSE);
+        break;
+    }
+}
+
+static
+MpIndicateStatus(
+    _In_ CONST ADAPTER_CONTEXT *Adapter,
+    _In_ VOID *Buffer,
+    _In_ UINT32 BufferSize,
+    _In_ UINT32 StatusCode
+    )
+{
+    NDIS_STATUS_INDICATION StatusIndication;
+
+    RtlZeroMemory(&StatusIndication, sizeof(NDIS_STATUS_INDICATION));
+
+    StatusIndication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;
+    StatusIndication.Header.Size = NDIS_SIZEOF_STATUS_INDICATION_REVISION_1;
+    StatusIndication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;
+
+    StatusIndication.SourceHandle = Adapter->MiniportHandle;
+    StatusIndication.StatusBuffer = Buffer;
+    StatusIndication.StatusBufferSize = BufferSize;
+    StatusIndication.StatusCode = StatusCode;
+
+    NdisMIndicateStatusEx(Adapter->MiniportHandle, &StatusIndication);
+}
+
+NDIS_STATUS
+MpSetOffloadParameters(
+    _In_ CONST ADAPTER_CONTEXT *Adapter,
+    _Inout_ ADAPTER_OFFLOAD *AdapterOffload,
+    _In_ CONST NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
+    _In_ UINT32 OffloadParametersLength,
+    _In_ UINT32 StatusCode
+    )
+{
+    NDIS_OFFLOAD NdisOffload;
+
+    FRE_ASSERT(OffloadParametersLength >= NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1);
+
+    //
+    // First, update our internal state.
+    //
+    MpUpdateChecksumParameter(
+        &AdapterOffload->UdpChecksumOffloadIPv4, OffloadParameters->UDPIPv4Checksum);
+
+    //
+    // Then, build an NDIS offload struct and indicate up the stack.
+    //
+    MpFillOffload(&NdisOffload, AdapterOffload);
+    MpIndicateStatus(Adapter, &NdisOffload, sizeof(NdisOffload), StatusCode);
+
+    return NDIS_STATUS_SUCCESS;
 }
 
 static

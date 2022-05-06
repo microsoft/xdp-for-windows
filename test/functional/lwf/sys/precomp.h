@@ -23,6 +23,7 @@
 #include "oid.h"
 #include "pooltag.h"
 #include "rx.h"
+#include "status.h"
 #include "trace.h"
 #include "tx.h"
 #include "xdpfnlwfioctl.h"

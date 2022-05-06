@@ -145,3 +145,6 @@ OffloadRssSet();
 
 VOID
 OffloadRssCapabilities();
+
+VOID
+OffloadSetHardwareCapabilities();

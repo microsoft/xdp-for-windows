@@ -31,6 +31,20 @@ typedef struct DECLSPEC_CACHEALIGN {
     UINT32 ProcessorIndex;
 } ADAPTER_QUEUE;
 
+typedef enum _CHECKSUM_OFFLOAD_STATE {
+    ChecksumOffloadDisabled = 0,
+    ChecksumOffloadTx = 1,
+    ChecksumOffloadRx = 2,
+    ChecksumOffloadRxTx = 3,
+} CHECKSUM_OFFLOAD_STATE;
+
+C_ASSERT((ChecksumOffloadTx & ChecksumOffloadRx) == 0);
+C_ASSERT((ChecksumOffloadTx | ChecksumOffloadRx) == ChecksumOffloadRxTx);
+
+typedef struct _ADAPTER_OFFLOAD {
+    CHECKSUM_OFFLOAD_STATE UdpChecksumOffloadIPv4;
+} ADAPTER_OFFLOAD;
+
 typedef struct _ADAPTER_CONTEXT {
     LIST_ENTRY AdapterListLink;
     NDIS_HANDLE MiniportHandle;
@@ -50,6 +64,10 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RssEnabled;
     ULONG NumRssProcs;
     ULONG NumRssQueues;
+
+    UINT32 Encapsulation;
+    ADAPTER_OFFLOAD OffloadConfig;
+    ADAPTER_OFFLOAD OffloadCapabilities;
 
     EX_PUSH_LOCK Lock;
     OID_KEY *OidFilterKeys;
@@ -90,4 +108,13 @@ MpDereferenceAdapter(
 ADAPTER_CONTEXT *
 MpFindAdapter(
     _In_ UINT32 IfIndex
+    );
+
+NDIS_STATUS
+MpSetOffloadParameters(
+    _In_ CONST ADAPTER_CONTEXT *Adapter,
+    _Inout_ ADAPTER_OFFLOAD *AdapterOffload,
+    _In_ CONST NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
+    _In_ UINT32 OffloadParametersLength,
+    _In_ UINT32 StatusCode
     );

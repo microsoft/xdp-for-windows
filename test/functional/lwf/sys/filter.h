@@ -23,6 +23,7 @@ typedef struct _LWF_FILTER {
     EX_RUNDOWN_REF OidRundown;
     NDIS_HANDLE NblPool;
     LIST_ENTRY RxFilterList;
+    LIST_ENTRY StatusFilterList;
 } LWF_FILTER;
 
 typedef struct _GLOBAL_CONTEXT {
