@@ -378,6 +378,56 @@ typedef enum _XSK_ERROR {
 //
 #define XSK_SOCKOPT_SHARE_UMEM 14
 
+//
+// XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION
+//
+// Supports: get
+// Optval type: XDP_EXTENSION
+// Description: Gets the XDP_FRAME_LAYOUT descriptor extension for the TX frame
+//              ring. This requires the socket is bound, the TX ring size is
+//              set, and at least one socket option has enabled the frame layout
+//              extension.
+//
+#define XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION 15
+
+//
+// XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION
+//
+// Supports: get
+// Optval type: XDP_EXTENSION
+// Description: Gets the XDP_FRAME_CHECKSUM descriptor extension for the TX
+//              frame ring. This requires the socket is bound, the TX ring size
+//              is set, and at least one socket option has enabled the frame
+//              layout extension.
+//
+#define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 16
+
+//
+// XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX
+//
+// Supports: set
+// Optval type: BOOLEAN
+// Description: Sets whether UDP checksum transmit offload is enabled. This
+//              option requires the socket is bound and the TX frame ring size
+//              is not set. This option enables the XDP_FRAME_LAYOUT and
+//              XDP_FRAME_CHECKSUM extensions on the TX frame ring.
+//
+#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX 17
+
+//
+// XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES
+//
+// Supports: get
+// Optval type: XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES
+// Description: Returns the UDP checksum transmit offload capabilities. This
+//              option requires the socket is bound.
+//
+#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES 18
+
+typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
+    BOOLEAN Supported;
+} XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES;
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

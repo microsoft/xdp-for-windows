@@ -24,7 +24,7 @@ extern "C" {
 
 #define XSK_SOCKOPT_POLL_MODE 1000
 
-typedef enum XSK_POLL_MODE {
+typedef enum _XSK_POLL_MODE {
     //
     // Sets the XSK polling mode to the system default.
     //
