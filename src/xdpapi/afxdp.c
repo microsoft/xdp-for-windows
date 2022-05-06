@@ -68,15 +68,13 @@ HRESULT
 XDPAPI
 XskActivate(
     _In_ HANDLE socket,
-    _In_ UINT32 flags,
-    _In_opt_ HANDLE sharedUmemSock
+    _In_ UINT32 flags
     )
 {
     BOOL res;
     XSK_ACTIVATE_IN activate = {0};
 
     activate.Flags = flags;
-    activate.SharedUmemSock = sharedUmemSock;
 
     res =
         XdpIoctl(

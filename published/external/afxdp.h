@@ -143,17 +143,12 @@ XskBind(
 //
 // Activate the data path of an AF_XDP socket. An AF_XDP socket cannot send or
 // receive data until it is successfully activated. An AF_XDP socket can only be
-// activated after it has been successfully bound. An AF_XDP socket can share a
-// UMEM registered with another AF_XDP socket by supplying the handle of the
-// socket already registered with a UMEM as sharedUmemSock. If sharing is not
-// desired, NULL must be supplied as sharedUmemSock.
+// activated after it has been successfully bound.
 //
 // Before calling XskActivate:
 // 1) The socket object must have at least TX + TX completion and RX + RX fill
 //    rings configured if bound to the TX and RX data paths, respectively.
-// 2) a. The socket object must have a UMEM registered OR b. The sharedUmemSock
-//       parameter must be a handle to another socket object that has a UMEM
-//       registered
+// 2) The socket object must have registered or shared a UMEM.
 //
 // Valid values for flags parameter:
 //
@@ -164,8 +159,7 @@ HRESULT
 XDPAPI
 XskActivate(
     _In_ HANDLE socket,
-    _In_ UINT32 flags,
-    _In_opt_ HANDLE sharedUmemSock
+    _In_ UINT32 flags
     );
 
 //
@@ -373,6 +367,16 @@ typedef enum _XSK_ERROR {
 #define XSK_SOCKOPT_RX_FILL_ERROR         11
 #define XSK_SOCKOPT_TX_ERROR              12
 #define XSK_SOCKOPT_TX_COMPLETION_ERROR   13
+
+//
+// Supports: set
+//
+// Optval type: HANDLE
+// Description: An AF_XDP socket can share a UMEM registered with another AF_XDP
+//              socket by supplying the handle of the socket already registered
+//              with a UMEM.
+//
+#define XSK_SOCKOPT_SHARE_UMEM 14
 
 #ifdef __cplusplus
 } // extern "C"

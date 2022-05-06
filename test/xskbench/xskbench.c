@@ -484,7 +484,7 @@ SetupSock(
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("activating sock\n");
-    res = XskActivate(Queue->sock, 0, NULL);
+    res = XskActivate(Queue->sock, 0);
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("XSK_SOCKOPT_RING_INFO\n");

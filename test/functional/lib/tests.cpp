@@ -724,7 +724,7 @@ CreateAndBindSocket(
     } while (!Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
-    TEST_HRESULT(XskActivate(Socket.Handle.get(), 0, NULL));
+    TEST_HRESULT(XskActivate(Socket.Handle.get(), 0));
 
     XskSetupPostBind(&Socket, Rx, Tx);
 

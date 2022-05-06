@@ -963,6 +963,35 @@ FuzzSocketUmemSetup(
 }
 
 VOID
+FuzzSocketSharedUmemSetup(
+    _Inout_ QUEUE_CONTEXT *Queue,
+    _In_ HANDLE Sock,
+    _In_ HANDLE SharedUmemSock
+    )
+{
+    if (RandUlong() % 2) {
+        HRESULT res;
+
+        switch (RandUlong() % 4) {
+        case 0:
+            SharedUmemSock = NULL;
+            break;
+        case 1:
+            SharedUmemSock = Sock;
+            break;
+        }
+
+        res =
+            XskSetSockopt(
+                Sock, XSK_SOCKOPT_SHARE_UMEM, &SharedUmemSock, sizeof(SharedUmemSock));
+        if (SUCCEEDED(res)) {
+            TraceVerbose(
+                "q[%u]: umem shared with SharedUmemSock=%p", Queue->queueId, SharedUmemSock);
+        }
+    }
+}
+
+VOID
 FuzzRingSize(
     _In_ QUEUE_CONTEXT *Queue,
     _Out_ UINT32 *Size
@@ -1157,7 +1186,6 @@ VOID
 FuzzSocketActivate(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
-    _In_opt_ HANDLE SharedUmemSock,
     _Inout_ BOOLEAN *WasSockActivated
     )
 {
@@ -1169,7 +1197,7 @@ FuzzSocketActivate(
             activateFlags = RandUlong() & RandUlong();
         }
 
-        res = XskActivate(Sock, activateFlags, SharedUmemSock);
+        res = XskActivate(Sock, activateFlags);
         if (SUCCEEDED(res)) {
             WriteBooleanRelease(WasSockActivated, TRUE);
         }
@@ -1530,6 +1558,10 @@ XskFuzzerWorkerFn(
         }
 
         FuzzSocketUmemSetup(queue, queue->sock, &scenarioConfig->isUmemRegistered);
+        if (queue->sharedUmemSock != NULL) {
+            FuzzSocketSharedUmemSetup(
+                queue, queue->sharedUmemSock, queue->sock);
+        }
 
         FuzzRss(fuzzer, queue);
 
@@ -1556,11 +1588,10 @@ XskFuzzerWorkerFn(
                 scenarioConfig->sharedUmemSockTx, &scenarioConfig->isSharedUmemSockBound);
         }
 
-        FuzzSocketActivate(queue, queue->sock, NULL, &scenarioConfig->isSockActivated);
+        FuzzSocketActivate(queue, queue->sock, &scenarioConfig->isSockActivated);
         if (queue->sharedUmemSock != NULL) {
             FuzzSocketActivate(
-                queue, queue->sharedUmemSock, queue->sock,
-                &scenarioConfig->isSharedUmemSockActivated);
+                queue, queue->sharedUmemSock, &scenarioConfig->isSharedUmemSockActivated);
         }
 
         if (ScenarioConfigComplete(scenarioConfig)) {

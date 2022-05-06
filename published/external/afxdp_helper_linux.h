@@ -457,7 +457,16 @@ inline int xsk_socket__create(struct xsk_socket **xsk,
         goto error;
     }
 
-    hres = XskActivate(handle, 0, umem->sockHandle);
+    if (umem->sockHandle != NULL) {
+        hres =
+            XskSetSockopt(
+                handle, XSK_SOCKOPT_SHARE_UMEM, &umem->sockHandle, sizeof(umem->sockHandle));
+        if (hres != S_OK) {
+            goto error;
+        }
+    }
+
+    hres = XskActivate(handle, 0);
     if (hres != S_OK) {
         goto error;
     }

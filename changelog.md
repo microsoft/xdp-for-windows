@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- (AF_XDP) Remove `sharedUmemSock` parameter from `XskActivate` and replace with
+  the `XSK_SOCKOPT_SHARE_UMEM` socket option.
+
 ## [0.16.1] - 2022-05-02
 
 ### Added

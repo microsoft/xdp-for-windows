@@ -93,7 +93,6 @@ typedef struct _XSK_BIND_IN {
 //
 typedef struct _XSK_ACTIVATE_IN {
     UINT32 Flags;
-    HANDLE SharedUmemSock;
 } XSK_ACTIVATE_IN;
 
 //
