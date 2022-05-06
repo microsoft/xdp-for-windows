@@ -240,13 +240,6 @@ XdpIrpDeviceIoControl(
     ASSERT(DeviceObject == XdpDeviceObject);
     PAGED_CODE();
 
-#ifdef _WIN64
-    if (IoIs32bitProcess(Irp)) {
-        Status = STATUS_NOT_SUPPORTED;
-        goto Exit;
-    }
-#endif
-
     Irp->IoStatus.Information = 0;
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
     FileHeader = IrpSp->FileObject->FsContext;
@@ -295,13 +288,6 @@ XdpFastDeviceIoControl(
     XDP_FILE_OBJECT_HEADER *FileObjHeader = FileObject->FsContext;
 
     PAGED_CODE();
-
-#ifdef _WIN64
-    if (IoIs32bitProcess(NULL)) {
-        IoStatus->Status = STATUS_NOT_SUPPORTED;
-        return TRUE;
-    }
-#endif
 
     if (FileObjHeader == NULL) {
         IoStatus->Status = STATUS_INVALID_PARAMETER;
