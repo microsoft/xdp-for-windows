@@ -327,8 +327,9 @@ public:
     {
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName *", PowershellPrefix, _IfDesc);
+        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
         TEST_EQUAL(0, system(CmdBuff));
+        Restart();
     }
 };
 
