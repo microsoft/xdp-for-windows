@@ -739,13 +739,6 @@ XdpRxQueueAttachInterface(
         goto Exit;
     }
 
-    Status =
-        XdpIfReferenceInterfaceOffload(
-            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle, XdpOffloadRss);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
     RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch;
 
     //

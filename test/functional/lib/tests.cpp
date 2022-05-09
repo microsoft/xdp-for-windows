@@ -327,8 +327,9 @@ public:
     {
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName *", PowershellPrefix, _IfDesc);
+        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
         TEST_EQUAL(0, system(CmdBuff));
+        Restart();
     }
 };
 
@@ -4155,8 +4156,7 @@ OffloadRssError()
 
     for (auto Case : RxTxTestCases) {
         auto Socket = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
-        HRESULT Error = XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize);
-        TEST_EQUAL(Error, HRESULT_FROM_WIN32(ERROR_BAD_COMMAND));
+        TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
     }
 
     //
@@ -4214,34 +4214,22 @@ OffloadRssReference()
 
         TEST_HRESULT(XdpRssSet(InterfaceHandle.get(), ModifiedRssConfig.get(), ModifiedRssConfigSize));
 
-        {
-            //
-            // Bind socket (and setup RX program).
-            //
-            auto Socket =
-                SetupSocket(
-                    FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
+        //
+        // Bind socket (and setup RX program).
+        //
+        auto Socket =
+            SetupSocket(
+                FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
-            //
-            // Close RSS handle.
-            //
-            InterfaceHandle.reset();
-
-            //
-            // Verify RSS settings persist.
-            //
-            TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
-            RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
-            TEST_EQUAL(RssConfig->HashType, ModifiedRssConfig->HashType);
-
-            //
-            // Close socket.
-            //
-        }
+        //
+        // Close RSS handle.
+        //
+        InterfaceHandle.reset();
 
         //
         // Verify RSS settings restored.
         //
+        TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
         RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
         TEST_EQUAL(RssConfig->HashType, OriginalRssConfig->HashType);
     }
