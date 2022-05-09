@@ -1702,7 +1702,7 @@ XdpLwfOffloadInitialize(
     // inspect it and might still be in flight after we query NDIS.
     //
 
-    ExInitializePushLock(&Filter->Offload.Lock);
+    KeInitializeSpinLock(&Filter->Offload.Lock);
     InitializeListHead(&Filter->Offload.InterfaceOffloadHandleListHead);
 }
 
