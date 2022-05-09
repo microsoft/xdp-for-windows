@@ -1609,6 +1609,35 @@ Exit:
     return XdpConvertNtStatusToNdisStatus(Status);
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
+BOOLEAN
+XdpLwfOffloadInspectStatus(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ NDIS_STATUS_INDICATION *StatusIndication
+    )
+{
+    BOOLEAN AbsorbIndication = FALSE;
+
+    switch (StatusIndication->StatusCode) {
+    case NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG:
+        NDIS_OFFLOAD *Offload = &Filter->Offload.LowerEdge.TaskOffloadConfig;
+        UINT32 BytesToCopy = min(sizeof(*Offload), StatusIndication->StatusBufferSize);
+
+        //
+        // TODO: protect with a lock.
+        //
+        RtlCopyMemory(Offload, StatusIndication->StatusBuffer, StatusIndication->StatusBufferSize);
+
+        if (BytesToCopy < sizeof(*Offload)) {
+            RtlZeroMemory(RTL_PTR_ADD(Offload, BytesToCopy), sizeof(*Offload) - BytesToCopy);
+        }
+
+        break;
+    }
+
+    return AbsorbIndication;
+}
+
 VOID
 XdpLwfOffloadRssNblTransform(
     _In_ XDP_LWF_FILTER *Filter,

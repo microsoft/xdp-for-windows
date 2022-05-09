@@ -95,6 +95,7 @@ XdpLwfBindStart(
     FChars.SetFilterModuleOptionsHandler    = XdpLwfFilterSetOptions;
     FChars.OidRequestHandler                = XdpLwfOidRequest;
     FChars.OidRequestCompleteHandler        = XdpLwfOidRequestComplete;
+    FChars.StatusHandler                    = XdpLwfFilterStatus;
 
     Status = NdisFRegisterFilterDriver(DriverObject, NULL, &FChars, &XdpLwfNdisDriverHandle);
     if (Status != NDIS_STATUS_SUCCESS) {

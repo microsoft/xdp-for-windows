@@ -62,6 +62,13 @@ XdpLwfOffloadInspectOidRequest(
     _Out_ NDIS_STATUS *CompletionStatus
     );
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
+BOOLEAN
+XdpLwfOffloadInspectStatus(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ NDIS_STATUS_INDICATION *StatusIndication
+    );
+
 VOID
 XdpLwfOffloadTransformNbls(
     _In_ XDP_LWF_FILTER *Filter,

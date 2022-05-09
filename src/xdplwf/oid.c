@@ -276,3 +276,21 @@ XdpLwfOidRequestComplete(
     NdisFreeCloneOidRequest(Filter->NdisFilterHandle, Request);
     NdisFOidRequestComplete(Filter->NdisFilterHandle, OriginalRequest, Status);
 }
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+_Function_class_(FILTER_STATUS)
+VOID
+XdpLwfFilterStatus(
+    _In_ NDIS_HANDLE FilterModuleContext,
+    _In_ NDIS_STATUS_INDICATION *StatusIndication
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+    BOOLEAN AbsorbIndication = FALSE;
+
+    AbsorbIndication |= XdpLwfOffloadInspectStatus(Filter, StatusIndication);
+
+    if (!AbsorbIndication) {
+        NdisFIndicateStatus(Filter->NdisFilterHandle, StatusIndication);
+    }
+}
