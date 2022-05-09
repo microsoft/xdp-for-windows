@@ -916,13 +916,6 @@ XdpTxQueueCreate(
         goto Exit;
     }
 
-    Status =
-        XdpIfReferenceInterfaceOffload(
-            XdpIfGetIfSetHandle(TxQueue->Binding), TxQueue->InterfaceOffloadHandle, XdpOffloadRss);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
     *NewTxQueue = TxQueue;
     Status = STATUS_SUCCESS;
 
