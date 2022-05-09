@@ -17,7 +17,7 @@ typedef struct _XDP_LWF_OFFLOAD_SETTING_RSS {
 //
 typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
     XDP_LWF_OFFLOAD_SETTING_RSS *Rss;
-    // ...
+    NDIS_OFFLOAD TaskOffloadConfig;
 } XDP_LWF_INTERFACE_OFFLOAD_SETTINGS;
 
 //
@@ -25,7 +25,6 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
 //
 typedef struct _XDP_LWF_OFFLOAD {
     EX_PUSH_LOCK Lock;
-
 
     //
     // Hardware capabilities.
