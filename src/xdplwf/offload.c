@@ -572,7 +572,6 @@ XdpLwfOffloadRssGet(
 }
 
 static
-_Requires_lock_held_(&Filter->Offload.Lock)
 VOID
 RemoveLowerEdgeRssSetting(
     _In_ XDP_LWF_FILTER *Filter
@@ -584,21 +583,28 @@ RemoveLowerEdgeRssSetting(
     ULONG BytesReturned;
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
     XDP_LWF_GENERIC_INDIRECTION_STORAGE Indirection = {0};
+    BOOLEAN NeedRxDetach = FALSE;
 
-    ASSERT(Filter->Offload.LowerEdge.Rss != NULL);
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
-    XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    if (Filter->Offload.LowerEdge.Rss == NULL) {
+        RtlReleasePushLockExclusive(&Filter->Offload.Lock);
+        goto Exit;
+    }
+
+    NeedRxDetach = TRUE;
+    Filter->Offload.LowerEdge.Rss = NULL;
 
     //
     // Clear the lower edge setting to imply lower edge has no independent settings.
     //
-    Filter->Offload.LowerEdge.Rss = NULL;
 
     if (Filter->Offload.UpperEdge.Rss == NULL) {
         //
         // Upper edge RSS is not initialized.
         //
         TraceError(TRACE_LWF, "Filter=%p Upper edge RSS params not present", Filter);
+        RtlReleasePushLockExclusive(&Filter->Offload.Lock);
         goto Exit;
     }
 
@@ -625,8 +631,11 @@ RemoveLowerEdgeRssSetting(
             TRACE_LWF,
             "Filter=%p Failed to create NDIS RSS params Status=%!STATUS!",
             Filter, Status);
+        RtlReleasePushLockExclusive(&Filter->Offload.Lock);
         goto Exit;
     }
+
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     Status =
         XdpGenericRssCreateIndirection(
@@ -652,6 +661,10 @@ RemoveLowerEdgeRssSetting(
 
 Exit:
 
+    if (NeedRxDetach) {
+        XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    }
+
     if (NdisRssParams != NULL) {
         ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
     }
@@ -672,7 +685,6 @@ ReferenceRssSetting(
 }
 
 static
-_When_(Filter != NULL, _Requires_lock_held_(&Filter->Offload.Lock))
 VOID
 DereferenceRssSetting(
     _In_ XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting,
@@ -1180,7 +1192,6 @@ Exit:
 }
 
 static
-_Requires_lock_held_(&Filter->Offload.Lock)
 VOID
 XdpLwfOffloadRssDeactivate(
     _In_ XDP_LWF_FILTER *Filter
@@ -1191,9 +1202,7 @@ XdpLwfOffloadRssDeactivate(
     //
     // Restore the miniport's RSS settings to what the upper layers expect.
     //
-    if (Filter->Offload.LowerEdge.Rss != NULL) {
-        RemoveLowerEdgeRssSetting(Filter);
-    }
+    RemoveLowerEdgeRssSetting(Filter);
 
     //
     // Free the upper edge RSS settings.
@@ -1682,9 +1691,9 @@ XdpLwfOffloadDeactivate(
         OffloadContext->IsInvalid = TRUE;
     }
 
-    XdpLwfOffloadRssDeactivate(Filter);
-
     RtlReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    XdpLwfOffloadRssDeactivate(Filter);
 
     TraceExitSuccess(TRACE_LWF);
 }

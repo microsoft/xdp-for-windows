@@ -53,8 +53,8 @@ XdpGenericRssCreateIndirection(
     //
     // XdpGenericRssCreateIndirection preallocates all data structures needed to
     // update the RSS indirection table before applying changes to NDIS. This is
-    // so NDIS does not get out of sync with us, as could happen if this was done
-    // after NDIS changes were applied and the allocations failed.
+    // so NDIS does not get out of sync with us, as could happen if this was
+    // done after NDIS changes were applied and the allocations failed.
     //
 
     RtlZeroMemory(Indirection, sizeof(*Indirection));
