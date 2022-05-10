@@ -1106,21 +1106,21 @@ FuzzSocketMisc(
     }
 
     if (RandUlong() % 2) {
-        UINT32 notifyFlags = 0;
+        XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
         UINT32 timeoutMs = 0;
-        UINT32 notifyResult;
+        XSK_NOTIFY_RESULT_FLAGS notifyResult;
 
         if (RandUlong() % 2) {
-            notifyFlags |= XSK_NOTIFY_POKE_RX;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
         }
         if (RandUlong() % 2) {
-            notifyFlags |= XSK_NOTIFY_POKE_TX;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
         }
         if (RandUlong() % 2) {
-            notifyFlags |= XSK_NOTIFY_WAIT_RX;
+            notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
         }
         if (RandUlong() % 2) {
-            notifyFlags |= XSK_NOTIFY_WAIT_TX;
+            notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
         }
 
         if (RandUlong() % 2) {
@@ -1158,17 +1158,17 @@ FuzzSocketBind(
 
     if (RandUlong() % 2) {
         if (Rx) {
-            bindFlags |= XSK_BIND_RX;
+            bindFlags |= XSK_BIND_FLAG_RX;
         }
 
         if (Tx) {
-            bindFlags |= XSK_BIND_TX;
+            bindFlags |= XSK_BIND_FLAG_TX;
         }
 
         if (Queue->xdpMode == XdpModeGeneric) {
-            bindFlags |= XSK_BIND_GENERIC;
+            bindFlags |= XSK_BIND_FLAG_GENERIC;
         } else if (Queue->xdpMode == XdpModeNative) {
-            bindFlags |= XSK_BIND_NATIVE;
+            bindFlags |= XSK_BIND_FLAG_NATIVE;
         }
 
         if (!(RandUlong() % 10)) {
@@ -1304,21 +1304,21 @@ Exit:
 VOID
 NotifyDriver(
     _In_ XSK_DATAPATH_WORKER *Datapath,
-    _In_ UINT32 DirectionFlags
+    _In_ XSK_NOTIFY_FLAGS DirectionFlags
     )
 {
-    UINT32 notifyResult;
+    XSK_NOTIFY_RESULT_FLAGS notifyResult;
 
     //
     // Ensure poke flags are read after writing producer/consumer indices.
     //
     MemoryBarrier();
 
-    if ((DirectionFlags & XSK_NOTIFY_POKE_RX) && !XskRingProducerNeedPoke(&Datapath->fillRing)) {
-        DirectionFlags &= ~XSK_NOTIFY_POKE_RX;
+    if ((DirectionFlags & XSK_NOTIFY_FLAG_POKE_RX) && !XskRingProducerNeedPoke(&Datapath->fillRing)) {
+        DirectionFlags &= ~XSK_NOTIFY_FLAG_POKE_RX;
     }
-    if ((DirectionFlags & XSK_NOTIFY_POKE_TX) && !XskRingProducerNeedPoke(&Datapath->txRing)) {
-        DirectionFlags &= ~XSK_NOTIFY_POKE_TX;
+    if ((DirectionFlags & XSK_NOTIFY_FLAG_POKE_TX) && !XskRingProducerNeedPoke(&Datapath->txRing)) {
+        DirectionFlags &= ~XSK_NOTIFY_FLAG_POKE_TX;
     }
 
     if (DirectionFlags != 0) {
@@ -1331,7 +1331,7 @@ ProcessPkts(
     _Inout_ XSK_DATAPATH_WORKER *Datapath
     )
 {
-    UINT32 notifyFlags = 0;
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
     UINT32 available;
     UINT32 consumerIndex;
     UINT32 producerIndex;
@@ -1375,20 +1375,20 @@ ProcessPkts(
             XskRingConsumerRelease(&Datapath->rxFreeRing, available);
             XskRingProducerSubmit(&Datapath->fillRing, available);
 
-            notifyFlags |= XSK_NOTIFY_POKE_RX;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
         }
 
         if (Datapath->flags.wait &&
             XskRingConsumerReserve(&Datapath->rxRing, 1, &consumerIndex) == 0 &&
             XskRingConsumerReserve(&Datapath->rxFreeRing, 1, &consumerIndex) == 0) {
-            notifyFlags |= XSK_NOTIFY_WAIT_RX;
+            notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
         }
 
         if (Datapath->pollMode == XSK_POLL_MODE_SOCKET) {
             //
             // If socket poll mode is supported by the program, always enable pokes.
             //
-            notifyFlags |= XSK_NOTIFY_POKE_RX;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
         }
     }
 
@@ -1414,7 +1414,7 @@ ProcessPkts(
 
             if (XskRingProducerReserve(&Datapath->txRing, MAXUINT32, &producerIndex) !=
                     Datapath->txRing.size) {
-                notifyFlags |= XSK_NOTIFY_POKE_TX;
+                notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
             }
 
             QueryPerformanceCounter((LARGE_INTEGER*)&Datapath->txWatchdogPerfCount);
@@ -1438,20 +1438,20 @@ ProcessPkts(
             XskRingConsumerRelease(&Datapath->txFreeRing, available);
             XskRingProducerSubmit(&Datapath->txRing, available);
 
-            notifyFlags |= XSK_NOTIFY_POKE_TX;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
         }
 
         if (Datapath->flags.wait &&
             XskRingConsumerReserve(&Datapath->compRing, 1, &consumerIndex) == 0 &&
             XskRingConsumerReserve(&Datapath->txFreeRing, 1, &consumerIndex) == 0) {
-            notifyFlags |= XSK_NOTIFY_WAIT_TX;
+            notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
         }
 
         if (Datapath->pollMode == XSK_POLL_MODE_SOCKET) {
             //
             // If socket poll mode is supported by the program, always enable pokes.
             //
-            notifyFlags |= XSK_NOTIFY_POKE_TX;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
         }
     }
 

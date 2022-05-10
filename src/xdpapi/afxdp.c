@@ -37,7 +37,7 @@ XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
-    _In_ UINT32 flags
+    _In_ XSK_BIND_FLAGS flags
     )
 {
     BOOL res;
@@ -68,7 +68,7 @@ HRESULT
 XDPAPI
 XskActivate(
     _In_ HANDLE socket,
-    _In_ UINT32 flags
+    _In_ XSK_ACTIVATE_FLAGS flags
     )
 {
     BOOL res;
@@ -161,9 +161,9 @@ HRESULT
 XDPAPI
 XskNotifySocket(
     _In_ HANDLE socket,
-    _In_ UINT32 flags,
+    _In_ XSK_NOTIFY_FLAGS flags,
     _In_ UINT32 waitTimeoutMilliseconds,
-    _Out_ UINT32 *result
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     )
 {
     BOOL res;

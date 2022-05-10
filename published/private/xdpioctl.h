@@ -85,14 +85,14 @@ typedef struct _XDP_INTERFACE_OPEN {
 typedef struct _XSK_BIND_IN {
     UINT32 IfIndex;
     UINT32 QueueId;
-    UINT32 Flags;
+    XSK_BIND_FLAGS Flags;
 } XSK_BIND_IN;
 
 //
 // Input struct for IOCTL_XSK_ACTIVATE
 //
 typedef struct _XSK_ACTIVATE_IN {
-    UINT32 Flags;
+    XSK_ACTIVATE_FLAGS Flags;
 } XSK_ACTIVATE_IN;
 
 //
@@ -108,6 +108,6 @@ typedef struct _XSK_SET_SOCKOPT_IN {
 // Input struct for IOCTL_XSK_NOTIFY
 //
 typedef struct _XSK_NOTIFY_IN {
-    UINT32 Flags;
+    XSK_NOTIFY_FLAGS Flags;
     UINT32 WaitTimeoutMilliseconds;
 } XSK_NOTIFY_IN;

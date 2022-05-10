@@ -69,28 +69,33 @@ typedef struct _XSK_FRAME_DESCRIPTOR {
 //
 C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, buffer) == 0);
 
-//
-// Flags for the shared ring flags field.
-//
-// XSK_RING_FLAG_ERROR (Read only)
-//     The ring is in a terminal state and is no longer usable. This flag is set
-//     by the driver; detailed information can be retrieved via:
-//         XSK_SOCKOPT_RX_ERROR
-//         XSK_SOCKOPT_RX_FILL_ERROR
-//         XSK_SOCKOPT_TX_ERROR
-//         XSK_SOCKOPT_TX_COMPLETION_ERROR
-//
-// XSK_RING_FLAG_NEED_POKE (Read only)
-//     The driver must be poked in order to make IO progress on this ring. This
-//     flag is set by the driver when it is stalled due to lack of IO posted or
-//     IO completions consumed by the application. Applications should check for
-//     this flag on the RX fill and TX rings after producing on them or after
-//     consuming from the TX completion ring. The driver must be poked using
-//     XskNotifySocket with the appropriate poke flags. See XskNotifySocket for
-//     more information.
-//
-#define XSK_RING_FLAG_ERROR     0x1
-#define XSK_RING_FLAG_NEED_POKE 0x2
+typedef enum _XSK_RING_FLAGS {
+    XSK_RING_FLAG_NONE = 0x0,
+
+    //
+    // The ring is in a terminal state and is no longer usable. This flag is set
+    // by the driver; detailed information can be retrieved via:
+    //     XSK_SOCKOPT_RX_ERROR
+    //     XSK_SOCKOPT_RX_FILL_ERROR
+    //     XSK_SOCKOPT_TX_ERROR
+    //     XSK_SOCKOPT_TX_COMPLETION_ERROR
+    //
+    XSK_RING_FLAG_ERROR = 0x1,
+
+    //
+    // The driver must be poked in order to make IO progress on this ring. This
+    // flag is set by the driver when it is stalled due to lack of IO posted or
+    // IO completions consumed by the application. Applications should check for
+    // this flag on the RX fill and TX rings after producing on them or after
+    // consuming from the TX completion ring. The driver must be poked using
+    // XskNotifySocket with the appropriate poke flags. See XskNotifySocket for
+    // more information.
+    //
+    XSK_RING_FLAG_NEED_POKE = 0x2,
+} XSK_RING_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(XSK_RING_FLAGS);
+C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 
 //
 // XskCreate
@@ -104,30 +109,41 @@ XskCreate(
     _Out_ HANDLE* socket
     );
 
+typedef enum _XSK_BIND_FLAGS {
+    XSK_BIND_FLAG_NONE = 0x0,
+
+    //
+    // The AF_XDP socket is bound to the RX data path.
+    //
+    XSK_BIND_FLAG_RX = 0x1,
+
+    //
+    // The AF_XDP socket is bound to the TX data path.
+    //
+    XSK_BIND_FLAG_TX = 0x2,
+
+    //
+    // The AF_XDP socket is bound using a generic XDP interface provider.
+    // This flag cannot be combined with XSK_BIND_FLAG_NATIVE.
+    //
+    XSK_BIND_FLAG_GENERIC = 0x4,
+
+    //
+    // The AF_XDP socket is bound using a native XDP interface provider.
+    // This flag cannot be combined with XSK_BIND_FLAG_GENERIC.
+    //
+    XSK_BIND_FLAG_NATIVE = 0x8,
+} XSK_BIND_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(XSK_BIND_FLAGS)
+C_ASSERT(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32));
+
 //
 // XskBind
 //
 // Binds an AF_XDP socket to a network interface queue. An AF_XDP socket
 // can only be bound to a single network interface queue.
 //
-// Valid values for flags parameter:
-//
-// XSK_BIND_RX
-//      The AF_XDP socket is bound to the RX data path.
-// XSK_BIND_TX
-//      The AF_XDP socket is bound to the TX data path.
-// XSK_BIND_GENERIC
-//      The AF_XDP socket is bound using a generic XDP interface provider.
-//      This flag cannot be combined with XSK_BIND_NATIVE.
-// XSK_BIND_NATIVE
-//      The AF_XDP socket is bound using a native XDP interface provider.
-//      This flag cannot be combined with XSK_BIND_GENERIC.
-//
-
-#define XSK_BIND_RX                 0x1
-#define XSK_BIND_TX                 0x2
-#define XSK_BIND_GENERIC            0x4
-#define XSK_BIND_NATIVE             0x8
 
 HRESULT
 XDPAPI
@@ -135,8 +151,15 @@ XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
-    _In_ UINT32 flags
+    _In_ XSK_BIND_FLAGS flags
     );
+
+typedef enum _XSK_ACTIVATE_FLAGS {
+    XSK_ACTIVATE_FLAG_NONE = 0x0,
+} XSK_ACTIVATE_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(XSK_ACTIVATE_FLAGS)
+C_ASSERT(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32));
 
 //
 // XskActivate
@@ -150,16 +173,12 @@ XskBind(
 //    rings configured if bound to the TX and RX data paths, respectively.
 // 2) The socket object must have registered or shared a UMEM.
 //
-// Valid values for flags parameter:
-//
-//  None.
-//
 
 HRESULT
 XDPAPI
 XskActivate(
     _In_ HANDLE socket,
-    _In_ UINT32 flags
+    _In_ XSK_ACTIVATE_FLAGS flags
     );
 
 //
@@ -179,41 +198,61 @@ XskActivate(
 // The wait timeout interval can be set to INFINITE to specify that the wait
 // will not time out.
 //
-// Input flags field may be any combination of the following:
-//     XSK_NOTIFY_POKE_RX
-//         Poke the driver to perform RX. Apps poke RX when entries are produced
-//         on the RX fill ring and the RX fill ring is marked as needing a poke.
-//     XSK_NOTIFY_POKE_TX
-//         Poke the driver to perform TX. Apps poke TX when entries are produced
-//         on the TX ring or consumed from the TX completion ring and the TX
-//         ring is marked as needing a poke.
-//     XSK_NOTIFY_WAIT_RX
-//         Wait until a RX ring entry is available.
-//     XSK_NOTIFY_WAIT_TX
-//         Wait until a TX completion ring entry is available.
-//
-// Output result field may be any combination of the following:
-//    XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE
-//        RX ring entry is available.
-//    XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE
-//        TX completion ring entry is available.
-//
 
-#define XSK_NOTIFY_POKE_RX (1 << 0)
-#define XSK_NOTIFY_POKE_TX (1 << 1)
-#define XSK_NOTIFY_WAIT_RX (1 << 2)
-#define XSK_NOTIFY_WAIT_TX (1 << 3)
+typedef enum _XSK_NOTIFY_FLAGS {
+    XSK_NOTIFY_FLAG_NONE = 0x0,
 
-#define XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE        (1 << 0)
-#define XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE   (1 << 1)
+    //
+    // Poke the driver to perform RX. Apps poke RX when entries are produced
+    // on the RX fill ring and the RX fill ring is marked as needing a poke.
+    //
+    XSK_NOTIFY_FLAG_POKE_RX = 0x1,
+
+    //
+    // Poke the driver to perform TX. Apps poke TX when entries are produced
+    // on the TX ring or consumed from the TX completion ring and the TX
+    // ring is marked as needing a poke.
+    //
+    XSK_NOTIFY_FLAG_POKE_TX = 0x2,
+
+    //
+    // Wait until a RX ring entry is available.
+    //
+    XSK_NOTIFY_FLAG_WAIT_RX = 0x4,
+
+    //
+    // Wait until a TX completion ring entry is available.
+    //
+    XSK_NOTIFY_FLAG_WAIT_TX = 0x8,
+} XSK_NOTIFY_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_FLAGS)
+C_ASSERT(sizeof(XSK_NOTIFY_FLAGS) == sizeof(UINT32));
+
+typedef enum _XSK_NOTIFY_RESULT_FLAGS {
+    XSK_NOTIFY_RESULT_FLAG_NONE = 0x0,
+
+    //
+    // RX ring entry is available.
+    //
+    XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE = 0x1,
+
+    //
+    // TX completion ring entry is available.
+    //
+    XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE = 0x2,
+} XSK_NOTIFY_RESULT_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_RESULT_FLAGS)
+C_ASSERT(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32));
 
 HRESULT
 XDPAPI
 XskNotifySocket(
     _In_ HANDLE socket,
-    _In_ UINT32 flags,
+    _In_ XSK_NOTIFY_FLAGS flags,
     _In_ UINT32 waitTimeoutMilliseconds,
-    _Out_ UINT32 *result
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     );
 
 //

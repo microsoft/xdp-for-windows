@@ -684,7 +684,7 @@ CreateAndBindSocket(
     BOOLEAN Rx,
     BOOLEAN Tx,
     XDP_MODE XdpMode,
-    UINT32 BindFlags = 0,
+    XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_NONE,
     CONST XDP_HOOK_ID *RxHookId = nullptr,
     CONST XDP_HOOK_ID *TxHookId = nullptr
     )
@@ -696,17 +696,17 @@ CreateAndBindSocket(
     XskSetupPreBind(&Socket, Rx, Tx, RxHookId, TxHookId);
 
     if (Rx) {
-        BindFlags |= XSK_BIND_RX;
+        BindFlags |= XSK_BIND_FLAG_RX;
     }
 
     if (Tx) {
-        BindFlags |= XSK_BIND_TX;
+        BindFlags |= XSK_BIND_FLAG_TX;
     }
 
     if (XdpMode == XDP_GENERIC) {
-        BindFlags |= XSK_BIND_GENERIC;
+        BindFlags |= XSK_BIND_FLAG_GENERIC;
     } else if (XdpMode == XDP_NATIVE) {
-        BindFlags |= XSK_BIND_NATIVE;
+        BindFlags |= XSK_BIND_FLAG_NATIVE;
     }
 
     //
@@ -725,7 +725,7 @@ CreateAndBindSocket(
     } while (!Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
-    TEST_HRESULT(XskActivate(Socket.Handle.get(), 0));
+    TEST_HRESULT(XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
 
     XskSetupPostBind(&Socket, Rx, Tx);
 
@@ -2852,7 +2852,8 @@ GenericRxFromTxInspect(
     auto UdpSocket = CreateUdpSocket(Af, &If, &XskPort);
     auto Xsk =
         CreateAndBindSocket(
-            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_UNSPEC, 0, &RxInspectFromTxL2);
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_UNSPEC, XSK_BIND_FLAG_NONE,
+            &RxInspectFromTxL2);
 
     XskPort = htons(1234);
 
@@ -2965,7 +2966,8 @@ GenericTxToRxInject()
     auto UdpSocket = CreateUdpSocket(AF_INET, &If, &LocalPort);
     auto Xsk =
         CreateAndBindSocket(
-            If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_UNSPEC, 0, nullptr, &TxInjectToRxL2);
+            If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_UNSPEC, XSK_BIND_FLAG_NONE, nullptr,
+            &TxInjectToRxL2);
 
     RemotePort = htons(1234);
     If.GetHwAddress(&LocalHw);
@@ -2993,8 +2995,8 @@ GenericTxToRxInject()
     TxDesc->length = UdpFrameLength;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
-    UINT32 NotifyResult;
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
 
     TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
@@ -3032,8 +3034,8 @@ GenericTxSingleFrame()
     TxDesc->length = TxFrameLength;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
-    UINT32 NotifyResult;
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
 
     auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
@@ -3096,8 +3098,8 @@ GenericTxOutOfOrder()
 
     XskRingProducerSubmit(&Xsk.Rings.Tx, 2);
 
-    UINT32 NotifyResult;
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
 
     MpTxDequeueFrame(GenericMp, 1);
@@ -3152,8 +3154,8 @@ GenericTxSharing()
         TxDesc->length = TxFrameLength;
         XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
-        UINT32 NotifyResult;
-        TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+        XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+        TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
         TEST_EQUAL(0, NotifyResult);
 
         auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
@@ -3210,8 +3212,8 @@ GenericTxPoke()
     TEST_TRUE(XskRingProducerNeedPoke(&Xsk.Rings.Tx));
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
-    UINT32 NotifyResult;
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
 
     //
@@ -3288,8 +3290,8 @@ GenericTxMtu()
     TxDesc->length = TestMtu;
 
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
-    UINT32 NotifyResult;
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
     SocketConsumerReserve(&Xsk.Rings.Completion, 1);
 
@@ -3313,7 +3315,7 @@ GenericTxMtu()
     TxDesc->length = TestMtu + 1;
 
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
 
     Watchdog.Reset();
@@ -3370,19 +3372,19 @@ GenericXskWait(
         TxDesc->length = TxFrameLength;
         XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
-        UINT32 PokeResult;
+        XSK_NOTIFY_RESULT_FLAGS PokeResult;
         TEST_HRESULT(
-            XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &PokeResult));
+            XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &PokeResult));
         TEST_EQUAL(0, PokeResult);
     };
 
-    UINT32 NotifyFlags = 0;
+    XSK_NOTIFY_FLAGS NotifyFlags = XSK_NOTIFY_FLAG_NONE;
     UINT32 ExpectedResult = 0;
-    UINT32 NotifyResult;
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
 
     if (Rx) {
-        NotifyFlags |= XSK_NOTIFY_WAIT_RX;
-        ExpectedResult |= XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE;
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+        ExpectedResult |= XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE;
     } else {
         //
         // Produce IO that does not satisfy the wait condition.
@@ -3391,8 +3393,8 @@ GenericXskWait(
     }
 
     if (Tx) {
-        NotifyFlags |= XSK_NOTIFY_WAIT_TX;
-        ExpectedResult |= XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE;
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+        ExpectedResult |= XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE;
     } else {
         //
         // Produce IO that does not satisfy the wait condition.
@@ -3438,11 +3440,11 @@ GenericXskWait(
         TEST_FALSE(Timer.IsExpired());
         TEST_NOT_EQUAL(0, (NotifyResult & ExpectedResult));
 
-        if (NotifyResult & XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE) {
+        if (NotifyResult & XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE) {
             XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
         }
 
-        if (NotifyResult & XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE) {
+        if (NotifyResult & XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE) {
             XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
         }
 
@@ -3675,8 +3677,8 @@ GenericLoopback(
     TxDesc->length = UdpFrameLength;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
-    UINT32 NotifyResult;
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_POKE_TX, 0, &NotifyResult));
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
     TEST_EQUAL(0, NotifyResult);
 
     //
