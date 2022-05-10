@@ -18,7 +18,7 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoDevKit = $false,
+    [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$UpdateDeps = $false
@@ -48,6 +48,6 @@ if (!$NoSign) {
     tools/sign.ps1 -Config $Flavor -Arch $Platform
 }
 
-if (!$NoDevKit) {
+if ($DevKit) {
     tools/create-devkit.ps1 -Flavor $Flavor
 }
