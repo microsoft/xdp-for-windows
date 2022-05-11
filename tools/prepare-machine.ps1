@@ -9,6 +9,14 @@ This prepares a machine for running XDP.
 .PARAMETER ForTest
     Installs all the run-time dependencies.
 
+.PARAMETER ForFunctionalTest
+    Installs all the run-time dependencies and configures machine for
+    functional tests.
+
+.PARAMETER ForSpinxskTest
+    Installs all the run-time dependencies and configures machine for
+    spinxsk tests.
+
 .PARAMETER NoReboot
     Does not reboot the machine.
 
@@ -23,6 +31,12 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$ForTest = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$ForFunctionalTest = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$ForSpinxskTest = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$NoReboot = $false,
@@ -43,8 +57,8 @@ $ProgressPreference = 'SilentlyContinue'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-if (!$ForBuild -and !$ForTest) {
-    Write-Error 'Must specify either -ForBuild or -ForTest'
+if (!$ForBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest) {
+    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, or -ForSpinxskTest'
 }
 
 # Flag that indicates something required a reboot.
@@ -72,7 +86,7 @@ function Setup-TestSigning {
     if (!$HasTestSigning) {
         # Enable test signing.
         Write-Host "Enabling Test Signing. Reboot required!"
-        bcdedit /set testsigning on
+        bcdedit /set testsigning on | Write-Verbose
         if ($NoReboot) {
             Write-Warning "Enabling Test Signing requires reboot, but -NoReboot option specified."
         } else {
@@ -87,8 +101,8 @@ function Install-Certs {
     if (!(Test-Path $CodeSignCertPath)) {
         Write-Error "$CodeSignCertPath does not exist!"
     }
-    CertUtil.exe -f -addstore Root $CodeSignCertPath
-    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath
+    CertUtil.exe -f -addstore Root $CodeSignCertPath | Write-Verbose
+    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath | Write-Verbose
 }
 
 # Uninstalls the XDP certificates.
@@ -145,6 +159,38 @@ if ($Cleanup) {
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
     }
 
+    if ($ForFunctionalTest) {
+        $ForTest = $true
+        # Verifier configuration: standard flags on all XDP components, and NDIS.
+        # The NDIS verifier is required, otherwise allocations NDIS makes on
+        # behalf of XDP components (e.g. NBLs) will not be verified.
+        Write-Verbose "verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys"
+        verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys | Write-Verbose
+        if (!$?) {
+            $Reboot = $true
+        }
+    }
+
+    if ($ForSpinxskTest) {
+        $ForTest = $true
+        # Verifier configuration: standard flags with low resources simulation.
+        # 599 - Failure probability (599/10000 = 5.99%)
+        #       N.B. If left to the default value, roughly every 5 minutes verifier
+        #       will fail all allocations within a 10 second interval. This behavior
+        #       complicates the spinxsk socket setup statistics. Setting it to a
+        #       non-default value disables this behavior.
+        # ""  - Pool tag filter
+        # ""  - Application filter
+        # 1   - Delay (in minutes) after boot until simulation engages
+        #       This is the lowest value configurable via verifier.exe.
+        # WARNING: xdp.sys itself may fail to load due to low resources simulation.
+        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys"
+        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys | Write-Verbose
+        if (!$?) {
+            $Reboot = $true
+        }
+    }
+
     if ($ForTest) {
         Setup-TestSigning
         Download-CoreNet-Deps
@@ -166,4 +212,6 @@ if ($Reboot -and !$NoReboot) {
     # Reboot the machine.
     Write-Host "Rebooting..."
     shutdown.exe /f /r /t 0
+} elseif ($Reboot) {
+    Write-Host "Reboot required."
 }

@@ -2471,7 +2471,7 @@ GenericRxUdpFragmentQuicShortHeader(
     Rules[1].Match = XDP_MATCH_ALL;
 
     ProgramHandle =
-                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
 
     CHAR RecvPayload[sizeof(QuicShortHdrUdpPayload)];
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(QuicShortHdrUdpPayload)];
@@ -2487,7 +2487,8 @@ GenericRxUdpFragmentQuicShortHeader(
             Rules[1].Action = XDP_PROGRAM_ACTION_DROP;
             ProgramHandle.reset();
             ProgramHandle =
-                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
+                CreateXdpProg(
+                    If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
         }
 
         //
@@ -2511,7 +2512,6 @@ GenericRxUdpFragmentQuicShortHeader(
         //
 
         for (UINT16 FragmentOffset = 0; FragmentOffset < UdpPayloadLength; FragmentOffset++) {
-
             Buffers.clear();
             TotalOffset = 0;
 
