@@ -41,3 +41,20 @@ function Get-BuildBranch {
     }
     return $BranchName
 }
+
+function Get-VsTestPath {
+    # Unfortunately CI doesn't add vstest to PATH. Test existence of vstest
+    # install paths instead.
+
+    $ManualVsTestPath = "$(Split-Path $PSScriptRoot -Parent)\artifacts\Microsoft.TestPlatform\tools\net451\Common7\IDE\Extensions\TestPlatform"
+    if (Test-Path $ManualVsTestPath) {
+        return $ManualVsTestPath
+    }
+
+    $CiVsTestPath = "${Env:ProgramFiles(X86)}\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\Extensions\TestPlatform"
+    if (Test-Path $CiVsTestPath) {
+        return $CiVsTestPath
+    }
+
+    return $null
+}

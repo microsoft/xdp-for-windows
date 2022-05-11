@@ -12,6 +12,9 @@ This script runs the XDP functional tests.
 .PARAMETER TestCaseFilter
     The test case filter passed to VSTest.
 
+.PARAMETER Iterations
+    The number of times to run the test suite.
+
 #>
 
 param (
@@ -27,7 +30,10 @@ param (
     [string]$TestCaseFilter = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$ListTestCases = $false
+    [switch]$ListTestCases = $false,
+
+    [Parameter(Mandatory = $false)]
+    [int]$Iterations = 1
 )
 
 Set-StrictMode -Version 'Latest'
@@ -38,37 +44,53 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 
+. $RootDir\tools\common.ps1
+
+$VsTestPath = Get-VsTestPath
+if ($VsTestPath -eq $null) {
+    Write-Error "Could not find VSTest path"
+}
+
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
-try {
-    & "$RootDir\tools\log.ps1" -Start -Name xdpfunc -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+for ($i = 0; $i -lt $Iterations; $i++) {
+    try {
+        $LogName = "xdpfunc"
+        if ($Iterations -gt 1) {
+            $LogName += "-$($i+1)"
+        }
 
-    Write-Verbose "installing xdpfnmp..."
-    & "$RootDir\tools\setup.ps1" -Install xdpfnmp -Config $Config -Arch $Arch
-    Write-Verbose "installed xdpfnmp."
+        & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
 
-    Write-Verbose "installing xdpfnlwf..."
-    & "$RootDir\tools\setup.ps1" -Install xdpfnlwf -Config $Config -Arch $Arch
-    Write-Verbose "installed xdpfnlwf."
+        Write-Verbose "installing xdpfnmp..."
+        & "$RootDir\tools\setup.ps1" -Install xdpfnmp -Config $Config -Arch $Arch
+        Write-Verbose "installed xdpfnmp."
 
-    $Args = @("$ArtifactsDir\xdpfunctionaltests.dll")
-    if (![string]::IsNullOrEmpty($TestCaseFilter)) {
-        $Args += "/TestCaseFilter:$TestCaseFilter"
+        Write-Verbose "installing xdpfnlwf..."
+        & "$RootDir\tools\setup.ps1" -Install xdpfnlwf -Config $Config -Arch $Arch
+        Write-Verbose "installed xdpfnlwf."
+
+        $Args = @("$ArtifactsDir\xdpfunctionaltests.dll")
+        if (![string]::IsNullOrEmpty($TestCaseFilter)) {
+            $Args += "/TestCaseFilter:$TestCaseFilter"
+        }
+        if ($ListTestCases) {
+            $Args += "/lt"
+        }
+        $Args += "/logger:trx"
+        $Args += "/ResultsDirectory:$LogsDir"
+
+        Write-Verbose "$VsTestPath\vstest.console.exe $Args"
+        & $VsTestPath\vstest.console.exe $Args
+        if ($LastExitCode -ne 0) {
+            throw "xdpfunctionaltests failed with $LastExitCode"
+        }
+    } finally {
+        & "$RootDir\tools\setup.ps1" -Uninstall xdpfnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdpfnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Arch $Arch -ErrorAction 'Continue'
     }
-    if ($ListTestCases) {
-        $Args += "/lt"
-    }
-
-    Write-Verbose "vstest.console.exe $Args"
-    vstest.console.exe $Args
-    if ($LastExitCode -ne 0) {
-        throw "xdpfunctionaltests failed with $LastExitCode"
-    }
-} finally {
-    & "$RootDir\tools\setup.ps1" -Uninstall xdpfnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    & "$RootDir\tools\setup.ps1" -Uninstall xdpfnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    & "$RootDir\tools\log.ps1" -Stop -Name xdpfunc -Config $Config -Arch $Arch -ErrorAction 'Continue'
 }

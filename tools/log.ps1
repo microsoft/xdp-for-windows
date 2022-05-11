@@ -19,7 +19,7 @@ This helps start and stop ETW logging.
     Converts the ETL to text.
 
 .PARAMETER Name
-    The name of the tracing instance and output file.
+    The name or wildcard pattern of the tracing instance and output file.
 
 .PARAMETER EtlPath
     Overrides the output ETL file.
@@ -48,6 +48,7 @@ param (
     [string]$Profile = $null,
 
     [Parameter(Mandatory = $false)]
+    [SupportsWildcards()]
     [string]$Name = "xdp",
 
     [Parameter(Mandatory = $false)]
@@ -72,7 +73,6 @@ $TracePdb = "$RootDir\artifacts\corenet-ci-main\vm-setup\tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
-$LogPath = "$LogsDir\$Name.log"
 
 if (!$EtlPath) {
     $EtlPath = "$LogsDir\$Name.etl"
@@ -111,10 +111,13 @@ if ($Stop) {
 }
 
 if ($Convert) {
-    if (!(Test-Path $EtlPath)) {
+    if (!(Get-ChildItem $EtlPath)) {
         Write-Error "$EtlPath does not exist!"
     }
 
     & $TracePdb -f "$ArtifactsDir\*.pdb" -p $TmfPath
-    Invoke-Expression "netsh trace convert $($EtlPath) output=$($LogPath) tmfpath=$TmfPath overwrite=yes report=no"
+
+    foreach ($Etl in Get-ChildItem $EtlPath) {
+        Invoke-Expression "netsh trace convert $Etl tmfpath=$TmfPath overwrite=yes report=no"
+    }
 }

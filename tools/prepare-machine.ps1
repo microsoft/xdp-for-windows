@@ -40,6 +40,9 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 # Disable Invoke-WebRequest progress bar to work around a bug that slows downloads.
 $ProgressPreference = 'SilentlyContinue'
 
+$RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
 if (!$ForBuild -and !$ForTest) {
     Write-Error 'Must specify either -ForBuild or -ForTest'
 }
@@ -111,15 +114,7 @@ function Setup-VcRuntime {
 }
 
 function Setup-VsTest {
-    # Unfortunately CI doesn't add vstest to PATH. Test existence of vstest
-    # install paths instead.
-    $ManualVsTestPath = "artifacts\Microsoft.TestPlatform\tools\net451\Common7\IDE\Extensions\TestPlatform"
-    $CiVsTestPath = "${Env:ProgramFiles(X86)}\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\Extensions\TestPlatform"
-
-    $Installed = $false
-    try { $Installed = (Test-Path $ManualVsTestPath) -or (Test-Path $CiVsTestPath) } catch { }
-
-    if (!$Installed -or $Force) {
+    if (!(Get-VsTestPath) -or $Force) {
         Write-Host "Installing VsTest"
 
         if (!(Test-Path "artifacts")) { mkdir artifacts }
@@ -133,7 +128,7 @@ function Setup-VsTest {
         # Add to PATH.
         $RootDir = Split-Path $PSScriptRoot -Parent
         $Path = [Environment]::GetEnvironmentVariable("Path", "Machine")
-        $Path += ";$RootDir\$ManualVsTestPath"
+        $Path += ";$(Get-VsTestPath)"
         [Environment]::SetEnvironmentVariable("Path", $Path, "Machine")
         $Env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
     }
