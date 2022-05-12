@@ -43,6 +43,7 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
+$IterationFailureCount = 0
 
 . $RootDir\tools\common.ps1
 
@@ -54,11 +55,11 @@ if ($VsTestPath -eq $null) {
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
-for ($i = 0; $i -lt $Iterations; $i++) {
+for ($i = 1; $i -le $Iterations; $i++) {
     try {
         $LogName = "xdpfunc"
         if ($Iterations -gt 1) {
-            $LogName += "-$($i+1)"
+            $LogName += "-$i"
         }
 
         & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
@@ -85,7 +86,8 @@ for ($i = 0; $i -lt $Iterations; $i++) {
         Write-Verbose "$VsTestPath\vstest.console.exe $Args"
         & $VsTestPath\vstest.console.exe $Args
         if ($LastExitCode -ne 0) {
-            throw "xdpfunctionaltests failed with $LastExitCode"
+            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction 'Continue'
+            $IterationFailureCount++
         }
     } finally {
         & "$RootDir\tools\setup.ps1" -Uninstall xdpfnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
@@ -93,4 +95,8 @@ for ($i = 0; $i -lt $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Arch $Arch -ErrorAction 'Continue'
     }
+}
+
+if ($IterationFailureCount -gt 0) {
+    Write-Error "$IterationFailureCount of $Iterations test iterations failed"
 }
