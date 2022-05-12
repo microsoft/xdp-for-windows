@@ -3276,7 +3276,7 @@ GenericTxMtu()
     //
     // The XSK TX path should be torn down after an MTU change.
     //
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch<std::chrono::milliseconds> Watchdog(MP_RESTART_TIMEOUT);
     do {
         if (XskRingError(&Xsk.Rings.Tx)) {
             break;
