@@ -908,7 +908,25 @@ LwfOpenDefault(
     )
 {
     wil::unique_handle Handle;
-    TEST_HRESULT(FnLwfOpenDefault(IfIndex, &Handle));
+    HRESULT Result;
+
+    //
+    // The LWF may not be bound immediately after an adapter restart completes,
+    // so poll for readiness.
+    //
+
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
+        Result = FnLwfOpenDefault(IfIndex, &Handle);
+        if (SUCCEEDED(Result)) {
+            break;
+        } else {
+            TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), Result);
+        }
+    } while (Sleep(100), !Watchdog.IsExpired());
+
+    TEST_HRESULT(Result);
+
     return Handle;
 }
 
@@ -4377,8 +4395,6 @@ OffloadRssInterfaceRestart()
     // Verify original RSS settings are restored.
     //
 
-    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
-
     //
     // Wait for the interface to be up and RSS to be configured by the upper
     // layer protocol.
@@ -4386,12 +4402,18 @@ OffloadRssInterfaceRestart()
     Stopwatch<std::chrono::milliseconds> Watchdog(MP_RESTART_TIMEOUT);
     HRESULT Result = S_OK;
     do {
+        Result = XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle);
+        if (FAILED(Result)) {
+            TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), Result);
+            continue;
+        }
+
         UINT32 Size = 0;
         Result = XdpRssGet(InterfaceHandle.get(), NULL, &Size);
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(100), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
 
     RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
