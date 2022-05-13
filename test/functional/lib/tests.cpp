@@ -70,6 +70,13 @@ static CONST XDP_HOOK_ID XdpInspectRxL2 =
 //
 #define MP_RESTART_TIMEOUT std::chrono::seconds(10)
 
+//
+// Interval between polling attempts.
+//
+#define POLL_INTERVAL_MS 10
+C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
+C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
+
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
 
@@ -719,10 +726,8 @@ CreateAndBindSocket(
         BindResult = XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags);
         if (SUCCEEDED(BindResult)) {
             break;
-        } else {
-            Sleep(100);
         }
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
     TEST_HRESULT(XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
@@ -923,7 +928,7 @@ LwfOpenDefault(
         } else {
             TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), Result);
         }
-    } while (Sleep(100), !Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 
@@ -1084,8 +1089,7 @@ MpTxAllocateAndGetFrame(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
@@ -1190,8 +1194,7 @@ LwfRxAllocateAndGetFrame(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
@@ -1320,8 +1323,7 @@ LwfStatusAllocateAndGetIndication(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     if (SUCCEEDED(Result)) {
         TEST_EQUAL(0, *StatusBufferLength);
@@ -1403,8 +1405,7 @@ MpOidAllocateAndGetRequest(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(Length > 0);
@@ -1505,8 +1506,7 @@ WaitForWfpQuarantine(
         if (Bytes == sizeof(UdpPayload)) {
             break;
         }
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(Bytes, sizeof(UdpPayload));
 }
 
@@ -2943,8 +2943,7 @@ GenericRxFromTxInspect(
         // TCPIP returns WSAENOBUFS when it cannot reference the data path.
         //
         TEST_EQUAL(WSAENOBUFS, WSAGetLastError());
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)Bytes);
 
@@ -3281,8 +3280,7 @@ GenericTxMtu()
         if (XskRingError(&Xsk.Rings.Tx)) {
             break;
         }
-        Sleep(100);
-    } while (!Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_TRUE(XskRingError(&Xsk.Rings.Tx));
 
     //
@@ -4413,7 +4411,7 @@ OffloadRssInterfaceRestart()
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
-    } while (Sleep(100), !Watchdog.IsExpired());
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
 
     RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
