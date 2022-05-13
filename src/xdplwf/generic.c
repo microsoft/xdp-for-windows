@@ -79,6 +79,8 @@ XdpGenericRegistryUpdate(
             XDP_LWF_PARAMETERS_KEY, L"GenericDelayDetachTimeoutSec", &Value);
     if (NT_SUCCESS(Status)) {
         GenericDelayDetachTimeoutSec = Value;
+    } else {
+        GenericDelayDetachTimeoutSec = DELAY_DETACH_DEFAULT_TIMEOUT_SEC;
     }
 }
 
