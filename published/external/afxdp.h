@@ -284,6 +284,22 @@ XskGetSockopt(
     );
 
 //
+// XskIoctl
+//
+// Performs a socket IOCTL.
+//
+HRESULT
+XDPAPI
+XskIoctl(
+    _In_ HANDLE socket,
+    _In_ UINT32 optionName,
+    _In_reads_bytes_opt_(inputLength) const VOID *inputValue,
+    _In_ UINT32 inputLength,
+    _Out_writes_bytes_(*outputLength) VOID *outputValue,
+    _Inout_ UINT32 *outputLength
+    );
+
+//
 // Socket options
 //
 

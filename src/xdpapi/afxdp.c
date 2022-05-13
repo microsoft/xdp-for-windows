@@ -159,6 +159,27 @@ XskGetSockopt(
 
 HRESULT
 XDPAPI
+XskIoctl(
+    _In_ HANDLE socket,
+    _In_ UINT32 optionName,
+    _In_reads_bytes_opt_(inputLength) const VOID *inputValue,
+    _In_ UINT32 inputLength,
+    _Out_writes_bytes_(*outputLength) VOID *outputValue,
+    _Inout_ UINT32 *outputLength
+    )
+{
+    UNREFERENCED_PARAMETER(socket);
+    UNREFERENCED_PARAMETER(optionName);
+    UNREFERENCED_PARAMETER(inputValue);
+    UNREFERENCED_PARAMETER(inputLength);
+    UNREFERENCED_PARAMETER(outputValue);
+    UNREFERENCED_PARAMETER(outputLength);
+
+    return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+}
+
+HRESULT
+XDPAPI
 XskNotifySocket(
     _In_ HANDLE socket,
     _In_ XSK_NOTIFY_FLAGS flags,
