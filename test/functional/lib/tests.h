@@ -148,3 +148,6 @@ OffloadRssCapabilities();
 
 VOID
 OffloadSetHardwareCapabilities();
+
+VOID
+GenericXskQueryAffinity();

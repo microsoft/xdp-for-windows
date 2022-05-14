@@ -127,6 +127,15 @@ XskRingProducerNeedPoke(
 }
 
 inline
+BOOLEAN
+XskRingAffinityChanged(
+    _In_ CONST XSK_RING *ring
+    )
+{
+    return !!(XskRingGetFlags(ring) & XSK_RING_FLAG_AFFINITY_CHANGED);
+}
+
+inline
 VOID
 XskDescriptorSetOffset(
     _Inout_ UINT64 *descriptor,

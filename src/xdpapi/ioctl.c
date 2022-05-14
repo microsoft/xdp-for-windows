@@ -87,12 +87,13 @@ XdpIoctl(
     _Out_opt_ VOID *OutBuffer,
     _In_ ULONG OutputBufferSize,
     _Out_opt_ ULONG *BytesReturned,
-    _In_opt_ OVERLAPPED *Overlapped
+    _In_opt_ OVERLAPPED *Overlapped,
+    _In_ BOOLEAN MayPend
     )
 {
     BOOL Result = FALSE;
     NTSTATUS Status;
-    IO_STATUS_BLOCK LocalIoStatusBlock= { 0 };
+    IO_STATUS_BLOCK LocalIoStatusBlock= {0};
     IO_STATUS_BLOCK *IoStatusBlock;
     HANDLE LocalEvent = NULL;
     HANDLE *Event;
@@ -100,10 +101,12 @@ XdpIoctl(
     if (Overlapped == NULL) {
         IoStatusBlock = &LocalIoStatusBlock;
         Event = &LocalEvent;
-        LocalEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
-        if (LocalEvent == NULL) {
-            SetLastError(ERROR_NOT_ENOUGH_MEMORY);
-            goto Exit;
+        if (MayPend) {
+            LocalEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+            if (LocalEvent == NULL) {
+                SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                goto Exit;
+            }
         }
     } else {
         IoStatusBlock = (IO_STATUS_BLOCK *)&Overlapped->Internal;
@@ -114,8 +117,10 @@ XdpIoctl(
 
     Status =
         NtDeviceIoControlFile(
-            XdpHandle, *Event, NULL, NULL, IoStatusBlock, Operation, InBuffer,
+            XdpHandle, *Event, NULL, Overlapped, IoStatusBlock, Operation, InBuffer,
             InBufferSize, OutBuffer, OutputBufferSize);
+
+    ASSERT(Status != STATUS_PENDING || MayPend);
 
     if (Event == &LocalEvent && Status == STATUS_PENDING) {
         DWORD WaitResult = WaitForSingleObject(*Event, INFINITE);

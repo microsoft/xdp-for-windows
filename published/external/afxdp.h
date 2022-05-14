@@ -92,6 +92,13 @@ typedef enum _XSK_RING_FLAGS {
     // more information.
     //
     XSK_RING_FLAG_NEED_POKE = 0x2,
+
+    //
+    // The processor affinity of this ring has changed. Querying the updated
+    // ideal processor via XSK_SOCKOPT_RX_PROCESSOR_AFFINITY for RX rings or
+    // XSK_SOCKOPT_TX_PROCESSOR_AFFINITY for TX rings will reset this flag.
+    //
+    XSK_RING_FLAG_AFFINITY_CHANGED = 0x4,
 } XSK_RING_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_RING_FLAGS);
@@ -482,6 +489,32 @@ typedef enum _XSK_ERROR {
 typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
     BOOLEAN Supported;
 } XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES;
+
+//
+// XSK_SOCKOPT_RX_PROCESSOR_AFFINITY
+//
+// Supports: get
+// Optval type: PROCESSOR_NUMBER
+// Description: Returns the ideal processor of the kernel RX data path. This
+//              option may return errors, including but not limited to
+//              HRESULT_FROM_WIN32(ERROR_NOT_READY) and
+//              HRESULT_FROM_WIN32(ERROR_NOT_CAPABLE), when the ideal processor
+//              affinity is unknown or unknowable.
+//
+#define XSK_SOCKOPT_RX_PROCESSOR_AFFINITY 19
+
+//
+// XSK_SOCKOPT_TX_PROCESSOR_AFFINITY
+//
+// Supports: get
+// Optval type: PROCESSOR_NUMBER
+// Description: Returns the ideal processor of the kernel TX data path. This
+//              option may return errors, including but not limited to
+//              HRESULT_FROM_WIN32(ERROR_NOT_READY) and
+//              HRESULT_FROM_WIN32(ERROR_NOT_CAPABLE), when the ideal processor
+//              affinity is unknown or unknowable.
+//
+#define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 20
 
 #ifdef __cplusplus
 } // extern "C"

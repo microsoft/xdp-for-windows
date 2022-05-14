@@ -56,7 +56,8 @@ XskBind(
             NULL,
             0,
             NULL,
-            NULL);
+            NULL,
+            TRUE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -85,7 +86,8 @@ XskActivate(
             NULL,
             0,
             NULL,
-            NULL);
+            NULL,
+            TRUE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -118,7 +120,8 @@ XskSetSockopt(
             NULL,
             0,
             NULL,
-            NULL);
+            NULL,
+            FALSE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -147,7 +150,8 @@ XskGetSockopt(
             optionValue,
             *optionLength,
             &bytesReturned,
-            NULL);
+            NULL,
+            FALSE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -190,13 +194,6 @@ XskNotifySocket(
     BOOL res;
     DWORD bytesReturned;
     XSK_NOTIFY_IN notify = {0};
-    OVERLAPPED overlapped = {0};
-
-    //
-    // N.B. We know that the notify IOCTL will never pend, so we pass an empty
-    // and non-NULL OVERLAPPED parameter to avoid the creation of an unnecessary
-    // event object for the sake of performance.
-    //
 
     notify.Flags = flags;
     notify.WaitTimeoutMilliseconds = waitTimeoutMilliseconds;
@@ -210,7 +207,8 @@ XskNotifySocket(
             NULL,
             0,
             &bytesReturned,
-            &overlapped);
+            NULL,
+            FALSE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }

@@ -4074,10 +4074,9 @@ typedef struct _PROCESSOR_NUMBER_COMP {
 } PROCESSOR_NUMBER_COMP;
 
 static
-VOID
-VerifyRssDatapath(
-    _In_ TestInterface &If,
-    _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
+std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP>
+GetRssProcessorSetFromIndirectionTable(
+    _In_ const PROCESSOR_NUMBER *IndirectionTable,
     _In_ UINT32 IndirectionTableSize
     )
 {
@@ -4087,11 +4086,25 @@ VerifyRssDatapath(
     // Convert indirection table to processor set.
     //
     for (UINT32 Index = 0;
-        Index < IndirectionTableSize / sizeof(*IndirectionTable.get());
+        Index < IndirectionTableSize / sizeof(*IndirectionTable);
         Index++) {
-        PROCESSOR_NUMBER Processor = *(IndirectionTable.get() + Index);
+        PROCESSOR_NUMBER Processor = IndirectionTable[Index];
         RssProcessors.insert(Processor);
     }
+
+    return RssProcessors;
+}
+
+static
+VOID
+VerifyRssDatapath(
+    _In_ TestInterface &If,
+    _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
+    _In_ UINT32 IndirectionTableSize
+    )
+{
+    std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP> RssProcessors =
+        GetRssProcessorSetFromIndirectionTable(IndirectionTable.get(), IndirectionTableSize);
 
     //
     // Indicate RX on each miniport RSS queue and capture all packets after XDP
@@ -4791,6 +4804,147 @@ OffloadSetHardwareCapabilities()
     TEST_TRUE(Offload->Header.Revision >= NDIS_OFFLOAD_REVISION_1);
     TEST_EQUAL(NDIS_OBJECT_TYPE_OFFLOAD, Offload->Header.Type);
     TEST_EQUAL(NDIS_OFFLOAD_SUPPORTED, Offload->Checksum.IPv4Transmit.UdpChecksum);
+}
+
+VOID
+GenericXskQueryAffinity()
+{
+    wil::unique_handle InterfaceHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> ModifiedRssConfig;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
+    UINT32 RssConfigSize;
+    UINT32 ModifiedRssConfigSize;
+    UINT32 OriginalRssConfigSize;
+    UCHAR BufferVa[] = "GenericXskQueryAffinity";
+    auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
+
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
+    for (auto Case : RxTxTestCases) {
+        HRESULT Result;
+        PROCESSOR_NUMBER ProcNumber;
+        UINT32 ProcNumberSize;
+
+        //
+        // Bind socket (and set up RX program) on queue 0.
+        //
+        auto Socket =
+            SetupSocket(
+                FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
+
+        //
+        // Verify that the initial affinity state is unknown.
+        //
+
+        if (Case.Rx) {
+            ProcNumberSize = sizeof(ProcNumber);
+            Result =
+                XskGetSockopt(
+                    Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &ProcNumber,
+                    &ProcNumberSize);
+            TEST_TRUE(FAILED(Result));
+            TEST_FALSE(XskRingAffinityChanged(&Socket.Rings.Rx));
+        }
+
+        if (Case.Tx) {
+            ProcNumberSize = sizeof(ProcNumber);
+            Result =
+                XskGetSockopt(
+                    Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &ProcNumber,
+                    &ProcNumberSize);
+            TEST_TRUE(FAILED(Result));
+            TEST_FALSE(XskRingAffinityChanged(&Socket.Rings.Tx));
+        }
+
+        //
+        // Verify that activity on the data path updates the RSS state.
+        //
+
+        for (UINT32 ProcIndex = 0; ProcIndex < 2; ProcIndex++) {
+            unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
+            wil::unique_handle InterfaceHandle;
+            UINT32 IndirectionTableSize;
+
+            PROCESSOR_NUMBER TargetProcNumber;
+            ProcessorIndexToProcessorNumber(ProcIndex, &TargetProcNumber);
+
+            CreateIndirectionTable({ProcIndex}, IndirectionTable, &IndirectionTableSize);
+            TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+            SetXdpRss(FnMpIf, InterfaceHandle, IndirectionTable, IndirectionTableSize);
+
+            if (Case.Rx) {
+                TEST_FALSE(XskRingAffinityChanged(&Socket.Rings.Rx));
+
+                SocketProduceRxFill(&Socket, 1);
+
+                RX_FRAME Frame;
+                RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), BufferVa, sizeof(BufferVa));
+                TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+
+                DATA_FLUSH_OPTIONS FlushOptions = {0};
+                FlushOptions.Flags.RssCpu = TRUE;
+                FlushOptions.RssCpuQueueId = FnMpIf.GetQueueId();
+                TEST_HRESULT(MpRxFlush(GenericMp, &FlushOptions));
+
+                SocketConsumerReserve(&Socket.Rings.Rx, 1);
+                XskRingConsumerRelease(&Socket.Rings.Rx, 1);
+                TEST_TRUE(XskRingAffinityChanged(&Socket.Rings.Rx));
+
+                Result =
+                    XskGetSockopt(
+                        Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &ProcNumber,
+                        &ProcNumberSize);
+                TEST_HRESULT(Result);
+                TEST_EQUAL(sizeof(ProcNumber), ProcNumberSize);
+                TEST_EQUAL(TargetProcNumber.Group, ProcNumber.Group);
+                TEST_EQUAL(TargetProcNumber.Number, ProcNumber.Number);
+
+                TEST_FALSE(XskRingAffinityChanged(&Socket.Rings.Rx));
+            }
+
+            if (Case.Tx) {
+                TEST_FALSE(XskRingAffinityChanged(&Socket.Rings.Tx));
+
+                UINT64 TxBuffer = SocketFreePop(&Socket);
+                UCHAR *UdpFrame = Socket.Umem.Buffer.get() + TxBuffer;
+                RtlCopyMemory(UdpFrame, BufferVa, sizeof(BufferVa));
+                UINT32 ProducerIndex;
+                TEST_EQUAL(1, XskRingProducerReserve(&Socket.Rings.Tx, 1, &ProducerIndex));
+                XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Socket, ProducerIndex++);
+                TxDesc->address = TxBuffer;
+                TxDesc->length = sizeof(BufferVa);
+                XskRingProducerSubmit(&Socket.Rings.Tx, 1);
+                XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+                TEST_HRESULT(
+                    XskNotifySocket(
+                        Socket.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult));
+                TEST_EQUAL(0, NotifyResult);
+                SocketConsumerReserve(&Socket.Rings.Completion, 1);
+                XskRingConsumerRelease(&Socket.Rings.Completion, 1);
+
+                TEST_TRUE(XskRingAffinityChanged(&Socket.Rings.Tx));
+
+                Result =
+                    XskGetSockopt(
+                        Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &ProcNumber,
+                        &ProcNumberSize);
+                TEST_HRESULT(Result);
+                TEST_EQUAL(sizeof(ProcNumber), ProcNumberSize);
+                TEST_EQUAL(TargetProcNumber.Group, ProcNumber.Group);
+                TEST_EQUAL(TargetProcNumber.Number, ProcNumber.Number);
+
+                TEST_FALSE(XskRingAffinityChanged(&Socket.Rings.Tx));
+            }
+        }
+    }
 }
 
 /**

@@ -1130,6 +1130,30 @@ FuzzSocketMisc(
         XskNotifySocket(Sock, notifyFlags, timeoutMs, &notifyResult);
     }
 
+    if (RandUlong() % 2) {
+        PROCESSOR_NUMBER procNum;
+        PROCESSOR_NUMBER *procNumParam = &procNum;
+        optSize = sizeof(procNum);
+        UINT32 option;
+
+        if (RandUlong() % 2) {
+            option = XSK_SOCKOPT_RX_PROCESSOR_AFFINITY;
+        } else {
+            option = XSK_SOCKOPT_TX_PROCESSOR_AFFINITY;
+        }
+
+        if (RandUlong() % 4) {
+            procNumParam = NULL;
+        }
+
+        if (RandUlong() % 4) {
+            optSize = RandUlong() % 21;
+        }
+
+        #pragma prefast(suppress:6387) // Intentionally passing NULL parameter.
+        XskGetSockopt(Sock, option, procNumParam, &optSize);
+    }
+
     if (!cleanDatapath && !(RandUlong() % 3)) {
         DetachXdpProgram(RxProgramSet);
 

@@ -310,4 +310,8 @@ public:
     TEST_METHOD(OffloadSetHardwareCapabilities) {
         ::OffloadSetHardwareCapabilities();
     }
+
+    TEST_METHOD(GenericXskQueryAffinity) {
+        ::GenericXskQueryAffinity();
+    }
 };
