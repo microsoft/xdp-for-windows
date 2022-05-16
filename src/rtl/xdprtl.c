@@ -124,7 +124,7 @@ RtlRandomNumberInRange(
     UINT32 Number = Max - Min;
 
     //
-    // Return a fast but low-quality random number.
+    // Return a fast but low-quality random number in the range [Min, Max).
     //
     Number = (UINT32)(((UINT64)RtlRandomNumber() * Number) >> 32);
     Number += Min;

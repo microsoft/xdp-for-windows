@@ -8,6 +8,8 @@
 #include "native.h"
 #include "offload.h"
 
+typedef struct _IO_WORKITEM IO_WORKITEM;
+
 typedef enum _XDP_LWF_FILTER_STATE {
     FilterStateUnspecified,
     FilterPaused,
@@ -23,6 +25,9 @@ typedef struct _XDP_LWF_FILTER {
     XDPIF_INTERFACE_SET_HANDLE XdpIfInterfaceSetHandle;
 
     XDP_LWF_OFFLOAD Offload;
+
+    NDIS_OID_REQUEST *OidWorkerRequest;
+    IO_WORKITEM *OidWorker;
 
     XDP_LWF_GENERIC Generic;
     XDP_LWF_NATIVE Native;
