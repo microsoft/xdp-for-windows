@@ -34,6 +34,7 @@
 
 #define RTL_MILLISEC_TO_100NANOSEC(m) ((m) * 10000ui64)
 #define RTL_SEC_TO_100NANOSEC(s) ((s) * 10000000ui64)
+#define RTL_SEC_TO_MILLISEC(s) ((s) * 1000ui64)
 
 #ifndef ReadUInt64NoFence
 #define ReadUInt64NoFence ReadULong64NoFence
