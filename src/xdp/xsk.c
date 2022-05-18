@@ -51,7 +51,6 @@ typedef struct _UMEM {
     XSK_UMEM_REG Reg;
     UMEM_MAPPING Mapping;
     VOID *ReservedMapping;
-    VOID *OwningProcess;
     XDP_REFERENCE_COUNT ReferenceCount;
 } UMEM;
 
@@ -2306,15 +2305,6 @@ XskDereferenceUmem(
         TraceInfo(TRACE_XSK, "Destroying Umem=%p", Umem);
 
         if (Umem->Mapping.Mdl != NULL) {
-            VOID *CurrentProcess = PsGetCurrentProcess();
-            KAPC_STATE ApcState;
-
-            ASSERT(Umem->OwningProcess != NULL);
-
-            if (CurrentProcess != Umem->OwningProcess) {
-                KeStackAttachProcess(Umem->OwningProcess, &ApcState);
-            }
-
             if (Umem->ReservedMapping != NULL) {
                 if (Umem->Mapping.SystemAddress != NULL) {
                     MmUnmapReservedMapping(Umem->ReservedMapping, POOLTAG_UMEM, Umem->Mapping.Mdl);
@@ -2324,15 +2314,6 @@ XskDereferenceUmem(
             if (Umem->Mapping.Mdl->MdlFlags & MDL_PAGES_LOCKED) {
                 MmUnlockPages(Umem->Mapping.Mdl);
             }
-
-            if (CurrentProcess != Umem->OwningProcess) {
-#pragma prefast(suppress:6001, "ApcState is correctly initialized in KeStackAttachProcess above.")
-                KeUnstackDetachProcess(&ApcState);
-            }
-
-            ObDereferenceObject(Umem->OwningProcess);
-            Umem->OwningProcess = NULL;
-
             IoFreeMdl(Umem->Mapping.Mdl);
         }
         ExFreePoolWithTag(Umem, POOLTAG_UMEM);
@@ -2938,9 +2919,6 @@ XskSockoptSetUmem(
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
-
-    Umem->OwningProcess = PsGetCurrentProcess();
-    ObReferenceObject(Umem->OwningProcess);
 
     __try {
         MmProbeAndLockPages(Umem->Mapping.Mdl, RequestorMode, IoWriteAccess);
