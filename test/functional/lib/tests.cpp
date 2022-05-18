@@ -3519,9 +3519,17 @@ GenericLwfDelayDetach(
             0, REG_DWORD, (BYTE *)&DelayTimeoutSec, sizeof(DelayTimeoutSec)));
     auto RegValueScopeGuard = wil::scope_exit([&]
     {
+        //
+        // Remove the registry key and restart the NDIS filter stack: the
+        // delayed detach parameter does not reliably take effect until each
+        // data path is fully detached. The only way to assure this (without
+        // restarting XDP itself) is to restart the filter stack.
+        //
         TEST_EQUAL(
             ERROR_SUCCESS,
             RegDeleteValueA(XdpParametersKey.get(), DelayDetachTimeoutRegName));
+        Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+        FnMpIf.Restart();
     });
     Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
