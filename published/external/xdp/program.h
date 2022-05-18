@@ -61,6 +61,20 @@ typedef enum _XDP_MATCH_TYPE {
     // port numbers.
     //
     XDP_MATCH_IPV6_UDP_TUPLE,
+    //
+    // Match frames with a destination UDP port enabled in the port set.
+    //
+    XDP_MATCH_UDP_PORT_SET,
+    //
+    // Match IPv4 frames matching the destination address and the destination
+    // UDP port enabled in the port set.
+    //
+    XDP_MATCH_IPV4_UDP_PORT_SET,
+    //
+    // Match IPv6 frames matching the destination address and the destination
+    // UDP port enabled in the port set.
+    //
+    XDP_MATCH_IPV6_UDP_PORT_SET,
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {
@@ -89,6 +103,23 @@ typedef struct _XDP_QUIC_FLOW {
     UCHAR CidData[QUIC_MAX_CID_LENGTH]; // Max allowed per QUIC v1 RFC
 } XDP_QUIC_FLOW;
 
+#define XDP_PORT_SET_BUFFER_SIZE ((MAXUINT16 + 1) / 8)
+
+typedef struct _XDP_PORT_SET {
+    //
+    // A port is mapped to the N/8th byte and the N%8th bit. The underlying
+    // buffer must be 8-byte aligned. The buffer size (in bytes) must be
+    // XDP_PORT_SET_BUFFER_SIZE. The port is represented in network order.
+    //
+    UINT8 *PortSet;
+    VOID *Reserved;
+} XDP_PORT_SET;
+
+typedef struct _XDP_IP_PORT_SET {
+    XDP_INET_ADDR Address;
+    XDP_PORT_SET PortSet;
+} XDP_IP_PORT_SET;
+
 //
 // Defines a pattern to match frames.
 //
@@ -113,6 +144,14 @@ typedef union _XDP_MATCH_PATTERN {
     // Match on UDP port and QUIC connection ID.
     //
     XDP_QUIC_FLOW QuicFlow;
+    //
+    // Match on destination port.
+    //
+    XDP_PORT_SET PortSet;
+    //
+    // Match on destination IP address and port.
+    //
+    XDP_IP_PORT_SET IpPortSet;
 } XDP_MATCH_PATTERN;
 
 typedef enum _XDP_RULE_ACTION {

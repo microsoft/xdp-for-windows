@@ -367,6 +367,7 @@ AttachXdpProgram(
     UINT32 flags = 0;
     HANDLE handle;
     HRESULT res;
+    UINT8 *PortSet = NULL;
 
     rule.Match = XDP_MATCH_ALL;
     rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
@@ -391,6 +392,28 @@ AttachXdpProgram(
 
     FuzzHookId(&hookId);
 
+    if (!(RandUlong() % 32)) {
+        PortSet = malloc(XDP_PORT_SET_BUFFER_SIZE);
+        if (PortSet == NULL) {
+            res = E_OUTOFMEMORY;
+            goto Exit;
+        }
+
+        switch (RandUlong() % 3) {
+        case 0:
+            rule.Match = XDP_MATCH_UDP_PORT_SET;
+            rule.Pattern.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
+            break;
+        case 1:
+            rule.Match = XDP_MATCH_IPV4_UDP_PORT_SET;
+            rule.Pattern.IpPortSet.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
+            break;
+        case 2:
+            rule.Match = XDP_MATCH_IPV6_UDP_PORT_SET;
+            rule.Pattern.IpPortSet.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
+        }
+    }
+
     res = XdpCreateProgram(ifindex, &hookId, Queue->queueId, flags, &rule, 1, &handle);
     if (SUCCEEDED(res)) {
         EnterCriticalSection(&RxProgramSet->Lock);
@@ -403,6 +426,10 @@ AttachXdpProgram(
     }
 
 Exit:
+
+    if (PortSet != NULL) {
+        free(PortSet);
+    }
 
     return RxRequired ? res : S_OK;
 }
