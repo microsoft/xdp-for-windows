@@ -1,0 +1,231 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+    - release/*
+    - prerelease/*
+    - thadhouse/actions # Temporary
+  pull_request:
+    branches:
+    - main
+    - release/*
+    - prerelease/*
+
+concurrency:
+  # Cancel any workflow currently in progress for the same PR.
+  # Allow running concurrently with any other commits.
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-2019
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+        platform: [x64]
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+      with:
+        submodules: recursive
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
+    - name: Prepare Machine
+      shell: pwsh
+      run: tools/prepare-machine.ps1 -ForBuild -Verbose
+    - name: Nuget Restore
+      run: nuget.exe restore xdp.sln
+    - name: Build
+      run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
+    - name: Clean up Artifacts
+      shell: pwsh
+      run: .azure/scripts/clean-artifacts.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Sign and Package
+      shell: pwsh
+      run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@6673cd052c4cd6fcf4b4e6e60ea986c889389535
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: |
+          artifacts/bin
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
+    - uses: microsoft/action-publish-symbols@61a07464e0b78d726c5c6c42efd3224eb982d1cf
+      with:
+        accountName: mscodehub
+        symbolServiceUrl: 'https://artifacts.dev.azure.com'
+        personalAccessToken: ${{ secrets.AZDO_PAT }}
+
+  functional_tests:
+    name: Functional Tests
+    needs: build
+    env:
+      # For 'main' commits
+      fullRuntime: 60 # minutes
+      fullIters: 10
+      # For PRs
+      prRuntime: 5 # minutes
+      prIters: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022]
+        configuration: [Release, Debug]
+        platform: [x64]
+    runs-on: windows-${{ matrix.windows }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+    - name: Check Drivers
+      shell: pwsh
+      run: tools/check-drivers.ps1 -Verbose
+    - name: Prepare Machine
+      shell: pwsh
+      run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@fb598a63ae348fa914e94cd0ff38f362e927b741
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run Tests (PR)
+      if: ${{ github.event_name == 'pull_request' }}
+      shell: pwsh
+      #timeout-minutes: ${{ env.prRuntime }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }}
+    - name: Run Tests (main)
+      if: ${{ github.event_name != 'pull_request' }}
+      shell: pwsh
+      # currently getting a weird error:
+      #  .github/workflows/ci.yml (Line: 107, Col: 24): Unexpected value '60'
+      #timeout-minutes: ${{ env.fullRuntime }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }}
+    - name: Convert Logs
+      if: ${{ always() }}
+      shell: pwsh
+      run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@6673cd052c4cd6fcf4b4e6e60ea986c889389535
+      if: ${{ always() }}
+      with:
+        name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: pwsh
+      run: tools/check-drivers.ps1 -Verbose
+
+  stress_tests:
+    name: Stress Tests
+    needs: build
+    env:
+      successThresholdPercent: 50
+      xdpmpPollProvider: 'FNDIS'
+      # For 'main' commits
+      fullRuntime: 60 # minutes
+      fullTimeout: 65 # minutes
+      # For PRs
+      prRuntime: 10 # minutes
+      prTimeout: 15 # minutes
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022]
+        configuration: [Release, Debug]
+        platform: [x64]
+    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
+    runs-on: windows-${{ matrix.windows }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+    - name: Check Drivers
+      shell: pwsh
+      run: tools/check-drivers.ps1 -Verbose
+    - name: Prepare Machine
+      shell: pwsh
+      run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@fb598a63ae348fa914e94cd0ff38f362e927b741
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run spinxsk (PR)
+      if: ${{ github.event_name == 'pull_request' }}
+      shell: pwsh
+      #timeout-minutes: ${{ env.prTimeout }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount 2 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+    - name: Run spinxsk (main)
+      if: ${{ github.event_name != 'pull_request' }}
+      shell: pwsh
+      #timeout-minutes: ${{ env.fullTimeout }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount 2 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+    - name: Convert Logs
+      if: ${{ always() }}
+      shell: pwsh
+      run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@6673cd052c4cd6fcf4b4e6e60ea986c889389535
+      if: ${{ always() }}
+      with:
+        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: pwsh
+      run: tools/check-drivers.ps1 -Verbose
+
+  devkit:
+    name: Dev Kit
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release]
+        platform: [x64]
+    runs-on: windows-2019
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+    - name: Download Artifacts
+      uses: actions/download-artifact@fb598a63ae348fa914e94cd0ff38f362e927b741
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Create Dev Kit
+      shell: pwsh
+      run: tools/create-devkit.ps1 -Flavor ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Kit
+      uses: actions/upload-artifact@6673cd052c4cd6fcf4b4e6e60ea986c889389535
+      with:
+        name: devkit_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/kit
+
+  etw:
+    name: ETW Plugin
+    needs: []
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+    - name: Setup .NET
+      uses: actions/setup-dotnet@9211491ffb35dd6a6657ca4f45d43dfe6e97c829
+      with:
+        dotnet-version: 6.0.x
+    - name: Build
+      run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
+    - uses: actions/upload-artifact@6673cd052c4cd6fcf4b4e6e60ea986c889389535
+      with:
+        name: etw_${{ matrix.configuration }}
+        path: artifacts/bin

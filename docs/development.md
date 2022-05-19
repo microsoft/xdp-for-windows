@@ -1,11 +1,11 @@
-# How to develop WinXDP
+# How to develop XDP for Windows
 
 ## Get the code
 
 Clone this repo and ensure all submodules are cloned with the `--recursive` option:
 
 ```
-git clone https://mscodehub.visualstudio.com/WindowsXDP/_git/xdp --recursive
+git clone https://github.com/microsoft/xdp-for-windows.git --recursive
 ```
 
 Or, if the repo was already cloned nonrecursively:

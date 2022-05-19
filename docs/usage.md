@@ -1,8 +1,8 @@
-# How to use WinXDP
+# How to use XDP for Windows
 
 ## Installation
 
-WinXDP consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
+XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
 
 If xdp.sys is not production-signed:
 ```PowerShell
