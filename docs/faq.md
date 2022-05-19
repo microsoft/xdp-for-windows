@@ -7,11 +7,11 @@ don't reuse any Linux code.
 
 > Do you support AF_XDP?
 
-Yes, we provide an AF_XDP [API](https://github.com/microsoft/xdp-for-windows/blob/main/published/external/afxdp.h). This API does not rely on Winsock; it is an independent socket API.
+Yes, we provide an AF_XDP [API](/published/external/afxdp.h). This API does not rely on Winsock; it is an independent socket API.
 
 > Do you support eBPF programs?
 
-Not yet. We plan to integrate with the [eBPF for Windows project](https://github.com/microsoft/ebpf-for-windows) soon. In the meantime, we have built a barebones [program](https://github.com/microsoft/xdp-for-windows/blob/main/published/external/xdp/program.h) module.
+Not yet. We plan to integrate with the [eBPF for Windows project](https://github.com/microsoft/ebpf-for-windows) soon. In the meantime, we have built a barebones [program](/published/external/xdp/program.h) module.
 
 > What versions of Windows does XDP support?
 
