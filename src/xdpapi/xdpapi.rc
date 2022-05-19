@@ -1,6 +1,8 @@
 //
-//    Copyright (C) Microsoft.  All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
+
 #include <windows.h>
 #include <xdpversion.h>
 

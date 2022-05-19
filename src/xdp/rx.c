@@ -1,12 +1,16 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
 #include "rx.tmh"
 
+
 static XDP_REG_WATCHER_CLIENT_ENTRY XdpRxRegWatcherEntry;
-static UINT32 XdpRxRingSize = 32;
+
+#define XDP_DEFAULT_RX_RING_SIZE 32
+static UINT32 XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
 
 typedef enum _XDP_RX_QUEUE_STATE {
     XdpRxQueueStateUnbound,
@@ -739,13 +743,6 @@ XdpRxQueueAttachInterface(
         goto Exit;
     }
 
-    Status =
-        XdpIfReferenceInterfaceOffload(
-            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle, XdpOffloadRss);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
     RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch;
 
     //
@@ -1124,6 +1121,8 @@ XdpRxRegistryUpdate(
     Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"XdpRxRingSize", &Value);
     if (NT_SUCCESS(Status) && RTL_IS_POWER_OF_TWO(Value) && Value >= 8 && Value <= 8192) {
         XdpRxRingSize = Value;
+    } else {
+        XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
     }
 }
 

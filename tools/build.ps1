@@ -18,11 +18,14 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoDevKit = $false,
+    [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$UpdateDeps = $false
 )
+
+Set-StrictMode -Version 'Latest'
+$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 $Tasks = @("Build")
 if (!$NoClean) {
@@ -37,17 +40,25 @@ msbuild.exe xdp.sln `
     /p:RestoreConfigFile=src\xdp\nuget.config `
     /p:Configuration=$Flavor `
     /p:Platform=$Platform
+if (!$?) {
+    Write-Verbose "Restoring NuGet packages failed: $LastExitCode"
+    return
+}
 
 msbuild.exe xdp.sln `
     /p:Configuration=$Flavor `
     /p:Platform=$Platform `
     /t:$($Tasks -join ",") `
     /maxCpuCount
+if (!$?) {
+    Write-Verbose "Build failed: $LastExitCode"
+    return
+}
 
 if (!$NoSign) {
     tools/sign.ps1 -Config $Flavor -Arch $Platform
 }
 
-if (!$NoDevKit) {
+if ($DevKit) {
     tools/create-devkit.ps1 -Flavor $Flavor
 }

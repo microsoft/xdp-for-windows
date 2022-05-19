@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include <winsock2.h>
@@ -187,6 +188,22 @@ public:
         GenericRxMatchIpPrefix(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxMatchUdpPortSetV4) {
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_UDP_PORT_SET);
+    }
+
+    TEST_METHOD(GenericRxMatchUdpPortSetV6) {
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_UDP_PORT_SET);
+    }
+
+    TEST_METHOD(GenericRxMatchIpv4UdpPortSet) {
+        GenericRxMatchUdp(AF_INET, XDP_MATCH_IPV4_UDP_PORT_SET);
+    }
+
+    TEST_METHOD(GenericRxMatchIpv6UdpPortSet) {
+        GenericRxMatchUdp(AF_INET6, XDP_MATCH_IPV6_UDP_PORT_SET);
+    }
+
     TEST_METHOD(GenericXskWaitRx) {
         GenericXskWait(TRUE, FALSE);
     }
@@ -309,5 +326,9 @@ public:
 
     TEST_METHOD(OffloadSetHardwareCapabilities) {
         ::OffloadSetHardwareCapabilities();
+    }
+
+    TEST_METHOD(GenericXskQueryAffinity) {
+        ::GenericXskQueryAffinity();
     }
 };

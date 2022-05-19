@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #ifndef AFXDP_HELPER_H
@@ -124,6 +125,15 @@ XskRingProducerNeedPoke(
     )
 {
     return !!(XskRingGetFlags(ring) & XSK_RING_FLAG_NEED_POKE);
+}
+
+inline
+BOOLEAN
+XskRingAffinityChanged(
+    _In_ CONST XSK_RING *ring
+    )
+{
+    return !!(XskRingGetFlags(ring) & XSK_RING_FLAG_AFFINITY_CHANGED);
 }
 
 inline

@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 //
@@ -638,6 +639,16 @@ BufferTooSmall:
     }
 }
 
+static
+BOOLEAN
+XdpTestBit(
+    _In_ CONST UINT8 *BitMap,
+    _In_ UINT32 Index
+    )
+{
+    return (ReadUCharNoFence(&BitMap[Index >> 3]) >> (Index & 0x7)) & 0x1;
+}
+
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
@@ -768,6 +779,50 @@ XdpInspect(
                     Rule->Match,
                     &FrameCache,
                     &Rule->Pattern.Tuple)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_UDP_PORT_SET:
+            if (!FrameCache.UdpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.UdpValid &&
+                XdpTestBit(Rule->Pattern.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_IPV4_UDP_PORT_SET:
+            if (!FrameCache.UdpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.Ip4Valid &&
+                IN4_ADDR_EQUAL(
+                    &FrameCache.Ip4Hdr->DestinationAddress,
+                    &Rule->Pattern.IpPortSet.Address.Ipv4) &&
+                FrameCache.UdpValid &&
+                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_IPV6_UDP_PORT_SET:
+            if (!FrameCache.UdpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.Ip6Valid &&
+                IN6_ADDR_EQUAL(
+                    &FrameCache.Ip6Hdr->DestinationAddress,
+                    &Rule->Pattern.IpPortSet.Address.Ipv6) &&
+                FrameCache.UdpValid &&
+                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
                 Matched = TRUE;
             }
             break;
@@ -945,6 +1000,29 @@ XdpProgramTraceObject(
                 ntohs(Rule->Pattern.Tuple.DestinationPort));
             break;
 
+        case XDP_MATCH_UDP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_UDP_PORT_SET PortSet=?",
+                ProgramObject, i);
+            break;
+
+        case XDP_MATCH_IPV4_UDP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV4_UDP_PORT_SET "
+                "Destination=%!IPADDR! PortSet=?",
+                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_IPV6_UDP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV6_UDP_PORT_SET "
+                "Destination=%!IPV6ADDR! PortSet=?",
+                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1069,6 +1147,70 @@ XdpProgramDetachRxQueue(
 
     TraceExitSuccess(TRACE_CORE);
 }
+static
+VOID
+XdpProgramReleasePortSet(
+    _Inout_ XDP_PORT_SET *PortSet
+    )
+{
+    PortSet->PortSet = NULL;
+
+    if (PortSet->Reserved != NULL) {
+        MDL *Mdl = PortSet->Reserved;
+        if (Mdl->MdlFlags & MDL_PAGES_LOCKED) {
+            MmUnlockPages(Mdl);
+        }
+        IoFreeMdl(Mdl);
+        PortSet->Reserved = NULL;
+    }
+}
+
+static
+NTSTATUS
+XdpProgramCapturePortSet(
+    _In_ CONST XDP_PORT_SET *UserPortSet,
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _Inout_ XDP_PORT_SET *KernelPortSet
+    )
+{
+    NTSTATUS Status;
+
+    __try {
+        if (UserPortSet->Reserved != NULL) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        KernelPortSet->Reserved =
+            IoAllocateMdl(UserPortSet->PortSet, XDP_PORT_SET_BUFFER_SIZE, FALSE, FALSE, NULL);
+        if (KernelPortSet->Reserved == NULL) {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+
+        MmProbeAndLockPages(KernelPortSet->Reserved, RequestorMode, IoReadAccess);
+
+        KernelPortSet->PortSet =
+            MmGetSystemAddressForMdlSafe(KernelPortSet->Reserved, LowPagePriority);
+        if (KernelPortSet->PortSet == NULL) {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+
+        Status = STATUS_SUCCESS;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        XdpProgramReleasePortSet(KernelPortSet);
+    }
+
+    return Status;
+}
 
 static
 VOID
@@ -1096,12 +1238,23 @@ XdpProgramDelete(
     for (ULONG Index = 0; Index < ProgramObject->Program.RuleCount; Index++) {
         XDP_RULE *Rule = &ProgramObject->Program.Rules[Index];
 
+        if (Rule->Match == XDP_MATCH_IPV4_UDP_PORT_SET ||
+            Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET) {
+            XdpProgramReleasePortSet(&Rule->Pattern.IpPortSet.PortSet);
+        }
+
+        if (Rule->Match == XDP_MATCH_UDP_PORT_SET) {
+            XdpProgramReleasePortSet(&Rule->Pattern.PortSet);
+        }
+
         if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
 
             switch (Rule->Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
-                XskDereferenceDatapathHandle(Rule->Redirect.Target);
+                if (Rule->Redirect.Target != NULL) {
+                    XskDereferenceDatapathHandle(Rule->Redirect.Target);
+                }
                 break;
 
             default:
@@ -1222,45 +1375,82 @@ XdpCaptureProgram(
     }
 
     for (ULONG Index = 0; Index < RuleCount; Index++) {
-        XDP_RULE *Rule = &Program->Rules[Index];
+        XDP_RULE UserRule = Program->Rules[Index];
+        XDP_RULE *ValidatedRule = &Program->Rules[Index];
 
-        if (Rule->Match < XDP_MATCH_ALL || Rule->Match > XDP_MATCH_IPV6_UDP_TUPLE) {
+        //
+        // Initialize the trusted kernel rule buffer and increment the count of
+        // validated rules. The error path will not attempt to clean up
+        // unvalidated rules.
+        //
+        RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
+        Program->RuleCount++;
+
+        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_IPV6_UDP_PORT_SET) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
+
+        ValidatedRule->Match = UserRule.Match;
 
         //
         // Validate each match condition. Many match conditions support all
         // possible input pattern values.
         //
-        switch (Rule->Match) {
+        switch (ValidatedRule->Match) {
         case XDP_MATCH_QUIC_FLOW_SRC_CID:
         case XDP_MATCH_QUIC_FLOW_DST_CID:
-            if (Rule->Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
+            if (UserRule.Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
                 Status = STATUS_INVALID_PARAMETER;
                 goto Exit;
             }
+            ValidatedRule->Pattern.QuicFlow = UserRule.Pattern.QuicFlow;
+            break;
+        case XDP_MATCH_UDP_PORT_SET:
+            Status =
+                XdpProgramCapturePortSet(
+                    &UserRule.Pattern.PortSet, RequestorMode, &ValidatedRule->Pattern.PortSet);
+            if (!NT_SUCCESS(Status)) {
+                goto Exit;
+            }
+            break;
+        case XDP_MATCH_IPV4_UDP_PORT_SET:
+        case XDP_MATCH_IPV6_UDP_PORT_SET:
+            Status =
+                XdpProgramCapturePortSet(
+                    &UserRule.Pattern.IpPortSet.PortSet, RequestorMode,
+                    &ValidatedRule->Pattern.IpPortSet.PortSet);
+            if (!NT_SUCCESS(Status)) {
+                goto Exit;
+            }
+            ValidatedRule->Pattern.IpPortSet.Address = UserRule.Pattern.IpPortSet.Address;
+            break;
+        default:
+            ValidatedRule->Pattern = UserRule.Pattern;
             break;
         }
 
-        if (Rule->Action < XDP_PROGRAM_ACTION_DROP || Rule->Action > XDP_PROGRAM_ACTION_REDIRECT) {
+        if (UserRule.Action < XDP_PROGRAM_ACTION_DROP ||
+            UserRule.Action > XDP_PROGRAM_ACTION_REDIRECT) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
+
+        ValidatedRule->Action = UserRule.Action;
 
         //
         // Capture object handle references in the context of the calling thread.
         // The handle will be validated further on the control path.
         //
-        if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
+        if (UserRule.Action == XDP_PROGRAM_ACTION_REDIRECT) {
 
-            switch (Rule->Redirect.TargetType) {
+            switch (UserRule.Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
                 Status =
                     XskReferenceDatapathHandle(
-                        RequestorMode, &Rule->Redirect.Target, TRUE,
-                        &Rule->Redirect.Target);
+                        RequestorMode, &UserRule.Redirect.Target, TRUE,
+                        &ValidatedRule->Redirect.Target);
                 break;
 
             default:
@@ -1272,12 +1462,6 @@ XdpCaptureProgram(
                 goto Exit;
             }
         }
-
-        //
-        // Increment the count of validated rules. The error path will not
-        // attempt to clean up unvalidated rules.
-        //
-        Program->RuleCount++;
     }
 
     Status = STATUS_SUCCESS;

@@ -1,11 +1,11 @@
-# How to develop WinXDP
+# How to develop XDP for Windows
 
 ## Get the code
 
 Clone this repo and ensure all submodules are cloned with the `--recursive` option:
 
 ```
-git clone https://mscodehub.visualstudio.com/WindowsXDP/_git/xdp --recursive
+git clone https://github.com/microsoft/xdp-for-windows.git --recursive
 ```
 
 Or, if the repo was already cloned nonrecursively:
@@ -42,9 +42,7 @@ file layout is assumed to be identical to that of the repo.
 One-time setup:
 
 ```Powershell
-.\tools\prepare-machine.ps1 -ForTest -NoReboot
-verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys
-shutdown.exe /r /f /t 0
+.\tools\prepare-machine.ps1 -ForFunctionalTest
 ```
 
 Running the tests:
@@ -76,20 +74,7 @@ After the test, convert the logs:
 One-time setup:
 
 ```Powershell
-.\tools\prepare-machine.ps1 -ForTest -NoReboot
-# Verifier configuration: standard flags with low resources simulation.
-# 599 - Failure probability (599/10000 = 5.99%)
-#       N.B. If left to the default value, roughly every 5 minutes verifier
-#       will fail all allocations within a 10 second interval. This behavior
-#       complicates the spinxsk socket setup statistics. Setting it to a
-#       non-default value disables this behavior.
-# ""  - Pool tag filter
-# ""  - Application filter
-# 1   - Delay (in minutes) after boot until simulation engages
-#       This is the lowest value configurable via verifier.exe.
-# WARNING: xdp.sys itself may fail to load due to low resources simulation.
-verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys
-shutdown.exe /r /f /t 0
+.\tools\prepare-machine.ps1 -ForSpinxskTest
 ```
 
 Optionally, disable the legacy TDX/TDI driver stack for greater reliability:
