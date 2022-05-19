@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -124,7 +125,7 @@ RtlRandomNumberInRange(
     UINT32 Number = Max - Min;
 
     //
-    // Return a fast but low-quality random number.
+    // Return a fast but low-quality random number in the range [Min, Max).
     //
     Number = (UINT32)(((UINT64)RtlRandomNumber() * Number) >> 32);
     Number += Min;

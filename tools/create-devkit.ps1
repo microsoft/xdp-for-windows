@@ -13,46 +13,63 @@ param (
     [string]$Flavor = "Debug"
 )
 
-$dstPath = "artifacts\kit\xdp-devkit-$Platform"
+$RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
+$Name = "xdp-devkit-$Platform"
 if ($Flavor -eq "Debug") {
-    $dstPath = $dstPath + "-Debug"
+    $Name += "-debug"
 }
+$DstPath = "artifacts\kit\$Name"
 
-Remove-Item $dstPath -Recurse -ErrorAction Ignore
-New-Item -Path $dstPath -ItemType Directory > $null
+Remove-Item $DstPath -Recurse -ErrorAction Ignore
+New-Item -Path $DstPath -ItemType Directory > $null
 
-copy docs\usage.md $dstPath
+copy docs\usage.md $DstPath
 
-New-Item -Path $dstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Flavor)\CoreNetSignRoot.cer" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdpapi.dll" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $dstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.exe" $dstPath\bin
+New-Item -Path $DstPath\bin -ItemType Directory > $null
+copy "artifacts\bin\$($Platform)_$($Flavor)\CoreNetSignRoot.cer" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdpapi.dll" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.exe" $DstPath\bin
 
-New-Item -Path $dstPath\symbols -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.pdb"   $dstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.pdb" $dstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $dstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.pdb" $dstPath\symbols
+New-Item -Path $DstPath\symbols -ItemType Directory > $null
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.pdb"   $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.pdb" $DstPath\symbols
 
-New-Item -Path $dstPath\include -ItemType Directory > $null
-copy -Recurse published\external\* $dstPath\include
+New-Item -Path $DstPath\include -ItemType Directory > $null
+copy -Recurse published\external\* $DstPath\include
 
-New-Item -Path $dstPath\lib -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.lib" $dstPath\lib
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $dstPath\lib
+New-Item -Path $DstPath\lib -ItemType Directory > $null
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.lib" $DstPath\lib
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $DstPath\lib
 # Package the NMR symbols alongside its static library: consuming projects will
 # throw build exceptions if symbols are missing for statically linked code.
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.pdb" $dstPath\lib
+copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.pdb" $DstPath\lib
 
-New-Item -Path $dstPath\samples -ItemType Directory > $null
-New-Item -Path $dstPath\samples\xdpmp -ItemType Directory > $null
-copy test\xdpmp\*.c $dstPath\samples\xdpmp
-copy test\xdpmp\*.h $dstPath\samples\xdpmp
-copy test\xdpmp\inf\xdpmp.inx $dstPath\samples\xdpmp
-New-Item -Path $dstPath\samples\xskbench -ItemType Directory > $null
-copy test\xskbench\*.c $dstPath\samples\xskbench
-copy test\xskbench\*.h $dstPath\samples\xskbench
+New-Item -Path $DstPath\samples -ItemType Directory > $null
+New-Item -Path $DstPath\samples\xdpmp -ItemType Directory > $null
+copy test\xdpmp\*.c $DstPath\samples\xdpmp
+copy test\xdpmp\*.h $DstPath\samples\xdpmp
+copy test\xdpmp\inf\xdpmp.inx $DstPath\samples\xdpmp
+New-Item -Path $DstPath\samples\xskbench -ItemType Directory > $null
+copy test\xskbench\*.c $DstPath\samples\xskbench
+copy test\xskbench\*.h $DstPath\samples\xskbench
+
+[xml]$XdpVersion = Get-Content $RootDir\xdp.props
+$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
+$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
+$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+
+$VersionString = "$Major.$Minor.$Patch"
+
+if (!((Get-BuildBranch).StartsWith("release/"))) {
+    $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+}
+
+Compress-Archive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*

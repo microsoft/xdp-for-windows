@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- (AF_XDP) Ideal processor affinity query socket options.
+
 ### Changed
 - (AF_XDP) Remove `sharedUmemSock` parameter from `XskActivate` and replace with
   the `XSK_SOCKOPT_SHARE_UMEM` socket option.

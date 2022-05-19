@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -36,6 +37,7 @@ typedef struct _XSK_KERNEL_RING {
     UINT32 ElementStride;
     VOID *UserVa;
     VOID *OwningProcess;
+    UINT32 IdealProcessor;
     XSK_ERROR Error;
 } XSK_KERNEL_RING;
 
@@ -49,7 +51,6 @@ typedef struct _UMEM {
     XSK_UMEM_REG Reg;
     UMEM_MAPPING Mapping;
     VOID *ReservedMapping;
-    VOID *OwningProcess;
     XDP_REFERENCE_COUNT ReferenceCount;
 } UMEM;
 
@@ -229,7 +230,7 @@ XskSignalReadyIo(
 {
     KIRQL OldIrql;
 
-    ASSERT((ReadyFlags & (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX)) == ReadyFlags);
+    ASSERT((ReadyFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) == ReadyFlags);
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if ((Xsk->IoWaitFlags & ReadyFlags) != 0) {
@@ -306,6 +307,29 @@ XskKernelRingSetError(
         if (Ring->Shared != NULL) {
             InterlockedOr((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_ERROR);
         }
+    }
+}
+
+static
+VOID
+XskKernelRingUpdateIdealProcessor(
+    _Inout_ XSK_KERNEL_RING *Ring
+    )
+{
+    UINT32 CurrentProcessor = KeGetCurrentProcessorIndex();
+
+    ASSERT(Ring->Size > 0);
+
+    //
+    // Set the ideal processor to the current processor. For queues that are not
+    // strongly affinitized (e.g. RSS disabled, not supported, plain buggy) we
+    // might need to add a heuristic to avoid indicating flapping CPUs up to
+    // applications.
+    //
+
+    if (Ring->IdealProcessor != CurrentProcessor) {
+        Ring->IdealProcessor = CurrentProcessor;
+        InterlockedOr((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
     }
 }
 
@@ -635,7 +659,10 @@ XskFillTx(
         FrameCount++;
     }
 
-    XskRingConsRelease(&Xsk->Tx.Ring, Count);
+    if (Count > 0) {
+        XskRingConsRelease(&Xsk->Tx.Ring, Count);
+        XskKernelRingUpdateIdealProcessor(&Xsk->Tx.Ring);
+    }
 
     Xsk->Tx.Xdp.OutstandingFrames += FrameCount;
 
@@ -812,9 +839,9 @@ XskFillTxCompletion(
         //
         KeMemoryBarrier();
 
-        if (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 &&
-            (Xsk->IoWaitFlags & XSK_NOTIFY_WAIT_TX)) {
-            XskSignalReadyIo(Xsk, XSK_NOTIFY_WAIT_TX);
+        if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_TX) &&
+            KeReadStateEvent(&Xsk->IoWaitEvent) == 0) {
+            XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_TX);
         }
 
         XskTxCompleteRundown(Xsk);
@@ -1153,7 +1180,7 @@ XskAcquirePollModeSocket(
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
-        NotifyFlags |= XSK_NOTIFY_WAIT_RX;
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
     }
 
     if (Xsk->Tx.Ring.Size > 0 && Xsk->Tx.Xdp.PollHandle == NULL) {
@@ -1161,7 +1188,7 @@ XskAcquirePollModeSocket(
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
-        NotifyFlags |= XSK_NOTIFY_WAIT_TX;
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
     }
 
     //
@@ -1614,18 +1641,18 @@ XskWaitInFlagsToOutFlags(
 {
     UINT32 NotifyResult = 0;
 
-    ASSERT((NotifyFlags & (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX)) == NotifyFlags);
+    ASSERT((NotifyFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) == NotifyFlags);
 
     //
     // Sets all wait output flags given the input wait flags.
     //
 
-    if (NotifyFlags & XSK_NOTIFY_WAIT_RX) {
-        NotifyResult |= XSK_NOTIFY_WAIT_RESULT_RX_AVAILABLE;
+    if (NotifyFlags & XSK_NOTIFY_FLAG_WAIT_RX) {
+        NotifyResult |= XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE;
     }
 
-    if (NotifyFlags & XSK_NOTIFY_WAIT_TX) {
-        NotifyResult |= XSK_NOTIFY_WAIT_RESULT_TX_COMP_AVAILABLE;
+    if (NotifyFlags & XSK_NOTIFY_FLAG_WAIT_TX) {
+        NotifyResult |= XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE;
     }
 
     return NotifyResult;
@@ -2278,15 +2305,6 @@ XskDereferenceUmem(
         TraceInfo(TRACE_XSK, "Destroying Umem=%p", Umem);
 
         if (Umem->Mapping.Mdl != NULL) {
-            VOID *CurrentProcess = PsGetCurrentProcess();
-            KAPC_STATE ApcState;
-
-            ASSERT(Umem->OwningProcess != NULL);
-
-            if (CurrentProcess != Umem->OwningProcess) {
-                KeStackAttachProcess(Umem->OwningProcess, &ApcState);
-            }
-
             if (Umem->ReservedMapping != NULL) {
                 if (Umem->Mapping.SystemAddress != NULL) {
                     MmUnmapReservedMapping(Umem->ReservedMapping, POOLTAG_UMEM, Umem->Mapping.Mdl);
@@ -2296,15 +2314,6 @@ XskDereferenceUmem(
             if (Umem->Mapping.Mdl->MdlFlags & MDL_PAGES_LOCKED) {
                 MmUnlockPages(Umem->Mapping.Mdl);
             }
-
-            if (CurrentProcess != Umem->OwningProcess) {
-#pragma prefast(suppress:6001, "ApcState is correctly initialized in KeStackAttachProcess above.")
-                KeUnstackDetachProcess(&ApcState);
-            }
-
-            ObDereferenceObject(Umem->OwningProcess);
-            Umem->OwningProcess = NULL;
-
             IoFreeMdl(Umem->Mapping.Mdl);
         }
         ExFreePoolWithTag(Umem, POOLTAG_UMEM);
@@ -2403,7 +2412,7 @@ XskIrpBindSocket(
     XDP_INTERFACE_MODE *ModeFilter = NULL;
     XDP_INTERFACE_MODE RequiredMode;
     BOOLEAN BindIfInitiated = FALSE;
-    CONST UINT32 ValidFlags = XSK_BIND_RX | XSK_BIND_TX | XSK_BIND_GENERIC | XSK_BIND_NATIVE;
+    CONST UINT32 ValidFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC | XSK_BIND_FLAG_NATIVE;
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(XSK_BIND_IN)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -2417,18 +2426,18 @@ XskIrpBindSocket(
         Xsk, Bind.IfIndex, Bind.QueueId, Bind.Flags);
 
     if ((Bind.Flags & ~ValidFlags) ||
-        !RTL_IS_CLEAR_OR_SINGLE_FLAG(Bind.Flags, XSK_BIND_GENERIC | XSK_BIND_NATIVE) ||
-        (Bind.Flags & (XSK_BIND_RX | XSK_BIND_TX)) == 0) {
+        !RTL_IS_CLEAR_OR_SINGLE_FLAG(Bind.Flags, XSK_BIND_FLAG_GENERIC | XSK_BIND_FLAG_NATIVE) ||
+        (Bind.Flags & (XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX)) == 0) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
-    if (Bind.Flags & XSK_BIND_GENERIC) {
+    if (Bind.Flags & XSK_BIND_FLAG_GENERIC) {
         RequiredMode = XDP_INTERFACE_MODE_GENERIC;
         ModeFilter = &RequiredMode;
     }
 
-    if (Bind.Flags & XSK_BIND_NATIVE) {
+    if (Bind.Flags & XSK_BIND_FLAG_NATIVE) {
         RequiredMode = XDP_INTERFACE_MODE_NATIVE;
         ModeFilter = &RequiredMode;
     }
@@ -2448,7 +2457,7 @@ XskIrpBindSocket(
 
     KeInitializeEvent(&WorkItem.CompletionEvent, SynchronizationEvent, FALSE);
 
-    if (Bind.Flags & XSK_BIND_RX) {
+    if (Bind.Flags & XSK_BIND_FLAG_RX) {
         WorkItem.Xsk = Xsk;
         WorkItem.QueueId = Bind.QueueId;
         WorkItem.IfWorkItem.WorkRoutine = XskBindRxIf;
@@ -2468,7 +2477,7 @@ XskIrpBindSocket(
         }
     }
 
-    if (Bind.Flags & XSK_BIND_TX) {
+    if (Bind.Flags & XSK_BIND_FLAG_TX) {
         WorkItem.Xsk = Xsk;
         WorkItem.QueueId = Bind.QueueId;
         WorkItem.IfWorkItem.WorkRoutine = XskBindTxIf;
@@ -2911,9 +2920,6 @@ XskSockoptSetUmem(
         goto Exit;
     }
 
-    Umem->OwningProcess = PsGetCurrentProcess();
-    ObReferenceObject(Umem->OwningProcess);
-
     __try {
         MmProbeAndLockPages(Umem->Mapping.Mdl, RequestorMode, IoWriteAccess);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -3250,6 +3256,7 @@ XskSockoptSetRingSize(
     Ring->Mask = NumDescriptors - 1;
     Ring->ElementStride = DescriptorSize;
     Ring->OwningProcess = PsGetCurrentProcess();
+    Ring->IdealProcessor = INVALID_PROCESSOR_INDEX;
     ObReferenceObject(Ring->OwningProcess);
 
     Shared = NULL;
@@ -3469,11 +3476,11 @@ XskQueryReadyIo(
 {
     UINT32 SatisfiedFlags = 0;
 
-    if (InFlags & XSK_NOTIFY_WAIT_TX && XskRingConsPeek(&Xsk->Tx.CompletionRing, 1) > 0) {
-        SatisfiedFlags |= XSK_NOTIFY_WAIT_TX;
+    if (InFlags & XSK_NOTIFY_FLAG_WAIT_TX && XskRingConsPeek(&Xsk->Tx.CompletionRing, 1) > 0) {
+        SatisfiedFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
     }
-    if (InFlags & XSK_NOTIFY_WAIT_RX && XskRingConsPeek(&Xsk->Rx.Ring, 1) > 0) {
-        SatisfiedFlags |= XSK_NOTIFY_WAIT_RX;
+    if (InFlags & XSK_NOTIFY_FLAG_WAIT_RX && XskRingConsPeek(&Xsk->Rx.Ring, 1) > 0) {
+        SatisfiedFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
     }
 
     return SatisfiedFlags;
@@ -3552,7 +3559,7 @@ XskPollSocket(
     LARGE_INTEGER WaitTime;
     LARGE_INTEGER *WaitTimePtr = NULL;
 
-    WaitFlags = Flags & (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX);
+    WaitFlags = Flags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
 
     if (TimeoutMs != INFINITE) {
         WaitTimePtr = &WaitTime;
@@ -3738,6 +3745,123 @@ XskIrpGetSockopt(
 }
 
 static
+_Success_(NT_SUCCESS(IoStatus->Status))
+VOID
+XskGetIdealProcessor(
+    _In_ XSK *Xsk,
+    _Inout_ XSK_KERNEL_RING *Ring,
+    _In_ KPROCESSOR_MODE PreviousMode,
+    _Out_ VOID *OutputBuffer,
+    _In_ UINT32 OutputBufferLength,
+    _Out_ IO_STATUS_BLOCK *IoStatus
+    )
+{
+    UINT32 ProcIndex;
+    PROCESSOR_NUMBER ProcNumber;
+
+    //
+    // N.B. This function must be called within a try/catch block.
+    //
+
+    if (ReadUInt32Acquire((UINT32 *)&Xsk->State) < XskActive || Ring->Size == 0) {
+        IoStatus->Status = STATUS_INVALID_DEVICE_STATE;
+        return;
+    }
+
+    if (OutputBufferLength < sizeof(PROCESSOR_NUMBER)) {
+        IoStatus->Status = STATUS_BUFFER_TOO_SMALL;
+        return;
+    }
+
+    if (PreviousMode != KernelMode) {
+        #pragma prefast(suppress:6001) // Using uninitialized memory '*OutputBuffer'
+        ProbeForWrite(
+            OutputBuffer, sizeof(PROCESSOR_NUMBER), PROBE_ALIGNMENT(PROCESSOR_NUMBER));
+    }
+
+    //
+    // Reset the affinity flag before reading the affinity value.
+    //
+    InterlockedAnd((LONG *)&Ring->Shared->Flags, ~XSK_RING_FLAG_AFFINITY_CHANGED);
+
+    ProcIndex = ReadUInt32NoFence(&Ring->IdealProcessor);
+    if (ProcIndex == INVALID_PROCESSOR_INDEX) {
+        IoStatus->Status = STATUS_DEVICE_NOT_READY;
+        return;
+    }
+
+    NT_VERIFY(NT_SUCCESS(KeGetProcessorNumberFromIndex(ProcIndex, &ProcNumber)));
+
+    *(PROCESSOR_NUMBER *)OutputBuffer = ProcNumber;
+    IoStatus->Information = sizeof(PROCESSOR_NUMBER);
+    IoStatus->Status = STATUS_SUCCESS;
+}
+
+#pragma warning(push)
+#pragma warning(disable:6101) // We don't set OutputBuffer in some paths
+static
+BOOLEAN
+XskFastGetSockopt(
+    _In_ XDP_FILE_OBJECT_HEADER *FileObjectHeader,
+    _In_opt_ VOID *InputBuffer,
+    _In_ UINT32 InputBufferLength,
+    _Out_opt_ VOID *OutputBuffer,
+    _In_ UINT32 OutputBufferLength,
+    _Out_ IO_STATUS_BLOCK *IoStatus
+    )
+{
+    XSK *Xsk = (XSK *)FileObjectHeader;
+    CONST KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
+    UINT32 Option = 0;
+
+    __try {
+        #pragma prefast(push)
+        #pragma prefast(disable:6011) // Dereferencing NULL pointer is safe within try/catch.
+        #pragma prefast(disable:6387) // Dereferencing NULL pointer is safe within try/catch.
+
+        if (InputBufferLength < sizeof(Option)) {
+            IoStatus->Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        if (PreviousMode != KernelMode) {
+            ProbeForRead(
+                (VOID *)InputBuffer, InputBufferLength, PROBE_ALIGNMENT(UINT32));
+        }
+
+        Option = ReadUInt32NoFence(InputBuffer);
+
+        switch (Option) {
+        case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
+            XskGetIdealProcessor(
+                Xsk, &Xsk->Rx.Ring, PreviousMode, OutputBuffer, OutputBufferLength, IoStatus);
+            break;
+
+        case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
+            XskGetIdealProcessor(
+                Xsk, &Xsk->Tx.Ring, PreviousMode, OutputBuffer, OutputBufferLength, IoStatus);
+            break;
+
+        default:
+            //
+            // Fall back to the IRP-based socket option path.
+            //
+            return FALSE;
+        }
+
+        #pragma prefast(pop)
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        IoStatus->Status = GetExceptionCode();
+        goto Exit;
+    }
+
+Exit:
+
+    return TRUE;
+}
+#pragma warning(pop)
+
+static
 NTSTATUS
 XskIrpSetSockopt(
     _In_ IRP *Irp,
@@ -3821,12 +3945,12 @@ XskNotifyValidateParams(
     }
 
     if (*InFlags == 0 || *InFlags &
-            ~(XSK_NOTIFY_POKE_RX | XSK_NOTIFY_POKE_TX | XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX)) {
+            ~(XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
         return STATUS_INVALID_PARAMETER;
     }
 
-    if ((*InFlags & (XSK_NOTIFY_POKE_RX | XSK_NOTIFY_WAIT_RX) && Xsk->Rx.Ring.Size == 0) ||
-        (*InFlags & (XSK_NOTIFY_POKE_TX | XSK_NOTIFY_WAIT_TX) && Xsk->Tx.Ring.Size == 0)) {
+    if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) && Xsk->Rx.Ring.Size == 0) ||
+        (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && Xsk->Tx.Ring.Size == 0)) {
         return STATUS_INVALID_DEVICE_STATE;
     }
 
@@ -3858,7 +3982,7 @@ XskPoke(
         // Notify the underlying interfaces that data is available.
         //
 
-        if (Flags & XSK_NOTIFY_POKE_RX) {
+        if (Flags & XSK_NOTIFY_FLAG_POKE_RX) {
             ASSERT(Xsk->Rx.Ring.Size > 0);
             ASSERT(Xsk->Rx.FillRing.Size > 0);
             //
@@ -3867,7 +3991,7 @@ XskPoke(
             ASSERT(Status == STATUS_SUCCESS);
         }
 
-        if (Flags & XSK_NOTIFY_POKE_TX) {
+        if (Flags & XSK_NOTIFY_FLAG_POKE_TX) {
             XDP_NOTIFY_QUEUE_FLAGS NotifyFlags = XDP_NOTIFY_QUEUE_FLAG_TX;
             //
             // Before invoking the poke routine, atomically clear the need poke
@@ -3909,7 +4033,7 @@ XskNotify(
     NTSTATUS Status;
     XSK* Xsk = (XSK*)FileObjectHeader;
     XSK_IO_WAIT_FLAGS InternalFlags;
-    CONST UINT32 WaitMask = (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX);
+    CONST UINT32 WaitMask = (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
 
     Status =
         XskNotifyValidateParams(
@@ -3924,7 +4048,7 @@ XskNotify(
     //
     InternalFlags = ReadULongAcquire((ULONG *)&Xsk->IoWaitInternalFlags);
 
-    if (InFlags & (XSK_NOTIFY_POKE_RX | XSK_NOTIFY_POKE_TX)) {
+    if (InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX)) {
         Status = XskPoke(Xsk, InFlags, TimeoutMilliseconds);
         if (Status != STATUS_SUCCESS) {
             TraceError(
@@ -3934,7 +4058,7 @@ XskNotify(
         }
     }
 
-    if ((InFlags & (XSK_NOTIFY_WAIT_RX | XSK_NOTIFY_WAIT_TX)) == 0) {
+    if ((InFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) == 0) {
         //
         // Not interested in waiting for IO.
         //
@@ -4039,7 +4163,7 @@ Exit:
 }
 
 #pragma warning(push)
-#pragma warning(disable:6101) // We don't set OutputBuffer
+#pragma warning(disable:6101) // We don't set OutputBuffer in some paths
 BOOLEAN
 XskFastIo(
     _In_ XDP_FILE_OBJECT_HEADER *FileObjectHeader,
@@ -4051,15 +4175,19 @@ XskFastIo(
     _Out_ IO_STATUS_BLOCK *IoStatus
     )
 {
-    UNREFERENCED_PARAMETER(OutputBuffer);
-    UNREFERENCED_PARAMETER(OutputBufferLength);
-
-    if (IoControlCode == IOCTL_XSK_NOTIFY) {
+    switch (IoControlCode) {
+    case IOCTL_XSK_NOTIFY:
         IoStatus->Status =
             XskNotify(
                 FileObjectHeader, InputBuffer, InputBufferLength,
                 &IoStatus->Information);
         return TRUE;
+
+    case IOCTL_XSK_GET_SOCKOPT:
+        return
+            XskFastGetSockopt(
+                FileObjectHeader, InputBuffer, InputBufferLength, OutputBuffer,
+                OutputBufferLength, IoStatus);
     }
 
     return FALSE;
@@ -4172,6 +4300,8 @@ XskReceiveSubmitBatch(
 
     XskRingConsRelease(&Xsk->Rx.FillRing, RxFillConsumed);
 
+    XskKernelRingUpdateIdealProcessor(&Xsk->Rx.Ring);
+
     if (RxProduced > 0) {
         XskRingProdSubmit(&Xsk->Rx.Ring, RxProduced);
 
@@ -4184,9 +4314,9 @@ XskReceiveSubmitBatch(
         //
         KeMemoryBarrier();
 
-        if (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 &&
-            (Xsk->IoWaitFlags & XSK_NOTIFY_WAIT_RX)) {
-            XskSignalReadyIo(Xsk, XSK_NOTIFY_WAIT_RX);
+        if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_RX) &&
+            KeReadStateEvent(&Xsk->IoWaitEvent) == 0) {
+            XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_RX);
         }
     }
 }

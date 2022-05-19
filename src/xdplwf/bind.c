@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -93,8 +94,14 @@ XdpLwfBindStart(
     FChars.RestartHandler                   = XdpLwfFilterRestart;
     FChars.PauseHandler                     = XdpLwfFilterPause;
     FChars.SetFilterModuleOptionsHandler    = XdpLwfFilterSetOptions;
+
+#if DBG
+    FChars.OidRequestHandler                = XdpVfLwfOidRequest;
+    FChars.OidRequestCompleteHandler        = XdpVfLwfOidRequestComplete;
+#else
     FChars.OidRequestHandler                = XdpLwfOidRequest;
     FChars.OidRequestCompleteHandler        = XdpLwfOidRequestComplete;
+#endif
 
     Status = NdisFRegisterFilterDriver(DriverObject, NULL, &FChars, &XdpLwfNdisDriverHandle);
     if (Status != NDIS_STATUS_SUCCESS) {
@@ -153,6 +160,12 @@ XdpLwfFilterAttach(
     Filter->NdisState = FilterPaused;
     XdpInitializeReferenceCount(&Filter->ReferenceCount);
     XdpLwfOffloadInitialize(Filter);
+
+    Filter->OidWorker = IoAllocateWorkItem((DEVICE_OBJECT *)XdpLwfDriverObject);
+    if (Filter->OidWorker == NULL) {
+        Status = NDIS_STATUS_RESOURCES;
+        goto Exit;
+    }
 
     Status =
         XdpIfCreateInterfaceSet(
@@ -298,6 +311,12 @@ XdpLwfFilterDetach(
         XdpGenericDetachInterface(&Filter->Generic);
 
         XdpIfDeleteInterfaceSet(Filter->XdpIfInterfaceSetHandle);
+    }
+
+    if (Filter->OidWorker != NULL) {
+        FRE_ASSERT(Filter->OidWorkerRequest == NULL);
+        IoFreeWorkItem(Filter->OidWorker);
+        Filter->OidWorker = NULL;
     }
 
     XdpLwfOffloadUnInitialize(Filter);

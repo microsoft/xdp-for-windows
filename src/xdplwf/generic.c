@@ -1,14 +1,15 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
 #include "generic.tmh"
 
-#define DELAY_DETACH_DEFAULT_TIMEOUT_SEC (5 * 60);
+#define DELAY_DETACH_DEFAULT_TIMEOUT_SEC (5 * 60)
 #define DELAY_DETACH_RX 0x1
 
-static UINT64 GenericDelayDetachTimeoutSec = DELAY_DETACH_DEFAULT_TIMEOUT_SEC;
+static UINT32 GenericDelayDetachTimeoutMs = RTL_SEC_TO_MILLISEC(DELAY_DETACH_DEFAULT_TIMEOUT_SEC);
 static XDP_REG_WATCHER_CLIENT_ENTRY GenericRegWatcher = {0};
 
 static
@@ -67,6 +68,24 @@ XdpGenericFromFilterContext(
 
 static
 VOID
+XdpGenericUpdateDelayDetachTimeout(
+    _In_ UINT32 NewTimeoutSeconds
+    )
+{
+    UINT32 NewTimeoutMs;
+
+    if (!NT_SUCCESS(RtlUInt32Mult(NewTimeoutSeconds, 1000, &NewTimeoutMs))) {
+        NewTimeoutMs = RTL_SEC_TO_MILLISEC(DELAY_DETACH_DEFAULT_TIMEOUT_SEC);
+    }
+
+    if (NewTimeoutMs != GenericDelayDetachTimeoutMs) {
+        GenericDelayDetachTimeoutMs = NewTimeoutMs;
+        TraceInfo(TRACE_GENERIC, "GenericDelayDetachTimeoutMs=%u", GenericDelayDetachTimeoutMs);
+    }
+}
+
+static
+VOID
 XdpGenericRegistryUpdate(
     VOID
     )
@@ -78,7 +97,9 @@ XdpGenericRegistryUpdate(
         XdpRegQueryDwordValue(
             XDP_LWF_PARAMETERS_KEY, L"GenericDelayDetachTimeoutSec", &Value);
     if (NT_SUCCESS(Status)) {
-        GenericDelayDetachTimeoutSec = Value;
+        XdpGenericUpdateDelayDetachTimeout(Value);
+    } else {
+        XdpGenericUpdateDelayDetachTimeout(DELAY_DETACH_DEFAULT_TIMEOUT_SEC);
     }
 }
 
@@ -161,6 +182,9 @@ XdpGenericUnpackContext(
 }
 
 static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+_Function_class_(WORKER_THREAD_ROUTINE)
 VOID
 XdpGenericDelayDereferenceDatapath(
    _In_ VOID *PackedContext
@@ -169,39 +193,10 @@ XdpGenericDelayDereferenceDatapath(
     XDP_LWF_GENERIC *Generic;
     XDP_LWF_DATAPATH_BYPASS *Datapath;
     BOOLEAN NeedRestart = FALSE;
-    NTSTATUS Status;
-    LARGE_INTEGER Timeout;
-    UINT64 CurrentTimestamp;
-    UINT64 DelayInterval;
-    UINT64 TimeSinceLastDeref = 0;
 
     XdpGenericUnpackContext(PackedContext, &Generic, &Datapath);
 
-    do {
-        if (RTL_SEC_TO_100NANOSEC(GenericDelayDetachTimeoutSec) < TimeSinceLastDeref) {
-            DelayInterval = 0;
-        } else {
-            DelayInterval =
-                RTL_SEC_TO_100NANOSEC(GenericDelayDetachTimeoutSec) - TimeSinceLastDeref;
-        }
-
-        Timeout.QuadPart = -1 * DelayInterval;
-        Status =
-            KeWaitForSingleObject(
-                &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, &Timeout);
-
-        RtlAcquirePushLockExclusive(&Generic->Lock);
-
-        CurrentTimestamp = KeQueryInterruptTime();
-        FRE_ASSERT(CurrentTimestamp >= Datapath->LastDereferenceTimestamp);
-        TimeSinceLastDeref = CurrentTimestamp - Datapath->LastDereferenceTimestamp;
-
-        if (TimeSinceLastDeref >= DelayInterval || Status == STATUS_SUCCESS) {
-            break;
-        }
-
-        RtlReleasePushLockExclusive(&Generic->Lock);
-    } while (TRUE);
+    RtlAcquirePushLockExclusive(&Generic->Lock);
 
     FRE_ASSERT(Datapath->ReferenceCount > 0);
     if (--Datapath->ReferenceCount == 0) {
@@ -217,8 +212,6 @@ XdpGenericDelayDereferenceDatapath(
         XdpGenericRequestRestart(Generic);
         XdpGenericDereference(Generic);
     }
-
-    PsTerminateSystemThread(STATUS_SUCCESS);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -233,6 +226,16 @@ XdpGenericReferenceDatapath(
     *NeedRestart = FALSE;
 
     FRE_ASSERT(Datapath->ReferenceCount >= 0);
+
+    //
+    // The data path is being referenced, so cancel any delayed detach timer.
+    // If we successfully cancelled the timer, then we can simply transfer its
+    // data path reference (and implicit generic reference) to this caller.
+    //
+    if (XdpTimerCancel(Datapath->DelayDetachTimer)) {
+        return;
+    }
+
     if (Datapath->ReferenceCount++ == 0) {
         XdpGenericReference(Generic);
         *NeedRestart = TRUE;
@@ -250,23 +253,17 @@ XdpGenericDereferenceDatapath(
 {
     *NeedRestart = FALSE;
 
-    Datapath->LastDereferenceTimestamp = KeQueryInterruptTime();
-
     if (Datapath->ReferenceCount == 1) {
-        OBJECT_ATTRIBUTES ObjectAttributes;
-        NTSTATUS Status;
-        HANDLE Thread;
+        if (Datapath->DelayDetachTimer != NULL) {
+            BOOLEAN StartedTimer;
+            BOOLEAN CancelledTimer;
 
-        InitializeObjectAttributes(
-            &ObjectAttributes, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+            CancelledTimer =
+                XdpTimerStart(
+                    Datapath->DelayDetachTimer, GenericDelayDetachTimeoutMs, &StartedTimer);
 
-        Status =
-            PsCreateSystemThread(
-                &Thread, THREAD_ALL_ACCESS, &ObjectAttributes, NULL, NULL,
-                XdpGenericDelayDereferenceDatapath,
-                XdpGenericPackContext(Generic, Datapath));
-        if (NT_SUCCESS(Status)) {
-            ZwClose(Thread);
+            FRE_ASSERT(!CancelledTimer);
+            FRE_ASSERT(StartedTimer);
             return;
         }
 
@@ -413,10 +410,44 @@ static CONST XDP_INTERFACE_DISPATCH XdpGenericDispatch = {
 
 static
 VOID
+XdpGenericCleanupDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
+    )
+{
+    if (Datapath->DelayDetachTimer != NULL) {
+        XDP_TIMER *DelayDetachTimer;
+
+        RtlAcquirePushLockExclusive(&Generic->Lock);
+
+        DelayDetachTimer = Datapath->DelayDetachTimer;
+        Datapath->DelayDetachTimer = NULL;
+
+        if (XdpTimerShutdown(DelayDetachTimer, TRUE, FALSE)) {
+            BOOLEAN NeedRestart;
+
+            //
+            // The delay detach timer was active and was cancelled, so release
+            // the delayed reference immediately. Since we are in the teardown
+            // path, there's no need to request the NDIS data path restart: it
+            // will be rejected by NDIS anyways.
+            //
+            XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
+        }
+
+        RtlReleasePushLockExclusive(&Generic->Lock);
+    }
+}
+
+static
+VOID
 XdpGenericCleanupInterface(
     _In_ XDP_LWF_GENERIC *Generic
     )
 {
+    XdpGenericCleanupDatapath(Generic, &Generic->Tx.Datapath);
+    XdpGenericCleanupDatapath(Generic, &Generic->Rx.Datapath);
+
     if (Generic->Registration != NULL) {
         XdpDeregisterInterface(Generic->Registration);
         Generic->Registration = NULL;
@@ -471,6 +502,24 @@ XdpGenericAttachInterface(
     Generic->InternalCapabilities.CapabilitiesEx = &Generic->Capabilities.CapabilitiesEx;
     Generic->InternalCapabilities.CapabilitiesSize = sizeof(Generic->Capabilities);
 
+    Generic->Rx.Datapath.DelayDetachTimer =
+        XdpTimerCreate(
+            XdpGenericDelayDereferenceDatapath,
+            XdpGenericPackContext(Generic, &Generic->Rx.Datapath), XdpLwfDriverObject, NULL);
+    if (Generic->Rx.Datapath.DelayDetachTimer == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    Generic->Tx.Datapath.DelayDetachTimer =
+        XdpTimerCreate(
+            XdpGenericDelayDereferenceDatapath,
+            XdpGenericPackContext(Generic, &Generic->Tx.Datapath), XdpLwfDriverObject, NULL);
+    if (Generic->Tx.Datapath.DelayDetachTimer == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
     Status =
         XdpInitializeCapabilities(
             &Generic->Capabilities, &DriverApiVersion);
@@ -519,13 +568,6 @@ XdpGenericDetachInterface(
         KeWaitForSingleObject(
             &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, NULL);
         Generic->XdpIfInterfaceHandle = NULL;
-    } else {
-        //
-        // N.B. Even if the generic interface was not successfully attached, the
-        // generic datapath can still be referenced for offload support. Set the
-        // interface removed event to kick the delay dereference datapath thread.
-        //
-        KeSetEvent(&Generic->InterfaceRemovedEvent, 0, FALSE);
     }
 
     XdpGenericCleanupInterface(Generic);

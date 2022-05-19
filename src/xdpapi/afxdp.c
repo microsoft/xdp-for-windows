@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -37,7 +38,7 @@ XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
-    _In_ UINT32 flags
+    _In_ XSK_BIND_FLAGS flags
     )
 {
     BOOL res;
@@ -56,7 +57,8 @@ XskBind(
             NULL,
             0,
             NULL,
-            NULL);
+            NULL,
+            TRUE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -68,7 +70,7 @@ HRESULT
 XDPAPI
 XskActivate(
     _In_ HANDLE socket,
-    _In_ UINT32 flags
+    _In_ XSK_ACTIVATE_FLAGS flags
     )
 {
     BOOL res;
@@ -85,7 +87,8 @@ XskActivate(
             NULL,
             0,
             NULL,
-            NULL);
+            NULL,
+            TRUE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -118,7 +121,8 @@ XskSetSockopt(
             NULL,
             0,
             NULL,
-            NULL);
+            NULL,
+            FALSE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -147,7 +151,8 @@ XskGetSockopt(
             optionValue,
             *optionLength,
             &bytesReturned,
-            NULL);
+            NULL,
+            FALSE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -159,23 +164,37 @@ XskGetSockopt(
 
 HRESULT
 XDPAPI
+XskIoctl(
+    _In_ HANDLE socket,
+    _In_ UINT32 optionName,
+    _In_reads_bytes_opt_(inputLength) const VOID *inputValue,
+    _In_ UINT32 inputLength,
+    _Out_writes_bytes_(*outputLength) VOID *outputValue,
+    _Inout_ UINT32 *outputLength
+    )
+{
+    UNREFERENCED_PARAMETER(socket);
+    UNREFERENCED_PARAMETER(optionName);
+    UNREFERENCED_PARAMETER(inputValue);
+    UNREFERENCED_PARAMETER(inputLength);
+    UNREFERENCED_PARAMETER(outputValue);
+    UNREFERENCED_PARAMETER(outputLength);
+
+    return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+}
+
+HRESULT
+XDPAPI
 XskNotifySocket(
     _In_ HANDLE socket,
-    _In_ UINT32 flags,
+    _In_ XSK_NOTIFY_FLAGS flags,
     _In_ UINT32 waitTimeoutMilliseconds,
-    _Out_ UINT32 *result
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     )
 {
     BOOL res;
     DWORD bytesReturned;
     XSK_NOTIFY_IN notify = {0};
-    OVERLAPPED overlapped = {0};
-
-    //
-    // N.B. We know that the notify IOCTL will never pend, so we pass an empty
-    // and non-NULL OVERLAPPED parameter to avoid the creation of an unnecessary
-    // event object for the sake of performance.
-    //
 
     notify.Flags = flags;
     notify.WaitTimeoutMilliseconds = waitTimeoutMilliseconds;
@@ -189,7 +208,8 @@ XskNotifySocket(
             NULL,
             0,
             &bytesReturned,
-            &overlapped);
+            NULL,
+            FALSE);
     if (res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }

@@ -1,7 +1,3 @@
-//
-// Copyright (C) Microsoft Corporation. All rights reserved.
-//
-
 /* SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause) */
 
 /*
@@ -368,7 +364,7 @@ inline int xsk_socket__create(struct xsk_socket **xsk,
     UINT32 ringInfoSize = sizeof(info);
     int ifIndex;
     SIZE_T ringSize;
-    UINT32 bindFlags = 0;
+    XSK_BIND_FLAGS bindFlags = XSK_BIND_FLAG_NONE;
 
     ifIndex = if_nametoindex(ifname);
     if (ifIndex == 0) {
@@ -386,7 +382,7 @@ inline int xsk_socket__create(struct xsk_socket **xsk,
         if (hres != S_OK) {
             goto error;
         }
-        bindFlags |= XSK_BIND_RX;
+        bindFlags |= XSK_BIND_FLAG_RX;
     }
     if (config->tx_size > 0) {
         ringSize = config->tx_size;
@@ -394,7 +390,7 @@ inline int xsk_socket__create(struct xsk_socket **xsk,
         if (hres != S_OK) {
             goto error;
         }
-        bindFlags |= XSK_BIND_TX;
+        bindFlags |= XSK_BIND_FLAG_TX;
     }
 
     ringSize = umem->fill_size;
@@ -452,7 +448,7 @@ inline int xsk_socket__create(struct xsk_socket **xsk,
         umem->comp->mask = info.completion.size - 1;
     }
 
-    hres = XskBind(handle, ifIndex, queue_id, config->bind_flags | bindFlags);
+    hres = XskBind(handle, ifIndex, queue_id, (XSK_BIND_FLAGS)config->bind_flags | bindFlags);
     if (hres != S_OK) {
         goto error;
     }
@@ -466,7 +462,7 @@ inline int xsk_socket__create(struct xsk_socket **xsk,
         }
     }
 
-    hres = XskActivate(handle, 0);
+    hres = XskActivate(handle, XSK_ACTIVATE_FLAG_NONE);
     if (hres != S_OK) {
         goto error;
     }

@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -56,16 +57,6 @@ XdpIoctl(
     _Out_opt_ VOID *OutBuffer,
     _In_ ULONG OutputBufferSize,
     _Out_opt_ ULONG *BytesReturned,
-    _In_opt_ OVERLAPPED *Overlapped
-    );
-
-BOOL
-XdpIoctlGlobal(
-    _In_ ULONG Operation,
-    _In_ VOID *InBuffer,
-    _In_ ULONG InBufferSize,
-    _Out_opt_ VOID *OutBuffer,
-    _In_ ULONG OutputBufferSize,
-    _Out_opt_ ULONG *BytesReturned,
-    _In_opt_ OVERLAPPED *Overlapped
+    _In_opt_ OVERLAPPED *Overlapped,
+    _In_ BOOLEAN MayPend
     );

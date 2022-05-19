@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #pragma once
@@ -11,6 +12,7 @@
 #include <winternl.h>
 #include <ifdef.h>
 #include <xdpapi.h>
+#include <xdpassert.h>
 #include <xdpioctl.h>
 #include <xdprtl.h>
 

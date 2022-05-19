@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -10,7 +11,9 @@
 //
 
 static XDP_REG_WATCHER_CLIENT_ENTRY XdpTxRegWatcherEntry;
-static UINT32 XdpTxRingSize = 32;
+
+#define XDP_DEFAULT_TX_RING_SIZE 32
+static UINT32 XdpTxRingSize = XDP_DEFAULT_TX_RING_SIZE;
 
 typedef struct _XDP_TX_QUEUE_KEY {
     XDP_HOOK_ID HookId;
@@ -1277,6 +1280,8 @@ XdpTxRegistryUpdate(
     Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"XdpTxRingSize", &Value);
     if (NT_SUCCESS(Status) && RTL_IS_POWER_OF_TWO(Value) && Value >= 8 && Value <= 8192) {
         XdpTxRingSize = Value;
+    } else {
+        XdpTxRingSize = XDP_DEFAULT_TX_RING_SIZE;
     }
 }
 

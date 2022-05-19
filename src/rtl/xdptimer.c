@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #include "precomp.h"
@@ -213,13 +214,7 @@ XdpTimerStart(
     // If the timer isn't disabled for shutdown, set the next timer.
     //
     if (!Timer->Flags.Shutdown) {
-        LONGLONG DueTime;
-
-        if (DueTimeInMs == 0) {
-            DueTimeInMs = 1; // next tick.
-        }
-
-        DueTime = -(LONGLONG)RTL_MILLISEC_TO_100NANOSEC(DueTimeInMs);
+        LONGLONG DueTime = -(LONGLONG)RTL_MILLISEC_TO_100NANOSEC(DueTimeInMs);
 
         XdpTimerReference(Timer);
         Timer->Flags.ExTimerInserted = TRUE;

@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #pragma once
@@ -20,7 +21,7 @@ typedef struct _XDP_LWF_DATAPATH_BYPASS {
     BOOLEAN Inserted;           // LWF handlers are inserted on the NDIS data path.
     INT64 ReferenceCount;       // Number of data path clients.
     KEVENT ReadyEvent;          // Set when the inserted data path is restarted.
-    UINT64 LastDereferenceTimestamp;
+    XDP_TIMER *DelayDetachTimer;
 } XDP_LWF_DATAPATH_BYPASS;
 
 typedef struct _XDP_LWF_GENERIC {

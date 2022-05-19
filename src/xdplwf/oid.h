@@ -1,5 +1,6 @@
 //
-// Copyright (C) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 //
 
 #pragma once
@@ -11,6 +12,11 @@ typedef enum _XDP_OID_ACTION {
 
 FILTER_OID_REQUEST XdpLwfOidRequest;
 FILTER_OID_REQUEST_COMPLETE XdpLwfOidRequestComplete;
+
+#if DBG
+FILTER_OID_REQUEST XdpVfLwfOidRequest;
+FILTER_OID_REQUEST_COMPLETE XdpVfLwfOidRequestComplete;
+#endif
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
