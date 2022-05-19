@@ -6,7 +6,6 @@ on:
     - main
     - release/*
     - prerelease/*
-    - thadhouse/actions # Temporary
   pull_request:
     branches:
     - main
@@ -59,7 +58,9 @@ jobs:
           !artifacts/bin/**/*.ilk
           !artifacts/bin/**/*.exp
           !artifacts/bin/**/*.lastcodeanalysissucceeded
-    - uses: microsoft/action-publish-symbols@61a07464e0b78d726c5c6c42efd3224eb982d1cf
+    - name: Publish Symbols
+      uses: microsoft/action-publish-symbols@61a07464e0b78d726c5c6c42efd3224eb982d1cf
+      if: github.event_name != 'pull_request'
       with:
         accountName: mscodehub
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
