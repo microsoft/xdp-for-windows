@@ -31,7 +31,8 @@ function Get-BuildBranch {
     } elseif (![string]::IsNullOrWhiteSpace($env:BUILD_SOURCEBRANCH)) {
         # We are in a (AZP) main build.
         Write-Host "Using BUILD_SOURCEBRANCH=$env:BUILD_SOURCEBRANCH to compute branch"
-        return $env:BUILD_SOURCEBRANCH.Substring(11)
+        $env:BUILD_SOURCEBRANCH -match 'refs/heads/(.+)' | Out-Null
+        return $Matches[1]
 
     } elseif (![string]::IsNullOrWhiteSpace($env:GITHUB_REF_NAME)) {
         # We are in a (GitHub Action) main build.
