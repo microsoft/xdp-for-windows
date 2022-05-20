@@ -1,5 +1,9 @@
 # How to use XDP for Windows
 
+## Prerequisites
+
+- Windows Server 2019 or 2022
+
 ## Installation
 
 XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
