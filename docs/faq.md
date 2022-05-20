@@ -20,7 +20,7 @@ have built a barebones [program](/published/external/xdp/program.h) module.
 
 > What versions of Windows does XDP support?
 
-XDP is currently tested on Windows Server 2016, 2019, and 2022.
+XDP is currently tested on Windows Server 2019 and 2022.
 
 > When is this shipping with Windows?
 
