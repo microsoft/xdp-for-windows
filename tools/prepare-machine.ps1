@@ -71,7 +71,7 @@ function Download-CoreNet-Deps {
         Remove-Item -Recurse -Force "artifacts/corenet-ci-main"
     }
     if (!(Test-Path "artifacts/corenet-ci-main")) {
-        Invoke-WebRequest -Uri "https://github.com/microsoft/corenet-ci/archive/refs/heads/main.zip" -OutFile "artifacts\corenet-ci.zip" -MaximumRetryCount 3
+        Invoke-WebRequest -Uri "https://github.com/microsoft/corenet-ci/archive/refs/heads/main.zip" -OutFile "artifacts\corenet-ci.zip"
         Expand-Archive -Path "artifacts\corenet-ci.zip" -DestinationPath "artifacts" -Force
         Remove-Item -Path "artifacts\corenet-ci.zip"
     }
@@ -122,7 +122,7 @@ function Setup-VcRuntime {
         Remove-Item -Force "artifacts\vc_redist.x64.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "artifacts\vc_redist.x64.exe" -MaximumRetryCount 3
+        Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "artifacts\vc_redist.x64.exe"
         Invoke-Expression -Command "artifacts\vc_redist.x64.exe /install /passive"
     }
 }
@@ -135,7 +135,7 @@ function Setup-VsTest {
         Remove-Item -Recurse -Force "artifacts\Microsoft.TestPlatform" -ErrorAction Ignore
 
         # Download and extract.
-        Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/16.11.0" -OutFile "artifacts\Microsoft.TestPlatform.zip" -MaximumRetryCount 3
+        Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/16.11.0" -OutFile "artifacts\Microsoft.TestPlatform.zip"
         Expand-Archive -Path "artifacts\Microsoft.TestPlatform.zip" -DestinationPath "artifacts\Microsoft.TestPlatform" -Force
         Remove-Item -Path "artifacts\Microsoft.TestPlatform.zip"
 
