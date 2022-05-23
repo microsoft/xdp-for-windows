@@ -1863,7 +1863,7 @@ GenericRxMatchUdp(
     } else if (MatchType == XDP_MATCH_UDP_PORT_SET ||
                MatchType == XDP_MATCH_IPV4_UDP_PORT_SET ||
                MatchType == XDP_MATCH_IPV6_UDP_PORT_SET) {
-        PortSet.reset((UINT8 *)calloc(XDP_PORT_SET_BUFFER_SIZE, 1));
+        PortSet.reset((UINT8 *)calloc(1, XDP_PORT_SET_BUFFER_SIZE));
         TEST_NOT_NULL(PortSet.get());
 
         SetBit(PortSet.get(), LocalPort);
