@@ -280,3 +280,11 @@ FnMpOidGetRequest(
             Handle, IOCTL_OID_GET_REQUEST, &In, sizeof(In), InformationBuffer,
             *InformationBufferLength, InformationBufferLength, NULL);
 }
+
+HRESULT
+FnMpOidComplete(
+    _In_ HANDLE Handle
+    )
+{
+    return FnMpIoctl(Handle, IOCTL_OID_COMPLETE, NULL, 0, NULL, 0, NULL, NULL);
+}

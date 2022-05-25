@@ -516,20 +516,11 @@ MiniportRequestHandler(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 MpOidCompleteRequest(
-    _In_ ADAPTER_CONTEXT *Adapter
+    _In_ ADAPTER_CONTEXT *Adapter,
+    _In_ NDIS_OID_REQUEST *Request
     )
 {
     NDIS_STATUS Status;
-    NDIS_OID_REQUEST *Request;
-
-    RtlAcquirePushLockExclusive(&Adapter->Lock);
-    Request = Adapter->FilteredOidRequest;
-    Adapter->FilteredOidRequest = NULL;
-    RtlReleasePushLockExclusive(&Adapter->Lock);
-
-    if (Request == NULL) {
-        return;
-    }
 
     switch (Request->RequestType)
     {
@@ -546,6 +537,24 @@ MpOidCompleteRequest(
     }
 
     NdisMOidRequestComplete(Adapter->MiniportHandle, Request, Status);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+MpOidComplete(
+    _In_ ADAPTER_CONTEXT *Adapter
+    )
+{
+    NDIS_OID_REQUEST *Request;
+
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
+    Request = Adapter->FilteredOidRequest;
+    Adapter->FilteredOidRequest = NULL;
+    RtlReleasePushLockExclusive(&Adapter->Lock);
+
+    if (Request != NULL) {
+        MpOidCompleteRequest(Adapter, Request);
+    }
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -709,6 +718,40 @@ Exit:
     if (IsLockHeld) {
         RtlReleasePushLockExclusive(&Adapter->Lock);
     }
+
+    return Status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+MpIrpOidComplete(
+    _In_ ADAPTER_CONTEXT *Adapter,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    NDIS_OID_REQUEST *Request;
+
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IrpSp);
+
+    RtlAcquirePushLockExclusive(&Adapter->Lock);
+
+    Request = Adapter->FilteredOidRequest;
+    Adapter->FilteredOidRequest = NULL;
+
+    RtlReleasePushLockExclusive(&Adapter->Lock);
+
+    if (Request == NULL) {
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
+
+    MpOidCompleteRequest(Adapter, Request);
+    Status = STATUS_SUCCESS;
+
+Exit:
 
     return Status;
 }

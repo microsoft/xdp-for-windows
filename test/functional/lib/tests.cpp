@@ -119,6 +119,18 @@ static RX_TX_TESTCASE RxTxTestCases[] = {
     { TRUE, TRUE }
 };
 
+typedef struct _XDP_RSS_CONFIGURATION_STORAGE {
+    XDP_RSS_CONFIGURATION Config;
+    UCHAR HashKey[40];
+    PROCESSOR_NUMBER IndirectionTable[128];
+} XDP_RSS_CONFIGURATION_STORAGE;
+
+typedef struct _NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE {
+    NDIS_RECEIVE_SCALE_PARAMETERS Params;
+    UCHAR HashKey[40];
+    PROCESSOR_NUMBER IndirectionTable[128];
+} NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE;
+
 static CONST CHAR *PowershellPrefix;
 
 //
@@ -188,6 +200,23 @@ ProcessorIndexToProcessorNumber(
 
     ProcNumber->Group = Group;
     ProcNumber->Number = (UINT8)ProcIndex;
+}
+
+static
+VOID
+SetTcpipRssEnabled(
+    _In_ BOOLEAN RssEnabled
+    )
+{
+    CHAR CmdBuff[256];
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(CmdBuff, "%s /c netsh int tcp set global rss=%s", PowershellPrefix, RssEnabled ? "enabled" : "disabled");
+    TEST_EQUAL(0, system(CmdBuff));
+
+    //
+    // Wait for TCPIP to plumb updated RSS settings.
+    //
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
 }
 
 static
@@ -1441,6 +1470,15 @@ MpOidAllocateAndGetRequest(
 
 static
 VOID
+MpOidComplete(
+    _In_ const wil::unique_handle& Handle
+    )
+{
+    TEST_HRESULT(FnMpOidComplete(Handle.get()));
+}
+
+static
+VOID
 WaitForWfpQuarantine(
     _In_ const TestInterface& If
     );
@@ -1548,6 +1586,18 @@ ClearMaskedBits(
         Ip64[0] &= Mask64[0];
         Ip64[1] &= Mask64[1];
     }
+}
+
+static
+VOID
+InitializeRssConfig(
+    _Out_ XDP_RSS_CONFIGURATION_STORAGE *RssConfig
+    )
+{
+    XdpInitializeRssConfiguration(&RssConfig->Config, sizeof(*RssConfig));
+    RssConfig->Config.HashSecretKeyOffset = FIELD_OFFSET(XDP_RSS_CONFIGURATION_STORAGE, HashKey);
+    RssConfig->Config.IndirectionTableOffset =
+        FIELD_OFFSET(XDP_RSS_CONFIGURATION_STORAGE, IndirectionTable);
 }
 
 bool
@@ -4584,6 +4634,10 @@ OffloadRssUpperSet()
     //
     // Set upper edge settings via NDIS.
     //
+    // TODO: This is an invalid RSS request, but XDP doesn't notice this and
+    // dutifully returns the result up the stack, which is all this test covers.
+    // This needs to be fixed.
+    //
     OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
     OidKey.RequestType = NdisRequestSetInformation;
     UpperNdisRssParams.Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
@@ -4779,6 +4833,175 @@ OffloadRssCapabilities()
     TEST_EQUAL(RssCapabilities->HashSecretKeySize, 40);
     TEST_EQUAL(RssCapabilities->NumberOfReceiveQueues, FNMP_DEFAULT_RSS_QUEUES);
     TEST_EQUAL(RssCapabilities->NumberOfIndirectionTableEntries, FNMP_MAX_RSS_INDIR_COUNT);
+}
+
+VOID
+OffloadRssPartialSet()
+{
+    wil::unique_handle InterfaceHandle;
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> NdisRssParams;
+    unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> OriginalNdisRssParams;
+    NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE UpperNdisRssParamsStorage = {0};
+    NDIS_RECEIVE_SCALE_PARAMETERS *UpperNdisRssParams = &UpperNdisRssParamsStorage.Params;
+    XDP_RSS_CONFIGURATION_STORAGE LowerRssConfigStorage;
+    XDP_RSS_CONFIGURATION *LowerRssConfig = &LowerRssConfigStorage.Config;
+    UINT32 RssConfigSize;
+    UINT32 NdisRssParamsSize;
+    UINT32 OriginalNdisRssParamsSize;
+    UINT32 UpperNdisRssParamsSize;
+    UINT32 LowerRssConfigSize;
+    CONST UINT32 LowerXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV4;
+    CONST UINT32 LowerNdisRssHashType = NDIS_HASH_TCP_IPV4;
+    CONST UINT32 UpperXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV6;
+    CONST UINT32 UpperNdisRssHashType = NDIS_HASH_TCP_IPV6;
+    OID_KEY OidKey;
+    auto If = FnMpIf;
+    auto DefaultLwf = LwfOpenDefault(If.GetIfIndex());
+    auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
+
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
+    SetTcpipRssEnabled(FALSE);
+    auto TcpipRssScopeGuard = wil::scope_exit([&]
+    {
+        SetTcpipRssEnabled(TRUE);
+    });
+
+    //
+    // Verify RSS is initially disabled by the TCPIP protocol.
+    //
+
+    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    OidKey.RequestType = NdisRequestQueryInformation;
+    OriginalNdisRssParams =
+        LwfOidAllocateAndSubmitRequest<NDIS_RECEIVE_SCALE_PARAMETERS>(
+            DefaultLwf, OidKey, &OriginalNdisRssParamsSize);
+    TEST_TRUE(
+        (OriginalNdisRssParams->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) ||
+        (OriginalNdisRssParams->HashInformation == 0));
+
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
+    TEST_TRUE(RssConfig->Flags & XDP_RSS_FLAG_DISABLED);
+
+    //
+    // Upon test case exit, revert to original upper edge settings.
+    //
+    auto RssScopeGuard = wil::scope_exit([&]
+    {
+        if (OriginalNdisRssParams.get() != NULL) {
+            OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+            OidKey.RequestType = NdisRequestSetInformation;
+            LwfOidSubmitRequest(
+                DefaultLwf, OidKey, &OriginalNdisRssParamsSize, OriginalNdisRssParams.get());
+        }
+    });
+
+    //
+    // Set an OID filter, initiate XdpSetRss, verify XDP has set the partial
+    // parameters and provided default values for the remaining fields, and then
+    // complete the OID.
+    //
+
+    OID_KEY Key = {};
+    Key.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    Key.RequestType = NdisRequestSetInformation;
+    MpOidFilter(AdapterMp, &Key, 1);
+
+    //
+    // Set partial lower edge settings via XDP and wait for the OID to reach
+    // the miniport.
+    //
+    InitializeRssConfig(&LowerRssConfigStorage);
+    LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
+    LowerRssConfig->HashType = LowerXdpRssHashType;
+
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return XdpRssSet(InterfaceHandle.get(), LowerRssConfig, sizeof(LowerRssConfigStorage));
+        }
+    );
+
+    UINT32 OidInfoBufferLength;
+    unique_malloc_ptr<VOID> OidInfoBuffer =
+        MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+    NDIS_RECEIVE_SCALE_PARAMETERS *NdisParams =
+        (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
+    TEST_EQUAL(
+        LowerNdisRssHashType, NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(NdisParams->HashInformation));
+    TEST_NOT_EQUAL(0, NdisParams->IndirectionTableSize);
+    TEST_NOT_EQUAL(0, NdisParams->HashSecretKeySize);
+
+    MpOidComplete(AdapterMp);
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    TEST_HRESULT(AsyncThread.get());
+
+    //
+    // Verify XDP returns the merged settings when queried.
+    //
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
+    TEST_EQUAL(LowerXdpRssHashType, RssConfig->HashType);
+    TEST_NOT_EQUAL(0, RssConfig->IndirectionTableSize);
+    TEST_NOT_EQUAL(0, RssConfig->HashSecretKeySize);
+
+    //
+    // Plumb new upper edge settings.
+    //
+    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
+    OidKey.RequestType = NdisRequestSetInformation;
+    UpperNdisRssParams->Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
+    UpperNdisRssParams->Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+    UpperNdisRssParams->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+    UpperNdisRssParams->Flags = 0;
+    UpperNdisRssParams->HashInformation =
+        NDIS_RSS_HASH_INFO_FROM_TYPE_AND_FUNC(
+            UpperNdisRssHashType, NdisHashFunctionToeplitz);
+    UpperNdisRssParams->HashSecretKeyOffset =
+        FIELD_OFFSET(NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE, HashKey);
+    UpperNdisRssParams->IndirectionTableOffset =
+        FIELD_OFFSET(NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE, IndirectionTable);
+    RtlCopyMemory(&UpperNdisRssParamsStorage.HashKey, "Upper", sizeof("Upper"));
+    UpperNdisRssParams->HashSecretKeySize = sizeof("Upper");
+    ProcessorIndexToProcessorNumber(1, &UpperNdisRssParamsStorage.IndirectionTable[0]);
+    ProcessorIndexToProcessorNumber(0, &UpperNdisRssParamsStorage.IndirectionTable[1]);
+    UpperNdisRssParams->IndirectionTableSize = 2 * sizeof(PROCESSOR_NUMBER);
+    UpperNdisRssParamsSize = sizeof(UpperNdisRssParamsStorage);
+    TEST_HRESULT(
+        LwfOidSubmitRequest(
+            DefaultLwf, OidKey, &UpperNdisRssParamsSize, &UpperNdisRssParams));
+
+    //
+    // Verify upper edge settings were merged with the partial XDP settings
+    // and propagated to the miniport.
+    //
+    OidInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+
+    NdisParams = (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
+    TEST_EQUAL(
+        LowerNdisRssHashType, NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(NdisParams->HashInformation));
+    TEST_EQUAL(UpperNdisRssParams->IndirectionTableSize, NdisParams->IndirectionTableSize);
+    TEST_EQUAL(UpperNdisRssParams->HashSecretKeySize, NdisParams->HashSecretKeySize);
+
+    //
+    // Reset lower edge settings.
+    //
+    InterfaceHandle.reset();
+
+    //
+    // Verify lower edge settings now match upper edge.
+    //
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
+    TEST_EQUAL(RssConfig->HashType, UpperXdpRssHashType);
 }
 
 static

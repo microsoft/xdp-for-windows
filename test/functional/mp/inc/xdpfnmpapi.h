@@ -110,4 +110,9 @@ FnMpOidGetRequest(
     _Out_opt_ VOID *InformationBuffer
     );
 
+HRESULT
+FnMpOidComplete(
+    _In_ HANDLE Handle
+    );
+
 EXTERN_C_END

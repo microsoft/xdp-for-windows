@@ -515,6 +515,13 @@ XdpLwfOffloadRssGetCapabilities(
 }
 
 static
+CONST
+XDP_OFFLOAD_PARAMS_RSS DisabledRssOffloadParams =
+{
+    .State = XdpOffloadStateDisabled,
+};
+
+static
 _Requires_lock_held_(&Filter->Offload.Lock)
 NTSTATUS
 XdpLwfOffloadRssGet(
@@ -524,8 +531,8 @@ XdpLwfOffloadRssGet(
     _Inout_ UINT32 *RssParamsLength
     )
 {
-    NTSTATUS Status;
     XDP_LWF_OFFLOAD_SETTING_RSS *CurrentRssSetting = NULL;
+    CONST XDP_OFFLOAD_PARAMS_RSS *CurrentOffloadParams;
 
     ASSERT(RssParams != NULL);
     ASSERT(*RssParamsLength == sizeof(*RssParams));
@@ -555,21 +562,15 @@ XdpLwfOffloadRssGet(
         break;
     }
 
-    if (CurrentRssSetting == NULL) {
-        //
-        // RSS not initialized yet.
-        //
-        TraceError(
-            TRACE_LWF,
-            "OffloadContext=%p RSS params not found", OffloadContext);
-        Status = STATUS_INVALID_DEVICE_STATE;
+    if (CurrentRssSetting != NULL) {
+        CurrentOffloadParams = &CurrentRssSetting->Params;
     } else {
-        RtlCopyMemory(RssParams, &CurrentRssSetting->Params, sizeof(CurrentRssSetting->Params));
-        *RssParamsLength = sizeof(CurrentRssSetting->Params);
-        Status = STATUS_SUCCESS;
+        CurrentOffloadParams = &DisabledRssOffloadParams;
     }
 
-    return Status;
+    RtlCopyMemory(RssParams, CurrentOffloadParams, sizeof(*CurrentOffloadParams));
+    *RssParamsLength = sizeof(*CurrentOffloadParams);
+    return STATUS_SUCCESS;
 }
 
 static

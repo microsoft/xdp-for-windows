@@ -14,6 +14,13 @@ MINIPORT_OID_REQUEST MiniportRequestHandler;
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 MpOidCompleteRequest(
+    _In_ ADAPTER_CONTEXT *Adapter,
+    _In_ NDIS_OID_REQUEST *Request
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+MpOidComplete(
     _In_ ADAPTER_CONTEXT *Adapter
     );
 
@@ -34,6 +41,14 @@ MpIrpOidSetFilter(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 MpIrpOidGetRequest(
+    _In_ ADAPTER_CONTEXT *Adapter,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+MpIrpOidComplete(
     _In_ ADAPTER_CONTEXT *Adapter,
     _In_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp

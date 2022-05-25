@@ -312,6 +312,10 @@ public:
         ::OffloadRssCapabilities();
     }
 
+    TEST_METHOD(OffloadRssPartialSet) {
+        ::OffloadRssPartialSet();
+    }
+
     TEST_METHOD(FnLwfRx) {
         ::FnLwfRx();
     }

@@ -159,18 +159,24 @@ XdpIrpInterfaceOffloadRssGet(
     RssConfiguration = OutputBuffer;
     RssConfiguration->Header.Revision = XDP_RSS_CONFIGURATION_REVISION_1;
     RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
-    RssConfiguration->HashType = RssParams.HashType;
-    RssConfiguration->HashSecretKeyOffset = sizeof(*RssConfiguration);
-    RssConfiguration->HashSecretKeySize = RssParams.HashSecretKeySize;
-    RssConfiguration->IndirectionTableOffset =
-        RssConfiguration->HashSecretKeyOffset + RssConfiguration->HashSecretKeySize;
-    RssConfiguration->IndirectionTableSize = RssParams.IndirectionTableSize;
 
-    HashSecretKey = RTL_PTR_ADD(RssConfiguration, RssConfiguration->HashSecretKeyOffset);
-    IndirectionTable = RTL_PTR_ADD(RssConfiguration, RssConfiguration->IndirectionTableOffset);
+    if (RssParams.State == XdpOffloadStateDisabled) {
+        RssConfiguration->Flags = XDP_RSS_FLAG_DISABLED;
+    } else {
+        RssConfiguration->HashType = RssParams.HashType;
+        RssConfiguration->HashSecretKeyOffset = sizeof(*RssConfiguration);
+        RssConfiguration->HashSecretKeySize = RssParams.HashSecretKeySize;
+        RssConfiguration->IndirectionTableOffset =
+            RssConfiguration->HashSecretKeyOffset + RssConfiguration->HashSecretKeySize;
+        RssConfiguration->IndirectionTableSize = RssParams.IndirectionTableSize;
 
-    RtlCopyMemory(HashSecretKey, &RssParams.HashSecretKey, RssParams.HashSecretKeySize);
-    RtlCopyMemory(IndirectionTable, &RssParams.IndirectionTable, RssParams.IndirectionTableSize);
+        HashSecretKey = RTL_PTR_ADD(RssConfiguration, RssConfiguration->HashSecretKeyOffset);
+        IndirectionTable = RTL_PTR_ADD(RssConfiguration, RssConfiguration->IndirectionTableOffset);
+
+        RtlCopyMemory(HashSecretKey, &RssParams.HashSecretKey, RssParams.HashSecretKeySize);
+        RtlCopyMemory(
+            IndirectionTable, &RssParams.IndirectionTable, RssParams.IndirectionTableSize);
+    }
 
 Exit:
 

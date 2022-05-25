@@ -148,6 +148,9 @@ VOID
 OffloadRssCapabilities();
 
 VOID
+OffloadRssPartialSet();
+
+VOID
 OffloadSetHardwareCapabilities();
 
 VOID

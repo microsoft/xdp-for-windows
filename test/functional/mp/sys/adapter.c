@@ -27,6 +27,10 @@ AdapterIrpDeviceIoControl(
         Status = MpIrpOidGetRequest(UserContext->Adapter, Irp, IrpSp);
         break;
 
+    case IOCTL_OID_COMPLETE:
+        Status = MpIrpOidComplete(UserContext->Adapter, Irp, IrpSp);
+        break;
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
@@ -45,8 +49,8 @@ AdapterCleanup(
 {
     if (UserContext->Adapter != NULL) {
         if (UserContext->SetOidFilter) {
-            MpOidCompleteRequest(UserContext->Adapter);
             MpOidClearFilter(UserContext->Adapter);
+            MpOidComplete(UserContext->Adapter);
         }
 
         RtlAcquirePushLockExclusive(&UserContext->Adapter->Lock);
