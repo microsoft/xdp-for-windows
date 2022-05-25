@@ -4943,7 +4943,7 @@ OffloadRssPartialSet(
         LowerRssConfig->IndirectionTableSize = sizeof(PROCESSOR_NUMBER);
     }
 
-    auto AsyncThread = std::async(
+    auto AsyncHresThread = std::async(
         std::launch::async,
         [&] {
             return XdpRssSet(InterfaceHandle.get(), LowerRssConfig, sizeof(LowerRssConfigStorage));
@@ -4953,16 +4953,19 @@ OffloadRssPartialSet(
     UINT32 OidInfoBufferLength;
     unique_malloc_ptr<VOID> OidInfoBuffer =
         MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+    MpOidComplete(AdapterMp);
+    TEST_EQUAL(AsyncHresThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    TEST_HRESULT(AsyncHresThread.get());
+
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisParams =
         (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
     TEST_EQUAL(
         LowerNdisRssHashType, NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(NdisParams->HashInformation));
     TEST_NOT_EQUAL(0, NdisParams->IndirectionTableSize);
     TEST_NOT_EQUAL(0, NdisParams->HashSecretKeySize);
-
-    MpOidComplete(AdapterMp);
-    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
-    TEST_HRESULT(AsyncThread.get());
+    TEST_EQUAL(0, NdisParams->Flags & (
+        NDIS_RSS_PARAM_FLAG_DISABLE_RSS | NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED |
+        NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED | NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED));
 
     //
     // Verify XDP returns the merged settings when queried.
@@ -5019,15 +5022,23 @@ OffloadRssPartialSet(
     ProcessorIndexToProcessorNumber(0, &UpperNdisRssParamsStorage.IndirectionTable[1]);
     UpperNdisRssParams->IndirectionTableSize = 2 * sizeof(PROCESSOR_NUMBER);
     UpperNdisRssParamsSize = sizeof(UpperNdisRssParamsStorage);
-    TEST_HRESULT(
-        LwfOidSubmitRequest(
-            DefaultLwf, OidKey, &UpperNdisRssParamsSize, &UpperNdisRssParams));
+
+    AsyncHresThread = std::async(
+        std::launch::async,
+        [&] {
+            return LwfOidSubmitRequest(
+                DefaultLwf, OidKey, &UpperNdisRssParamsSize, &UpperNdisRssParams);
+        }
+    );
 
     //
     // Verify upper edge settings were merged with the partial XDP settings
     // and propagated to the miniport.
     //
     OidInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+    MpOidComplete(AdapterMp);
+    TEST_EQUAL(AsyncHresThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    TEST_HRESULT(AsyncHresThread.get());
 
     NdisParams = (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
     TEST_EQUAL(UpperNdisRssParams->IndirectionTableSize, NdisParams->IndirectionTableSize);
@@ -5075,16 +5086,17 @@ OffloadRssPartialSet(
     //
     // Reset lower edge settings.
     //
-    InterfaceHandle.reset();
-
-    //
-    // Verify lower edge settings now match upper edge.
-    //
-    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
-    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
-    TEST_EQUAL(UpperXdpRssHashType, RssConfig->HashType);
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            InterfaceHandle.reset();
+        }
+    );
 
     OidInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+    MpOidComplete(AdapterMp);
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+
     NdisParams = (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
     TEST_EQUAL(
         UpperNdisRssParams->HashInformation, NdisParams->HashInformation);
@@ -5100,6 +5112,50 @@ OffloadRssPartialSet(
                 RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->HashSecretKeyOffset),
                 RTL_PTR_ADD(NdisParams, NdisParams->HashSecretKeyOffset),
                 UpperNdisRssParams->HashSecretKeySize));
+
+    //
+    // Verify lower edge settings now match upper edge.
+    //
+    TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
+    TEST_EQUAL(UpperXdpRssHashType, RssConfig->HashType);
+    TEST_EQUAL(UpperNdisRssParams->IndirectionTableSize, RssConfig->IndirectionTableSize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->IndirectionTableOffset),
+                RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset),
+                UpperNdisRssParams->IndirectionTableSize));
+    TEST_EQUAL(UpperNdisRssParams->HashSecretKeySize, RssConfig->HashSecretKeySize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->HashSecretKeyOffset),
+                RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset),
+                UpperNdisRssParams->HashSecretKeySize));
+
+    //
+    // Disable RSS from upper edge.
+    //
+    AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            RssScopeGuard.reset();
+        }
+    );
+
+    //
+    // Verify RSS is disabled again on the miniport and within XDP.
+    //
+    OidInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+    MpOidComplete(AdapterMp);
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+
+    NdisParams = (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
+    TEST_TRUE(
+        (OriginalNdisRssParams->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) ||
+        (OriginalNdisRssParams->HashInformation == 0));
+
+    RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
+    TEST_TRUE(RssConfig->Flags & XDP_RSS_FLAG_DISABLED);
 }
 
 static
