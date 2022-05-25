@@ -4871,6 +4871,10 @@ OffloadRssPartialSet(
         return;
     }
 
+    //
+    // Disable TCPIP RSS for the duration of this test. Use only the LWF to
+    // plumb upper edge RSS settings.
+    //
     SetTcpipRssEnabled(FALSE);
     auto TcpipRssScopeGuard = wil::scope_exit([&]
     {
