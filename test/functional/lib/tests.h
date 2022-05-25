@@ -148,7 +148,9 @@ VOID
 OffloadRssCapabilities();
 
 VOID
-OffloadRssPartialSet();
+OffloadRssPartialSet(
+    _In_ XDP_RSS_FLAGS PartialFlags
+    );
 
 VOID
 OffloadSetHardwareCapabilities();

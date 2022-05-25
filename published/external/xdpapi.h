@@ -158,36 +158,46 @@ XdpRssGetCapabilities(
     _Inout_ UINT32 *RssCapabilitiesSize
     );
 
-//
-// Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
-//
-#define XDP_RSS_FLAG_SET_HASH_TYPE         0x0001
-//
-// Upon set, indicates XDP_RSS_CONFIGURATION.HashSecretKeySize and
-// XDP_RSS_CONFIGURATION.HashSecretKeyOffset should not be ignored.
-//
-#define XDP_RSS_FLAG_SET_HASH_SECRET_KEY   0x0002
-//
-// Upon set, indicates XDP_RSS_CONFIGURATION.IndirectionTableSize and
-// XDP_RSS_CONFIGURATION.IndirectionTableOffset should not be ignored.
-//
-#define XDP_RSS_FLAG_SET_INDIRECTION_TABLE 0x0004
-//
-// Upon set, indicates RSS should be disabled.
-// Upon get, indicates RSS is disabled.
-//
-#define XDP_RSS_FLAG_DISABLED              0x0008
+typedef enum _XDP_RSS_FLAGS {
+    XDP_RSS_FLAG_NONE = 0,
+
+    //
+    // Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
+    //
+    XDP_RSS_FLAG_SET_HASH_TYPE = 0x1,
+
+    //
+    // Upon set, indicates XDP_RSS_CONFIGURATION.HashSecretKeySize and
+    // XDP_RSS_CONFIGURATION.HashSecretKeyOffset should not be ignored.
+    //
+    XDP_RSS_FLAG_SET_HASH_SECRET_KEY = 0x2,
+
+    //
+    // Upon set, indicates XDP_RSS_CONFIGURATION.IndirectionTableSize and
+    // XDP_RSS_CONFIGURATION.IndirectionTableOffset should not be ignored.
+    //
+    XDP_RSS_FLAG_SET_INDIRECTION_TABLE = 0x4,
+
+    //
+    // Upon set, indicates RSS should be disabled.
+    // Upon get, indicates RSS is disabled.
+    //
+    XDP_RSS_FLAG_DISABLED = 0x8,
+} XDP_RSS_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(XDP_RSS_FLAGS);
+
 #define XDP_RSS_VALID_FLAGS ( \
+    XDP_RSS_FLAG_NONE | \
     XDP_RSS_FLAG_SET_HASH_TYPE | \
     XDP_RSS_FLAG_SET_HASH_SECRET_KEY | \
     XDP_RSS_FLAG_SET_INDIRECTION_TABLE | \
-    XDP_RSS_FLAG_DISABLED | \
-    0)
+    XDP_RSS_FLAG_DISABLED)
 
 typedef struct _XDP_RSS_CONFIGURATION {
     XDP_OBJECT_HEADER Header;
 
-    UINT32 Flags;
+    XDP_RSS_FLAGS Flags;
 
     //
     // Packet hash type.

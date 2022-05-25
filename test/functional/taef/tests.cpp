@@ -312,8 +312,23 @@ public:
         ::OffloadRssCapabilities();
     }
 
-    TEST_METHOD(OffloadRssPartialSet) {
-        ::OffloadRssPartialSet();
+    TEST_METHOD(OffloadRssPartialSetHashType) {
+        ::OffloadRssPartialSet(XDP_RSS_FLAG_SET_HASH_TYPE);
+    }
+
+    TEST_METHOD(OffloadRssPartialSetHashKey) {
+        ::OffloadRssPartialSet(XDP_RSS_FLAG_SET_HASH_SECRET_KEY);
+    }
+
+    TEST_METHOD(OffloadRssPartialSetIndirectionTable) {
+        ::OffloadRssPartialSet(XDP_RSS_FLAG_SET_INDIRECTION_TABLE);
+    }
+
+    TEST_METHOD(OffloadRssPartialSetAll) {
+        ::OffloadRssPartialSet(
+            XDP_RSS_FLAG_SET_HASH_TYPE |
+            XDP_RSS_FLAG_SET_HASH_SECRET_KEY |
+            XDP_RSS_FLAG_SET_INDIRECTION_TABLE);
     }
 
     TEST_METHOD(FnLwfRx) {

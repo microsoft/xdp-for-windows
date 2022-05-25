@@ -4836,7 +4836,9 @@ OffloadRssCapabilities()
 }
 
 VOID
-OffloadRssPartialSet()
+OffloadRssPartialSet(
+    _In_ XDP_RSS_FLAGS PartialFlags
+    )
 {
     wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
@@ -4921,8 +4923,21 @@ OffloadRssPartialSet()
     // the miniport.
     //
     InitializeRssConfig(&LowerRssConfigStorage);
-    LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
-    LowerRssConfig->HashType = LowerXdpRssHashType;
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_HASH_TYPE) {
+        LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
+        LowerRssConfig->HashType = LowerXdpRssHashType;
+    }
+    if (PartialFlags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY) {
+        LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_SECRET_KEY;
+        RtlCopyMemory(LowerRssConfigStorage.HashKey, "XdpRssKey", sizeof("XdpRssKey"));
+        LowerRssConfig->HashSecretKeySize = sizeof("XdpRssKey");
+    }
+    if (PartialFlags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
+        LowerRssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+        ProcessorIndexToProcessorNumber(1, &LowerRssConfigStorage.IndirectionTable[0]);
+        LowerRssConfig->IndirectionTableSize = sizeof(PROCESSOR_NUMBER);
+    }
 
     auto AsyncThread = std::async(
         std::launch::async,
@@ -4949,9 +4964,34 @@ OffloadRssPartialSet()
     // Verify XDP returns the merged settings when queried.
     //
     RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
-    TEST_EQUAL(LowerXdpRssHashType, RssConfig->HashType);
-    TEST_NOT_EQUAL(0, RssConfig->IndirectionTableSize);
-    TEST_NOT_EQUAL(0, RssConfig->HashSecretKeySize);
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_HASH_TYPE) {
+        TEST_EQUAL(LowerXdpRssHashType, RssConfig->HashType);
+    } else {
+        TEST_NOT_EQUAL(0, RssConfig->HashType);
+    }
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY) {
+        TEST_EQUAL(LowerRssConfig->HashSecretKeySize, RssConfig->HashSecretKeySize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(LowerRssConfig, LowerRssConfig->HashSecretKeyOffset),
+                RTL_PTR_ADD(RssConfig.get(), RssConfig->HashSecretKeyOffset),
+                LowerRssConfig->HashSecretKeySize));
+    } else {
+        TEST_NOT_EQUAL(0, RssConfig->HashSecretKeySize);
+    }
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
+        TEST_EQUAL(LowerRssConfig->IndirectionTableSize, RssConfig->IndirectionTableSize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(LowerRssConfig, LowerRssConfig->IndirectionTableOffset),
+                RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset),
+                LowerRssConfig->IndirectionTableSize));
+    } else {
+        TEST_NOT_EQUAL(0, RssConfig->IndirectionTableSize);
+    }
 
     //
     // Plumb new upper edge settings.
@@ -4969,7 +5009,7 @@ OffloadRssPartialSet()
         FIELD_OFFSET(NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE, HashKey);
     UpperNdisRssParams->IndirectionTableOffset =
         FIELD_OFFSET(NDIS_RECEIVE_SCALE_PARAMETERS_STORAGE, IndirectionTable);
-    RtlCopyMemory(&UpperNdisRssParamsStorage.HashKey, "Upper", sizeof("Upper"));
+    RtlCopyMemory(UpperNdisRssParamsStorage.HashKey, "Upper", sizeof("Upper"));
     UpperNdisRssParams->HashSecretKeySize = sizeof("Upper");
     ProcessorIndexToProcessorNumber(1, &UpperNdisRssParamsStorage.IndirectionTable[0]);
     ProcessorIndexToProcessorNumber(0, &UpperNdisRssParamsStorage.IndirectionTable[1]);
@@ -4986,10 +5026,47 @@ OffloadRssPartialSet()
     OidInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
 
     NdisParams = (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
-    TEST_EQUAL(
-        LowerNdisRssHashType, NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(NdisParams->HashInformation));
     TEST_EQUAL(UpperNdisRssParams->IndirectionTableSize, NdisParams->IndirectionTableSize);
     TEST_EQUAL(UpperNdisRssParams->HashSecretKeySize, NdisParams->HashSecretKeySize);
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_HASH_TYPE) {
+        TEST_EQUAL(
+            LowerNdisRssHashType, NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(NdisParams->HashInformation));
+    } else {
+        TEST_EQUAL(UpperNdisRssParams->HashInformation, NdisParams->HashInformation);
+    }
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY) {
+        TEST_EQUAL(LowerRssConfig->HashSecretKeySize, NdisParams->HashSecretKeySize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(LowerRssConfig, LowerRssConfig->HashSecretKeyOffset),
+                RTL_PTR_ADD(NdisParams, NdisParams->HashSecretKeyOffset),
+                LowerRssConfig->HashSecretKeySize));
+    } else {
+        TEST_EQUAL(UpperNdisRssParams->HashSecretKeySize, NdisParams->HashSecretKeySize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->HashSecretKeyOffset),
+                RTL_PTR_ADD(NdisParams, NdisParams->HashSecretKeyOffset),
+                UpperNdisRssParams->HashSecretKeySize));
+    }
+
+    if (PartialFlags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
+        TEST_EQUAL(LowerRssConfig->IndirectionTableSize, NdisParams->IndirectionTableSize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(LowerRssConfig, LowerRssConfig->IndirectionTableOffset),
+                RTL_PTR_ADD(NdisParams, NdisParams->IndirectionTableOffset),
+                LowerRssConfig->IndirectionTableSize));
+    } else {
+        TEST_EQUAL(UpperNdisRssParams->IndirectionTableSize, NdisParams->IndirectionTableSize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->IndirectionTableOffset),
+                RTL_PTR_ADD(NdisParams, NdisParams->IndirectionTableOffset),
+                UpperNdisRssParams->IndirectionTableSize));
+    }
 
     //
     // Reset lower edge settings.
@@ -5001,7 +5078,24 @@ OffloadRssPartialSet()
     //
     TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
     RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
-    TEST_EQUAL(RssConfig->HashType, UpperXdpRssHashType);
+    TEST_EQUAL(UpperXdpRssHashType, RssConfig->HashType);
+
+    OidInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+    NdisParams = (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
+    TEST_EQUAL(
+        UpperNdisRssParams->HashInformation, NdisParams->HashInformation);
+    TEST_EQUAL(UpperNdisRssParams->IndirectionTableSize, NdisParams->IndirectionTableSize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->IndirectionTableOffset),
+                RTL_PTR_ADD(NdisParams, NdisParams->IndirectionTableOffset),
+                UpperNdisRssParams->IndirectionTableSize));
+    TEST_EQUAL(UpperNdisRssParams->HashSecretKeySize, NdisParams->HashSecretKeySize);
+        TEST_TRUE(
+            RtlEqualMemory(
+                RTL_PTR_ADD(UpperNdisRssParams, UpperNdisRssParams->HashSecretKeyOffset),
+                RTL_PTR_ADD(NdisParams, NdisParams->HashSecretKeyOffset),
+                UpperNdisRssParams->HashSecretKeySize));
 }
 
 static
