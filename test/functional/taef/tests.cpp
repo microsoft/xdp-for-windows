@@ -312,6 +312,10 @@ public:
         ::OffloadRssCapabilities();
     }
 
+    TEST_METHOD(OffloadRssPartialSetNone) {
+        ::OffloadRssPartialSet(XDP_RSS_FLAG_NONE);
+    }
+
     TEST_METHOD(OffloadRssPartialSetHashType) {
         ::OffloadRssPartialSet(XDP_RSS_FLAG_SET_HASH_TYPE);
     }
