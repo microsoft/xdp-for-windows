@@ -276,6 +276,9 @@ InheritXdpRssParams(
             XdpRssParams->Flags |= XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
         }
     } else {
+        //
+        // TODO: these asserts are bogus.
+        //
         ASSERT(XdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_TYPE);
         ASSERT(XdpRssParams->Flags & XDP_RSS_FLAG_SET_HASH_SECRET_KEY);
         ASSERT(XdpRssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE);
@@ -617,8 +620,6 @@ RemoveLowerEdgeRssSetting(
 
     XdpRssParams = &Filter->Offload.UpperEdge.Rss->Params;
 
-    InheritXdpRssParams(XdpRssParams, NULL);
-
     Status =
         CreateNdisRssParamsFromXdpRssParams(
             XdpRssParams, &NdisRssParams, &NdisRssParamsLength);
@@ -882,6 +883,8 @@ XdpLwfOffloadRssSet(
 
     //
     // Inherit unspecified parameters from the current RSS settings.
+    // TODO: this should only inherit from the upper settings, not from previous
+    // lower settings.
     //
     InheritXdpRssParams(&RssSetting->Params, &CurrentRssSetting->Params);
 
@@ -1066,13 +1069,6 @@ XdpLwfOffloadRssUpdate(
             NdisRssParams, NdisRssParamsLength, &RssSetting->Params);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
-    }
-
-    //
-    // Inherit unspecified parameters from the current upper edge settings.
-    //
-    if (Filter->Offload.UpperEdge.Rss != NULL) {
-        InheritXdpRssParams(&RssSetting->Params, &Filter->Offload.UpperEdge.Rss->Params);
     }
 
     OldRssSetting = Filter->Offload.UpperEdge.Rss;
