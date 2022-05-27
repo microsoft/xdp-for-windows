@@ -37,6 +37,7 @@
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_TX_IO_SIZE 64
 #define DEFAULT_LAT_COUNT 10000000
+#define DEFAULT_YIELD_COUNT 0
 
 CHAR *HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -55,6 +56,9 @@ CHAR *HELP =
 "   -ca <cpumask>      The CPU affinity mask. 0 is any CPU\n"
 "                      Must be specified alongside -group\n"
 "                      Default: " STR_OF(DEFAULT_CPU_AFFINITY) "\n"
+"   -yield <count>     The number of yield instructions to execute after the\n"
+"                      thread performs no work.\n"
+"                      Default: " STR_OF(DEFAULT_YIELD_COUNT) "\n"
 "\n"
 "QUEUE_PARAMS: \n"
 "   -id <queueid>      Required. The queue ID.\n"
@@ -203,6 +207,7 @@ typedef struct {
     LONG nodeAffinity;
     LONG group;
     LONG idealCpu;
+    LONG yieldCount;
     DWORD_PTR cpuAffinity;
     BOOLEAN wait;
 
@@ -831,7 +836,7 @@ ReadRxPackets(
     }
 }
 
-VOID
+UINT32
 ProcessRx(
     MY_QUEUE *Queue,
     BOOLEAN Wait
@@ -841,6 +846,7 @@ ProcessRx(
     UINT32 available;
     UINT32 consumerIndex;
     UINT32 producerIndex;
+    UINT32 processed = 0;
 
     available =
         RingPairReserve(
@@ -850,6 +856,7 @@ ProcessRx(
         XskRingConsumerRelease(&Queue->rxRing, available);
         XskRingProducerSubmit(&Queue->freeRing, available);
 
+        processed += available;
         Queue->packetCount += available;
     }
 
@@ -861,6 +868,7 @@ ProcessRx(
         XskRingConsumerRelease(&Queue->freeRing, available);
         XskRingProducerSubmit(&Queue->fillRing, available);
 
+        processed += available;
         notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
     }
 
@@ -880,6 +888,8 @@ ProcessRx(
     if (notifyFlags != 0) {
         NotifyDriver(Queue, notifyFlags);
     }
+
+    return processed;
 }
 
 VOID
@@ -899,8 +909,16 @@ DoRxMode(
     SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN Processed = FALSE;
+
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            ProcessRx(&Thread->queues[qIndex], Thread->wait);
+            Processed |= !!ProcessRx(&Thread->queues[qIndex], Thread->wait);
+        }
+
+        if (!Processed) {
+            for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+                YieldProcessor();
+            }
         }
     }
 }
@@ -946,7 +964,7 @@ ReadCompletionPackets(
     }
 }
 
-VOID
+UINT32
 ProcessTx(
     MY_QUEUE *Queue,
     BOOLEAN Wait
@@ -956,6 +974,7 @@ ProcessTx(
     UINT32 available;
     UINT32 consumerIndex;
     UINT32 producerIndex;
+    UINT32 processed = 0;
 
     available =
         RingPairReserve(
@@ -965,6 +984,7 @@ ProcessTx(
         XskRingConsumerRelease(&Queue->compRing, available);
         XskRingProducerSubmit(&Queue->freeRing, available);
 
+        processed += available;
         Queue->packetCount += available;
 
         if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
@@ -981,6 +1001,7 @@ ProcessTx(
         XskRingConsumerRelease(&Queue->freeRing, available);
         XskRingProducerSubmit(&Queue->txRing, available);
 
+        processed += available;
         notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
     }
 
@@ -1000,6 +1021,8 @@ ProcessTx(
     if (notifyFlags != 0) {
         NotifyDriver(Queue, notifyFlags);
     }
+
+    return processed;
 }
 
 VOID
@@ -1019,13 +1042,22 @@ DoTxMode(
     SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN Processed = FALSE;
+
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            ProcessTx(&Thread->queues[qIndex], Thread->wait);
+            Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
         }
+
+        if (!Processed) {
+            for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+                YieldProcessor();
+            }
+        }
+
     }
 }
 
-VOID
+UINT32
 ProcessFwd(
     MY_QUEUE *Queue,
     BOOLEAN Wait
@@ -1035,6 +1067,7 @@ ProcessFwd(
     UINT32 available;
     UINT32 consumerIndex;
     UINT32 producerIndex;
+    UINT32 processed = 0;
 
     //
     // Move packets from the RX ring to the TX ring.
@@ -1074,6 +1107,7 @@ ProcessFwd(
         XskRingConsumerRelease(&Queue->rxRing, available);
         XskRingProducerSubmit(&Queue->txRing, available);
 
+        processed += available;
         notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
     }
 
@@ -1096,6 +1130,7 @@ ProcessFwd(
         XskRingConsumerRelease(&Queue->compRing, available);
         XskRingProducerSubmit(&Queue->freeRing, available);
 
+        processed += available;
         Queue->packetCount += available;
 
         if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
@@ -1123,6 +1158,7 @@ ProcessFwd(
         XskRingConsumerRelease(&Queue->freeRing, available);
         XskRingProducerSubmit(&Queue->fillRing, available);
 
+        processed += available;
         notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
     }
 
@@ -1143,6 +1179,8 @@ ProcessFwd(
     if (notifyFlags != 0) {
         NotifyDriver(Queue, notifyFlags);
     }
+
+    return processed;
 }
 
 VOID
@@ -1163,13 +1201,22 @@ DoFwdMode(
     SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN Processed = FALSE;
+
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            ProcessFwd(&Thread->queues[qIndex], Thread->wait);
+            Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
         }
+
+        if (!Processed) {
+            for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+                YieldProcessor();
+            }
+        }
+
     }
 }
 
-VOID
+UINT32
 ProcessLat(
     MY_QUEUE *Queue,
     BOOLEAN Wait
@@ -1179,6 +1226,7 @@ ProcessLat(
     UINT32 available;
     UINT32 consumerIndex;
     UINT32 producerIndex;
+    UINT32 processed = 0;
 
     //
     // Move frames from the RX ring to the RX fill ring, recording the timestamp
@@ -1218,6 +1266,7 @@ ProcessLat(
         XskRingConsumerRelease(&Queue->rxRing, available);
         XskRingProducerSubmit(&Queue->fillRing, available);
 
+        processed += available;
         Queue->packetCount += available;
 
         notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
@@ -1233,6 +1282,7 @@ ProcessLat(
         ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->compRing, available);
         XskRingProducerSubmit(&Queue->freeRing, available);
+        processed += available;
     }
 
     //
@@ -1269,6 +1319,7 @@ ProcessLat(
         XskRingConsumerRelease(&Queue->freeRing, available);
         XskRingProducerSubmit(&Queue->txRing, available);
 
+        processed += available;
         notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
     }
 
@@ -1289,6 +1340,8 @@ ProcessLat(
     if (notifyFlags != 0) {
         NotifyDriver(Queue, notifyFlags);
     }
+
+    return processed;
 }
 
 VOID
@@ -1324,8 +1377,16 @@ DoLatMode(
     SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN Processed = FALSE;
+
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            ProcessLat(&Thread->queues[qIndex], Thread->wait);
+            Processed |= !!ProcessLat(&Thread->queues[qIndex], Thread->wait);
+        }
+
+        if (!Processed) {
+            for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+                YieldProcessor();
+            }
         }
     }
 }
@@ -1484,6 +1545,7 @@ ParseThreadArgs(
     Thread->idealCpu = DEFAULT_IDEAL_CPU;
     Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
     Thread->group = DEFAULT_GROUP;
+    Thread->yieldCount = DEFAULT_YIELD_COUNT;
 
     for (INT i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "-q")) {
@@ -1512,6 +1574,11 @@ ParseThreadArgs(
             cpuAffinitySet = TRUE;
         } else if (!strcmp(argv[i], "-w")) {
             Thread->wait = TRUE;
+        } else if (!_stricmp(argv[i], "-yield")) {
+            if (++i > argc) {
+                Usage();
+            }
+            Thread->yieldCount = atoi(argv[i]);
         } else if (Thread->queueCount == 0) {
             Usage();
         }
