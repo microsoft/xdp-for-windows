@@ -1,4 +1,7 @@
 #
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+#
 # Assembles a runtime kit for both AF_XDP client usage.
 # Code must be built before running this script.
 #
