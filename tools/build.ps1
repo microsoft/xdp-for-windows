@@ -21,6 +21,9 @@ param (
     [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$RuntimeKit = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$UpdateDeps = $false
 )
 
@@ -61,4 +64,8 @@ if (!$NoSign) {
 
 if ($DevKit) {
     tools/create-devkit.ps1 -Flavor $Flavor
+}
+
+if ($RuntimeKit) {
+    tools/create-runtime-kit.ps1 -Flavor $Flavor
 }
