@@ -63,6 +63,9 @@ MpNdisReceive(
     NET_BUFFER_LIST_SET_HASH_TYPE(NetBufferList, NDIS_HASH_IPV4);
 
     CountedNblChainAppend(NblChain, NetBufferList);
+
+    Rq->Stats.RxFrames++;
+    Rq->Stats.RxBytes += DataLength;
 }
 
 static
@@ -101,8 +104,6 @@ MpReceiveProcessBatch(
             //
             // Pass the frame onto the regular NDIS receive path.
             //
-            Rq->Stats.RxFrames++;
-            Rq->Stats.RxBytes += Buffer->DataLength;
             MpNdisReceive(Rq, HwRxDescriptor, Buffer->DataOffset, Buffer->DataLength, NblChain);
             break;
 
