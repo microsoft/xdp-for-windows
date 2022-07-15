@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- rxfilter sample application
+
+## [0.16.2] 2022-05-19
+
+### Added
+
 - (AF_XDP) Ideal processor affinity query socket options.
 
 ### Changed
