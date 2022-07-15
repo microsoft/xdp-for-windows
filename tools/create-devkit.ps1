@@ -33,14 +33,16 @@ copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdpapi.dll" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.exe" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\rxfilter.exe" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.pdb"   $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.pdb" $DstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\rxfilter.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $DstPath\symbols
 
 New-Item -Path $DstPath\include -ItemType Directory > $null
 copy -Recurse published\external\* $DstPath\include
@@ -51,15 +53,6 @@ copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $DstPath\lib
 # Package the NMR symbols alongside its static library: consuming projects will
 # throw build exceptions if symbols are missing for statically linked code.
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.pdb" $DstPath\lib
-
-New-Item -Path $DstPath\samples -ItemType Directory > $null
-New-Item -Path $DstPath\samples\xdpmp -ItemType Directory > $null
-copy test\xdpmp\*.c $DstPath\samples\xdpmp
-copy test\xdpmp\*.h $DstPath\samples\xdpmp
-copy test\xdpmp\inf\xdpmp.inx $DstPath\samples\xdpmp
-New-Item -Path $DstPath\samples\xskbench -ItemType Directory > $null
-copy test\xskbench\*.c $DstPath\samples\xskbench
-copy test\xskbench\*.h $DstPath\samples\xskbench
 
 [xml]$XdpVersion = Get-Content $RootDir\xdp.props
 $Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
