@@ -216,6 +216,18 @@ public:
         GenericXskWait(TRUE, TRUE);
     }
 
+    TEST_METHOD(GenericXskWakeRx) {
+        GenericXskWake(TRUE, FALSE);
+    }
+
+    TEST_METHOD(GenericXskWakeTx) {
+        GenericXskWake(FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericXskWakeRxTx) {
+        GenericXskWake(TRUE, TRUE);
+    }
+
     TEST_METHOD(GenericLwfDelayDetachRx) {
         GenericLwfDelayDetach(TRUE, FALSE);
     }

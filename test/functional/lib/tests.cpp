@@ -3552,6 +3552,48 @@ GenericXskWait(
 }
 
 VOID
+GenericXskWake(
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx
+    )
+{
+    auto If = FnMpIf;
+    auto Xsk = SetupSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const UINT32 WaitTimeoutMs = 1000;
+
+    XSK_NOTIFY_FLAGS NotifyFlags = XSK_NOTIFY_FLAG_NONE;
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    if (Rx) {
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+    }
+    if (Tx) {
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+    }
+
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            //
+            // On another thread, briefly delay execution to give the main test
+            // thread a chance to begin waiting. Then, wake the test thread.
+            //
+            Sleep(10);
+
+            XSK_NOTIFY_RESULT_FLAGS WakeNotifyResult;
+            TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_WAKE, 0, &WakeNotifyResult));
+            TEST_EQUAL(WakeNotifyResult, XSK_NOTIFY_RESULT_FLAG_NONE);
+        }
+    );
+
+    //
+    // Verify the wait times out when the requested IO is not available.
+    //
+    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
+    TEST_EQUAL(NotifyResult, XSK_NOTIFY_RESULT_FLAG_NONE);
+}
+
+VOID
 GenericLwfDelayDetach(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
