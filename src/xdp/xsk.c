@@ -4059,7 +4059,7 @@ XskNotify(
         }
     }
 
-    if ((InFlags & XSK_NOTIFY_FLAG_WAKE) == 0) {
+    if ((InFlags & XSK_NOTIFY_FLAG_WAKE) != 0) {
         //
         // Wake any waiting thread.
         //
