@@ -252,9 +252,14 @@ XskCancelIo(
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if (Xsk->IoWaitFlags) {
         Xsk->IoWaitFlags = 0;
+        Cancelled = TRUE;
         (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
+    } else {
+        Cancelled = FALSE;
     }
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
+    return Cancelled;
 }
 
 static
