@@ -104,7 +104,7 @@ GenericXskWait(
     );
 
 VOID
-GenericXskWake(
+GenericXskCancelWait(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
     );

@@ -3545,14 +3545,14 @@ GenericXskWait(
     // Verify the wait does not succeed after consuming the requested IO.
     //
     Timer.Reset();
-    TEST_EQUAL(
+    TEST_HRESULT_EQUAL(
         HRESULT_FROM_WIN32(ERROR_TIMEOUT),
         XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
     Timer.ExpectElapsed(std::chrono::milliseconds(WaitTimeoutMs));
 }
 
 VOID
-GenericXskWake(
+GenericXskCancelWait(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
     )
@@ -3576,12 +3576,12 @@ GenericXskWake(
         [&] {
             //
             // On another thread, briefly delay execution to give the main test
-            // thread a chance to begin waiting. Then, wake the test thread.
+            // thread a chance to begin waiting. Then, cancel the wait.
             //
-            Sleep(100);
+            Sleep(10);
 
             XSK_NOTIFY_RESULT_FLAGS WakeNotifyResult;
-            TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_WAKE, 0, &WakeNotifyResult));
+            TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_CANCEL_WAIT, 0, &WakeNotifyResult));
             TEST_EQUAL(WakeNotifyResult, XSK_NOTIFY_RESULT_FLAG_NONE);
         }
     );
@@ -3589,7 +3589,7 @@ GenericXskWake(
     //
     // Verify the IO was cancelled.
     //
-    TEST_EQUAL(
+    TEST_HRESULT_EQUAL(
         HRESULT_FROM_WIN32(ERROR_CANCELLED),
         XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
 }

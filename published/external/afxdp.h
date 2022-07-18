@@ -236,7 +236,7 @@ typedef enum _XSK_NOTIFY_FLAGS {
     //
     // Wake another thread currently blocked in a wait.
     //
-    XSK_NOTIFY_FLAG_WAKE = 0x10,
+    XSK_NOTIFY_FLAG_CANCEL_WAIT = 0x10,
 } XSK_NOTIFY_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_FLAGS)
