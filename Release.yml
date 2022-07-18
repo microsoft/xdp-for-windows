@@ -1,0 +1,14 @@
+
+name: 0.$(Date:yyyy).$(Date:MM).$(DayOfMonth).$(Rev:rr).0
+
+resources:
+  pipelines:
+  - pipeline: ci_pipeline
+    source: "CI"
+    trigger:     # triggers aren't enabled by default unless you add trigger section to the resource
+      branches:  # branch conditions to filter the events, optional; Defaults to all branches.
+        include: main
+
+steps:
+  - download: ci_pipeline
+  
