@@ -3589,8 +3589,9 @@ GenericXskWake(
     //
     // Verify the IO succeeded (didn't time out).
     //
-    TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
-    TEST_EQUAL(NotifyResult, XSK_NOTIFY_RESULT_FLAG_NONE);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_CANCELLED),
+        XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult)));
 }
 
 VOID
