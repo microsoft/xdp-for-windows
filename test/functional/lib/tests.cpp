@@ -3587,7 +3587,7 @@ GenericXskWake(
     );
 
     //
-    // Verify the IO succeeded (didn't time out).
+    // Verify the IO was cancelled.
     //
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_CANCELLED),
