@@ -3578,7 +3578,7 @@ GenericXskWake(
             // On another thread, briefly delay execution to give the main test
             // thread a chance to begin waiting. Then, wake the test thread.
             //
-            Sleep(10);
+            Sleep(100);
 
             XSK_NOTIFY_RESULT_FLAGS WakeNotifyResult;
             TEST_HRESULT(XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_WAKE, 0, &WakeNotifyResult));
