@@ -3945,7 +3945,8 @@ XskNotifyValidateParams(
     }
 
     if (*InFlags == 0 || *InFlags &
-            ~(XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
+            ~(XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX |
+              XSK_NOTIFY_FLAG_WAKE)) {
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -4056,6 +4057,13 @@ XskNotify(
                 Xsk, Status);
             goto Exit;
         }
+    }
+
+    if ((InFlags & XSK_NOTIFY_FLAG_WAKE) == 0) {
+        //
+        // Wake any waiting thread.
+        //
+        XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
     }
 
     if ((InFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) == 0) {
