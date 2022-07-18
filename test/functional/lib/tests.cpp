@@ -3591,7 +3591,7 @@ GenericXskWake(
     //
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_CANCELLED),
-        XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult)));
+        XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
 }
 
 VOID
