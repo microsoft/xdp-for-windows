@@ -58,8 +58,8 @@
 }
 
 #define TEST_HRESULT_EQUAL(expected, condition) { \
-    HRESULT expectedHR_ = expected; \
-    HRESULT conditionHR_ = condition; \
+    auto expectedHR_ = expected; \
+    auto conditionHR_ = condition; \
     if (conditionHR_ != expectedHR_) \
     { \
         TEST_FAILURE(#condition " (0x%x) not equal to " #expected " (0x%x)", conditionHR_, expectedHR_); \
