@@ -58,7 +58,7 @@
 }
 
 #define TEST_HRESULT_EQUAL(expected, condition) { \
-    auto expectedHR_ = expected; \
+    constexpr auto expectedHR_ = expected; \
     auto conditionHR_ = condition; \
     if (conditionHR_ != expectedHR_) \
     { \

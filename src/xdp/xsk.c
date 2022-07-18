@@ -234,7 +234,6 @@ XskSignalReadyIo(
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if ((Xsk->IoWaitFlags & ReadyFlags) != 0) {
-        Xsk->IoWaitFlags &= ~ReadyFlags;
         (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
     }
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
@@ -251,7 +250,7 @@ XskCancelIo(
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if (Xsk->IoWaitFlags) {
-        Xsk->IoWaitFlags = XSK_NOTIFY_FLAG_CANCEL_WAIT;
+        Xsk->IoWaitFlags |= XSK_NOTIFY_FLAG_CANCEL_WAIT;
         Cancelled = TRUE;
         (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
     } else {
@@ -1717,7 +1716,7 @@ XskIrpCleanup(
 
     XskReleasePollLock(Xsk);
 
-    if (IoWaitFlags != 0) {
+    if (IoWaitFlags != 0 && !(IoWaitFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT)) {
         XskSignalReadyIo(Xsk, IoWaitFlags);
     }
 
@@ -4092,7 +4091,7 @@ XskNotify(
         // Cancel any pending IO and wake the blocked thread.
         //
         if (!XskCancelIo(Xsk)) {
-            Status = STATUS_INVALID_DEVICE_STATE;
+            Status = STATUS_NOT_FOUND;
             goto Exit;
         }
     }
@@ -4177,12 +4176,13 @@ XskNotify(
     // Handle any IO cancellation.
     //
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-    if (Xsk->IoWaitFlags == XSK_NOTIFY_FLAG_CANCEL_WAIT) {
+    if (Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT) {
         Xsk->IoWaitFlags = 0;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         Status = STATUS_CANCELLED;
         goto Exit;
     }
+    Xsk->IoWaitFlags = 0;
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
     //
