@@ -251,7 +251,7 @@ XskCancelIo(
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if (Xsk->IoWaitFlags) {
-        Xsk->IoWaitFlags = 0;
+        Xsk->IoWaitFlags = XSK_NOTIFY_FLAG_WAKE;
         Cancelled = TRUE;
         (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
     } else {
@@ -4171,6 +4171,12 @@ XskNotify(
             &Xsk->IoWaitEvent, UserRequest, UserMode, FALSE,
             (TimeoutMilliseconds == INFINITE) ? NULL : &Timeout);
 
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    if (Xsk->IoWaitFlags == XSK_NOTIFY_FLAG_WAKE) {
+        Xsk->IoWaitFlags = 0;
+        Status = STATUS_CANCELLED;
+    }
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     //
     // Re-query ready IO regardless of the wait status.
     //
@@ -4178,8 +4184,6 @@ XskNotify(
     if (ReadyFlags != 0) {
         Status = STATUS_SUCCESS;
         OutFlags |= XskWaitInFlagsToOutFlags(ReadyFlags);
-    } else if (Status != STATUS_TIMEOUT) {
-        Status = STATUS_CANCELLED;
     }
 
 Exit:
