@@ -38,7 +38,7 @@ FnLwfInitializeEa(
 
 HRESULT
 FnLwfOpen(
-    _In_ ULONG Disposition,
+    _In_ UINT32 Disposition,
     _In_opt_ VOID *EaBuffer,
     _In_ UINT32 EaLength,
     _Out_ HANDLE *Handle

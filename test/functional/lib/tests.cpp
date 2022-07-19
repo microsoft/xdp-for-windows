@@ -24,7 +24,11 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+
+#pragma warning(push)
+#pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
+#pragma warning(pop)
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>

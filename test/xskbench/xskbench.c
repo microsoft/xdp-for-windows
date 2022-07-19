@@ -128,7 +128,7 @@ CHAR *HELP =
     printf_error(__VA_ARGS__); exit(1)
 
 #define ASSERT_FRE(expr) \
-    if (!(expr)) { ABORT("("#expr") failed line %d\n", __LINE__);}
+    if (!(expr)) { ABORT("(%s) failed line %d\n", #expr, __LINE__);}
 
 #if DBG
 #define VERIFY(expr) assert(expr)
@@ -207,7 +207,7 @@ typedef struct {
     LONG nodeAffinity;
     LONG group;
     LONG idealCpu;
-    LONG yieldCount;
+    UINT32 yieldCount;
     DWORD_PTR cpuAffinity;
     BOOLEAN wait;
 
@@ -640,7 +640,9 @@ LatCmp(
     CONST VOID *B
     )
 {
-    return *(CONST INT64 *)A - *(CONST INT64 *)B;
+    CONST UINT64 *a = A;
+    CONST UINT64 *b = B; 
+    return (*a > *b) - (*a < *b);
 }
 
 INT64
@@ -1492,7 +1494,7 @@ ParseQueueArgs(
             if (++i > argc) {
                 Usage();
             }
-            Queue->txPatternLength = strlen(argv[i]);
+            Queue->txPatternLength = (UINT32)strlen(argv[i]);
             ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
             Queue->txPatternLength /= 2;
             Queue->txPattern = malloc(Queue->txPatternLength);
@@ -1686,7 +1688,7 @@ ParseArgs(
 
     INT tStart = -1;
     INT tIndex = 0;
-    for (INT i = 0; i < argc; i++) {
+    for (i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "-t")) {
             if (tStart != -1) {
                 ParseThreadArgs(&threads[tIndex++], i - tStart, &argv[tStart]);
