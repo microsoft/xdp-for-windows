@@ -12,6 +12,7 @@
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
 #include <xdpapi_internal.h>
+#include <xdprtl.h>
 
 #include "trace.h"
 #include "util.h"

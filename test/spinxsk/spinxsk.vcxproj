@@ -49,6 +49,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;
+        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\common\inc;
         $(IntDir);
         %(AdditionalIncludeDirectories)
