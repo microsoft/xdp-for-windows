@@ -4259,11 +4259,11 @@ OffloadRssError()
     do {
         UINT32 CurrentRssConfigSize = 0;
         CurrentRssResult = XdpRssGet(InterfaceHandle.get(), NULL, &CurrentRssConfigSize);
-        if (SUCCEEDED(CurrentRssResult)) {
+        if (CurrentRssResult == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
     } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
-    TEST_HRESULT(CurrentRssResult);
+    TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), CurrentRssResult);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
 
