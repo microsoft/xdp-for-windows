@@ -4247,11 +4247,23 @@ OffloadRssError()
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
         XdpInterfaceOpen(MAXUINT32, &InterfaceHandle));
 
-    //
-    // Set while XSK is bound.
-    //
-
     TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+
+    //
+    // Work around issue #3: if TCPIP hasn't already plumbed RSS configuration,
+    // XDP fails to partially set RSS. Wait for TCPIP's configuration before
+    // continuing with this test case.
+    //
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    HRESULT CurrentRssResult;
+    do {
+        UINT32 CurrentRssConfigSize = 0;
+        CurrentRssResult = XdpRssGet(InterfaceHandle.get(), NULL, &CurrentRssConfigSize);
+        if (SUCCEEDED(CurrentRssResult)) {
+            break;
+        }
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    TEST_HRESULT(CurrentRssResult);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
 
