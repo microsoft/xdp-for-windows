@@ -27,6 +27,25 @@ netcfg.exe -u ms_xdp
 pnputil.exe /delete-driver xdp.inf
 ```
 
+## Logging
+
+XDP has detailed logging (via WPP) on its cold code paths and lightweight
+logging (via manifest-based ETW) on its hot code paths. These logs can be
+captured and formatted using Windows ETW tools or via the `tools\log.ps1`
+wrapper script.
+
+```
+tools\prepare-machine.ps1
+```
+
+There is also a continuously running WPP logging session writing to an in-kernel
+circular buffer; the most recent log entries can be viewed at any time,
+including in crash dumps, using the kernel debugger.
+
+```
+!rcdrkd.rcdrlogdump xdp
+```
+
 ## Configuration
 
 XDP is in a passive state upon installation. XDP can be configured via a set of
