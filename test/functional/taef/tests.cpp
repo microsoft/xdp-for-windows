@@ -32,7 +32,7 @@ LogTestFailure(
     ...
 )
 {
-    static const INT Size = 128;
+    static const INT Size = 256;
     WCHAR Buffer[Size];
 
     va_list Args;
@@ -52,7 +52,7 @@ LogTestWarning(
     ...
 )
 {
-    static const INT Size = 128;
+    static const INT Size = 256;
     WCHAR Buffer[Size];
 
     va_list Args;

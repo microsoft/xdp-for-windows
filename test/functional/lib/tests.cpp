@@ -3590,7 +3590,7 @@ GenericXskCancelWait(
     // Verify the IO was cancelled.
     //
     TEST_HRESULT_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED),
         XskNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
 }
 
