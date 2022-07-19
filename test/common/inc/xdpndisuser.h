@@ -11,6 +11,9 @@ extern "C" {
 
 #include <xdpfnoid.h>
 
+#pragma warning(push)
+#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+
 #define OID_GEN_RECEIVE_BLOCK_SIZE              0x0001010B
 #define OID_GEN_CURRENT_PACKET_FILTER           0x0001010E
 #define OID_GEN_RECEIVE_SCALE_PARAMETERS        0x00010204  // query and set
@@ -746,6 +749,8 @@ typedef struct _NDIS_OFFLOAD
 #define NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_6   RTL_SIZEOF_THROUGH_FIELD(NDIS_OFFLOAD, UdpSegmentation)
 
 #define NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_7   RTL_SIZEOF_THROUGH_FIELD(NDIS_OFFLOAD, UdpSegmentation)
+
+#pragma warning(pop)
 
 #ifdef __cplusplus
 } // extern "C"
