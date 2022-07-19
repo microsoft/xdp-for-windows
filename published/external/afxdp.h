@@ -232,6 +232,11 @@ typedef enum _XSK_NOTIFY_FLAGS {
     // Wait until a TX completion ring entry is available.
     //
     XSK_NOTIFY_FLAG_WAIT_TX = 0x8,
+
+    //
+    // Cancel a wait from a different thread.
+    //
+    XSK_NOTIFY_FLAG_CANCEL_WAIT = 0x10,
 } XSK_NOTIFY_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_FLAGS)

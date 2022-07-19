@@ -240,6 +240,28 @@ XskSignalReadyIo(
 }
 
 static
+BOOLEAN
+XskCancelIo(
+    _In_ XSK *Xsk
+    )
+{
+    KIRQL OldIrql;
+    BOOLEAN Cancelled;
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    if (Xsk->IoWaitFlags) {
+        Xsk->IoWaitFlags |= XSK_NOTIFY_FLAG_CANCEL_WAIT;
+        Cancelled = TRUE;
+        (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
+    } else {
+        Cancelled = FALSE;
+    }
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
+    return Cancelled;
+}
+
+static
 UINT32
 XskRingProdReserve(
     _Inout_ XSK_KERNEL_RING *Ring,
@@ -1694,7 +1716,7 @@ XskIrpCleanup(
 
     XskReleasePollLock(Xsk);
 
-    if (IoWaitFlags != 0) {
+    if (IoWaitFlags != 0 && !(IoWaitFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT)) {
         XskSignalReadyIo(Xsk, IoWaitFlags);
     }
 
@@ -3945,7 +3967,13 @@ XskNotifyValidateParams(
     }
 
     if (*InFlags == 0 || *InFlags &
-            ~(XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
+            ~(XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX |
+              XSK_NOTIFY_FLAG_CANCEL_WAIT)) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) &&
+        (*InFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT))) {
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -4058,6 +4086,16 @@ XskNotify(
         }
     }
 
+    if (InFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT) {
+        //
+        // Cancel any pending IO and wake the blocked thread.
+        //
+        if (!XskCancelIo(Xsk)) {
+            Status = STATUS_NOT_FOUND;
+            goto Exit;
+        }
+    }
+
     if ((InFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) == 0) {
         //
         // Not interested in waiting for IO.
@@ -4135,9 +4173,15 @@ XskNotify(
             (TimeoutMilliseconds == INFINITE) ? NULL : &Timeout);
 
     //
-    // Clean up the wait context.
+    // Handle any IO cancellation.
     //
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    if (Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT) {
+        Xsk->IoWaitFlags = 0;
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        Status = STATUS_CANCELLED;
+        goto Exit;
+    }
     Xsk->IoWaitFlags = 0;
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 

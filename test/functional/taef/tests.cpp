@@ -32,7 +32,7 @@ LogTestFailure(
     ...
 )
 {
-    static const INT Size = 128;
+    static const INT Size = 256;
     WCHAR Buffer[Size];
 
     va_list Args;
@@ -52,7 +52,7 @@ LogTestWarning(
     ...
 )
 {
-    static const INT Size = 128;
+    static const INT Size = 256;
     WCHAR Buffer[Size];
 
     va_list Args;
@@ -214,6 +214,18 @@ public:
 
     TEST_METHOD(GenericXskWaitRxTx) {
         GenericXskWait(TRUE, TRUE);
+    }
+
+    TEST_METHOD(GenericXskCancelWaitRx) {
+        GenericXskCancelWait(TRUE, FALSE);
+    }
+
+    TEST_METHOD(GenericXskCancelWaitTx) {
+        GenericXskCancelWait(FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericXskCancelWaitRxTx) {
+        GenericXskCancelWait(TRUE, TRUE);
     }
 
     TEST_METHOD(GenericLwfDelayDetachRx) {
