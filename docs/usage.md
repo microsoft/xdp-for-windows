@@ -30,13 +30,48 @@ pnputil.exe /delete-driver xdp.inf
 ## Logging
 
 XDP has detailed logging (via WPP) on its cold code paths and lightweight
-logging (via manifest-based ETW) on its hot code paths. These logs can be
-captured and formatted using Windows ETW tools or via the `tools\log.ps1`
-wrapper script.
+logging (via manifest-based ETW) on its hot code paths.
 
+### Using log.ps1
+
+The simplest way to capture and view XDP logs is to use the `log.ps1` script.
+You'll need to copy the `tools` directory from this repo onto the target system.
+All logging instructions require administrator privileges.
+
+To start XDP logging:
+
+```PowerShell
+.\tools\log.ps1 -Start
 ```
-tools\prepare-machine.ps1
+
+To stop logging and convert the trace to plain text, use the following command.
+This will create a binary ETL file and a plain text file under `artifacts\logs`.
+To successfully convert WPP traces to plain text, the `-SymbolPath` to a directory
+containing XDP symbols (.pdb files) must be provided.
+
+```PowerShell
+.\tools\log.ps1 -Stop -Convert -SymbolPath Path\To\Symbols
 ```
+
+The above command can be split into separate `-Stop` and `-Convert` actions when
+the plain text file is not needed, or if it is more convenient to convert to
+plain text on another system.
+
+### Advanced ETW
+
+These logs can be captured and formatted using any Windows ETW tool. The XDP
+project itself uses [Windows Performance
+Recorder](https://docs.microsoft.com/en-us/windows-hardware/test/wpt/windows-performance-recorder)
+to configure ETW logging, so all XDP providers are included in
+[xdptrace.wprp](..\tools\xdptrace.wprp) along with a variety of
+scenario-specific profiles.
+
+| Type | GUID                                   |
+|------|----------------------------------------|
+| ETW  | `580BBDEA-B364-4369-B291-D3539E35D20B` |
+| WPP  | `D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D` |
+
+### In-flight recorder
 
 There is also a continuously running WPP logging session writing to an in-kernel
 circular buffer; the most recent log entries can be viewed at any time,
