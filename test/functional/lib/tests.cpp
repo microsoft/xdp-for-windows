@@ -24,7 +24,11 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+
+#pragma warning(push)
+#pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
+#pragma warning(pop)
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
@@ -1521,7 +1525,7 @@ WaitForWfpQuarantine(
         if (SUCCEEDED(MpRxIndicateFrame(GenericMp, &RxFrame))) {
             Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
         } else {
-            Bytes = -1;
+            Bytes = (DWORD)-1;
         }
 
         if (Bytes == sizeof(UdpPayload)) {
@@ -2519,7 +2523,6 @@ GenericRxUdpFragmentQuicShortHeader(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
     UINT32 TotalOffset = 0;
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
@@ -2640,7 +2643,6 @@ GenericRxUdpFragmentQuicLongHeader(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
     UINT32 TotalOffset = 0;
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
@@ -3738,8 +3740,6 @@ GenericLoopback(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
-    UINT32 TotalOffset = 0;
     SOCKADDR_INET LocalSockAddr = {0};
 
     auto If = FnMpIf;
@@ -3946,7 +3946,6 @@ FnLwfTx()
 VOID
 FnLwfOid()
 {
-    HRESULT Result;
     OID_KEY OidKeys[2] = {0};
     UINT32 MpInfoBufferLength;
     unique_malloc_ptr<VOID> MpInfoBuffer;
@@ -4066,7 +4065,7 @@ SetXdpRss(
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
-    UINT32 HashSecretKeySize = 40;
+    UINT16 HashSecretKeySize = 40;
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
 
     //
@@ -4241,7 +4240,7 @@ VerifyRssDatapath(
     UCHAR Mask = 0x00;
     LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
 
-    IndicateOnAllActiveRssQueues(If, RssProcessors.size());
+    IndicateOnAllActiveRssQueues(If, (UINT32)RssProcessors.size());
 
     //
     // Verify that the resulting indications are as expected.
@@ -4252,7 +4251,7 @@ VerifyRssDatapath(
     // miniport's RSS processor set and that its RSS hash is 0.
     //
 
-    UINT32 NumRssProcessors = RssProcessors.size();
+    UINT32 NumRssProcessors = (UINT32)RssProcessors.size();
     for (UINT32 Index = 0; Index < NumRssProcessors; Index++) {
         auto Frame = LwfRxAllocateAndGetFrame(DefaultLwf, Index);
         PROCESSOR_NUMBER Processor = Frame->Output.ProcessorNumber;
@@ -4271,7 +4270,7 @@ OffloadRssError()
 {
     wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
-    UINT32 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
+    UINT16 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
     UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
 
     //
@@ -4556,7 +4555,7 @@ OffloadRssInterfaceRestart()
             continue;
         }
 
-        UINT32 Size = 0;
+        Size = 0;
         Result = XdpRssGet(InterfaceHandle.get(), NULL, &Size);
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
@@ -4707,7 +4706,7 @@ CreateIndirectionTable(
     _Out_ UINT32 *IndirectionTableSize
     )
 {
-    *IndirectionTableSize = ProcessorIndices.size() * sizeof(*IndirectionTable);
+    *IndirectionTableSize = (UINT32)ProcessorIndices.size() * sizeof(*IndirectionTable);
 
     IndirectionTable.reset((PROCESSOR_NUMBER *)malloc(*IndirectionTableSize));
     TEST_TRUE(IndirectionTable.get() != NULL);
@@ -4946,13 +4945,9 @@ OffloadSetHardwareCapabilities()
 VOID
 GenericXskQueryAffinity()
 {
-    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> ModifiedRssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
-    UINT32 RssConfigSize;
-    UINT32 ModifiedRssConfigSize;
-    UINT32 OriginalRssConfigSize;
     UCHAR BufferVa[] = "GenericXskQueryAffinity";
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 

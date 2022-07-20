@@ -30,10 +30,14 @@ LogTestFailure(
     INT Line,
     _Printf_format_string_ const LPWSTR Format,
     ...
-)
+    )
 {
     static const INT Size = 256;
     WCHAR Buffer[Size];
+
+    UNREFERENCED_PARAMETER(File);
+    UNREFERENCED_PARAMETER(Function);
+    UNREFERENCED_PARAMETER(Line);
 
     va_list Args;
     va_start(Args, Format);
@@ -50,10 +54,14 @@ LogTestWarning(
     INT Line,
     _Printf_format_string_ const LPWSTR Format,
     ...
-)
+    )
 {
     static const INT Size = 256;
     WCHAR Buffer[Size];
+
+    UNREFERENCED_PARAMETER(File);
+    UNREFERENCED_PARAMETER(Function);
+    UNREFERENCED_PARAMETER(Line);
 
     va_list Args;
     va_start(Args, Format);

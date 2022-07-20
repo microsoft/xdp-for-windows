@@ -83,64 +83,64 @@ ParseArgs(
     Rule.Action = XDP_PROGRAM_ACTION_PASS;
 
     while (i < ArgC) {
-        if (!stricmp(ArgV[i], "-IfIndex")) {
+        if (!_stricmp(ArgV[i], "-IfIndex")) {
             if (++i > ArgC) {
                 LOGERR("Missing IfIndex");
                 goto Usage;
             }
             IfIndex = atoi(ArgV[i]);
-        } else if (!stricmp(ArgV[i], "-QueueId")) {
+        } else if (!_stricmp(ArgV[i], "-QueueId")) {
             if (++i > ArgC) {
                 LOGERR("Missing QueueId");
                 goto Usage;
             }
             QueueId = atoi(ArgV[i]);
-        } else if (!stricmp(ArgV[i], "-XdpMode")) {
+        } else if (!_stricmp(ArgV[i], "-XdpMode")) {
             if (++i > ArgC) {
                 LOGERR("Missing XdpMode");
                 goto Usage;
             }
-            if (!stricmp(ArgV[i], "Generic")) {
+            if (!_stricmp(ArgV[i], "Generic")) {
                 ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
-            } else if (!stricmp(ArgV[i], "Native")) {
+            } else if (!_stricmp(ArgV[i], "Native")) {
                 ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
-            } else if (stricmp(ArgV[i], "System")) {
+            } else if (_stricmp(ArgV[i], "System")) {
                 LOGERR("Invalid XdpMode");
                 goto Usage;
             }
-        } else if (!stricmp(ArgV[i], "-MatchType")) {
+        } else if (!_stricmp(ArgV[i], "-MatchType")) {
             if (++i > ArgC) {
                 LOGERR("Missing MatchType");
                 goto Usage;
             }
-            if (!stricmp(ArgV[i], "All")) {
+            if (!_stricmp(ArgV[i], "All")) {
                 Rule.Match = XDP_MATCH_ALL;
-            } else if (!stricmp(ArgV[i], "UdpDstPort")) {
+            } else if (!_stricmp(ArgV[i], "UdpDstPort")) {
                 Rule.Match = XDP_MATCH_UDP_DST;
             } else {
                 LOGERR("Invalid MatchType");
                 goto Usage;
             }
-        } else if (!stricmp(ArgV[i], "-Action")) {
+        } else if (!_stricmp(ArgV[i], "-Action")) {
             if (++i > ArgC) {
                 LOGERR("Missing Action");
                 goto Usage;
             }
-            if (!stricmp(ArgV[i], "Pass")) {
+            if (!_stricmp(ArgV[i], "Pass")) {
                 Rule.Action = XDP_PROGRAM_ACTION_PASS;
-            } else if (!stricmp(ArgV[i], "Drop")) {
+            } else if (!_stricmp(ArgV[i], "Drop")) {
                 Rule.Action = XDP_PROGRAM_ACTION_DROP;
             } else {
                 LOGERR("Invalid Action");
                 goto Usage;
             }
-        } else if (!stricmp(ArgV[i], "-UdpDstPort")) {
+        } else if (!_stricmp(ArgV[i], "-UdpDstPort")) {
             if (++i > ArgC) {
                 LOGERR("Missing UdpDstPort");
                 goto Usage;
             }
             if (Rule.Match == XDP_MATCH_UDP_DST) {
-                Rule.Pattern.Port = _byteswap_ushort(atoi(ArgV[i]));
+                Rule.Pattern.Port = _byteswap_ushort((UINT16)atoi(ArgV[i]));
             } else {
                 LOGERR("Unexpected UdpDstPort");
             }

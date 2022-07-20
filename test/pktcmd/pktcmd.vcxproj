@@ -19,11 +19,10 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}</ProjectGuid>
     <RootNamespace>pktcmd</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
     <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />

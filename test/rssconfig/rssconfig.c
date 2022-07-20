@@ -146,13 +146,15 @@ Exit:
 
 BOOLEAN
 GetIfIndexParam(
-    _In_ CHAR *Str,
+    _In_ CHAR **StrTokContext,
     _Out_ UINT32 *IfIndex
     )
 {
+    CHAR *Str;
+
     *IfIndex = 0;
 
-    Str = strtok(NULL, " \n");
+    Str = strtok_s(NULL, " \n", StrTokContext);
     if (Str == NULL) {
         printf("Error: could not parse IfIndex\n");
         return FALSE;
@@ -169,7 +171,7 @@ GetIfIndexParam(
 
 VOID
 ProcessCommandGet(
-    _In_ CHAR *Str
+    _In_ CHAR **StrTokContext
     )
 {
     HRESULT Result;
@@ -180,7 +182,7 @@ ProcessCommandGet(
     UCHAR *HashSecretKey;
     PROCESSOR_NUMBER *IndirectionTable;
 
-    if (!GetIfIndexParam(Str, &IfIndex)) {
+    if (!GetIfIndexParam(StrTokContext, &IfIndex)) {
         goto Exit;
     }
 
@@ -240,7 +242,7 @@ Exit:
 
 VOID
 ProcessCommandSet(
-    _In_ CHAR *Str
+    _In_ CHAR **StrTokContext
     )
 {
     HRESULT Result;
@@ -251,8 +253,9 @@ ProcessCommandSet(
     UINT32 ProcessorArraySize = 0;
     BOOLEAN AddedEntry = FALSE;
     BOOLEAN Success = FALSE;
+    CHAR *Str;
 
-    if (!GetIfIndexParam(Str, &IfIndex)) {
+    if (!GetIfIndexParam(StrTokContext, &IfIndex)) {
         goto Exit;
     }
 
@@ -279,13 +282,13 @@ ProcessCommandSet(
     RssConfig->IndirectionTableOffset = sizeof(*RssConfig);
 
     PROCESSOR_NUMBER *IndirectionTable = RTL_PTR_ADD(RssConfig, RssConfig->IndirectionTableOffset);
-    while ((Str = strtok(NULL, " ,\n")) != NULL) {
+    while ((Str = strtok_s(NULL, " ,\n", StrTokContext)) != NULL) {
         if (ProcessorArraySize == XDP_RSS_INDIRECTION_TABLE_SIZE) {
             printf("Error: Exceeded number of processor array entries\n");
             goto Exit;
         }
 
-        IndirectionTable[ProcessorArraySize++].Number = atoi(Str);
+        IndirectionTable[ProcessorArraySize++].Number = (BYTE)atoi(Str);
     }
 
     RssConfig->IndirectionTableSize = (USHORT)(ProcessorArraySize * sizeof(PROCESSOR_NUMBER));
@@ -314,12 +317,12 @@ Exit:
 
 VOID
 ProcessCommandClear(
-    _In_ CHAR *Str
+    _In_ CHAR **StrTokContext
     )
 {
     UINT32 IfIndex;
 
-    if (!GetIfIndexParam(Str, &IfIndex)) {
+    if (!GetIfIndexParam(StrTokContext, &IfIndex)) {
         goto Exit;
     }
 
@@ -338,6 +341,7 @@ main()
 {
     CHAR Buffer[1024];
     CHAR *Str;
+    CHAR *StrTokContext = NULL;
 
     while (TRUE) {
         printf(">> ");
@@ -345,14 +349,14 @@ main()
             goto Exit;
         }
 
-        Str = strtok(Buffer, " \n");
+        Str = strtok_s(Buffer, " \n", &StrTokContext);
 
         if (!strcmp(Str, "get")) {
-            ProcessCommandGet(Str);
+            ProcessCommandGet(&StrTokContext);
         } else if (!strcmp(Str, "set")) {
-            ProcessCommandSet(Str);
+            ProcessCommandSet(&StrTokContext);
         } else if (!strcmp(Str, "clear")) {
-            ProcessCommandClear(Str);
+            ProcessCommandClear(&StrTokContext);
         } else {
             Usage("invalid command");
         }

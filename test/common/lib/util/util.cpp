@@ -118,7 +118,7 @@ XdpUninstall()
 {
     CHAR CmdBuff[256];
 
-    sprintf(CmdBuff, "%s  .\\xdp.ps1 -Uninstall %s", GetPowershellPrefix(), XdpPreinstalled ? "-DriverPreinstalled" : "");
+    sprintf_s(CmdBuff, "%s  .\\xdp.ps1 -Uninstall %s", GetPowershellPrefix(), XdpPreinstalled ? "-DriverPreinstalled" : "");
     NT_VERIFY(system(CmdBuff) == 0);
     NT_VERIFY(!IsServiceRunning(XDP_SERVICE_NAME));
     return TRUE;
