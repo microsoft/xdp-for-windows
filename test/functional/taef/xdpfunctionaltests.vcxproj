@@ -43,6 +43,14 @@
     <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc>false</UseOfMfc>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(DisableRegistryUse)' == 'true'">
+    <!--
+      Workaround for EWDK build failures:
+      Microsoft.Cpp.VCTools.props sets these to invalid values if they're not
+      already set. -->
+    <VCInstallDir_160 Condition="'$(VCInstallDir_160)' == ''">$(VSInstallDir)VC\</VCInstallDir_160>
+    <VCToolsInstallDir_160 Condition="'$(VCToolsInstallDir_160)' == '' and '$(VCToolsVersion)' != ''">$(VCInstallDir_160)Tools\MSVC\$(VCToolsVersion)\</VCToolsInstallDir_160>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)xdp.cpp.props" />
   <Import Project="$(SolutionDir)xdp.cpp.user.props" />
