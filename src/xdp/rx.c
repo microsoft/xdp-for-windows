@@ -624,9 +624,9 @@ XdpRxQueueDetachInterface(
         ASSERT(RxQueue->InterfaceRxQueue == NULL);
     }
 
-    RtlZeroMemory(&RxQueue->RxActionExtension, sizeof(RxQueue->RxActionExtension));
     RtlZeroMemory(&RxQueue->FragmentExtension, sizeof(RxQueue->FragmentExtension));
     RtlZeroMemory(&RxQueue->VirtualAddressExtension, sizeof(RxQueue->VirtualAddressExtension));
+    RtlZeroMemory(&RxQueue->RxActionExtension, sizeof(RxQueue->RxActionExtension));
 
 #if DBG
     RxQueue->FrameConsumerIndex = 0;
