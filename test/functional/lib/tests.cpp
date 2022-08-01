@@ -3606,10 +3606,8 @@ GenericXskWaitAsync(
     auto Xsk = SetupSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const UINT32 WaitTimeoutMs = 1000;
-    wil::unique_event Event(CreateEventW(NULL, FALSE, FALSE, NULL));
     OVERLAPPED ov = {0};
-
-    ov.hEvent = Event.get();
+    wil::unique_handle iocp(CreateIoCompletionPort(Xsk.Handle.get(), NULL, 0, 0));
 
     UCHAR Payload[] = "GenericXskWaitAsync";
 
@@ -3676,10 +3674,12 @@ GenericXskWaitAsync(
     // Verify the wait times out when the requested IO is not available.
     //
     DWORD bytes;
+    ULONG_PTR key;
+    OVERLAPPED *ovp;
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_IO_PENDING),
         XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov));
-    TEST_FALSE(GetOverlappedResultEx(Xsk.Handle.get(), &ov, &bytes, WaitTimeoutMs, FALSE));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
     TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
 
     auto AsyncThread = std::async(
@@ -3706,7 +3706,8 @@ GenericXskWaitAsync(
     // conditions are eventually met.
     //
     do {
-        TEST_TRUE(GetOverlappedResultEx(Xsk.Handle.get(), &ov, &bytes, WaitTimeoutMs, FALSE));
+        TEST_TRUE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+        TEST_EQUAL(&ov, ovp);
         TEST_HRESULT(XskGetNotifyAsyncResult(&ov, &NotifyResult));
         TEST_NOT_EQUAL(0, (NotifyResult & ExpectedResult));
 
