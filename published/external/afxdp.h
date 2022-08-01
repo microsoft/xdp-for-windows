@@ -268,6 +268,23 @@ XskNotifySocket(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     );
 
+typedef struct _OVERLAPPED OVERLAPPED;
+
+HRESULT
+XDPAPI
+XskNotifyAsync(
+    _In_ HANDLE socket,
+    _In_ XSK_NOTIFY_FLAGS flags,
+    _Inout_ OVERLAPPED *overlapped
+    );
+
+HRESULT
+XDPAPI
+XskGetNotifyAsyncResult(
+    _In_ OVERLAPPED *overlapped,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
+    );
+
 //
 // XskSetSockopt
 //
