@@ -1102,6 +1102,14 @@ FuzzSocketMisc(
 {
     UINT32 optSize;
 
+    //
+    // For simplicity, use a single shared overlapped structure for fuzzed IO.
+    // This overlapped structure will be used for several concurrent IOs, which
+    // is usually unadvisable, but since we do not care about the results of the
+    // IOs, this is fine.
+    //
+    static OVERLAPPED overlapped = {0};
+
     if (RandUlong() % 2) {
         XSK_RING_INFO_SET ringInfo;
         optSize = sizeof(ringInfo);
@@ -1156,7 +1164,15 @@ FuzzSocketMisc(
             timeoutMs = RandUlong() % 1000;
         }
 
-        XskNotifySocket(Sock, notifyFlags, timeoutMs, &notifyResult);
+        if (RandUlong() % 2) {
+            XskNotifySocket(Sock, notifyFlags, timeoutMs, &notifyResult);
+        } else {
+            XskNotifyAsync(Sock, notifyFlags, &overlapped);
+        }
+    }
+
+    if (!(RandUlong() % 8)) {
+        CancelIoEx(Sock, &overlapped);
     }
 
     if (RandUlong() % 2) {

@@ -266,6 +266,15 @@ XskSignalReadyIo(
             Irp->IoStatus.Information = XskWaitInFlagsToOutFlags(Xsk->IoWaitFlags & ReadyFlags);
             Xsk->IoWaitIrp = NULL;
             Xsk->IoWaitFlags = 0;
+
+            //
+            // Synchronize with IO cancellation. If the cancellation routine
+            // is in flight, drop the IRP here and let the cancellation routine
+            // complete it.
+            //
+            if (IoSetCancelRoutine(Irp, NULL) == NULL) {
+                Irp = NULL;
+            }
         } else {
             (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
         }
@@ -3953,7 +3962,6 @@ XskNotifyValidateParams(
     _In_ XSK *Xsk,
     _In_opt_ VOID *InputBuffer,
     _In_ ULONG InputBufferLength,
-    _In_ BOOLEAN Async,
     _Out_ PUINT32 TimeoutMilliseconds,
     _Out_ PUINT32 InFlags
     )
@@ -3994,13 +4002,6 @@ XskNotifyValidateParams(
     if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) && Xsk->Rx.Ring.Size == 0) ||
         (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && Xsk->Tx.Ring.Size == 0)) {
         return STATUS_INVALID_DEVICE_STATE;
-    }
-
-    if (Async && *TimeoutMilliseconds != INFINITE) {
-        //
-        // TODO: support via a timer?
-        //
-        return STATUS_NOT_SUPPORTED;
     }
 
     return STATUS_SUCCESS;
@@ -4064,7 +4065,46 @@ XskPoke(
     return Status;
 }
 
+static DRIVER_CANCEL XskCancelNotify;
+
 static
+_Use_decl_annotations_
+VOID
+XskCancelNotify(
+    DEVICE_OBJECT *DeviceObject,
+    IRP *Irp
+    )
+{
+    XSK *Xsk;
+    IO_STACK_LOCATION *IrpSp;
+
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    IoReleaseCancelSpinLock(DISPATCH_LEVEL);
+
+    IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    Xsk = IrpSp->FileObject->FsContext;
+
+    KeAcquireSpinLockAtDpcLevel(&Xsk->Lock);
+    
+    //
+    // If the data path hasn't already dropped the IRP, reset the wait state
+    // here.
+    //
+
+    if (Xsk->IoWaitIrp == Irp) {
+        Xsk->IoWaitFlags = 0;
+        Xsk->IoWaitIrp = NULL;
+    }
+
+    KeReleaseSpinLock(&Xsk->Lock, Irp->CancelIrql);
+
+    Irp->IoStatus.Status = STATUS_CANCELLED;
+    IoCompleteRequest(Irp, IO_NETWORK_INCREMENT);
+}
+
+static
+_Success_(return == STATUS_SUCCESS)
 NTSTATUS
 XskNotify(
     _In_ XSK *Xsk,
@@ -4086,7 +4126,7 @@ XskNotify(
 
     Status =
         XskNotifyValidateParams(
-            Xsk, InputBuffer, InputBufferLength, Irp != NULL, &TimeoutMilliseconds, &InFlags);
+            Xsk, InputBuffer, InputBufferLength, &TimeoutMilliseconds, &InFlags);
     if (Status != STATUS_SUCCESS) {
         TraceError(TRACE_XSK, "Xsk=%p Notify failed: Invalid params", Xsk);
         goto Exit;
@@ -4157,6 +4197,38 @@ XskNotify(
     Xsk->IoWaitFlags = InFlags & WaitMask;
     if (Irp != NULL) {
         Xsk->IoWaitIrp = Irp;
+
+        //
+        // Mark the IRP as pending prior to enabling cancellation; once we mark
+        // an IRP as pending, we must return STATUS_PENDING to the IO manager.
+        //
+        IoMarkIrpPending(Irp);
+        Status = STATUS_PENDING;
+
+        //
+        // Enable cancellation and synchronize with the IO manager.
+        //
+        IoSetCancelRoutine(Irp, XskCancelNotify);
+        if (Irp->Cancel) {
+            if (IoSetCancelRoutine(Irp, NULL) != NULL) {
+                //
+                // The cancellation routine will not run; cancel the IRP here
+                // and bail.
+                //
+                Xsk->IoWaitIrp = NULL;
+                Xsk->IoWaitFlags = 0;
+                KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+                Irp->IoStatus.Status = STATUS_CANCELLED;
+                IoCompleteRequest(Irp, IO_NETWORK_INCREMENT);
+            } else {
+                //
+                // The cancellation routine will run; bail.
+                //
+                KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+            }
+
+            goto Exit;
+        }
     } else {
         KeClearEvent(&Xsk->IoWaitEvent);
     }
@@ -4198,13 +4270,12 @@ XskNotify(
                 &Xsk->IoWaitEvent, UserRequest, UserMode, FALSE,
                 (TimeoutMilliseconds == INFINITE) ? NULL : &Timeout);
     } else {
-        IoMarkIrpPending(Irp);
-        Status = STATUS_PENDING;
+        ASSERT(Status == STATUS_PENDING);
         goto Exit;
     }
 
     //
-    // Handle any IO cancellation.
+    // Handle any synchronous IO cancellation.
     //
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     if (Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_CANCEL_WAIT) {
@@ -4228,12 +4299,15 @@ XskNotify(
 Exit:
 
     //
-    // This IOCTL is assumed to never pend and code elsewhere takes advantage of
-    // this assumption.
+    // This IOCTL is assumed to never pend for fast IO, and code elsewhere takes
+    // advantage of this assumption.
     //
     ASSERT(Irp != NULL || Status != STATUS_PENDING);
 
-    *Information = OutFlags;
+    if (Status != STATUS_PENDING) {
+        *Information = OutFlags;
+    }
+
     return Status;
 }
 
