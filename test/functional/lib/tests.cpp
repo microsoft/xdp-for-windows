@@ -3728,6 +3728,18 @@ GenericXskWaitAsync(
             }
         }
     } while (ExpectedResult != 0);
+
+    //
+    // Verify cancellation (happy path).
+    //
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_IO_PENDING),
+        XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
+    TEST_TRUE(CancelIoEx(Xsk.Handle.get(), &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(ERROR_OPERATION_ABORTED, GetLastError());
 }
 
 VOID
