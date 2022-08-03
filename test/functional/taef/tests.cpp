@@ -236,6 +236,18 @@ public:
         GenericXskCancelWait(TRUE, TRUE);
     }
 
+    TEST_METHOD(GenericXskWaitAsyncRx) {
+        GenericXskWaitAsync(TRUE, FALSE);
+    }
+
+    TEST_METHOD(GenericXskWaitAsyncTx) {
+        GenericXskWaitAsync(FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericXskWaitAsyncRxTx) {
+        GenericXskWaitAsync(TRUE, TRUE);
+    }
+
     TEST_METHOD(GenericLwfDelayDetachRx) {
         GenericLwfDelayDetach(TRUE, FALSE);
     }

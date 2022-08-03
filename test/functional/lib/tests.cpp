@@ -3597,6 +3597,152 @@ GenericXskCancelWait(
 }
 
 VOID
+GenericXskWaitAsync(
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx
+    )
+{
+    auto If = FnMpIf;
+    auto Xsk = SetupSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const UINT32 WaitTimeoutMs = 1000;
+    OVERLAPPED ov = {0};
+    wil::unique_handle iocp(CreateIoCompletionPort(Xsk.Handle.get(), NULL, 0, 0));
+
+    UCHAR Payload[] = "GenericXskWaitAsync";
+
+    auto RxIndicate = [&] {
+        DATA_BUFFER Buffer = {0};
+        Buffer.DataOffset = 0;
+        Buffer.DataLength = sizeof(Payload);
+        Buffer.BufferLength = Buffer.DataLength;
+        Buffer.VirtualAddress = Payload;
+
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+        SocketProduceRxFill(&Xsk, 1);
+        TEST_HRESULT(MpRxFlush(GenericMp));
+    };
+
+    auto TxIndicate = [&] {
+        UINT64 TxBuffer = SocketFreePop(&Xsk);
+        UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+        UINT32 TxFrameLength = sizeof(Payload);
+        ASSERT(TxFrameLength <= Xsk.Umem.Reg.chunkSize);
+        RtlCopyMemory(TxFrame, Payload, sizeof(Payload));
+
+        UINT32 ProducerIndex;
+        TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+        XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
+        TxDesc->address = TxBuffer;
+        TxDesc->length = TxFrameLength;
+        XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+        XSK_NOTIFY_RESULT_FLAGS PokeResult;
+        TEST_HRESULT(
+            XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &PokeResult));
+        TEST_EQUAL(0, PokeResult);
+    };
+
+    XSK_NOTIFY_FLAGS NotifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 ExpectedResult = 0;
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+
+    if (Rx) {
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+        ExpectedResult |= XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE;
+    } else {
+        //
+        // Produce IO that does not satisfy the wait condition.
+        //
+        RxIndicate();
+    }
+
+    if (Tx) {
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+        ExpectedResult |= XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE;
+    } else {
+        //
+        // Produce IO that does not satisfy the wait condition.
+        //
+        TxIndicate();
+    }
+
+    //
+    // Verify the wait times out when the requested IO is not available.
+    //
+    DWORD bytes;
+    ULONG_PTR key;
+    OVERLAPPED *ovp;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_IO_PENDING),
+        XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
+
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            //
+            // On another thread, briefly delay execution to give the main test
+            // thread a chance to begin waiting. Then, produce RX and TX.
+            //
+            Sleep(10);
+
+            if (Rx) {
+                RxIndicate();
+            }
+
+            if (Tx) {
+                TxIndicate();
+            }
+        }
+    );
+
+    //
+    // Verify the wait succeeds if any of the conditions is true, and that all
+    // conditions are eventually met.
+    //
+    do {
+        TEST_TRUE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+        TEST_EQUAL(&ov, ovp);
+        TEST_HRESULT(XskGetNotifyAsyncResult(&ov, &NotifyResult));
+        TEST_NOT_EQUAL(0, (NotifyResult & ExpectedResult));
+
+        if (NotifyResult & XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE) {
+            XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+        }
+
+        if (NotifyResult & XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE) {
+            XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
+        }
+
+        ExpectedResult &= ~NotifyResult;
+
+        if (ExpectedResult != 0) {
+            HRESULT res = XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov);
+            if (!SUCCEEDED(res)) {
+                TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_IO_PENDING), res);
+            }
+        }
+    } while (ExpectedResult != 0);
+
+    //
+    // Verify cancellation (happy path).
+    //
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_IO_PENDING),
+        XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
+    TEST_TRUE(CancelIoEx(Xsk.Handle.get(), &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(ERROR_OPERATION_ABORTED, GetLastError());
+}
+
+VOID
 GenericLwfDelayDetach(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
