@@ -32,7 +32,7 @@ LogTestFailure(
     ...
     )
 {
-    static const INT Size = 256;
+    static const INT Size = 128;
     WCHAR Buffer[Size];
 
     UNREFERENCED_PARAMETER(File);
@@ -56,7 +56,7 @@ LogTestWarning(
     ...
     )
 {
-    static const INT Size = 256;
+    static const INT Size = 128;
     WCHAR Buffer[Size];
 
     UNREFERENCED_PARAMETER(File);
@@ -222,18 +222,6 @@ public:
 
     TEST_METHOD(GenericXskWaitRxTx) {
         GenericXskWait(TRUE, TRUE);
-    }
-
-    TEST_METHOD(GenericXskCancelWaitRx) {
-        GenericXskCancelWait(TRUE, FALSE);
-    }
-
-    TEST_METHOD(GenericXskCancelWaitTx) {
-        GenericXskCancelWait(FALSE, TRUE);
-    }
-
-    TEST_METHOD(GenericXskCancelWaitRxTx) {
-        GenericXskCancelWait(TRUE, TRUE);
     }
 
     TEST_METHOD(GenericXskWaitAsyncRx) {

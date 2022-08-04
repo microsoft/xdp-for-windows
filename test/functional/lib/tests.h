@@ -104,12 +104,6 @@ GenericXskWait(
     );
 
 VOID
-GenericXskCancelWait(
-    _In_ BOOLEAN Rx,
-    _In_ BOOLEAN Tx
-    );
-
-VOID
 GenericXskWaitAsync(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
