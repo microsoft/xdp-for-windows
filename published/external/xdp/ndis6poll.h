@@ -55,7 +55,7 @@ inline
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpCompleteNdisPoll(
-    _In_ NDIS_HANDLE PollHandle,
+    _In_ NDIS_POLL_HANDLE PollHandle,
     _In_ NDIS_POLL_DATA *Poll,
     _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
     _In_ XDP_POLL_RECEIVE_DATA *Receive,
