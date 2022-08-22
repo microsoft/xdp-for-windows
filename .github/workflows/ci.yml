@@ -59,7 +59,7 @@ jobs:
           !artifacts/bin/**/*.exp
           !artifacts/bin/**/*.lastcodeanalysissucceeded
     - name: Publish Symbols
-      uses: microsoft/action-publish-symbols@c82a258c03d72d371fe9138fc887c2c6e1778e38
+      uses: microsoft/action-publish-symbols@44254ea6d79c64929877999567402c99de97a62d
       if: github.event_name != 'pull_request'
       with:
         accountName: mscodehub
