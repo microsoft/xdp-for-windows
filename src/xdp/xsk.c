@@ -282,6 +282,7 @@ XskSignalReadyIo(
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
     if (Irp != NULL) {
+        EventWriteXskNotifyAsyncComplete(&MICROSOFT_XDP_PROVIDER, Xsk, Irp, Irp->IoStatus.Status);
         IoCompleteRequest(Irp, IO_NETWORK_INCREMENT);
     }
 }
@@ -4058,7 +4059,7 @@ XskCancelNotify(
     Xsk = IrpSp->FileObject->FsContext;
 
     KeAcquireSpinLockAtDpcLevel(&Xsk->Lock);
-    
+
     //
     // If the data path hasn't already dropped the IRP, reset the wait state
     // here.
@@ -4072,6 +4073,8 @@ XskCancelNotify(
     KeReleaseSpinLock(&Xsk->Lock, Irp->CancelIrql);
 
     Irp->IoStatus.Status = STATUS_CANCELLED;
+
+    EventWriteXskNotifyAsyncComplete(&MICROSOFT_XDP_PROVIDER, Xsk, Irp, Irp->IoStatus.Status);
     IoCompleteRequest(Irp, IO_NETWORK_INCREMENT);
 }
 
@@ -4103,6 +4106,8 @@ XskNotify(
         TraceError(TRACE_XSK, "Xsk=%p Notify failed: Invalid params", Xsk);
         goto Exit;
     }
+
+    EventWriteXskNotifyStart(&MICROSOFT_XDP_PROVIDER, Xsk, Irp, InFlags, TimeoutMilliseconds);
 
     //
     // Snap the XSK notification state before performing the poke and/or wait.
@@ -4181,6 +4186,8 @@ XskNotify(
                 Xsk->IoWaitFlags = 0;
                 KeReleaseSpinLock(&Xsk->Lock, OldIrql);
                 Irp->IoStatus.Status = STATUS_CANCELLED;
+                EventWriteXskNotifyAsyncComplete(
+                    &MICROSOFT_XDP_PROVIDER, Xsk, Irp, Irp->IoStatus.Status);
                 IoCompleteRequest(Irp, IO_NETWORK_INCREMENT);
             } else {
                 //
@@ -4260,6 +4267,8 @@ Exit:
     if (Status != STATUS_PENDING) {
         *Information = OutFlags;
     }
+
+    EventWriteXskNotifyStop(&MICROSOFT_XDP_PROVIDER, Xsk, Irp, OutFlags, Status);
 
     return Status;
 }
