@@ -237,6 +237,67 @@
                 outType="win:HexInt32"
                 />
           </template>
+          <template tid="tid_XskNotifyStart">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="Irp"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="InFlags"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="TimeoutMilliseconds"
+                outType="win:HexInt32"
+                />
+          </template>
+          <template tid="tid_XskNotifyStop">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="Irp"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="OutFlags"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="Status"
+                outType="win:NTSTATUS"
+                />
+          </template>
+          <template tid="tid_XskNotifyAsyncComplete">
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="Irp"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Status"
+                outType="win:NTSTATUS"
+                />
+          </template>
         </templates>
         <events>
           <event
@@ -398,6 +459,36 @@
               template="tid_EcStateChange"
               value="16"
               />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Tx Rx"
+              level="XdpPerIo"
+              message="$(string.XskNotifyStart.EventMessage)"
+              opcode="Xsk"
+              symbol="XskNotifyStart"
+              template="tid_XskNotifyStart"
+              value="17"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Tx Rx"
+              level="XdpPerIo"
+              message="$(string.XskNotifyStop.EventMessage)"
+              opcode="Xsk"
+              symbol="XskNotifyStop"
+              template="tid_XskNotifyStop"
+              value="18"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Xsk Tx Rx"
+              level="XdpPerIo"
+              message="$(string.XskNotifyAsyncComplete.EventMessage)"
+              opcode="Xsk"
+              symbol="XskNotifyAsyncComplete"
+              template="tid_XskNotifyAsyncComplete"
+              value="19"
+              />
         </events>
       </provider>
     </events>
@@ -468,6 +559,18 @@
         <string
             id="EcStateChange.EventMessage"
             value="[  ec][%1] state change NewState=%2"
+            />
+        <string
+            id="XskNotifyStart.EventMessage"
+            value="[ xsk][%1] notify Irp=%2 InFlags=%3 TimeoutMs=%4"
+            />
+        <string
+            id="XskNotifyStop.EventMessage"
+            value="[ xsk][%1] notify complete Irp=%2 OutFlags=%3 Status=%4"
+            />
+        <string
+            id="XskNotifyAsyncComplete.EventMessage"
+            value="[ xsk][%1] notify pended complete Irp=%2 Status=%3"
             />
       </stringTable>
     </resources>
