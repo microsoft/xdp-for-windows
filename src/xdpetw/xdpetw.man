@@ -566,11 +566,11 @@
             />
         <string
             id="XskNotifyStop.EventMessage"
-            value="[ xsk][%1] notify Irp=%2 OutFlags=%3 Status=%4"
+            value="[ xsk][%1] notify complete Irp=%2 OutFlags=%3 Status=%4"
             />
         <string
             id="XskNotifyAsyncComplete.EventMessage"
-            value="[ xsk][%1] notify Irp=%2 Status=%3"
+            value="[ xsk][%1] notify pended complete Irp=%2 Status=%3"
             />
       </stringTable>
     </resources>
