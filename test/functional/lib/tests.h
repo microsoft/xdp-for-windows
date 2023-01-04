@@ -12,6 +12,12 @@ bool
 TestCleanup();
 
 VOID
+OpenApiTest();
+
+VOID
+LoadApiTest();
+
+VOID
 GenericBinding();
 
 VOID
@@ -108,7 +114,7 @@ GenericXskWaitAsync(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
     );
-    
+
 VOID
 GenericLwfDelayDetach(
     _In_ BOOLEAN Rx,

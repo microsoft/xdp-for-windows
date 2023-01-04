@@ -1599,6 +1599,55 @@ MpXdpDeregister(
 
 static
 VOID
+VerifyPrereleaseApiTable(
+    _In_ const XDP_API_TABLE *XdpApiTable
+    )
+{
+    TEST_EQUAL(XdpOpenApi, XdpApiTable->XdpOpenApi);
+    TEST_EQUAL(XdpCloseApi, XdpApiTable->XdpCloseApi);
+    TEST_EQUAL(XdpCreateProgram, XdpApiTable->XdpCreateProgram);
+    TEST_EQUAL(XdpInterfaceOpen, XdpApiTable->XdpInterfaceOpen);
+    TEST_EQUAL(XdpRssGetCapabilities, XdpApiTable->XdpRssGetCapabilities);
+    TEST_EQUAL(XdpRssSet, XdpApiTable->XdpRssSet);
+    TEST_EQUAL(XdpRssGet, XdpApiTable->XdpRssGet);
+    TEST_EQUAL(XskCreate, XdpApiTable->XskCreate);
+    TEST_EQUAL(XskBind, XdpApiTable->XskBind);
+    TEST_EQUAL(XskActivate, XdpApiTable->XskActivate);
+    TEST_EQUAL(XskNotifySocket, XdpApiTable->XskNotifySocket);
+    TEST_EQUAL(XskNotifyAsync, XdpApiTable->XskNotifyAsync);
+    TEST_EQUAL(XskGetNotifyAsyncResult, XdpApiTable->XskGetNotifyAsyncResult);
+    TEST_EQUAL(XskSetSockopt, XdpApiTable->XskSetSockopt);
+    TEST_EQUAL(XskGetSockopt, XdpApiTable->XskGetSockopt);
+    TEST_EQUAL(XskIoctl, XdpApiTable->XskIoctl);
+}
+
+VOID
+OpenApiTest()
+{
+    const XDP_API_TABLE *XdpApiTable;
+
+    TEST_HRESULT(XdpOpenApi(XDP_VERSION_PRERELEASE, &XdpApiTable));
+    VerifyPrereleaseApiTable(XdpApiTable);
+    XdpCloseApi(XdpApiTable);
+
+    TEST_FALSE(SUCCEEDED(XdpOpenApi(XDP_VERSION_PRERELEASE + 1, &XdpApiTable)));
+}
+
+VOID
+LoadApiTest()
+{
+    XDP_LOAD_API_CONTEXT XdpLoadApiContext;
+    const XDP_API_TABLE *XdpApiTable;
+
+    TEST_HRESULT(XdpLoadApi(XDP_VERSION_PRERELEASE, &XdpLoadApiContext, &XdpApiTable));
+    VerifyPrereleaseApiTable(XdpApiTable);
+    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+
+    TEST_FALSE(SUCCEEDED(XdpOpenApi(XDP_VERSION_PRERELEASE + 1, &XdpApiTable)));
+}
+
+static
+VOID
 BindingTest(
     _In_ const TestInterface& If,
     _In_ BOOLEAN RestartAdapter
