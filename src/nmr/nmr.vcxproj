@@ -55,6 +55,8 @@
         but portable codegen instead.
         -->
       <WholeProgramOptimization>false</WholeProgramOptimization>
+      <!-- EWDK builds do not binplace the PDB for this library, so force it here. -->
+      <ProgramDataBaseFileName>$(OutDir)xdpnmr.pdb</ProgramDataBaseFileName>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -29,25 +29,25 @@ VOID *
 FnLwfInitializeEa(
     _In_ XDPFNLWF_FILE_TYPE FileType,
     _Out_ VOID *EaBuffer,
-    _In_ ULONG EaLength
+    _In_ UINT32 EaLength
     );
 
 HRESULT
 FnLwfOpen(
-    _In_ ULONG Disposition,
+    _In_ UINT32 Disposition,
     _In_opt_ VOID *EaBuffer,
-    _In_ ULONG EaLength,
+    _In_ UINT32 EaLength,
     _Out_ HANDLE *Handle
     );
 
 HRESULT
 FnLwfIoctl(
     _In_ HANDLE XdpHandle,
-    _In_ ULONG Operation,
+    _In_ UINT32 Operation,
     _In_opt_ VOID *InBuffer,
-    _In_ ULONG InBufferSize,
+    _In_ UINT32 InBufferSize,
     _Out_opt_ VOID *OutBuffer,
-    _In_ ULONG OutputBufferSize,
-    _Out_opt_ ULONG *BytesReturned,
+    _In_ UINT32 OutputBufferSize,
+    _Out_opt_ UINT32 *BytesReturned,
     _In_opt_ OVERLAPPED *Overlapped
     );

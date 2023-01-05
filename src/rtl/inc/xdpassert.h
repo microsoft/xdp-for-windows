@@ -25,5 +25,11 @@
 #endif
 #endif
 
+#ifdef KERNEL_MODE
 #define FRE_ASSERT(e) \
     (NT_VERIFY(e) ? TRUE : (RtlFailFast(FAST_FAIL_INVALID_ARG), FALSE))
+#elif DBG
+#define FRE_ASSERT(e) (ASSERT(e) ? TRUE : (__fastfail(FAST_FAIL_INVALID_ARG), FALSE))
+#else
+#define FRE_ASSERT(e) ((e) ? TRUE : (__fastfail(FAST_FAIL_INVALID_ARG), FALSE))
+#endif
