@@ -5,6 +5,23 @@
 
 #include "precomp.h"
 
+XDP_OPEN_API_FN XdpOpenApi;
+XDP_CLOSE_API_FN XdpCloseApi;
+XDP_CREATE_PROGRAM_FN XdpCreateProgram;
+XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
+XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
+XDP_RSS_SET_FN XdpRssSet;
+XDP_RSS_GET_FN XdpRssGet;
+XSK_CREATE_FN XskCreate;
+XSK_BIND_FN XskBind;
+XSK_ACTIVATE_FN XskActivate;
+XSK_NOTIFY_SOCKET_FN XskNotifySocket;
+XSK_NOTIFY_ASYNC_FN XskNotifyAsync;
+XSK_GET_NOTIFY_ASYNC_RESULT_FN XskGetNotifyAsyncResult;
+XSK_SET_SOCKOPT_FN XskSetSockopt;
+XSK_GET_SOCKOPT_FN XskGetSockopt;
+XSK_IOCTL_FN XskIoctl;
+
 static CONST XDP_API_TABLE XdpApiTablePrerelease = {
     .XdpOpenApi = XdpOpenApi,
     .XdpCloseApi = XdpCloseApi,
@@ -52,7 +69,6 @@ XdpCloseApi(
 }
 
 HRESULT
-XDPAPI
 XdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ CONST XDP_HOOK_ID *HookId,
@@ -83,7 +99,6 @@ XdpCreateProgram(
 }
 
 HRESULT
-XDPAPI
 XdpInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
@@ -105,7 +120,6 @@ XdpInterfaceOpen(
 }
 
 HRESULT
-XDPAPI
 XdpRssGetCapabilities(
     _In_ HANDLE InterfaceHandle,
     _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
@@ -125,7 +139,6 @@ XdpRssGetCapabilities(
 }
 
 HRESULT
-XDPAPI
 XdpRssSet(
     _In_ HANDLE InterfaceHandle,
     _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
@@ -145,7 +158,6 @@ XdpRssSet(
 }
 
 HRESULT
-XDPAPI
 XdpRssGet(
     _In_ HANDLE InterfaceHandle,
     _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,

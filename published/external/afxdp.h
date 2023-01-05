@@ -117,8 +117,6 @@ XSK_CREATE_FN(
     _Out_ HANDLE* socket
     );
 
-XDPAPI XSK_CREATE_FN XskCreate;
-
 typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NONE = 0x0,
 
@@ -164,8 +162,6 @@ XSK_BIND_FN(
     _In_ XSK_BIND_FLAGS flags
     );
 
-XDPAPI XSK_BIND_FN XskBind;
-
 typedef enum _XSK_ACTIVATE_FLAGS {
     XSK_ACTIVATE_FLAG_NONE = 0x0,
 } XSK_ACTIVATE_FLAGS;
@@ -192,8 +188,6 @@ XSK_ACTIVATE_FN(
     _In_ HANDLE socket,
     _In_ XSK_ACTIVATE_FLAGS flags
     );
-
-XDPAPI XSK_ACTIVATE_FN XskActivate;
 
 //
 // XskNotifySocket
@@ -269,8 +263,6 @@ XSK_NOTIFY_SOCKET_FN(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     );
 
-XDPAPI XSK_NOTIFY_SOCKET_FN XskNotifySocket;
-
 typedef struct _OVERLAPPED OVERLAPPED;
 
 //
@@ -302,8 +294,6 @@ XSK_NOTIFY_ASYNC_FN(
     _Inout_ OVERLAPPED *overlapped
     );
 
-XDPAPI XSK_NOTIFY_ASYNC_FN XskNotifyAsync;
-
 //
 // Retrieves the result flags from a previously completed XskNotifyAsync.
 //
@@ -314,8 +304,6 @@ XSK_GET_NOTIFY_ASYNC_RESULT_FN(
     _In_ OVERLAPPED *overlapped,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     );
-
-XDPAPI XSK_GET_NOTIFY_ASYNC_RESULT_FN XskGetNotifyAsyncResult;
 
 //
 // XskSetSockopt
@@ -331,8 +319,6 @@ XSK_SET_SOCKOPT_FN(
     _In_ UINT32 optionLength
     );
 
-XDPAPI XSK_SET_SOCKOPT_FN XskSetSockopt;
-
 //
 // XskGetSockopt
 //
@@ -346,8 +332,6 @@ XSK_GET_SOCKOPT_FN(
     _Out_writes_bytes_(*optionLength) VOID *optionValue,
     _Inout_ UINT32 *optionLength
     );
-
-XDPAPI XSK_GET_SOCKOPT_FN XskGetSockopt;
 
 //
 // XskIoctl
@@ -364,8 +348,6 @@ XSK_IOCTL_FN(
     _Out_writes_bytes_(*outputLength) VOID *outputValue,
     _Inout_ UINT32 *outputLength
     );
-
-XDPAPI XSK_IOCTL_FN XskIoctl;
 
 //
 // Socket options

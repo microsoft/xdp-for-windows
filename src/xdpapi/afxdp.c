@@ -7,7 +7,6 @@
 #include <assert.h>
 
 HRESULT
-XDPAPI
 XskCreate(
     _Out_ HANDLE* socket
     )
@@ -33,7 +32,6 @@ XskCreate(
 }
 
 HRESULT
-XDPAPI
 XskBind(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
@@ -67,7 +65,6 @@ XskBind(
 }
 
 HRESULT
-XDPAPI
 XskActivate(
     _In_ HANDLE socket,
     _In_ XSK_ACTIVATE_FLAGS flags
@@ -97,7 +94,6 @@ XskActivate(
 }
 
 HRESULT
-XDPAPI
 XskSetSockopt(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
@@ -131,7 +127,6 @@ XskSetSockopt(
 }
 
 HRESULT
-XDPAPI
 XskGetSockopt(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
@@ -163,7 +158,6 @@ XskGetSockopt(
 }
 
 HRESULT
-XDPAPI
 XskIoctl(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
@@ -184,7 +178,6 @@ XskIoctl(
 }
 
 HRESULT
-XDPAPI
 XskNotifySocket(
     _In_ HANDLE socket,
     _In_ XSK_NOTIFY_FLAGS flags,
@@ -220,7 +213,6 @@ XskNotifySocket(
 }
 
 HRESULT
-XDPAPI
 XskNotifyAsync(
     _In_ HANDLE socket,
     _In_ XSK_NOTIFY_FLAGS flags,
@@ -253,7 +245,6 @@ XskNotifyAsync(
 }
 
 HRESULT
-XDPAPI
 XskGetNotifyAsyncResult(
     _In_ OVERLAPPED *overlapped,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *result
