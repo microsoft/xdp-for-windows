@@ -177,6 +177,7 @@ main(
     CHAR **argv
     )
 {
+    const XDP_API_TABLE *XdpApi;
     HRESULT Result;
     HANDLE Program;
     CONST XDP_HOOK_ID XdpInspectRxL2 = {
@@ -190,10 +191,18 @@ main(
     //
     ParseArgs(argc, argv);
 
+    Result = XdpOpenApi(XDP_VERSION_PRERELEASE, &XdpApi);
+    if (FAILED(Result)) {
+        LOGERR("XdpOpenApi failed: %x", Result);
+        return 1;
+    }
+
     //
     // Create an XDP program using the parsed rule at the L2 inspect hook point.
     //
-    Result = XdpCreateProgram(IfIndex, &XdpInspectRxL2, QueueId, ProgramFlags, &Rule, 1, &Program);
+    Result =
+        XdpApi->XdpCreateProgram(
+            IfIndex, &XdpInspectRxL2, QueueId, ProgramFlags, &Rule, 1, &Program);
     if (FAILED(Result)) {
         LOGERR("XdpCreateProgram failed: %x", Result);
         return 1;
@@ -203,6 +212,6 @@ main(
     // Let XDP filter frames until this process is terminated.
     //
     Sleep(INFINITE);
-    
+
     return 0;
 }

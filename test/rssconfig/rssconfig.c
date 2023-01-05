@@ -26,6 +26,8 @@ typedef struct _INTERFACE_CONFIG_ENTRY {
 
 INTERFACE_CONFIG_ENTRY *InterfaceConfigList = NULL;
 
+CONST XDP_API_TABLE *XdpApi;
+
 CONST CHAR *UsageText =
 "Usage:"
 "\n    get <ifIndex>"
@@ -122,7 +124,7 @@ AddInterfaceConfig(
 
     RtlZeroMemory(InterfaceConfig, sizeof(*InterfaceConfig));
 
-    Result = XdpInterfaceOpen(IfIndex, &InterfaceConfig->InterfaceHandle);
+    Result = XdpApi->XdpInterfaceOpen(IfIndex, &InterfaceConfig->InterfaceHandle);
     if (FAILED(Result)) {
         printf("Error: Failed to open RSS handle on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -186,14 +188,14 @@ ProcessCommandGet(
         goto Exit;
     }
 
-    Result = XdpInterfaceOpen(IfIndex, &InterfaceHandle);
+    Result = XdpApi->XdpInterfaceOpen(IfIndex, &InterfaceHandle);
     if (FAILED(Result)) {
         printf("Error: Failed to open RSS handle on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
     }
 
     RssConfigSize = 0;
-    Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
+    Result = XdpApi->XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
     if (SUCCEEDED(Result) || RssConfigSize < sizeof(RssConfig)) {
         printf(
             "Error: Failed to get RSS configuration size on IfIndex=%u Result=%d RssConfigSize=%d\n",
@@ -208,7 +210,7 @@ ProcessCommandGet(
     }
 
     _Analysis_assume_(RssConfigSize >= sizeof(*RssConfig));
-    Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
+    Result = XdpApi->XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
     if (FAILED(Result)) {
         printf("Error: Failed to get RSS configuration on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -294,7 +296,7 @@ ProcessCommandSet(
     RssConfig->IndirectionTableSize = (USHORT)(ProcessorArraySize * sizeof(PROCESSOR_NUMBER));
     RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
 
-    Result = XdpRssSet(InterfaceConfig->InterfaceHandle, RssConfig, RssConfigSize);
+    Result = XdpApi->XdpRssSet(InterfaceConfig->InterfaceHandle, RssConfig, RssConfigSize);
     if (FAILED(Result)) {
         printf("Error: Failed to set RSS configuration on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -339,9 +341,16 @@ INT
 __cdecl
 main()
 {
+    HRESULT Result = S_OK;
     CHAR Buffer[1024];
     CHAR *Str;
     CHAR *StrTokContext = NULL;
+
+    Result = XdpOpenApi(XDP_VERSION_PRERELEASE, &XdpApi);
+    if (FAILED(Result)) {
+        printf("Error: Failed to load XDP API Result=%d\n", Result);
+        goto Exit;
+    }
 
     while (TRUE) {
         printf(">> ");
@@ -364,5 +373,9 @@ main()
 
 Exit:
 
-    return 0;
+    if (XdpApi != NULL) {
+        XdpCloseApi(XdpApi);
+    }
+
+    return FAILED(Result);
 }

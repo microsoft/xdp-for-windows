@@ -55,8 +55,6 @@ XDP_CREATE_PROGRAM_FN(
     _Out_ HANDLE *Program
     );
 
-XDPAPI XDP_CREATE_PROGRAM_FN XdpCreateProgram;
-
 //
 // Interface API.
 //
@@ -70,8 +68,6 @@ XDP_INTERFACE_OPEN_FN(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );
-
-XDPAPI XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
 
 //
 // RSS offload.
@@ -160,8 +156,6 @@ XDP_RSS_GET_CAPABILITIES_FN(
     _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
     _Inout_ UINT32 *RssCapabilitiesSize
     );
-
-XDPAPI XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
 
 //
 // Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
@@ -258,8 +252,6 @@ XDP_RSS_SET_FN(
     _In_ UINT32 RssConfigurationSize
     );
 
-XDPAPI XDP_RSS_SET_FN XdpRssSet;
-
 //
 // Query RSS settings on an interface. If the input RssConfigurationSize is too
 // small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned. Call
@@ -272,8 +264,6 @@ XDP_RSS_GET_FN(
     _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
     );
-
-XDPAPI XDP_RSS_GET_FN XdpRssGet;
 
 #include "afxdp.h"
 
