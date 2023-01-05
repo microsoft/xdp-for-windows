@@ -21,6 +21,9 @@ param (
     [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$RuntimeKit = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$UpdateDeps = $false
 )
 
@@ -37,7 +40,7 @@ tools/prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 msbuild.exe xdp.sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
-    /p:RestoreConfigFile=src\xdp\nuget.config `
+    /p:RestoreConfigFile=src\nuget.config `
     /p:Configuration=$Flavor `
     /p:Platform=$Platform
 if (!$?) {
@@ -61,4 +64,8 @@ if (!$NoSign) {
 
 if ($DevKit) {
     tools/create-devkit.ps1 -Flavor $Flavor
+}
+
+if ($RuntimeKit) {
+    tools/create-runtime-kit.ps1 -Flavor $Flavor
 }

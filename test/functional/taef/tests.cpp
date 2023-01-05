@@ -30,10 +30,14 @@ LogTestFailure(
     INT Line,
     _Printf_format_string_ const LPWSTR Format,
     ...
-)
+    )
 {
     static const INT Size = 128;
     WCHAR Buffer[Size];
+
+    UNREFERENCED_PARAMETER(File);
+    UNREFERENCED_PARAMETER(Function);
+    UNREFERENCED_PARAMETER(Line);
 
     va_list Args;
     va_start(Args, Format);
@@ -50,10 +54,14 @@ LogTestWarning(
     INT Line,
     _Printf_format_string_ const LPWSTR Format,
     ...
-)
+    )
 {
     static const INT Size = 128;
     WCHAR Buffer[Size];
+
+    UNREFERENCED_PARAMETER(File);
+    UNREFERENCED_PARAMETER(Function);
+    UNREFERENCED_PARAMETER(Line);
 
     va_list Args;
     va_start(Args, Format);
@@ -76,6 +84,14 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 TEST_CLASS(xdpfunctionaltests)
 {
 public:
+    TEST_METHOD(OpenApi) {
+        ::OpenApiTest();
+    }
+
+    TEST_METHOD(LoadApi) {
+        ::LoadApiTest();
+    }
+
     TEST_METHOD(GenericBinding) {
         ::GenericBinding();
     }
@@ -214,6 +230,18 @@ public:
 
     TEST_METHOD(GenericXskWaitRxTx) {
         GenericXskWait(TRUE, TRUE);
+    }
+
+    TEST_METHOD(GenericXskWaitAsyncRx) {
+        GenericXskWaitAsync(TRUE, FALSE);
+    }
+
+    TEST_METHOD(GenericXskWaitAsyncTx) {
+        GenericXskWaitAsync(FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericXskWaitAsyncRxTx) {
+        GenericXskWaitAsync(TRUE, TRUE);
     }
 
     TEST_METHOD(GenericLwfDelayDetachRx) {

@@ -624,6 +624,10 @@ XdpRxQueueDetachInterface(
         ASSERT(RxQueue->InterfaceRxQueue == NULL);
     }
 
+    RtlZeroMemory(&RxQueue->FragmentExtension, sizeof(RxQueue->FragmentExtension));
+    RtlZeroMemory(&RxQueue->VirtualAddressExtension, sizeof(RxQueue->VirtualAddressExtension));
+    RtlZeroMemory(&RxQueue->RxActionExtension, sizeof(RxQueue->RxActionExtension));
+
 #if DBG
     RxQueue->FrameConsumerIndex = 0;
 #endif
@@ -735,6 +739,25 @@ XdpRxQueueAttachInterface(
         }
     }
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_RX_ACTION_NAME,
+        XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->RxActionExtension);
+
+    if (XdpRxQueueIsVirtualAddressEnabled(ConfigActivate)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
+            XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
+        XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->VirtualAddressExtension);
+    }
+
+    if (RxQueue->FragmentRing != NULL) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_FRAGMENT_NAME,
+            XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->FragmentExtension);
+    }
+
     Status =
         XdpIfOpenInterfaceOffloadHandle(
             XdpIfGetIfSetHandle(RxQueue->Binding), &RxQueue->Key.HookId,
@@ -768,25 +791,6 @@ XdpRxQueueAttachInterface(
     }
 
     RxQueue->State = XdpRxQueueStateActive;
-
-    XdpInitializeExtensionInfo(
-        &ExtensionInfo, XDP_FRAME_EXTENSION_RX_ACTION_NAME,
-        XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
-    XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->RxActionExtension);
-
-    if (XdpRxQueueIsVirtualAddressEnabled(ConfigActivate)) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
-            XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
-        XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->VirtualAddressExtension);
-    }
-
-    if (RxQueue->FragmentRing != NULL) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_FRAME_EXTENSION_FRAGMENT_NAME,
-            XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
-        XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->FragmentExtension);
-    }
 
 Exit:
 

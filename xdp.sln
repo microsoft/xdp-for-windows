@@ -63,6 +63,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fnio", "test\common\lib\fni
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpetw", "src\xdpetw\xdpetw.vcxproj", "{A87D995B-384F-4853-ABDB-3EC024BE18E3}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rxfilter", "samples\rxfilter\rxfilter.vcxproj", "{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -379,6 +381,18 @@ Global
 		{A87D995B-384F-4853-ABDB-3EC024BE18E3}.Release|x64.ActiveCfg = Release|x64
 		{A87D995B-384F-4853-ABDB-3EC024BE18E3}.Release|x64.Build.0 = Release|x64
 		{A87D995B-384F-4853-ABDB-3EC024BE18E3}.Release|x64.Deploy.0 = Release|x64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Debug|ARM64.Build.0 = Debug|ARM64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Debug|ARM64.Deploy.0 = Debug|ARM64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Debug|x64.ActiveCfg = Debug|x64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Debug|x64.Build.0 = Debug|x64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Debug|x64.Deploy.0 = Debug|x64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Release|ARM64.ActiveCfg = Release|ARM64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Release|ARM64.Build.0 = Release|ARM64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Release|ARM64.Deploy.0 = Release|ARM64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Release|x64.ActiveCfg = Release|x64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Release|x64.Build.0 = Release|x64
+		{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}.Release|x64.Deploy.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

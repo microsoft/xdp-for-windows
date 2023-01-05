@@ -48,14 +48,14 @@
 #define ntohs _byteswap_ushort
 #endif
 
+#ifdef KERNEL_MODE
+
 NTSTATUS
 RtlUInt32RoundUpToPowerOfTwo(
     _In_ UINT32 Value,
     _Out_ UINT32 *Result
     );
-
-#ifdef KERNEL_MODE
-
+    
 _IRQL_requires_max_(APC_LEVEL)
 _Acquires_exclusive_lock_(Lock)
 VOID
@@ -83,6 +83,24 @@ VOID
 RtlReleasePushLockShared(
     _Inout_ EX_PUSH_LOCK *Lock
     );
+
+#else
+
+inline
+INT8
+RtlFindMostSignificantBit(
+    _In_ UINT64 Value
+    )
+{
+    DWORD BitOffset;
+
+    if (_BitScanReverse64(&BitOffset, Value)) {
+        return (INT8)BitOffset;
+    } else {
+        return -1;
+    }
+}
+
 #endif
 
 UINT32

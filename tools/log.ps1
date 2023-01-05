@@ -4,19 +4,26 @@
 This helps start and stop ETW logging.
 
 .PARAMETER Config
-    Specifies the build configuration to use.
+    When using an artifacts directory, specifies the build configuration to use.
 
 .PARAMETER Arch
-    The CPU architecture to use.
+    When using an artifacts directory, specifies the CPU architecture to use.
+
+.PARAMETER SymbolPath
+    Specifies a directory containing symbol files.
 
 .PARAMETER Start
-    Starts the logging.
+    Starts logging.
+
+.PARAMETER Profile
+    Specifies the WPR profile to start logging.
 
 .PARAMETER Stop
-    Stops the logging.
+    Stops logging.
 
 .PARAMETER Convert
-    Converts the ETL to text.
+    Converts the ETL to text. Requires a symbol path, either implicitly via the
+    Config and Arch parameters or explicitly via SymbolPath.
 
 .PARAMETER Name
     The name or wildcard pattern of the tracing instance and output file.
@@ -36,6 +43,9 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
+    [string]$SymbolPath = $null,
+
+    [Parameter(Mandatory = $false)]
     [switch]$Start = $false,
 
     [Parameter(Mandatory = $false)]
@@ -45,7 +55,7 @@ param (
     [switch]$Convert = $false,
 
     [Parameter(Mandatory = $false)]
-    [string]$Profile = $null,
+    [string]$Profile = "XDP",
 
     [Parameter(Mandatory = $false)]
     [SupportsWildcards()]
@@ -62,10 +72,6 @@ param (
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-if ($Profile -eq $null -and $Start) {
-    Write-Error "-Start requires -Profile"
-}
-
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
@@ -73,6 +79,8 @@ $TracePdb = "$RootDir\artifacts\corenet-ci-main\vm-setup\tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
+
+& $RootDir/tools/prepare-machine.ps1 -ForLogging
 
 if (!$EtlPath) {
     $EtlPath = "$LogsDir\$Name.etl"
@@ -115,7 +123,11 @@ if ($Convert) {
         Write-Error "$EtlPath does not exist!"
     }
 
-    & $TracePdb -f "$ArtifactsDir\*.pdb" -p $TmfPath
+    if (!$SymbolPath) {
+        $SymbolPath = $ArtifactsDir
+    }
+
+    & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
 
     foreach ($Etl in Get-ChildItem $EtlPath) {
         Invoke-Expression "netsh trace convert $Etl tmfpath=$TmfPath overwrite=yes report=no"
