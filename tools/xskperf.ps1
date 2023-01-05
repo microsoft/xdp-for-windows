@@ -86,6 +86,9 @@ param (
     [int]$SocketCount = 1,
 
     [Parameter(Mandatory=$false)]
+    [int]$YieldCount = 0,
+
+    [Parameter(Mandatory=$false)]
     [string]$OutFile = "",
 
     [Parameter(Mandatory=$false)]
@@ -280,6 +283,10 @@ try {
 
     if ($Wait) {
         $ThreadParams += " -w"
+    }
+
+    if ($YieldCount -ne 0) {
+        $ThreadParams += " -yield $YieldCount"
     }
 
     if ($Stats) {

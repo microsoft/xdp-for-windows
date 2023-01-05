@@ -312,8 +312,9 @@ function Install-XdpMp {
     Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider
 
     if ($XdpmpPollProvider -eq "NDIS") {
-        Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
-        Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
+        #Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
+        #Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
+        Write-Verbose "Skipping NDIS polling configuration"
     }
 
     Wait-For-Adapters -IfDesc $XdpMpServiceName

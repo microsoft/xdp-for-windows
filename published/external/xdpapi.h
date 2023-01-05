@@ -43,9 +43,9 @@ extern "C" {
 //
 #define XDP_CREATE_PROGRAM_FLAG_SHARE   0x4
 
+typedef
 HRESULT
-XDPAPI
-XdpCreateProgram(
+XDP_CREATE_PROGRAM_FN(
     _In_ UINT32 InterfaceIndex,
     _In_ CONST XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -55,6 +55,7 @@ XdpCreateProgram(
     _Out_ HANDLE *Program
     );
 
+XDPAPI XDP_CREATE_PROGRAM_FN XdpCreateProgram;
 
 //
 // Interface API.
@@ -63,12 +64,14 @@ XdpCreateProgram(
 //
 // Open a handle to get/set offloads/configurations/properties on an interface.
 //
+typedef
 HRESULT
-XDPAPI
-XdpInterfaceOpen(
+XDP_INTERFACE_OPEN_FN(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );
+
+XDPAPI XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
 
 //
 // RSS offload.
@@ -150,13 +153,15 @@ XdpInitializeRssCapabilities(
 // too small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned.
 // Call with a NULL RssCapabilities to get the length.
 //
+typedef
 HRESULT
-XDPAPI
-XdpRssGetCapabilities(
+XDP_RSS_GET_CAPABILITIES_FN(
     _In_ HANDLE InterfaceHandle,
     _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
     _Inout_ UINT32 *RssCapabilitiesSize
     );
+
+XDPAPI XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
 
 typedef enum _XDP_RSS_FLAGS {
     XDP_RSS_FLAG_NONE = 0,
@@ -255,26 +260,159 @@ XdpInitializeRssConfiguration(
 // the handle is closed. Upon handle closure, RSS settings will revert back to
 // their original state.
 //
+typedef
 HRESULT
-XDPAPI
-XdpRssSet(
+XDP_RSS_SET_FN(
     _In_ HANDLE InterfaceHandle,
     _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     );
+
+XDPAPI XDP_RSS_SET_FN XdpRssSet;
 
 //
 // Query RSS settings on an interface. If the input RssConfigurationSize is too
 // small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned. Call
 // with a NULL RssConfiguration to get the length.
 //
+typedef
 HRESULT
-XDPAPI
-XdpRssGet(
+XDP_RSS_GET_FN(
     _In_ HANDLE InterfaceHandle,
     _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
     );
+
+XDPAPI XDP_RSS_GET_FN XdpRssGet;
+
+#include "afxdp.h"
+
+typedef struct _XDP_API_TABLE XDP_API_TABLE;
+
+//
+// The only API version currently supported. Any change to the API is considered
+// a breaking change and support for previous versions will be removed.
+//
+#define XDP_VERSION_PRERELEASE 100001
+
+//
+// Opens the API and returns an API function table with the rest of the API's
+// functions. Each open must invoke a corresponding XdpCloseApi when the API
+// will no longer be used.
+//
+typedef
+HRESULT
+XDP_OPEN_API_FN(
+    _In_ UINT32 XdpApiVersion,
+    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    );
+
+XDPAPI XDP_OPEN_API_FN XdpOpenApi;
+
+//
+// Releases the reference to the API returned by XdpOpenApi.
+//
+typedef
+VOID
+XDP_CLOSE_API_FN(
+    _In_ CONST XDP_API_TABLE *XdpApiTable
+    );
+
+XDPAPI XDP_CLOSE_API_FN XdpCloseApi;
+
+typedef struct _XDP_API_TABLE {
+    XDP_OPEN_API_FN *XdpOpenApi;
+    XDP_CLOSE_API_FN *XdpCloseApi;
+    XDP_CREATE_PROGRAM_FN *XdpCreateProgram;
+    XDP_INTERFACE_OPEN_FN *XdpInterfaceOpen;
+    XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities;
+    XDP_RSS_SET_FN *XdpRssSet;
+    XDP_RSS_GET_FN *XdpRssGet;
+    XSK_CREATE_FN *XskCreate;
+    XSK_BIND_FN *XskBind;
+    XSK_ACTIVATE_FN *XskActivate;
+    XSK_NOTIFY_SOCKET_FN *XskNotifySocket;
+    XSK_NOTIFY_ASYNC_FN *XskNotifyAsync;
+    XSK_GET_NOTIFY_ASYNC_RESULT_FN *XskGetNotifyAsyncResult;
+    XSK_SET_SOCKOPT_FN *XskSetSockopt;
+    XSK_GET_SOCKOPT_FN *XskGetSockopt;
+    XSK_IOCTL_FN *XskIoctl;
+} XDP_API_TABLE;
+
+typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
+
+#if !defined(_KERNEL_MODE)
+
+//
+// Dynamically loads XDP, then opens the API and returns an API function table
+// with the rest of the API's functions. Each open must invoke a corresponding
+// XdpCloseApi when the API will no longer be used.
+//
+// This routine cannot be called from DllMain.
+//
+inline
+HRESULT
+XdpLoadApi(
+    _In_ UINT32 XdpApiVersion,
+    _Out_ XDP_LOAD_API_CONTEXT *XdpLoadApiContext,
+    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    )
+{
+    HRESULT Result;
+    HMODULE XdpHandle;
+    XDP_OPEN_API_FN *OpenApi;
+
+    *XdpLoadApiContext = NULL;
+    *XdpApiTable = NULL;
+
+    XdpHandle = LoadLibraryA("xdpapi.dll");
+    if (XdpHandle == NULL) {
+        Result = E_NOINTERFACE;
+        goto Exit;
+    }
+
+    OpenApi = (XDP_OPEN_API_FN *)GetProcAddress(XdpHandle, "XdpOpenApi");
+    if (OpenApi == NULL) {
+        Result = E_NOINTERFACE;
+        goto Exit;
+    }
+
+    Result = OpenApi(XdpApiVersion, XdpApiTable);
+
+Exit:
+
+    if (SUCCEEDED(Result)) {
+        *XdpLoadApiContext = (XDP_LOAD_API_CONTEXT)XdpHandle;
+    } else {
+        if (XdpHandle != NULL) {
+            FreeLibrary(XdpHandle);
+        }
+    }
+
+    return Result;
+}
+
+//
+// Releases the reference to the API returned by XdpOpenApi, then dynamically
+// unloads XDP.
+//
+// This routine cannot be called from DllMain.
+//
+inline
+VOID
+XdpUnloadApi(
+    _In_ XDP_LOAD_API_CONTEXT XdpLoadApiContext,
+    _In_ CONST XDP_API_TABLE *XdpApiTable
+    )
+{
+    HMODULE XdpHandle = (HMODULE)XdpLoadApiContext;
+
+    XdpApiTable->XdpCloseApi(XdpApiTable);
+
+    FreeLibrary(XdpHandle);
+}
+
+#endif // !defined(_KERNEL_MODE)
 
 #ifdef __cplusplus
 } // extern "C"

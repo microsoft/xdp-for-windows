@@ -24,7 +24,11 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+
+#pragma warning(push)
+#pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
+#pragma warning(pop)
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
@@ -1559,7 +1563,7 @@ WaitForWfpQuarantine(
         if (SUCCEEDED(MpRxIndicateFrame(GenericMp, &RxFrame))) {
             Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
         } else {
-            Bytes = -1;
+            Bytes = (DWORD)-1;
         }
 
         if (Bytes == sizeof(UdpPayload)) {
@@ -1642,6 +1646,55 @@ MpXdpDeregister(
 //
 // Tests
 //
+
+static
+VOID
+VerifyPrereleaseApiTable(
+    _In_ const XDP_API_TABLE *XdpApiTable
+    )
+{
+    TEST_EQUAL(XdpOpenApi, XdpApiTable->XdpOpenApi);
+    TEST_EQUAL(XdpCloseApi, XdpApiTable->XdpCloseApi);
+    TEST_EQUAL(XdpCreateProgram, XdpApiTable->XdpCreateProgram);
+    TEST_EQUAL(XdpInterfaceOpen, XdpApiTable->XdpInterfaceOpen);
+    TEST_EQUAL(XdpRssGetCapabilities, XdpApiTable->XdpRssGetCapabilities);
+    TEST_EQUAL(XdpRssSet, XdpApiTable->XdpRssSet);
+    TEST_EQUAL(XdpRssGet, XdpApiTable->XdpRssGet);
+    TEST_EQUAL(XskCreate, XdpApiTable->XskCreate);
+    TEST_EQUAL(XskBind, XdpApiTable->XskBind);
+    TEST_EQUAL(XskActivate, XdpApiTable->XskActivate);
+    TEST_EQUAL(XskNotifySocket, XdpApiTable->XskNotifySocket);
+    TEST_EQUAL(XskNotifyAsync, XdpApiTable->XskNotifyAsync);
+    TEST_EQUAL(XskGetNotifyAsyncResult, XdpApiTable->XskGetNotifyAsyncResult);
+    TEST_EQUAL(XskSetSockopt, XdpApiTable->XskSetSockopt);
+    TEST_EQUAL(XskGetSockopt, XdpApiTable->XskGetSockopt);
+    TEST_EQUAL(XskIoctl, XdpApiTable->XskIoctl);
+}
+
+VOID
+OpenApiTest()
+{
+    const XDP_API_TABLE *XdpApiTable;
+
+    TEST_HRESULT(XdpOpenApi(XDP_VERSION_PRERELEASE, &XdpApiTable));
+    VerifyPrereleaseApiTable(XdpApiTable);
+    XdpCloseApi(XdpApiTable);
+
+    TEST_FALSE(SUCCEEDED(XdpOpenApi(XDP_VERSION_PRERELEASE + 1, &XdpApiTable)));
+}
+
+VOID
+LoadApiTest()
+{
+    XDP_LOAD_API_CONTEXT XdpLoadApiContext;
+    const XDP_API_TABLE *XdpApiTable;
+
+    TEST_HRESULT(XdpLoadApi(XDP_VERSION_PRERELEASE, &XdpLoadApiContext, &XdpApiTable));
+    VerifyPrereleaseApiTable(XdpApiTable);
+    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+
+    TEST_FALSE(SUCCEEDED(XdpOpenApi(XDP_VERSION_PRERELEASE + 1, &XdpApiTable)));
+}
 
 static
 VOID
@@ -2569,7 +2622,6 @@ GenericRxUdpFragmentQuicShortHeader(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
     UINT32 TotalOffset = 0;
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
@@ -2690,7 +2742,6 @@ GenericRxUdpFragmentQuicLongHeader(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
     UINT32 TotalOffset = 0;
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
@@ -3602,6 +3653,152 @@ GenericXskWait(
 }
 
 VOID
+GenericXskWaitAsync(
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx
+    )
+{
+    auto If = FnMpIf;
+    auto Xsk = SetupSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const UINT32 WaitTimeoutMs = 1000;
+    OVERLAPPED ov = {0};
+    wil::unique_handle iocp(CreateIoCompletionPort(Xsk.Handle.get(), NULL, 0, 0));
+
+    UCHAR Payload[] = "GenericXskWaitAsync";
+
+    auto RxIndicate = [&] {
+        DATA_BUFFER Buffer = {0};
+        Buffer.DataOffset = 0;
+        Buffer.DataLength = sizeof(Payload);
+        Buffer.BufferLength = Buffer.DataLength;
+        Buffer.VirtualAddress = Payload;
+
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+        SocketProduceRxFill(&Xsk, 1);
+        TEST_HRESULT(MpRxFlush(GenericMp));
+    };
+
+    auto TxIndicate = [&] {
+        UINT64 TxBuffer = SocketFreePop(&Xsk);
+        UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+        UINT32 TxFrameLength = sizeof(Payload);
+        ASSERT(TxFrameLength <= Xsk.Umem.Reg.chunkSize);
+        RtlCopyMemory(TxFrame, Payload, sizeof(Payload));
+
+        UINT32 ProducerIndex;
+        TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+        XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
+        TxDesc->address = TxBuffer;
+        TxDesc->length = TxFrameLength;
+        XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+        XSK_NOTIFY_RESULT_FLAGS PokeResult;
+        TEST_HRESULT(
+            XskNotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &PokeResult));
+        TEST_EQUAL(0, PokeResult);
+    };
+
+    XSK_NOTIFY_FLAGS NotifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 ExpectedResult = 0;
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+
+    if (Rx) {
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+        ExpectedResult |= XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE;
+    } else {
+        //
+        // Produce IO that does not satisfy the wait condition.
+        //
+        RxIndicate();
+    }
+
+    if (Tx) {
+        NotifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+        ExpectedResult |= XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE;
+    } else {
+        //
+        // Produce IO that does not satisfy the wait condition.
+        //
+        TxIndicate();
+    }
+
+    //
+    // Verify the wait times out when the requested IO is not available.
+    //
+    DWORD bytes;
+    ULONG_PTR key;
+    OVERLAPPED *ovp;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_IO_PENDING),
+        XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
+
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            //
+            // On another thread, briefly delay execution to give the main test
+            // thread a chance to begin waiting. Then, produce RX and TX.
+            //
+            Sleep(10);
+
+            if (Rx) {
+                RxIndicate();
+            }
+
+            if (Tx) {
+                TxIndicate();
+            }
+        }
+    );
+
+    //
+    // Verify the wait succeeds if any of the conditions is true, and that all
+    // conditions are eventually met.
+    //
+    do {
+        TEST_TRUE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+        TEST_EQUAL(&ov, ovp);
+        TEST_HRESULT(XskGetNotifyAsyncResult(&ov, &NotifyResult));
+        TEST_NOT_EQUAL(0, (NotifyResult & ExpectedResult));
+
+        if (NotifyResult & XSK_NOTIFY_RESULT_FLAG_RX_AVAILABLE) {
+            XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+        }
+
+        if (NotifyResult & XSK_NOTIFY_RESULT_FLAG_TX_COMP_AVAILABLE) {
+            XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
+        }
+
+        ExpectedResult &= ~NotifyResult;
+
+        if (ExpectedResult != 0) {
+            HRESULT res = XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov);
+            if (!SUCCEEDED(res)) {
+                TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_IO_PENDING), res);
+            }
+        }
+    } while (ExpectedResult != 0);
+
+    //
+    // Verify cancellation (happy path).
+    //
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_IO_PENDING),
+        XskNotifyAsync(Xsk.Handle.get(), NotifyFlags, &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
+    TEST_TRUE(CancelIoEx(Xsk.Handle.get(), &ov));
+    TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
+    TEST_EQUAL(ERROR_OPERATION_ABORTED, GetLastError());
+}
+
+VOID
 GenericLwfDelayDetach(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
@@ -3745,8 +3942,6 @@ GenericLoopback(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
-    UINT32 TotalOffset = 0;
     SOCKADDR_INET LocalSockAddr = {0};
 
     auto If = FnMpIf;
@@ -3953,7 +4148,6 @@ FnLwfTx()
 VOID
 FnLwfOid()
 {
-    HRESULT Result;
     OID_KEY OidKeys[2] = {0};
     UINT32 MpInfoBufferLength;
     unique_malloc_ptr<VOID> MpInfoBuffer;
@@ -4073,7 +4267,7 @@ SetXdpRss(
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
-    UINT32 HashSecretKeySize = 40;
+    UINT16 HashSecretKeySize = 40;
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
 
     //
@@ -4248,7 +4442,7 @@ VerifyRssDatapath(
     UCHAR Mask = 0x00;
     LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
 
-    IndicateOnAllActiveRssQueues(If, RssProcessors.size());
+    IndicateOnAllActiveRssQueues(If, (UINT32)RssProcessors.size());
 
     //
     // Verify that the resulting indications are as expected.
@@ -4259,7 +4453,7 @@ VerifyRssDatapath(
     // miniport's RSS processor set and that its RSS hash is 0.
     //
 
-    UINT32 NumRssProcessors = RssProcessors.size();
+    UINT32 NumRssProcessors = (UINT32)RssProcessors.size();
     for (UINT32 Index = 0; Index < NumRssProcessors; Index++) {
         auto Frame = LwfRxAllocateAndGetFrame(DefaultLwf, Index);
         PROCESSOR_NUMBER Processor = Frame->Output.ProcessorNumber;
@@ -4278,7 +4472,7 @@ OffloadRssError()
 {
     wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
-    UINT32 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
+    UINT16 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
     UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
 
     //
@@ -4297,11 +4491,23 @@ OffloadRssError()
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
         XdpInterfaceOpen(MAXUINT32, &InterfaceHandle));
 
-    //
-    // Set while XSK is bound.
-    //
-
     TEST_HRESULT(XdpInterfaceOpen(FnMpIf.GetIfIndex(), &InterfaceHandle));
+
+    //
+    // Work around issue #3: if TCPIP hasn't already plumbed RSS configuration,
+    // XDP fails to partially set RSS. Wait for TCPIP's configuration before
+    // continuing with this test case.
+    //
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    HRESULT CurrentRssResult;
+    do {
+        UINT32 CurrentRssConfigSize = 0;
+        CurrentRssResult = XdpRssGet(InterfaceHandle.get(), NULL, &CurrentRssConfigSize);
+        if (CurrentRssResult == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
+            break;
+        }
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), CurrentRssResult);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
 
@@ -4551,7 +4757,7 @@ OffloadRssInterfaceRestart()
             continue;
         }
 
-        UINT32 Size = 0;
+        Size = 0;
         Result = XdpRssGet(InterfaceHandle.get(), NULL, &Size);
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
@@ -4706,7 +4912,7 @@ CreateIndirectionTable(
     _Out_ UINT32 *IndirectionTableSize
     )
 {
-    *IndirectionTableSize = ProcessorIndices.size() * sizeof(*IndirectionTable);
+    *IndirectionTableSize = (UINT32)ProcessorIndices.size() * sizeof(*IndirectionTable);
 
     IndirectionTable.reset((PROCESSOR_NUMBER *)malloc(*IndirectionTableSize));
     TEST_TRUE(IndirectionTable.get() != NULL);
@@ -5268,13 +5474,9 @@ OffloadSetHardwareCapabilities()
 VOID
 GenericXskQueryAffinity()
 {
-    wil::unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> ModifiedRssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
-    UINT32 RssConfigSize;
-    UINT32 ModifiedRssConfigSize;
-    UINT32 OriginalRssConfigSize;
     UCHAR BufferVa[] = "GenericXskQueryAffinity";
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 

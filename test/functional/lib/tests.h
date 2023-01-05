@@ -12,6 +12,12 @@ bool
 TestCleanup();
 
 VOID
+OpenApiTest();
+
+VOID
+LoadApiTest();
+
+VOID
 GenericBinding();
 
 VOID
@@ -99,6 +105,12 @@ GenericTxMtu();
 
 VOID
 GenericXskWait(
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx
+    );
+
+VOID
+GenericXskWaitAsync(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
     );

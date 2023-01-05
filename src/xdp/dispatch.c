@@ -291,7 +291,6 @@ XdpFastDeviceIoControl(
     PAGED_CODE();
 
     if (FileObjHeader == NULL) {
-        IoStatus->Status = STATUS_INVALID_PARAMETER;
         return FALSE;
     }
 
@@ -302,7 +301,6 @@ XdpFastDeviceIoControl(
                 FileObjHeader, InputBuffer, InputBufferLength, OutputBuffer,
                 OutputBufferLength, IoControlCode, IoStatus);
     default:
-        IoStatus->Status = STATUS_INVALID_PARAMETER;
         return FALSE;
     }
 

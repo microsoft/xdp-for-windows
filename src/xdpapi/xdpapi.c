@@ -5,6 +5,52 @@
 
 #include "precomp.h"
 
+static CONST XDP_API_TABLE XdpApiTablePrerelease = {
+    .XdpOpenApi = XdpOpenApi,
+    .XdpCloseApi = XdpCloseApi,
+    .XdpCreateProgram = XdpCreateProgram,
+    .XdpInterfaceOpen = XdpInterfaceOpen,
+    .XdpRssGetCapabilities = XdpRssGetCapabilities,
+    .XdpRssSet = XdpRssSet,
+    .XdpRssGet = XdpRssGet,
+    .XskCreate = XskCreate,
+    .XskBind = XskBind,
+    .XskActivate = XskActivate,
+    .XskNotifySocket = XskNotifySocket,
+    .XskNotifyAsync = XskNotifyAsync,
+    .XskGetNotifyAsyncResult = XskGetNotifyAsyncResult,
+    .XskSetSockopt = XskSetSockopt,
+    .XskGetSockopt = XskGetSockopt,
+    .XskIoctl = XskIoctl,
+};
+
+HRESULT
+XDPAPI
+XdpOpenApi(
+    _In_ UINT32 XdpApiVersion,
+    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    )
+{
+    *XdpApiTable = NULL;
+
+    if (XdpApiVersion != XDP_VERSION_PRERELEASE) {
+        return E_NOINTERFACE;
+    }
+
+    *XdpApiTable = &XdpApiTablePrerelease;
+
+    return S_OK;
+}
+
+VOID
+XDPAPI
+XdpCloseApi(
+    _In_ CONST XDP_API_TABLE *XdpApiTable
+    )
+{
+    FRE_ASSERT(XdpApiTable == &XdpApiTablePrerelease);
+}
+
 HRESULT
 XDPAPI
 XdpCreateProgram(

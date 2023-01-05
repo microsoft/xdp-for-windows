@@ -31,7 +31,7 @@ jobs:
         platform: [x64]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+      uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
       with:
         submodules: recursive
     - name: Setup MSBuild.exe
@@ -59,7 +59,7 @@ jobs:
           !artifacts/bin/**/*.exp
           !artifacts/bin/**/*.lastcodeanalysissucceeded
     - name: Publish Symbols
-      uses: microsoft/action-publish-symbols@61a07464e0b78d726c5c6c42efd3224eb982d1cf
+      uses: microsoft/action-publish-symbols@c82a258c03d72d371fe9138fc887c2c6e1778e38
       if: github.event_name != 'pull_request'
       with:
         accountName: mscodehub
@@ -85,7 +85,7 @@ jobs:
     runs-on: windows-${{ matrix.windows }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+      uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
     - name: Check Drivers
       shell: pwsh
       run: tools/check-drivers.ps1 -Verbose
@@ -93,7 +93,7 @@ jobs:
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@fb598a63ae348fa914e94cd0ff38f362e927b741
+      uses: actions/download-artifact@9782bd6a9848b53b110e712e20e42d89988822b7
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -146,7 +146,7 @@ jobs:
     runs-on: windows-${{ matrix.windows }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+      uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
     - name: Check Drivers
       shell: pwsh
       run: tools/check-drivers.ps1 -Verbose
@@ -154,7 +154,7 @@ jobs:
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@fb598a63ae348fa914e94cd0ff38f362e927b741
+      uses: actions/download-artifact@9782bd6a9848b53b110e712e20e42d89988822b7
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -194,15 +194,18 @@ jobs:
     runs-on: windows-2019
     steps:
     - name: Checkout repository
-      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+      uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
     - name: Download Artifacts
-      uses: actions/download-artifact@fb598a63ae348fa914e94cd0ff38f362e927b741
+      uses: actions/download-artifact@9782bd6a9848b53b110e712e20e42d89988822b7
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Create Dev Kit
       shell: pwsh
       run: tools/create-devkit.ps1 -Flavor ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Create Runtime Kit
+      shell: pwsh
+      run: tools/create-runtime-kit.ps1 -Flavor ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Kit
       uses: actions/upload-artifact@3cea5372237819ed00197afe530f5a7ea3e805c8
       with:
@@ -219,9 +222,9 @@ jobs:
         configuration: [Release, Debug]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@629c2de402a417ea7690ca6ce3f33229e27606a5
+      uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
     - name: Setup .NET
-      uses: actions/setup-dotnet@c0d4ad69d8bd405d234f1c9166d383b7a4f69ed8
+      uses: actions/setup-dotnet@45c9f236cf9a0c09d11298348f6ed06bd81914c0
       with:
         dotnet-version: 6.0.x
     - name: Build

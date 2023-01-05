@@ -111,11 +111,13 @@ C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 // Creates an AF_XDP socket object and returns a handle to it.
 // To close the socket object, call CloseHandle.
 //
+typedef
 HRESULT
-XDPAPI
-XskCreate(
+XSK_CREATE_FN(
     _Out_ HANDLE* socket
     );
+
+XDPAPI XSK_CREATE_FN XskCreate;
 
 typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NONE = 0x0,
@@ -153,14 +155,16 @@ C_ASSERT(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32));
 // can only be bound to a single network interface queue.
 //
 
+typedef
 HRESULT
-XDPAPI
-XskBind(
+XSK_BIND_FN(
     _In_ HANDLE socket,
     _In_ UINT32 ifIndex,
     _In_ UINT32 queueId,
     _In_ XSK_BIND_FLAGS flags
     );
+
+XDPAPI XSK_BIND_FN XskBind;
 
 typedef enum _XSK_ACTIVATE_FLAGS {
     XSK_ACTIVATE_FLAG_NONE = 0x0,
@@ -182,12 +186,14 @@ C_ASSERT(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32));
 // 2) The socket object must have registered or shared a UMEM.
 //
 
+typedef
 HRESULT
-XDPAPI
-XskActivate(
+XSK_ACTIVATE_FN(
     _In_ HANDLE socket,
     _In_ XSK_ACTIVATE_FLAGS flags
     );
+
+XDPAPI XSK_ACTIVATE_FN XskActivate;
 
 //
 // XskNotifySocket
@@ -254,51 +260,103 @@ typedef enum _XSK_NOTIFY_RESULT_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_RESULT_FLAGS)
 C_ASSERT(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32));
 
+typedef
 HRESULT
-XDPAPI
-XskNotifySocket(
+XSK_NOTIFY_SOCKET_FN(
     _In_ HANDLE socket,
     _In_ XSK_NOTIFY_FLAGS flags,
     _In_ UINT32 waitTimeoutMilliseconds,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *result
     );
 
+XDPAPI XSK_NOTIFY_SOCKET_FN XskNotifySocket;
+
+typedef struct _OVERLAPPED OVERLAPPED;
+
+//
+// XskNotifyAsync
+//
+// The purpose of this API is two-fold:
+//     1) Pokes the underlying driver to continue IO processing
+//     2) Waits on the underlying driver until IO is available
+//
+// Apps will commonly need to perform both of these actions at once, so a single
+// API is offered to handle both in a single syscall.
+//
+// When performing both actions, the poke is executed first. If the poke fails,
+// the API ignores the wait and returns immediately with a failure result. If
+// the poke succeeds, then the wait is executed.
+//
+// Unlike XskNotifySocket, this routine does not perform the wait inline.
+// Instead, if a wait was requested and could not be immediately satisfied, the
+// routine returns HRESULT_FROM_WIN32(ERROR_IO_PENDING) and the overlapped IO
+// will be completed asynchronously. Once the IO has completed, the
+// XskGetNotifyAsyncResult routine may be used to retrieve the result flags.
+//
+
+typedef
+HRESULT
+XSK_NOTIFY_ASYNC_FN(
+    _In_ HANDLE socket,
+    _In_ XSK_NOTIFY_FLAGS flags,
+    _Inout_ OVERLAPPED *overlapped
+    );
+
+XDPAPI XSK_NOTIFY_ASYNC_FN XskNotifyAsync;
+
+//
+// Retrieves the result flags from a previously completed XskNotifyAsync.
+//
+
+typedef
+HRESULT
+XSK_GET_NOTIFY_ASYNC_RESULT_FN(
+    _In_ OVERLAPPED *overlapped,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
+    );
+
+XDPAPI XSK_GET_NOTIFY_ASYNC_RESULT_FN XskGetNotifyAsyncResult;
+
 //
 // XskSetSockopt
 //
 // Sets a socket option.
 //
+typedef
 HRESULT
-XDPAPI
-XskSetSockopt(
+XSK_SET_SOCKOPT_FN(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
     _In_reads_bytes_opt_(optionLength) const VOID *optionValue,
     _In_ UINT32 optionLength
     );
 
+XDPAPI XSK_SET_SOCKOPT_FN XskSetSockopt;
+
 //
 // XskGetSockopt
 //
 // Gets a socket option.
 //
+typedef
 HRESULT
-XDPAPI
-XskGetSockopt(
+XSK_GET_SOCKOPT_FN(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
     _Out_writes_bytes_(*optionLength) VOID *optionValue,
     _Inout_ UINT32 *optionLength
     );
 
+XDPAPI XSK_GET_SOCKOPT_FN XskGetSockopt;
+
 //
 // XskIoctl
 //
 // Performs a socket IOCTL.
 //
+typedef
 HRESULT
-XDPAPI
-XskIoctl(
+XSK_IOCTL_FN(
     _In_ HANDLE socket,
     _In_ UINT32 optionName,
     _In_reads_bytes_opt_(inputLength) const VOID *inputValue,
@@ -306,6 +364,8 @@ XskIoctl(
     _Out_writes_bytes_(*outputLength) VOID *outputValue,
     _Inout_ UINT32 *outputLength
     );
+
+XDPAPI XSK_IOCTL_FN XskIoctl;
 
 //
 // Socket options

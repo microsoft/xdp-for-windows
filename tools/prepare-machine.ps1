@@ -17,6 +17,9 @@ This prepares a machine for running XDP.
     Installs all the run-time dependencies and configures machine for
     spinxsk tests.
 
+.PARAMETER ForLogging
+    Installs all the logging dependencies.
+
 .PARAMETER NoReboot
     Does not reboot the machine.
 
@@ -39,6 +42,9 @@ param (
     [switch]$ForSpinxskTest = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$ForLogging = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$NoReboot = $false,
 
     [Parameter(Mandatory = $false)]
@@ -57,8 +63,8 @@ $ProgressPreference = 'SilentlyContinue'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-if (!$ForBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest) {
-    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, or -ForSpinxskTest'
+if (!$ForBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForLogging) {
+    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, or -ForLogging'
 }
 
 # Flag that indicates something required a reboot.
@@ -205,6 +211,10 @@ if ($Cleanup) {
         Install-Certs
         Setup-VcRuntime
         Setup-VsTest
+    }
+
+    if ($ForLogging) {
+        Download-CoreNet-Deps
     }
 }
 

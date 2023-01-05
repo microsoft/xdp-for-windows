@@ -135,7 +135,7 @@ FnMpTxGetFrame(
     Result =
         FnMpIoctl(
             Handle, IOCTL_TX_GET_FRAME, &In, sizeof(In), Frame, *FrameBufferLength,
-            (ULONG *)FrameBufferLength, NULL);
+            FrameBufferLength, NULL);
 
     if (SUCCEEDED(Result) && Frame != NULL) {
         //

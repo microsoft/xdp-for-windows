@@ -103,7 +103,7 @@ FnLwfRxGetFrame(
     Result =
         FnLwfIoctl(
             Handle, IOCTL_RX_GET_FRAME, &In, sizeof(In), Frame, *FrameBufferLength,
-            (ULONG *)FrameBufferLength, NULL);
+            FrameBufferLength, NULL);
 
     if (SUCCEEDED(Result) && Frame != NULL) {
         //

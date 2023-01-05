@@ -1,5 +1,8 @@
 #
-# Assembles a dev kit for both AF_XDP client and XDP driver development.
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+#
+# Assembles an XDP runtime package.
 # Code must be built before running this script.
 #
 
@@ -16,7 +19,7 @@ param (
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$Name = "xdp-devkit-$Platform"
+$Name = "xdp-runtime-$Platform"
 if ($Flavor -eq "Debug") {
     $Name += "-debug"
 }
@@ -33,26 +36,11 @@ copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.inf" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.sys" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdp.cat" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp\xdpapi.dll" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.exe" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\rxfilter.exe" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.exe" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdp.pdb"   $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.pdb" $DstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\pktcmd.pdb" $DstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\rxfilter.pdb" $DstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Flavor)\xskbench.pdb" $DstPath\symbols
 
-New-Item -Path $DstPath\include -ItemType Directory > $null
-copy -Recurse published\external\* $DstPath\include
-
-New-Item -Path $DstPath\lib -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpapi.lib" $DstPath\lib
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.lib" $DstPath\lib
-# Package the NMR symbols alongside its static library: consuming projects will
-# throw build exceptions if symbols are missing for statically linked code.
-copy "artifacts\bin\$($Platform)_$($Flavor)\xdpnmr.pdb" $DstPath\lib
 
 [xml]$XdpVersion = Get-Content $RootDir\xdp.props
 $Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion

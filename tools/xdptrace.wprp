@@ -83,6 +83,17 @@
             </Keywords>
         </EventProvider>
 
+        <Profile Id="XDP.Verbose.File" Name="XDP" Description="XDP" LoggingMode="File" DetailLevel="Verbose">
+            <Collectors>
+                <EventCollectorId Value="EC_HighVolume">
+                    <EventProviders>
+                        <EventProviderId Value="EP_XdpEtwPerFrame" />
+                        <EventProviderId Value="EP_XdpWpp" />
+                    </EventProviders>
+                </EventCollectorId>
+            </Collectors>
+        </Profile>
+
         <Profile Id="XdpFunctional.Verbose.File" Name="XdpFunctional" Description="XDP Functional Test" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>
                 <EventCollectorId Value="EC_HighVolume">
