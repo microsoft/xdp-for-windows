@@ -54,6 +54,10 @@ DefaultIrpDeviceIoControl(
         Status = StatusIrpGetIndication(Default->Status, Irp, IrpSp);
         break;
 
+    case IOCTL_DATAPATH_GET_STATE:
+        Status = FilterIrpGetDatapathState(Default->Filter, Irp, IrpSp);
+        break;
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
