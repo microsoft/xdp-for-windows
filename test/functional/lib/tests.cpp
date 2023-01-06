@@ -1830,7 +1830,9 @@ TestSetup()
     TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
     TEST_EQUAL(0, system("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     WaitForWfpQuarantine(FnMpIf);
+    WaitForNdisDatapath(FnMpIf);
     WaitForWfpQuarantine(FnMp1QIf);
+    WaitForNdisDatapath(FnMp1QIf);
     return true;
 }
 
