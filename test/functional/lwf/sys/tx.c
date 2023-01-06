@@ -161,7 +161,7 @@ TxIrpFlush(
 
     if (!ExAcquireRundownProtectionEx(&Filter->NblRundown, (UINT32)Nbls.NblCount)) {
         TxCleanupNblChain(NdisGetNblChainFromNblCountedQueue(&Nbls));
-        Status = STATUS_DELETE_PENDING;
+        Status = STATUS_DEVICE_NOT_READY;
         goto Exit;
     }
 
