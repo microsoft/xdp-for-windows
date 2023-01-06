@@ -124,6 +124,17 @@ XdpLwfBindStop(
     }
 }
 
+static
+VOID
+XdpLwfDeleteIfSetComplete(
+    _In_ VOID *InterfaceContext
+    )
+{
+    XDP_LWF_FILTER *Filter = InterfaceContext;
+
+    XdpLwfDereferenceFilter(Filter);
+}
+
 _Use_decl_annotations_
 NDIS_STATUS
 XdpLwfFilterAttach(
@@ -170,7 +181,7 @@ XdpLwfFilterAttach(
     Status =
         XdpIfCreateInterfaceSet(
             Filter->MiniportIfIndex, &XdpLwfOffloadDispatch, Filter,
-            &Filter->XdpIfInterfaceSetHandle);
+            XdpLwfDeleteIfSetComplete, &Filter->XdpIfInterfaceSetHandle);
     if (!NT_SUCCESS(Status)) {
         ASSERT(Filter->XdpIfInterfaceSetHandle == NULL);
         Status = XdpConvertNtStatusToNdisStatus(Status);
@@ -310,6 +321,11 @@ XdpLwfFilterDetach(
         XdpNativeDetachInterface(&Filter->Native);
         XdpGenericDetachInterface(&Filter->Generic);
 
+        //
+        // Ensure the filter remains valid until the interface set is deleted
+        // asynchronously.
+        //
+        XdpLwfReferenceFilter(Filter);
         XdpIfDeleteInterfaceSet(Filter->XdpIfInterfaceSetHandle);
     }
 

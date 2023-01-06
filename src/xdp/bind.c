@@ -72,6 +72,7 @@ typedef struct _XDP_INTERFACE_SET {
     XDP_REFERENCE_COUNT ReferenceCount;
     CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch;
     VOID *XdpIfInterfaceSetContext;
+    XDP_DELETE_INTERFACE_SET_COMPLETE *XdpIfDeleteInterfaceSetComplete;
     XDP_INTERFACE *Interfaces[2];   // One interface for both generic and native.
 } XDP_INTERFACE_SET;
 
@@ -192,6 +193,10 @@ XdpIfpDereferenceIfSet(
     )
 {
     if (XdpDecrementReferenceCount(&IfSet->ReferenceCount)) {
+        IfSet->XdpIfDeleteInterfaceSetComplete(IfSet->XdpIfInterfaceSetContext);
+        TraceVerbose(
+            TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p Delete completed",
+            IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
         ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
     }
 }
@@ -819,6 +824,7 @@ XdpIfpRemoveXdpIfInterface(
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)Item->BindingHandle;
+    XDP_INTERFACE_SET *IfSet;
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
@@ -831,9 +837,11 @@ XdpIfpRemoveXdpIfInterface(
 
     RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
     Interface->IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
-    XdpIfpDereferenceIfSet(Interface->IfSet);
+    IfSet = Interface->IfSet;
     Interface->IfSet = NULL;
     RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
+
+    XdpIfpDereferenceIfSet(IfSet);
 
     ASSERT(Interface->XdpIfApi.InterfaceContext != NULL);
     Interface->XdpIfApi.RemoveInterfaceComplete(Interface->XdpIfApi.InterfaceContext);
@@ -917,6 +925,7 @@ XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
     _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
+    _In_ XDP_DELETE_INTERFACE_SET_COMPLETE *DeleteInterfaceSetComplete,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     )
 {
@@ -949,6 +958,7 @@ XdpIfCreateInterfaceSet(
     IfSet->IfIndex = IfIndex;
     IfSet->OffloadDispatch = OffloadDispatch;
     IfSet->XdpIfInterfaceSetContext = InterfaceSetContext;
+    IfSet->XdpIfDeleteInterfaceSetComplete = DeleteInterfaceSetComplete;
     XdpInitializeReferenceCount(&IfSet->ReferenceCount);
     InitializeListHead(&IfSet->Link);
     InsertTailList(&XdpInterfaceSets, &IfSet->Link);
@@ -993,9 +1003,10 @@ XdpIfDeleteInterfaceSet(
         IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
 
     RemoveEntryList(&IfSet->Link);
-    XdpIfpDereferenceIfSet(IfSet);
 
     RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
+
+    XdpIfpDereferenceIfSet(IfSet);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -1080,14 +1091,24 @@ Exit:
                 Interface = (XDP_INTERFACE *)(*Interfaces[Index].InterfaceHandle);
                 ASSERT(IfSet);
                 IfSet->Interfaces[Interface->Capabilities.Mode] = NULL;
+            }
+        }
+    }
+
+    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
+
+    if (!NT_SUCCESS(Status)) {
+        for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
+            if (*Interfaces[Index].InterfaceHandle != NULL) {
+                XDP_INTERFACE *Interface;
+                Interface = (XDP_INTERFACE *)(*Interfaces[Index].InterfaceHandle);
+                ASSERT(IfSet);
                 *Interfaces[Index].InterfaceHandle = NULL;
                 XdpIfpDereferenceInterface(Interface);
                 XdpIfpDereferenceIfSet(IfSet);
             }
         }
     }
-
-    RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     TraceExitStatus(TRACE_CORE);
 
