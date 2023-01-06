@@ -2,6 +2,37 @@
 # Helper functions for XDP project.
 #
 
+# Disable Invoke-WebRequest progress bar to work around a bug that slows downloads.
+$ProgressPreference = 'SilentlyContinue'
+
+function Invoke-WebRequest-WithRetry {
+    param (
+        [Parameter()]
+        [string]$Uri,
+
+        [Parameter()]
+        [string]$OutFile
+    )
+
+    $MaxTries = 10
+    $Success = $false
+
+    foreach ($i in 1..$MaxTries) {
+        try {
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            $Success = $true
+            break;
+        } catch [System.Net.WebException] {
+            if ($i -lt $MaxTries) {
+                Write-Verbose "Invoke-WebRequest-WithRetry [$i/$MaxTries] Failed to download $Uri"
+                Start-Sleep -Seconds $i
+            } else {
+                throw
+            }
+        }
+    }
+}
+
 function Get-CurrentBranch {
     $env:GIT_REDIRECT_STDERR = '2>&1'
     $CurrentBranch = $null
