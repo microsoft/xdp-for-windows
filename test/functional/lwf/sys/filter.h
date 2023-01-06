@@ -55,3 +55,11 @@ LWF_FILTER *
 FilterFindAndReferenceFilter(
     _In_ UINT32 IfIndex
     );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+FilterIrpGetDatapathState(
+    _In_ LWF_FILTER *Filter,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    );

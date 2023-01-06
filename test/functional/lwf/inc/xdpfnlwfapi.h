@@ -77,4 +77,10 @@ FnLwfStatusGetIndication(
     _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
     );
 
+HRESULT
+FnLwfDatapathGetState(
+    _In_ HANDLE Handle,
+    BOOLEAN *IsDatapathActive
+    );
+
 EXTERN_C_END

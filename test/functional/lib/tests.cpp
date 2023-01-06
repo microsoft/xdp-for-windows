@@ -133,6 +133,14 @@ static CONST CHAR *PowershellPrefix;
 // Helper functions.
 //
 
+class TestInterface;
+
+static
+VOID
+WaitForNdisDatapath(
+    _In_ const TestInterface& If
+    );
+
 typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
 
 RTL_OSVERSIONINFOW
@@ -217,6 +225,70 @@ ClearBit(
 {
     BitMap[Index >> 3] &= (UINT8)~(1 << (Index & 0x7));
 }
+
+template<class T>
+class Stopwatch {
+private:
+    LARGE_INTEGER _StartQpc;
+    LARGE_INTEGER _FrequencyQpc;
+    T _TimeoutInterval;
+
+public:
+    Stopwatch(
+        _In_opt_ T TimeoutInterval = T::max()
+        )
+        :
+        _TimeoutInterval(TimeoutInterval)
+    {
+        QueryPerformanceFrequency(&_FrequencyQpc);
+        QueryPerformanceCounter(&_StartQpc);
+    }
+
+    T
+    Elapsed()
+    {
+        LARGE_INTEGER End;
+        UINT64 ElapsedQpc;
+
+        QueryPerformanceCounter(&End);
+        ElapsedQpc = End.QuadPart - _StartQpc.QuadPart;
+
+        return T((ElapsedQpc * T::period::den) / T::period::num / _FrequencyQpc.QuadPart);
+    }
+
+    bool
+    IsExpired()
+    {
+        return Elapsed() >= _TimeoutInterval;
+    }
+
+    void
+    ExpectElapsed(
+        _In_ T ExpectedInterval,
+        _In_opt_ UINT32 MarginPercent = 10
+        )
+    {
+        T Fudge = (ExpectedInterval * MarginPercent) / 100;
+        TEST_TRUE(MarginPercent == 0 || Fudge > T(0));
+        TEST_TRUE(Elapsed() >= ExpectedInterval - Fudge);
+        TEST_TRUE(Elapsed() <= ExpectedInterval + Fudge);
+    }
+
+    void
+    Reset()
+    {
+        QueryPerformanceCounter(&_StartQpc);
+    }
+
+    void
+    Reset(
+        _In_ T TimeoutInterval
+        )
+    {
+        _TimeoutInterval = TimeoutInterval;
+        Reset();
+    }
+};
 
 class TestInterface {
 private:
@@ -350,12 +422,16 @@ public:
     }
 
     VOID
-    Restart() const
+    Restart(BOOLEAN WaitForUp = TRUE) const
     {
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
         TEST_EQUAL(0, system(CmdBuff));
+
+        if (WaitForUp) {
+            WaitForNdisDatapath(*this);
+        }
     }
 
     VOID
@@ -366,70 +442,6 @@ public:
         sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
         TEST_EQUAL(0, system(CmdBuff));
         Restart();
-    }
-};
-
-template<class T>
-class Stopwatch {
-private:
-    LARGE_INTEGER _StartQpc;
-    LARGE_INTEGER _FrequencyQpc;
-    T _TimeoutInterval;
-
-public:
-    Stopwatch(
-        _In_opt_ T TimeoutInterval = T::max()
-        )
-        :
-        _TimeoutInterval(TimeoutInterval)
-    {
-        QueryPerformanceFrequency(&_FrequencyQpc);
-        QueryPerformanceCounter(&_StartQpc);
-    }
-
-    T
-    Elapsed()
-    {
-        LARGE_INTEGER End;
-        UINT64 ElapsedQpc;
-
-        QueryPerformanceCounter(&End);
-        ElapsedQpc = End.QuadPart - _StartQpc.QuadPart;
-
-        return T((ElapsedQpc * T::period::den) / T::period::num / _FrequencyQpc.QuadPart);
-    }
-
-    bool
-    IsExpired()
-    {
-        return Elapsed() >= _TimeoutInterval;
-    }
-
-    void
-    ExpectElapsed(
-        _In_ T ExpectedInterval,
-        _In_opt_ UINT32 MarginPercent = 10
-        )
-    {
-        T Fudge = (ExpectedInterval * MarginPercent) / 100;
-        TEST_TRUE(MarginPercent == 0 || Fudge > T(0));
-        TEST_TRUE(Elapsed() >= ExpectedInterval - Fudge);
-        TEST_TRUE(Elapsed() <= ExpectedInterval + Fudge);
-    }
-
-    void
-    Reset()
-    {
-        QueryPerformanceCounter(&_StartQpc);
-    }
-
-    void
-    Reset(
-        _In_ T TimeoutInterval
-        )
-    {
-        _TimeoutInterval = TimeoutInterval;
-        Reset();
     }
 };
 
@@ -1161,6 +1173,19 @@ LwfOpenDefault(
     return Handle;
 }
 
+static
+BOOLEAN
+LwfIsDatapathActive(
+    _In_ const wil::unique_handle& Handle
+    )
+{
+    BOOLEAN IsDatapathActive;
+
+    TEST_HRESULT(FnLwfDatapathGetState(Handle.get(), &IsDatapathActive));
+
+    return IsDatapathActive;
+}
+
 struct RX_FRAME {
     DATA_FRAME Frame;
     DATA_BUFFER SingleBufferStorage;
@@ -1738,6 +1763,46 @@ WaitForWfpQuarantine(
 
 static
 VOID
+WaitForNdisDatapath(
+    _In_ const TestInterface& If
+    )
+{
+    CHAR CmdBuff[256];
+    BOOLEAN AdapterUp = FALSE;
+    BOOLEAN LwfUp = FALSE;
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+
+    //
+    // Wait for the adapter to be "Up", which implies the adapter's data path
+    // has been started, which implies the miniport's datapath is active, which
+    // in turn implies XDP has finished binding to the NIC.
+    //
+    // Wait for the functional LWF above XDP to be unpaused.
+    //
+    // Together, while this does not contractually imply the XDP data path is
+    // unpaused, since the NDIS components above and below XDP are both active,
+    // this is the best heuristic we have to determine XDP itself is also up.
+    //
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+
+    do {
+        sprintf_s(
+            CmdBuff,
+            "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
+            PowershellPrefix, If.GetIfDesc());
+        AdapterUp = !!system(CmdBuff);
+
+        wil::unique_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
+        LwfUp = LwfIsDatapathActive(FnLwf);
+    } while (Sleep(POLL_INTERVAL_MS), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
+
+    TEST_TRUE(AdapterUp);
+    TEST_TRUE(LwfUp);
+}
+
+static
+VOID
 ClearMaskedBits(
     _Inout_ XDP_INET_ADDR *Ip,
     _In_ CONST XDP_INET_ADDR *Mask,
@@ -1840,7 +1905,7 @@ BindingTest(
 
             if (RestartAdapter) {
                 Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
-                If.Restart();
+                If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
             }
         }
@@ -1854,7 +1919,7 @@ BindingTest(
 
             if (RestartAdapter) {
                 Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
-                If.Restart();
+                If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
             }
 
@@ -1876,6 +1941,7 @@ BindingTest(
 
     if (RestartAdapter) {
         WaitForWfpQuarantine(If);
+        WaitForNdisDatapath(If);
     }
 }
 
@@ -5251,8 +5317,10 @@ OffloadSetHardwareCapabilities()
     TEST_EQUAL(0, system(CmdBuff));
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled'", PowershellPrefix, If.GetIfDesc());
+    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
     TEST_EQUAL(0, system(CmdBuff));
+
+    If.Restart();
 
     DefaultLwf = LwfOpenDefault(If.GetIfIndex());
 

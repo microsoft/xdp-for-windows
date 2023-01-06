@@ -205,3 +205,15 @@ FnLwfStatusGetIndication(
             Handle, IOCTL_STATUS_GET_INDICATION, NULL, 0, StatusBuffer, *StatusBufferLength,
             StatusBufferLength, NULL);
 }
+
+HRESULT
+FnLwfDatapathGetState(
+    _In_ HANDLE Handle,
+    BOOLEAN *IsDatapathActive
+    )
+{
+    return
+        FnLwfIoctl(
+            Handle, IOCTL_DATAPATH_GET_STATE, NULL, 0, IsDatapathActive, sizeof(*IsDatapathActive),
+            NULL, NULL);
+}

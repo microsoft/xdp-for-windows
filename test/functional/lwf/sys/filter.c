@@ -333,3 +333,33 @@ FilterSetOptions(
 
     return NDIS_STATUS_SUCCESS;
 }
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+FilterIrpGetDatapathState(
+    _In_ LWF_FILTER *Filter,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
+    BOOLEAN DatapathActive = Filter->NdisState == FilterRunning;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CONTROL, "IfIndex=%u", Filter->MiniportIfIndex);
+
+    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(DatapathActive)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, &DatapathActive, sizeof(DatapathActive));
+    *BytesReturned = sizeof(DatapathActive);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_CONTROL);
+
+    return Status;
+}
