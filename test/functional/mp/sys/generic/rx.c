@@ -193,7 +193,7 @@ GenericIrpRxFlush(
 
     if (!ExAcquireRundownProtectionEx(&Adapter->Generic->NblRundown, (UINT32)Nbls.NblCount)) {
         GenericRxCleanupNblChain(NdisGetNblChainFromNblCountedQueue(&Nbls));
-        Status = STATUS_DELETE_PENDING;
+        Status = STATUS_DEVICE_NOT_READY;
         goto Exit;
     }
 
