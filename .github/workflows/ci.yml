@@ -50,7 +50,7 @@ jobs:
       shell: pwsh
       run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Artifacts
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
@@ -114,7 +114,7 @@ jobs:
       shell: pwsh
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       if: ${{ always() }}
       with:
         name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -173,7 +173,7 @@ jobs:
       shell: pwsh
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       if: ${{ always() }}
       with:
         name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -207,7 +207,7 @@ jobs:
       shell: pwsh
       run: tools/create-runtime-kit.ps1 -Flavor ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Kit
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: devkit_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/kit
@@ -229,7 +229,7 @@ jobs:
         dotnet-version: 6.0.x
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
-    - uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+    - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
