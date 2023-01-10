@@ -71,6 +71,8 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 Ip6Valid : 1;
             UINT32 UdpCached : 1;
             UINT32 UdpValid : 1;
+            UINT32 TcpCached : 1;
+            UINT32 TcpValid : 1;
             UINT32 TransportPayloadCached : 1;
             UINT32 TransportPayloadValid : 1;
             UINT32 QuicCached : 1;
@@ -86,6 +88,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
         IPV6_HEADER *Ip6Hdr;
     };
     UDP_HDR *UdpHdr;
+    TCP_HDR *TcpHdr;
     UINT8 QuicCidLength;
     CONST UINT8* QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
@@ -375,6 +378,7 @@ XdpParseFrame(
     Cache->Ip4Cached = TRUE;
     Cache->Ip6Cached = TRUE;
     Cache->UdpCached = TRUE;
+    Cache->TcpCached = TRUE;
     Cache->TransportPayloadCached = TRUE;
 
     //
@@ -425,6 +429,10 @@ XdpParseFrame(
         Cache->TransportPayload.BufferDataOffset = Offset;
         Cache->TransportPayload.IsFragmentedBuffer = FALSE;
         Cache->TransportPayloadValid = TRUE;
+    } else if (IpProto == IPPROTO_TCP) {
+        if (Buffer->DataLength < Offset + sizeof(*Cache->TcpHdr)) {
+            goto BufferTooSmall;
+        }
     }
 
     return;
