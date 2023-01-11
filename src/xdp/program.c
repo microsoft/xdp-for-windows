@@ -9,7 +9,7 @@
 
 #include "precomp.h"
 #include <netiodef.h>
-#include <xdpudp.h>
+#include <xdptransport.h>
 #include "program.tmh"
 
 #pragma pack(push)
@@ -93,6 +93,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     };
     UDP_HDR *UdpHdr;
     TCP_HDR *TcpHdr;
+    UINT8 *TcpHdrOptions;
     UINT8 QuicCidLength;
     CONST UINT8* QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
@@ -297,10 +298,28 @@ XdpParseFragmentedTcp(
     _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
-    Cache->UdpValid =
+    BOOLEAN Valid =
         XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
-            VirtualAddressExtension, &Storage->UdpHdr, sizeof(Storage->UdpHdr), &Cache->UdpHdr);
+            VirtualAddressExtension, &Storage->TcpHdr, sizeof(Storage->TcpHdr), &Cache->TcpHdr);
+    if (!Valid || TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len) < sizeof(Storage->TcpHdr)) {
+        return;
+    }
+
+    if (TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len) > sizeof(Storage->TcpHdr)) {
+        //
+        // Attempt to read TCP options.
+        //
+        Valid =
+            XdpGetContiguousHeader(
+                Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
+                VirtualAddressExtension,
+                &Storage->TcpHdrOptions,
+                TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len) - sizeof(Storage->TcpHdr),
+                &Cache->TcpHdrOptions);
+    }
+
+    Cache->TcpValid = Valid;
 }
 
 static
@@ -363,11 +382,16 @@ XdpParseFragmentedFrame(
         return;
     }
 
-    if (IpProto == IPPROTO_UDP && !Cache->UdpValid) {
-        XdpParseFragmentedUdp(
-            Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
-            VirtualAddressExtension, Cache, Storage);
-        if (Cache->UdpValid) {
+    if (IpProto == IPPROTO_UDP) {
+        if (!Cache->UdpValid) {
+            XdpParseFragmentedUdp(
+                Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
+                VirtualAddressExtension, Cache, Storage);
+            
+            if (!Cache->UdpValid) {
+                return;
+            }
+
             Cache->TransportPayload.Buffer = Buffer;
             Cache->TransportPayload.BufferDataOffset = BufferDataOffset;
             Cache->TransportPayload.FragmentCount = FragmentCount;
@@ -375,13 +399,16 @@ XdpParseFragmentedFrame(
             Cache->TransportPayload.IsFragmentedBuffer = TRUE;
             Cache->TransportPayloadValid = TRUE;
         }
-    }
+    } else if (IpProto == IPPROTO_TCP) {
+        if (!Cache->TcpValid) {
+            XdpParseFragmentedTcp(
+                Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
+                VirtualAddressExtension, Cache, Storage);
+            
+            if (!Cache->TcpValid) {
+                return;
+            }
 
-    if (IpProto == IPPROTO_TCP && !Cache->TcpValid) {
-        XdpParseFragmentedUdp(
-            Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
-            VirtualAddressExtension, Cache, Storage);
-        if (Cache->UdpValid) {
             Cache->TransportPayload.Buffer = Buffer;
             Cache->TransportPayload.BufferDataOffset = BufferDataOffset;
             Cache->TransportPayload.FragmentCount = FragmentCount;
@@ -469,7 +496,7 @@ XdpParseFrame(
         Cache->TransportPayloadValid = TRUE;
     } else if (IpProto == IPPROTO_TCP) {
         if (Buffer->DataLength < Offset + sizeof(*Cache->TcpHdr) ||
-            Buffer->DataLength < Offset + ((TCP_HDR *)&Va[Offset])->th_len * 4) {
+            Buffer->DataLength < Offset + TCP_HDR_LEN_TO_BYTES(((TCP_HDR *)&Va[Offset])->th_len)) {
             goto BufferTooSmall;
         } else {
             Cache->TcpHdr = (TCP_HDR *)&Va[Offset];
