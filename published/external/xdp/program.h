@@ -75,6 +75,21 @@ typedef enum _XDP_MATCH_TYPE {
     // UDP port enabled in the port set.
     //
     XDP_MATCH_IPV6_UDP_PORT_SET,
+    //
+    // Match IPv4 frames matching the destination address and the destination
+    // TCP port enabled in the port set.
+    //
+    XDP_MATCH_IPV4_TCP_PORT_SET,
+    //
+    // Match IPv6 frames matching the destination address and the destination
+    // TCP port enabled in the port set.
+    //
+    XDP_MATCH_IPV6_TCP_PORT_SET,
+    //
+    // Match frames with a specific TCP port number as their destination port.
+    // The port number is specified by field Port in XDP_MATCH_PATTERN.
+    //
+    XDP_MATCH_TCP_DST,
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {

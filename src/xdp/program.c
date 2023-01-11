@@ -909,6 +909,50 @@ XdpInspect(
             }
             break;
 
+        case XDP_MATCH_IPV4_TCP_PORT_SET:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.Ip4Valid &&
+                IN4_ADDR_EQUAL(
+                    &FrameCache.Ip4Hdr->DestinationAddress,
+                    &Rule->Pattern.IpPortSet.Address.Ipv4) &&
+                FrameCache.TcpValid &&
+                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_IPV6_TCP_PORT_SET:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.Ip6Valid &&
+                IN6_ADDR_EQUAL(
+                    &FrameCache.Ip6Hdr->DestinationAddress,
+                    &Rule->Pattern.IpPortSet.Address.Ipv6) &&
+                FrameCache.TcpValid &&
+                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_TCP_DST:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.TcpValid &&
+                FrameCache.TcpHdr->th_dport == Rule->Pattern.Port) {
+                Matched = TRUE;
+            }
+            break;
+
         default:
             ASSERT(FALSE);
             break;
