@@ -1149,6 +1149,28 @@ XdpProgramTraceObject(
                 ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
             break;
 
+        case XDP_MATCH_IPV4_TCP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV4_TCP_PORT_SET "
+                "Destination=%!IPADDR! PortSet=?",
+                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_IPV6_TCP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV6_TCP_PORT_SET "
+                "Destination=%!IPV6ADDR! PortSet=?",
+                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
+            break;
+
+        case XDP_MATCH_TCP_DST:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_TCP_DST Port=%u",
+                ProgramObject, i, ntohs(Rule->Pattern.Port));
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1365,7 +1387,9 @@ XdpProgramDelete(
         XDP_RULE *Rule = &ProgramObject->Program.Rules[Index];
 
         if (Rule->Match == XDP_MATCH_IPV4_UDP_PORT_SET ||
-            Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET) {
+            Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET ||
+            Rule->Match == XDP_MATCH_IPV4_TCP_PORT_SET ||
+            Rule->Match == XDP_MATCH_IPV6_TCP_PORT_SET) {
             XdpProgramReleasePortSet(&Rule->Pattern.IpPortSet.PortSet);
         }
 
@@ -1542,6 +1566,8 @@ XdpCaptureProgram(
             break;
         case XDP_MATCH_IPV4_UDP_PORT_SET:
         case XDP_MATCH_IPV6_UDP_PORT_SET:
+        case XDP_MATCH_IPV4_TCP_PORT_SET:
+        case XDP_MATCH_IPV6_TCP_PORT_SET:
             Status =
                 XdpProgramCapturePortSet(
                     &UserRule.Pattern.IpPortSet.PortSet, RequestorMode,
