@@ -132,7 +132,7 @@ main(
     }
 
     for (UINT32 Index = 0; Index < PacketLength; Index++) {
-        printf("%02x ", PacketBuffer[Index]);
+        printf("%02x", PacketBuffer[Index]);
     }
 
 Exit:

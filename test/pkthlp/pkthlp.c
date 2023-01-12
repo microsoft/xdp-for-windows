@@ -235,6 +235,7 @@ PktBuildTcpFrame(
     TcpHeader->th_dport = PortDestination;
     TcpHeader->th_len = (UINT8)((sizeof(TCP_HDR) + TcpOptionsLength) / 4);
     TcpHeader->th_x2 = 0;
+    TcpHeader->th_urp = 0;
     TcpHeader->th_seq = htonl(ThSeq);
     TcpHeader->th_ack = htonl(ThAck);
     TcpHeader->th_win = htons(ThWin);
