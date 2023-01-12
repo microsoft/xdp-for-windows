@@ -159,6 +159,102 @@ PktBuildUdpFrame(
     return TRUE;
 }
 
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildTcpFrame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_opt_ UINT8 *TcpOptions,
+    _In_ UINT16 TcpOptionsLength,
+    _In_ UINT32 ThSeq,
+    _In_ UINT32 ThAck,
+    _In_ UINT8 ThFlags,
+    _In_ UINT16 ThWin,
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ ADDRESS_FAMILY AddressFamily,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource,
+    _In_ UINT16 PortDestination,
+    _In_ UINT16 PortSource
+    )
+{
+    CONST UINT32 TotalLength =
+        TCP_HEADER_BACKFILL(AddressFamily) + PayloadLength + TcpOptionsLength;
+    if (*BufferSize < TotalLength || TcpOptionsLength > 40) {
+        return FALSE;
+    }
+
+    UINT16 TcpLength = sizeof(TCP_HDR) + TcpOptionsLength + PayloadLength;
+    UINT8 AddressLength;
+
+    ETHERNET_HEADER *EthernetHeader = Buffer;
+    EthernetHeader->Destination = *EthernetDestination;
+    EthernetHeader->Source = *EthernetSource;
+    EthernetHeader->Type =
+        htons(AddressFamily == AF_INET ? ETHERNET_TYPE_IPV4 : ETHERNET_TYPE_IPV6);
+    Buffer = EthernetHeader + 1;
+
+    if (AddressFamily == AF_INET) {
+        IPV4_HEADER *IpHeader = Buffer;
+
+        if (TcpLength + (UINT16)sizeof(*IpHeader) < TcpLength) {
+            return FALSE;
+        }
+
+        RtlZeroMemory(IpHeader, sizeof(*IpHeader));
+        IpHeader->Version = IPV4_VERSION;
+        IpHeader->HeaderLength = sizeof(*IpHeader) >> 2;
+        IpHeader->TotalLength = htons(sizeof(*IpHeader) + TcpLength);
+        IpHeader->TimeToLive = 1;
+        IpHeader->Protocol = IPPROTO_TCP;
+        AddressLength = sizeof(IN_ADDR);
+        RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+        RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
+        IpHeader->HeaderChecksum = PktChecksum(0, IpHeader, sizeof(*IpHeader));
+
+        Buffer = IpHeader + 1;
+    } else {
+        IPV6_HEADER *IpHeader = Buffer;
+        RtlZeroMemory(IpHeader, sizeof(*IpHeader));
+        IpHeader->Version = IPV6_VERSION;
+        IpHeader->PayloadLength = htons(TcpLength);
+        IpHeader->NextHeader = IPPROTO_TCP;
+        IpHeader->HopLimit = 1;
+        AddressLength = sizeof(IN6_ADDR);
+        RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+        RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
+
+        Buffer = IpHeader + 1;
+    }
+
+    TCP_HDR *TcpHeader = Buffer;
+    TcpHeader->th_sport = PortSource;
+    TcpHeader->th_dport = PortDestination;
+    TcpHeader->th_len = (UINT8)((sizeof(TCP_HDR) + TcpOptionsLength) / 4);
+    TcpHeader->th_x2 = 0;
+    TcpHeader->th_seq = htonl(ThSeq);
+    TcpHeader->th_ack = htonl(ThAck);
+    TcpHeader->th_win = htons(ThWin);
+    TcpHeader->th_flags = ThFlags;
+    TcpHeader->th_sum =
+        PktPseudoHeaderChecksum(IpSource, IpDestination, AddressLength, TcpLength, IPPROTO_TCP);
+
+    Buffer = TcpHeader + 1;
+    if (TcpOptions != NULL) {
+        RtlCopyMemory(Buffer, TcpOptions, TcpOptionsLength);
+    }
+
+    Buffer = (UINT8 *)Buffer + TcpOptionsLength;
+    RtlCopyMemory(Buffer, Payload, PayloadLength);
+    TcpHeader->th_sum = PktChecksum(0, TcpHeader, TcpLength);
+    *BufferSize = TotalLength;
+
+    return TRUE;
+}
+
 BOOLEAN
 PktStringToInetAddressA(
     _Out_ INET_ADDR *InetAddr,
