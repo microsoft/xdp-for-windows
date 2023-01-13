@@ -180,6 +180,7 @@ PktBuildTcpFrame(
         ((AddressFamily == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)))
 
 #define UDP_HEADER_STORAGE UDP_HEADER_BACKFILL(AF_INET6)
+#define TCP_HEADER_STORAGE (TCP_HEADER_BACKFILL(AF_INET6) + 40)
 
 BOOLEAN
 PktStringToInetAddressA(

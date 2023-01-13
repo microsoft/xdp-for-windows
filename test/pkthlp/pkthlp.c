@@ -249,7 +249,9 @@ PktBuildTcpFrame(
     }
 
     Buffer = (UINT8 *)Buffer + TcpOptionsLength;
-    RtlCopyMemory(Buffer, Payload, PayloadLength);
+    if (PayloadLength > 0) {
+        RtlCopyMemory(Buffer, Payload, PayloadLength);
+    }
     TcpHeader->th_sum = PktChecksum(0, TcpHeader, TcpLength);
     *BufferSize = TotalLength;
 

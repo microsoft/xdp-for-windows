@@ -39,6 +39,12 @@ GenericRxMatchUdp(
     );
 
 VOID
+GenericRxMatchTcp(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ XDP_MATCH_TYPE MatchType
+    );
+
+VOID
 GenericRxMatchIpPrefix(
     _In_ UINT16 AddressFamily
     );
