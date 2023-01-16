@@ -501,7 +501,7 @@ XdpParseFrame(
         } else {
             Cache->TcpHdr = (TCP_HDR *)&Va[Offset];
             Cache->TcpValid = TRUE;
-            Offset += sizeof(*Cache->TcpHdr);
+            Offset += TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len);
             Cache->TransportPayload.Buffer = Buffer;
             Cache->TransportPayload.BufferDataOffset = Offset;
             Cache->TransportPayload.IsFragmentedBuffer = FALSE;
@@ -1536,7 +1536,7 @@ XdpCaptureProgram(
         RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
         Program->RuleCount++;
 
-        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_IPV6_UDP_PORT_SET) {
+        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_DST) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }

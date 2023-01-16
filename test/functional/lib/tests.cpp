@@ -2417,10 +2417,34 @@ GenericRxMatchTcp(
 
     auto TcpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, FALSE);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    wil::unique_handle ProgramHandle;
+    wil::unique_handle ProgramHandleTx, ProgramHandleRx;
     unique_malloc_ptr<UINT8> PortSet;
 
+    XDP_HOOK_ID XdpInspectTxL2 = {};
+
+    XdpInspectTxL2.Layer = XDP_HOOK_L2;
+    XdpInspectTxL2.Direction = XDP_HOOK_TX;
+    XdpInspectTxL2.SubLayer = XDP_HOOK_INSPECT;
+
+    auto Xsk =
+        CreateAndBindSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC, XSK_BIND_FLAG_NONE,
+            &XdpInspectTxL2);
+
     RemotePort = htons(1234);
+
+    XDP_RULE RuleTx;
+    RuleTx.Match = XDP_MATCH_TCP_DST;
+    RuleTx.Pattern.Port = RemotePort;
+    RuleTx.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    RuleTx.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    RuleTx.Redirect.Target = Xsk.Handle.get();
+
+    ProgramHandleTx =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectTxL2, If.GetQueueId(), XDP_GENERIC,
+            &RuleTx, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
+
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -2441,10 +2465,10 @@ GenericRxMatchTcp(
             TcpFrame, &TcpFrameLength, NULL, 0, NULL, 0, 1234, 0, TH_SYN, 65535, &LocalHw,
             &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
-    XDP_RULE Rule = {};
-    Rule.Match = MatchType;
+    XDP_RULE RuleRx = {};
+    RuleRx.Match = MatchType;
     if (MatchType == XDP_MATCH_TCP_DST) {
-        Rule.Pattern.Port = LocalPort;
+        RuleRx.Pattern.Port = LocalPort;
     } else if (MatchType == XDP_MATCH_IPV4_TCP_PORT_SET ||
                MatchType == XDP_MATCH_IPV6_TCP_PORT_SET) {
         PortSet.reset((UINT8 *)calloc(XDP_PORT_SET_BUFFER_SIZE, 1));
@@ -2452,23 +2476,33 @@ GenericRxMatchTcp(
 
         SetBit(PortSet.get(), LocalPort);
 
-        Rule.Pattern.IpPortSet.Address = *(XDP_INET_ADDR *)&LocalIp;
-        Rule.Pattern.IpPortSet.PortSet.PortSet = PortSet.get();
+        RuleRx.Pattern.IpPortSet.Address = *(XDP_INET_ADDR *)&LocalIp;
+        RuleRx.Pattern.IpPortSet.PortSet.PortSet = PortSet.get();
     }
+
+    SocketProduceRxFill(&Xsk, 1);
 
     //
     // Verify XDP pass action.
     //
-    ProgramHandle.reset();
-    Rule.Action = XDP_PROGRAM_ACTION_PASS;
+    ProgramHandleRx.reset();
+    RuleRx.Action = XDP_PROGRAM_ACTION_PASS;
 
-    ProgramHandle =
-        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+    ProgramHandleRx =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC,
+        &RuleRx, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), TcpFrame, TcpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_NOT_EQUAL(INVALID_SOCKET, accept(TcpSocket.get(), NULL, 0));
+
+    //
+    // Verify the SYN+ACK has been redirected to XSK.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, std::chrono::milliseconds(5000));
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+    TEST_WARNING("RxDesc->length = %u\n", RxDesc->length);
 }
 
 VOID

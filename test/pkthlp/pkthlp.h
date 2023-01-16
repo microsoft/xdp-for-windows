@@ -154,7 +154,7 @@ BOOLEAN
 PktBuildTcpFrame(
     _Out_ VOID *Buffer,
     _Inout_ UINT32 *BufferSize,
-    _In_ CONST UCHAR *Payload,
+    _In_opt_ CONST UCHAR *Payload,
     _In_ UINT16 PayloadLength,
     _In_opt_ UINT8 *TcpOptions,
     _In_ UINT16 TcpOptionsLength,
