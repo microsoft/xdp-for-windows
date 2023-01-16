@@ -2410,7 +2410,7 @@ GenericRxMatchTcp(
     _In_ XDP_MATCH_TYPE MatchType
     )
 {
-    auto If = FnMpIf;
+    auto If = FnMp1QIf;
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
@@ -2502,7 +2502,20 @@ GenericRxMatchTcp(
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, std::chrono::milliseconds(5000));
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
     auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
-    TEST_WARNING("RxDesc->length = %u\n", RxDesc->length);
+    TCP_HDR *TcpHeaderParsed = NULL;
+    TEST_TRUE(PktParseTcpFrame(
+        Xsk.Umem.Buffer.get() + XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+        RxDesc->length, &TcpHeaderParsed, NULL, 0));
+    //
+    // Construct and inject the ACK for SYN+ACK.
+    //
+    UINT32 AckNumForSynAck = htonl(ntohl(TcpHeaderParsed->th_seq) + 1);
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            TcpFrame, &TcpFrameLength, NULL, 0, NULL, 0, 1235, AckNumForSynAck, TH_ACK, 65535, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), TcpFrame, TcpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 }
 
 VOID

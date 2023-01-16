@@ -171,6 +171,16 @@ PktBuildTcpFrame(
     _In_ UINT16 PortSource
     );
 
+_Success_(return != FALSE)
+BOOLEAN
+PktParseTcpFrame(
+    _In_ UCHAR *Frame,
+    _In_ UINT32 FrameSize,
+    _Out_ TCP_HDR **TcpHdr,
+    _Outptr_opt_result_maybenull_ VOID **Payload,
+    _Out_opt_ UINT32 *PayloadLength
+    );
+
 #define UDP_HEADER_BACKFILL(AddressFamily) \
     (sizeof(ETHERNET_HEADER) + sizeof(UDP_HDR) + \
         ((AddressFamily == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)))

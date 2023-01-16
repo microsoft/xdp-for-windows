@@ -258,6 +258,74 @@ PktBuildTcpFrame(
     return TRUE;
 }
 
+_Success_(return != FALSE)
+BOOLEAN
+PktParseTcpFrame(
+    _In_ UCHAR *Frame,
+    _In_ UINT32 FrameSize,
+    _Out_ TCP_HDR **TcpHdr,
+    _Outptr_opt_result_maybenull_ VOID **Payload,
+    _Out_opt_ UINT32 *PayloadLength
+    )
+{
+    UINT16 IpProto = IPPROTO_MAX;
+    ETHERNET_HEADER *EthHdr;
+    UINT16 IPPayloadLength;
+    UINT32 Offset = 0;
+
+    if (FrameSize < sizeof(*EthHdr)) {
+        return FALSE;
+    }
+
+    EthHdr = (ETHERNET_HEADER *)Frame;
+    Offset += sizeof(*EthHdr);
+    if (EthHdr->Type == htons(ETHERNET_TYPE_IPV4)) {
+        if (FrameSize < Offset + sizeof(IPV4_HEADER)) {
+            return FALSE;
+        }
+        IPV4_HEADER *Ip = (IPV4_HEADER *)&Frame[Offset];
+        Offset += sizeof(IPV4_HEADER);
+        IpProto = Ip->Protocol;
+        IPPayloadLength = ntohs(Ip->TotalLength) - sizeof(IPV4_HEADER);
+    } else if (EthHdr->Type == htons(ETHERNET_TYPE_IPV6)) {
+        if (FrameSize < Offset + sizeof(IPV6_HEADER)) {
+            return FALSE;
+        }
+        IPV6_HEADER *Ip = (IPV6_HEADER *)&Frame[Offset];
+        Offset += sizeof(IPV6_HEADER);
+        IpProto = (Ip)->NextHeader;
+        IPPayloadLength = ntohs(Ip->PayloadLength);
+    } else {
+        return FALSE;
+    }
+
+    if (IpProto == IPPROTO_TCP) {
+        if (FrameSize < Offset + sizeof(TCP_HDR)) {
+            return FALSE;
+        }
+
+        *TcpHdr = (TCP_HDR *)&Frame[Offset];
+        UINT8 TcpHeaderLen = (*TcpHdr)->th_len * 4;
+        if (FrameSize >= Offset + IPPayloadLength) {
+            if (Payload != NULL) {
+                Offset += TcpHeaderLen;
+                *Payload = &Frame[Offset];
+                
+            }
+
+            if (PayloadLength != NULL) {
+                *PayloadLength = IPPayloadLength - TcpHeaderLen;
+            }
+        } else {
+            return FALSE;
+        }
+    } else {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 BOOLEAN
 PktStringToInetAddressA(
     _Out_ INET_ADDR *InetAddr,
