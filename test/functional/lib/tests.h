@@ -33,15 +33,10 @@ VOID
 GenericRxBackfillAndTrailer();
 
 VOID
-GenericRxMatchUdp(
+GenericRxMatch(
     _In_ ADDRESS_FAMILY Af,
-    _In_ XDP_MATCH_TYPE MatchType
-    );
-
-VOID
-GenericRxMatchTcp(
-    _In_ ADDRESS_FAMILY Af,
-    _In_ XDP_MATCH_TYPE MatchType
+    _In_ XDP_MATCH_TYPE MatchType,
+    _In_ BOOLEAN IsUdp
     );
 
 VOID

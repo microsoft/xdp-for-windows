@@ -2167,9 +2167,10 @@ GenericRxBackfillAndTrailer()
 }
 
 VOID
-GenericRxMatchUdp(
+GenericRxMatch(
     _In_ ADDRESS_FAMILY Af,
-    _In_ XDP_MATCH_TYPE MatchType
+    _In_ XDP_MATCH_TYPE MatchType,
+    _In_ BOOLEAN IsUdp
     )
 {
     auto If = FnMpIf;
@@ -2193,7 +2194,7 @@ GenericRxMatchUdp(
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    const UCHAR GenericUdpPayload[] = "GenericRxMatchUdp";
+    const UCHAR GenericUdpPayload[] = "GenericRxMatch";
     const UCHAR QuicLongHdrUdpPayload[40] = {
         0x80, // IsLongHeader
         0x01, 0x00, 0x00, 0x00, // Version
@@ -2496,20 +2497,6 @@ GenericRxMatchUdp(
         // TODO - Send and validate some non-UDP traffic.
         //
     }
-}
-
-VOID
-GenericRxMatchTcp(
-    _In_ ADDRESS_FAMILY Af,
-    _In_ XDP_MATCH_TYPE MatchType
-    )
-{
-    auto If = FnMp1QIf;
-    UINT16 LocalPort;
-    UINT32 AckNum;
-    
-    auto TcpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, &AckNum, FALSE);
-    UNREFERENCED_PARAMETER(MatchType);
 }
 
 VOID
