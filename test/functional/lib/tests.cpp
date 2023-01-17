@@ -2177,8 +2177,9 @@ GenericRxMatch(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
+    UINT32 AckNum;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, &AckNum, IsUdp);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
     unique_malloc_ptr<UINT8> PortSet;

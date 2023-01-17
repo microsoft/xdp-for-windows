@@ -221,7 +221,7 @@ public:
     }
 
     TEST_METHOD(GenericRxMatchIpv6TcpPortSet) {
-        GenericRxMatchTcp(AF_INET6, XDP_MATCH_IPV6_TCP_PORT_SET, TRUE);
+        GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_TCP_PORT_SET, TRUE);
     }
 
     TEST_METHOD(GenericXskWaitRx) {
