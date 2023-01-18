@@ -91,8 +91,10 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
         IPV4_HEADER *Ip4Hdr;
         IPV6_HEADER *Ip6Hdr;
     };
-    UDP_HDR *UdpHdr;
-    TCP_HDR *TcpHdr;
+    union {
+        UDP_HDR *UdpHdr;
+        TCP_HDR *TcpHdr;
+    };
     UINT8 *TcpHdrOptions;
     UINT8 QuicCidLength;
     CONST UINT8* QuicCid; // Src CID for long header, Dest CID for short header
@@ -298,15 +300,21 @@ XdpParseFragmentedTcp(
     _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
+    UINT32 HeaderLengh;
     BOOLEAN Valid =
         XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
             VirtualAddressExtension, &Storage->TcpHdr, sizeof(Storage->TcpHdr), &Cache->TcpHdr);
-    if (!Valid || TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len) < sizeof(Storage->TcpHdr)) {
+    if (!Valid) {
         return;
     }
 
-    if (TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len) > sizeof(Storage->TcpHdr)) {
+    HeaderLengh = TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len);
+    if (HeaderLengh < sizeof(Storage->TcpHdr)) {
+        return;
+    }
+
+    if (HeaderLengh > sizeof(Storage->TcpHdr)) {
         //
         // Attempt to read TCP options.
         //
@@ -495,18 +503,22 @@ XdpParseFrame(
         Cache->TransportPayload.IsFragmentedBuffer = FALSE;
         Cache->TransportPayloadValid = TRUE;
     } else if (IpProto == IPPROTO_TCP) {
-        if (Buffer->DataLength < Offset + sizeof(*Cache->TcpHdr) ||
-            Buffer->DataLength < Offset + TCP_HDR_LEN_TO_BYTES(((TCP_HDR *)&Va[Offset])->th_len)) {
+        if (Buffer->DataLength < Offset + sizeof(*Cache->TcpHdr)) {
             goto BufferTooSmall;
-        } else {
-            Cache->TcpHdr = (TCP_HDR *)&Va[Offset];
-            Cache->TcpValid = TRUE;
-            Offset += TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len);
-            Cache->TransportPayload.Buffer = Buffer;
-            Cache->TransportPayload.BufferDataOffset = Offset;
-            Cache->TransportPayload.IsFragmentedBuffer = FALSE;
-            Cache->TransportPayloadValid = TRUE;
         }
+
+        UINT32 HeaderLength = TCP_HDR_LEN_TO_BYTES(((TCP_HDR *)&Va[Offset])->th_len);
+        if (Buffer->DataLength < Offset + HeaderLength) {
+            goto BufferTooSmall;
+        }
+
+        Cache->TcpHdr = (TCP_HDR *)&Va[Offset];
+        Cache->TcpValid = TRUE;
+        Offset += HeaderLength;
+        Cache->TransportPayload.Buffer = Buffer;
+        Cache->TransportPayload.BufferDataOffset = Offset;
+        Cache->TransportPayload.IsFragmentedBuffer = FALSE;
+        Cache->TransportPayloadValid = TRUE;
     }
 
     return;

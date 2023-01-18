@@ -183,7 +183,7 @@ PktBuildTcpFrame(
 {
     CONST UINT32 TotalLength =
         TCP_HEADER_BACKFILL(AddressFamily) + PayloadLength + TcpOptionsLength;
-    if (*BufferSize < TotalLength || TcpOptionsLength > 40) {
+    if (*BufferSize < TotalLength || TcpOptionsLength > TCP_MAX_OPTION_LEN) {
         return FALSE;
     }
 
@@ -309,8 +309,7 @@ PktParseTcpFrame(
         if (FrameSize >= Offset + IPPayloadLength) {
             if (Payload != NULL) {
                 Offset += TcpHeaderLen;
-                *Payload = &Frame[Offset];
-                
+                *Payload = &Frame[Offset];                
             }
 
             if (PayloadLength != NULL) {
