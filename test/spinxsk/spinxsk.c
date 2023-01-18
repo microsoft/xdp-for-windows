@@ -401,7 +401,7 @@ AttachXdpProgram(
             goto Exit;
         }
 
-        switch (RandUlong() % 3) {
+        switch (RandUlong() % 5) {
         case 0:
             rule.Match = XDP_MATCH_UDP_PORT_SET;
             rule.Pattern.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
@@ -412,6 +412,14 @@ AttachXdpProgram(
             break;
         case 2:
             rule.Match = XDP_MATCH_IPV6_UDP_PORT_SET;
+            rule.Pattern.IpPortSet.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
+            break;
+        case 3:
+            rule.Match = XDP_MATCH_IPV4_TCP_PORT_SET;
+            rule.Pattern.IpPortSet.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
+            break;
+        case 4:
+            rule.Match = XDP_MATCH_IPV6_TCP_PORT_SET;
             rule.Pattern.IpPortSet.PortSet.PortSet = RandUlong() % 4 ? PortSet : NULL;
         }
     }

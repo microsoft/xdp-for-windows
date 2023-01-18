@@ -1683,6 +1683,7 @@ CreateTcpUdpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_opt_ const TestInterface *If,
     _Out_ UINT16 *LocalPort,
+    _In_ UINT16 RemotePort,
     _When_(IsUdp == FALSE, _Out_)
     _When_(IsUdp == TRUE, _Out_opt_)
         UINT32 *AckNum,
@@ -1720,7 +1721,6 @@ CreateTcpUdpSocket(
         //
         // For TCP, emulate handshake to the socket we just created.
         //
-        UINT16 RemotePort;
         ETHERNET_ADDRESS LocalHw, RemoteHw;
         INET_ADDR LocalIp, RemoteIp;
         auto GenericMp = MpOpenGeneric(If->GetIfIndex());
@@ -1735,8 +1735,6 @@ CreateTcpUdpSocket(
             CreateAndBindSocket(
                 If->GetIfIndex(), If->GetQueueId(), TRUE, FALSE, XDP_GENERIC, XSK_BIND_FLAG_NONE,
                 &XdpInspectTxL2);
-
-        RemotePort = htons(1234);
 
         XDP_RULE RuleTx;
         RuleTx.Match = XDP_MATCH_TCP_DST;
@@ -1819,7 +1817,7 @@ WaitForWfpQuarantine(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    auto UdpSocket = CreateTcpUdpSocket(AF_INET, NULL, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(AF_INET, NULL, &LocalPort, 0, NULL, TRUE);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     RemotePort = htons(1234);
@@ -2174,18 +2172,18 @@ GenericRxMatch(
     )
 {
     auto If = IsUdp ? FnMpIf : FnMp1QIf;
-    UINT16 LocalPort, RemotePort;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
     UINT32 AckNum;
     UINT32 SeqNum = 1;
 
-    auto Socket = CreateTcpUdpSocket(Af, &If, &LocalPort, &AckNum, IsUdp);
+    auto Socket = CreateTcpUdpSocket(Af, &If, &LocalPort, RemotePort, &AckNum, IsUdp);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
     unique_malloc_ptr<UINT8> PortSet;
 
-    RemotePort = htons(1234);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -2541,7 +2539,7 @@ GenericRxMatchIpPrefix(
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     XDP_INET_ADDR LocalIp, RemoteIp;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -2615,7 +2613,7 @@ GenericRxLowResources()
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
@@ -2948,7 +2946,7 @@ GenericRxUdpFragmentQuicShortHeader(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 TotalOffset = 0;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -3068,7 +3066,7 @@ GenericRxUdpFragmentQuicLongHeader(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 TotalOffset = 0;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -3384,7 +3382,7 @@ GenericRxFromTxInspect(
     RxInspectFromTxL2.Direction = XDP_HOOK_TX;
     RxInspectFromTxL2.SubLayer = XDP_HOOK_INSPECT;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &XskPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &XskPort, 0, NULL, TRUE);
     auto Xsk =
         CreateAndBindSocket(
             If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_UNSPEC, XSK_BIND_FLAG_NONE,
@@ -3497,7 +3495,7 @@ GenericTxToRxInject()
     TxInjectToRxL2.Direction = XDP_HOOK_RX;
     TxInjectToRxL2.SubLayer = XDP_HOOK_INJECT;
 
-    auto UdpSocket = CreateTcpUdpSocket(AF_INET, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(AF_INET, &If, &LocalPort, 0, NULL, TRUE);
     auto Xsk =
         CreateAndBindSocket(
             If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_UNSPEC, XSK_BIND_FLAG_NONE, nullptr,
@@ -4288,7 +4286,7 @@ GenericLoopback(
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
     SocketProduceRxFill(&Xsk, 1);
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, NULL, TRUE);
+    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
 
     RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);

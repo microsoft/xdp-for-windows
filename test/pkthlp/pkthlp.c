@@ -168,10 +168,10 @@ PktBuildTcpFrame(
     _In_ UINT16 PayloadLength,
     _In_opt_ UINT8 *TcpOptions,
     _In_ UINT16 TcpOptionsLength,
-    _In_ UINT32 ThSeq,
-    _In_ UINT32 ThAck,
+    _In_ UINT32 ThSeq, // host order
+    _In_ UINT32 ThAck, // host order
     _In_ UINT8 ThFlags,
-    _In_ UINT16 ThWin,
+    _In_ UINT16 ThWin, // host order
     _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
     _In_ CONST ETHERNET_ADDRESS *EthernetSource,
     _In_ ADDRESS_FAMILY AddressFamily,
