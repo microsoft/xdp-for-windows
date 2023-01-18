@@ -1675,19 +1675,12 @@ WaitForWfpQuarantine(
     _In_ const TestInterface& If
     );
 
-#pragma warning(push)
-#pragma warning(disable:6101) // We don't set AckNum for UDP
 static
 wil::unique_socket
-CreateTcpUdpSocket(
+CreateUdpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_opt_ const TestInterface *If,
-    _Out_ UINT16 *LocalPort,
-    _In_ UINT16 RemotePort,
-    _When_(IsUdp == FALSE, _Out_)
-    _When_(IsUdp == TRUE, _Out_opt_)
-        UINT32 *AckNum,
-    _In_ BOOLEAN IsUdp
+    _Out_ UINT16 *LocalPort
     )
 {
     if (If != NULL) {
@@ -1697,9 +1690,41 @@ CreateTcpUdpSocket(
         WaitForWfpQuarantine(*If);
     }
 
-    wil::unique_socket Socket(
-        socket(
-            Af, IsUdp ? SOCK_DGRAM : SOCK_STREAM, IsUdp ? IPPROTO_UDP : IPPROTO_TCP));
+    wil::unique_socket Socket(socket(Af, SOCK_DGRAM, IPPROTO_UDP));
+    TEST_NOT_NULL(Socket.get());
+
+    SOCKADDR_INET Address = {0};
+    Address.si_family = Af;
+    TEST_EQUAL(0, bind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+
+    INT AddressLength = sizeof(Address);
+    TEST_EQUAL(0, getsockname(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+
+    INT TimeoutMs = (INT)std::chrono::milliseconds(TEST_TIMEOUT_ASYNC).count();
+    TEST_EQUAL(
+        0,
+        setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    *LocalPort = SS_PORT(&Address);
+    return Socket;
+}
+
+static
+wil::unique_socket
+CreateTcpSocket(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ const TestInterface *If,
+    _Out_ UINT16 *LocalPort,
+    _In_ UINT16 RemotePort,
+    _Out_ UINT32 *AckNum
+    )
+{
+    //
+    // Wait for WFP rules to be plumbed.
+    //
+    WaitForWfpQuarantine(*If);
+
+    wil::unique_socket Socket(socket(Af, SOCK_STREAM,IPPROTO_TCP));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
@@ -1716,93 +1741,87 @@ CreateTcpUdpSocket(
 
     *LocalPort = SS_PORT(&Address);
 
-    if (!IsUdp) {
-        __analysis_assume(If != NULL);
-        //
-        // For TCP, emulate handshake to the socket we just created.
-        //
-        ETHERNET_ADDRESS LocalHw, RemoteHw;
-        INET_ADDR LocalIp, RemoteIp;
-        auto GenericMp = MpOpenGeneric(If->GetIfIndex());
-        wil::unique_handle ProgramHandleTx;
+    //
+    // For TCP, emulate handshake to the socket we just created.
+    //
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto GenericMp = MpOpenGeneric(If->GetIfIndex());
+    wil::unique_handle ProgramHandleTx;
 
-        XDP_HOOK_ID XdpInspectTxL2 = {};
-        XdpInspectTxL2.Layer = XDP_HOOK_L2;
-        XdpInspectTxL2.Direction = XDP_HOOK_TX;
-        XdpInspectTxL2.SubLayer = XDP_HOOK_INSPECT;
+    XDP_HOOK_ID XdpInspectTxL2 = {};
+    XdpInspectTxL2.Layer = XDP_HOOK_L2;
+    XdpInspectTxL2.Direction = XDP_HOOK_TX;
+    XdpInspectTxL2.SubLayer = XDP_HOOK_INSPECT;
 
-        auto Xsk =
-            CreateAndBindSocket(
-                If->GetIfIndex(), If->GetQueueId(), TRUE, FALSE, XDP_GENERIC, XSK_BIND_FLAG_NONE,
-                &XdpInspectTxL2);
+    auto Xsk =
+        CreateAndBindSocket(
+            If->GetIfIndex(), If->GetQueueId(), TRUE, FALSE, XDP_GENERIC, XSK_BIND_FLAG_NONE,
+            &XdpInspectTxL2);
 
-        XDP_RULE RuleTx;
-        RuleTx.Match = XDP_MATCH_TCP_DST;
-        RuleTx.Pattern.Port = RemotePort;
-        RuleTx.Action = XDP_PROGRAM_ACTION_REDIRECT;
-        RuleTx.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-        RuleTx.Redirect.Target = Xsk.Handle.get();
+    XDP_RULE RuleTx;
+    RuleTx.Match = XDP_MATCH_TCP_DST;
+    RuleTx.Pattern.Port = RemotePort;
+    RuleTx.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    RuleTx.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    RuleTx.Redirect.Target = Xsk.Handle.get();
 
-        ProgramHandleTx =
-            CreateXdpProg(
-                If->GetIfIndex(), &XdpInspectTxL2, If->GetQueueId(), XDP_GENERIC,
-                &RuleTx, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
+    ProgramHandleTx =
+        CreateXdpProg(
+            If->GetIfIndex(), &XdpInspectTxL2, If->GetQueueId(), XDP_GENERIC,
+            &RuleTx, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
 
-        If->GetHwAddress(&LocalHw);
-        If->GetRemoteHwAddress(&RemoteHw);
-        if (Af == AF_INET) {
-            If->GetIpv4Address(&LocalIp.Ipv4);
-            If->GetRemoteIpv4Address(&RemoteIp.Ipv4);
-        } else {
-            If->GetIpv6Address(&LocalIp.Ipv6);
-            If->GetRemoteIpv6Address(&RemoteIp.Ipv6);
-        }
-
-        TEST_EQUAL(0, listen(Socket.get(), 512));
-
-        UCHAR TcpFrame[TCP_HEADER_STORAGE];
-
-        UINT32 TcpFrameLength = sizeof(TcpFrame);
-        TEST_TRUE(
-            PktBuildTcpFrame(
-                TcpFrame, &TcpFrameLength, NULL, 0, NULL, 0, 0, 0, TH_SYN, 65535, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
-
-        SocketProduceRxFill(&Xsk, 1);
-
-        RX_FRAME Frame;
-        RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
-        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-
-        //
-        // Verify the SYN+ACK has been redirected to XSK.
-        //
-        UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, std::chrono::milliseconds(5000));
-        TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
-        auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
-        TCP_HDR *TcpHeaderParsed = NULL;
-        TEST_TRUE(PktParseTcpFrame(
-            Xsk.Umem.Buffer.get() + XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
-            RxDesc->length, &TcpHeaderParsed, NULL, 0));
-        //
-        // Construct and inject the ACK for SYN+ACK.
-        //
-        UINT32 AckNumForSynAck = ntohl(TcpHeaderParsed->th_seq) + 1;
-        TEST_TRUE(
-            PktBuildTcpFrame(
-                TcpFrame, &TcpFrameLength, NULL, 0, NULL, 0, 1, AckNumForSynAck, TH_ACK, 65535, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
-        RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
-        TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        wil::unique_socket AcceptedSocket(accept(Socket.get(), NULL, 0));
-        TEST_NOT_NULL(AcceptedSocket.get());
-        *AckNum = AckNumForSynAck;
-        return AcceptedSocket;
+    If->GetHwAddress(&LocalHw);
+    If->GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If->GetIpv4Address(&LocalIp.Ipv4);
+        If->GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If->GetIpv6Address(&LocalIp.Ipv6);
+        If->GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    return Socket;
+    TEST_EQUAL(0, listen(Socket.get(), 512));
+
+    UCHAR TcpFrame[TCP_HEADER_STORAGE];
+
+    UINT32 TcpFrameLength = sizeof(TcpFrame);
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            TcpFrame, &TcpFrameLength, NULL, 0, NULL, 0, 0, 0, TH_SYN, 65535, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify the SYN+ACK has been redirected to XSK.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, std::chrono::milliseconds(5000));
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+    TCP_HDR *TcpHeaderParsed = NULL;
+    TEST_TRUE(PktParseTcpFrame(
+        Xsk.Umem.Buffer.get() + XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+        RxDesc->length, &TcpHeaderParsed, NULL, 0));
+    //
+    // Construct and inject the ACK for SYN+ACK.
+    //
+    UINT32 AckNumForSynAck = ntohl(TcpHeaderParsed->th_seq) + 1;
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            TcpFrame, &TcpFrameLength, NULL, 0, NULL, 0, 1, AckNumForSynAck, TH_ACK, 65535, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    wil::unique_socket AcceptedSocket(accept(Socket.get(), NULL, 0));
+    TEST_NOT_NULL(AcceptedSocket.get());
+    *AckNum = AckNumForSynAck;
+    return AcceptedSocket;
 }
-#pragma warning(pop)
 
 static
 VOID
@@ -1817,7 +1836,7 @@ WaitForWfpQuarantine(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    auto UdpSocket = CreateTcpUdpSocket(AF_INET, NULL, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     RemotePort = htons(1234);
@@ -2176,10 +2195,13 @@ GenericRxMatch(
     UINT16 RemotePort = htons(1234);
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 AckNum;
+    UINT32 AckNum = 0;
     UINT32 SeqNum = 1;
 
-    auto Socket = CreateTcpUdpSocket(Af, &If, &LocalPort, RemotePort, &AckNum, IsUdp);
+    auto Socket =
+        IsUdp ?
+            CreateUdpSocket(Af, &If, &LocalPort) :
+            CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
     unique_malloc_ptr<UINT8> PortSet;
@@ -2539,7 +2561,7 @@ GenericRxMatchIpPrefix(
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     XDP_INET_ADDR LocalIp, RemoteIp;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -2613,7 +2635,7 @@ GenericRxLowResources()
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
@@ -2946,7 +2968,7 @@ GenericRxUdpFragmentQuicShortHeader(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 TotalOffset = 0;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -3066,7 +3088,7 @@ GenericRxUdpFragmentQuicLongHeader(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 TotalOffset = 0;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -3382,7 +3404,7 @@ GenericRxFromTxInspect(
     RxInspectFromTxL2.Direction = XDP_HOOK_TX;
     RxInspectFromTxL2.SubLayer = XDP_HOOK_INSPECT;
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &XskPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(Af, &If, &XskPort);
     auto Xsk =
         CreateAndBindSocket(
             If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_UNSPEC, XSK_BIND_FLAG_NONE,
@@ -3495,7 +3517,7 @@ GenericTxToRxInject()
     TxInjectToRxL2.Direction = XDP_HOOK_RX;
     TxInjectToRxL2.SubLayer = XDP_HOOK_INJECT;
 
-    auto UdpSocket = CreateTcpUdpSocket(AF_INET, &If, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(AF_INET, &If, &LocalPort);
     auto Xsk =
         CreateAndBindSocket(
             If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_UNSPEC, XSK_BIND_FLAG_NONE, nullptr,
@@ -4286,7 +4308,7 @@ GenericLoopback(
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
     SocketProduceRxFill(&Xsk, 1);
 
-    auto UdpSocket = CreateTcpUdpSocket(Af, &If, &LocalPort, 0, NULL, TRUE);
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
 
     RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
