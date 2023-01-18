@@ -12,3 +12,6 @@
 #include <pkthlp.h>
 
 #define htons RtlUshortByteSwap
+#define ntohs RtlUshortByteSwap
+#define htonl RtlUlongByteSwap
+#define ntohl RtlUlongByteSwap

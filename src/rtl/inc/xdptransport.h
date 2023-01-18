@@ -11,3 +11,5 @@ typedef struct _UDP_HDR {
     UINT16 uh_ulen;
     UINT16 uh_sum;
 } UDP_HDR;
+
+#define TCP_HDR_LEN_TO_BYTES(x) (((UINT64)(x)) * 4)

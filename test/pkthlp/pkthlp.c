@@ -159,6 +159,172 @@ PktBuildUdpFrame(
     return TRUE;
 }
 
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildTcpFrame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_opt_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_opt_ UINT8 *TcpOptions,
+    _In_ UINT16 TcpOptionsLength,
+    _In_ UINT32 ThSeq, // host order
+    _In_ UINT32 ThAck, // host order
+    _In_ UINT8 ThFlags,
+    _In_ UINT16 ThWin, // host order
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ ADDRESS_FAMILY AddressFamily,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource,
+    _In_ UINT16 PortDestination,
+    _In_ UINT16 PortSource
+    )
+{
+    CONST UINT32 TotalLength =
+        TCP_HEADER_BACKFILL(AddressFamily) + PayloadLength + TcpOptionsLength;
+    if (*BufferSize < TotalLength || TcpOptionsLength > TCP_MAX_OPTION_LEN) {
+        return FALSE;
+    }
+
+    UINT16 TcpLength = sizeof(TCP_HDR) + TcpOptionsLength + PayloadLength;
+    UINT8 AddressLength;
+
+    ETHERNET_HEADER *EthernetHeader = Buffer;
+    EthernetHeader->Destination = *EthernetDestination;
+    EthernetHeader->Source = *EthernetSource;
+    EthernetHeader->Type =
+        htons(AddressFamily == AF_INET ? ETHERNET_TYPE_IPV4 : ETHERNET_TYPE_IPV6);
+    Buffer = EthernetHeader + 1;
+
+    if (AddressFamily == AF_INET) {
+        IPV4_HEADER *IpHeader = Buffer;
+
+        if (TcpLength + (UINT16)sizeof(*IpHeader) < TcpLength) {
+            return FALSE;
+        }
+
+        RtlZeroMemory(IpHeader, sizeof(*IpHeader));
+        IpHeader->Version = IPV4_VERSION;
+        IpHeader->HeaderLength = sizeof(*IpHeader) >> 2;
+        IpHeader->TotalLength = htons(sizeof(*IpHeader) + TcpLength);
+        IpHeader->TimeToLive = 1;
+        IpHeader->Protocol = IPPROTO_TCP;
+        AddressLength = sizeof(IN_ADDR);
+        RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+        RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
+        IpHeader->HeaderChecksum = PktChecksum(0, IpHeader, sizeof(*IpHeader));
+
+        Buffer = IpHeader + 1;
+    } else {
+        IPV6_HEADER *IpHeader = Buffer;
+        RtlZeroMemory(IpHeader, sizeof(*IpHeader));
+        IpHeader->Version = IPV6_VERSION;
+        IpHeader->PayloadLength = htons(TcpLength);
+        IpHeader->NextHeader = IPPROTO_TCP;
+        IpHeader->HopLimit = 1;
+        AddressLength = sizeof(IN6_ADDR);
+        RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+        RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
+
+        Buffer = IpHeader + 1;
+    }
+
+    TCP_HDR *TcpHeader = Buffer;
+    TcpHeader->th_sport = PortSource;
+    TcpHeader->th_dport = PortDestination;
+    TcpHeader->th_len = (UINT8)((sizeof(TCP_HDR) + TcpOptionsLength) / 4);
+    TcpHeader->th_x2 = 0;
+    TcpHeader->th_urp = 0;
+    TcpHeader->th_seq = htonl(ThSeq);
+    TcpHeader->th_ack = htonl(ThAck);
+    TcpHeader->th_win = htons(ThWin);
+    TcpHeader->th_flags = ThFlags;
+    TcpHeader->th_sum =
+        PktPseudoHeaderChecksum(IpSource, IpDestination, AddressLength, TcpLength, IPPROTO_TCP);
+
+    Buffer = TcpHeader + 1;
+    if (TcpOptions != NULL) {
+        RtlCopyMemory(Buffer, TcpOptions, TcpOptionsLength);
+    }
+
+    Buffer = (UINT8 *)Buffer + TcpOptionsLength;
+    if (Payload != NULL) {
+        RtlCopyMemory(Buffer, Payload, PayloadLength);
+    }
+    TcpHeader->th_sum = PktChecksum(0, TcpHeader, TcpLength);
+    *BufferSize = TotalLength;
+
+    return TRUE;
+}
+
+_Success_(return != FALSE)
+BOOLEAN
+PktParseTcpFrame(
+    _In_ UCHAR *Frame,
+    _In_ UINT32 FrameSize,
+    _Out_ TCP_HDR **TcpHdr,
+    _Outptr_opt_result_maybenull_ VOID **Payload,
+    _Out_opt_ UINT32 *PayloadLength
+    )
+{
+    UINT16 IpProto = IPPROTO_MAX;
+    ETHERNET_HEADER *EthHdr;
+    UINT16 IPPayloadLength;
+    UINT32 Offset = 0;
+
+    if (FrameSize < sizeof(*EthHdr)) {
+        return FALSE;
+    }
+
+    EthHdr = (ETHERNET_HEADER *)Frame;
+    Offset += sizeof(*EthHdr);
+    if (EthHdr->Type == htons(ETHERNET_TYPE_IPV4)) {
+        if (FrameSize < Offset + sizeof(IPV4_HEADER)) {
+            return FALSE;
+        }
+        IPV4_HEADER *Ip = (IPV4_HEADER *)&Frame[Offset];
+        Offset += sizeof(IPV4_HEADER);
+        IpProto = Ip->Protocol;
+        IPPayloadLength = ntohs(Ip->TotalLength) - sizeof(IPV4_HEADER);
+    } else if (EthHdr->Type == htons(ETHERNET_TYPE_IPV6)) {
+        if (FrameSize < Offset + sizeof(IPV6_HEADER)) {
+            return FALSE;
+        }
+        IPV6_HEADER *Ip = (IPV6_HEADER *)&Frame[Offset];
+        Offset += sizeof(IPV6_HEADER);
+        IpProto = (Ip)->NextHeader;
+        IPPayloadLength = ntohs(Ip->PayloadLength);
+    } else {
+        return FALSE;
+    }
+
+    if (IpProto == IPPROTO_TCP) {
+        if (FrameSize < Offset + sizeof(TCP_HDR)) {
+            return FALSE;
+        }
+
+        *TcpHdr = (TCP_HDR *)&Frame[Offset];
+        UINT8 TcpHeaderLen = (*TcpHdr)->th_len * 4;
+        if (FrameSize >= Offset + IPPayloadLength) {
+            if (Payload != NULL) {
+                Offset += TcpHeaderLen;
+                *Payload = &Frame[Offset];                
+            }
+
+            if (PayloadLength != NULL) {
+                *PayloadLength = IPPayloadLength - TcpHeaderLen;
+            }
+        } else {
+            return FALSE;
+        }
+    } else {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 BOOLEAN
 PktStringToInetAddressA(
     _Out_ INET_ADDR *InetAddr,

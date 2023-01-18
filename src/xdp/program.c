@@ -9,7 +9,7 @@
 
 #include "precomp.h"
 #include <netiodef.h>
-#include <xdpudp.h>
+#include <xdptransport.h>
 #include "program.tmh"
 
 #pragma pack(push)
@@ -44,7 +44,11 @@ typedef struct _XDP_PROGRAM_FRAME_STORAGE {
         IPV4_HEADER Ip4Hdr;
         IPV6_HEADER Ip6Hdr;
     };
-    UDP_HDR UdpHdr;
+    union {
+        UDP_HDR UdpHdr;
+        TCP_HDR TcpHdr;
+    };
+    UINT8 TcpHdrOptions[40]; // Up to 40B options/paddings
     // Invariant header + 1 for SourceCidLength + 2x CIDS
     UINT8 QuicStorage[
         sizeof(QUIC_HEADER_INVARIANT) +
@@ -71,6 +75,8 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 Ip6Valid : 1;
             UINT32 UdpCached : 1;
             UINT32 UdpValid : 1;
+            UINT32 TcpCached : 1;
+            UINT32 TcpValid : 1;
             UINT32 TransportPayloadCached : 1;
             UINT32 TransportPayloadValid : 1;
             UINT32 QuicCached : 1;
@@ -85,7 +91,11 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
         IPV4_HEADER *Ip4Hdr;
         IPV6_HEADER *Ip6Hdr;
     };
-    UDP_HDR *UdpHdr;
+    union {
+        UDP_HDR *UdpHdr;
+        TCP_HDR *TcpHdr;
+    };
+    UINT8 *TcpHdrOptions;
     UINT8 QuicCidLength;
     CONST UINT8* QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
@@ -278,6 +288,50 @@ XdpParseFragmentedUdp(
 
 static
 VOID
+XdpParseFragmentedTcp(
+    _In_ XDP_FRAME *Frame,
+    _Inout_ XDP_BUFFER **Buffer,
+    _Inout_ UINT32 *BufferDataOffset,
+    _Inout_ UINT32 *FragmentIndex,
+    _Inout_ UINT32 *FragmentsRemaining,
+    _In_ XDP_RING *FragmentRing,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _Out_ XDP_PROGRAM_FRAME_CACHE *Cache,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    )
+{
+    UINT32 HeaderLengh;
+    BOOLEAN Valid =
+        XdpGetContiguousHeader(
+            Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
+            VirtualAddressExtension, &Storage->TcpHdr, sizeof(Storage->TcpHdr), &Cache->TcpHdr);
+    if (!Valid) {
+        return;
+    }
+
+    HeaderLengh = TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len);
+    if (HeaderLengh < sizeof(Storage->TcpHdr)) {
+        return;
+    }
+
+    if (HeaderLengh > sizeof(Storage->TcpHdr)) {
+        //
+        // Attempt to read TCP options.
+        //
+        Valid =
+            XdpGetContiguousHeader(
+                Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
+                VirtualAddressExtension,
+                &Storage->TcpHdrOptions,
+                TCP_HDR_LEN_TO_BYTES(Cache->TcpHdr->th_len) - sizeof(Storage->TcpHdr),
+                &Cache->TcpHdrOptions);
+    }
+
+    Cache->TcpValid = Valid;
+}
+
+static
+VOID
 XdpParseFragmentedFrame(
     _In_ XDP_FRAME *Frame,
     _In_ XDP_RING *FragmentRing,
@@ -336,11 +390,33 @@ XdpParseFragmentedFrame(
         return;
     }
 
-    if (IpProto == IPPROTO_UDP && !Cache->UdpValid) {
-        XdpParseFragmentedUdp(
-            Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
-            VirtualAddressExtension, Cache, Storage);
-        if (Cache->UdpValid) {
+    if (IpProto == IPPROTO_UDP) {
+        if (!Cache->UdpValid) {
+            XdpParseFragmentedUdp(
+                Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
+                VirtualAddressExtension, Cache, Storage);
+            
+            if (!Cache->UdpValid) {
+                return;
+            }
+
+            Cache->TransportPayload.Buffer = Buffer;
+            Cache->TransportPayload.BufferDataOffset = BufferDataOffset;
+            Cache->TransportPayload.FragmentCount = FragmentCount;
+            Cache->TransportPayload.FragmentIndex = FragmentIndex;
+            Cache->TransportPayload.IsFragmentedBuffer = TRUE;
+            Cache->TransportPayloadValid = TRUE;
+        }
+    } else if (IpProto == IPPROTO_TCP) {
+        if (!Cache->TcpValid) {
+            XdpParseFragmentedTcp(
+                Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
+                VirtualAddressExtension, Cache, Storage);
+            
+            if (!Cache->TcpValid) {
+                return;
+            }
+
             Cache->TransportPayload.Buffer = Buffer;
             Cache->TransportPayload.BufferDataOffset = BufferDataOffset;
             Cache->TransportPayload.FragmentCount = FragmentCount;
@@ -375,6 +451,7 @@ XdpParseFrame(
     Cache->Ip4Cached = TRUE;
     Cache->Ip6Cached = TRUE;
     Cache->UdpCached = TRUE;
+    Cache->TcpCached = TRUE;
     Cache->TransportPayloadCached = TRUE;
 
     //
@@ -421,6 +498,24 @@ XdpParseFrame(
         Cache->UdpHdr = (UDP_HDR *)&Va[Offset];
         Cache->UdpValid = TRUE;
         Offset += sizeof(*Cache->UdpHdr);
+        Cache->TransportPayload.Buffer = Buffer;
+        Cache->TransportPayload.BufferDataOffset = Offset;
+        Cache->TransportPayload.IsFragmentedBuffer = FALSE;
+        Cache->TransportPayloadValid = TRUE;
+    } else if (IpProto == IPPROTO_TCP) {
+        UINT32 HeaderLength;
+        if (Buffer->DataLength < Offset + sizeof(*Cache->TcpHdr)) {
+            goto BufferTooSmall;
+        }
+
+        HeaderLength = TCP_HDR_LEN_TO_BYTES(((TCP_HDR *)&Va[Offset])->th_len);
+        if (Buffer->DataLength < Offset + HeaderLength) {
+            goto BufferTooSmall;
+        }
+
+        Cache->TcpHdr = (TCP_HDR *)&Va[Offset];
+        Cache->TcpValid = TRUE;
+        Offset += HeaderLength;
         Cache->TransportPayload.Buffer = Buffer;
         Cache->TransportPayload.BufferDataOffset = Offset;
         Cache->TransportPayload.IsFragmentedBuffer = FALSE;
@@ -827,6 +922,50 @@ XdpInspect(
             }
             break;
 
+        case XDP_MATCH_IPV4_TCP_PORT_SET:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.Ip4Valid &&
+                IN4_ADDR_EQUAL(
+                    &FrameCache.Ip4Hdr->DestinationAddress,
+                    &Rule->Pattern.IpPortSet.Address.Ipv4) &&
+                FrameCache.TcpValid &&
+                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_IPV6_TCP_PORT_SET:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.Ip6Valid &&
+                IN6_ADDR_EQUAL(
+                    &FrameCache.Ip6Hdr->DestinationAddress,
+                    &Rule->Pattern.IpPortSet.Address.Ipv6) &&
+                FrameCache.TcpValid &&
+                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_TCP_DST:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.TcpValid &&
+                FrameCache.TcpHdr->th_dport == Rule->Pattern.Port) {
+                Matched = TRUE;
+            }
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1021,6 +1160,28 @@ XdpProgramTraceObject(
                 "Program=%p Rule[%u]=XDP_MATCH_IPV6_UDP_PORT_SET "
                 "Destination=%!IPV6ADDR! PortSet=?",
                 ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
+            break;
+
+        case XDP_MATCH_IPV4_TCP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV4_TCP_PORT_SET "
+                "Destination=%!IPADDR! PortSet=?",
+                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_IPV6_TCP_PORT_SET:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_IPV6_TCP_PORT_SET "
+                "Destination=%!IPV6ADDR! PortSet=?",
+                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
+            break;
+
+        case XDP_MATCH_TCP_DST:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_TCP_DST Port=%u",
+                ProgramObject, i, ntohs(Rule->Pattern.Port));
             break;
 
         default:
@@ -1239,7 +1400,9 @@ XdpProgramDelete(
         XDP_RULE *Rule = &ProgramObject->Program.Rules[Index];
 
         if (Rule->Match == XDP_MATCH_IPV4_UDP_PORT_SET ||
-            Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET) {
+            Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET ||
+            Rule->Match == XDP_MATCH_IPV4_TCP_PORT_SET ||
+            Rule->Match == XDP_MATCH_IPV6_TCP_PORT_SET) {
             XdpProgramReleasePortSet(&Rule->Pattern.IpPortSet.PortSet);
         }
 
@@ -1386,7 +1549,7 @@ XdpCaptureProgram(
         RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
         Program->RuleCount++;
 
-        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_IPV6_UDP_PORT_SET) {
+        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_DST) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -1416,6 +1579,8 @@ XdpCaptureProgram(
             break;
         case XDP_MATCH_IPV4_UDP_PORT_SET:
         case XDP_MATCH_IPV6_UDP_PORT_SET:
+        case XDP_MATCH_IPV4_TCP_PORT_SET:
+        case XDP_MATCH_IPV6_TCP_PORT_SET:
             Status =
                 XdpProgramCapturePortSet(
                     &UserRule.Pattern.IpPortSet.PortSet, RequestorMode,

@@ -90,6 +90,28 @@ typedef struct _UDP_HDR {
     UINT16 uh_sum;
 } UDP_HDR;
 
+typedef struct _TCP_HDR {
+    UINT16 th_sport;
+    UINT16 th_dport;
+    UINT32 th_seq;
+    UINT32 th_ack;
+    UINT8 th_x2 : 4;
+    UINT8 th_len : 4;
+    UINT8 th_flags;
+    UINT16 th_win;
+    UINT16 th_sum;
+    UINT16 th_urp;
+} TCP_HDR;
+
+#define TH_FIN 0x01
+#define TH_SYN 0x02
+#define TH_RST 0x04
+#define TH_PSH 0x08
+#define TH_ACK 0x10
+#define TH_URG 0x20
+#define TH_ECE 0x40
+#define TH_CWR 0x80
+
 typedef union {
     IN_ADDR Ipv4;
     IN6_ADDR Ipv6;
@@ -127,11 +149,49 @@ PktBuildUdpFrame(
     _In_ UINT16 PortSource
     );
 
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildTcpFrame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_opt_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_opt_ UINT8 *TcpOptions,
+    _In_ UINT16 TcpOptionsLength,
+    _In_ UINT32 ThSeq,
+    _In_ UINT32 ThAck,
+    _In_ UINT8 ThFlags,
+    _In_ UINT16 ThWin,
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ ADDRESS_FAMILY AddressFamily,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource,
+    _In_ UINT16 PortDestination,
+    _In_ UINT16 PortSource
+    );
+
+_Success_(return != FALSE)
+BOOLEAN
+PktParseTcpFrame(
+    _In_ UCHAR *Frame,
+    _In_ UINT32 FrameSize,
+    _Out_ TCP_HDR **TcpHdr,
+    _Outptr_opt_result_maybenull_ VOID **Payload,
+    _Out_opt_ UINT32 *PayloadLength
+    );
+
 #define UDP_HEADER_BACKFILL(AddressFamily) \
     (sizeof(ETHERNET_HEADER) + sizeof(UDP_HDR) + \
         ((AddressFamily == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)))
 
+#define TCP_HEADER_BACKFILL(AddressFamily) \
+    (sizeof(ETHERNET_HEADER) + sizeof(TCP_HDR) + \
+        ((AddressFamily == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)))
+
+#define TCP_MAX_OPTION_LEN 40
 #define UDP_HEADER_STORAGE UDP_HEADER_BACKFILL(AF_INET6)
+#define TCP_HEADER_STORAGE (TCP_HEADER_BACKFILL(AF_INET6) + TCP_MAX_OPTION_LEN)
 
 BOOLEAN
 PktStringToInetAddressA(

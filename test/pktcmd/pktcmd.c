@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 CONST CHAR *UsageText =
-"Usage: pktcmd udp EthSrc EthDst IpSrc IpDst PortSrc PortDst PayloadLength";
+"Usage: pktcmd udp|tcp EthSrc EthDst IpSrc IpDst PortSrc PortDst PayloadLength";
 
 VOID
 Usage(
@@ -34,10 +34,11 @@ main(
     UINT16 PortSrc, PortDst;
     ADDRESS_FAMILY Af, AfSrc, AfDst;
     UCHAR *PayloadBuffer;
-    UCHAR *UdpBuffer;
-    UINT32 UdpLength;
+    UCHAR *PacketBuffer;
+    UINT32 PacketLength;
     UINT16 PayloadLength;
     CONST CHAR *Terminator;
+    BOOLEAN IsUdp;
 
     if (ArgC < 9) {
         Usage("Missing parameter");
@@ -45,7 +46,11 @@ main(
         goto Exit;
     }
 
-    if (_stricmp("udp", ArgV[1])) {
+    if (_stricmp("udp", ArgV[1]) == 0) {
+        IsUdp = TRUE;
+    } else if (_stricmp("tcp", ArgV[1]) == 0) {
+        IsUdp = FALSE;
+    } else{
         Usage("Unsupported protocol");
         Err = 1;
         goto Exit;
@@ -93,25 +98,41 @@ main(
         goto Exit;
     }
 
-    UdpLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
-    __analysis_assume(UdpLength > UDP_HEADER_BACKFILL(Af));
-    UdpBuffer = malloc(UdpLength);
-    if (UdpBuffer == NULL) {
+    if (IsUdp) {
+        PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
+        __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
+    } else {
+        PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
+        __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
+    }
+    PacketBuffer = malloc(PacketLength);
+    if (PacketBuffer == NULL) {
         Usage("Allocation failed");
         Err = 1;
         goto Exit;
     }
 
-    if (!PktBuildUdpFrame(
-        UdpBuffer, &UdpLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        PortDst, PortSrc)) {
-        Usage("Failed to build packet");
-        Err = 1;
-        goto Exit;
+    if (IsUdp) {
+        if (!PktBuildUdpFrame(
+                PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+                PortDst, PortSrc)) {
+            Usage("Failed to build the UDP packet");
+            Err = 1;
+            goto Exit;
+        }
+    } else {
+        if (!PktBuildTcpFrame(
+                PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength,
+                NULL, 0, 1, 2, TH_SYN | TH_ACK, 4, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+                PortDst, PortSrc)) {
+            Usage("Failed to build the TCP packet");
+            Err = 1;
+            goto Exit;
+        }
     }
 
-    for (UINT32 Index = 0; Index < UDP_HEADER_BACKFILL(Af); Index++) {
-        printf("%02x", UdpBuffer[Index]);
+    for (UINT32 Index = 0; Index < PacketLength; Index++) {
+        printf("%02x", PacketBuffer[Index]);
     }
 
 Exit:

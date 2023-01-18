@@ -48,6 +48,14 @@
 #define ntohs _byteswap_ushort
 #endif
 
+#ifndef htonl
+#define htonl _byteswap_ulong
+#endif
+
+#ifndef ntohl
+#define ntohl _byteswap_ulong
+#endif
+
 #ifdef KERNEL_MODE
 
 NTSTATUS
