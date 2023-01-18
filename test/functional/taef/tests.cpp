@@ -220,8 +220,20 @@ public:
         GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_UDP_PORT_SET, TRUE);
     }
 
+    TEST_METHOD(GenericRxMatchIpv4TcpPortSet) {
+        GenericRxMatch(AF_INET, XDP_MATCH_IPV4_TCP_PORT_SET, FALSE);
+    }
+
     TEST_METHOD(GenericRxMatchIpv6TcpPortSet) {
-        GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_TCP_PORT_SET, TRUE);
+        GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_TCP_PORT_SET, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpPortV4) {
+        GenericRxMatch(AF_INET, XDP_MATCH_TCP_DST, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpPortV6) {
+        GenericRxMatch(AF_INET6, XDP_MATCH_TCP_DST, FALSE);
     }
 
     TEST_METHOD(GenericXskWaitRx) {
