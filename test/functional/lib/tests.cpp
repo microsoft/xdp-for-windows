@@ -3181,24 +3181,25 @@ GenericRxUdpFragmentQuicLongHeader(
 }
 
 typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
-    _In_ UINT16 UdpPayloadLength;
+    _In_ UINT16 PayloadLength;
     _In_ UINT16 Backfill;
     _In_ UINT16 Trailer;
     _In_ UINT16 *SplitIndexes;
     _In_ UINT16 SplitCount;
-} GENERIC_RX_UDP_FRAGMENT_PARAMS;
+    _In_ BOOLEAN IsUdp;
+} GENERIC_RX_FRAGMENT_PARAMS;
 
 static
 VOID
-GenericRxUdpFragmentBuffer(
+GenericRxFragmentBuffer(
     _In_ ADDRESS_FAMILY Af,
-    _In_ CONST GENERIC_RX_UDP_FRAGMENT_PARAMS *Params
+    _In_ CONST GENERIC_RX_FRAGMENT_PARAMS *Params
     )
 {
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 UdpFrameOffset = 0;
+    UINT32 PacketBufferOffset = 0;
     UINT32 TotalOffset = 0;
 
     auto If = FnMpIf;
@@ -3217,7 +3218,7 @@ GenericRxUdpFragmentBuffer(
     }
 
     XDP_RULE Rule;
-    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Match = Params->IsUdp ? XDP_MATCH_UDP_DST : XDP_MATCH_TCP_DST;
     Rule.Pattern.Port = LocalPort;
     Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
@@ -3230,17 +3231,28 @@ GenericRxUdpFragmentBuffer(
     //
     // Allocate UDP payload and initialize to a pattern.
     //
-    std::vector<UCHAR> UdpPayload(Params->UdpPayloadLength);
-    std::generate(UdpPayload.begin(), UdpPayload.end(), []{ return (UCHAR)std::rand(); });
+    std::vector<UCHAR> Payload(Params->PayloadLength);
+    std::generate(Payload.begin(), Payload.end(), []{ return (UCHAR)std::rand(); });
 
-    std::vector<UCHAR> UdpFrame(
-        Params->Backfill + UDP_HEADER_BACKFILL(Af) + Params->UdpPayloadLength + Params->Trailer);
-    UINT32 UdpFrameLength = (UINT32)UdpFrame.size() - Params->Backfill - Params->Trailer;
-    TEST_TRUE(
-        PktBuildUdpFrame(
-            &UdpFrame[0] + Params->Backfill, &UdpFrameLength, &UdpPayload[0],
-            (UINT16)UdpPayload.size(), &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
-            RemotePort));
+    std::vector<UCHAR> PacketBuffer(
+        Params->Backfill +
+        (Params->IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af)) +
+        Params->PayloadLength + Params->Trailer);
+    UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params->Backfill - Params->Trailer;
+    if (Params->IsUdp) {
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength, &Payload[0],
+                (UINT16)Payload.size(), &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
+                RemotePort));
+    } else {
+        TEST_TRUE(
+            PktBuildTcpFrame(
+                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength,
+                &Payload[0], (UINT16)Payload.size(),
+                NULL, 0, 0, 0, TH_SYN, 65535, &LocalHw,
+                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    }
 
     std::vector<DATA_BUFFER> Buffers;
 
@@ -3251,11 +3263,11 @@ GenericRxUdpFragmentBuffer(
         DATA_BUFFER Buffer = {0};
 
         Buffer.DataOffset = Index == 0 ? Params->Backfill : 0;
-        Buffer.DataLength = Params->SplitIndexes[Index] - UdpFrameOffset;
+        Buffer.DataLength = Params->SplitIndexes[Index] - PacketBufferOffset;
         Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
-        Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+        Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
 
-        UdpFrameOffset += Buffer.DataLength;
+        PacketBufferOffset += Buffer.DataLength;
         TotalOffset += Buffer.BufferLength;
 
         Buffers.push_back(Buffer);
@@ -3266,9 +3278,9 @@ GenericRxUdpFragmentBuffer(
     //
     DATA_BUFFER Buffer = {0};
     Buffer.DataOffset = Buffers.size() == 0 ? Params->Backfill : 0;
-    Buffer.DataLength = UdpFrameLength - UdpFrameOffset;
+    Buffer.DataLength = ActualPacketLength - PacketBufferOffset;
     Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength + Params->Trailer;
-    Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+    Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
     Buffers.push_back(Buffer);
 
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
@@ -3290,66 +3302,72 @@ GenericRxUdpFragmentBuffer(
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
     auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
 
-    TEST_EQUAL(UdpFrameLength, RxDesc->length);
+    TEST_EQUAL(ActualPacketLength, RxDesc->length);
     TEST_TRUE(
         RtlEqualMemory(
             Xsk.Umem.Buffer.get() +
                 XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
-            &UdpFrame[0] + Params->Backfill,
-            UdpFrameLength));
+            &PacketBuffer[0] + Params->Backfill,
+            ActualPacketLength));
 }
 
 VOID
-GenericRxUdpFragmentHeaderData(
-    _In_ ADDRESS_FAMILY Af
+GenericRxFragmentHeaderData(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     )
 {
-
-    UINT16 SplitIndexes[] = { UDP_HEADER_BACKFILL(Af) };
-    GENERIC_RX_UDP_FRAGMENT_PARAMS Params = {0};
-    Params.UdpPayloadLength = 23;
+    UINT16 SplitIndexes[] = { IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) };
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.IsUdp = IsUdp;
+    Params.PayloadLength = 23;
     Params.Backfill = 13;
     Params.Trailer = 17;
     Params.SplitIndexes = SplitIndexes;
     Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
-    GenericRxUdpFragmentBuffer(Af, &Params);
+    GenericRxFragmentBuffer(Af, &Params);
 }
 
 VOID
-GenericRxUdpTooManyFragments(
-    _In_ ADDRESS_FAMILY Af
+GenericRxTooManyFragments(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     )
 {
-    GENERIC_RX_UDP_FRAGMENT_PARAMS Params = {0};
-    Params.UdpPayloadLength = 512;
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.IsUdp = IsUdp;
+    Params.PayloadLength = 512;
     Params.Backfill = 13;
     Params.Trailer = 17;
     std::vector<UINT16> SplitIndexes;
-    for (UINT16 Index = 0; Index < Params.UdpPayloadLength - 1; Index++) {
+    for (UINT16 Index = 0; Index < Params.PayloadLength - 1; Index++) {
         SplitIndexes.push_back(Index + 1);
     }
     Params.SplitIndexes = &SplitIndexes[0];
     Params.SplitCount = (UINT16)SplitIndexes.size();
-    GenericRxUdpFragmentBuffer(Af, &Params);
+    GenericRxFragmentBuffer(Af, &Params);
 }
 
 VOID
-GenericRxUdpHeaderFragments(
-    _In_ ADDRESS_FAMILY Af
+GenericRxHeaderFragments(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     )
 {
-    GENERIC_RX_UDP_FRAGMENT_PARAMS Params = {0};
-    Params.UdpPayloadLength = 43;
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.IsUdp = IsUdp;
+    Params.PayloadLength = 43;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    UINT16 SplitIndexes[4] = { 0 };
+    UINT16 SplitIndexes[5] = { 0 };
     SplitIndexes[0] = sizeof(ETHERNET_HEADER) / 2;
     SplitIndexes[1] = SplitIndexes[0] + sizeof(ETHERNET_HEADER);
     SplitIndexes[2] = SplitIndexes[1] + 1;
     SplitIndexes[3] = SplitIndexes[2] + ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
+    SplitIndexes[4] = SplitIndexes[3] + (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR)) / 2;
     Params.SplitIndexes = SplitIndexes;
     Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
-    GenericRxUdpFragmentBuffer(Af, &Params);
+    GenericRxFragmentBuffer(Af, &Params);
 }
 
 VOID

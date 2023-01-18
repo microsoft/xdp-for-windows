@@ -67,18 +67,21 @@ GenericRxUdpFragmentQuicLongHeader(
     );
 
 VOID
-GenericRxUdpFragmentHeaderData(
-    _In_ ADDRESS_FAMILY Af
+GenericRxFragmentHeaderData(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     );
 
 VOID
-GenericRxUdpTooManyFragments(
-    _In_ ADDRESS_FAMILY Af
+GenericRxTooManyFragments(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     );
 
 VOID
-GenericRxUdpHeaderFragments(
-    _In_ ADDRESS_FAMILY Af
+GenericRxHeaderFragments(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     );
 
 VOID

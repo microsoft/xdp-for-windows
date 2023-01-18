@@ -289,27 +289,51 @@ public:
     }
 
     TEST_METHOD(GenericRxUdpFragmentHeaderDataV4) {
-        GenericRxUdpFragmentHeaderData(AF_INET);
+        GenericRxFragmentHeaderData(AF_INET, TRUE);
     }
 
     TEST_METHOD(GenericRxUdpFragmentHeaderDataV6) {
-        GenericRxUdpFragmentHeaderData(AF_INET6);
+        GenericRxFragmentHeaderData(AF_INET6, TRUE);
+    }
+
+    TEST_METHOD(GenericRxTcpFragmentHeaderDataV4) {
+        GenericRxFragmentHeaderData(AF_INET, FALSE);
+    }
+
+    TEST_METHOD(GenericRxTcpFragmentHeaderDataV6) {
+        GenericRxFragmentHeaderData(AF_INET6, FALSE);
     }
 
     TEST_METHOD(GenericRxUdpTooManyFragmentsV4) {
-        GenericRxUdpTooManyFragments(AF_INET);
+        GenericRxTooManyFragments(AF_INET, TRUE);
     }
 
     TEST_METHOD(GenericRxUdpTooManyFragmentsV6) {
-        GenericRxUdpTooManyFragments(AF_INET6);
+        GenericRxTooManyFragments(AF_INET6, TRUE);
+    }
+
+    TEST_METHOD(GenericRxTcpTooManyFragmentsV4) {
+        GenericRxTooManyFragments(AF_INET, FALSE);
+    }
+
+    TEST_METHOD(GenericRxTcpTooManyFragmentsV6) {
+        GenericRxTooManyFragments(AF_INET6, FALSE);
     }
 
     TEST_METHOD(GenericRxUdpHeaderFragmentsV4) {
-        GenericRxUdpHeaderFragments(AF_INET);
+        GenericRxHeaderFragments(AF_INET, TRUE);
     }
 
     TEST_METHOD(GenericRxUdpHeaderFragmentsV6) {
-        GenericRxUdpHeaderFragments(AF_INET6);
+        GenericRxHeaderFragments(AF_INET6, TRUE);
+    }
+
+    TEST_METHOD(GenericRxTcpHeaderFragmentsV4) {
+        GenericRxHeaderFragments(AF_INET, FALSE);
+    }
+
+    TEST_METHOD(GenericRxTcpHeaderFragmentsV6) {
+        GenericRxHeaderFragments(AF_INET6, FALSE);
     }
 
     TEST_METHOD(GenericRxFromTxInspectV4) {
