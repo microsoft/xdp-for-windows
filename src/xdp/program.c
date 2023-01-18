@@ -503,11 +503,12 @@ XdpParseFrame(
         Cache->TransportPayload.IsFragmentedBuffer = FALSE;
         Cache->TransportPayloadValid = TRUE;
     } else if (IpProto == IPPROTO_TCP) {
+        UINT32 HeaderLength;
         if (Buffer->DataLength < Offset + sizeof(*Cache->TcpHdr)) {
             goto BufferTooSmall;
         }
 
-        UINT32 HeaderLength = TCP_HDR_LEN_TO_BYTES(((TCP_HDR *)&Va[Offset])->th_len);
+        HeaderLength = TCP_HDR_LEN_TO_BYTES(((TCP_HDR *)&Va[Offset])->th_len);
         if (Buffer->DataLength < Offset + HeaderLength) {
             goto BufferTooSmall;
         }
