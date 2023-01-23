@@ -551,6 +551,7 @@ XdpGenericReceivePostInspectNbs(
     _In_opt_ NET_BUFFER *NbTail,
     _Inout_ NBL_COUNTED_QUEUE *PassList,
     _Inout_ NBL_QUEUE *DropList,
+    _Inout_ NBL_COUNTED_QUEUE *TxList,
     _Inout_ NBL_QUEUE *LowResourcesList
     )
 {
@@ -631,6 +632,7 @@ XdpGenericReceivePostInspectNbs(
                 NdisAppendSingleNblToNblCountedQueue(PassList, ActionNbl);
                 break;
 
+            case XDP_RX_ACTION_TX:
             case XDP_RX_ACTION_DROP:
                 NdisAppendSingleNblToNblQueue(DropList, ActionNbl);
                 break;
@@ -665,7 +667,8 @@ XdpGenericReceiveInspect(
     _In_ NDIS_PORT_NUMBER PortNumber,
     _In_ BOOLEAN CanPend,
     _Inout_ NBL_COUNTED_QUEUE *PassList,
-    _Inout_ NBL_QUEUE *DropList
+    _Inout_ NBL_QUEUE *DropList,
+    _Inout_ NBL_COUNTED_QUEUE *TxList
     )
 {
     NBL_QUEUE LowResourcesList;
@@ -689,8 +692,7 @@ XdpGenericReceiveInspect(
 
         //
         // Invoke XDP inspection. Use the dispatch table (indirect call) rather
-        // than the dispatch table since XDP may substitute for an optimized
-        // routine.
+        // than a direct call since XDP may substitute for an optimized routine.
         //
         XdpReceiveThunk(XdpRxQueue);
 
@@ -698,7 +700,7 @@ XdpGenericReceiveInspect(
         // Apply XDP actions from the XDP receive ring to the NBL chain.
         //
         XdpGenericReceivePostInspectNbs(
-            RxQueue, PortNumber, CanPend, NblHead, NbHead, NextNb, PassList, DropList,
+            RxQueue, PortNumber, CanPend, NblHead, NbHead, NextNb, PassList, DropList, TxList,
             &LowResourcesList);
     } while (NextNb != NULL);
 }
@@ -710,6 +712,7 @@ XdpGenericReceive(
     _In_ NDIS_PORT_NUMBER PortNumber,
     _Out_ NBL_COUNTED_QUEUE *PassList,
     _Out_ NBL_QUEUE *DropList,
+    _Out_ NBL_COUNTED_QUEUE *TxList,
     _In_ UINT32 XdpInspectFlags
     )
 {
@@ -726,6 +729,7 @@ XdpGenericReceive(
 
     NdisInitializeNblCountedQueue(PassList);
     NdisInitializeNblQueue(DropList);
+    NdisInitializeNblCountedQueue(TxList);
 
     if (!(XdpInspectFlags & XDP_LWF_GENERIC_INSPECT_FLAG_DISPATCH)) {
         OldIrql = KeRaiseIrqlToDpcLevel();
@@ -749,7 +753,7 @@ XdpGenericReceive(
         // Perform XDP inspection on each frame within the NBL chain.
         //
         XdpGenericReceiveInspect(
-            RxQueue, XdpRxQueue, NetBufferLists, PortNumber, CanPend, PassList, DropList);
+            RxQueue, XdpRxQueue, NetBufferLists, PortNumber, CanPend, PassList, DropList, TxList);
     }
 
     if (XdpRxQueue != NULL) {
@@ -783,13 +787,15 @@ XdpGenericReceiveNetBufferLists(
     )
 {
     XDP_LWF_GENERIC *Generic = XdpGenericFromFilterContext(FilterModuleContext);
+    BOOLEAN AtDispatch = NDIS_TEST_RECEIVE_AT_DISPATCH_LEVEL(ReceiveFlags);
     NBL_COUNTED_QUEUE PassList;
     NBL_QUEUE DropList;
+    NBL_COUNTED_QUEUE TxList;
 
     UNREFERENCED_PARAMETER(NumberOfNetBufferLists);
 
     XdpGenericReceive(
-        Generic, NetBufferLists, PortNumber, &PassList, &DropList,
+        Generic, NetBufferLists, PortNumber, &PassList, &DropList, &TxList,
         ReceiveFlags & XDP_LWF_GENERIC_INSPECT_NDIS_RX_MASK);
 
     if (!NdisIsNblCountedQueueEmpty(&PassList)) {
@@ -803,8 +809,16 @@ XdpGenericReceiveNetBufferLists(
     if (!NdisIsNblQueueEmpty(&DropList)) {
         NdisFReturnNetBufferLists(
             Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&DropList),
-            NDIS_TEST_RECEIVE_AT_DISPATCH_LEVEL(ReceiveFlags) ?
-                NDIS_RETURN_FLAGS_DISPATCH_LEVEL : 0);
+            AtDispatch ? NDIS_RETURN_FLAGS_DISPATCH_LEVEL : 0);
+    }
+
+    if (!NdisIsNblCountedQueueEmpty(&TxList)) {
+        //
+        // TODO: Convert OOBs from receive to send.
+        //
+        NdisFSendNetBufferLists(
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList), PortNumber,
+            AtDispatch ? NDIS_SEND_FLAGS_DISPATCH_LEVEL : 0);
     }
 }
 
@@ -819,6 +833,7 @@ XdpGenericReceiveTxInspectPoll(
     XDP_LWF_GENERIC *Generic = RxQueue->Generic;
     NBL_COUNTED_QUEUE PassList;
     NBL_QUEUE DropList;
+    NBL_COUNTED_QUEUE TxList;
     NBL_QUEUE NblBatch;
     BOOLEAN PollDidWork = FALSE;
     XDP_RX_QUEUE_HANDLE XdpRxQueue;
@@ -874,7 +889,7 @@ XdpGenericReceiveTxInspectPoll(
     if (!NdisIsNblQueueEmpty(&NblBatch)) {
         XdpGenericReceive(
             Generic, NdisGetNblChainFromNblQueue(&NblBatch), NDIS_DEFAULT_PORT_NUMBER, &PassList,
-            &DropList,
+            &DropList, &TxList,
             XDP_LWF_GENERIC_INSPECT_FLAG_DISPATCH | XDP_LWF_GENERIC_INSPECT_FLAG_TX |
                 XDP_LWF_GENERIC_INSPECT_FLAG_TX_WORKER);
 
@@ -890,54 +905,20 @@ XdpGenericReceiveTxInspectPoll(
                 NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
         }
 
+        if (!NdisIsNblCountedQueueEmpty(&TxList)) {
+            //
+            // TODO: Convert OOBs from send to receive.
+            //
+            NdisFIndicateReceiveNetBufferLists(
+                Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList),
+                NDIS_DEFAULT_PORT_NUMBER, (ULONG)TxList.NblCount,
+                NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
+        }
+
         PollDidWork = TRUE;
     }
 
     return PollDidWork;
-}
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericAttachIfRx(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
-    )
-{
-    BOOLEAN NeedRestart;
-    LARGE_INTEGER Timeout;
-
-    RtlAcquirePushLockExclusive(&Generic->Lock);
-    XdpGenericReferenceDatapath(Generic, Datapath, &NeedRestart);
-    RtlReleasePushLockExclusive(&Generic->Lock);
-
-    if (NeedRestart) {
-        TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting RX datapath attach", Generic->IfIndex);
-        XdpGenericRequestRestart(Generic);
-    }
-
-    Timeout.QuadPart =
-        -1 * RTL_MILLISEC_TO_100NANOSEC(GENERIC_DATAPATH_RESTART_TIMEOUT_MS);
-    KeWaitForSingleObject(
-        &Datapath->ReadyEvent, Executive, KernelMode, FALSE, &Timeout);
-}
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericDetachIfRx(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
-    )
-{
-    BOOLEAN NeedRestart;
-
-    RtlAcquirePushLockExclusive(&Generic->Lock);
-    XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
-    RtlReleasePushLockExclusive(&Generic->Lock);
-
-    if (NeedRestart) {
-        TraceVerbose(TRACE_GENERIC, "IfIndex=%u Requesting RX datapath detach", Generic->IfIndex);
-        XdpGenericRequestRestart(Generic);
-    }
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -1019,11 +1000,15 @@ XdpGenericRxCreateQueue(
 
     if (RxQueue->Flags.TxInspect) {
         WritePointerRelease(&RssQueue->TxInspectQueue, RxQueue);
-        XdpGenericAttachIfRx(Generic, &Generic->Tx.Datapath);
     } else {
         WritePointerRelease(&RssQueue->RxQueue, RxQueue);
-        XdpGenericAttachIfRx(Generic, &Generic->Rx.Datapath);
     }
+
+    //
+    // Always attach to both RX and TX data paths: XDP_RX_ACTION_TX requires the
+    // ability to hairpin traffic in the opposite direction it was inspected.
+    //
+    XdpGenericAttachDatapath(Generic, TRUE, TRUE);
 
     XdpInitializeExtensionInfo(
         &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
@@ -1049,6 +1034,7 @@ XdpGenericRxCreateQueue(
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     RxCapabilities.MaximumFragments = RxQueue->FragmentLimit;
+    RxCapabilities.TxActionSupported = TRUE;
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeRxDescriptorContexts(&DescriptorContexts);
@@ -1161,12 +1147,12 @@ XdpGenericRxDeleteQueue(
     if (RxQueue->Flags.TxInspect) {
         #pragma warning(suppress:6387) // WritePointerRelease second parameter is not _In_opt_
         WritePointerRelease(&Generic->Rss.Queues[RxQueue->QueueId].TxInspectQueue, NULL);
-        XdpGenericDetachIfRx(Generic, &Generic->Tx.Datapath);
     } else {
         #pragma warning(suppress:6387) // WritePointerRelease second parameter is not _In_opt_
         WritePointerRelease(&Generic->Rss.Queues[RxQueue->QueueId].RxQueue, NULL);
-        XdpGenericDetachIfRx(Generic, &Generic->Rx.Datapath);
     }
+
+    XdpGenericDetachDatapath(Generic, TRUE, TRUE);
 
     KeInitializeEvent(&DeleteComplete, NotificationEvent, FALSE);
     RxQueue->DeleteComplete = &DeleteComplete;

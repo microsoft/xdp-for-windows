@@ -146,11 +146,13 @@ XdpGenericSendNetBufferLists(
     XDP_LWF_GENERIC *Generic = XdpGenericFromFilterContext(FilterModuleContext);
     NBL_COUNTED_QUEUE PassList;
     NBL_QUEUE DropList;
+    NBL_COUNTED_QUEUE TxList;
+    BOOLEAN AtDispatch = NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags);
 
     ASSERT(PortNumber == NDIS_DEFAULT_PORT_NUMBER);
 
     XdpGenericReceive(
-        Generic, NetBufferLists, PortNumber, &PassList, &DropList,
+        Generic, NetBufferLists, PortNumber, &PassList, &DropList, &TxList,
         (SendFlags & XDP_LWF_GENERIC_INSPECT_NDIS_TX_MASK) | XDP_LWF_GENERIC_INSPECT_FLAG_TX);
 
     if (!NdisIsNblCountedQueueEmpty(&PassList)) {
@@ -162,8 +164,16 @@ XdpGenericSendNetBufferLists(
     if (!NdisIsNblQueueEmpty(&DropList)) {
         NdisFSendNetBufferListsComplete(
             Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&DropList),
-            NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags) ?
-                NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
+            AtDispatch ? NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
+    }
+
+    if (!NdisIsNblCountedQueueEmpty(&TxList)) {
+        //
+        // TODO: Convert OOBs from send to receive.
+        //
+        NdisFIndicateReceiveNetBufferLists(
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList), PortNumber,
+            (ULONG)TxList.NblCount, AtDispatch ? NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL : 0);
     }
 }
 
@@ -750,7 +760,7 @@ XdpGenericTxCreateQueue(
     }
 
     Datapath = TxQueue->Flags.RxInject ? &Generic->Rx.Datapath : &Generic->Tx.Datapath;
-    XdpGenericReferenceDatapath(Generic, Datapath, &NeedRestart);
+    NeedRestart = XdpGenericReferenceDatapath(Generic, Datapath);
     if (NeedRestart) {
         TxQueue->Flags.Pause = TRUE;
     }
@@ -927,7 +937,7 @@ XdpGenericTxDeleteQueue(
     Datapath =
         TxQueue->Flags.RxInject ?
             &Generic->Rx.Datapath : &Generic->Tx.Datapath;
-    XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
+    NeedRestart = XdpGenericDereferenceDatapath(Generic, Datapath);
 
     RtlReleasePushLockExclusive(&Generic->Lock);
 

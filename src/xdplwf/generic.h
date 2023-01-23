@@ -101,20 +101,34 @@ XdpGenericRequestRestart(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_lock_held_(&Generic->Lock)
-VOID
+BOOLEAN
 XdpGenericReferenceDatapath(
     _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath,
-    _Out_ BOOLEAN *NeedRestart
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_lock_held_(&Generic->Lock)
-VOID
+BOOLEAN
 XdpGenericDereferenceDatapath(
     _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath,
-    _Out_ BOOLEAN *NeedRestart
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpGenericAttachDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ BOOLEAN RxDatapath,
+    _In_ BOOLEAN TxDatapath
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpGenericDetachDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ BOOLEAN RxDatapath,
+    _In_ BOOLEAN TxDatapath
     );
 
 NTSTATUS

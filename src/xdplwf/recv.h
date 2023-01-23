@@ -93,19 +93,6 @@ XdpGenericReceive(
     _In_ NDIS_PORT_NUMBER PortNumber,
     _Out_ NBL_COUNTED_QUEUE *PassList,
     _Out_ NBL_QUEUE *DropList,
+    _Out_ NBL_COUNTED_QUEUE *TxList,
     _In_ UINT32 XdpInspectFlags
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericAttachIfRx(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpGenericDetachIfRx(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
     );
