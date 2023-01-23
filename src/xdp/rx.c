@@ -532,6 +532,16 @@ XdpRxQueueGetMaximumFragments(
     return RxQueue->InterfaceRxCapabilities.MaximumFragments;
 }
 
+BOOLEAN
+XdpRxQueueIsTxActionSupported(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+
+    return RxQueue->InterfaceRxCapabilities.TxActionSupported;
+}
+
 static
 CONST XDP_HOOK_ID *
 XdppRxQueueGetHookId(

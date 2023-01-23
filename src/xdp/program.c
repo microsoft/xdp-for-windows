@@ -97,7 +97,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     };
     UINT8 *TcpHdrOptions;
     UINT8 QuicCidLength;
-    CONST UINT8* QuicCid; // Src CID for long header, Dest CID for short header
+    CONST UINT8 *QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
 } XDP_PROGRAM_FRAME_CACHE;
 
@@ -204,6 +204,54 @@ XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining,
             FragmentRing, VirtualAddressExtension, HeaderStorage, HeaderSize, Header);
     return ReadLength == HeaderSize;
+}
+
+static
+VOID
+XdpCopyMemoryToFrame(
+    _In_ XDP_FRAME *Frame,
+    _In_ XDP_RING *FragmentRing,
+    _In_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ UINT32 FrameDataOffset,
+    _In_ VOID *Data,
+    _In_ UINT32 DataLength
+    )
+{
+    XDP_BUFFER *Buffer = &Frame->Buffer;
+    UINT32 BufferDataOffset = Frame->Buffer.DataOffset;
+    UINT32 FragmentCount;
+
+    //
+    // The first buffer is stored in the frame ring, so bias the fragment index
+    // so the initial increment yields the first buffer in the fragment ring.
+    //
+    FragmentIndex--;
+    FragmentCount = XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount;
+
+    while (DataLength > 0) {
+        if (FrameDataOffset >= Buffer->DataLength) {
+            FrameDataOffset -= Buffer->DataLength;
+            FragmentIndex = (FragmentIndex + 1) & FragmentRing->Mask;
+            Buffer = XdpRingGetElement(FragmentRing, FragmentIndex);
+            BufferDataOffset = 0;
+            ASSERT(FragmentCount > 0);
+            FragmentCount--;
+        } else {
+            UINT32 CopyLength;
+            UCHAR *Va;
+
+            BufferDataOffset += FrameDataOffset;
+            CopyLength = min(DataLength, Buffer->DataLength - BufferDataOffset);
+            Va = XdpGetVirtualAddressExtension(Buffer, VirtualAddressExtension)->VirtualAddress;
+            RtlCopyMemory(Va, Data, CopyLength);
+
+            Data = RTL_PTR_ADD(Data, CopyLength);
+            DataLength -= CopyLength;
+            FrameDataOffset += CopyLength;
+        }
+    }
 }
 
 static
@@ -395,7 +443,7 @@ XdpParseFragmentedFrame(
             XdpParseFragmentedUdp(
                 Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
                 VirtualAddressExtension, Cache, Storage);
-            
+
             if (!Cache->UdpValid) {
                 return;
             }
@@ -412,7 +460,7 @@ XdpParseFragmentedFrame(
             XdpParseFragmentedTcp(
                 Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount, FragmentRing,
                 VirtualAddressExtension, Cache, Storage);
-            
+
             if (!Cache->TcpValid) {
                 return;
             }
@@ -744,6 +792,45 @@ XdpTestBit(
     return (ReadUCharNoFence(&BitMap[Index >> 3]) >> (Index & 0x7)) & 0x1;
 }
 
+static
+XDP_RX_ACTION
+XdpL2Fwd(
+    _In_ XDP_FRAME *Frame,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *Cache,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    )
+{
+    DL_EUI48 TempDlAddress;
+
+    if (!Cache->EthCached) {
+        XdpParseFrame(
+            Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+            Cache, Storage);
+    }
+
+    if (!Cache->EthValid) {
+        return XDP_RX_ACTION_DROP;
+    }
+
+    TempDlAddress = Cache->EthHdr->Destination;
+    Cache->EthHdr->Destination = Cache->EthHdr->Source;
+    Cache->EthHdr->Source = TempDlAddress;
+
+    if (Frame->Buffer.DataLength < sizeof(*Cache->EthHdr)) {
+        ASSERT(FragmentRing != NULL);
+        ASSERT(FragmentExtension != NULL);
+        XdpCopyMemoryToFrame(
+            Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension, 0,
+            Cache->EthHdr, sizeof(sizeof(*Cache->EthHdr)));
+    }
+
+    return XDP_RX_ACTION_TX;
+}
+
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
@@ -993,6 +1080,13 @@ XdpInspect(
                 Action = XDP_RX_ACTION_PASS;
                 break;
 
+            case XDP_PROGRAM_ACTION_L2FWD:
+                Action =
+                    XdpL2Fwd(
+                        Frame, FragmentRing, FragmentExtension, FragmentIndex,
+                        VirtualAddressExtension, &FrameCache, &Program->FrameStorage);
+                break;
+
             default:
                 ASSERT(FALSE);
                 break;
@@ -1014,6 +1108,7 @@ XdpProgramGetXskBypassTarget(
     ASSERT(XdpProgramCanXskBypass(Program));
     return Program->Rules[0].Redirect.Target;
 }
+
 
 //
 // Control path routines.
@@ -1596,7 +1691,7 @@ XdpCaptureProgram(
         }
 
         if (UserRule.Action < XDP_PROGRAM_ACTION_DROP ||
-            UserRule.Action > XDP_PROGRAM_ACTION_REDIRECT) {
+            UserRule.Action > XDP_PROGRAM_ACTION_L2FWD) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -1697,6 +1792,13 @@ XdpProgramAttach(
 
             default:
                 break;
+            }
+        } else if (Rule->Action == XDP_PROGRAM_ACTION_L2FWD) {
+            if (!XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(ProgramObject->RxQueue))) {
+                TraceError(
+                    TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
+                Status = STATUS_NOT_SUPPORTED;
+                goto Exit;
             }
         }
     }
@@ -1900,6 +2002,8 @@ XdpIrpCreateProgram(
         RequiredMode = &InterfaceMode;
     }
 
+RetryBinding:
+
     BindingHandle = XdpIfFindAndReferenceBinding(Params->IfIndex, &Params->HookId, 1, RequiredMode);
     if (BindingHandle == NULL) {
         Status = STATUS_NOT_FOUND;
@@ -1930,6 +2034,29 @@ XdpIrpCreateProgram(
     KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
 
     Status = WorkItem.CompletionStatus;
+
+    if (Status == STATUS_NOT_SUPPORTED &&
+        XdpIfGetCapabilities(BindingHandle)->Mode == XDP_INTERFACE_MODE_NATIVE &&
+        RequiredMode == NULL) {
+        //
+        // The program failed to attach to the native interface. Since the
+        // application did not require native mode, attempt to fall back to
+        // generic mode.
+        //
+        TraceVerbose(
+            TRACE_CORE,
+            "IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u native mode not supported, trying generic mode",
+            Params->IfIndex, Params->HookId.Layer, Params->HookId.Direction,
+            Params->HookId.SubLayer, Params->QueueId);
+
+        ProgramObject = NULL;
+        XdpIfDereferenceBinding(BindingHandle);
+        BindingHandle = NULL;
+
+        InterfaceMode = XDP_INTERFACE_MODE_GENERIC;
+        RequiredMode = &InterfaceMode;
+        goto RetryBinding;
+    }
 
 Exit:
 

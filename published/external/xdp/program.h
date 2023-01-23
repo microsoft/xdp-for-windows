@@ -182,6 +182,12 @@ typedef enum _XDP_RULE_ACTION {
     // Frame must be redirected to the target specified in XDP_REDIRECT_PARAMS.
     //
     XDP_PROGRAM_ACTION_REDIRECT,
+    //
+    // The frame's ethernet source and destination addresses are swapped and the
+    // frame is directed onto the return path. For native XDP drivers, this
+    // results in an XDP_RX_ACTION_TX.
+    //
+    XDP_PROGRAM_ACTION_L2FWD,
 } XDP_RULE_ACTION;
 
 //

@@ -94,6 +94,11 @@ XdpRxQueueGetMaximumFragments(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
 
+BOOLEAN
+XdpRxQueueIsTxActionSupported(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
 NTSTATUS
 XdpRxStart(
     VOID
