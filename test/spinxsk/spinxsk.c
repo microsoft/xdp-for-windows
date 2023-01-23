@@ -371,10 +371,26 @@ AttachXdpProgram(
     HRESULT res;
     UINT8 *PortSet = NULL;
 
-    rule.Match = XDP_MATCH_ALL;
-    rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
-    rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-    rule.Redirect.Target = Sock;
+    if (RxRequired) {
+        rule.Match = XDP_MATCH_ALL;
+        rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+        rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+        rule.Redirect.Target = Sock;
+    } else {
+        rule.Match = XDP_MATCH_ALL;
+
+        switch (RandUlong() % 2) {
+        case 0:
+            rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+            rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+            rule.Redirect.Target = Sock;
+            break;
+
+        case 1:
+            rule.Action = XDP_PROGRAM_ACTION_L2FWD;
+            break;
+        }
+    }
 
     if (Queue->xdpMode == XdpModeGeneric) {
         flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
