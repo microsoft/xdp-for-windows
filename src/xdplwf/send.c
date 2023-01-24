@@ -31,9 +31,17 @@ InterlockedPushListSList(
 
 typedef struct _NBL_TX_CONTEXT {
     XDP_LWF_GENERIC_TX_QUEUE *TxQueue;
+    XDP_LWF_GENERIC_INJECTION_TYPE InjectionType;
     UINT64 BufferAddress;
     XDP_TX_FRAME_COMPLETION_CONTEXT CompletionContext;
 } NBL_TX_CONTEXT;
+
+C_ASSERT(
+    FIELD_OFFSET(NBL_TX_CONTEXT, TxQueue) ==
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionCompletionContext));
+C_ASSERT(
+    FIELD_OFFSET(NBL_TX_CONTEXT, InjectionType) ==
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType));
 
 static
 NBL_TX_CONTEXT *
@@ -209,6 +217,7 @@ XdpGenericBuildTxNbl(
     NET_BUFFER_CURRENT_MDL_OFFSET(Nb) = 0;
     NET_BUFFER_LIST_SET_HASH_VALUE(Nbl, TxQueue->RssQueue->RssHash);
     NblTxContext(Nbl)->TxQueue = TxQueue;
+    NblTxContext(Nbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_SEND;
     NblTxContext(Nbl)->BufferAddress = BufferMdl->MdlOffset;
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {

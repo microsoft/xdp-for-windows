@@ -13,6 +13,31 @@ typedef struct _XDP_LWF_GENERIC_RX_FRAME_CONTEXT {
     NET_BUFFER *Nb;
 } XDP_LWF_GENERIC_RX_FRAME_CONTEXT;
 
+typedef struct _NBL_RX_TX_CONTEXT {
+    XDP_LWF_GENERIC_RX_QUEUE *RxQueue;
+    XDP_LWF_GENERIC_INJECTION_TYPE InjectionType;
+} NBL_RX_TX_CONTEXT;
+
+C_ASSERT(
+    FIELD_OFFSET(NBL_RX_TX_CONTEXT, RxQueue) ==
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionCompletionContext));
+C_ASSERT(
+    FIELD_OFFSET(NBL_RX_TX_CONTEXT, InjectionType) ==
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType));
+
+static
+NBL_RX_TX_CONTEXT *
+NblRxTxContext(
+    _In_ NET_BUFFER_LIST *NetBufferList
+    )
+{
+    //
+    // Review: we could use the protocol or miniport reserved space for
+    // regular TX and RX-inject respectively.
+    //
+    return (NBL_RX_TX_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
+}
+
 _Use_decl_annotations_
 VOID
 XdpGenericReturnNetBufferLists(
@@ -407,20 +432,28 @@ XdpGenericReceiveEnqueueTxNb(
     Nbl->FirstNetBuffer->Next = NULL;
 
     if (CanPend) {
-        TxNbl = NdisAllocateCloneNetBufferList(Nbl, NULL, NULL, NDIS_CLONE_FLAGS_USE_ORIGINAL_MDLS);
+        TxNbl =
+            NdisAllocateCloneNetBufferList(
+                Nbl, RxQueue->TxCloneNblPool, NULL, NDIS_CLONE_FLAGS_USE_ORIGINAL_MDLS);
         if (TxNbl == NULL) {
             goto Exit;
         }
 
-        //
-        // TODO: Set up completion context.
-        //
+        NblRxTxContext(TxNbl)->RxQueue = RxQueue;
+        NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
+        TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
+        TxNbl->ParentNetBufferList = Nbl;
         Nbl->ChildRefCount++;
         NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
     } else {
         //
         // TODO: Create a deep copy.
         //
+
+        //
+        // For now, just drop all low resource NBLs (no action required here).
+        //
+        ASSERT(FALSE);
     }
 
 Exit:
@@ -1119,6 +1152,7 @@ XdpGenericRxCreateQueue(
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
     CONST XDP_QUEUE_INFO *QueueInfo;
     CONST XDP_HOOK_ID *QueueHookId;
+    NET_BUFFER_LIST_POOL_PARAMETERS PoolParams = {0};
     XDP_EXTENSION_INFO ExtensionInfo;
     XDP_RX_CAPABILITIES RxCapabilities;
     XDP_RX_DESCRIPTOR_CONTEXTS DescriptorContexts;
@@ -1168,6 +1202,21 @@ XdpGenericRxCreateQueue(
     RxQueue->Generic = Generic;
     ExInitializeRundownProtection(&RxQueue->NblRundown);
     RxQueue->Flags.TxInspect = (HookId.Direction == XDP_HOOK_TX);
+
+    PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+    PoolParams.Header.Size = sizeof(PoolParams);
+    PoolParams.ProtocolId = NDIS_PROTOCOL_ID_TCP_IP;
+    PoolParams.PoolTag = POOLTAG_RECV_TX;
+    PoolParams.fAllocateNetBuffer = TRUE;
+
+    PoolParams.ContextSize = sizeof(NBL_RX_TX_CONTEXT);
+
+    RxQueue->TxCloneNblPool = NdisAllocateNetBufferListPool(Generic->NdisFilterHandle, &PoolParams);
+    if (RxQueue->TxCloneNblPool == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
 
     if (RxQueue->Flags.TxInspect) {
         NdisInitializeNblQueue(&RxQueue->TxInspectNblQueue);
@@ -1240,6 +1289,9 @@ Exit:
     if (!NT_SUCCESS(Status)) {
         if (RxQueue != NULL) {
             XdpEcCleanup(&RxQueue->TxInspectEc);
+            if (RxQueue->TxCloneNblPool != NULL) {
+                NdisFreeNetBufferListPool(RxQueue->TxCloneNblPool);
+            }
             ExFreePoolWithTag(RxQueue, POOLTAG_RECV);
         }
     }
@@ -1303,6 +1355,7 @@ XdpGenericRxDeleteQueueEntry(
     if (RxQueue->FragmentBuffer != NULL) {
         ExFreePoolWithTag(RxQueue->FragmentBuffer, POOLTAG_RECV);
     }
+    NdisFreeNetBufferListPool(RxQueue->TxCloneNblPool);
     KeSetEvent(RxQueue->DeleteComplete, 0, FALSE);
     ExFreePoolWithTag(RxQueue, POOLTAG_RECV);
 }

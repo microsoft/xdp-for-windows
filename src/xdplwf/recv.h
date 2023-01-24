@@ -15,6 +15,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     XDP_EXTENSION RxActionExtension;
     XDP_EXTENSION FragmentExtension;
     XDP_EXTENSION FrameInterfaceContextExtension;
+    NDIS_HANDLE TxCloneNblPool;
     EX_RUNDOWN_REF NblRundown;
 
     //
