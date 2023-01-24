@@ -38,6 +38,9 @@ typedef struct _XDP_LWF_GENERIC {
     KEVENT InterfaceRemovedEvent;
     XDP_REFERENCE_COUNT ReferenceCount;
     KEVENT CleanupEvent;
+    struct {
+        BOOLEAN Paused : 1;
+    } Flags;
 
     XDP_LWF_GENERIC_RSS Rss;
 

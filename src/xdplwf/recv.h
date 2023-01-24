@@ -15,6 +15,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     XDP_EXTENSION RxActionExtension;
     XDP_EXTENSION FragmentExtension;
     XDP_EXTENSION FrameInterfaceContextExtension;
+    EX_RUNDOWN_REF NblRundown;
 
     //
     // For RX inspect, the EcLock provides mutual exclusion on the data path,
@@ -54,16 +55,14 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
 
     XDP_LWF_GENERIC *Generic;
     struct {
+        BOOLEAN Paused : 1;
         BOOLEAN TxInspect : 1;
         BOOLEAN TxInspectInline: 1;
         BOOLEAN TxInspectWorker : 1;
         BOOLEAN TxInspectNeedFlush : 1;
-        BOOLEAN TxInspectNeedPause : 1;
-        BOOLEAN Pause : 1;
     } Flags;
     UINT32 QueueId;
     LIST_ENTRY Link;
-    KEVENT *PauseComplete;
     XDP_LIFETIME_ENTRY DeleteEntry;
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_RX_QUEUE;

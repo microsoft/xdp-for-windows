@@ -763,6 +763,8 @@ XdpGenericTxCreateQueue(
     NeedRestart = XdpGenericReferenceDatapath(Generic, Datapath);
     if (NeedRestart) {
         TxQueue->Flags.Pause = TRUE;
+    } else {
+        TxQueue->Flags.Pause = Generic->Flags.Paused;
     }
 
     InsertTailList(&Generic->Tx.Queues, &TxQueue->Link);

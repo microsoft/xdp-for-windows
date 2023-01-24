@@ -232,7 +232,6 @@ XdpGenericReceiveExitEc(
     )
 {
     BOOLEAN NeedEcNotify = FALSE;
-    KEVENT *PauseCompleteEvent = NULL;
     XDP_RX_QUEUE_HANDLE XdpRxQueue;
 
     //
@@ -269,18 +268,6 @@ XdpGenericReceiveExitEc(
                 }
             }
 
-            if (RxQueue->Flags.TxInspectNeedPause) {
-                RxQueue->Flags.TxInspectNeedPause = FALSE;
-
-                ASSERT(!RxQueue->Flags.Pause);
-                RxQueue->Flags.Pause = TRUE;
-
-                if (RxQueue->PauseReferenceCount == 0) {
-                    PauseCompleteEvent = RxQueue->PauseComplete;
-                    RxQueue->PauseComplete = NULL;
-                }
-            }
-
             //
             // More NBLs arrived during inspection; start the TX inspection
             // worker.
@@ -295,10 +282,6 @@ XdpGenericReceiveExitEc(
 
         if (NeedEcNotify) {
             XdpEcNotify(&RxQueue->TxInspectEc);
-        }
-
-        if (PauseCompleteEvent != NULL) {
-            KeSetEvent(PauseCompleteEvent, 0, FALSE);
         }
     }
 }
@@ -458,22 +441,19 @@ XdpGenericReceiveEnqueueTxNbl(
 {
     //
     // TODO: set up the original NBL with a completion context.
+    // TODO: handle pause case
     // TODO: wire up completion back to the RX queue, including completing any pause operation.
     //
     ASSERT(Nbl->ChildRefCount == 0);
     Nbl->ChildRefCount = 0;
 
-    if (!RxQueue->Flags.Pause) {
-        for (NET_BUFFER *Nb = Nbl->FirstNetBuffer; Nb != NULL; Nb = Nb->Next) {
-            XdpGenericReceiveEnqueueTxNb(RxQueue, TxList, Nbl, Nb, CanPend);
-        }
+    for (NET_BUFFER *Nb = Nbl->FirstNetBuffer; Nb != NULL; Nb = Nb->Next) {
+        XdpGenericReceiveEnqueueTxNb(RxQueue, TxList, Nbl, Nb, CanPend);
     }
 
     ASSERT(CanPend || Nbl->ChildRefCount == 0);
 
-    if (Nbl->ChildRefCount > 0) {
-        RxQueue->PauseReferenceCount++;
-    } else {
+    if (Nbl->ChildRefCount == 0) {
         NdisAppendSingleNblToNblQueue(DropList, Nbl);
     }
 }
@@ -865,6 +845,12 @@ XdpGenericReceive(
         KeLowerIrql(OldIrql);
     }
 
+    if (!ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
+        //
+        // TODO: Complete the TX packets inline.
+        //
+    }
+
     EventWriteGenericRxInspectStop(&MICROSOFT_XDP_PROVIDER, Generic);
 }
 
@@ -937,8 +923,6 @@ XdpGenericReceiveTxInspectPoll(
     // pending work.
     //
     if (NdisIsNblQueueEmpty(&RxQueue->TxInspectPollNblQueue)) {
-        KEVENT *PauseCompleteEvent = NULL;
-
         KeAcquireSpinLockAtDpcLevel(&RxQueue->EcLock);
 
         if (RxQueue->Flags.TxInspectWorker) {
@@ -953,18 +937,6 @@ XdpGenericReceiveTxInspectPoll(
                 PollDidWork = TRUE;
             }
 
-            if (RxQueue->Flags.TxInspectNeedPause) {
-                RxQueue->Flags.TxInspectNeedPause = FALSE;
-
-                ASSERT(!RxQueue->Flags.Pause);
-                RxQueue->Flags.Pause = TRUE;
-
-                if (RxQueue->PauseReferenceCount == 0) {
-                    PauseCompleteEvent = RxQueue->PauseComplete;
-                    RxQueue->PauseComplete = NULL;
-                }
-            }
-
             if (NdisIsNblQueueEmpty(&RxQueue->TxInspectNblQueue)) {
                 RxQueue->Flags.TxInspectWorker = FALSE;
             } else {
@@ -974,10 +946,6 @@ XdpGenericReceiveTxInspectPoll(
         }
 
         KeReleaseSpinLockFromDpcLevel(&RxQueue->EcLock);
-
-        if (PauseCompleteEvent != NULL) {
-            KeSetEvent(PauseCompleteEvent, 0, FALSE);
-        }
     }
 
     //
@@ -1041,56 +1009,22 @@ XdpGenericRxPauseQueue(
     )
 {
     KIRQL OldIrql;
-    KEVENT RxPauseComplete;
-    BOOLEAN Wait = FALSE;
-    BOOLEAN NeedEcNotify = FALSE;
+    BOOLEAN NeedPause = FALSE;
 
     TraceEnter(
         TRACE_GENERIC, "RxQueue=%p IfIndex=%u QueueId=%u TxInspect=%!BOOLEAN!",
         RxQueue, Generic->IfIndex, RxQueue->QueueId, RxQueue->Flags.TxInspect);
 
-    KeInitializeEvent(&RxPauseComplete, NotificationEvent, FALSE);
-
     KeAcquireSpinLock(&RxQueue->EcLock, &OldIrql);
-
-    //
-    // There should never be concurrent pause attempts.
-    //
-    ASSERT(RxQueue->PauseComplete == NULL);
-
-    //
-    // If the TX inspect worker is active, pend the pause, otherwise simply
-    // initiate the pause inline while holding the EC lock. In either case, if
-    // the RX queue is already paused, there's nothing to do.
-    //
-    if ((RxQueue->Flags.TxInspectInline || RxQueue->Flags.TxInspectWorker) &&
-        !RxQueue->Flags.TxInspectNeedPause) {
-        RxQueue->Flags.TxInspectNeedPause = TRUE;
-        NeedEcNotify = TRUE;
-        Wait = TRUE;
-    } else if (!RxQueue->Flags.Pause) {
-        RxQueue->Flags.Pause = TRUE;
-
-        if (RxQueue->PauseReferenceCount > 0) {
-            Wait = TRUE;
-        }
+    if (!RxQueue->Flags.Paused) {
+        RxQueue->Flags.Paused = TRUE;
+        NeedPause = TRUE;
     }
-
-    if (Wait) {
-        RxQueue->PauseComplete = &RxPauseComplete;
-    }
-
     KeReleaseSpinLock(&RxQueue->EcLock, OldIrql);
 
-    if (NeedEcNotify) {
-        XdpEcNotify(&RxQueue->TxInspectEc);
+    if (NeedPause) {
+        ExWaitForRundownProtectionRelease(&RxQueue->NblRundown);
     }
-
-    if (Wait) {
-        KeWaitForSingleObject(&RxPauseComplete, Executive, KernelMode, FALSE, NULL);
-    }
-
-    ASSERT(RxQueue->PauseComplete == NULL);
 
     TraceExitSuccess(TRACE_GENERIC);
 }
@@ -1112,6 +1046,31 @@ XdpGenericRxPause(
 
         XdpGenericRxPauseQueue(Generic, RxQueue);
     }
+
+    TraceExitSuccess(TRACE_GENERIC);
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_exclusive_lock_held_(&Generic->Lock)
+VOID
+XdpGenericRxRestartQueue(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue
+    )
+{
+    KIRQL OldIrql;
+
+    TraceEnter(
+        TRACE_GENERIC, "RxQueue=%p IfIndex=%u QueueId=%u TxInspect=%!BOOLEAN!",
+        RxQueue, Generic->IfIndex, RxQueue->QueueId, RxQueue->Flags.TxInspect);
+
+    KeAcquireSpinLock(&RxQueue->EcLock, &OldIrql);
+    ASSERT(RxQueue->Flags.Paused);
+    RxQueue->Flags.Paused = FALSE;
+    KeReleaseSpinLock(&RxQueue->EcLock, OldIrql);
+
+    ExReInitializeRundownProtection(&RxQueue->NblRundown);
 
     TraceExitSuccess(TRACE_GENERIC);
 }
@@ -1207,6 +1166,7 @@ XdpGenericRxCreateQueue(
 
     RxQueue->QueueId = QueueInfo->QueueId;
     RxQueue->Generic = Generic;
+    ExInitializeRundownProtection(&RxQueue->NblRundown);
     RxQueue->Flags.TxInspect = (HookId.Direction == XDP_HOOK_TX);
 
     if (RxQueue->Flags.TxInspect) {
@@ -1221,6 +1181,11 @@ XdpGenericRxCreateQueue(
             goto Exit;
         }
     }
+
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    RxQueue->Flags.Paused = Generic->Flags.Paused;
+    InsertTailList(&Generic->Rx.Queues, &RxQueue->Link);
+    RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (RxQueue->Flags.TxInspect) {
         WritePointerRelease(&RssQueue->TxInspectQueue, RxQueue);
@@ -1265,10 +1230,6 @@ XdpGenericRxCreateQueue(
     DescriptorContexts.FrameContextSize = sizeof(XDP_LWF_GENERIC_RX_FRAME_CONTEXT);
     DescriptorContexts.FrameContextAlignment = __alignof(XDP_LWF_GENERIC_RX_FRAME_CONTEXT);
     XdpRxQueueSetDescriptorContexts(Config, &DescriptorContexts);
-
-    RtlAcquirePushLockExclusive(&Generic->Lock);
-    InsertTailList(&Generic->Rx.Queues, &RxQueue->Link);
-    RtlReleasePushLockExclusive(&Generic->Lock);
 
     *InterfaceRxQueueDispatch = &RxDispatch;
     *InterfaceRxQueue = (XDP_INTERFACE_HANDLE)RxQueue;

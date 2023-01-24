@@ -111,6 +111,8 @@ XdpGenericPause(
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is pausing", Generic->IfIndex);
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
+    Generic->Flags.Paused = TRUE;
+
     KeClearEvent(&Generic->Tx.Datapath.ReadyEvent);
     KeClearEvent(&Generic->Rx.Datapath.ReadyEvent);
 
@@ -142,6 +144,8 @@ XdpGenericRestart(
     }
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
+    Generic->Flags.Paused = FALSE;
+
     if (Generic->Tx.Datapath.Inserted) {
         KeSetEvent(&Generic->Tx.Datapath.ReadyEvent, 0, FALSE);
     }
@@ -574,6 +578,7 @@ XdpGenericAttachInterface(
     Generic->Filter = Filter;
     Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
+    Generic->Flags.Paused = TRUE;
     Generic->InternalCapabilities.Mode = XDP_INTERFACE_MODE_GENERIC;
     Generic->InternalCapabilities.Hooks = GenericHooks;
     Generic->InternalCapabilities.HookCount = RTL_NUMBER_OF(GenericHooks);
