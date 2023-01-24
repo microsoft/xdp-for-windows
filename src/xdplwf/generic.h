@@ -43,6 +43,7 @@ typedef struct _XDP_LWF_GENERIC {
 
     struct {
         XDP_LWF_DATAPATH_BYPASS Datapath;
+        LIST_ENTRY Queues;
     } Rx;
 
     struct {

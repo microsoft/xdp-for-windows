@@ -58,8 +58,12 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
         BOOLEAN TxInspectInline: 1;
         BOOLEAN TxInspectWorker : 1;
         BOOLEAN TxInspectNeedFlush : 1;
+        BOOLEAN TxInspectNeedPause : 1;
+        BOOLEAN Pause : 1;
     } Flags;
     UINT32 QueueId;
+    LIST_ENTRY Link;
+    KEVENT *PauseComplete;
     XDP_LIFETIME_ENTRY DeleteEntry;
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_RX_QUEUE;
@@ -95,4 +99,19 @@ XdpGenericReceive(
     _Out_ NBL_QUEUE *DropList,
     _Out_ NBL_COUNTED_QUEUE *TxList,
     _In_ UINT32 XdpInspectFlags
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_exclusive_lock_held_(&Generic->Lock)
+VOID
+XdpGenericRxPause(
+    _In_ XDP_LWF_GENERIC *Generic
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_exclusive_lock_held_(&Generic->Lock)
+VOID
+XdpGenericRxRestart(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ UINT32 NewMtu
     );

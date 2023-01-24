@@ -114,6 +114,7 @@ XdpGenericPause(
     KeClearEvent(&Generic->Tx.Datapath.ReadyEvent);
     KeClearEvent(&Generic->Rx.Datapath.ReadyEvent);
 
+    XdpGenericRxPause(Generic);
     XdpGenericTxPause(Generic);
     RtlReleasePushLockExclusive(&Generic->Lock);
 
@@ -148,6 +149,7 @@ XdpGenericRestart(
         KeSetEvent(&Generic->Rx.Datapath.ReadyEvent, 0, FALSE);
     }
 
+    XdpGenericRxRestart(Generic, NewMtu);
     XdpGenericTxRestart(Generic, NewMtu);
     RtlReleasePushLockExclusive(&Generic->Lock);
 
@@ -562,6 +564,7 @@ XdpGenericAttachInterface(
     //
 
     ExInitializePushLock(&Generic->Lock);
+    InitializeListHead(&Generic->Rx.Queues);
     InitializeListHead(&Generic->Tx.Queues);
     KeInitializeEvent(&Generic->InterfaceRemovedEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->CleanupEvent, NotificationEvent, FALSE);
