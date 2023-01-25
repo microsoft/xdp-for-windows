@@ -52,11 +52,10 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
 FILTER_SEND_NET_BUFFER_LISTS XdpGenericSendNetBufferLists;
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE XdpGenericSendNetBufferListsComplete;
 
-_IRQL_requires_(DISPATCH_LEVEL)
-NET_BUFFER_LIST *
-XdpGenericInjectNetBufferListsComplete(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ NET_BUFFER_LIST *NetBufferLists
+VOID
+XdpGenericSendInjectComplete(
+    _In_ VOID *ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
     );
 
 _IRQL_requires_(DISPATCH_LEVEL)

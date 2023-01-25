@@ -71,6 +71,13 @@ XdpGenericFromFilterContext(
     _In_ NDIS_HANDLE FilterModuleContext
     );
 
+_IRQL_requires_(DISPATCH_LEVEL)
+NET_BUFFER_LIST *
+XdpGenericInjectNetBufferListsComplete(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ NET_BUFFER_LIST *NetBufferLists
+    );
+
 NTSTATUS
 XdpGenericAttachInterface(
     _Inout_ XDP_LWF_GENERIC *Generic,

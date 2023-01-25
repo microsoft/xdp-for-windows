@@ -56,63 +56,23 @@ NblTxContext(
     return (NBL_TX_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
 }
 
-static
-ULONG_PTR
-XdpGenericInjectCompleteClassify(
-    _In_ VOID *ClassificationContext,
-    _In_ NET_BUFFER_LIST *Nbl)
-{
-    if (Nbl->SourceHandle == ClassificationContext) {
-        return (ULONG_PTR)NblTxContext(Nbl)->TxQueue;
-    }
-
-    return (ULONG_PTR)NULL;
-}
-
-static
 VOID
-XdpGenericInjectCompleteFlush(
-    _In_ VOID *FlushContext,
-    _In_ ULONG_PTR ClassificationResult,
-    _In_ NBL_COUNTED_QUEUE *Queue)
-{
-    if (ClassificationResult == (ULONG_PTR)NULL) {
-        NBL_QUEUE *PassList = (NBL_QUEUE *)FlushContext;
-
-        NdisAppendNblChainToNblQueueFast(
-            PassList, Queue->Queue.First,
-            CONTAINING_RECORD(Queue->Queue.Last, NET_BUFFER_LIST, Next));
-    } else {
-        XDP_LWF_GENERIC_TX_QUEUE *TxQueue = (XDP_LWF_GENERIC_TX_QUEUE *)ClassificationResult;
-
-        EventWriteGenericTxCompleteBatch(&MICROSOFT_XDP_PROVIDER, TxQueue, Queue->NblCount);
-
-        InterlockedPushListSList(
-            &TxQueue->NblComplete,
-            (SLIST_ENTRY *)&Queue->Queue.First->Next,
-            (SLIST_ENTRY *)Queue->Queue.Last,
-            (ULONG)Queue->NblCount);
-
-        XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
-    }
-}
-
-_IRQL_requires_(DISPATCH_LEVEL)
-NET_BUFFER_LIST *
-XdpGenericInjectNetBufferListsComplete(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ NET_BUFFER_LIST *NetBufferLists
+XdpGenericSendInjectComplete(
+    _In_ VOID *ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
     )
 {
-    NBL_QUEUE PassList;
+    XDP_LWF_GENERIC_TX_QUEUE *TxQueue = ClassificationResult;
 
-    NdisInitializeNblQueue(&PassList);
+    EventWriteGenericTxCompleteBatch(&MICROSOFT_XDP_PROVIDER, TxQueue, Queue->NblCount);
 
-    NdisClassifyNblChainByValueLookaheadWithCount(
-        NetBufferLists, XdpGenericInjectCompleteClassify, Generic->NdisFilterHandle,
-        XdpGenericInjectCompleteFlush, &PassList);
+    InterlockedPushListSList(
+        &TxQueue->NblComplete,
+        (SLIST_ENTRY *)&Queue->Queue.First->Next,
+        (SLIST_ENTRY *)Queue->Queue.Last,
+        (ULONG)Queue->NblCount);
 
-    return NdisGetNblChainFromNblQueue(&PassList);
+    XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
 }
 
 _Use_decl_annotations_
@@ -176,9 +136,6 @@ XdpGenericSendNetBufferLists(
     }
 
     if (!NdisIsNblCountedQueueEmpty(&TxList)) {
-        //
-        // TODO: Convert OOBs from send to receive.
-        //
         NdisFIndicateReceiveNetBufferLists(
             Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList), PortNumber,
             (ULONG)TxList.NblCount, AtDispatch ? NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL : 0);

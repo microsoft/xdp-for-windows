@@ -67,6 +67,82 @@ XdpGenericFromFilterContext(
 }
 
 static
+XDP_LWF_GENERIC_INJECTION_CONTEXT *
+NblInjectionContext(
+    _In_ NET_BUFFER_LIST *NetBufferList
+    )
+{
+    return (XDP_LWF_GENERIC_INJECTION_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
+}
+
+static
+ULONG_PTR
+XdpGenericInjectCompleteClassify(
+    _In_ VOID *ClassificationContext,
+    _In_ NET_BUFFER_LIST *Nbl
+    )
+{
+    if (Nbl->SourceHandle == ClassificationContext) {
+        return (ULONG_PTR)NblInjectionContext(Nbl)->InjectionCompletionContext;
+    }
+
+    return (ULONG_PTR)NULL;
+}
+
+static
+VOID
+XdpGenericInjectCompleteFlush(
+    _In_ VOID *FlushContext,
+    _In_ ULONG_PTR ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
+    )
+{
+    if (ClassificationResult == (ULONG_PTR)NULL) {
+        NBL_QUEUE *PassList = (NBL_QUEUE *)FlushContext;
+
+        NdisAppendNblChainToNblQueueFast(
+            PassList, Queue->Queue.First,
+            CONTAINING_RECORD(Queue->Queue.Last, NET_BUFFER_LIST, Next));
+    } else {
+        XDP_LWF_GENERIC_INJECTION_CONTEXT *InjectionContext;
+
+        ASSERT(Queue->NblCount > 0);
+        InjectionContext = NblInjectionContext(NdisGetNblChainFromNblCountedQueue(Queue));
+
+        switch (InjectionContext->InjectionType) {
+        case XDP_LWF_GENERIC_INJECTION_SEND:
+            XdpGenericSendInjectComplete((VOID *)ClassificationResult, Queue);
+            break;
+
+        case XDP_LWF_GENERIC_INJECTION_RECV:
+            XdpGenericRecvInjectComplete((VOID *)ClassificationResult, Queue);
+            break;
+
+        default:
+            ASSERT(FALSE);
+        }
+    }
+}
+
+_IRQL_requires_(DISPATCH_LEVEL)
+NET_BUFFER_LIST *
+XdpGenericInjectNetBufferListsComplete(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ NET_BUFFER_LIST *NetBufferLists
+    )
+{
+    NBL_QUEUE PassList;
+
+    NdisInitializeNblQueue(&PassList);
+
+    NdisClassifyNblChainByValueLookaheadWithCount(
+        NetBufferLists, XdpGenericInjectCompleteClassify, Generic->NdisFilterHandle,
+        XdpGenericInjectCompleteFlush, &PassList);
+
+    return NdisGetNblChainFromNblQueue(&PassList);
+}
+
+static
 VOID
 XdpGenericUpdateDelayDetachTimeout(
     _In_ UINT32 NewTimeoutSeconds

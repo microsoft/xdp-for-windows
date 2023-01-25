@@ -101,6 +101,12 @@ XdpGenericReceive(
     _In_ UINT32 XdpInspectFlags
     );
 
+VOID
+XdpGenericRecvInjectComplete(
+    _In_ VOID *ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
+    );
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_exclusive_lock_held_(&Generic->Lock)
 VOID

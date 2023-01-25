@@ -8,6 +8,7 @@
 
 #define RECV_MAX_FRAGMENTS 64
 #define RECV_TX_INSPECT_BATCH_SIZE 64
+#define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
 
 typedef struct _XDP_LWF_GENERIC_RX_FRAME_CONTEXT {
     NET_BUFFER *Nb;
@@ -36,6 +37,44 @@ NblRxTxContext(
     // regular TX and RX-inject respectively.
     //
     return (NBL_RX_TX_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
+}
+
+VOID
+XdpGenericRecvInjectComplete(
+    _In_ VOID *ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
+    )
+{
+    XDP_LWF_GENERIC_RX_QUEUE *RxQueue = ClassificationResult;
+    UINT32 NblCount = (UINT32)Queue->NblCount;
+    NBL_QUEUE ReturnList;
+    NET_BUFFER_LIST *Nbl;
+
+    NdisInitializeNblQueue(&ReturnList);
+
+    while ((Nbl = NdisPopFirstNblFromNblCountedQueue(Queue)) != NULL) {
+        NET_BUFFER_LIST *ParentNbl = Nbl->ParentNetBufferList;
+
+        if (ParentNbl != NULL) {
+            if (InterlockedDecrement((LONG *)&Nbl->ParentNetBufferList->ChildRefCount) == 0) {
+                NdisAppendSingleNblToNblQueue(&ReturnList, Nbl->ParentNetBufferList);
+            }
+        } else {
+            NdisAdvanceNetBufferListDataStart(Nbl, Nbl->FirstNetBuffer->DataLength, TRUE, NULL);
+        }
+
+        NdisFreeNetBufferList(Nbl);
+    }
+
+    if (RxQueue->Flags.TxInspect) {
+        NdisFSendNetBufferListsComplete(
+            RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
+    } else {
+        NdisFReturnNetBufferLists(
+            RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
+    }
+
+    ExReleaseRundownProtectionEx(&RxQueue->NblRundown, NblCount);
 }
 
 _Use_decl_annotations_
@@ -431,6 +470,11 @@ XdpGenericReceiveEnqueueTxNb(
     Nbl->FirstNetBuffer = Nb;
     Nbl->FirstNetBuffer->Next = NULL;
 
+    //
+    // TODO: Convert OOBs between recv/send semantics.
+    // TODO: Perform any software offloads required.
+    //
+
     if (CanPend) {
         TxNbl =
             NdisAllocateCloneNetBufferList(
@@ -439,22 +483,38 @@ XdpGenericReceiveEnqueueTxNb(
             goto Exit;
         }
 
-        NblRxTxContext(TxNbl)->RxQueue = RxQueue;
-        NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
-        TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
         TxNbl->ParentNetBufferList = Nbl;
         Nbl->ChildRefCount++;
-        NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
     } else {
-        //
-        // TODO: Create a deep copy.
-        //
+        NDIS_STATUS NdisStatus;
+        ULONG BytesCopied;
 
-        //
-        // For now, just drop all low resource NBLs (no action required here).
-        //
-        ASSERT(FALSE);
+        TxNbl =
+            NdisAllocateNetBufferAndNetBufferList(
+                RxQueue->TxCloneNblPool, RX_TX_CONTEXT_SIZE, 0, NULL, 0, 0);
+        if (TxNbl == NULL) {
+            goto Exit;
+        }
+
+        if (!NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL)) {
+            NdisFreeNetBufferList(TxNbl);
+            goto Exit;
+        }
+
+        NdisStatus =
+            NdisCopyFromNetBufferToNetBuffer(
+                TxNbl->FirstNetBuffer, 0, Nb->DataLength, Nb, 0, &BytesCopied);
+        ASSERT(NdisStatus == NDIS_STATUS_SUCCESS);
+        ASSERT(BytesCopied == Nb->DataLength);
+
+        ASSERT(TxNbl->ParentNetBufferList == NULL);
     }
+
+    ASSERT(TxNbl != NULL);
+    NblRxTxContext(TxNbl)->RxQueue = RxQueue;
+    NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
+    TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
+    NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
 
 Exit:
 
@@ -472,11 +532,6 @@ XdpGenericReceiveEnqueueTxNbl(
     _In_ BOOLEAN CanPend
     )
 {
-    //
-    // TODO: set up the original NBL with a completion context.
-    // TODO: handle pause case
-    // TODO: wire up completion back to the RX queue, including completing any pause operation.
-    //
     ASSERT(Nbl->ChildRefCount == 0);
     Nbl->ChildRefCount = 0;
 
@@ -879,9 +934,7 @@ XdpGenericReceive(
     }
 
     if (!ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
-        //
-        // TODO: Complete the TX packets inline.
-        //
+        XdpGenericRecvInjectComplete(RxQueue, TxList);
     }
 
     EventWriteGenericRxInspectStop(&MICROSOFT_XDP_PROVIDER, Generic);
@@ -924,9 +977,6 @@ XdpGenericReceiveNetBufferLists(
     }
 
     if (!NdisIsNblCountedQueueEmpty(&TxList)) {
-        //
-        // TODO: Convert OOBs from receive to send.
-        //
         NdisFSendNetBufferLists(
             Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList), PortNumber,
             AtDispatch ? NDIS_SEND_FLAGS_DISPATCH_LEVEL : 0);
@@ -1017,9 +1067,6 @@ XdpGenericReceiveTxInspectPoll(
         }
 
         if (!NdisIsNblCountedQueueEmpty(&TxList)) {
-            //
-            // TODO: Convert OOBs from send to receive.
-            //
             NdisFIndicateReceiveNetBufferLists(
                 Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList),
                 NDIS_DEFAULT_PORT_NUMBER, (ULONG)TxList.NblCount,
@@ -1210,7 +1257,7 @@ XdpGenericRxCreateQueue(
     PoolParams.PoolTag = POOLTAG_RECV_TX;
     PoolParams.fAllocateNetBuffer = TRUE;
 
-    PoolParams.ContextSize = sizeof(NBL_RX_TX_CONTEXT);
+    PoolParams.ContextSize = RX_TX_CONTEXT_SIZE;
 
     RxQueue->TxCloneNblPool = NdisAllocateNetBufferListPool(Generic->NdisFilterHandle, &PoolParams);
     if (RxQueue->TxCloneNblPool == NULL) {
