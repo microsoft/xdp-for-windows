@@ -495,7 +495,7 @@ XdpGenericReceiveEnqueueTxNb(
         // Also, because this context is preallocated, NDIS will automatically
         // release this when we call NdisFreeNetBufferList.
         //
-        ASSERT(TxNbl->Context->Offset == Nbl->Context->Size);
+        ASSERT(TxNbl->Context->Offset == TxNbl->Context->Size);
         ASSERT(TxNbl->Context->Size >= RX_TX_CONTEXT_SIZE);
         TxNbl->Context->Offset -= RX_TX_CONTEXT_SIZE;
 

@@ -3429,12 +3429,20 @@ GenericRxHeaderFragments(
     SplitIndexes[2] = SplitIndexes[1] + 1;
     SplitIndexes[3] = SplitIndexes[2] + ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
     SplitIndexes[4] = SplitIndexes[3] + (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR)) / 2;
-    Params.SplitIndexes = SplitIndexes;
-    Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
 
     for (auto LowResources : {false, true}) {
-        Params.LowResources = LowResources;
-        GenericRxFragmentBuffer(Af, &Params);
+        for (auto Split : {false, true}) {
+            if (Split) {
+                Params.SplitIndexes = SplitIndexes;
+                Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
+            } else {
+                Params.SplitIndexes = NULL;
+                Params.SplitCount = 0;
+            }
+
+            Params.LowResources = LowResources;
+            GenericRxFragmentBuffer(Af, &Params);
+        }
     }
 }
 
