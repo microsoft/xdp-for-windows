@@ -8,7 +8,6 @@
 
 #define RECV_MAX_FRAGMENTS 64
 #define RECV_TX_INSPECT_BATCH_SIZE 64
-#define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
 
 typedef struct _XDP_LWF_GENERIC_RX_FRAME_CONTEXT {
     NET_BUFFER *Nb;
@@ -25,6 +24,9 @@ C_ASSERT(
 C_ASSERT(
     FIELD_OFFSET(NBL_RX_TX_CONTEXT, InjectionType) ==
     FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType));
+
+#define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
+C_ASSERT(RX_TX_CONTEXT_SIZE % MEMORY_ALLOCATION_ALIGNMENT == 0);
 
 static
 NBL_RX_TX_CONTEXT *
@@ -483,6 +485,20 @@ XdpGenericReceiveEnqueueTxNb(
             goto Exit;
         }
 
+        //
+        // NdisAllocateCloneNetBufferList does not automatically provide our
+        // preallocated (backfill) context size. The documentation for
+        // NdisAllocateNetBufferListContext describes what will happen when
+        // sufficient context backfill exists, so to save redundant work,
+        // perform the allocation inline here.
+        //
+        // Also, because this context is preallocated, NDIS will automatically
+        // release this when we call NdisFreeNetBufferList.
+        //
+        ASSERT(TxNbl->Context->Offset == Nbl->Context->Size);
+        ASSERT(TxNbl->Context->Size >= RX_TX_CONTEXT_SIZE);
+        TxNbl->Context->Offset -= RX_TX_CONTEXT_SIZE;
+
         TxNbl->ParentNetBufferList = Nbl;
         Nbl->ChildRefCount++;
     } else {
@@ -496,7 +512,9 @@ XdpGenericReceiveEnqueueTxNb(
             goto Exit;
         }
 
-        if (!NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL)) {
+        NdisStatus =
+            NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL);
+        if (NdisStatus != NDIS_STATUS_SUCCESS) {
             NdisFreeNetBufferList(TxNbl);
             goto Exit;
         }
@@ -532,7 +550,6 @@ XdpGenericReceiveEnqueueTxNbl(
     _In_ BOOLEAN CanPend
     )
 {
-    ASSERT(Nbl->ChildRefCount == 0);
     Nbl->ChildRefCount = 0;
 
     for (NET_BUFFER *Nb = Nbl->FirstNetBuffer; Nb != NULL; Nb = Nb->Next) {
@@ -929,12 +946,13 @@ XdpGenericReceive(
         XdpGenericTxFlushRss(RssQueue, Processor);
     }
 
-    if (OldIrql != DISPATCH_LEVEL) {
-        KeLowerIrql(OldIrql);
+    if (!NdisIsNblCountedQueueEmpty(TxList) &&
+        !ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
+        XdpGenericRecvInjectComplete(RxQueue, TxList);
     }
 
-    if (!ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
-        XdpGenericRecvInjectComplete(RxQueue, TxList);
+    if (OldIrql != DISPATCH_LEVEL) {
+        KeLowerIrql(OldIrql);
     }
 
     EventWriteGenericRxInspectStop(&MICROSOFT_XDP_PROVIDER, Generic);

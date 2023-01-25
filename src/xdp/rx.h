@@ -22,6 +22,11 @@ XdpRxQueueFindOrCreate(
     _Out_ XDP_RX_QUEUE **RxQueue
     );
 
+NTSTATUS
+XdpRxQueueFindOrCreateIfRxQueue(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 typedef struct _XDP_RX_QUEUE_NOTIFY_ENTRY XDP_RX_QUEUE_NOTIFICATION_ENTRY;
 
 typedef enum _XDP_RX_QUEUE_NOTIFICATION_TYPE {

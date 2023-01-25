@@ -81,6 +81,7 @@ GenericRxTooManyFragments(
 VOID
 GenericRxHeaderFragments(
     _In_ ADDRESS_FAMILY Af,
+    _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp
     );
 

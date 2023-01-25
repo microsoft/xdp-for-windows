@@ -423,10 +423,10 @@ XdpGenericDetachDatapath(
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
     if (RxDatapath) {
-        NeedRestart |= XdpGenericReferenceDatapath(Generic, &Generic->Rx.Datapath);
+        NeedRestart |= XdpGenericDereferenceDatapath(Generic, &Generic->Rx.Datapath);
     }
     if (TxDatapath) {
-        NeedRestart |= XdpGenericReferenceDatapath(Generic, &Generic->Tx.Datapath);
+        NeedRestart |= XdpGenericDereferenceDatapath(Generic, &Generic->Tx.Datapath);
     }
     RtlReleasePushLockExclusive(&Generic->Lock);
 

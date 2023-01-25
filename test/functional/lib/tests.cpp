@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <future>
+#include <initializer_list>
 #include <memory>
 #include <set>
 #include <stack>
@@ -3207,6 +3208,8 @@ typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
     _In_ UINT16 *SplitIndexes;
     _In_ UINT16 SplitCount;
     _In_ BOOLEAN IsUdp;
+    _In_ BOOLEAN LowResources;
+    _In_ XDP_RULE_ACTION Action;
 } GENERIC_RX_FRAGMENT_PARAMS;
 
 static
@@ -3221,9 +3224,9 @@ GenericRxFragmentBuffer(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 PacketBufferOffset = 0;
     UINT32 TotalOffset = 0;
+    MY_SOCKET Xsk;
 
     auto If = FnMpIf;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
     LocalPort = htons(1234);
     RemotePort = htons(4321);
@@ -3240,9 +3243,14 @@ GenericRxFragmentBuffer(
     XDP_RULE Rule;
     Rule.Match = Params->IsUdp ? XDP_MATCH_UDP_DST : XDP_MATCH_TCP_DST;
     Rule.Pattern.Port = LocalPort;
-    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
-    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-    Rule.Redirect.Target = Xsk.Handle.get();
+    Rule.Action = Params->Action;
+
+    if (Params->Action == XDP_PROGRAM_ACTION_REDIRECT) {
+        Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+        Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+        Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+        Rule.Redirect.Target = Xsk.Handle.get();
+    }
 
     wil::unique_handle ProgramHandle =
         CreateXdpProg(
@@ -3308,27 +3316,59 @@ GenericRxFragmentBuffer(
     RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
-    //
-    // Produce one XSK fill descriptor.
-    //
-    SocketProduceRxFill(&Xsk, 1);
-    TEST_HRESULT(MpRxFlush(GenericMp));
+    DATA_FLUSH_OPTIONS RxFlushOptions = {0};
+    RxFlushOptions.Flags.LowResources = Params->LowResources;
 
-    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    if (Params->Action == XDP_PROGRAM_ACTION_REDIRECT) {
+        //
+        // Produce one XSK fill descriptor.
+        //
+        SocketProduceRxFill(&Xsk, 1);
+        TEST_HRESULT(MpRxFlush(GenericMp, &RxFlushOptions));
 
-    //
-    // Verify the NBL propagated correctly to XSK.
-    //
-    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
-    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+        UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
 
-    TEST_EQUAL(ActualPacketLength, RxDesc->length);
-    TEST_TRUE(
-        RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
-            &PacketBuffer[0] + Params->Backfill,
-            ActualPacketLength));
+        //
+        // Verify the NBL propagated correctly to XSK.
+        //
+        TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+        auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+
+        TEST_EQUAL(ActualPacketLength, RxDesc->length);
+        TEST_TRUE(
+            RtlEqualMemory(
+                Xsk.Umem.Buffer.get() +
+                    XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+                &PacketBuffer[0] + Params->Backfill,
+                ActualPacketLength));
+    } else if (Params->Action == XDP_PROGRAM_ACTION_L2FWD) {
+        std::vector<UCHAR> L2FwdPacket(
+            PacketBuffer.begin() + Params->Backfill,
+            PacketBuffer.begin() + Params->Backfill + ActualPacketLength);
+        std::vector<UCHAR> Mask(L2FwdPacket.size(), 0xFF);
+        ETHERNET_HEADER *Ethernet = (ETHERNET_HEADER *)&L2FwdPacket[0];
+        ETHERNET_ADDRESS TempAddress;
+        UINT32 TotalLength = 0;
+
+        TempAddress = Ethernet->Destination;
+        Ethernet->Destination = Ethernet->Source;
+        Ethernet->Source = TempAddress;
+
+        MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+
+        TEST_HRESULT(MpRxFlush(GenericMp, &RxFlushOptions));
+
+        auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+
+        for (UINT32 i = 0; i < MpTxFrame->BufferCount; i++) {
+            TotalLength += MpTxFrame->Buffers[i].DataLength;
+        }
+
+        TEST_EQUAL(L2FwdPacket.size(), TotalLength);
+
+        MpTxDequeueFrame(GenericMp, 0);
+        MpTxFlush(GenericMp);
+    }
 }
 
 VOID
@@ -3339,6 +3379,7 @@ GenericRxFragmentHeaderData(
 {
     UINT16 SplitIndexes[] = { IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) };
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = XDP_PROGRAM_ACTION_REDIRECT;
     Params.IsUdp = IsUdp;
     Params.PayloadLength = 23;
     Params.Backfill = 13;
@@ -3355,6 +3396,7 @@ GenericRxTooManyFragments(
     )
 {
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = XDP_PROGRAM_ACTION_REDIRECT;
     Params.IsUdp = IsUdp;
     Params.PayloadLength = 512;
     Params.Backfill = 13;
@@ -3371,10 +3413,12 @@ GenericRxTooManyFragments(
 VOID
 GenericRxHeaderFragments(
     _In_ ADDRESS_FAMILY Af,
+    _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp
     )
 {
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = ProgramAction;
     Params.IsUdp = IsUdp;
     Params.PayloadLength = 43;
     Params.Backfill = 13;
@@ -3387,7 +3431,11 @@ GenericRxHeaderFragments(
     SplitIndexes[4] = SplitIndexes[3] + (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR)) / 2;
     Params.SplitIndexes = SplitIndexes;
     Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
-    GenericRxFragmentBuffer(Af, &Params);
+
+    for (auto LowResources : {false, true}) {
+        Params.LowResources = LowResources;
+        GenericRxFragmentBuffer(Af, &Params);
+    }
 }
 
 VOID

@@ -321,19 +321,23 @@ public:
     }
 
     TEST_METHOD(GenericRxUdpHeaderFragmentsV4) {
-        GenericRxHeaderFragments(AF_INET, TRUE);
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE);
     }
 
     TEST_METHOD(GenericRxUdpHeaderFragmentsV6) {
-        GenericRxHeaderFragments(AF_INET6, TRUE);
+        GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE);
     }
 
     TEST_METHOD(GenericRxTcpHeaderFragmentsV4) {
-        GenericRxHeaderFragments(AF_INET, FALSE);
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, FALSE);
     }
 
     TEST_METHOD(GenericRxTcpHeaderFragmentsV6) {
-        GenericRxHeaderFragments(AF_INET6, FALSE);
+        GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, FALSE);
+    }
+
+    TEST_METHOD(GenericRxL2Fwd) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE);
     }
 
     TEST_METHOD(GenericRxFromTxInspectV4) {

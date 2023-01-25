@@ -220,7 +220,6 @@ XdpCopyMemoryToFrame(
     )
 {
     XDP_BUFFER *Buffer = &Frame->Buffer;
-    UINT32 BufferDataOffset = Frame->Buffer.DataOffset;
     UINT32 FragmentCount;
 
     //
@@ -235,17 +234,15 @@ XdpCopyMemoryToFrame(
             FrameDataOffset -= Buffer->DataLength;
             FragmentIndex = (FragmentIndex + 1) & FragmentRing->Mask;
             Buffer = XdpRingGetElement(FragmentRing, FragmentIndex);
-            BufferDataOffset = 0;
             ASSERT(FragmentCount > 0);
             FragmentCount--;
         } else {
             UINT32 CopyLength;
             UCHAR *Va;
 
-            BufferDataOffset += FrameDataOffset;
-            CopyLength = min(DataLength, Buffer->DataLength - BufferDataOffset);
+            CopyLength = min(DataLength, Buffer->DataLength - FrameDataOffset);
             Va = XdpGetVirtualAddressExtension(Buffer, VirtualAddressExtension)->VirtualAddress;
-            RtlCopyMemory(Va, Data, CopyLength);
+            RtlCopyMemory(Va + Buffer->DataOffset, Data, CopyLength);
 
             Data = RTL_PTR_ADD(Data, CopyLength);
             DataLength -= CopyLength;
@@ -825,7 +822,7 @@ XdpL2Fwd(
         ASSERT(FragmentExtension != NULL);
         XdpCopyMemoryToFrame(
             Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension, 0,
-            Cache->EthHdr, sizeof(sizeof(*Cache->EthHdr)));
+            Cache->EthHdr, sizeof(*Cache->EthHdr));
     }
 
     return XDP_RX_ACTION_TX;
@@ -1305,6 +1302,12 @@ XdpProgramTraceObject(
                 ProgramObject, i, Rule->Redirect.TargetType, Rule->Redirect.Target);
             break;
 
+        case XDP_PROGRAM_ACTION_L2FWD:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_L2FWD",
+                ProgramObject, i);
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1768,6 +1771,11 @@ XdpProgramAttach(
     Status =
         XdpRxQueueFindOrCreate(
             Item->Bind.BindingHandle, &Item->HookId, Item->QueueId, &ProgramObject->RxQueue);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = XdpRxQueueFindOrCreateIfRxQueue(ProgramObject->RxQueue);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
