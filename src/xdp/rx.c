@@ -14,7 +14,6 @@ static UINT32 XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
 
 typedef enum _XDP_RX_QUEUE_STATE {
     XdpRxQueueStateUnbound,
-    XdpRxQueueStateCreated,
     XdpRxQueueStateActive,
 } XDP_RX_QUEUE_STATE;
 
@@ -664,9 +663,12 @@ XdpRxQueueDetachInterface(
     }
 }
 
+static
 NTSTATUS
-XdpRxQueueFindOrCreateIfRxQueue(
-    _In_ XDP_RX_QUEUE *RxQueue
+XdpRxQueueAttachInterface(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
+    _In_opt_ VOID *ValidationContext
     )
 {
     NTSTATUS Status;
@@ -676,15 +678,10 @@ XdpRxQueueFindOrCreateIfRxQueue(
     UINT32 BufferSize, FrameSize, FrameOffset;
     UINT8 BufferAlignment, FrameAlignment;
 
-    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
-
-    if (RxQueue->State >= XdpRxQueueStateCreated && RxQueue->State <= XdpRxQueueStateActive) {
-        Status = STATUS_SUCCESS;
-        goto Exit;
-    }
-
     ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
     ASSERT(RxQueue->InterfaceRxQueue == NULL);
+
+    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
     Status =
         XdpExtensionSetCreate(
@@ -781,36 +778,14 @@ XdpRxQueueFindOrCreateIfRxQueue(
         goto Exit;
     }
 
-    RxQueue->State = XdpRxQueueStateCreated;
-
-Exit:
-
-    if (!NT_SUCCESS(Status)) {
-        ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
-        XdpRxQueueDetachInterface(RxQueue);
-    }
-
-    TraceExitStatus(TRACE_CORE);
-
-    return Status;
-}
-
-static
-NTSTATUS
-XdpRxQueueActivate(
-    _In_ XDP_RX_QUEUE *RxQueue
-    )
-{
-    NTSTATUS Status;
-    XDP_RX_QUEUE_CONFIG_ACTIVATE ConfigActivate =
-        (XDP_RX_QUEUE_CONFIG_ACTIVATE)&RxQueue->ConfigActivate;
-
-    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
-
-    ASSERT(RxQueue->State == XdpRxQueueStateCreated);
-    ASSERT(RxQueue->Program != NULL);
-
     RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch;
+
+    if (ValidationRoutine != NULL) {
+        Status = ValidationRoutine(RxQueue, ValidationContext);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    }
 
     //
     // Implement a fast path for a single XSK receiving all frames.
@@ -839,9 +814,8 @@ XdpRxQueueActivate(
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        ASSERT(RxQueue->State == XdpRxQueueStateCreated);
-        XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH);
-        RtlZeroMemory(&RxQueue->Dispatch, sizeof(RxQueue->Dispatch));
+        ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
+        XdpRxQueueDetachInterface(RxQueue);
     }
 
     TraceExitStatus(TRACE_CORE);
@@ -1080,43 +1054,44 @@ XdpRxQueueSwapProgram(
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
-    _In_opt_ XDP_PROGRAM *Program
+    _In_opt_ XDP_PROGRAM *Program,
+    _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
+    _In_opt_ VOID *ValidationContext
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS Status;
 
     TraceEnter(
         TRACE_CORE, "RxQueue=%p Program=%p OldProgram=%p", RxQueue, Program, RxQueue->Program);
 
-    if (Program != NULL) {
-        if (RxQueue->Program != NULL) {
-            //
-            // Swap the existing program for a new program; perform the swap on the
-            // data path execution context to ensure the old program is not touched
-            // after the swap is performed. The caller is responsible for cleaning
-            // up the old program.
-            //
-            XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS SwapParams = {0};
-            SwapParams.RxQueue = RxQueue;
-            SwapParams.NewProgram = Program;
-            XdpRxQueueSync(RxQueue, XdpRxQueueSwapProgram, &SwapParams);
-        } else {
-            //
-            // Add a new program, which requires activating the underlying XDP RX
-            // queue on the interface.
-            //
-
-            Status = XdpRxQueueFindOrCreateIfRxQueue(RxQueue);
+    if (Program != NULL && RxQueue->Program != NULL) {
+        if (ValidationRoutine != NULL) {
+            Status = ValidationRoutine(RxQueue, ValidationContext);
             if (!NT_SUCCESS(Status)) {
                 goto Exit;
             }
+        }
 
-            RxQueue->Program = Program;
-
-            Status = XdpRxQueueActivate(RxQueue);
-            if (!NT_SUCCESS(Status)) {
-                RxQueue->Program = NULL;
-            }
+        //
+        // Swap the existing program for a new program; perform the swap on the
+        // data path execution context to ensure the old program is not touched
+        // after the swap is performed. The caller is responsible for cleaning
+        // up the old program.
+        //
+        XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS SwapParams = {0};
+        SwapParams.RxQueue = RxQueue;
+        SwapParams.NewProgram = Program;
+        XdpRxQueueSync(RxQueue, XdpRxQueueSwapProgram, &SwapParams);
+    } else if (Program != NULL) {
+        //
+        // Add a new program, which requires activating the underlying XDP RX
+        // queue on the interface.
+        //
+        RxQueue->Program = Program;
+        Status = XdpRxQueueAttachInterface(RxQueue, ValidationRoutine, ValidationContext);
+        if (!NT_SUCCESS(Status)) {
+            RxQueue->Program = NULL;
+            goto Exit;
         }
     } else {
         //
@@ -1126,6 +1101,8 @@ XdpRxQueueSetProgram(
         XdpRxQueueDetachInterface(RxQueue);
         RxQueue->Program = NULL;
     }
+
+    Status = STATUS_SUCCESS;
 
 Exit:
 

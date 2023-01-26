@@ -22,11 +22,6 @@ XdpRxQueueFindOrCreate(
     _Out_ XDP_RX_QUEUE **RxQueue
     );
 
-NTSTATUS
-XdpRxQueueFindOrCreateIfRxQueue(
-    _In_ XDP_RX_QUEUE *RxQueue
-    );
-
 typedef struct _XDP_RX_QUEUE_NOTIFY_ENTRY XDP_RX_QUEUE_NOTIFICATION_ENTRY;
 
 typedef enum _XDP_RX_QUEUE_NOTIFICATION_TYPE {
@@ -73,10 +68,19 @@ XdpRxQueueSync(
     _In_opt_ VOID *CallbackContext
     );
 
+typedef
+NTSTATUS
+XDP_RX_QUEUE_VALIDATE(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_opt_ VOID *ValidationContext
+    );
+
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
-    _In_opt_ XDP_PROGRAM *Program
+    _In_opt_ XDP_PROGRAM *Program,
+    _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
+    _In_opt_ VOID *ValidationContext
     );
 
 XDP_PROGRAM *

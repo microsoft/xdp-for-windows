@@ -41,13 +41,13 @@ NblRxTxContext(
     return (NBL_RX_TX_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
 }
 
-VOID
-XdpGenericRecvInjectComplete(
-    _In_ VOID *ClassificationResult,
+static
+UINT32
+XdpGenericRecvInjectReturnNbls(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
     _In_ NBL_COUNTED_QUEUE *Queue
     )
 {
-    XDP_LWF_GENERIC_RX_QUEUE *RxQueue = ClassificationResult;
     UINT32 NblCount = (UINT32)Queue->NblCount;
     NBL_QUEUE ReturnList;
     NET_BUFFER_LIST *Nbl;
@@ -75,6 +75,20 @@ XdpGenericRecvInjectComplete(
         NdisFReturnNetBufferLists(
             RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
     }
+
+    return NblCount;
+}
+
+VOID
+XdpGenericRecvInjectComplete(
+    _In_ VOID *ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
+    )
+{
+    XDP_LWF_GENERIC_RX_QUEUE *RxQueue = ClassificationResult;
+    UINT32 NblCount;
+
+    NblCount = XdpGenericRecvInjectReturnNbls(RxQueue, Queue);
 
     ExReleaseRundownProtectionEx(&RxQueue->NblRundown, NblCount);
 }
@@ -948,7 +962,7 @@ XdpGenericReceive(
 
     if (!NdisIsNblCountedQueueEmpty(TxList) &&
         !ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
-        XdpGenericRecvInjectComplete(RxQueue, TxList);
+        XdpGenericRecvInjectReturnNbls(RxQueue, TxList);
     }
 
     if (OldIrql != DISPATCH_LEVEL) {

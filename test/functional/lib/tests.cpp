@@ -3350,21 +3350,41 @@ GenericRxFragmentBuffer(
         ETHERNET_ADDRESS TempAddress;
         UINT32 TotalLength = 0;
 
+        //
+        // Set a TX filter that matches the entire packet with the ethernet
+        // source and destination swapped.
+        //
         TempAddress = Ethernet->Destination;
         Ethernet->Destination = Ethernet->Source;
         Ethernet->Source = TempAddress;
-
         MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
 
         TEST_HRESULT(MpRxFlush(GenericMp, &RxFlushOptions));
 
         auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
 
+        //
+        // Verify the entire packet (and nothing more) was forwarded. The TX
+        // filter verifies the bytes match up to the length of the filter.
+        //
         for (UINT32 i = 0; i < MpTxFrame->BufferCount; i++) {
             TotalLength += MpTxFrame->Buffers[i].DataLength;
         }
-
         TEST_EQUAL(L2FwdPacket.size(), TotalLength);
+
+        //
+        // Non-low-resources NBLs should be forwarded without a data copy. We
+        // infer this is true by the TX NBL having the same MDL layout as the
+        // original NBL.
+        //
+        if (!Params->LowResources) {
+            TEST_EQUAL(Buffers.size(), MpTxFrame->BufferCount);
+        }
+
+        //
+        // XDP should preserve the available backfill.
+        //
+        TEST_EQUAL(Params->Backfill, Buffers[0].DataOffset);
 
         MpTxDequeueFrame(GenericMp, 0);
         MpTxFlush(GenericMp);

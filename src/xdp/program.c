@@ -1371,7 +1371,7 @@ XdpProgramDetachRxQueue(
     if (XdpRxQueueGetProgram(RxQueue) == &ProgramObject->Program) {
         ASSERT(!ProgramObject->Flags.SharingEnabled);
         XdpRxQueueDeregisterNotifications(RxQueue, &ProgramObject->RxQueueNotificationEntry);
-        XdpRxQueueSetProgram(RxQueue, NULL);
+        XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
     } else if (ProgramObject->Flags.SharingEnabled && !IsListEmpty(&ProgramObject->SharingLink)) {
         XDP_PROGRAM *MetaProgram = XdpRxQueueGetProgram(RxQueue);
         XDP_PROGRAM_OBJECT *MetaProgramObject =
@@ -1391,7 +1391,7 @@ XdpProgramDetachRxQueue(
         InitializeListHead(&ProgramObject->SharingLink);
 
         if (IsListEmpty(&MetaProgramObject->SharingLink)) {
-            XdpRxQueueSetProgram(RxQueue, NULL);
+            XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
             ExFreePoolWithTag(MetaProgramObject, XDP_POOLTAG_PROGRAM);
             TraceInfo(
                 TRACE_CORE, "Detached metaprogram RxQueue=%p Program=%p",
@@ -1746,6 +1746,43 @@ Exit:
 }
 
 static
+NTSTATUS
+XdpProgramValidateIfQueue(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_opt_ VOID *ValidationContext
+    )
+{
+    XDP_PROGRAM_OBJECT *ProgramObject = ValidationContext;
+    XDP_PROGRAM *Program = &ProgramObject->Program;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "Program=%p", ProgramObject);
+
+    //
+    // Perform further rule validation that requires an interface RX queue.
+    //
+    for (ULONG Index = 0; Index < Program->RuleCount; Index++) {
+        XDP_RULE *Rule = &Program->Rules[Index];
+
+        if (Rule->Action == XDP_PROGRAM_ACTION_L2FWD) {
+            if (!XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(RxQueue))) {
+                TraceError(
+                    TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
+                Status = STATUS_NOT_SUPPORTED;
+                goto Exit;
+            }
+        }
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+    return Status;
+}
+
+static
 VOID
 XdpProgramAttach(
     _In_ XDP_BINDING_WORKITEM *WorkItem
@@ -1775,13 +1812,8 @@ XdpProgramAttach(
         goto Exit;
     }
 
-    Status = XdpRxQueueFindOrCreateIfRxQueue(ProgramObject->RxQueue);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
     //
-    // Perform further rule validation that require the interface work queue.
+    // Perform further rule validation that requires the interface work queue.
     //
     for (ULONG Index = 0; Index < Program->RuleCount; Index++) {
         XDP_RULE *Rule = &Program->Rules[Index];
@@ -1800,13 +1832,6 @@ XdpProgramAttach(
 
             default:
                 break;
-            }
-        } else if (Rule->Action == XDP_PROGRAM_ACTION_L2FWD) {
-            if (!XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(ProgramObject->RxQueue))) {
-                TraceError(
-                    TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
-                Status = STATUS_NOT_SUPPORTED;
-                goto Exit;
             }
         }
     }
@@ -1870,10 +1895,12 @@ XdpProgramAttach(
 
         //
         // Synchronize with data path and replace old metaprogram with new
-        // metaprogram. This is guaranteed to succeed when a program is already
-        // attached.
+        // metaprogram.
         //
-        Status = XdpRxQueueSetProgram(ProgramObject->RxQueue, &NewMetaProgramObject->Program);
+        Status =
+            XdpRxQueueSetProgram(
+                ProgramObject->RxQueue, &NewMetaProgramObject->Program, XdpProgramValidateIfQueue,
+                NewMetaProgramObject);
         if (NT_SUCCESS(Status)) {
             TraceInfo(
                 TRACE_CORE, "Attached metaprogram RxQueue=%p Program=%p OldProgram=%p",
@@ -1886,13 +1913,22 @@ XdpProgramAttach(
             }
         } else {
             //
-            // Revert changes to the program, scrap the metaprogram, and bail.
-            // This can happen only if no metaprogram was previously attached.
+            // Revert changes to the program, revert changes to the current
+            // metaprogram (if it exists), scrap the new metaprogram, and bail.
             //
-            ASSERT(ExistingProgramObject == NULL);
 
             RemoveEntryList(&ProgramObject->SharingLink);
             InitializeListHead(&ProgramObject->SharingLink);
+
+            if (ExistingProgramObject != NULL) {
+                ASSERT(ExistingProgramObject->Flags.IsMetaProgram);
+                ASSERT(IsListEmpty(&ExistingProgramObject->SharingLink));
+                ASSERT(!IsListEmpty(&NewMetaProgramObject->SharingLink));
+                AppendTailList(
+                    &ExistingProgramObject->SharingLink, &NewMetaProgramObject->SharingLink);
+                RemoveEntryList(&NewMetaProgramObject->SharingLink);
+                InitializeListHead(&NewMetaProgramObject->SharingLink);
+            }
 
             ASSERT(IsListEmpty(&NewMetaProgramObject->SharingLink));
             ExFreePoolWithTag(NewMetaProgramObject, XDP_POOLTAG_PROGRAM);
@@ -1909,8 +1945,10 @@ XdpProgramAttach(
             goto Exit;
         }
 
-
-        Status = XdpRxQueueSetProgram(ProgramObject->RxQueue, Program);
+        Status =
+            XdpRxQueueSetProgram(
+                ProgramObject->RxQueue, Program, XdpProgramValidateIfQueue,
+                ProgramObject);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
