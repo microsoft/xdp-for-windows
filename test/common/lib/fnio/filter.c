@@ -224,8 +224,7 @@ FnIoGetFilteredFrame(
             Data + Buffer[BufferIndex].DataOffset,
             MdlBuffer + Buffer[BufferIndex].DataOffset,
             Buffer[BufferIndex].DataLength);
-        Buffer[BufferIndex].VirtualAddress =
-            RTL_PTR_SUBTRACT(Data - Buffer[BufferIndex].DataOffset, Frame);
+        Buffer[BufferIndex].VirtualAddress = RTL_PTR_SUBTRACT(Data, Frame);
 
         Data += Buffer[BufferIndex].DataOffset;
         Data += Buffer[BufferIndex].DataLength;
