@@ -896,7 +896,9 @@ XdpLwfOffloadRssSet(
     //
     // Inherit unspecified parameters from the current RSS settings.
     //
-    InheritXdpRssParams(&RssSetting->Params, &CurrentRssSetting->Params);
+    InheritXdpRssParams(
+        &RssSetting->Params,
+        (CurrentRssSetting != NULL) ? &CurrentRssSetting->Params : NULL);
 
     //
     // Form and issue the OID.
