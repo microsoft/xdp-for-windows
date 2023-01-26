@@ -546,6 +546,7 @@ XdpGenericReceiveEnqueueTxNb(
     NblRxTxContext(TxNbl)->RxQueue = RxQueue;
     NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
     TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
+    NET_BUFFER_LIST_SET_HASH_VALUE(TxNbl, NET_BUFFER_LIST_GET_HASH_VALUE(Nbl));
     NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
 
 Exit:
