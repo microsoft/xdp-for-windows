@@ -340,6 +340,14 @@ public:
         GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE);
     }
 
+    TEST_METHOD(GenericRxL2FwdLowResources) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxL2FwdTxInspect) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, TRUE);
+    }
+
     TEST_METHOD(GenericRxFromTxInspectV4) {
         GenericRxFromTxInspect(AF_INET);
     }

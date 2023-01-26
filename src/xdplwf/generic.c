@@ -222,6 +222,9 @@ XdpGenericRestart(
     RtlAcquirePushLockExclusive(&Generic->Lock);
     Generic->Flags.Paused = FALSE;
 
+    XdpGenericRxRestart(Generic, NewMtu);
+    XdpGenericTxRestart(Generic, NewMtu);
+
     if (Generic->Tx.Datapath.Inserted) {
         KeSetEvent(&Generic->Tx.Datapath.ReadyEvent, 0, FALSE);
     }
@@ -229,8 +232,6 @@ XdpGenericRestart(
         KeSetEvent(&Generic->Rx.Datapath.ReadyEvent, 0, FALSE);
     }
 
-    XdpGenericRxRestart(Generic, NewMtu);
-    XdpGenericTxRestart(Generic, NewMtu);
     RtlReleasePushLockExclusive(&Generic->Lock);
 
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is restarted", Generic->IfIndex);
