@@ -738,6 +738,20 @@ XdpLwfOffloadRssSet(
     }
 
     //
+    // There is an NDIS bug where LWFs setting the RSS configuration can cause
+    // a bugcheck if no upper level has previously set the RSS configuration.
+    // To avoid this scenario, prevent setting RSS configuration until the
+    // upper layer has set the configuration.
+    //
+    if (Filter->Offload.UpperEdge.Rss == NULL) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p RSS cannot be set without upper layer being set", OffloadContext);
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
+
+    //
     // Ensure compatibility with existing settings. Currently, only allow
     // overwrite of a configuration plumbed by the same offload context.
     //
