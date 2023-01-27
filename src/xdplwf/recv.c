@@ -503,6 +503,7 @@ XdpGenericRxFreeNblCloneCache(
         Nbl->FirstNetBuffer->CurrentMdl = NULL;
         Nbl->FirstNetBuffer->DataLength = 0;
         Nbl->FirstNetBuffer->DataOffset = 0;
+        Nbl->FirstNetBuffer->CurrentMdlOffset = 0;
 
         NdisFreeNetBufferList(Nbl);
     }
