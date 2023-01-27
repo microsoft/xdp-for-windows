@@ -112,6 +112,12 @@ XdpLifetimeStart(
         goto Exit;
     }
 
+    //
+    // Ensure the lifetime worker runs at high priority to avoid the data path
+    // starving the cleanup path.
+    //
+    XdpSetWorkQueuePriority(XdpLifetimeQueue, CriticalWorkQueue);
+
     Status = STATUS_SUCCESS;
 
 Exit:

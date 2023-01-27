@@ -7,8 +7,22 @@
 
 #define MAX_ITERATIONS_INLINE   1
 #define MAX_ITERATIONS_PER_DPC  16
+
+#if DBG
+//
+// Use smaller quotas to reduce NBL chain lengths. Since debug builds of the
+// NBL queue helpers traverse the complete NBL queue for each operation, we
+// need to keep each queue short.
+//
+#define RX_QUOTA 16
+#define TX_QUOTA 16
+#else
+//
+// For release builds, use the same default quotas as the NDIS polling module.
+//
 #define RX_QUOTA 64
 #define TX_QUOTA 64
+#endif
 
 typedef struct DECLSPEC_CACHEALIGN _NDIS_POLL_CPU {
     KDPC Dpc;
