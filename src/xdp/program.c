@@ -1106,7 +1106,6 @@ XdpProgramGetXskBypassTarget(
     return Program->Rules[0].Redirect.Target;
 }
 
-
 //
 // Control path routines.
 //
