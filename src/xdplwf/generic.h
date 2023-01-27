@@ -38,11 +38,15 @@ typedef struct _XDP_LWF_GENERIC {
     KEVENT InterfaceRemovedEvent;
     XDP_REFERENCE_COUNT ReferenceCount;
     KEVENT CleanupEvent;
+    struct {
+        BOOLEAN Paused : 1;
+    } Flags;
 
     XDP_LWF_GENERIC_RSS Rss;
 
     struct {
         XDP_LWF_DATAPATH_BYPASS Datapath;
+        LIST_ENTRY Queues;
     } Rx;
 
     struct {
@@ -52,9 +56,26 @@ typedef struct _XDP_LWF_GENERIC {
     } Tx;
 } XDP_LWF_GENERIC;
 
+typedef enum _XDP_LWF_GENERIC_INJECTION_TYPE {
+    XDP_LWF_GENERIC_INJECTION_RECV,
+    XDP_LWF_GENERIC_INJECTION_SEND,
+} XDP_LWF_GENERIC_INJECTION_TYPE;
+
+typedef struct _XDP_LWF_GENERIC_INJECTION_CONTEXT {
+    VOID *InjectionCompletionContext;
+    XDP_LWF_GENERIC_INJECTION_TYPE InjectionType;
+} XDP_LWF_GENERIC_INJECTION_CONTEXT;
+
 XDP_LWF_GENERIC *
 XdpGenericFromFilterContext(
     _In_ NDIS_HANDLE FilterModuleContext
+    );
+
+_IRQL_requires_(DISPATCH_LEVEL)
+NET_BUFFER_LIST *
+XdpGenericInjectNetBufferListsComplete(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ NET_BUFFER_LIST *NetBufferLists
     );
 
 NTSTATUS
@@ -101,20 +122,34 @@ XdpGenericRequestRestart(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_lock_held_(&Generic->Lock)
-VOID
+BOOLEAN
 XdpGenericReferenceDatapath(
     _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath,
-    _Out_ BOOLEAN *NeedRestart
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_lock_held_(&Generic->Lock)
-VOID
+BOOLEAN
 XdpGenericDereferenceDatapath(
     _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath,
-    _Out_ BOOLEAN *NeedRestart
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpGenericAttachDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ BOOLEAN RxDatapath,
+    _In_ BOOLEAN TxDatapath
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpGenericDetachDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ BOOLEAN RxDatapath,
+    _In_ BOOLEAN TxDatapath
     );
 
 NTSTATUS

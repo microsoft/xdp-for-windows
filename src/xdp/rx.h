@@ -68,10 +68,19 @@ XdpRxQueueSync(
     _In_opt_ VOID *CallbackContext
     );
 
+typedef
+NTSTATUS
+XDP_RX_QUEUE_VALIDATE(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_opt_ VOID *ValidationContext
+    );
+
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
-    _In_opt_ XDP_PROGRAM *Program
+    _In_opt_ XDP_PROGRAM *Program,
+    _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
+    _In_opt_ VOID *ValidationContext
     );
 
 XDP_PROGRAM *
@@ -91,6 +100,11 @@ XdpRxQueueGetConfig(
 
 UINT8
 XdpRxQueueGetMaximumFragments(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
+BOOLEAN
+XdpRxQueueIsTxActionSupported(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
 

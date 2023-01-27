@@ -532,6 +532,16 @@ XdpRxQueueGetMaximumFragments(
     return RxQueue->InterfaceRxCapabilities.MaximumFragments;
 }
 
+BOOLEAN
+XdpRxQueueIsTxActionSupported(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+
+    return RxQueue->InterfaceRxCapabilities.TxActionSupported;
+}
+
 static
 CONST XDP_HOOK_ID *
 XdppRxQueueGetHookId(
@@ -656,7 +666,9 @@ XdpRxQueueDetachInterface(
 static
 NTSTATUS
 XdpRxQueueAttachInterface(
-    _In_ XDP_RX_QUEUE *RxQueue
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
+    _In_opt_ VOID *ValidationContext
     )
 {
     NTSTATUS Status;
@@ -767,6 +779,13 @@ XdpRxQueueAttachInterface(
     }
 
     RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch;
+
+    if (ValidationRoutine != NULL) {
+        Status = ValidationRoutine(RxQueue, ValidationContext);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    }
 
     //
     // Implement a fast path for a single XSK receiving all frames.
@@ -1035,15 +1054,24 @@ XdpRxQueueSwapProgram(
 NTSTATUS
 XdpRxQueueSetProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
-    _In_opt_ XDP_PROGRAM *Program
+    _In_opt_ XDP_PROGRAM *Program,
+    _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
+    _In_opt_ VOID *ValidationContext
     )
 {
-    NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS Status;
 
     TraceEnter(
         TRACE_CORE, "RxQueue=%p Program=%p OldProgram=%p", RxQueue, Program, RxQueue->Program);
 
     if (Program != NULL && RxQueue->Program != NULL) {
+        if (ValidationRoutine != NULL) {
+            Status = ValidationRoutine(RxQueue, ValidationContext);
+            if (!NT_SUCCESS(Status)) {
+                goto Exit;
+            }
+        }
+
         //
         // Swap the existing program for a new program; perform the swap on the
         // data path execution context to ensure the old program is not touched
@@ -1060,9 +1088,10 @@ XdpRxQueueSetProgram(
         // queue on the interface.
         //
         RxQueue->Program = Program;
-        Status = XdpRxQueueAttachInterface(RxQueue);
+        Status = XdpRxQueueAttachInterface(RxQueue, ValidationRoutine, ValidationContext);
         if (!NT_SUCCESS(Status)) {
             RxQueue->Program = NULL;
+            goto Exit;
         }
     } else {
         //
@@ -1072,6 +1101,10 @@ XdpRxQueueSetProgram(
         XdpRxQueueDetachInterface(RxQueue);
         RxQueue->Program = NULL;
     }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
 
     TraceExitStatus(TRACE_CORE);
     return Status;

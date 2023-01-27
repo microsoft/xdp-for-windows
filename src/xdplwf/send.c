@@ -31,9 +31,17 @@ InterlockedPushListSList(
 
 typedef struct _NBL_TX_CONTEXT {
     XDP_LWF_GENERIC_TX_QUEUE *TxQueue;
+    XDP_LWF_GENERIC_INJECTION_TYPE InjectionType;
     UINT64 BufferAddress;
     XDP_TX_FRAME_COMPLETION_CONTEXT CompletionContext;
 } NBL_TX_CONTEXT;
+
+C_ASSERT(
+    FIELD_OFFSET(NBL_TX_CONTEXT, TxQueue) ==
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionCompletionContext));
+C_ASSERT(
+    FIELD_OFFSET(NBL_TX_CONTEXT, InjectionType) ==
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType));
 
 static
 NBL_TX_CONTEXT *
@@ -48,63 +56,23 @@ NblTxContext(
     return (NBL_TX_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
 }
 
-static
-ULONG_PTR
-XdpGenericInjectCompleteClassify(
-    _In_ VOID *ClassificationContext,
-    _In_ NET_BUFFER_LIST *Nbl)
-{
-    if (Nbl->SourceHandle == ClassificationContext) {
-        return (ULONG_PTR)NblTxContext(Nbl)->TxQueue;
-    }
-
-    return (ULONG_PTR)NULL;
-}
-
-static
 VOID
-XdpGenericInjectCompleteFlush(
-    _In_ VOID *FlushContext,
-    _In_ ULONG_PTR ClassificationResult,
-    _In_ NBL_COUNTED_QUEUE *Queue)
-{
-    if (ClassificationResult == (ULONG_PTR)NULL) {
-        NBL_QUEUE *PassList = (NBL_QUEUE *)FlushContext;
-
-        NdisAppendNblChainToNblQueueFast(
-            PassList, Queue->Queue.First,
-            CONTAINING_RECORD(Queue->Queue.Last, NET_BUFFER_LIST, Next));
-    } else {
-        XDP_LWF_GENERIC_TX_QUEUE *TxQueue = (XDP_LWF_GENERIC_TX_QUEUE *)ClassificationResult;
-
-        EventWriteGenericTxCompleteBatch(&MICROSOFT_XDP_PROVIDER, TxQueue, Queue->NblCount);
-
-        InterlockedPushListSList(
-            &TxQueue->NblComplete,
-            (SLIST_ENTRY *)&Queue->Queue.First->Next,
-            (SLIST_ENTRY *)Queue->Queue.Last,
-            (ULONG)Queue->NblCount);
-
-        XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
-    }
-}
-
-_IRQL_requires_(DISPATCH_LEVEL)
-NET_BUFFER_LIST *
-XdpGenericInjectNetBufferListsComplete(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ NET_BUFFER_LIST *NetBufferLists
+XdpGenericSendInjectComplete(
+    _In_ VOID *ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
     )
 {
-    NBL_QUEUE PassList;
+    XDP_LWF_GENERIC_TX_QUEUE *TxQueue = ClassificationResult;
 
-    NdisInitializeNblQueue(&PassList);
+    EventWriteGenericTxCompleteBatch(&MICROSOFT_XDP_PROVIDER, TxQueue, Queue->NblCount);
 
-    NdisClassifyNblChainByValueLookaheadWithCount(
-        NetBufferLists, XdpGenericInjectCompleteClassify, Generic->NdisFilterHandle,
-        XdpGenericInjectCompleteFlush, &PassList);
+    InterlockedPushListSList(
+        &TxQueue->NblComplete,
+        (SLIST_ENTRY *)&Queue->Queue.First->Next,
+        (SLIST_ENTRY *)Queue->Queue.Last,
+        (ULONG)Queue->NblCount);
 
-    return NdisGetNblChainFromNblQueue(&PassList);
+    XdpGenericTxNotify(TxQueue, XDP_NOTIFY_QUEUE_FLAG_TX);
 }
 
 _Use_decl_annotations_
@@ -146,11 +114,13 @@ XdpGenericSendNetBufferLists(
     XDP_LWF_GENERIC *Generic = XdpGenericFromFilterContext(FilterModuleContext);
     NBL_COUNTED_QUEUE PassList;
     NBL_QUEUE DropList;
+    NBL_COUNTED_QUEUE TxList;
+    BOOLEAN AtDispatch = NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags);
 
     ASSERT(PortNumber == NDIS_DEFAULT_PORT_NUMBER);
 
     XdpGenericReceive(
-        Generic, NetBufferLists, PortNumber, &PassList, &DropList,
+        Generic, NetBufferLists, PortNumber, &PassList, &DropList, &TxList,
         (SendFlags & XDP_LWF_GENERIC_INSPECT_NDIS_TX_MASK) | XDP_LWF_GENERIC_INSPECT_FLAG_TX);
 
     if (!NdisIsNblCountedQueueEmpty(&PassList)) {
@@ -162,8 +132,13 @@ XdpGenericSendNetBufferLists(
     if (!NdisIsNblQueueEmpty(&DropList)) {
         NdisFSendNetBufferListsComplete(
             Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&DropList),
-            NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags) ?
-                NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
+            AtDispatch ? NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
+    }
+
+    if (!NdisIsNblCountedQueueEmpty(&TxList)) {
+        NdisFIndicateReceiveNetBufferLists(
+            Generic->NdisFilterHandle, NdisGetNblChainFromNblCountedQueue(&TxList), PortNumber,
+            (ULONG)TxList.NblCount, AtDispatch ? NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL : 0);
     }
 }
 
@@ -199,6 +174,7 @@ XdpGenericBuildTxNbl(
     NET_BUFFER_CURRENT_MDL_OFFSET(Nb) = 0;
     NET_BUFFER_LIST_SET_HASH_VALUE(Nbl, TxQueue->RssQueue->RssHash);
     NblTxContext(Nbl)->TxQueue = TxQueue;
+    NblTxContext(Nbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_SEND;
     NblTxContext(Nbl)->BufferAddress = BufferMdl->MdlOffset;
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
@@ -750,9 +726,11 @@ XdpGenericTxCreateQueue(
     }
 
     Datapath = TxQueue->Flags.RxInject ? &Generic->Rx.Datapath : &Generic->Tx.Datapath;
-    XdpGenericReferenceDatapath(Generic, Datapath, &NeedRestart);
+    NeedRestart = XdpGenericReferenceDatapath(Generic, Datapath);
     if (NeedRestart) {
         TxQueue->Flags.Pause = TRUE;
+    } else {
+        TxQueue->Flags.Pause = Generic->Flags.Paused;
     }
 
     InsertTailList(&Generic->Tx.Queues, &TxQueue->Link);
@@ -927,7 +905,7 @@ XdpGenericTxDeleteQueue(
     Datapath =
         TxQueue->Flags.RxInject ?
             &Generic->Rx.Datapath : &Generic->Tx.Datapath;
-    XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
+    NeedRestart = XdpGenericDereferenceDatapath(Generic, Datapath);
 
     RtlReleasePushLockExclusive(&Generic->Lock);
 

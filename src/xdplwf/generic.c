@@ -67,6 +67,82 @@ XdpGenericFromFilterContext(
 }
 
 static
+XDP_LWF_GENERIC_INJECTION_CONTEXT *
+NblInjectionContext(
+    _In_ NET_BUFFER_LIST *NetBufferList
+    )
+{
+    return (XDP_LWF_GENERIC_INJECTION_CONTEXT *)NET_BUFFER_LIST_CONTEXT_DATA_START(NetBufferList);
+}
+
+static
+ULONG_PTR
+XdpGenericInjectCompleteClassify(
+    _In_ VOID *ClassificationContext,
+    _In_ NET_BUFFER_LIST *Nbl
+    )
+{
+    if (Nbl->SourceHandle == ClassificationContext) {
+        return (ULONG_PTR)NblInjectionContext(Nbl)->InjectionCompletionContext;
+    }
+
+    return (ULONG_PTR)NULL;
+}
+
+static
+VOID
+XdpGenericInjectCompleteFlush(
+    _In_ VOID *FlushContext,
+    _In_ ULONG_PTR ClassificationResult,
+    _In_ NBL_COUNTED_QUEUE *Queue
+    )
+{
+    if (ClassificationResult == (ULONG_PTR)NULL) {
+        NBL_QUEUE *PassList = (NBL_QUEUE *)FlushContext;
+
+        NdisAppendNblChainToNblQueueFast(
+            PassList, Queue->Queue.First,
+            CONTAINING_RECORD(Queue->Queue.Last, NET_BUFFER_LIST, Next));
+    } else {
+        XDP_LWF_GENERIC_INJECTION_CONTEXT *InjectionContext;
+
+        ASSERT(Queue->NblCount > 0);
+        InjectionContext = NblInjectionContext(NdisGetNblChainFromNblCountedQueue(Queue));
+
+        switch (InjectionContext->InjectionType) {
+        case XDP_LWF_GENERIC_INJECTION_SEND:
+            XdpGenericSendInjectComplete((VOID *)ClassificationResult, Queue);
+            break;
+
+        case XDP_LWF_GENERIC_INJECTION_RECV:
+            XdpGenericRecvInjectComplete((VOID *)ClassificationResult, Queue);
+            break;
+
+        default:
+            ASSERT(FALSE);
+        }
+    }
+}
+
+_IRQL_requires_(DISPATCH_LEVEL)
+NET_BUFFER_LIST *
+XdpGenericInjectNetBufferListsComplete(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ NET_BUFFER_LIST *NetBufferLists
+    )
+{
+    NBL_QUEUE PassList;
+
+    NdisInitializeNblQueue(&PassList);
+
+    NdisClassifyNblChainByValueLookaheadWithCount(
+        NetBufferLists, XdpGenericInjectCompleteClassify, Generic->NdisFilterHandle,
+        XdpGenericInjectCompleteFlush, &PassList);
+
+    return NdisGetNblChainFromNblQueue(&PassList);
+}
+
+static
 VOID
 XdpGenericUpdateDelayDetachTimeout(
     _In_ UINT32 NewTimeoutSeconds
@@ -111,9 +187,12 @@ XdpGenericPause(
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is pausing", Generic->IfIndex);
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
+    Generic->Flags.Paused = TRUE;
+
     KeClearEvent(&Generic->Tx.Datapath.ReadyEvent);
     KeClearEvent(&Generic->Rx.Datapath.ReadyEvent);
 
+    XdpGenericRxPause(Generic);
     XdpGenericTxPause(Generic);
     RtlReleasePushLockExclusive(&Generic->Lock);
 
@@ -141,6 +220,11 @@ XdpGenericRestart(
     }
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
+    Generic->Flags.Paused = FALSE;
+
+    XdpGenericRxRestart(Generic, NewMtu);
+    XdpGenericTxRestart(Generic, NewMtu);
+
     if (Generic->Tx.Datapath.Inserted) {
         KeSetEvent(&Generic->Tx.Datapath.ReadyEvent, 0, FALSE);
     }
@@ -148,7 +232,6 @@ XdpGenericRestart(
         KeSetEvent(&Generic->Rx.Datapath.ReadyEvent, 0, FALSE);
     }
 
-    XdpGenericTxRestart(Generic, NewMtu);
     RtlReleasePushLockExclusive(&Generic->Lock);
 
     TraceVerbose(TRACE_GENERIC, "IfIndex=%u Datapath is restarted", Generic->IfIndex);
@@ -216,14 +299,13 @@ XdpGenericDelayDereferenceDatapath(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_lock_held_(&Generic->Lock)
-VOID
+BOOLEAN
 XdpGenericReferenceDatapath(
     _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath,
-    _Out_ BOOLEAN *NeedRestart
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
     )
 {
-    *NeedRestart = FALSE;
+    BOOLEAN NeedRestart = FALSE;
 
     FRE_ASSERT(Datapath->ReferenceCount >= 0);
 
@@ -233,25 +315,28 @@ XdpGenericReferenceDatapath(
     // data path reference (and implicit generic reference) to this caller.
     //
     if (XdpTimerCancel(Datapath->DelayDetachTimer)) {
-        return;
+        goto Exit;
     }
 
     if (Datapath->ReferenceCount++ == 0) {
         XdpGenericReference(Generic);
-        *NeedRestart = TRUE;
+        NeedRestart = TRUE;
     }
+
+Exit:
+
+    return NeedRestart;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Requires_lock_held_(&Generic->Lock)
-VOID
+BOOLEAN
 XdpGenericDereferenceDatapath(
     _In_ XDP_LWF_GENERIC *Generic,
-    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath,
-    _Out_ BOOLEAN *NeedRestart
+    _In_ XDP_LWF_DATAPATH_BYPASS *Datapath
     )
 {
-    *NeedRestart = FALSE;
+    BOOLEAN NeedRestart = FALSE;
 
     if (Datapath->ReferenceCount == 1) {
         if (Datapath->DelayDetachTimer != NULL) {
@@ -264,18 +349,93 @@ XdpGenericDereferenceDatapath(
 
             FRE_ASSERT(!CancelledTimer);
             FRE_ASSERT(StartedTimer);
-            return;
+            goto Exit;
         }
 
         KeClearEvent(&Datapath->ReadyEvent);
-        *NeedRestart = TRUE;
+        NeedRestart = TRUE;
     }
 
     FRE_ASSERT(Datapath->ReferenceCount > 0);
     --Datapath->ReferenceCount;
 
-    if (*NeedRestart) {
+    if (NeedRestart) {
         XdpGenericDereference(Generic);
+    }
+
+Exit:
+
+    return NeedRestart;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpGenericAttachDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ BOOLEAN RxDatapath,
+    _In_ BOOLEAN TxDatapath
+    )
+{
+    BOOLEAN NeedRestart = FALSE;
+    LARGE_INTEGER Timeout;
+    VOID *ReadyEvents[2];
+    UINT32 ReadyEventCount = 0;
+
+    ASSERT(RxDatapath || TxDatapath);
+
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    if (RxDatapath) {
+        NeedRestart |= XdpGenericReferenceDatapath(Generic, &Generic->Rx.Datapath);
+        ReadyEvents[ReadyEventCount++] = &Generic->Rx.Datapath.ReadyEvent;
+    }
+    if (TxDatapath) {
+        NeedRestart |= XdpGenericReferenceDatapath(Generic, &Generic->Tx.Datapath);
+        ReadyEvents[ReadyEventCount++] = &Generic->Tx.Datapath.ReadyEvent;
+    }
+    RtlReleasePushLockExclusive(&Generic->Lock);
+
+    C_ASSERT(RTL_NUMBER_OF(ReadyEvents) <= THREAD_WAIT_OBJECTS);
+    ASSERT(ReadyEventCount > 0 && ReadyEventCount <= RTL_NUMBER_OF(ReadyEvents));
+
+    if (NeedRestart) {
+        TraceVerbose(
+            TRACE_GENERIC, "IfIndex=%u Requesting datapath attach RX=%u TX=%u",
+            Generic->IfIndex, RxDatapath, TxDatapath);
+        XdpGenericRequestRestart(Generic);
+    }
+
+    Timeout.QuadPart =
+        -1 * RTL_MILLISEC_TO_100NANOSEC(GENERIC_DATAPATH_RESTART_TIMEOUT_MS);
+    KeWaitForMultipleObjects(
+        ReadyEventCount, ReadyEvents, WaitAll, Executive, KernelMode, FALSE, &Timeout, NULL);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpGenericDetachDatapath(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ BOOLEAN RxDatapath,
+    _In_ BOOLEAN TxDatapath
+    )
+{
+    BOOLEAN NeedRestart = FALSE;
+
+    ASSERT(RxDatapath || TxDatapath);
+
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    if (RxDatapath) {
+        NeedRestart |= XdpGenericDereferenceDatapath(Generic, &Generic->Rx.Datapath);
+    }
+    if (TxDatapath) {
+        NeedRestart |= XdpGenericDereferenceDatapath(Generic, &Generic->Tx.Datapath);
+    }
+    RtlReleasePushLockExclusive(&Generic->Lock);
+
+    if (NeedRestart) {
+        TraceVerbose(
+            TRACE_GENERIC, "IfIndex=%u Requesting datapath detach RX=%u TX=%u",
+            Generic->IfIndex, RxDatapath, TxDatapath);
+        XdpGenericRequestRestart(Generic);
     }
 }
 
@@ -424,15 +584,13 @@ XdpGenericCleanupDatapath(
         Datapath->DelayDetachTimer = NULL;
 
         if (XdpTimerShutdown(DelayDetachTimer, TRUE, FALSE)) {
-            BOOLEAN NeedRestart;
-
             //
             // The delay detach timer was active and was cancelled, so release
             // the delayed reference immediately. Since we are in the teardown
             // path, there's no need to request the NDIS data path restart: it
             // will be rejected by NDIS anyways.
             //
-            XdpGenericDereferenceDatapath(Generic, Datapath, &NeedRestart);
+            (VOID)XdpGenericDereferenceDatapath(Generic, Datapath);
         }
 
         RtlReleasePushLockExclusive(&Generic->Lock);
@@ -487,6 +645,7 @@ XdpGenericAttachInterface(
     //
 
     ExInitializePushLock(&Generic->Lock);
+    InitializeListHead(&Generic->Rx.Queues);
     InitializeListHead(&Generic->Tx.Queues);
     KeInitializeEvent(&Generic->InterfaceRemovedEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->CleanupEvent, NotificationEvent, FALSE);
@@ -496,6 +655,7 @@ XdpGenericAttachInterface(
     Generic->Filter = Filter;
     Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
+    Generic->Flags.Paused = TRUE;
     Generic->InternalCapabilities.Mode = XDP_INTERFACE_MODE_GENERIC;
     Generic->InternalCapabilities.Hooks = GenericHooks;
     Generic->InternalCapabilities.HookCount = RTL_NUMBER_OF(GenericHooks);

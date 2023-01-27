@@ -39,6 +39,13 @@ XdpShutdownWorkQueue(
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
+XdpSetWorkQueuePriority(
+    _In_ XDP_WORK_QUEUE *WorkQueue,
+    _In_ WORK_QUEUE_TYPE Priority
+    );
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
 XdpInsertWorkQueue(
     _In_ XDP_WORK_QUEUE *WorkQueue,
     _In_ SINGLE_LIST_ENTRY *WorkQueueEntry

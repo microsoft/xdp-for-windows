@@ -209,24 +209,27 @@ FnIoGetFilteredFrame(
             goto Exit;
         }
 
-        Buffer[BufferIndex].DataOffset = 0;
-        Buffer[BufferIndex].DataLength = min(Mdl->ByteCount, DataBytes);
-        Buffer[BufferIndex].BufferLength = Buffer[BufferIndex].DataLength;
-
         if (BufferIndex == 0) {
             Buffer[BufferIndex].DataOffset = NET_BUFFER_CURRENT_MDL_OFFSET(NetBuffer);
-            Buffer[BufferIndex].BufferLength += Buffer[BufferIndex].DataOffset;
-            Data += Buffer[BufferIndex].DataOffset;
+        } else {
+            Buffer[BufferIndex].DataOffset = 0;
         }
 
-        RtlCopyMemory(
-            Data, MdlBuffer + Buffer[BufferIndex].DataOffset,
-            Buffer[BufferIndex].DataLength);
-        Buffer[BufferIndex].VirtualAddress =
-            RTL_PTR_SUBTRACT(Data - Buffer[BufferIndex].DataOffset, Frame);
+        Buffer[BufferIndex].DataLength =
+            min(Mdl->ByteCount - Buffer[BufferIndex].DataOffset, DataBytes);
+        Buffer[BufferIndex].BufferLength =
+            Buffer[BufferIndex].DataOffset + Buffer[BufferIndex].DataLength;
 
+        RtlCopyMemory(
+            Data + Buffer[BufferIndex].DataOffset,
+            MdlBuffer + Buffer[BufferIndex].DataOffset,
+            Buffer[BufferIndex].DataLength);
+        Buffer[BufferIndex].VirtualAddress = RTL_PTR_SUBTRACT(Data, Frame);
+
+        Data += Buffer[BufferIndex].DataOffset;
         Data += Buffer[BufferIndex].DataLength;
         DataBytes -= Buffer[BufferIndex].DataLength;
+        Mdl = Mdl->Next;
     }
 
     *BytesReturned = OutputSize;

@@ -122,14 +122,12 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
 
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
-        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
         $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
         $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
         $Args += " -QueueCount $QueueCount"
-        if ($Minutes -ne 0) {
-            $Args += " -Minutes $ThisIterationMinutes"
-        }
+        $Args += " -Minutes $ThisIterationMinutes"
         if ($Stats) {
             $Args += " -Stats"
         }

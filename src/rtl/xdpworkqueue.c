@@ -9,6 +9,7 @@
 
 typedef struct _XDP_WORK_QUEUE {
     KIRQL MaxIrql;
+    WORK_QUEUE_TYPE Priority;
     union {
         EX_PUSH_LOCK PushLock;
         KSPIN_LOCK SpinLock;
@@ -80,6 +81,7 @@ XdpCreateWorkQueue(
     XdpInitializeReferenceCount(&WorkQueue->ReferenceCount);
     WorkQueue->MaxIrql = MaxIrql;
     WorkQueue->Routine = WorkQueueRoutine;
+    WorkQueue->Priority = DelayedWorkQueue;
     WorkQueue->IoWorkItem =
         ExAllocatePoolZero(
             NonPagedPoolNx, IoSizeofWorkItem(), XDP_POOLTAG_WORKQUEUE);
@@ -153,6 +155,20 @@ XdpShutdownWorkQueue(
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
+XdpSetWorkQueuePriority(
+    _In_ XDP_WORK_QUEUE *WorkQueue,
+    _In_ WORK_QUEUE_TYPE Priority
+    )
+{
+    KIRQL OldIrql;
+
+    XdpWorkQueueAcquireLock(WorkQueue, &OldIrql);
+    WorkQueue->Priority = Priority;
+    XdpWorkQueueReleaseLock(WorkQueue, OldIrql);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
 XdpInsertWorkQueue(
     _In_ XDP_WORK_QUEUE *WorkQueue,
     _In_ SINGLE_LIST_ENTRY *WorkQueueEntry
@@ -180,7 +196,7 @@ XdpInsertWorkQueue(
         WorkQueue->Tail = WorkQueueEntry;
         XdpReferenceWorkQueue(WorkQueue);
         IoQueueWorkItemEx(
-            WorkQueue->IoWorkItem, XdpIoWorkItemRoutine, DelayedWorkQueue,
+            WorkQueue->IoWorkItem, XdpIoWorkItemRoutine, WorkQueue->Priority,
             WorkQueue);
     } else {
 

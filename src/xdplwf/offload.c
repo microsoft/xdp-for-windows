@@ -588,7 +588,7 @@ RemoveLowerEdgeRssSetting(
 
     ASSERT(Filter->Offload.LowerEdge.Rss != NULL);
 
-    XdpGenericDetachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+    XdpGenericDetachDatapath(&Filter->Generic, TRUE, FALSE);
 
     //
     // Clear the lower edge setting to imply lower edge has no independent settings.
@@ -1456,7 +1456,7 @@ Exit:
     RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (AttachRxDatapath) {
-        XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+        XdpGenericAttachDatapath(&Filter->Generic, TRUE, FALSE);
     }
 
     TraceExitStatus(TRACE_LWF);
@@ -1504,7 +1504,7 @@ Exit:
     RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     if (AttachRxDatapath) {
-        XdpGenericAttachIfRx(&Filter->Generic, &Filter->Generic.Rx.Datapath);
+        XdpGenericAttachDatapath(&Filter->Generic, TRUE, FALSE);
     }
 
     TraceExitStatus(TRACE_LWF);

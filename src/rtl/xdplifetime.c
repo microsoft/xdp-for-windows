@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "xdplifetime.tmh"
 
 static XDP_WORK_QUEUE *XdpLifetimeQueue;
 static KDPC *XdpLifetimeDpcs;
@@ -43,6 +44,9 @@ XdpLifetimeWorker(
     UINT32 ReferenceCount = ProcessorCount;
     KEVENT Event;
     UINT32 Index;
+
+    TraceEnter(TRACE_RTL, "WorkQueueHead=%p", WorkQueueHead);
+
     //
     // Before deleting the entries, sweep across all processors, ensuring all
     // DPCs that might hold an active reference to objects finish executing.
@@ -65,8 +69,11 @@ XdpLifetimeWorker(
         XDP_LIFETIME_ENTRY *Entry = CONTAINING_RECORD(WorkQueueHead, XDP_LIFETIME_ENTRY, Link);
         WorkQueueHead = WorkQueueHead->Next;
 
+        TraceVerbose(TRACE_RTL, "Entry=%p completed", Entry);
         Entry->DeleteRoutine(Entry);
     }
+
+    TraceExitSuccess(TRACE_RTL);
 }
 
 VOID
@@ -75,6 +82,7 @@ XdpLifetimeDelete(
     _In_ XDP_LIFETIME_ENTRY *Entry
     )
 {
+    TraceVerbose(TRACE_RTL, "Entry=%p requested", Entry);
     Entry->DeleteRoutine = DeleteRoutine;
     XdpInsertWorkQueue(XdpLifetimeQueue, &Entry->Link);
 }
@@ -103,6 +111,12 @@ XdpLifetimeStart(
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
+
+    //
+    // Ensure the lifetime worker runs at high priority to avoid the data path
+    // starving the cleanup path.
+    //
+    XdpSetWorkQueuePriority(XdpLifetimeQueue, CriticalWorkQueue);
 
     Status = STATUS_SUCCESS;
 
