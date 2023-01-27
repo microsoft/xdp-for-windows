@@ -16,6 +16,10 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     XDP_EXTENSION FragmentExtension;
     XDP_EXTENSION FrameInterfaceContextExtension;
     NDIS_HANDLE TxCloneNblPool;
+    UINT32 TxCloneCacheLimit;
+    UINT32 TxCloneCacheCount;
+    SLIST_HEADER TxCloneNblSList;
+    NET_BUFFER_LIST *TxCloneNblList;
     EX_RUNDOWN_REF NblRundown;
 
     //
@@ -120,4 +124,9 @@ VOID
 XdpGenericRxRestart(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ UINT32 NewMtu
+    );
+
+VOID
+XdpGenericReceiveRegistryUpdate(
+    VOID
     );
