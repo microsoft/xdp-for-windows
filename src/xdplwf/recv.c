@@ -28,6 +28,40 @@ C_ASSERT(
 #define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
 C_ASSERT(RX_TX_CONTEXT_SIZE % MEMORY_ALLOCATION_ALIGNMENT == 0);
 
+#if DBG
+typedef enum _XDP_LWF_GENRIC_RX_TX_STATE {
+    XDP_LWF_GENRIC_RX_TX_STATE_ALLOCATED = 0,
+    XDP_LWF_GENRIC_RX_TX_STATE_CLONED,
+    XDP_LWF_GENRIC_RX_TX_STATE_RETURNED,
+    XDP_LWF_GENRIC_RX_TX_STATE_FREED,
+} XDP_LWF_GENRIC_RX_TX_STATE;
+#endif
+
+VOID
+XdbgSetRxTxCloneState(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
+    _In_ NET_BUFFER_LIST *CloneNbl,
+    _In_ XDP_LWF_GENRIC_RX_TX_STATE NewState
+    )
+{
+#if DBG
+    XDP_LWF_GENRIC_RX_TX_STATE *State;
+
+    if (RxQueue->Flags.TxInspect) {
+        State = (XDP_LWF_GENRIC_RX_TX_STATE *)&CloneNbl->MiniportReserved[0];
+    } else {
+        State = (XDP_LWF_GENRIC_RX_TX_STATE *)&CloneNbl->ProtocolReserved[0];
+    }
+
+    ASSERT(NewState > XDP_LWF_GENRIC_RX_TX_STATE_ALLOCATED);
+    ASSERT(InterlockedCompareExchange((LONG *)State, NewState, NewState - 1) == NewState - 1);
+#else
+    UNREFERENCED_PARAMETER(RxQueue);
+    UNREFERENCED_PARAMETER(CloneNbl);
+    UNREFERENCED_PARAMETER(NewState);
+#endif
+}
+
 static
 NBL_RX_TX_CONTEXT *
 NblRxTxContext(
@@ -57,6 +91,11 @@ XdpGenericRecvInjectReturnNbls(
     while ((Nbl = NdisPopFirstNblFromNblCountedQueue(Queue)) != NULL) {
         NET_BUFFER_LIST *ParentNbl = Nbl->ParentNetBufferList;
 
+        ASSERT(NblRxTxContext(Nbl)->InjectionType == XDP_LWF_GENERIC_INJECTION_RECV);
+        ASSERT(NblRxTxContext(Nbl)->RxQueue == RxQueue);
+
+        XdbgSetRxTxCloneState(RxQueue, Nbl, XDP_LWF_GENRIC_RX_TX_STATE_RETURNED);
+
         if (ParentNbl != NULL) {
             if (InterlockedDecrement((LONG *)&Nbl->ParentNetBufferList->ChildRefCount) == 0) {
                 NdisAppendSingleNblToNblQueue(&ReturnList, Nbl->ParentNetBufferList);
@@ -65,15 +104,21 @@ XdpGenericRecvInjectReturnNbls(
             NdisAdvanceNetBufferListDataStart(Nbl, Nbl->FirstNetBuffer->DataLength, TRUE, NULL);
         }
 
+        XdbgSetRxTxCloneState(RxQueue, Nbl, XDP_LWF_GENRIC_RX_TX_STATE_FREED);
+
         NdisFreeNetBufferList(Nbl);
+
+        ASSERT(!XdpDecrementReferenceCount(&RxQueue->NblRefcount));
     }
 
-    if (RxQueue->Flags.TxInspect) {
-        NdisFSendNetBufferListsComplete(
-            RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
-    } else {
-        NdisFReturnNetBufferLists(
-            RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
+    if (!NdisIsNblQueueEmpty(&ReturnList)) {
+        if (RxQueue->Flags.TxInspect) {
+            NdisFSendNetBufferListsComplete(
+                RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
+        } else {
+            NdisFReturnNetBufferLists(
+                RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
+        }
     }
 
     return NblCount;
@@ -543,11 +588,15 @@ XdpGenericReceiveEnqueueTxNb(
     }
 
     ASSERT(TxNbl != NULL);
+    XdbgSetRxTxCloneState(RxQueue, TxNbl, XDP_LWF_GENRIC_RX_TX_STATE_CLONED);
     NblRxTxContext(TxNbl)->RxQueue = RxQueue;
     NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
     TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
     NET_BUFFER_LIST_SET_HASH_VALUE(TxNbl, NET_BUFFER_LIST_GET_HASH_VALUE(Nbl));
     NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
+#if DBG
+    XdpIncrementReferenceCount(&RxQueue->NblRefcount);
+#endif
 
 Exit:
 
@@ -961,9 +1010,11 @@ XdpGenericReceive(
         XdpGenericTxFlushRss(RssQueue, Processor);
     }
 
-    if (!NdisIsNblCountedQueueEmpty(TxList) &&
-        !ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
-        XdpGenericRecvInjectReturnNbls(RxQueue, TxList);
+    if (!NdisIsNblCountedQueueEmpty(TxList)) {
+        if (!ExAcquireRundownProtectionEx(&RxQueue->NblRundown, (ULONG)TxList->NblCount)) {
+            XdpGenericRecvInjectReturnNbls(RxQueue, TxList);
+            ASSERT(NdisIsNblCountedQueueEmpty(TxList));
+        }
     }
 
     if (OldIrql != DISPATCH_LEVEL) {
@@ -1282,6 +1333,9 @@ XdpGenericRxCreateQueue(
     RxQueue->Generic = Generic;
     ExInitializeRundownProtection(&RxQueue->NblRundown);
     RxQueue->Flags.TxInspect = (HookId.Direction == XDP_HOOK_TX);
+#if DBG
+    XdpInitializeReferenceCount(&RxQueue->NblRefcount);
+#endif
 
     PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
