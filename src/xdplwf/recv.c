@@ -8,6 +8,8 @@
 
 #define RECV_MAX_FRAGMENTS 64
 #define RECV_TX_INSPECT_BATCH_SIZE 64
+#define RECV_DEFAULT_MAX_TX_BUFFERS 256
+#define RECV_MAX_MAX_TX_BUFFERS 4096
 
 typedef struct _XDP_LWF_GENERIC_RX_FRAME_CONTEXT {
     NET_BUFFER *Nb;
@@ -27,6 +29,8 @@ C_ASSERT(
 
 #define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
 C_ASSERT(RX_TX_CONTEXT_SIZE % MEMORY_ALLOCATION_ALIGNMENT == 0);
+
+static UINT32 RxMaxTxBuffers = RECV_DEFAULT_MAX_TX_BUFFERS;
 
 static
 NBL_RX_TX_CONTEXT *
@@ -50,11 +54,12 @@ XdpGenericRecvInjectReturnNbls(
 {
     UINT32 NblCount = (UINT32)Queue->NblCount;
     NBL_QUEUE ReturnList;
-    NET_BUFFER_LIST *Nbl;
 
     NdisInitializeNblQueue(&ReturnList);
 
-    while ((Nbl = NdisPopFirstNblFromNblCountedQueue(Queue)) != NULL) {
+    ASSERT(!NdisIsNblCountedQueueEmpty(Queue));
+
+    for (NET_BUFFER_LIST *Nbl = Queue->Queue.First; Nbl != NULL; Nbl = Nbl->Next) {
         NET_BUFFER_LIST *ParentNbl = Nbl->ParentNetBufferList;
 
         ASSERT(NblRxTxContext(Nbl)->InjectionType == XDP_LWF_GENERIC_INJECTION_RECV);
@@ -67,8 +72,6 @@ XdpGenericRecvInjectReturnNbls(
         } else {
             NdisAdvanceNetBufferListDataStart(Nbl, Nbl->FirstNetBuffer->DataLength, TRUE, NULL);
         }
-
-        NdisFreeNetBufferList(Nbl);
     }
 
     if (!NdisIsNblQueueEmpty(&ReturnList)) {
@@ -80,6 +83,17 @@ XdpGenericRecvInjectReturnNbls(
                 RxQueue->Generic->NdisFilterHandle, NdisGetNblChainFromNblQueue(&ReturnList), 0);
         }
     }
+
+    NDIS_ASSERT_VALID_NBL_COUNTED_QUEUE(Queue);
+    ASSERT(Queue->Queue.First != NULL);
+
+    InterlockedPushListSList(
+        &RxQueue->TxCloneNblSList,
+        (SLIST_ENTRY *)&Queue->Queue.First->Next,
+        (SLIST_ENTRY *)Queue->Queue.Last,
+        (ULONG)Queue->NblCount);
+
+    NdisInitializeNblCountedQueue(Queue);
 
     return NblCount;
 }
@@ -476,6 +490,26 @@ XdpGenericReceiveLinearizeNb(
 
 static
 VOID
+XdpGenericRxFreeNblCloneCache(
+    _In_opt_ NET_BUFFER_LIST *NblChain
+    )
+{
+    while (NblChain != NULL) {
+        NET_BUFFER_LIST *Nbl = NblChain;
+        NblChain = NblChain->Next;
+
+        ASSERT(Nbl->FirstNetBuffer->Next == NULL);
+        Nbl->FirstNetBuffer->MdlChain = NULL;
+        Nbl->FirstNetBuffer->CurrentMdl = NULL;
+        Nbl->FirstNetBuffer->DataLength = 0;
+        Nbl->FirstNetBuffer->DataOffset = 0;
+
+        NdisFreeNetBufferList(Nbl);
+    }
+}
+
+static
+VOID
 XdpGenericReceiveEnqueueTxNb(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
     _Inout_ NBL_COUNTED_QUEUE *TxList,
@@ -496,34 +530,15 @@ XdpGenericReceiveEnqueueTxNb(
     // TODO: Perform any software offloads required.
     //
 
-    if (CanPend) {
-        TxNbl =
-            NdisAllocateCloneNetBufferList(
-                Nbl, RxQueue->TxCloneNblPool, NULL, NDIS_CLONE_FLAGS_USE_ORIGINAL_MDLS);
-        if (TxNbl == NULL) {
-            goto Exit;
-        }
+    if (RxQueue->TxCloneNblList == NULL) {
+        RxQueue->TxCloneNblList =
+            (NET_BUFFER_LIST *)InterlockedFlushSList(&RxQueue->TxCloneNblSList);
+    }
 
-        //
-        // NdisAllocateCloneNetBufferList does not automatically provide our
-        // preallocated (backfill) context size. The documentation for
-        // NdisAllocateNetBufferListContext describes what will happen when
-        // sufficient context backfill exists, so to save redundant work,
-        // perform the allocation inline here.
-        //
-        // Also, because this context is preallocated, NDIS will automatically
-        // release this when we call NdisFreeNetBufferList.
-        //
-        ASSERT(TxNbl->Context->Offset == TxNbl->Context->Size);
-        ASSERT(TxNbl->Context->Size >= RX_TX_CONTEXT_SIZE);
-        TxNbl->Context->Offset -= RX_TX_CONTEXT_SIZE;
-
-        TxNbl->ParentNetBufferList = Nbl;
-        Nbl->ChildRefCount++;
-    } else {
-        NDIS_STATUS NdisStatus;
-        ULONG BytesCopied;
-
+    if (RxQueue->TxCloneNblList != NULL) {
+        TxNbl = RxQueue->TxCloneNblList;
+        RxQueue->TxCloneNblList = TxNbl->Next;
+    } else if (RxQueue->TxCloneCacheCount < RxQueue->TxCloneCacheLimit) {
         TxNbl =
             NdisAllocateNetBufferAndNetBufferList(
                 RxQueue->TxCloneNblPool, RX_TX_CONTEXT_SIZE, 0, NULL, 0, 0);
@@ -531,10 +546,30 @@ XdpGenericReceiveEnqueueTxNb(
             goto Exit;
         }
 
+        RxQueue->TxCloneCacheCount++;
+    } else {
+        goto Exit;
+    }
+
+    ASSERT(TxNbl->FirstNetBuffer->Next == NULL);
+
+    if (CanPend) {
+        TxNbl->FirstNetBuffer->MdlChain = Nb->MdlChain;
+        TxNbl->FirstNetBuffer->CurrentMdl = Nb->CurrentMdl;
+        TxNbl->FirstNetBuffer->DataLength = Nb->DataLength;
+        TxNbl->FirstNetBuffer->DataOffset = Nb->DataOffset;
+        TxNbl->FirstNetBuffer->CurrentMdlOffset = Nb->CurrentMdlOffset;
+        TxNbl->ParentNetBufferList = Nbl;
+        Nbl->ChildRefCount++;
+    } else {
+        NDIS_STATUS NdisStatus;
+        ULONG BytesCopied;
+
         NdisStatus =
             NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL);
         if (NdisStatus != NDIS_STATUS_SUCCESS) {
-            NdisFreeNetBufferList(TxNbl);
+            TxNbl->Next = RxQueue->TxCloneNblList;
+            RxQueue->TxCloneNblList = TxNbl;
             goto Exit;
         }
 
@@ -544,7 +579,7 @@ XdpGenericReceiveEnqueueTxNb(
         ASSERT(NdisStatus == NDIS_STATUS_SUCCESS);
         ASSERT(BytesCopied == Nb->DataLength);
 
-        ASSERT(TxNbl->ParentNetBufferList == NULL);
+        TxNbl->ParentNetBufferList = NULL;
     }
 
     ASSERT(TxNbl != NULL);
@@ -1288,6 +1323,8 @@ XdpGenericRxCreateQueue(
     RxQueue->QueueId = QueueInfo->QueueId;
     RxQueue->Generic = Generic;
     ExInitializeRundownProtection(&RxQueue->NblRundown);
+    InitializeSListHead(&RxQueue->TxCloneNblSList);
+    RxQueue->TxCloneCacheLimit = RxMaxTxBuffers;
     RxQueue->Flags.TxInspect = (HookId.Direction == XDP_HOOK_TX);
 
     PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
@@ -1442,6 +1479,10 @@ XdpGenericRxDeleteQueueEntry(
     if (RxQueue->FragmentBuffer != NULL) {
         ExFreePoolWithTag(RxQueue->FragmentBuffer, POOLTAG_RECV);
     }
+    XdpGenericRxFreeNblCloneCache(
+        (NET_BUFFER_LIST *)InterlockedFlushSList(&RxQueue->TxCloneNblSList));
+    XdpGenericRxFreeNblCloneCache(RxQueue->TxCloneNblList);
+    RxQueue->TxCloneNblList = NULL;
     NdisFreeNetBufferListPool(RxQueue->TxCloneNblPool);
     KeSetEvent(RxQueue->DeleteComplete, 0, FALSE);
     ExFreePoolWithTag(RxQueue, POOLTAG_RECV);
@@ -1494,4 +1535,22 @@ XdpGenericRxDeleteQueue(
     KeWaitForSingleObject(&DeleteComplete, Executive, KernelMode, FALSE, NULL);
 
     TraceExitSuccess(TRACE_GENERIC);
+}
+
+VOID
+XdpGenericReceiveRegistryUpdate(
+    VOID
+    )
+{
+    NTSTATUS Status;
+    DWORD Value;
+
+    Status =
+        XdpRegQueryDwordValue(
+            XDP_LWF_PARAMETERS_KEY, L"GenericRxFwdBufferLimit", &Value);
+    if (NT_SUCCESS(Status) && Value <= RECV_MAX_MAX_TX_BUFFERS) {
+        RxMaxTxBuffers = Value;
+    } else {
+        RxMaxTxBuffers = RECV_DEFAULT_MAX_TX_BUFFERS;
+    }
 }

@@ -177,6 +177,8 @@ XdpGenericRegistryUpdate(
     } else {
         XdpGenericUpdateDelayDetachTimeout(DELAY_DETACH_DEFAULT_TIMEOUT_SEC);
     }
+
+    XdpGenericReceiveRegistryUpdate();
 }
 
 VOID
