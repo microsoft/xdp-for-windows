@@ -130,6 +130,7 @@ jobs:
     env:
       successThresholdPercent: 50
       xdpmpPollProvider: 'FNDIS'
+      queueCount: 1 # GitHub Action VMs have only 2 vCPUs, so ensure 1 CPU is free to spin
       # For 'main' commits
       fullRuntime: 60 # minutes
       fullTimeout: 65 # minutes
@@ -162,12 +163,12 @@ jobs:
       if: ${{ github.event_name == 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.prTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount 2 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.fullTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount 2 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
     - name: Convert Logs
       if: ${{ always() }}
       shell: pwsh
