@@ -23,6 +23,8 @@ typedef struct _XDP_RX_QUEUE_KEY {
 } XDP_RX_QUEUE_KEY;
 
 typedef struct _XDP_RX_QUEUE {
+    LIST_ENTRY ProgramBindings; // Sychronized by interface work queue.
+
     XDP_PROGRAM *Program;
 
     XDP_RX_QUEUE_DISPATCH Dispatch;
@@ -907,6 +909,7 @@ XdpRxQueueCreate(
     XdpInitializeReferenceCount(&RxQueue->ReferenceCount);
     RxQueue->State = XdpRxQueueStateUnbound;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
+    InitializeListHead(&RxQueue->ProgramBindings);
     InitializeListHead(&RxQueue->NotifyClients);
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
@@ -1065,6 +1068,7 @@ XdpRxQueueSetProgram(
         TRACE_CORE, "RxQueue=%p Program=%p OldProgram=%p", RxQueue, Program, RxQueue->Program);
 
     if (Program != NULL && RxQueue->Program != NULL) {
+        XDP_PROGRAM *OldCompiledProgram = RxQueue->Program;
         if (ValidationRoutine != NULL) {
             Status = ValidationRoutine(RxQueue, ValidationContext);
             if (!NT_SUCCESS(Status)) {
@@ -1082,6 +1086,12 @@ XdpRxQueueSetProgram(
         SwapParams.RxQueue = RxQueue;
         SwapParams.NewProgram = Program;
         XdpRxQueueSync(RxQueue, XdpRxQueueSwapProgram, &SwapParams);
+        if (OldCompiledProgram) {
+            //
+            // Free the old compiled program because it's no longer being used.
+            //
+            ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
+        }
     } else if (Program != NULL) {
         //
         // Add a new program, which requires activating the underlying XDP RX
@@ -1110,12 +1120,12 @@ Exit:
     return Status;
 }
 
-XDP_PROGRAM *
-XdpRxQueueGetProgram(
+LIST_ENTRY *
+XdpRxQueueGetProgramBindingList(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    return RxQueue->Program;
+    return &RxQueue->ProgramBindings;
 }
 
 NDIS_HANDLE

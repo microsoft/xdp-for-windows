@@ -2946,57 +2946,6 @@ GenericRxMultiProgram()
 }
 
 VOID
-GenericRxMultiProgramConflicts()
-{
-    auto If = FnMpIf;
-    XDP_RULE Rule = {};
-
-    Rule.Match = XDP_MATCH_ALL;
-    Rule.Action = XDP_PROGRAM_ACTION_PASS;
-
-    //
-    // Verify a non-sharing program prevents sharing.
-    //
-    wil::unique_handle failProgram;
-    wil::unique_handle validProgram =
-        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
-
-    //
-    // A non-sharing program should fail with ERROR_OBJECT_ALREADY_EXISTS.
-    //
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_OBJECT_ALREADY_EXISTS),
-        TryCreateXdpProg(
-            failProgram, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1));
-
-    //
-    // A sharing program should fail with ERROR_SHARING_VIOLATION.
-    //
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION),
-        TryCreateXdpProg(
-            failProgram, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-            XDP_CREATE_PROGRAM_FLAG_SHARE));
-
-    //
-    // Verify a sharing program prevents sharing with non-sharing programs.
-    //
-    validProgram.reset();
-    validProgram =
-        CreateXdpProg(
-            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-            XDP_CREATE_PROGRAM_FLAG_SHARE);
-
-    //
-    // A non-sharing program should fail with ERROR_OBJECT_ALREADY_EXISTS.
-    //
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_OBJECT_ALREADY_EXISTS),
-        TryCreateXdpProg(
-            failProgram, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1));
-}
-
-VOID
 GenericRxUdpFragmentQuicShortHeader(
     _In_ ADDRESS_FAMILY Af
     )

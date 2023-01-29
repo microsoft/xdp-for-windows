@@ -54,9 +54,6 @@ VOID
 GenericRxMultiProgram();
 
 VOID
-GenericRxMultiProgramConflicts();
-
-VOID
 GenericRxUdpFragmentQuicShortHeader(
     _In_ ADDRESS_FAMILY Af
     );

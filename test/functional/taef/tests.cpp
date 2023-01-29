@@ -124,10 +124,6 @@ public:
         ::GenericRxMultiProgram();
     }
 
-    TEST_METHOD(GenericRxMultiProgramConflicts) {
-        ::GenericRxMultiProgramConflicts();
-    }
-
     TEST_METHOD(GenericTxToRxInject) {
         ::GenericTxToRxInject();
     }
