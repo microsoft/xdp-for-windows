@@ -1401,13 +1401,15 @@ XdpProgramDetachRxQueue(
 
     ASSERT(RxQueue != NULL);
 
-    if (IsListEmpty(&ProgramBinding->RxQueueEntry)) {
+    if (!IsListEmpty(&ProgramBinding->RxQueueEntry)) {
         //
         // Remove the binding from the RX queue and recompile bound program.
         //
         RemoveEntryList(&ProgramBinding->RxQueueEntry);
-        XdpProgramCompileNewProgram(RxQueue, &CompiledProgram);
+        InitializeListHead(&ProgramBinding->RxQueueEntry);
 
+        XdpProgramCompileNewProgram(RxQueue, &CompiledProgram);
+        
         XdpRxQueueDeregisterNotifications(RxQueue, &ProgramBinding->RxQueueNotificationEntry);
         XdpRxQueueSetProgram(RxQueue, CompiledProgram, NULL, NULL);
     }
@@ -1874,6 +1876,7 @@ XdpProgramAttach(
     Status = XdpProgramCompileNewProgram(ProgramBinding->RxQueue, &CompiledProgram);
     if (!NT_SUCCESS(Status)) {
         RemoveEntryList(&ProgramBinding->RxQueueEntry);
+        InitializeListHead(&ProgramBinding->RxQueueEntry);
         goto Exit;
     }
 
