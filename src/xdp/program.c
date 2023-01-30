@@ -1403,7 +1403,7 @@ XdpProgramDetachRxQueue(
 
     if (!IsListEmpty(&ProgramBinding->RxQueueEntry)) {
         //
-        // Remove the binding from the RX queue and recompile bound program.
+        // Remove the binding from the RX queue and recompile bound programs.
         //
         RemoveEntryList(&ProgramBinding->RxQueueEntry);
         InitializeListHead(&ProgramBinding->RxQueueEntry);
