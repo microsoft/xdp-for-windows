@@ -18,10 +18,11 @@ git submodule update --init --recursive
 
 ### Prerequisites
 
-- [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/)
+- [Visual Studio](https://visualstudio.microsoft.com/downloads/)
+  - Visual Studio 2022 is recommended; Visual Studio 2019 or newer is required.
   - Latest Spectre-mitigated libs (via "Individual components" section of Visual Studio Installer)
 - [Windows Driver Kit](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
-  (LTSC 2022 WDK or newer)
+  - WDK for Windows 11, version 22H2 (version 10.0.22621.x) is recommended; WDK for Windows Server 2022 LTSC or newer is required.
 
 ### Building
 
