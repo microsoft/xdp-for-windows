@@ -1880,6 +1880,16 @@ XdpProgramAttach(
         goto Exit;
     }
 
+    //
+    // Register for interface/queue removal notifications.
+    //
+    XdpRxQueueRegisterNotifications(
+        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry, XdpProgramRxQueueNotify);
+
+    ASSERT(
+        !IsListEmpty(&ProgramBinding->RxQueueNotificationEntry.Link) &&
+        !IsListEmpty(&ProgramBinding->RxQueueEntry));
+
     Status =
         XdpRxQueueSetProgram(
             ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
@@ -1892,12 +1902,6 @@ XdpProgramAttach(
         TRACE_CORE, "Attached program RxQueue=%p ProgramObject=%p",
         ProgramBinding->RxQueue, ProgramObject);
     XdpProgramTraceObject(ProgramObject);
-
-    //
-    // Register for interface/queue removal notifications.
-    //
-    XdpRxQueueRegisterNotifications(
-        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry, XdpProgramRxQueueNotify);
 
 Exit:
 

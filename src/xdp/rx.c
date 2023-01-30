@@ -1086,7 +1086,7 @@ XdpRxQueueSetProgram(
         SwapParams.RxQueue = RxQueue;
         SwapParams.NewProgram = Program;
         XdpRxQueueSync(RxQueue, XdpRxQueueSwapProgram, &SwapParams);
-        if (OldCompiledProgram) {
+        if (OldCompiledProgram != NULL) {
             //
             // Free the old compiled program because it's no longer being used.
             //
@@ -1109,7 +1109,10 @@ XdpRxQueueSetProgram(
         // interface.
         //
         XdpRxQueueDetachInterface(RxQueue);
-        RxQueue->Program = NULL;
+        if (RxQueue->Program != NULL) {
+            ExFreePoolWithTag(RxQueue->Program, XDP_POOLTAG_PROGRAM);
+            RxQueue->Program = NULL;
+        }
     }
 
     Status = STATUS_SUCCESS;
