@@ -1950,8 +1950,7 @@ XdpIrpCreateProgram(
     XDP_PROGRAM_OBJECT *ProgramObject = NULL;
     NTSTATUS Status;
     CONST UINT32 ValidFlags =
-        XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE |
-        XDP_CREATE_PROGRAM_FLAG_SHARE;
+        XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE;
 
     if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
         Status = STATUS_INVALID_PARAMETER;

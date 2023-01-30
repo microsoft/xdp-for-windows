@@ -37,12 +37,6 @@ extern "C" {
 //
 #define XDP_CREATE_PROGRAM_FLAG_NATIVE  0x2
 
-//
-// Allow sharing the XDP queue with other XDP programs. All programs on the
-// interface must use this flag for sharing to be enabled.
-//
-#define XDP_CREATE_PROGRAM_FLAG_SHARE   0x4
-
 typedef
 HRESULT
 XDP_CREATE_PROGRAM_FN(

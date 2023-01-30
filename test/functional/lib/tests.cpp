@@ -1808,7 +1808,7 @@ CreateTcpSocket(
     ProgramHandleTx =
         CreateXdpProg(
             If->GetIfIndex(), &XdpInspectTxL2, If->GetQueueId(), XDP_GENERIC,
-            &RuleTx, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
+            &RuleTx, 1);
 
     If->GetHwAddress(&LocalHw);
     If->GetRemoteHwAddress(&RemoteHw);
@@ -2895,7 +2895,7 @@ GenericRxMultiProgram()
         Sockets[Index].ProgramHandle =
             CreateXdpProg(
                 If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC,
-                &Rule, 1, XDP_CREATE_PROGRAM_FLAG_SHARE);
+                &Rule, 1);
     }
 
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
