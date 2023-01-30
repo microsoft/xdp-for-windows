@@ -23,7 +23,7 @@ typedef struct _XDP_RX_QUEUE_KEY {
 } XDP_RX_QUEUE_KEY;
 
 typedef struct _XDP_RX_QUEUE {
-    LIST_ENTRY ProgramBindings; // Sychronized by interface work queue.
+    LIST_ENTRY ProgramBindings; // Synchronized by interface work queue.
 
     XDP_PROGRAM *Program;
 
@@ -1051,6 +1051,15 @@ XdpRxQueueSwapProgram(
 
     ASSERT(CallbackContext != NULL);
 
+    //
+    // Implement a fast path for a single XSK receiving all frames.
+    //
+    if (XdpProgramCanXskBypass(SwapParams->NewProgram)) {
+        SwapParams->RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
+    } else {
+        SwapParams->RxQueue->Dispatch = XdpRxDispatch;
+    }
+
     SwapParams->RxQueue->Program = SwapParams->NewProgram;
 }
 
@@ -1129,6 +1138,14 @@ XdpRxQueueGetProgramBindingList(
     )
 {
     return &RxQueue->ProgramBindings;
+}
+
+XDP_PROGRAM *
+XdpRxQueueGetProgram(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    return RxQueue->Program;
 }
 
 NDIS_HANDLE

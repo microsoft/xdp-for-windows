@@ -1115,7 +1115,7 @@ typedef struct _XDP_PROGRAM_BINDING {
     XDP_RX_QUEUE *RxQueue;
     LIST_ENTRY RxQueueEntry;
     XDP_RX_QUEUE_NOTIFICATION_ENTRY RxQueueNotificationEntry;
-    XDP_PROGRAM_OBJECT *OwningProject;
+    XDP_PROGRAM_OBJECT *OwningProgram;
 } XDP_PROGRAM_BINDING;
 
 typedef struct _XDP_PROGRAM_OBJECT {
@@ -1314,6 +1314,38 @@ XdpProgramTraceObject(
 
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpProgramCompileUpdateProgram(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    LIST_ENTRY *BindingListHead = XdpRxQueueGetProgramBindingList(RxQueue);
+    XDP_PROGRAM *Program = XdpRxQueueGetProgram(RxQueue);
+    LIST_ENTRY *Entry = BindingListHead->Flink;
+
+    TraceEnter(TRACE_CORE, "Updating program on RxQueue=%p", RxQueue);
+
+    Program->RuleCount = 0;
+
+    while (Entry != BindingListHead) {
+        XDP_PROGRAM_BINDING* ProgramBinding =
+            CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
+        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
+
+        for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
+            Program->Rules[Program->RuleCount++] = BoundProgramObject->Program.Rules[i];
+        }
+
+        TraceInfo(TRACE_CORE, "Updated ProgramObject=%p", BoundProgramObject);
+        XdpProgramTraceObject(BoundProgramObject);
+        Entry = Entry->Flink;
+    }
+
+    TraceExitSuccess(TRACE_CORE);
+}
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
 NTSTATUS
 XdpProgramCompileNewProgram(
     _In_ XDP_RX_QUEUE *RxQueue,
@@ -1333,7 +1365,7 @@ XdpProgramCompileNewProgram(
         XDP_PROGRAM_BINDING* ProgramBinding = CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
         Status =
             RtlUInt32Add(
-                RuleCount, ProgramBinding->OwningProject->Program.RuleCount, &RuleCount);
+                RuleCount, ProgramBinding->OwningProgram->Program.RuleCount, &RuleCount);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
@@ -1369,7 +1401,7 @@ XdpProgramCompileNewProgram(
     while (Entry != BindingListHead) {
         XDP_PROGRAM_BINDING* ProgramBinding =
             CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
-        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProject;
+        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
 
         for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
             NewProgram->Rules[NewProgram->RuleCount++] = BoundProgramObject->Program.Rules[i];
@@ -1395,7 +1427,6 @@ XdpProgramDetachRxQueue(
 {
     XDP_PROGRAM_BINDING *ProgramBinding = ProgramObject->Binding;
     XDP_RX_QUEUE *RxQueue = ProgramBinding->RxQueue;
-    XDP_PROGRAM *CompiledProgram = NULL;
 
     TraceEnter(TRACE_CORE, "Detach ProgramObject=%p from RxQueue", ProgramObject);
 
@@ -1407,11 +1438,16 @@ XdpProgramDetachRxQueue(
         //
         RemoveEntryList(&ProgramBinding->RxQueueEntry);
         InitializeListHead(&ProgramBinding->RxQueueEntry);
-
-        XdpProgramCompileNewProgram(RxQueue, &CompiledProgram);
         
         XdpRxQueueDeregisterNotifications(RxQueue, &ProgramBinding->RxQueueNotificationEntry);
-        XdpRxQueueSetProgram(RxQueue, CompiledProgram, NULL, NULL);
+        if (IsListEmpty(XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue))) {
+            XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
+        } else {
+            //
+            // Update the program in-place because we are down sizing the program bindings.
+            //
+            XdpRxQueueSync(RxQueue, XdpProgramCompileUpdateProgram, RxQueue);
+        }
     }
 
     TraceExitSuccess(TRACE_CORE);
@@ -1553,7 +1589,7 @@ XdpProgramRxQueueNotify(
     switch (NotificationType) {
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
-        XdpProgramDetachRxQueue(ProgramBinding->OwningProject);
+        XdpProgramDetachRxQueue(ProgramBinding->OwningProgram);
         break;
 
     }
@@ -1806,7 +1842,7 @@ XdpProgramBindingAllocate(
     }
 
     InitializeListHead(&ProgramBinding->RxQueueEntry);
-    ProgramBinding->OwningProject = ProgramObject;
+    ProgramBinding->OwningProgram = ProgramObject;
     ProgramObject->Binding = ProgramBinding;
     Status = STATUS_SUCCESS;
 

@@ -88,6 +88,11 @@ XdpRxQueueGetProgramBindingList(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
+XDP_PROGRAM *
+XdpRxQueueGetProgram(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 NDIS_HANDLE
 XdpRxQueueGetInterfacePollHandle(
     _In_ XDP_RX_QUEUE *RxQueue
