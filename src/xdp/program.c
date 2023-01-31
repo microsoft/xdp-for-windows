@@ -1315,17 +1315,16 @@ XdpProgramTraceObject(
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XdpProgramCompileUpdateProgram(
+XdpProgramUpdateCompiledProgram(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
     LIST_ENTRY *BindingListHead = XdpRxQueueGetProgramBindingList(RxQueue);
     XDP_PROGRAM *Program = XdpRxQueueGetProgram(RxQueue);
     LIST_ENTRY *Entry = BindingListHead->Flink;
+    UINT32 RuleIndex = 0;
 
     TraceEnter(TRACE_CORE, "Updating program on RxQueue=%p", RxQueue);
-
-    Program->RuleCount = 0;
 
     while (Entry != BindingListHead) {
         XDP_PROGRAM_BINDING* ProgramBinding =
@@ -1333,7 +1332,7 @@ XdpProgramCompileUpdateProgram(
         CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
 
         for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
-            Program->Rules[Program->RuleCount++] = BoundProgramObject->Program.Rules[i];
+            Program->Rules[RuleIndex++] = BoundProgramObject->Program.Rules[i];
         }
 
         TraceInfo(TRACE_CORE, "Updated ProgramObject=%p", BoundProgramObject);
@@ -1341,6 +1340,8 @@ XdpProgramCompileUpdateProgram(
         Entry = Entry->Flink;
     }
 
+    ASSERT(Program->RuleCount > RuleIndex);
+    Program->RuleCount = RuleIndex;
     TraceExitSuccess(TRACE_CORE);
 }
 
@@ -1446,7 +1447,7 @@ XdpProgramDetachRxQueue(
             //
             // Update the program in-place because we are down sizing the program bindings.
             //
-            XdpRxQueueSync(RxQueue, XdpProgramCompileUpdateProgram, RxQueue);
+            XdpRxQueueSync(RxQueue, XdpProgramUpdateCompiledProgram, RxQueue);
         }
     }
 
@@ -1572,9 +1573,9 @@ XdpProgramDelete(
 
     TraceVerbose(TRACE_CORE, "Deleted ProgramObject=%p", ProgramObject);
     if (ProgramBinding != NULL) {
-        ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM);
+        ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
     }
-    ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM);
+    ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM_OBJECT);
     TraceExitSuccess(TRACE_CORE);
 }
 
@@ -1631,7 +1632,7 @@ XdpProgramAllocate(
         goto Exit;
     }
 
-    ProgramObject = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, XDP_POOLTAG_PROGRAM);
+    ProgramObject = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, XDP_POOLTAG_PROGRAM_OBJECT);
     if (ProgramObject == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -1837,7 +1838,9 @@ XdpProgramBindingAllocate(
     XDP_PROGRAM_BINDING *ProgramBinding = NULL;
     NTSTATUS Status;
 
-    ProgramBinding = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*ProgramBinding), XDP_POOLTAG_PROGRAM);
+    ProgramBinding =
+        ExAllocatePoolZero(
+            NonPagedPoolNx, sizeof(*ProgramBinding), XDP_POOLTAG_PROGRAM_BINDING);
     if (ProgramBinding == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
