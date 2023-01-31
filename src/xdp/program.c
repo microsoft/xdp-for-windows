@@ -1340,7 +1340,11 @@ XdpProgramUpdateCompiledProgram(
         Entry = Entry->Flink;
     }
 
-    ASSERT(Program->RuleCount > RuleIndex);
+    //
+    // If the program compiled for this newly added binding failed to be added
+    // to the RX queue, we will end up having Program->RuleCount == RuleIndex.
+    //
+    ASSERT(Program->RuleCount >= RuleIndex);
     Program->RuleCount = RuleIndex;
     TraceExitSuccess(TRACE_CORE);
 }
