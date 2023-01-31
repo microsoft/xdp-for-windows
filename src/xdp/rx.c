@@ -1128,6 +1128,13 @@ XdpRxQueueSetProgram(
 
 Exit:
 
+    if (!NT_SUCCESS(Status) && Program != NULL) {
+        //
+        // Now that the compiled program won't be used, clean it up.
+        //
+        ExFreePoolWithTag(Program, XDP_POOLTAG_PROGRAM);
+    }
+
     TraceExitStatus(TRACE_CORE);
     return Status;
 }
