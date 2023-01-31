@@ -1530,7 +1530,7 @@ XdpProgramDelete(
     //
     // Detach the XDP program from the RX queue.
     //
-    if (ProgramBinding->RxQueue != NULL) {
+    if (ProgramBinding != NULL && ProgramBinding->RxQueue != NULL) {
         XdpProgramDetachRxQueue(ProgramObject);
         XdpRxQueueDereference(ProgramBinding->RxQueue);
         ProgramBinding->RxQueue = NULL;
@@ -1571,7 +1571,9 @@ XdpProgramDelete(
     }
 
     TraceVerbose(TRACE_CORE, "Deleted ProgramObject=%p", ProgramObject);
-    ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM);
+    if (ProgramBinding != NULL) {
+        ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM);
+    }
     ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM);
     TraceExitSuccess(TRACE_CORE);
 }
