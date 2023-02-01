@@ -1109,22 +1109,20 @@ XdpProgramGetXskBypassTarget(
 //
 // Control path routines.
 //
+typedef struct _XDP_PROGRAM_OBJECT XDP_PROGRAM_OBJECT;
+
+typedef struct _XDP_PROGRAM_BINDING {
+    XDP_RX_QUEUE *RxQueue;
+    LIST_ENTRY RxQueueEntry;
+    XDP_RX_QUEUE_NOTIFICATION_ENTRY RxQueueNotificationEntry;
+    XDP_PROGRAM_OBJECT *OwningProgram;
+} XDP_PROGRAM_BINDING;
 
 typedef struct _XDP_PROGRAM_OBJECT {
     XDP_FILE_OBJECT_HEADER Header;
     XDP_BINDING_HANDLE IfHandle;
-    XDP_RX_QUEUE *RxQueue;
-    XDP_RX_QUEUE_NOTIFICATION_ENTRY RxQueueNotificationEntry;
-    LIST_ENTRY SharingLink;
+    XDP_PROGRAM_BINDING *Binding;
     ULONG_PTR CreatedByPid;
-
-    union {
-        struct {
-            UINT32 SharingEnabled : 1;
-            UINT32 IsMetaProgram : 1;
-        };
-        UINT32 Value;
-    } Flags;
 
     XDP_PROGRAM Program;
 } XDP_PROGRAM_OBJECT;
@@ -1151,8 +1149,8 @@ XdpProgramTraceObject(
     )
 {
     TraceInfo(
-        TRACE_CORE, "Program=%p CreatedByPid=%Iu Flags=0x%x",
-        ProgramObject, ProgramObject->CreatedByPid, ProgramObject->Flags.Value);
+        TRACE_CORE, "Program=%p CreatedByPid=%Iu",
+        ProgramObject, ProgramObject->CreatedByPid);
 
     for (UINT32 i = 0; i < ProgramObject->Program.RuleCount; i++) {
         CONST XDP_RULE *Rule = &ProgramObject->Program.Rules[i];
@@ -1317,41 +1315,113 @@ XdpProgramTraceObject(
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-XdpProgramPopulateMetaProgram(
-    _Inout_ XDP_PROGRAM_OBJECT *MetaProgramObject
+XdpProgramUpdateCompiledProgram(
+    _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    XDP_PROGRAM *MetaProgram = &MetaProgramObject->Program;
-    LIST_ENTRY *Entry = &MetaProgramObject->SharingLink;
+    LIST_ENTRY *BindingListHead = XdpRxQueueGetProgramBindingList(RxQueue);
+    XDP_PROGRAM *Program = XdpRxQueueGetProgram(RxQueue);
+    LIST_ENTRY *Entry = BindingListHead->Flink;
+    UINT32 RuleIndex = 0;
 
-    TraceEnter(TRACE_CORE, "MetaProgram=%p", MetaProgramObject);
+    TraceEnter(TRACE_CORE, "Updating program on RxQueue=%p", RxQueue);
 
-    //
-    // Traverse the shared programs and concatenate their rulesets into the
-    // shared metaprogram. Note that we may be reusing a previously-populated
-    // metaprogram if a shared program is being detached.
-    //
-    MetaProgram->RuleCount = 0;
+    while (Entry != BindingListHead) {
+        XDP_PROGRAM_BINDING* ProgramBinding =
+            CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
+        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
 
-    while ((Entry = Entry->Flink) != &MetaProgramObject->SharingLink) {
-        CONST XDP_PROGRAM_OBJECT *SharedProgramObject =
-            CONTAINING_RECORD(Entry, XDP_PROGRAM_OBJECT, SharingLink);
-        CONST XDP_PROGRAM *SharedProgram = &SharedProgramObject->Program;
-
-        for (UINT32 i = 0; i < SharedProgram->RuleCount; i++) {
-            MetaProgram->Rules[MetaProgram->RuleCount++] = SharedProgram->Rules[i];
+        for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
+            Program->Rules[RuleIndex++] = BoundProgramObject->Program.Rules[i];
         }
 
-        ASSERT(MetaProgram->RuleCount != 0);
-        ASSERT(SharedProgramObject->Flags.SharingEnabled);
-
-        TraceInfo(
-            TRACE_CORE, "Merged SharedProgram=%p into MetaProgram=%p",
-            SharedProgramObject, MetaProgramObject);
-        XdpProgramTraceObject(SharedProgramObject);
+        TraceInfo(TRACE_CORE, "Updated ProgramObject=%p", BoundProgramObject);
+        XdpProgramTraceObject(BoundProgramObject);
+        Entry = Entry->Flink;
     }
 
+    //
+    // If the program compiled for this newly added binding failed to be added
+    // to the RX queue, we will end up having Program->RuleCount == RuleIndex.
+    //
+    ASSERT(Program->RuleCount >= RuleIndex);
+    Program->RuleCount = RuleIndex;
     TraceExitSuccess(TRACE_CORE);
+}
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+NTSTATUS
+XdpProgramCompileNewProgram(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _Out_ XDP_PROGRAM **Program
+    )
+{
+    NTSTATUS Status;
+    LIST_ENTRY *BindingListHead = XdpRxQueueGetProgramBindingList(RxQueue);
+    LIST_ENTRY *Entry = BindingListHead->Flink;
+    UINT32 RuleCount = 0;
+    XDP_PROGRAM *NewProgram;
+    SIZE_T AllocationSize;
+
+    TraceEnter(TRACE_CORE, "Compiling new program on RxQueue=%p", RxQueue);
+
+    while (Entry != BindingListHead) {
+        XDP_PROGRAM_BINDING* ProgramBinding = CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
+        Status =
+            RtlUInt32Add(
+                RuleCount, ProgramBinding->OwningProgram->Program.RuleCount, &RuleCount);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        Entry = Entry->Flink;
+    }
+
+    if (RuleCount == 0) {
+        //
+        // No program bindings on the RX queue.
+        //
+        *Program = NULL;
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    Status = RtlSizeTMult(sizeof(XDP_RULE), RuleCount, &AllocationSize);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = RtlSizeTAdd(sizeof(*NewProgram), AllocationSize, &AllocationSize);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    NewProgram = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, XDP_POOLTAG_PROGRAM);
+    if (NewProgram == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    Entry = BindingListHead->Flink;
+    while (Entry != BindingListHead) {
+        XDP_PROGRAM_BINDING* ProgramBinding =
+            CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
+        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
+
+        for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
+            NewProgram->Rules[NewProgram->RuleCount++] = BoundProgramObject->Program.Rules[i];
+        }
+
+        Entry = Entry->Flink;
+    }
+
+    ASSERT(NewProgram->RuleCount == RuleCount);
+
+    *Program = NewProgram;
+
+Exit:
+    TraceExitSuccess(TRACE_CORE);
+    return Status;
 }
 
 static
@@ -1360,51 +1430,38 @@ XdpProgramDetachRxQueue(
     _In_ XDP_PROGRAM_OBJECT *ProgramObject
     )
 {
-    XDP_RX_QUEUE *RxQueue = ProgramObject->RxQueue;
+    XDP_PROGRAM_BINDING *ProgramBinding = ProgramObject->Binding;
+    XDP_RX_QUEUE *RxQueue = ProgramBinding->RxQueue;
 
-    TraceEnter(TRACE_CORE, "Program=%p", ProgramObject);
+    TraceEnter(TRACE_CORE, "Detach ProgramObject=%p from RxQueue", ProgramObject);
 
     ASSERT(RxQueue != NULL);
-    ASSERT(!ProgramObject->Flags.IsMetaProgram);
 
-    if (XdpRxQueueGetProgram(RxQueue) == &ProgramObject->Program) {
-        ASSERT(!ProgramObject->Flags.SharingEnabled);
-        XdpRxQueueDeregisterNotifications(RxQueue, &ProgramObject->RxQueueNotificationEntry);
-        XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
-    } else if (ProgramObject->Flags.SharingEnabled && !IsListEmpty(&ProgramObject->SharingLink)) {
-        XDP_PROGRAM *MetaProgram = XdpRxQueueGetProgram(RxQueue);
-        XDP_PROGRAM_OBJECT *MetaProgramObject =
-            CONTAINING_RECORD(MetaProgram, XDP_PROGRAM_OBJECT, Program);
-
+    if (!IsListEmpty(&ProgramBinding->RxQueueEntry)) {
         //
-        // This program isn't directly attached to the RX queue, but a meta
-        // program is. Remove this program from the metaprogram, and either
-        // update the program ruleset (in-place) or remove the meta-program if
-        // this was the final shared program.
+        // Remove the binding from the RX queue and recompile bound programs.
         //
-        ASSERT(MetaProgram != NULL);
-        ASSERT(MetaProgramObject->Flags.IsMetaProgram);
-
-        XdpRxQueueDeregisterNotifications(RxQueue, &ProgramObject->RxQueueNotificationEntry);
-        RemoveEntryList(&ProgramObject->SharingLink);
-        InitializeListHead(&ProgramObject->SharingLink);
-
-        if (IsListEmpty(&MetaProgramObject->SharingLink)) {
+        RemoveEntryList(&ProgramBinding->RxQueueEntry);
+        InitializeListHead(&ProgramBinding->RxQueueEntry);
+        
+        XdpRxQueueDeregisterNotifications(RxQueue, &ProgramBinding->RxQueueNotificationEntry);
+        if (IsListEmpty(XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue))) {
+            XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(RxQueue);
             XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
-            ExFreePoolWithTag(MetaProgramObject, XDP_POOLTAG_PROGRAM);
-            TraceInfo(
-                TRACE_CORE, "Detached metaprogram RxQueue=%p Program=%p",
-                RxQueue, MetaProgramObject);
+            if (OldCompiledProgram != NULL) {
+                ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
+            }
         } else {
-            XdpRxQueueSync(RxQueue, XdpProgramPopulateMetaProgram, MetaProgramObject);
-            TraceInfo(
-                TRACE_CORE, "Updated metaprogram RxQueue=%p Program=%p",
-                RxQueue, MetaProgramObject);
+            //
+            // Update the program in-place because we are down sizing the program bindings.
+            //
+            XdpRxQueueSync(RxQueue, XdpProgramUpdateCompiledProgram, RxQueue);
         }
     }
 
     TraceExitSuccess(TRACE_CORE);
 }
+
 static
 VOID
 XdpProgramReleasePortSet(
@@ -1476,17 +1533,16 @@ XdpProgramDelete(
     _In_ XDP_PROGRAM_OBJECT *ProgramObject
     )
 {
-    TraceEnter(TRACE_CORE, "Program=%p", ProgramObject);
-
-    ASSERT(!ProgramObject->Flags.IsMetaProgram);
+    XDP_PROGRAM_BINDING *ProgramBinding = ProgramObject->Binding;
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
     //
     // Detach the XDP program from the RX queue.
     //
-    if (ProgramObject->RxQueue != NULL) {
+    if (ProgramBinding != NULL && ProgramBinding->RxQueue != NULL) {
         XdpProgramDetachRxQueue(ProgramObject);
-        XdpRxQueueDereference(ProgramObject->RxQueue);
-        ProgramObject->RxQueue = NULL;
+        XdpRxQueueDereference(ProgramBinding->RxQueue);
+        ProgramBinding->RxQueue = NULL;
     }
 
     //
@@ -1523,8 +1579,11 @@ XdpProgramDelete(
         }
     }
 
-    TraceVerbose(TRACE_CORE, "Deleted Program=%p", ProgramObject);
-    ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM);
+    TraceVerbose(TRACE_CORE, "Deleted ProgramObject=%p", ProgramObject);
+    if (ProgramBinding != NULL) {
+        ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
+    }
+    ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM_OBJECT);
     TraceExitSuccess(TRACE_CORE);
 }
 
@@ -1535,13 +1594,13 @@ XdpProgramRxQueueNotify(
     XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
     )
 {
-    XDP_PROGRAM_OBJECT *ProgramObject =
-        CONTAINING_RECORD(NotificationEntry, XDP_PROGRAM_OBJECT, RxQueueNotificationEntry);
+    XDP_PROGRAM_BINDING *ProgramBinding =
+        CONTAINING_RECORD(NotificationEntry, XDP_PROGRAM_BINDING, RxQueueNotificationEntry);
 
     switch (NotificationType) {
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
-        XdpProgramDetachRxQueue(ProgramObject);
+        XdpProgramDetachRxQueue(ProgramBinding->OwningProgram);
         break;
 
     }
@@ -1553,10 +1612,7 @@ XdpProgramCanXskBypass(
     _In_ XDP_PROGRAM *Program
     )
 {
-    XDP_PROGRAM_OBJECT *ProgramObject = CONTAINING_RECORD(Program, XDP_PROGRAM_OBJECT, Program);
-
     return
-        ProgramObject->Flags.SharingEnabled == FALSE &&
         Program->RuleCount == 1 &&
         Program->Rules[0].Match == XDP_MATCH_ALL &&
         Program->Rules[0].Action == XDP_PROGRAM_ACTION_REDIRECT &&
@@ -1584,14 +1640,13 @@ XdpProgramAllocate(
         goto Exit;
     }
 
-    ProgramObject = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, XDP_POOLTAG_PROGRAM);
+    ProgramObject = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, XDP_POOLTAG_PROGRAM_OBJECT);
     if (ProgramObject == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
 
     ProgramObject->CreatedByPid = (ULONG_PTR)PsGetCurrentProcessId();
-    InitializeListHead(&ProgramObject->SharingLink);
 
 Exit:
 
@@ -1782,6 +1837,34 @@ Exit:
 }
 
 static
+NTSTATUS
+XdpProgramBindingAllocate(
+    _Out_ XDP_PROGRAM_BINDING **NewProgramBinding,
+    _In_ XDP_PROGRAM_OBJECT *ProgramObject
+    )
+{
+    XDP_PROGRAM_BINDING *ProgramBinding = NULL;
+    NTSTATUS Status;
+
+    ProgramBinding =
+        ExAllocatePoolZero(
+            NonPagedPoolNx, sizeof(*ProgramBinding), XDP_POOLTAG_PROGRAM_BINDING);
+    if (ProgramBinding == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    InitializeListHead(&ProgramBinding->RxQueueEntry);
+    ProgramBinding->OwningProgram = ProgramObject;
+    ProgramObject->Binding = ProgramBinding;
+    Status = STATUS_SUCCESS;
+
+Exit:
+    *NewProgramBinding = ProgramBinding;
+    return Status;
+}
+
+static
 VOID
 XdpProgramAttach(
     _In_ XDP_BINDING_WORKITEM *WorkItem
@@ -1790,8 +1873,8 @@ XdpProgramAttach(
     XDP_PROGRAM_WORKITEM *Item = (XDP_PROGRAM_WORKITEM *)WorkItem;
     XDP_PROGRAM_OBJECT *ProgramObject = Item->ProgramObject;
     XDP_PROGRAM *Program = &ProgramObject->Program;
-    XDP_PROGRAM *ExistingProgram;
-    XDP_PROGRAM_OBJECT *ExistingProgramObject = NULL;
+    XDP_PROGRAM_BINDING* ProgramBinding = NULL;
+    XDP_PROGRAM *CompiledProgram = NULL;
     NTSTATUS Status;
 
     TraceEnter(TRACE_CORE, "Program=%p", ProgramObject);
@@ -1804,16 +1887,18 @@ XdpProgramAttach(
         goto Exit;
     }
 
-    Status =
-        XdpRxQueueFindOrCreate(
-            Item->Bind.BindingHandle, &Item->HookId, Item->QueueId, &ProgramObject->RxQueue);
+    Status = XdpProgramBindingAllocate(&ProgramBinding, ProgramObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    //
-    // Perform further rule validation that requires the interface work queue.
-    //
+    Status =
+        XdpRxQueueFindOrCreate(
+            Item->Bind.BindingHandle, &Item->HookId, Item->QueueId, &ProgramBinding->RxQueue);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     for (ULONG Index = 0; Index < Program->RuleCount; Index++) {
         XDP_RULE *Rule = &Program->Rules[Index];
 
@@ -1822,7 +1907,7 @@ XdpProgramAttach(
             switch (Rule->Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
-                Status = XskValidateDatapathHandle(Rule->Redirect.Target, ProgramObject->RxQueue);
+                Status = XskValidateDatapathHandle(Rule->Redirect.Target, ProgramBinding->RxQueue);
                 if (!NT_SUCCESS(Status)) {
                     goto Exit;
                 }
@@ -1835,134 +1920,46 @@ XdpProgramAttach(
         }
     }
 
-    //
-    // Query the existing top-level program on the queue, if any.
-    //
-    ExistingProgram = XdpRxQueueGetProgram(ProgramObject->RxQueue);
-    if (ExistingProgram != NULL) {
-        ExistingProgramObject = CONTAINING_RECORD(ExistingProgram, XDP_PROGRAM_OBJECT, Program);
+    InsertTailList(
+        XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue), &ProgramBinding->RxQueueEntry);
+    Status = XdpProgramCompileNewProgram(ProgramBinding->RxQueue, &CompiledProgram);
+    if (!NT_SUCCESS(Status)) {
+        RemoveEntryList(&ProgramBinding->RxQueueEntry);
+        InitializeListHead(&ProgramBinding->RxQueueEntry);
+        goto Exit;
     }
-
-    if (ProgramObject->Flags.SharingEnabled) {
-        UINT32 MetaRuleCount = Program->RuleCount;
-        XDP_PROGRAM_OBJECT *NewMetaProgramObject = NULL;
-
-        if (ExistingProgramObject != NULL && !ExistingProgramObject->Flags.SharingEnabled) {
-            Status = STATUS_SHARING_VIOLATION;
-            goto Exit;
-        }
-
-        //
-        // Calculate the new total rule count and allocate a new metaprogram.
-        //
-        if (ExistingProgram != NULL) {
-            Status = RtlUInt32Add(MetaRuleCount, ExistingProgram->RuleCount, &MetaRuleCount);
-            if (!NT_SUCCESS(Status)) {
-                goto Exit;
-            }
-        }
-
-        Status = XdpProgramAllocate(MetaRuleCount, &NewMetaProgramObject);
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
-
-        NewMetaProgramObject->Flags.SharingEnabled = TRUE;
-        NewMetaProgramObject->Flags.IsMetaProgram = TRUE;
-
-        //
-        // Migrate the list of shared programs from the old metaprogram (if
-        // present) onto the new metaprogram and add our new program to the
-        // list.
-        //
-        if (ExistingProgramObject != NULL) {
-            ASSERT(ExistingProgramObject->Flags.IsMetaProgram);
-            ASSERT(IsListEmpty(&NewMetaProgramObject->SharingLink));
-            ASSERT(!IsListEmpty(&ExistingProgramObject->SharingLink));
-            AppendTailList(&NewMetaProgramObject->SharingLink, &ExistingProgramObject->SharingLink);
-            RemoveEntryList(&ExistingProgramObject->SharingLink);
-            InitializeListHead(&ExistingProgramObject->SharingLink);
-        }
-
-        ASSERT(IsListEmpty(&ProgramObject->SharingLink));
-        InsertTailList(&NewMetaProgramObject->SharingLink, &ProgramObject->SharingLink);
-
-        //
-        // Merge all shared programs into the shared metaprogram ruleset.
-        //
-        XdpProgramPopulateMetaProgram(NewMetaProgramObject);
-
-        //
-        // Synchronize with data path and replace old metaprogram with new
-        // metaprogram.
-        //
-        Status =
-            XdpRxQueueSetProgram(
-                ProgramObject->RxQueue, &NewMetaProgramObject->Program, XdpProgramValidateIfQueue,
-                NewMetaProgramObject);
-        if (NT_SUCCESS(Status)) {
-            TraceInfo(
-                TRACE_CORE, "Attached metaprogram RxQueue=%p Program=%p OldProgram=%p",
-                ProgramObject->RxQueue, ProgramObject, ExistingProgramObject);
-            XdpProgramTraceObject(ProgramObject);
-
-            if (ExistingProgramObject != NULL) {
-                ExFreePoolWithTag(ExistingProgramObject, XDP_POOLTAG_PROGRAM);
-                ExistingProgramObject = NULL;
-            }
-        } else {
-            //
-            // Revert changes to the program, revert changes to the current
-            // metaprogram (if it exists), scrap the new metaprogram, and bail.
-            //
-
-            RemoveEntryList(&ProgramObject->SharingLink);
-            InitializeListHead(&ProgramObject->SharingLink);
-
-            if (ExistingProgramObject != NULL) {
-                ASSERT(ExistingProgramObject->Flags.IsMetaProgram);
-                ASSERT(IsListEmpty(&ExistingProgramObject->SharingLink));
-                ASSERT(!IsListEmpty(&NewMetaProgramObject->SharingLink));
-                AppendTailList(
-                    &ExistingProgramObject->SharingLink, &NewMetaProgramObject->SharingLink);
-                RemoveEntryList(&NewMetaProgramObject->SharingLink);
-                InitializeListHead(&NewMetaProgramObject->SharingLink);
-            }
-
-            ASSERT(IsListEmpty(&NewMetaProgramObject->SharingLink));
-            ExFreePoolWithTag(NewMetaProgramObject, XDP_POOLTAG_PROGRAM);
-            goto Exit;
-        }
-    } else {
-        //
-        // The new program has not enabled sharing; directly attach this program
-        // to the queue if it is empty.
-        //
-
-        if (ExistingProgramObject != NULL) {
-            Status = STATUS_DUPLICATE_OBJECTID;
-            goto Exit;
-        }
-
-        Status =
-            XdpRxQueueSetProgram(
-                ProgramObject->RxQueue, Program, XdpProgramValidateIfQueue,
-                ProgramObject);
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
-    }
-
-    TraceInfo(
-        TRACE_CORE, "Attached program RxQueue=%p Program=%p",
-        ProgramObject->RxQueue, ProgramObject);
-    XdpProgramTraceObject(ProgramObject);
 
     //
     // Register for interface/queue removal notifications.
     //
     XdpRxQueueRegisterNotifications(
-        ProgramObject->RxQueue, &ProgramObject->RxQueueNotificationEntry, XdpProgramRxQueueNotify);
+        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry, XdpProgramRxQueueNotify);
+
+    ASSERT(
+        !IsListEmpty(&ProgramBinding->RxQueueNotificationEntry.Link) &&
+        !IsListEmpty(&ProgramBinding->RxQueueEntry));
+
+    XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(ProgramBinding->RxQueue);
+    Status =
+        XdpRxQueueSetProgram(
+            ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
+            ProgramObject);
+    if (!NT_SUCCESS(Status)) {
+        ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
+        goto Exit;
+    }
+
+    if (OldCompiledProgram != NULL) {
+        //
+        // We just swapped in a new compiled program. Delete the old one.
+        //
+        ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
+    }
+
+    TraceInfo(
+        TRACE_CORE, "Attached program RxQueue=%p ProgramObject=%p",
+        ProgramBinding->RxQueue, ProgramObject);
+    XdpProgramTraceObject(ProgramObject);
 
 Exit:
 
@@ -2015,8 +2012,7 @@ XdpIrpCreateProgram(
     XDP_PROGRAM_OBJECT *ProgramObject = NULL;
     NTSTATUS Status;
     CONST UINT32 ValidFlags =
-        XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE |
-        XDP_CREATE_PROGRAM_FLAG_SHARE;
+        XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE;
 
     if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -2059,10 +2055,6 @@ RetryBinding:
         XdpCaptureProgram(Params->Rules, Params->RuleCount, Irp->RequestorMode, &ProgramObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
-    }
-
-    if (Params->Flags & XDP_CREATE_PROGRAM_FLAG_SHARE) {
-        ProgramObject->Flags.SharingEnabled = TRUE;
     }
 
     KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);

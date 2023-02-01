@@ -37,12 +37,6 @@ extern "C" {
 //
 #define XDP_CREATE_PROGRAM_FLAG_NATIVE  0x2
 
-//
-// Allow sharing the XDP queue with other XDP programs. All programs on the
-// interface must use this flag for sharing to be enabled.
-//
-#define XDP_CREATE_PROGRAM_FLAG_SHARE   0x4
-
 typedef
 HRESULT
 XDP_CREATE_PROGRAM_FN(
@@ -273,7 +267,7 @@ typedef struct _XDP_API_TABLE XDP_API_TABLE;
 // The only API version currently supported. Any change to the API is considered
 // a breaking change and support for previous versions will be removed.
 //
-#define XDP_VERSION_PRERELEASE 100002
+#define XDP_VERSION_PRERELEASE 100003
 
 //
 // Opens the API and returns an API function table with the rest of the API's

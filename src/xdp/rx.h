@@ -83,6 +83,11 @@ XdpRxQueueSetProgram(
     _In_opt_ VOID *ValidationContext
     );
 
+LIST_ENTRY *
+XdpRxQueueGetProgramBindingList(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 XDP_PROGRAM *
 XdpRxQueueGetProgram(
     _In_ XDP_RX_QUEUE *RxQueue

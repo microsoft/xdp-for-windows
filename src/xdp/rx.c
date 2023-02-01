@@ -23,6 +23,8 @@ typedef struct _XDP_RX_QUEUE_KEY {
 } XDP_RX_QUEUE_KEY;
 
 typedef struct _XDP_RX_QUEUE {
+    LIST_ENTRY ProgramBindings; // Synchronized by interface work queue.
+
     XDP_PROGRAM *Program;
 
     XDP_RX_QUEUE_DISPATCH Dispatch;
@@ -907,6 +909,7 @@ XdpRxQueueCreate(
     XdpInitializeReferenceCount(&RxQueue->ReferenceCount);
     RxQueue->State = XdpRxQueueStateUnbound;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
+    InitializeListHead(&RxQueue->ProgramBindings);
     InitializeListHead(&RxQueue->NotifyClients);
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
@@ -1048,6 +1051,15 @@ XdpRxQueueSwapProgram(
 
     ASSERT(CallbackContext != NULL);
 
+    //
+    // Implement a fast path for a single XSK receiving all frames.
+    //
+    if (XdpProgramCanXskBypass(SwapParams->NewProgram)) {
+        SwapParams->RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
+    } else {
+        SwapParams->RxQueue->Dispatch = XdpRxDispatch;
+    }
+
     SwapParams->RxQueue->Program = SwapParams->NewProgram;
 }
 
@@ -1108,6 +1120,14 @@ Exit:
 
     TraceExitStatus(TRACE_CORE);
     return Status;
+}
+
+LIST_ENTRY *
+XdpRxQueueGetProgramBindingList(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    return &RxQueue->ProgramBindings;
 }
 
 XDP_PROGRAM *
