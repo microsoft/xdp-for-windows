@@ -1077,7 +1077,6 @@ XdpRxQueueSetProgram(
         TRACE_CORE, "RxQueue=%p Program=%p OldProgram=%p", RxQueue, Program, RxQueue->Program);
 
     if (Program != NULL && RxQueue->Program != NULL) {
-        XDP_PROGRAM *OldCompiledProgram = RxQueue->Program;
         if (ValidationRoutine != NULL) {
             Status = ValidationRoutine(RxQueue, ValidationContext);
             if (!NT_SUCCESS(Status)) {
@@ -1095,12 +1094,6 @@ XdpRxQueueSetProgram(
         SwapParams.RxQueue = RxQueue;
         SwapParams.NewProgram = Program;
         XdpRxQueueSync(RxQueue, XdpRxQueueSwapProgram, &SwapParams);
-        if (OldCompiledProgram != NULL) {
-            //
-            // Free the old compiled program because it's no longer being used.
-            //
-            ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
-        }
     } else if (Program != NULL) {
         //
         // Add a new program, which requires activating the underlying XDP RX
@@ -1118,22 +1111,12 @@ XdpRxQueueSetProgram(
         // interface.
         //
         XdpRxQueueDetachInterface(RxQueue);
-        if (RxQueue->Program != NULL) {
-            ExFreePoolWithTag(RxQueue->Program, XDP_POOLTAG_PROGRAM);
-            RxQueue->Program = NULL;
-        }
+        RxQueue->Program = NULL;
     }
 
     Status = STATUS_SUCCESS;
 
 Exit:
-
-    if (!NT_SUCCESS(Status) && Program != NULL) {
-        //
-        // Now that the compiled program won't be used, clean it up.
-        //
-        ExFreePoolWithTag(Program, XDP_POOLTAG_PROGRAM);
-    }
 
     TraceExitStatus(TRACE_CORE);
     return Status;

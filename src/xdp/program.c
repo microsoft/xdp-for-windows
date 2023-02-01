@@ -1446,7 +1446,11 @@ XdpProgramDetachRxQueue(
         
         XdpRxQueueDeregisterNotifications(RxQueue, &ProgramBinding->RxQueueNotificationEntry);
         if (IsListEmpty(XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue))) {
+            XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(RxQueue);
             XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
+            if (OldCompiledProgram != NULL) {
+                ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
+            }
         } else {
             //
             // Update the program in-place because we are down sizing the program bindings.
@@ -1935,12 +1939,20 @@ XdpProgramAttach(
         !IsListEmpty(&ProgramBinding->RxQueueNotificationEntry.Link) &&
         !IsListEmpty(&ProgramBinding->RxQueueEntry));
 
+    XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(ProgramBinding->RxQueue);
     Status =
         XdpRxQueueSetProgram(
             ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
             ProgramObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
+    }
+
+    if (OldCompiledProgram != NULL) {
+        //
+        // We just swapped in a new compiled program. Delete the old one.
+        //
+        ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
     }
 
     TraceInfo(
@@ -1951,6 +1963,9 @@ XdpProgramAttach(
 Exit:
 
     if (!NT_SUCCESS(Status)) {
+        if (CompiledProgram) {
+            ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
+        }
         XdpProgramDelete(ProgramObject);
     }
 
