@@ -1945,6 +1945,7 @@ XdpProgramAttach(
             ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
             ProgramObject);
     if (!NT_SUCCESS(Status)) {
+        ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
         goto Exit;
     }
 
@@ -1963,9 +1964,6 @@ XdpProgramAttach(
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        if (CompiledProgram) {
-            ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
-        }
         XdpProgramDelete(ProgramObject);
     }
 
