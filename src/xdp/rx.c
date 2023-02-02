@@ -983,6 +983,14 @@ XdpRxQueueFindOrCreate(
 }
 
 VOID
+XdpRxQueueInitializeNotificationEntry(
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    )
+{
+    InitializeListHead(&NotifyEntry->Link);
+}
+
+VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry,
@@ -1004,8 +1012,14 @@ XdpRxQueueDeregisterNotifications(
     )
 {
     UNREFERENCED_PARAMETER(RxQueue);
-
-    RemoveEntryList(&NotifyEntry->Link);
+    //
+    // Checking if the entry is linked before it is removed makes
+    // the caller's clean-up work easier.
+    //
+    if (!IsListEmpty(&NotifyEntry->Link)) {
+        RemoveEntryList(&NotifyEntry->Link);
+        InitializeListHead(&NotifyEntry->Link);
+    }
 }
 
 VOID

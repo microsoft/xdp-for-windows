@@ -44,6 +44,11 @@ typedef struct _XDP_RX_QUEUE_NOTIFY_ENTRY {
 } XDP_RX_QUEUE_NOTIFICATION_ENTRY;
 
 VOID
+XdpRxQueueInitializeNotificationEntry(
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    );
+
+VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry,
