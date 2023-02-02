@@ -1544,9 +1544,6 @@ XdpProgramDelete(
 
         //
         // Detach the XDP program from the RX queue.
-        //
-
-        //
         // The binding might have already been detached during interface tear-down.
         //
         if (!IsListEmpty(&ProgramBinding->RxQueueEntry)) {
@@ -1554,6 +1551,8 @@ XdpProgramDelete(
         }
 
         XdpRxQueueDereference(ProgramBinding->RxQueue);
+    
+        RemoveEntryList(&ProgramBinding->Link);
         ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
     }
 
