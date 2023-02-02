@@ -39,6 +39,13 @@ XskReferenceDatapathHandle(
 NTSTATUS
 XskValidateDatapathHandle(
     _In_ HANDLE XskHandle,
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ BOOLEAN IgnoreQueueMatch
+    );
+
+BOOLEAN
+XskIsDatapathHandleQueueMatched(
+    _In_ HANDLE XskHandle,
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
