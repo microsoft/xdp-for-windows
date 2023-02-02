@@ -398,6 +398,10 @@ AttachXdpProgram(
         flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
     }
 
+    if (RandUlong() % 8) {
+        flags |= XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
+    }
+
     res = Queue->xdpApi->XskGetSockopt(Sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookIdSize);
     if (FAILED(res)) {
         goto Exit;
