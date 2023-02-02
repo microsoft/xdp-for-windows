@@ -1553,6 +1553,9 @@ XdpProgramDelete(
         XdpRxQueueDereference(ProgramBinding->RxQueue);
     
         RemoveEntryList(&ProgramBinding->Link);
+
+        TraceInfo(
+            TRACE_CORE, "Deleted ProgramBinding %p", ProgramBinding);
         ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
     }
 
