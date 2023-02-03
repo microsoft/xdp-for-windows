@@ -1134,6 +1134,7 @@ typedef struct _XDP_PROGRAM_OBJECT {
 typedef struct _XDP_PROGRAM_WORKITEM {
     XDP_BINDING_WORKITEM Bind;
     XDP_HOOK_ID HookId;
+    UINT32 IfIndex;
     UINT32 QueueId;
     XDP_PROGRAM_OBJECT *ProgramObject;
     BOOLEAN BindToAllQueues;
@@ -1996,6 +1997,7 @@ XdpProgramAttach(
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     UINT32 QueueIdStart = Item->QueueId;
     UINT32 QueueIdEnd = Item->QueueId + 1;
+    XDP_IFSET_HANDLE IfSetHandle = NULL;
 
     TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
@@ -2008,10 +2010,15 @@ XdpProgramAttach(
     }
 
     if (Item->BindToAllQueues) {
-        XDP_IFSET_HANDLE IfSetHandle = XdpIfGetIfSetHandle(Item->Bind.BindingHandle);
         VOID *InterfaceOffloadHandle;
         XDP_RSS_CAPABILITIES RssCapabilities;
         UINT32 RssCapabilitiesSize = sizeof(RssCapabilities);
+        IfSetHandle = XdpIfFindAndReferenceIfSet(Item->IfIndex, &Item->HookId, 1, NULL);
+        if (IfSetHandle == NULL) {
+            Status = STATUS_NOT_FOUND;
+            goto Exit;
+        }
+
         Status =
             XdpIfOpenInterfaceOffloadHandle(
                 IfSetHandle, &Item->HookId, &InterfaceOffloadHandle);
@@ -2053,6 +2060,10 @@ Exit:
 
     if (!NT_SUCCESS(Status)) {
         XdpProgramDelete(ProgramObject);
+    }
+
+    if (IfSetHandle != NULL) {
+        XdpIfDereferenceIfSet(IfSetHandle);
     }
 
     Item->CompletionStatus = Status;
@@ -2150,6 +2161,7 @@ RetryBinding:
     KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
     WorkItem.QueueId = Params->QueueId;
     WorkItem.HookId = Params->HookId;
+    WorkItem.IfIndex = Params->IfIndex;
     WorkItem.BindToAllQueues = !!(Params->Flags & XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
     WorkItem.ProgramObject = ProgramObject;
     WorkItem.Bind.BindingHandle = BindingHandle;
