@@ -1099,10 +1099,13 @@ XdpInspect(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID *
 XdpProgramGetXskBypassTarget(
-    _In_ XDP_PROGRAM *Program
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    ASSERT(XdpProgramCanXskBypass(Program));
+    UNREFERENCED_PARAMETER(RxQueue);
+
+    ASSERT(XdpProgramCanXskBypass(Program, RxQueue));
     return Program->Rules[0].Redirect.Target;
 }
 
@@ -1550,9 +1553,14 @@ XdpProgramDelete(
             XdpProgramDetachRxQueue(ProgramBinding);
         }
 
-        XdpRxQueueDereference(ProgramBinding->RxQueue);
-    
+        if (ProgramBinding->RxQueue != NULL) {
+            XdpRxQueueDereference(ProgramBinding->RxQueue);
+        }
+
         RemoveEntryList(&ProgramBinding->Link);
+
+        TraceInfo(
+            TRACE_CORE, "Deleted ProgramBinding %p", ProgramBinding);
         ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
     }
 
@@ -1617,14 +1625,16 @@ XdpProgramRxQueueNotify(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 BOOLEAN
 XdpProgramCanXskBypass(
-    _In_ XDP_PROGRAM *Program
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_RX_QUEUE *RxQueue
     )
 {
     return
         Program->RuleCount == 1 &&
         Program->Rules[0].Match == XDP_MATCH_ALL &&
         Program->Rules[0].Action == XDP_PROGRAM_ACTION_REDIRECT &&
-        Program->Rules[0].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSK;
+        Program->Rules[0].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSK &&
+        XskIsDatapathHandleQueueMatched(Program->Rules[0].Redirect.Target, RxQueue);
 }
 
 static
@@ -1970,9 +1980,6 @@ Exit:
         if (CompiledProgram != NULL) {
             ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
         }
-        //
-        // Clean up will be done in XdpProgramDelete.
-        //
     }
 
     return Status;
