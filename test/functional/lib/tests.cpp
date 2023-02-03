@@ -2438,8 +2438,7 @@ GenericRxMatch(
     Rule.Action = XDP_PROGRAM_ACTION_PASS;
 
     ProgramHandle =
-        CreateXdpProg(
-            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
@@ -2455,8 +2454,7 @@ GenericRxMatch(
     Rule.Action = XDP_PROGRAM_ACTION_DROP;
 
     ProgramHandle =
-        CreateXdpProg(
-            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     if (!IsUdp) {
         TEST_TRUE(
