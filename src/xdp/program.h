@@ -31,7 +31,8 @@ XdpInspect(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID *
 XdpProgramGetXskBypassTarget(
-    _In_ XDP_PROGRAM *Program
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_RX_QUEUE *RxQueue
     );
 
 //
@@ -41,7 +42,8 @@ XdpProgramGetXskBypassTarget(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 BOOLEAN
 XdpProgramCanXskBypass(
-    _In_ XDP_PROGRAM *Program
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_RX_QUEUE *RxQueue
     );
 
 XDP_FILE_CREATE_ROUTINE XdpIrpCreateProgram;

@@ -245,7 +245,7 @@ XdpReceiveXskExclusiveBatch(
     //
     // Attempt to pass the entire batch to XSK.
     //
-    if (XskReceiveBatchedExclusive(XdpProgramGetXskBypassTarget(RxQueue->Program))) {
+    if (XskReceiveBatchedExclusive(XdpProgramGetXskBypassTarget(RxQueue->Program, RxQueue))) {
         XdpRxQueueExclusiveFlush(RxQueue);
     } else {
         //
@@ -792,7 +792,7 @@ XdpRxQueueAttachInterface(
     //
     // Implement a fast path for a single XSK receiving all frames.
     //
-    if (XdpProgramCanXskBypass(RxQueue->Program)) {
+    if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue)) {
         RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
     } else {
         RxQueue->Dispatch = XdpRxDispatch;
@@ -1068,7 +1068,7 @@ XdpRxQueueSwapProgram(
     //
     // Implement a fast path for a single XSK receiving all frames.
     //
-    if (XdpProgramCanXskBypass(SwapParams->NewProgram)) {
+    if (XdpProgramCanXskBypass(SwapParams->NewProgram, SwapParams->RxQueue)) {
         SwapParams->RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
     } else {
         SwapParams->RxQueue->Dispatch = XdpRxDispatch;
