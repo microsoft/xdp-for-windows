@@ -1661,7 +1661,8 @@ XskNotifyRxQueue(
 NTSTATUS
 XskValidateDatapathHandle(
     _In_ HANDLE XskHandle,
-    _In_ XDP_RX_QUEUE *RxQueue
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ BOOLEAN IgnoreQueueMatch
     )
 {
     XSK *Xsk = (XSK *)XskHandle;
@@ -1674,11 +1675,27 @@ XskValidateDatapathHandle(
         return STATUS_NOT_SUPPORTED;
     }
 
-    if (Xsk->Rx.Xdp.Queue != RxQueue) {
+    if (!IgnoreQueueMatch &&
+        !XskIsDatapathHandleQueueMatched(XskHandle, RxQueue)) {
         return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
     return STATUS_SUCCESS;
+}
+
+BOOLEAN
+XskIsDatapathHandleQueueMatched(
+    _In_ HANDLE XskHandle,
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XSK *Xsk = (XSK *)XskHandle;
+
+    if (Xsk->Rx.Xdp.Queue != RxQueue) {
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 static

@@ -831,6 +831,7 @@ XdpL2Fwd(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
+    _In_ XDP_RX_QUEUE *RxQueue,
     _In_ XDP_PROGRAM *Program,
     _In_ XDP_REDIRECT_CONTEXT *RedirectContext,
     _In_ XDP_RING *FrameRing,
@@ -1062,9 +1063,15 @@ XdpInspect(
             switch (Rule->Action) {
 
             case XDP_PROGRAM_ACTION_REDIRECT:
-                XdpRedirect(
-                    RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
-                    Rule->Redirect.Target);
+                //
+                // If we are redirecting to an XSK that's not bound to this RX queue,
+                // drop everything.
+                //
+                if (XskIsDatapathHandleQueueMatched(Rule->Redirect.Target, RxQueue)) {
+                    XdpRedirect(
+                        RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
+                        Rule->Redirect.Target);
+                }
 
                 Action = XDP_RX_ACTION_DROP;
                 break;
@@ -1886,7 +1893,8 @@ XdpProgramBindingAttach(
     _In_ XDP_BINDING_HANDLE XdpBinding,
     _In_ CONST XDP_HOOK_ID *HookId,
     _Inout_ XDP_PROGRAM_OBJECT *ProgramObject,
-    _In_ UINT32 QueueId
+    _In_ UINT32 QueueId,
+    _In_ BOOLEAN BindToAllQueues
     )
 {
     XDP_PROGRAM *Program = &ProgramObject->Program;
@@ -1914,7 +1922,7 @@ XdpProgramBindingAttach(
             switch (Rule->Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
-                Status = XskValidateDatapathHandle(Rule->Redirect.Target, ProgramBinding->RxQueue);
+                Status = XskValidateDatapathHandle(Rule->Redirect.Target, ProgramBinding->RxQueue, BindToAllQueues);
                 if (!NT_SUCCESS(Status)) {
                     goto Exit;
                 }
@@ -2047,7 +2055,8 @@ XdpProgramAttach(
     for (UINT32 QueueId = QueueIdStart; QueueId < QueueIdEnd; ++QueueId) {
         Status =
             XdpProgramBindingAttach(
-                Item->Bind.BindingHandle, &Item->HookId, ProgramObject, QueueId);
+                Item->Bind.BindingHandle, &Item->HookId, ProgramObject,
+                QueueId, Item->BindToAllQueues);
         if (!NT_SUCCESS(Status)) {
             //
             // Failed to attach to one of the RX queues.

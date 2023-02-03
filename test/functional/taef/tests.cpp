@@ -152,6 +152,14 @@ public:
         ::FnMpNativeHandleTest();
     }
 
+    TEST_METHOD(GenericRxAllQueueRedirectV4) {
+        GenericRxAllQueueRedirect(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxAllQueueRedirectV6) {
+        GenericRxAllQueueRedirect(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxMatchUdpV4) {
         GenericRxMatch(AF_INET, XDP_MATCH_UDP, TRUE);
     }

@@ -8,6 +8,7 @@
 #include "redirect.h"
 
 typedef struct _XDP_PROGRAM XDP_PROGRAM;
+typedef struct _XDP_RX_QUEUE XDP_RX_QUEUE;
 
 //
 // Data path routines.
@@ -16,6 +17,7 @@ typedef struct _XDP_PROGRAM XDP_PROGRAM;
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
+    _In_ XDP_RX_QUEUE *RxQueue,
     _In_ XDP_PROGRAM *Program,
     _In_ XDP_REDIRECT_CONTEXT *RedirectContext,
     _In_ XDP_RING *FrameRing,

@@ -172,7 +172,7 @@ XdppReceiveBatch(
 
         Action =
             XdpInspect(
-                RxQueue->Program, &RxQueue->RedirectContext, RxQueue->FrameRing, FrameIndex,
+                RxQueue, RxQueue->Program, &RxQueue->RedirectContext, RxQueue->FrameRing, FrameIndex,
                 RxQueue->FragmentRing, &RxQueue->FragmentExtension, FragmentIndex,
                 &RxQueue->VirtualAddressExtension);
 
