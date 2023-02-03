@@ -2483,9 +2483,7 @@ GenericRxMatch(
         Rule.Pattern.Port = htons(ntohs(LocalPort) - 1);
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2500,8 +2498,7 @@ GenericRxMatch(
         Rule.Pattern.Tuple.SourcePort = htons(ntohs(RemotePort) - 1);
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2516,8 +2513,7 @@ GenericRxMatch(
         Rule.Pattern.Tuple.DestinationPort = htons(ntohs(LocalPort) - 1);
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2532,8 +2528,7 @@ GenericRxMatch(
         (*((UCHAR*)&Rule.Pattern.Tuple.SourceAddress))++;
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2548,8 +2543,7 @@ GenericRxMatch(
         (*((UCHAR*)&Rule.Pattern.Tuple.DestinationAddress))++;
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2605,8 +2599,7 @@ GenericRxMatch(
             Rule.Pattern.QuicFlow.CidLength);
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2624,8 +2617,7 @@ GenericRxMatch(
             Rule.Pattern.QuicFlow.CidLength);
 
         ProgramHandle =
-            CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+            CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2671,8 +2663,7 @@ GenericRxMatch(
             (*((UCHAR*)&Rule.Pattern.IpPortSet.Address))++;
 
             ProgramHandle =
-                CreateXdpProg(
-                    If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+                CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
             RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
