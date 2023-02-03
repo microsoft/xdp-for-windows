@@ -88,6 +88,11 @@ XdpRxQueueSetProgram(
     _In_opt_ VOID *ValidationContext
     );
 
+XDP_RX_QUEUE *
+XdpRxQueueFromRedirectContext(
+    _In_ XDP_REDIRECT_CONTEXT *RedirectContext
+    );
+
 LIST_ENTRY *
 XdpRxQueueGetProgramBindingList(
     _In_ XDP_RX_QUEUE *RxQueue

@@ -68,6 +68,7 @@ XdpRedirect(
         //
         Batch->TargetType = TargetType;
         Batch->Target = Target;
+        Batch->RxQueue = XdpRxQueueFromRedirectContext(Redirect);
     }
 
     //

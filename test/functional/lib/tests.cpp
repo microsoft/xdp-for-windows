@@ -2439,8 +2439,7 @@ GenericRxMatch(
 
     ProgramHandle =
         CreateXdpProg(
-            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
@@ -2457,8 +2456,7 @@ GenericRxMatch(
 
     ProgramHandle =
         CreateXdpProg(
-            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     if (!IsUdp) {
         TEST_TRUE(
@@ -2503,8 +2501,7 @@ GenericRxMatch(
 
         ProgramHandle =
             CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2520,8 +2517,7 @@ GenericRxMatch(
 
         ProgramHandle =
             CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2537,8 +2533,7 @@ GenericRxMatch(
 
         ProgramHandle =
             CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2554,8 +2549,7 @@ GenericRxMatch(
 
         ProgramHandle =
             CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2612,8 +2606,7 @@ GenericRxMatch(
 
         ProgramHandle =
             CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2632,8 +2625,7 @@ GenericRxMatch(
 
         ProgramHandle =
             CreateXdpProg(
-                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
@@ -2680,8 +2672,7 @@ GenericRxMatch(
 
             ProgramHandle =
                 CreateXdpProg(
-                    If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
-                    XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+                    If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
             RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));

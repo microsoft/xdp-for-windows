@@ -5,6 +5,8 @@
 
 #pragma once
 
+typedef struct _XDP_RX_QUEUE XDP_RX_QUEUE;
+
 typedef struct _XDP_REDIRECT_FRAME {
     UINT32 FrameIndex;
     UINT32 FragmentIndex;
@@ -12,6 +14,7 @@ typedef struct _XDP_REDIRECT_FRAME {
 
 typedef struct _XDP_REDIRECT_BATCH {
     VOID *Target;
+    XDP_RX_QUEUE *RxQueue;
     XDP_REDIRECT_TARGET_TYPE TargetType;
     UINT32 Count;
     XDP_REDIRECT_FRAME FrameIndexes[32];

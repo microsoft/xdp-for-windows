@@ -100,6 +100,14 @@ XdpRxQueueFromHandle(
     return CONTAINING_RECORD(XdpRxQueue, XDP_RX_QUEUE, Dispatch);
 }
 
+XDP_RX_QUEUE *
+XdpRxQueueFromRedirectContext(
+    _In_ XDP_REDIRECT_CONTEXT *RedirectContext
+    )
+{
+    return CONTAINING_RECORD(RedirectContext, XDP_RX_QUEUE, RedirectContext);
+}
+
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -172,7 +180,7 @@ XdppReceiveBatch(
 
         Action =
             XdpInspect(
-                RxQueue, RxQueue->Program, &RxQueue->RedirectContext, RxQueue->FrameRing, FrameIndex,
+                RxQueue->Program, &RxQueue->RedirectContext, RxQueue->FrameRing, FrameIndex,
                 RxQueue->FragmentRing, &RxQueue->FragmentExtension, FragmentIndex,
                 &RxQueue->VirtualAddressExtension);
 

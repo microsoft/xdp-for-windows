@@ -831,7 +831,6 @@ XdpL2Fwd(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
-    _In_ XDP_RX_QUEUE *RxQueue,
     _In_ XDP_PROGRAM *Program,
     _In_ XDP_REDIRECT_CONTEXT *RedirectContext,
     _In_ XDP_RING *FrameRing,
@@ -1063,15 +1062,9 @@ XdpInspect(
             switch (Rule->Action) {
 
             case XDP_PROGRAM_ACTION_REDIRECT:
-                //
-                // If we are redirecting to an XSK that's not bound to this RX queue,
-                // drop everything.
-                //
-                if (XskIsDatapathHandleQueueMatched(Rule->Redirect.Target, RxQueue)) {
-                    XdpRedirect(
-                        RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
-                        Rule->Redirect.Target);
-                }
+                XdpRedirect(
+                    RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
+                    Rule->Redirect.Target);
 
                 Action = XDP_RX_ACTION_DROP;
                 break;
@@ -1890,8 +1883,7 @@ XdpProgramBindingAttach(
     _In_ XDP_BINDING_HANDLE XdpBinding,
     _In_ CONST XDP_HOOK_ID *HookId,
     _Inout_ XDP_PROGRAM_OBJECT *ProgramObject,
-    _In_ UINT32 QueueId,
-    _In_ BOOLEAN BindToAllQueues
+    _In_ UINT32 QueueId
     )
 {
     XDP_PROGRAM *Program = &ProgramObject->Program;
@@ -1919,7 +1911,7 @@ XdpProgramBindingAttach(
             switch (Rule->Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
-                Status = XskValidateDatapathHandle(Rule->Redirect.Target, ProgramBinding->RxQueue, BindToAllQueues);
+                Status = XskValidateDatapathHandle(Rule->Redirect.Target);
                 if (!NT_SUCCESS(Status)) {
                     goto Exit;
                 }
@@ -1978,22 +1970,9 @@ Exit:
         if (CompiledProgram != NULL) {
             ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
         }
-
-        if (ProgramBinding != NULL) {
-            RemoveEntryList(&ProgramBinding->Link);
-            InitializeListHead(&ProgramBinding->Link);
-
-            RemoveEntryList(&ProgramBinding->RxQueueEntry);
-            InitializeListHead(&ProgramBinding->RxQueueEntry);
-
-            XdpRxQueueDeregisterNotifications(ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry);
-
-            ASSERT(
-                IsListEmpty(&ProgramBinding->RxQueueEntry) &&
-                IsListEmpty(&ProgramBinding->Link));
-
-            ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
-        }
+        //
+        // Clean up will be done in XdpProgramDelete.
+        //
     }
 
     return Status;
@@ -2052,8 +2031,7 @@ XdpProgramAttach(
     for (UINT32 QueueId = QueueIdStart; QueueId < QueueIdEnd; ++QueueId) {
         Status =
             XdpProgramBindingAttach(
-                Item->Bind.BindingHandle, &Item->HookId, ProgramObject,
-                QueueId, Item->BindToAllQueues);
+                Item->Bind.BindingHandle, &Item->HookId, ProgramObject, QueueId);
         if (!NT_SUCCESS(Status)) {
             //
             // Failed to attach to one of the RX queues.
