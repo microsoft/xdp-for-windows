@@ -2260,7 +2260,7 @@ XdpCaptureProgram(
             break;
 
         case XDP_PROGRAM_ACTION_EBPF:
-            if (RequestorMode != KERNEL_MODE) {
+            if (RequestorMode != KernelMode) {
                 Status = STATUS_INVALID_PARAMETER;
                 goto Exit;
             }
@@ -2829,7 +2829,7 @@ EbpfProgramOnClientAttach(
     XdpRule.Action = XDP_PROGRAM_ACTION_EBPF;
     XdpRule.Ebpf.Target = (HANDLE)AttachingClient;
 
-    Status = XdpProgramCreate(&ProgramObject, &OpenParams, KERNEL_MODE);
+    Status = XdpProgramCreate(&ProgramObject, &OpenParams, KernelMode);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
