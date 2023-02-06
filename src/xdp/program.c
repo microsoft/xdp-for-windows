@@ -2821,7 +2821,7 @@ EbpfProgramOnClientAttach(
     OpenParams.HookId.Layer = XDP_HOOK_L2;
     OpenParams.HookId.Direction = XDP_HOOK_RX;
     OpenParams.HookId.SubLayer = XDP_HOOK_INSPECT;
-    OpenParams.Flags = XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
+    OpenParams.Flags = XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
     OpenParams.RuleCount = 1;
     OpenParams.Rules = &XdpRule;
 
