@@ -44,6 +44,11 @@ typedef struct _XDP_RX_QUEUE_NOTIFY_ENTRY {
 } XDP_RX_QUEUE_NOTIFICATION_ENTRY;
 
 VOID
+XdpRxQueueInitializeNotificationEntry(
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    );
+
+VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry,
@@ -81,6 +86,11 @@ XdpRxQueueSetProgram(
     _In_opt_ XDP_PROGRAM *Program,
     _In_opt_ XDP_RX_QUEUE_VALIDATE ValidationRoutine,
     _In_opt_ VOID *ValidationContext
+    );
+
+XDP_RX_QUEUE *
+XdpRxQueueFromRedirectContext(
+    _In_ XDP_REDIRECT_CONTEXT *RedirectContext
     );
 
 LIST_ENTRY *

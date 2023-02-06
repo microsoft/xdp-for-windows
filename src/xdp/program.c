@@ -1099,10 +1099,13 @@ XdpInspect(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID *
 XdpProgramGetXskBypassTarget(
-    _In_ XDP_PROGRAM *Program
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    ASSERT(XdpProgramCanXskBypass(Program));
+    UNREFERENCED_PARAMETER(RxQueue);
+
+    ASSERT(XdpProgramCanXskBypass(Program, RxQueue));
     return Program->Rules[0].Redirect.Target;
 }
 
@@ -1112,6 +1115,7 @@ XdpProgramGetXskBypassTarget(
 typedef struct _XDP_PROGRAM_OBJECT XDP_PROGRAM_OBJECT;
 
 typedef struct _XDP_PROGRAM_BINDING {
+    LIST_ENTRY Link;
     XDP_RX_QUEUE *RxQueue;
     LIST_ENTRY RxQueueEntry;
     XDP_RX_QUEUE_NOTIFICATION_ENTRY RxQueueNotificationEntry;
@@ -1121,7 +1125,7 @@ typedef struct _XDP_PROGRAM_BINDING {
 typedef struct _XDP_PROGRAM_OBJECT {
     XDP_FILE_OBJECT_HEADER Header;
     XDP_BINDING_HANDLE IfHandle;
-    XDP_PROGRAM_BINDING *Binding;
+    LIST_ENTRY ProgramBindings;
     ULONG_PTR CreatedByPid;
 
     XDP_PROGRAM Program;
@@ -1130,8 +1134,10 @@ typedef struct _XDP_PROGRAM_OBJECT {
 typedef struct _XDP_PROGRAM_WORKITEM {
     XDP_BINDING_WORKITEM Bind;
     XDP_HOOK_ID HookId;
+    UINT32 IfIndex;
     UINT32 QueueId;
     XDP_PROGRAM_OBJECT *ProgramObject;
+    BOOLEAN BindToAllQueues;
 
     KEVENT CompletionEvent;
     NTSTATUS CompletionStatus;
@@ -1427,36 +1433,37 @@ Exit:
 static
 VOID
 XdpProgramDetachRxQueue(
-    _In_ XDP_PROGRAM_OBJECT *ProgramObject
+    _In_ XDP_PROGRAM_BINDING *ProgramBinding
     )
 {
-    XDP_PROGRAM_BINDING *ProgramBinding = ProgramObject->Binding;
     XDP_RX_QUEUE *RxQueue = ProgramBinding->RxQueue;
 
-    TraceEnter(TRACE_CORE, "Detach ProgramObject=%p from RxQueue", ProgramObject);
+    TraceEnter(
+        TRACE_CORE,
+        "Detach ProgramBinding=%p on ProgramObject=%p from RxQueue=%p",
+        ProgramBinding, ProgramBinding->OwningProgram, ProgramBinding->RxQueue);
 
     ASSERT(RxQueue != NULL);
+    ASSERT(!IsListEmpty(&ProgramBinding->RxQueueEntry));
 
-    if (!IsListEmpty(&ProgramBinding->RxQueueEntry)) {
-        //
-        // Remove the binding from the RX queue and recompile bound programs.
-        //
-        RemoveEntryList(&ProgramBinding->RxQueueEntry);
-        InitializeListHead(&ProgramBinding->RxQueueEntry);
-        
-        XdpRxQueueDeregisterNotifications(RxQueue, &ProgramBinding->RxQueueNotificationEntry);
-        if (IsListEmpty(XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue))) {
-            XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(RxQueue);
-            XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
-            if (OldCompiledProgram != NULL) {
-                ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
-            }
-        } else {
-            //
-            // Update the program in-place because we are down sizing the program bindings.
-            //
-            XdpRxQueueSync(RxQueue, XdpProgramUpdateCompiledProgram, RxQueue);
+    //
+    // Remove the binding from the RX queue and recompile bound programs.
+    //
+    RemoveEntryList(&ProgramBinding->RxQueueEntry);
+    InitializeListHead(&ProgramBinding->RxQueueEntry);
+
+    XdpRxQueueDeregisterNotifications(RxQueue, &ProgramBinding->RxQueueNotificationEntry);
+    if (IsListEmpty(XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue))) {
+        XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(RxQueue);
+        XdpRxQueueSetProgram(RxQueue, NULL, NULL, NULL);
+        if (OldCompiledProgram != NULL) {
+            ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
         }
+    } else {
+        //
+        // Update the program in-place because we are down sizing the program bindings.
+        //
+        XdpRxQueueSync(RxQueue, XdpProgramUpdateCompiledProgram, RxQueue);
     }
 
     TraceExitSuccess(TRACE_CORE);
@@ -1533,16 +1540,29 @@ XdpProgramDelete(
     _In_ XDP_PROGRAM_OBJECT *ProgramObject
     )
 {
-    XDP_PROGRAM_BINDING *ProgramBinding = ProgramObject->Binding;
     TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
-    //
-    // Detach the XDP program from the RX queue.
-    //
-    if (ProgramBinding != NULL && ProgramBinding->RxQueue != NULL) {
-        XdpProgramDetachRxQueue(ProgramObject);
-        XdpRxQueueDereference(ProgramBinding->RxQueue);
-        ProgramBinding->RxQueue = NULL;
+    while (!IsListEmpty(&ProgramObject->ProgramBindings)) {
+        XDP_PROGRAM_BINDING *ProgramBinding =
+            (XDP_PROGRAM_BINDING *)ProgramObject->ProgramBindings.Flink;
+
+        //
+        // Detach the XDP program from the RX queue.
+        // The binding might have already been detached during interface tear-down.
+        //
+        if (!IsListEmpty(&ProgramBinding->RxQueueEntry)) {
+            XdpProgramDetachRxQueue(ProgramBinding);
+        }
+
+        if (ProgramBinding->RxQueue != NULL) {
+            XdpRxQueueDereference(ProgramBinding->RxQueue);
+        }
+
+        RemoveEntryList(&ProgramBinding->Link);
+
+        TraceInfo(
+            TRACE_CORE, "Deleted ProgramBinding %p", ProgramBinding);
+        ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
     }
 
     //
@@ -1580,9 +1600,6 @@ XdpProgramDelete(
     }
 
     TraceVerbose(TRACE_CORE, "Deleted ProgramObject=%p", ProgramObject);
-    if (ProgramBinding != NULL) {
-        ExFreePoolWithTag(ProgramBinding, XDP_POOLTAG_PROGRAM_BINDING);
-    }
     ExFreePoolWithTag(ProgramObject, XDP_POOLTAG_PROGRAM_OBJECT);
     TraceExitSuccess(TRACE_CORE);
 }
@@ -1600,7 +1617,7 @@ XdpProgramRxQueueNotify(
     switch (NotificationType) {
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
-        XdpProgramDetachRxQueue(ProgramBinding->OwningProgram);
+        XdpProgramDetachRxQueue(ProgramBinding);
         break;
 
     }
@@ -1609,19 +1626,21 @@ XdpProgramRxQueueNotify(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 BOOLEAN
 XdpProgramCanXskBypass(
-    _In_ XDP_PROGRAM *Program
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_RX_QUEUE *RxQueue
     )
 {
     return
         Program->RuleCount == 1 &&
         Program->Rules[0].Match == XDP_MATCH_ALL &&
         Program->Rules[0].Action == XDP_PROGRAM_ACTION_REDIRECT &&
-        Program->Rules[0].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSK;
+        Program->Rules[0].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSK &&
+        XskIsDatapathHandleQueueMatched(Program->Rules[0].Redirect.Target, RxQueue);
 }
 
 static
 NTSTATUS
-XdpProgramAllocate(
+XdpProgramObjectAllocate(
     _In_ UINT32 RuleCount,
     _Out_ XDP_PROGRAM_OBJECT **NewProgramObject
     )
@@ -1647,6 +1666,7 @@ XdpProgramAllocate(
     }
 
     ProgramObject->CreatedByPid = (ULONG_PTR)PsGetCurrentProcessId();
+    InitializeListHead(&ProgramObject->ProgramBindings);
 
 Exit:
 
@@ -1670,7 +1690,7 @@ XdpCaptureProgram(
 
     TraceEnter(TRACE_CORE, "-");
 
-    Status = XdpProgramAllocate(RuleCount, &ProgramObject);
+    Status = XdpProgramObjectAllocate(RuleCount, &ProgramObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1855,8 +1875,12 @@ XdpProgramBindingAllocate(
     }
 
     InitializeListHead(&ProgramBinding->RxQueueEntry);
+    InitializeListHead(&ProgramBinding->Link);
+    XdpRxQueueInitializeNotificationEntry(&ProgramBinding->RxQueueNotificationEntry);
+
     ProgramBinding->OwningProgram = ProgramObject;
-    ProgramObject->Binding = ProgramBinding;
+    InsertTailList(&ProgramObject->ProgramBindings, &ProgramBinding->Link);
+
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -1865,27 +1889,18 @@ Exit:
 }
 
 static
-VOID
-XdpProgramAttach(
-    _In_ XDP_BINDING_WORKITEM *WorkItem
+NTSTATUS
+XdpProgramBindingAttach(
+    _In_ XDP_BINDING_HANDLE XdpBinding,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _Inout_ XDP_PROGRAM_OBJECT *ProgramObject,
+    _In_ UINT32 QueueId
     )
 {
-    XDP_PROGRAM_WORKITEM *Item = (XDP_PROGRAM_WORKITEM *)WorkItem;
-    XDP_PROGRAM_OBJECT *ProgramObject = Item->ProgramObject;
     XDP_PROGRAM *Program = &ProgramObject->Program;
     XDP_PROGRAM_BINDING* ProgramBinding = NULL;
     XDP_PROGRAM *CompiledProgram = NULL;
     NTSTATUS Status;
-
-    TraceEnter(TRACE_CORE, "Program=%p", ProgramObject);
-
-    if (Item->HookId.SubLayer != XDP_HOOK_INSPECT) {
-        //
-        // Only RX queue programs are currently supported.
-        //
-        Status = STATUS_NOT_SUPPORTED;
-        goto Exit;
-    }
 
     Status = XdpProgramBindingAllocate(&ProgramBinding, ProgramObject);
     if (!NT_SUCCESS(Status)) {
@@ -1894,7 +1909,7 @@ XdpProgramAttach(
 
     Status =
         XdpRxQueueFindOrCreate(
-            Item->Bind.BindingHandle, &Item->HookId, Item->QueueId, &ProgramBinding->RxQueue);
+            XdpBinding, HookId, QueueId, &ProgramBinding->RxQueue);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1907,7 +1922,7 @@ XdpProgramAttach(
             switch (Rule->Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
-                Status = XskValidateDatapathHandle(Rule->Redirect.Target, ProgramBinding->RxQueue);
+                Status = XskValidateDatapathHandle(Rule->Redirect.Target);
                 if (!NT_SUCCESS(Status)) {
                     goto Exit;
                 }
@@ -1924,8 +1939,6 @@ XdpProgramAttach(
         XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue), &ProgramBinding->RxQueueEntry);
     Status = XdpProgramCompileNewProgram(ProgramBinding->RxQueue, &CompiledProgram);
     if (!NT_SUCCESS(Status)) {
-        RemoveEntryList(&ProgramBinding->RxQueueEntry);
-        InitializeListHead(&ProgramBinding->RxQueueEntry);
         goto Exit;
     }
 
@@ -1936,8 +1949,8 @@ XdpProgramAttach(
         ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry, XdpProgramRxQueueNotify);
 
     ASSERT(
-        !IsListEmpty(&ProgramBinding->RxQueueNotificationEntry.Link) &&
-        !IsListEmpty(&ProgramBinding->RxQueueEntry));
+        !IsListEmpty(&ProgramBinding->RxQueueEntry) &&
+        !IsListEmpty(&ProgramBinding->Link));
 
     XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(ProgramBinding->RxQueue);
     Status =
@@ -1945,26 +1958,112 @@ XdpProgramAttach(
             ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
             ProgramObject);
     if (!NT_SUCCESS(Status)) {
-        ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
         goto Exit;
     }
+
+    CompiledProgram = NULL;
 
     if (OldCompiledProgram != NULL) {
         //
         // We just swapped in a new compiled program. Delete the old one.
         //
         ExFreePoolWithTag(OldCompiledProgram, XDP_POOLTAG_PROGRAM);
+        OldCompiledProgram = NULL;
     }
 
     TraceInfo(
-        TRACE_CORE, "Attached program RxQueue=%p ProgramObject=%p",
-        ProgramBinding->RxQueue, ProgramObject);
-    XdpProgramTraceObject(ProgramObject);
+        TRACE_CORE, "Attached ProgramBinding %p RxQueue=%p ProgramObject=%p",
+        ProgramBinding, ProgramBinding->RxQueue, ProgramObject);
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (CompiledProgram != NULL) {
+            ExFreePoolWithTag(CompiledProgram, XDP_POOLTAG_PROGRAM);
+        }
+    }
+
+    return Status;
+}
+
+static
+VOID
+XdpProgramAttach(
+    _In_ XDP_BINDING_WORKITEM *WorkItem
+    )
+{
+    XDP_PROGRAM_WORKITEM *Item = (XDP_PROGRAM_WORKITEM *)WorkItem;
+    XDP_PROGRAM_OBJECT *ProgramObject = Item->ProgramObject;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    UINT32 QueueIdStart = Item->QueueId;
+    UINT32 QueueIdEnd = Item->QueueId + 1;
+    XDP_IFSET_HANDLE IfSetHandle = NULL;
+
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
+
+    if (Item->HookId.SubLayer != XDP_HOOK_INSPECT) {
+        //
+        // Only RX queue programs are currently supported.
+        //
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    if (Item->BindToAllQueues) {
+        VOID *InterfaceOffloadHandle;
+        XDP_RSS_CAPABILITIES RssCapabilities;
+        UINT32 RssCapabilitiesSize = sizeof(RssCapabilities);
+        IfSetHandle = XdpIfFindAndReferenceIfSet(Item->IfIndex, &Item->HookId, 1, NULL);
+        if (IfSetHandle == NULL) {
+            Status = STATUS_NOT_FOUND;
+            goto Exit;
+        }
+
+        Status =
+            XdpIfOpenInterfaceOffloadHandle(
+                IfSetHandle, &Item->HookId, &InterfaceOffloadHandle);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        Status =
+            XdpIfGetInterfaceOffloadCapabilities(
+                IfSetHandle, InterfaceOffloadHandle,
+                XdpOffloadRss, &RssCapabilities, &RssCapabilitiesSize);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
+        TraceInfo(
+            TRACE_CORE, "Attaching ProgramObject=%p to all %u queues",
+            ProgramObject, RssCapabilities.NumberOfReceiveQueues);
+        QueueIdStart = 0;
+        QueueIdEnd = RssCapabilities.NumberOfReceiveQueues;
+    }
+
+    for (UINT32 QueueId = QueueIdStart; QueueId < QueueIdEnd; ++QueueId) {
+        Status =
+            XdpProgramBindingAttach(
+                Item->Bind.BindingHandle, &Item->HookId, ProgramObject, QueueId);
+        if (!NT_SUCCESS(Status)) {
+            //
+            // Failed to attach to one of the RX queues.
+            //
+            // TODO: should we allow it to succeed partially?
+            //
+            goto Exit;
+        }
+    }
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
         XdpProgramDelete(ProgramObject);
+    }
+
+    if (IfSetHandle != NULL) {
+        XdpIfDereferenceIfSet(IfSetHandle);
     }
 
     Item->CompletionStatus = Status;
@@ -2012,7 +2111,9 @@ XdpIrpCreateProgram(
     XDP_PROGRAM_OBJECT *ProgramObject = NULL;
     NTSTATUS Status;
     CONST UINT32 ValidFlags =
-        XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE;
+        XDP_CREATE_PROGRAM_FLAG_GENERIC |
+        XDP_CREATE_PROGRAM_FLAG_NATIVE |
+        XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
 
     if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -2060,6 +2161,8 @@ RetryBinding:
     KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
     WorkItem.QueueId = Params->QueueId;
     WorkItem.HookId = Params->HookId;
+    WorkItem.IfIndex = Params->IfIndex;
+    WorkItem.BindToAllQueues = !!(Params->Flags & XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
     WorkItem.ProgramObject = ProgramObject;
     WorkItem.Bind.BindingHandle = BindingHandle;
     WorkItem.Bind.WorkRoutine = XdpProgramAttach;

@@ -100,6 +100,14 @@ XdpRxQueueFromHandle(
     return CONTAINING_RECORD(XdpRxQueue, XDP_RX_QUEUE, Dispatch);
 }
 
+XDP_RX_QUEUE *
+XdpRxQueueFromRedirectContext(
+    _In_ XDP_REDIRECT_CONTEXT *RedirectContext
+    )
+{
+    return CONTAINING_RECORD(RedirectContext, XDP_RX_QUEUE, RedirectContext);
+}
+
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -245,7 +253,7 @@ XdpReceiveXskExclusiveBatch(
     //
     // Attempt to pass the entire batch to XSK.
     //
-    if (XskReceiveBatchedExclusive(XdpProgramGetXskBypassTarget(RxQueue->Program))) {
+    if (XskReceiveBatchedExclusive(XdpProgramGetXskBypassTarget(RxQueue->Program, RxQueue))) {
         XdpRxQueueExclusiveFlush(RxQueue);
     } else {
         //
@@ -792,7 +800,7 @@ XdpRxQueueAttachInterface(
     //
     // Implement a fast path for a single XSK receiving all frames.
     //
-    if (XdpProgramCanXskBypass(RxQueue->Program)) {
+    if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue)) {
         RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
     } else {
         RxQueue->Dispatch = XdpRxDispatch;
@@ -983,6 +991,14 @@ XdpRxQueueFindOrCreate(
 }
 
 VOID
+XdpRxQueueInitializeNotificationEntry(
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    )
+{
+    InitializeListHead(&NotifyEntry->Link);
+}
+
+VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry,
@@ -1004,8 +1020,14 @@ XdpRxQueueDeregisterNotifications(
     )
 {
     UNREFERENCED_PARAMETER(RxQueue);
-
-    RemoveEntryList(&NotifyEntry->Link);
+    //
+    // Checking if the entry is linked before it is removed makes
+    // the caller's clean-up work easier.
+    //
+    if (!IsListEmpty(&NotifyEntry->Link)) {
+        RemoveEntryList(&NotifyEntry->Link);
+        InitializeListHead(&NotifyEntry->Link);
+    }
 }
 
 VOID
@@ -1054,7 +1076,7 @@ XdpRxQueueSwapProgram(
     //
     // Implement a fast path for a single XSK receiving all frames.
     //
-    if (XdpProgramCanXskBypass(SwapParams->NewProgram)) {
+    if (XdpProgramCanXskBypass(SwapParams->NewProgram, SwapParams->RxQueue)) {
         SwapParams->RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
     } else {
         SwapParams->RxQueue->Dispatch = XdpRxDispatch;
