@@ -195,7 +195,7 @@ XdpInvokeEbpf(
 
     UNREFERENCED_PARAMETER(FragmentIndex);
 
-    ASSERT((FragmentRing == NULL) == (FragmentExtension == NULL));
+    ASSERT((FragmentRing == NULL) || (FragmentExtension != NULL));
 
     //
     // Fragmented frames are currently not supported by eBPF.
