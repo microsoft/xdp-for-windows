@@ -181,6 +181,5 @@
     <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.targets'))" />
     <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props'))" />
     <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets'))" />
-
   </Target>
 </Project>
