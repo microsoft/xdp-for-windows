@@ -1726,10 +1726,35 @@ static const ebpf_program_info_t EbpfXdpProgramInfo = {
     },
 };
 
+static
+int
+EbpfXdpAdjustHead(
+    _Inout_ xdp_md_t *Context,
+    _In_ int Delta
+    )
+{
+    //
+    // Not implemented.
+    //
+    UNREFERENCED_PARAMETER(Context);
+    UNREFERENCED_PARAMETER(Delta);
+    return -1;
+}
+
+static const VOID *EbpfXdpHelperFunctions[] = {
+    (VOID *)EbpfXdpAdjustHead,
+};
+
+static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
+    .helper_function_count = RTL_NUMBER_OF(EbpfXdpHelperFunctions),
+    .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
+};
+
 // TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_data_t EbpfXdpProgramData = {
     .program_info = &EbpfXdpProgramInfo,
+    .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
     .required_irql = DISPATCH_LEVEL,
 };
 
