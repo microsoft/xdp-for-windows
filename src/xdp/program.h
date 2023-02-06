@@ -46,3 +46,13 @@ XdpProgramCanXskBypass(
     );
 
 XDP_FILE_CREATE_ROUTINE XdpIrpCreateProgram;
+
+NTSTATUS
+XdpProgramStart(
+    VOID
+    );
+
+VOID
+XdpProgramStop(
+    VOID
+    );

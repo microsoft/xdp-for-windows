@@ -9,7 +9,20 @@
 
 #include "precomp.h"
 #include <netiodef.h>
+#include <netioddk.h>
 #include <xdptransport.h>
+#pragma warning(push)
+#pragma warning(disable:4083)
+#pragma warning(disable:4005)
+#include <stdint.h>
+#pragma warning(pop)
+#include <ebpf_extension_uuids.h>
+#include <ebpf_nethooks.h>
+#include <ebpf_program_attach_type_guids.h>
+#include <ebpf_program_types.h>
+#include <ebpf_result.h>
+#include <ebpf_structs.h>
+#include "ebpf_private_extension.h"
 #include "program.tmh"
 
 #pragma pack(push)
@@ -1318,6 +1331,365 @@ XdpProgramTraceObject(
     }
 }
 
+typedef struct _EBPF_EXTENSION_PROVIDER EBPF_EXTENSION_PROVIDER;
+
+typedef struct _EBPF_EXTENSION_CLIENT {
+    HANDLE NmrBindingHandle;                     ///< NMR binding handle.
+    GUID ClientModuleId;                         ///< NMR module Id.
+    const VOID *ClientBindingContext;            ///< Client supplied context to be passed when invoking eBPF program.
+    const ebpf_extension_data_t *ClientData;      ///< Client supplied attach parameters.
+    ebpf_invoke_program_function_t InvokeProgram; ///< Pointer to function to invoke eBPF program.
+    VOID *ProviderData; ///< Opaque pointer to hook specific data associated with this client.
+    EBPF_EXTENSION_PROVIDER *ProviderContext; ///< Pointer to the hook NPI provider context.
+} EBPF_EXTENSION_CLIENT;
+
+typedef
+NTSTATUS
+EBPF_EXTENSION_ON_CLIENT_ATTACH(
+    _In_ const EBPF_EXTENSION_CLIENT *AttachingClient,
+    _In_ const EBPF_EXTENSION_PROVIDER *AttachingProvider
+    );
+
+typedef
+VOID
+EBPF_EXTENSION_ON_CLIENT_DETACH(
+    _In_ const EBPF_EXTENSION_CLIENT *DetachingClient
+    );
+
+typedef struct _EBPF_EXTENSION_PROVIDER {
+    NPI_PROVIDER_CHARACTERISTICS Characteristics;             ///< NPI Provider characteristics.
+    HANDLE NmrProviderHandle;                               ///< NMR binding handle.
+    EBPF_EXTENSION_ON_CLIENT_ATTACH *AttachCallback; /*!< Pointer to hook specific callback to be invoked
+                                                              when a client attaches. */
+    EBPF_EXTENSION_ON_CLIENT_DETACH *DetachCallback; /*!< Pointer to hook specific callback to be invoked
+                                                              when a client detaches. */
+    const VOID *CustomData; ///< Opaque pointer to hook specific data associated for this provider.
+} EBPF_EXTENSION_PROVIDER;
+
+typedef struct _EBPF_EXTENSION_PROVIDER_PARAMETERS {
+    const NPI_MODULEID *ProviderModuleId;     ///< NPI provider module ID.
+    const ebpf_extension_data_t *ProviderData; ///< Hook provider data (contains supported program types).
+} EBPF_EXTENSION_PROVIDER_PARAMETERS;
+
+static EBPF_EXTENSION_PROVIDER *EbpfXdpProgramInfoProvider;
+static EBPF_EXTENSION_PROVIDER *EbpfXdpProgramHookProvider;
+
+static
+VOID
+EbpfHookDetachClientCompletion(
+    _In_ DEVICE_OBJECT *DeviceObject,
+    _In_opt_ VOID *Context
+    )
+{
+    EBPF_EXTENSION_CLIENT *HookClient = (EBPF_EXTENSION_CLIENT*)Context;
+
+    TraceEnter(TRACE_CORE, "HookClient=%p", HookClient);
+
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    ASSERT(HookClient != NULL);
+    _Analysis_assume_(HookClient != NULL);
+
+    // The NMR model is async, but the only Windows run-down protection API available is a blocking API, so the
+    // following call will block until all using threads are complete. This should be fixed in the future.
+    // Issue: https://github.com/microsoft/ebpf-for-windows/issues/1854
+
+    // Wait for any in progress callbacks to complete.
+    //_ebpf_ext_attach_wait_for_rundown(&hook_client->rundown);
+
+    // Note: This frees the provider binding context (hook_client).
+    NmrProviderDetachClientComplete(HookClient->NmrBindingHandle);
+
+    TraceExitSuccess(TRACE_CORE);
+}
+
+static
+_Must_inspect_result_
+ebpf_result_t
+EbpfHookInvokeProgram(
+    _In_ const EBPF_EXTENSION_CLIENT *Client,
+    _In_ const VOID *Context,
+    _Out_ uint32_t *Result)
+{
+    ebpf_invoke_program_function_t InvokeProgram = Client->InvokeProgram;
+    const void* ClientBindingContext = Client->ClientBindingContext;
+
+    return InvokeProgram(ClientBindingContext, Context, Result);
+}
+
+static
+NTSTATUS
+EbpfHookProviderAttachClient(
+    _In_ HANDLE NmrBindingHandle,
+    _In_ const VOID *ProviderContext,
+    _In_ const NPI_REGISTRATION_INSTANCE* ClientRegistrationInstance,
+    _In_ const VOID *ClientBindingContext,
+    _In_ const VOID *ClientNpiDispatch,
+    _Outptr_ VOID **ProviderBindingContext,
+    _Outptr_result_maybenull_ const VOID **ProviderDispatch)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    EBPF_EXTENSION_PROVIDER *Provider = (EBPF_EXTENSION_PROVIDER *)ProviderContext;
+    EBPF_EXTENSION_CLIENT *Client = NULL;
+    ebpf_extension_dispatch_table_t *ClientDispatch;
+
+    TraceEnter(TRACE_CORE, "ProviderContext=%p", ProviderContext);
+
+    if ((ProviderBindingContext == NULL) || (ProviderDispatch == NULL) || (Provider == NULL)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    *ProviderBindingContext = NULL;
+    *ProviderDispatch = NULL;
+
+    Client = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Client), XDP_POOLTAG_PROGRAM_NMR);
+    if (Client == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    Client->NmrBindingHandle = NmrBindingHandle;
+    Client->ClientModuleId = ClientRegistrationInstance->ModuleId->Guid;
+    Client->ClientBindingContext = ClientBindingContext;
+    Client->ClientData =
+        (const ebpf_extension_data_t *)ClientRegistrationInstance->NpiSpecificCharacteristics;
+    ClientDispatch = (ebpf_extension_dispatch_table_t *)ClientNpiDispatch;
+    if (ClientDispatch == NULL) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    Client->InvokeProgram = (ebpf_invoke_program_function_t)ClientDispatch->function[0];
+    Client->ProviderContext = Provider;
+
+    if (Provider->AttachCallback != NULL) {
+        Status = Provider->AttachCallback(Client, Provider);
+    }
+
+    if (NT_SUCCESS(Status)) {
+        Status = STATUS_SUCCESS;
+    } else {
+        Status = STATUS_ACCESS_DENIED;
+    }
+
+Exit:
+
+    if (NT_SUCCESS(Status)) {
+        *ProviderBindingContext = Client;
+        Client = NULL;
+    } else {
+        if (Client != NULL) {
+            ExFreePoolWithTag(Client, XDP_POOLTAG_PROGRAM_NMR);
+        }
+    }
+
+    TraceVerbose(
+        TRACE_CORE, "ProviderContext=%p ProviderBindingContext=%p",
+        ProviderContext, *ProviderBindingContext);
+    TraceExitStatus(TRACE_CORE);
+    return Status;
+}
+
+static
+NTSTATUS
+EbpfHookProviderDetachClient(
+    _In_ const VOID *ProviderBindingContext
+    )
+{
+    EBPF_EXTENSION_CLIENT *Client = (EBPF_EXTENSION_CLIENT *)ProviderBindingContext;
+    EBPF_EXTENSION_PROVIDER *Provider = Client->ProviderContext;
+    NTSTATUS Status = STATUS_PENDING;
+
+    TraceEnter(TRACE_CORE, "ProviderBindingContext=%p", ProviderBindingContext);
+
+    if (Client == NULL) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (Provider->DetachCallback != NULL) {
+        Provider->DetachCallback(Client);
+    }
+
+    // Complete async inline (we'll return pending here).
+    EbpfHookDetachClientCompletion(XdpDeviceObject, Client);
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+    return Status;
+}
+
+static
+VOID
+EbpfHookProviderCleanup(
+    _Frees_ptr_ VOID *ProviderBindingContext
+    )
+{
+    TraceEnter(TRACE_CORE, "ProviderBindingContext=%p", ProviderBindingContext);
+
+    ExFreePoolWithTag(ProviderBindingContext, XDP_POOLTAG_PROGRAM_NMR);
+
+    TraceExitSuccess(TRACE_CORE);
+}
+
+static
+void
+EbpfExtensionProviderUnregister(
+    _Frees_ptr_opt_ EBPF_EXTENSION_PROVIDER *ProviderContext)
+{
+    TraceEnter(TRACE_CORE, "ProviderContext=%p", ProviderContext);
+
+    if (ProviderContext != NULL) {
+        NTSTATUS Status = NmrDeregisterProvider(ProviderContext->NmrProviderHandle);
+
+        if (Status == STATUS_PENDING) {
+            NmrWaitForProviderDeregisterComplete(ProviderContext->NmrProviderHandle);
+        }
+
+        ExFreePoolWithTag(ProviderContext, XDP_POOLTAG_PROGRAM_NMR);
+    }
+
+    TraceExitSuccess(TRACE_CORE);
+}
+
+static
+NTSTATUS
+EbpfExtensionProviderRegister(
+    _In_ const NPIID *NpiId,
+    _In_ const EBPF_EXTENSION_PROVIDER_PARAMETERS *Parameters,
+    _In_opt_ EBPF_EXTENSION_ON_CLIENT_ATTACH *AttachCallback,
+    _In_opt_ EBPF_EXTENSION_ON_CLIENT_DETACH *DetachCallback,
+    _In_opt_ const VOID *CustomData,
+    _Outptr_ EBPF_EXTENSION_PROVIDER **ProviderContext)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    EBPF_EXTENSION_PROVIDER *Provider = NULL;
+    NPI_PROVIDER_CHARACTERISTICS *Characteristics;
+
+    TraceEnter(TRACE_CORE, "Parameters=%p", Parameters);
+
+    Provider = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Provider), XDP_POOLTAG_PROGRAM_NMR);
+    if (Provider == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    Characteristics = &Provider->Characteristics;
+    Characteristics->Length = sizeof(NPI_PROVIDER_CHARACTERISTICS);
+    Characteristics->ProviderAttachClient = EbpfHookProviderAttachClient;
+    Characteristics->ProviderDetachClient = EbpfHookProviderDetachClient;
+    Characteristics->ProviderCleanupBindingContext = EbpfHookProviderCleanup;
+    Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
+    Characteristics->ProviderRegistrationInstance.NpiId = NpiId;
+    Characteristics->ProviderRegistrationInstance.NpiSpecificCharacteristics = Parameters->ProviderData;
+    Characteristics->ProviderRegistrationInstance.ModuleId = Parameters->ProviderModuleId;
+
+    Provider->AttachCallback = AttachCallback;
+    Provider->DetachCallback = DetachCallback;
+    Provider->CustomData = CustomData;
+
+    Status = NmrRegisterProvider(Characteristics, Provider, &Provider->NmrProviderHandle);
+    if (!NT_SUCCESS(Status))
+        goto Exit;
+
+    *ProviderContext = Provider;
+    Provider = NULL;
+
+Exit:
+    if (!NT_SUCCESS(Status)) {
+        EbpfExtensionProviderUnregister(Provider);
+    }
+
+    if (NT_SUCCESS(Status)) {
+        TraceVerbose(
+            TRACE_CORE, "ModuleId=%!GUID! ProviderContext=%p",
+            &Parameters->ProviderModuleId->Guid, *ProviderContext);
+    }
+
+    TraceExitStatus(TRACE_CORE);
+    return Status;
+}
+
+NTSTATUS
+EbpfProgramOnClientAttach(
+    _In_ const EBPF_EXTENSION_CLIENT *AttachingClient,
+    _In_ const EBPF_EXTENSION_PROVIDER *AttachingProvider
+    )
+{
+    UNREFERENCED_PARAMETER(AttachingClient);
+    UNREFERENCED_PARAMETER(AttachingProvider);
+    return STATUS_NOT_SUPPORTED;
+}
+
+VOID
+EbpfProgramOnClientDetach(
+    _In_ const EBPF_EXTENSION_CLIENT *DetachingClient
+    )
+{
+    UNREFERENCED_PARAMETER(DetachingClient);
+}
+
+static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
+    .size = sizeof(xdp_md_t),
+    .data = FIELD_OFFSET(xdp_md_t, data),
+    .end = FIELD_OFFSET(xdp_md_t, data_end),
+    .meta = FIELD_OFFSET(xdp_md_t, data_meta),
+};
+
+static const ebpf_program_info_t EbpfXdpProgramInfo = {
+// TODO: fix and upstream const-correct definitions
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+    .program_type_descriptor = {
+        .name = "xdp",
+        .context_descriptor = &EbpfXdpContextDescriptor,
+        .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
+        BPF_PROG_TYPE_XDP,
+    },
+};
+
+// TODO: fix and upstream const-correct definitions
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_program_data_t EbpfXdpProgramData = {
+    .program_info = &EbpfXdpProgramInfo,
+    .required_irql = DISPATCH_LEVEL,
+};
+
+// TODO: fix and upstream const-correct definitions
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
+    .version = 0, // Review: versioning?
+    .size = sizeof(EbpfXdpProgramData),
+    .data = &EbpfXdpProgramData,
+};
+
+static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
+    .Length = sizeof(NPI_MODULEID),
+    .Type = MIT_GUID,
+    .Guid = EBPF_PROGRAM_TYPE_XDP_INIT,
+};
+
+static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
+    .supported_program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
+    .bpf_attach_type = BPF_XDP,
+    .link_type = BPF_LINK_TYPE_XDP,
+};
+
+// TODO: fix and upstream const-correct definitions
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_extension_data_t EbpfXdpHookProviderData = {
+    .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
+    .size = sizeof(EbpfXdpHookAttachProviderData),
+    .data = &EbpfXdpHookAttachProviderData,
+};
+
+static const NPI_MODULEID EbpfXdpHookProviderModuleId = {
+    .Length = sizeof(NPI_MODULEID),
+    .Type = MIT_GUID,
+    .Guid = EBPF_ATTACH_TYPE_XDP_INIT,
+};
+
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -2256,4 +2628,66 @@ XdpIrpProgramClose(
     TraceExitSuccess(TRACE_CORE);
 
     return STATUS_SUCCESS;
+}
+
+NTSTATUS
+XdpProgramStart(
+    VOID
+    )
+{
+    const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfProgramInfoProviderParameters = {
+        .ProviderModuleId = &EbpfXdpProgramInfoProviderModuleId,
+        .ProviderData = &EbpfXdpProgramInfoProviderData,
+    };
+    const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfHookProviderParameters = {
+        .ProviderModuleId = &EbpfXdpHookProviderModuleId,
+        .ProviderData = &EbpfXdpHookProviderData,
+    };
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "-");
+
+    Status =
+        EbpfExtensionProviderRegister(
+            &EBPF_PROGRAM_INFO_EXTENSION_IID, &EbpfProgramInfoProviderParameters, NULL, NULL, NULL,
+            &EbpfXdpProgramInfoProvider);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        EbpfExtensionProviderRegister(
+            &EBPF_HOOK_EXTENSION_IID, &EbpfHookProviderParameters, EbpfProgramOnClientAttach,
+            EbpfProgramOnClientDetach, NULL, &EbpfXdpProgramHookProvider);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+VOID
+XdpProgramStop(
+    VOID
+    )
+{
+    TraceEnter(TRACE_CORE, "-");
+
+    if (EbpfXdpProgramHookProvider != NULL) {
+        EbpfExtensionProviderUnregister(EbpfXdpProgramHookProvider);
+        EbpfXdpProgramHookProvider = NULL;
+    }
+
+    if (EbpfXdpProgramInfoProvider != NULL) {
+        EbpfExtensionProviderUnregister(EbpfXdpProgramInfoProvider);
+        EbpfXdpProgramInfoProvider = NULL;
+    }
+
+    TraceExitSuccess(TRACE_CORE);
 }

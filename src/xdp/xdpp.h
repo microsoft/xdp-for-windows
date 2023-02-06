@@ -25,6 +25,7 @@
 #define XDP_POOLTAG_PROGRAM             'PpdX' // XdpP
 #define XDP_POOLTAG_PROGRAM_OBJECT      'OpdX' // XdpO
 #define XDP_POOLTAG_PROGRAM_BINDING     'bPdX' // XdPb
+#define XDP_POOLTAG_PROGRAM_NMR         'NpdX' // XdpN
 #define XDP_POOLTAG_RING                'rpdX' // Xdpr
 #define XDP_POOLTAG_RXQUEUE             'RpdX' // XdpR
 #define XDP_POOLTAG_TXQUEUE             'TpdX' // XdpT
