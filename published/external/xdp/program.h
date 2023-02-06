@@ -188,6 +188,11 @@ typedef enum _XDP_RULE_ACTION {
     // results in an XDP_RX_ACTION_TX.
     //
     XDP_PROGRAM_ACTION_L2FWD,
+    //
+    // Reserved for internal use: the action is determined by the specified
+    // eBPF program.
+    //
+    XDP_PROGRAM_ACTION_EBPF,
 } XDP_RULE_ACTION;
 
 //
@@ -205,6 +210,10 @@ typedef struct _XDP_REDIRECT_PARAMS {
     HANDLE Target;
 } XDP_REDIRECT_PARAMS;
 
+typedef struct _XDP_EBPF_PARAMS {
+    HANDLE Target;
+} XDP_EBPF_PARAMS;
+
 //
 // XDP program rule.
 //
@@ -214,6 +223,7 @@ typedef struct _XDP_RULE {
     XDP_RULE_ACTION Action;
     union {
         XDP_REDIRECT_PARAMS Redirect;
+        XDP_EBPF_PARAMS Ebpf;
     };
 } XDP_RULE;
 
