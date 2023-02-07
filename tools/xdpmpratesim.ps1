@@ -3,7 +3,7 @@
 #
 
 param (
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [string]$AdapterName = "XDPMP",
 
     [Parameter(Mandatory=$false)]
