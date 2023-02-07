@@ -4,7 +4,7 @@
 
 param (
     [Parameter(Mandatory=$true)]
-    [string]$AdapterName,
+    [string]$AdapterName = "XDPMP",
 
     [Parameter(Mandatory=$false)]
     [UInt32]$RxFramesPerInterval = 0,
