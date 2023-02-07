@@ -1715,6 +1715,23 @@ static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .meta = FIELD_OFFSET(xdp_md_t, data_meta),
 };
 
+#define XDP_EXT_HELPER_FUNCTION_START EBPF_MAX_GENERAL_HELPER_FUNCTION
+
+// XDP helper function prototype descriptors.
+static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] = {
+    {
+        .helper_id = XDP_EXT_HELPER_FUNCTION_START + 1,
+        .name = "bpf_xdp_adjust_head",
+        .return_type = EBPF_RETURN_TYPE_INTEGER,
+        .arguments = {
+            EBPF_ARGUMENT_TYPE_PTR_TO_CTX,
+            EBPF_ARGUMENT_TYPE_ANYTHING,
+        },
+    },
+};
+
+// TODO: fix and upstream const-correct definitions
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_info_t EbpfXdpProgramInfo = {
 // TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
@@ -1724,6 +1741,8 @@ static const ebpf_program_info_t EbpfXdpProgramInfo = {
         .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
         BPF_PROG_TYPE_XDP,
     },
+    .count_of_program_type_specific_helpers = RTL_NUMBER_OF(EbpfXdpHelperFunctionPrototype),
+    .program_type_specific_helper_prototype = EbpfXdpHelperFunctionPrototype,
 };
 
 static

@@ -10,6 +10,8 @@
 // its "include" directory.
 //
 
+#define EBPF_MAX_GENERAL_HELPER_FUNCTION 0xFFFF
+
 typedef struct _ebpf_attach_provider_data
 {
     ebpf_program_type_t supported_program_type;
@@ -30,6 +32,7 @@ typedef ebpf_result_t (*ebpf_invoke_program_function_t)(
     _In_ const void* client_binding_context, _In_ const void* context, _Out_ uint32_t* result);
 
 typedef ebpf_result_t (*_ebpf_extension_dispatch_function)();
+
 typedef struct _ebpf_extension_dispatch_table
 {
     uint16_t version;
@@ -46,7 +49,6 @@ typedef struct _ebpf_extension_dispatch_table
     0x85d5, \
     0x45b0, \
     {0x98, 0xa0, 0x70, 0x69, 0xd6, 0x30, 0x13, 0xb0}}
-
 
 #define EBPF_ATTACH_TYPE_XDP_INIT { \
     0x85e0d8ef, \
