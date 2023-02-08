@@ -3,18 +3,26 @@
 #
 
 param (
-    [Parameter(Mandatory=$true)]
-    [string]$AdapterName,
+    [Parameter(Mandatory=$false)]
+    [string]$AdapterName = "XDPMP",
 
     [Parameter(Mandatory=$false)]
     [UInt32]$RxFramesPerInterval = 0,
 
     [Parameter(Mandatory=$false)]
-    [UInt32]$TxFramesPerInterval = 0
+    [UInt32]$TxFramesPerInterval = 0,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$Unlimited = $false
 )
 
 $Adapter = Get-NetAdapter -Name $AdapterName
 $IfDesc = $Adapter.InterfaceDescription
+
+if ($Unlimited) {
+    $RxFramesPerInterval = "0xFFFFFFFF"
+    $TxFramesPerInterval = "0xFFFFFFFF"
+}
 
 #
 # If the adapter was freshly restarted, this configuration can race with various
