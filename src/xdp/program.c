@@ -2358,6 +2358,18 @@ XdpProgramValidateIfQueue(
     //
     // Perform further rule validation that requires an interface RX queue.
     //
+
+    //
+    // Since we don't know what an eBPF program will return, assume it will
+    // return all statuses.
+    //
+    if (XdpProgramIsEbpf(Program) && !XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(RxQueue))) {
+        TraceError(
+            TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
     for (ULONG Index = 0; Index < Program->RuleCount; Index++) {
         XDP_RULE *Rule = &Program->Rules[Index];
 
@@ -2845,6 +2857,7 @@ EbpfProgramOnClientAttach(
     XDP_PROGRAM_OPEN OpenParams = {0};
     XDP_RULE XdpRule = {0};
     XDP_PROGRAM_OBJECT *ProgramObject;
+    ULONG RequiredMode;
 
     TraceEnter(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
@@ -2865,9 +2878,26 @@ EbpfProgramOnClientAttach(
     OpenParams.HookId.Layer = XDP_HOOK_L2;
     OpenParams.HookId.Direction = XDP_HOOK_RX;
     OpenParams.HookId.SubLayer = XDP_HOOK_INSPECT;
-    OpenParams.Flags = XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
+    OpenParams.Flags = XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
     OpenParams.RuleCount = 1;
     OpenParams.Rules = &XdpRule;
+
+    Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"XdpEbpfMode", &RequiredMode);
+    if (NT_SUCCESS(Status)) {
+        switch (RequiredMode) {
+        case XDP_INTERFACE_MODE_GENERIC:
+            OpenParams.Flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
+            break;
+
+        case XDP_INTERFACE_MODE_NATIVE:
+            OpenParams.Flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
+            break;
+
+        default:
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+    }
 
     XdpRule.Match = XDP_MATCH_ALL;
     XdpRule.Action = XDP_PROGRAM_ACTION_EBPF;

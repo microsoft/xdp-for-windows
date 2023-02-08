@@ -39,7 +39,45 @@ MpReceiveRecycle(
     UINT32 HwRxDescriptor
     )
 {
+    ASSERT(Rq->RecycleIndex < Rq->NumBuffers);
     Rq->RecycleArray[Rq->RecycleIndex++] = HwRxDescriptor;
+}
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+MpReceiveRecycleFlush(
+    _In_ ADAPTER_RX_QUEUE *Rq
+    )
+{
+    ASSERT(Rq->RecycleIndex > 0);
+    MpHwReceiveReturn(Rq, Rq->RecycleArray, &Rq->RecycleIndex);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+MpReceiveCompleteRxTx(
+    _In_ CONST ADAPTER_RX_QUEUE *Rq,
+    _In_ UINT64 LogicalAddress
+    )
+{
+    UINT32 HwRxDescriptor;
+
+    //
+    // Calculate the original start of the RX buffer from the TX buffer, which
+    // may have an additional offset.
+    //
+    HwRxDescriptor = ((UCHAR *)LogicalAddress - Rq->BufferArray) & Rq->BufferMask;
+    MpReceiveRecycle((ADAPTER_RX_QUEUE *)Rq, HwRxDescriptor);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+MpReceiveFlushRxTx(
+    _In_ CONST ADAPTER_RX_QUEUE *Rq
+    )
+{
+    MpReceiveRecycleFlush((ADAPTER_RX_QUEUE *)Rq);
 }
 
 static
@@ -93,7 +131,8 @@ MpReceiveProcessBatch(
     // Perform action for each frame in the batch.
     //
     while (*StartIndex != FrameRing->ProducerIndex) {
-        Frame = XdpRingGetElement(FrameRing, (*StartIndex)++ & FrameRing->Mask);
+        UINT32 FrameRingIndex = (*StartIndex)++ & FrameRing->Mask;
+        Frame = XdpRingGetElement(FrameRing, FrameRingIndex);
         Buffer = &Frame->Buffer;
         Action = XdpGetRxActionExtension(Frame, &Rq->RxActionExtension);
         Va = XdpGetVirtualAddressExtension(Buffer, &Rq->BufferVaExtension);
@@ -118,10 +157,63 @@ MpReceiveProcessBatch(
             MpReceiveRecycle(Rq, HwRxDescriptor);
             break;
 
+        case XDP_RX_ACTION_TX:
+            Rq->Stats.RxFrames++;
+            Rq->Stats.RxBytes += Buffer->DataLength;
+            XdpAbsorbed++;
+            Rq->RxTxArray[Rq->RxTxIndex++] = FrameRingIndex;
+            break;
+
         default:
             ASSERT(FALSE);
             break;
         }
+    }
+
+    if (Rq->RxTxIndex > 0) {
+        KIRQL OldIrql;
+        UINT32 Count;
+        UINT32 Head;
+
+        Count = HwRingBestEffortMpReserve(Rq->Tq->HwRing, Rq->RxTxIndex, &Head, &OldIrql);
+
+        //
+        // Transmit as many of the RX->TX frames as possible to the paired TX
+        // queue.
+        //
+        if (Count > 0) {
+            for (UINT32 Index = 0; Index < Count; Index++) {
+                Frame = XdpRingGetElement(FrameRing, Rq->RxTxArray[Index]);
+                Va = XdpGetVirtualAddressExtension(&Frame->Buffer, &Rq->BufferVaExtension);
+
+                //
+                // XDPMP is a software device not capable of DMA, so just use
+                // the VA here.
+                //
+                MpTransmitRxTx(
+                    Rq->Tq, Head + Index, (UINT64)(Va->VirtualAddress) + Frame->Buffer.DataOffset,
+                    Frame->Buffer.DataLength);
+            }
+
+            HwRingMpCommit(Rq->Tq->HwRing, Count, Head, OldIrql);
+        }
+
+        //
+        // Drop the remainder of the RX->TX frames.
+        //
+        if (Count < Rq->RxTxIndex) {
+            for (UINT32 Index = Count; Index < Rq->RxTxIndex; Index++) {
+                Frame = XdpRingGetElement(FrameRing, Rq->RxTxArray[Index]);
+                Buffer = &Frame->Buffer;
+                Action = XdpGetRxActionExtension(Frame, &Rq->RxActionExtension);
+                Va = XdpGetVirtualAddressExtension(Buffer, &Rq->BufferVaExtension);
+                HwRxDescriptor = (UINT32)(Va->VirtualAddress - Rq->BufferArray);
+
+                MpReceiveRecycle(Rq, HwRxDescriptor);
+            }
+        }
+
+        Rq->RxTxIndex = 0;
     }
 
     return XdpAbsorbed;
@@ -192,6 +284,9 @@ MpReceive(
 
     CountedNblChainInitialize(&NblChain);
 
+    ASSERT(Rq->RecycleIndex == 0);
+    ASSERT(Rq->RxTxIndex == 0);
+
     //
     // First, check if the XDP state needs to be updated.
     //
@@ -223,7 +318,7 @@ MpReceive(
     // Return recycled RX descriptors to the hardware RX ring.
     //
     if (Rq->RecycleIndex > 0) {
-        MpHwReceiveReturn(Rq, Rq->RecycleArray, &Rq->RecycleIndex);
+        MpReceiveRecycleFlush(Rq);
     }
 }
 
@@ -296,6 +391,11 @@ MpCleanupReceiveQueue(
         Rq->NblArray = NULL;
     }
 
+    if (Rq->RxTxArray != NULL) {
+        ExFreePoolWithTag(Rq->RxTxArray, POOLTAG_RXBUFFER);
+        Rq->RxTxArray = NULL;
+    }
+
     if (Rq->RecycleArray != NULL) {
         ExFreePoolWithTag(Rq->RecycleArray, POOLTAG_RXBUFFER);
         Rq->RecycleArray = NULL;
@@ -315,17 +415,20 @@ MpCleanupReceiveQueue(
 NDIS_STATUS
 MpInitializeReceiveQueue(
     _Inout_ ADAPTER_RX_QUEUE *Rq,
-    _In_ CONST ADAPTER_CONTEXT *Adapter
+    _In_ CONST ADAPTER_QUEUE *RssQueue
     )
 {
     NDIS_STATUS Status;
+    CONST ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
 
     TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
 
     Rq->NumBuffers = Adapter->NumRxBuffers;
     Rq->BufferLength = Adapter->RxBufferLength;
+    Rq->BufferMask = ~(Rq->BufferLength - 1);
     Rq->DataLength = Adapter->RxDataLength;
     Rq->NblRundown = Adapter->NblRundown;
+    Rq->Tq = &RssQueue->Tq;
 
     Rq->BufferArray =
         ExAllocatePoolZero(
@@ -347,6 +450,14 @@ MpInitializeReceiveQueue(
         ExAllocatePoolZero(
             NonPagedPoolNx, Rq->NumBuffers * sizeof(*Rq->RecycleArray), POOLTAG_RXBUFFER);
     if (Rq->RecycleArray == NULL) {
+        Status = NDIS_STATUS_RESOURCES;
+        goto Exit;
+    }
+
+    Rq->RxTxArray =
+        ExAllocatePoolZero(
+            NonPagedPoolNx, Rq->NumBuffers * sizeof(*Rq->RxTxArray), POOLTAG_RXBUFFER);
+    if (Rq->RxTxArray == NULL) {
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
@@ -415,7 +526,7 @@ MpInitializeReceiveQueue(
         MpReceiveRecycle(Rq, *Descriptor);
     }
 
-    MpHwReceiveReturn(Rq, Rq->RecycleArray, &Rq->RecycleIndex);
+    MpReceiveRecycleFlush(Rq);
 
 Exit:
 
@@ -463,6 +574,7 @@ MpXdpCreateRxQueue(
     XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.RxAction);
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
+    RxCapabilities.TxActionSupported = TRUE;
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeExclusivePollInfo(&PollInfo, AdapterQueue->NdisPollHandle);
