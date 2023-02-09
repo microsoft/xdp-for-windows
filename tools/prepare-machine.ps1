@@ -82,11 +82,13 @@ function Download-CoreNet-Deps {
 
 function Download-eBpf-Nuget {
     # Download and extract private eBPF Nuget package.
-    $NugetDir = "artifacts/nuget"
+    $NugetDir = "$RootDir/artifacts/nuget"
     if ($Force -and (Test-Path $NugetDir)) {
         Remove-Item -Recurse -Force $NugetDir
     }
-    if (!(Test-Path $NugetDir)) { mkdir $NugetDir }
+    if (!(Test-Path $NugetDir)) {
+        mkdir $NugetDir | Write-Verbose
+    }
 
     $eBpfNugetVersion = "eBPF-for-Windows.0.6.0"
     $eBpfNugetBuild = "4132383742"
@@ -174,6 +176,21 @@ function Setup-VsTest {
     }
 }
 
+function Setup-Ebpf {
+    $EbpfMsiUrl = Get-EbpfMsiUrl
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+
+    if (!(Test-Path $EbpfMsiFullPath)) {
+        $EbpfMsiDir = Split-Path $EbpfMsiFullPath
+
+        if (!(Test-Path $EbpfMsiDir)) {
+            mkdir $EbpfMsiDir | Write-Verbose
+        }
+
+        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
+    }
+}
+
 if ($Cleanup) {
     if ($ForTest) {
         Uninstall-Certs
@@ -232,6 +249,7 @@ if ($Cleanup) {
         Install-Certs
         Setup-VcRuntime
         Setup-VsTest
+        Setup-Ebpf
     }
 
     if ($ForLogging) {

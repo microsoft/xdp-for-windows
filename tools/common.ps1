@@ -93,3 +93,26 @@ function Get-VsTestPath {
 
     return $null
 }
+
+# Returns the eBPF installation path
+function Get-EbpfInstallPath {
+    return "C:\ebpf"
+}
+
+# Returns the eBPF MSI filename
+function Get-EbpfMsiFilename {
+    return "ebpf-for-windows.0.6.0+4132383742.msi"
+}
+
+# Returns the eBPF MSI full path
+function Get-EbpfMsiFullPath {
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $EbpfMsiFilename = Get-EbpfMsiFilename
+    return "$RootDir/artifacts/ebpfmsi/$EbpfMsiFilename"
+}
+
+# Returns the eBPF MSI download URL
+function Get-EbpfMsiUrl {
+    $EbpfMsiFilename = Get-EbpfMsiFilename
+    return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
+}

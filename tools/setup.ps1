@@ -27,11 +27,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -42,8 +42,10 @@ param (
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-# Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
+# Important paths.
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = "C:\devcon.exe"
@@ -487,6 +489,37 @@ function Uninstall-XdpFnLwf {
     Write-Verbose "xdpfnlwf.sys uninstall complete!"
 }
 
+function Install-Ebpf {
+    $EbpfPath = Get-EbpfInstallPath
+    $EbpfMsiUrl = Get-EbpfMsiUrl
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
+
+    if (Test-Path $EbpfPath) {
+        Write-Error "$EbpfPath is already installed!"
+    }
+
+    Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Development /qn"
+    msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Development /qn | Write-Verbose
+    if (!(Test-Path $EbpfPath)) {
+        Write-Error "eBPF could not be installed"
+    }
+}
+
+function Uninstall-Ebpf {
+    $EbpfPath = Get-EbpfInstallPath
+    if (!(Test-Path $EbpfPath)) {
+        Write-Error "$EbpfPath does not exist!"
+    }
+    Write-Verbose "Uninstalling eBPF for Windows"
+    $InstallId = (Get-WmiObject Win32_Product | Where-Object {$_.Name -eq "eBPF for Windows"}).IdentifyingNumber
+    Write-Verbose "msiexec.exe /x $InstallId /qn"
+    msiexec.exe /x $InstallId /qn | Write-Verbose
+    if (Test-Path $EbpfPath) {
+        Write-Error "eBPF could not be uninstalled"
+    }
+}
+
 if ($Install -eq "fndis") {
     Install-FakeNdis
 }
@@ -501,6 +534,9 @@ if ($Install -eq "xdpfnmp") {
 }
 if ($Install -eq "xdpfnlwf") {
     Install-XdpFnLwf
+}
+if ($Install -eq "ebpf") {
+    Install-Ebpf
 }
 
 if ($Uninstall -eq "fndis") {
@@ -517,4 +553,7 @@ if ($Uninstall -eq "xdpfnmp") {
 }
 if ($Uninstall -eq "xdpfnlwf") {
     Uninstall-XdpFnLwf
+}
+if ($Uninstall -eq "ebpf") {
+    Uninstall-Ebpf
 }

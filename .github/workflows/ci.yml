@@ -40,7 +40,7 @@ jobs:
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Nuget Restore
-      run: nuget.exe restore xdp.sln
+      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
     - name: Clean up Artifacts
@@ -88,7 +88,7 @@ jobs:
       uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
     - name: Check Drivers
       shell: pwsh
-      run: tools/check-drivers.ps1 -Verbose
+      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
     - name: Prepare Machine
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
@@ -122,7 +122,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: pwsh
-      run: tools/check-drivers.ps1 -Verbose
+      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
 
   stress_tests:
     name: Stress Tests
@@ -150,7 +150,7 @@ jobs:
       uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
     - name: Check Drivers
       shell: pwsh
-      run: tools/check-drivers.ps1 -Verbose
+      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
     - name: Prepare Machine
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
@@ -182,7 +182,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: pwsh
-      run: tools/check-drivers.ps1 -Verbose
+      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
 
   devkit:
     name: Dev Kit
