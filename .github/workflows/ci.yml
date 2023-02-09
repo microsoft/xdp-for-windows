@@ -228,6 +228,9 @@ jobs:
       uses: actions/setup-dotnet@607fce577a46308457984d59e4954e075820f10a
       with:
         dotnet-version: 6.0.x
+    - name: Prepare Machine
+      shell: pwsh
+      run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
     - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
