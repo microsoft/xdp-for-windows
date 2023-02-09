@@ -158,12 +158,12 @@ MpPopulateRssQueues(
         RssQueue->QueueId = Index;
         RssQueue->Adapter = Adapter;
 
-        Status = MpInitializeReceiveQueue(&RssQueue->Rq, RssQueue);
+        Status = MpInitializeReceiveQueue(&RssQueue->Rq, Adapter);
         if (Status != NDIS_STATUS_SUCCESS) {
             goto Exit;
         }
 
-        Status = MpInitializeTransmitQueue(&RssQueue->Tq, RssQueue);
+        Status = MpInitializeTransmitQueue(&RssQueue->Tq, Adapter);
         if (Status != NDIS_STATUS_SUCCESS) {
             goto Exit;
         }

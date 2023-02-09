@@ -15,23 +15,10 @@ MpReceive(
     _Inout_ XDP_POLL_RECEIVE_DATA *XdpPoll
     );
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-MpReceiveCompleteRxTx(
-    _In_ CONST ADAPTER_RX_QUEUE *Rq,
-    _In_ UINT64 LogicalAddress
-    );
-
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-MpReceiveFlushRxTx(
-    _In_ CONST ADAPTER_RX_QUEUE *Rq
-    );
-
 NDIS_STATUS
 MpInitializeReceiveQueue(
     _Inout_ ADAPTER_RX_QUEUE *Rq,
-    _In_ CONST ADAPTER_QUEUE *RssQueue
+    _In_ CONST ADAPTER_CONTEXT *Adapter
     );
 
 VOID

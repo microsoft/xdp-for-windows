@@ -15,19 +15,10 @@ MpTransmit(
     _Inout_ XDP_POLL_TRANSMIT_DATA *XdpPoll
     );
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-MpTransmitRxTx(
-    _In_ CONST ADAPTER_TX_QUEUE *Tq,
-    _In_ UINT32 HwIndex,
-    _In_ UINT64 LogicalAddress,
-    _In_ UINT32 DataLength
-    );
-
 NDIS_STATUS
 MpInitializeTransmitQueue(
     _Inout_ ADAPTER_TX_QUEUE *Tq,
-    _In_ CONST ADAPTER_QUEUE *RssQueue
+    _In_ CONST ADAPTER_CONTEXT *Adapter
     );
 
 VOID
