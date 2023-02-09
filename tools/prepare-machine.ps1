@@ -80,6 +80,29 @@ function Download-CoreNet-Deps {
     }
 }
 
+function Download-eBpf-Nuget {
+    # Download and extract private eBPF Nuget package.
+    $NugetDir = "artifacts/nuget"
+    if ($Force -and (Test-Path $NugetDir)) {
+        Remove-Item -Recurse -Force $NugetDir
+    }
+    if (!(Test-Path $NugetDir)) { mkdir $NugetDir }
+
+    $eBpfNugetVersion = "eBPF-for-Windows.0.6.0"
+    $eBpfNugetBuild = "4132383742"
+    $eBpfNuget = "$eBpfNugetVersion+$eBpfNugetBuild.nupkg"
+    $eBpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$eBpfNugetVersion+$eBpfNugetBuild.nupkg"
+    if (!(Test-Path $NugetDir/$eBpfNuget)) {
+        # Remove any old builds of the package.
+        if (Test-Path packages/$eBpfNugetVersion) {
+            Remove-Item -Recurse -Force packages/$eBpfNugetVersion
+        }
+        Remove-Item -Force $NugetDir/$eBpfNugetVersion*
+
+        Invoke-WebRequest-WithRetry -Uri $eBpfNugetUrl -OutFile $NugetDir/$eBpfNuget
+    }
+}
+
 function Setup-TestSigning {
     # Check to see if test signing is enabled.
     $HasTestSigning = $false
@@ -158,6 +181,7 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
+        Download-eBpf-Nuget
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
     }
