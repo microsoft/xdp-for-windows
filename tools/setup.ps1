@@ -504,6 +504,7 @@ function Install-Ebpf {
     if (!(Test-Path $EbpfPath)) {
         Write-Error "eBPF could not be installed"
     }
+    Refresh-Path
 }
 
 function Uninstall-Ebpf {
@@ -518,6 +519,7 @@ function Uninstall-Ebpf {
     if (Test-Path $EbpfPath) {
         Write-Error "eBPF could not be uninstalled"
     }
+    Refresh-Path
 }
 
 if ($Install -eq "fndis") {

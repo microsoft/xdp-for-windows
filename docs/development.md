@@ -26,6 +26,11 @@ git submodule update --init --recursive
 
 ### Building
 
+#### TODO
+
+- Reference the eBPF build requirements
+- Mention Windows Defender exclusions for BPF generated eBPF .sys files
+
 Run in a Visual Studio "Developer Command Prompt":
 
 ```PowerShell

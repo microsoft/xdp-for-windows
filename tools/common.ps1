@@ -116,3 +116,11 @@ function Get-EbpfMsiUrl {
     $EbpfMsiFilename = Get-EbpfMsiFilename
     return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
 }
+
+# Refreshes the PATH environment variable.
+function Refresh-Path {
+    $env:Path=(
+        [System.Environment]::GetEnvironmentVariable("Path","Machine"),
+        [System.Environment]::GetEnvironmentVariable("Path","User")
+    ) -match '.' -join ';'
+}
