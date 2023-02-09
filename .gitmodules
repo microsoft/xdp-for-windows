@@ -5,6 +5,3 @@
 	path = submodules/wil
 	url = https://github.com/microsoft/wil
 
-[submodule "submodules/ebpf-for-windows"]
-	path = submodules/ebpf-for-windows
-	url = https://github.com/microsoft/ebpf-for-windows.git
