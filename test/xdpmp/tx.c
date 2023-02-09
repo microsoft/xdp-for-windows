@@ -79,6 +79,7 @@ MpTransmitProcessCompletions(
     XDP_RING *FrameRing = NULL;
     UINT32 PreviousXdpConsumerIndex = 0;
     UINT32 XdpFramesCompleted = 0;
+    BOOLEAN RxTxCompleted = FALSE;
 
     if (XdpActive) {
         FrameRing = Tq->FrameRing;
@@ -102,7 +103,10 @@ MpTransmitProcessCompletions(
             Tq->Stats.TxFrames++;
             Tq->Stats.TxBytes += HwDescriptor->Length;
 
-            if (ShadowDescriptor->Source == TxSourceNdis) {
+            switch (ShadowDescriptor->Source) {
+
+            case TxSourceNdis:
+            {
                 NET_BUFFER_LIST **OwningNbl = MP_NB_GET_OWNING_NBL(ShadowDescriptor->Nb);
                 ULONG *OwningNblRefCount = MP_NBL_GET_REF_COUNT(*OwningNbl);
 
@@ -115,7 +119,12 @@ MpTransmitProcessCompletions(
                     //
                     Quota--;
                 }
-            } else {
+
+                break;
+            }
+
+            case TxSourceXdpTx:
+            {
                 ASSERT(XdpActive);
                 ASSERT((FrameRing->InterfaceReserved - FrameRing->ConsumerIndex) > 0);
 #if DBG
@@ -128,6 +137,21 @@ MpTransmitProcessCompletions(
                 Tq->XdpHwDescriptorsAvailable++;
                 XdpFramesCompleted++;
                 Quota--;
+
+                break;
+            }
+
+            case TxSourceXdpRx:
+            {
+                MpReceiveCompleteRxTx(Tq->Rq, HwDescriptor->LogicalAddress);
+                RxTxCompleted = TRUE;
+                XdpFramesCompleted++;
+                Quota--;
+                break;
+            }
+
+            default:
+                ASSERT(FALSE);
             }
         }
 
@@ -139,6 +163,10 @@ MpTransmitProcessCompletions(
         }
 
         HwRingConsPopElements(Tq->HwRing, Count);
+
+        if (RxTxCompleted) {
+            MpReceiveFlushRxTx(Tq->Rq);
+        }
     }
 
     if (NblChain->Count > 0) {
@@ -146,6 +174,24 @@ MpTransmitProcessCompletions(
     }
 
     return XdpFramesCompleted;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+MpTransmitRxTx(
+    _In_ CONST ADAPTER_TX_QUEUE *Tq,
+    _In_ UINT32 HwIndex,
+    _In_ UINT64 LogicalAddress,
+    _In_ UINT32 DataLength
+    )
+{
+    TX_HW_DESCRIPTOR *HwDescriptor =
+        HwRingGetElement(Tq->HwRing, HwIndex & Tq->HwRing->Mask);
+    TX_SHADOW_DESCRIPTOR *ShadowDescriptor = &Tq->ShadowRing[(HwIndex) & Tq->HwRing->Mask];
+
+    HwDescriptor->LogicalAddress = LogicalAddress;
+    HwDescriptor->Length = DataLength;
+    ShadowDescriptor->Source = TxSourceXdpRx;
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -412,15 +458,17 @@ MpCleanupTransmitQueue(
 NDIS_STATUS
 MpInitializeTransmitQueue(
     _Inout_ ADAPTER_TX_QUEUE *Tq,
-    _In_ CONST ADAPTER_CONTEXT *Adapter
+    _In_ CONST ADAPTER_QUEUE *RssQueue
     )
 {
     NDIS_STATUS Status;
+    CONST ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
 
     Tq->NbQueueCount = 0;
     Tq->NbQueueHead = NULL;
     Tq->NbQueueTail = &Tq->NbQueueHead;
     Tq->NblRundown = Adapter->NblRundown;
+    Tq->Rq = &RssQueue->Rq;
     KeInitializeSpinLock(&Tq->NbQueueLock);
 
     Tq->XdpHwDescriptorsAvailable = Adapter->TxRingSize * Adapter->TxXdpQosPct / 100;

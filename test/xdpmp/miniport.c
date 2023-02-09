@@ -996,7 +996,8 @@ MpReadConfiguration(
     Adapter->RxBufferLength = DEFAULT_RX_BUFFER_LENGTH;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxBufferLength, &Adapter->RxBufferLength);
     if (Adapter->RxBufferLength < MIN_RX_BUFFER_LENGTH ||
-        Adapter->RxBufferLength > MAX_RX_BUFFER_LENGTH) {
+        Adapter->RxBufferLength > MAX_RX_BUFFER_LENGTH ||
+        !RTL_IS_POWER_OF_TWO(Adapter->RxBufferLength)) {
         Status = NDIS_STATUS_INVALID_PARAMETER;
         goto Exit;
     }
