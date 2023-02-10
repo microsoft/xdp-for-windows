@@ -37,6 +37,9 @@
 #include <xdpfnmpapi.h>
 #include <xdpfnlwfapi.h>
 
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+
 #include "xdptest.h"
 #include "tests.h"
 #include "trace.h"
@@ -3673,6 +3676,12 @@ GenericRxFromTxInspect(
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
+}
+
+VOID
+GenericRxEbpf()
+{
+    (void)bpf_object__open("drop.o");
 }
 
 VOID

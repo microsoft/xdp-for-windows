@@ -77,7 +77,14 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>ntdll.lib;onecore.lib;ws2_32.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>
+        ntdll.lib;
+        onecore.lib;
+        ws2_32.lib;
+        iphlpapi.lib;
+        $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
