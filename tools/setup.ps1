@@ -515,7 +515,7 @@ function Uninstall-Ebpf {
         Write-Error "$EbpfPath does not exist!"
     }
     Write-Verbose "Uninstalling eBPF for Windows"
-    $InstallId = (Get-CimInstance Win32_Product | Where-Object {$_.Name -eq "eBPF for Windows"}).IdentifyingNumber
+    $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF for Windows'").IdentifyingNumber
     Write-Verbose "msiexec.exe /x $InstallId /qn"
     msiexec.exe /x $InstallId /qn | Write-Verbose
     if (Test-Path $EbpfPath) {

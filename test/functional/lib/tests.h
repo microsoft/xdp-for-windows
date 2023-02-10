@@ -95,6 +95,9 @@ GenericRxFromTxInspect(
     );
 
 VOID
+GenericRxEbpf();
+
+VOID
 GenericTxToRxInject();
 
 VOID

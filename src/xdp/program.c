@@ -2711,7 +2711,7 @@ RetryBinding:
 
     Status = WorkItem.CompletionStatus;
 
-    if (Status == STATUS_NOT_SUPPORTED &&
+    if (!NT_SUCCESS(Status) &&
         XdpIfGetCapabilities(BindingHandle)->Mode == XDP_INTERFACE_MODE_NATIVE &&
         RequiredMode == NULL) {
         //
@@ -2719,11 +2719,11 @@ RetryBinding:
         // application did not require native mode, attempt to fall back to
         // generic mode.
         //
-        TraceVerbose(
+        TraceInfo(
             TRACE_CORE,
-            "IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u native mode not supported, trying generic mode",
+            "IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u Status=%!STATUS! native mode failed, trying generic mode",
             Params->IfIndex, Params->HookId.Layer, Params->HookId.Direction,
-            Params->HookId.SubLayer, Params->QueueId);
+            Params->HookId.SubLayer, Params->QueueId, Status);
 
         ProgramObject = NULL;
         XdpIfDereferenceBinding(BindingHandle);

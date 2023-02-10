@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <future>
 #include <initializer_list>
 #include <memory>
@@ -215,6 +216,22 @@ ProcessorIndexToProcessorNumber(
 
     ProcNumber->Group = Group;
     ProcNumber->Number = (UINT8)ProcIndex;
+}
+
+static
+std::string
+GetTestPath()
+{
+    CHAR Filename[MAX_PATH];
+    HMODULE Module;
+
+    TEST_TRUE(
+        GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            (LPCSTR)&GetTestPath, &Module));
+    TEST_TRUE(GetModuleFileNameA(Module, Filename, sizeof(Filename)));
+
+    return std::filesystem::path(Filename).parent_path().string();
 }
 
 static
@@ -3681,7 +3698,36 @@ GenericRxFromTxInspect(
 VOID
 GenericRxEbpf()
 {
-    (void)bpf_object__open("drop.o");
+    auto If = FnMpIf;
+    std::string BpfFile;
+    bpf_object *BpfObject;
+    bpf_program *Program;
+    int ProgramFd;
+
+    // TODO: resource wrapper.
+
+    BpfFile = GetTestPath();
+    BpfFile += "\\bpf\\drop.o";
+
+    TraceVerbose("bpf_object__open(%s)", BpfFile.c_str());
+    BpfObject = bpf_object__open(BpfFile.c_str());
+    TEST_NOT_EQUAL(NULL, BpfObject);
+
+    TEST_EQUAL(0, bpf_object__load(BpfObject));
+
+    Program = bpf_object__find_program_by_name(BpfObject, "drop");
+    TEST_NOT_EQUAL(NULL, Program);
+
+    ProgramFd = bpf_program__fd(Program);
+    TEST_TRUE(ProgramFd > 0);
+
+    TEST_EQUAL(0, bpf_xdp_attach(If.GetIfIndex(), ProgramFd, 0, NULL));
+
+    // TODO: verify the program has taken effect.
+
+    TEST_EQUAL(0, bpf_xdp_detach(If.GetIfIndex(), XDP_FLAGS_REPLACE, NULL));
+
+    bpf_object__close(BpfObject);
 }
 
 VOID

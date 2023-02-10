@@ -21,19 +21,19 @@ StopTest();
 
 VOID
 LogTestFailure(
-    _In_z_ const LPWSTR File,
-    _In_z_ const LPWSTR Function,
+    _In_z_ PCWSTR File,
+    _In_z_ PCWSTR Function,
     INT Line,
-    _Printf_format_string_ const LPWSTR Format,
+    _Printf_format_string_ PCWSTR Format,
     ...
     );
 
 VOID
 LogTestWarning(
-    _In_z_ const LPWSTR File,
-    _In_z_ const LPWSTR Function,
+    _In_z_ PCWSTR File,
+    _In_z_ PCWSTR Function,
     INT Line,
-    _Printf_format_string_ const LPWSTR Format,
+    _Printf_format_string_ PCWSTR Format,
     ...
     );
 
