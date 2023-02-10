@@ -48,6 +48,8 @@ if (!$?) {
     return
 }
 
+tools/prepare-machine.ps1 -ForEbpfBuild
+
 msbuild.exe xdp.sln `
     /p:Configuration=$Flavor `
     /p:Platform=$Platform `

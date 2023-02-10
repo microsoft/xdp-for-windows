@@ -6,6 +6,9 @@ This prepares a machine for running XDP.
 .PARAMETER ForBuild
     Installs all the build-time dependencies.
 
+.PARAMETER ForBuild
+    Installs all the eBPF build-time dependencies.
+
 .PARAMETER ForTest
     Installs all the run-time dependencies.
 
@@ -31,6 +34,9 @@ This prepares a machine for running XDP.
 param (
     [Parameter(Mandatory = $false)]
     [switch]$ForBuild = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$ForEbpfBuild = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$ForTest = $false,
@@ -60,9 +66,15 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-if (!$ForBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForLogging) {
+if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForLogging) {
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, or -ForLogging'
 }
+
+$EbpfNugetVersion = "eBPF-for-Windows.0.6.0"
+$EbpfNugetBuild = "4132383742"
+$EbpfNuget = "$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
+$EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
+$EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
 # Flag that indicates something required a reboot.
 $Reboot = $false
@@ -90,18 +102,14 @@ function Download-eBpf-Nuget {
         mkdir $NugetDir | Write-Verbose
     }
 
-    $eBpfNugetVersion = "eBPF-for-Windows.0.6.0"
-    $eBpfNugetBuild = "4132383742"
-    $eBpfNuget = "$eBpfNugetVersion+$eBpfNugetBuild.nupkg"
-    $eBpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$eBpfNugetVersion+$eBpfNugetBuild.nupkg"
-    if (!(Test-Path $NugetDir/$eBpfNuget)) {
+    if (!(Test-Path $NugetDir/$EbpfNuget)) {
         # Remove any old builds of the package.
-        if (Test-Path packages/$eBpfNugetVersion) {
-            Remove-Item -Recurse -Force packages/$eBpfNugetVersion
+        if (Test-Path $EbpfNugetDir) {
+            Remove-Item -Recurse -Force $EbpfNugetDir
         }
-        Remove-Item -Force $NugetDir/$eBpfNugetVersion*
+        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
 
-        Invoke-WebRequest-WithRetry -Uri $eBpfNugetUrl -OutFile $NugetDir/$eBpfNuget
+        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
     }
 }
 
@@ -201,6 +209,17 @@ if ($Cleanup) {
         Download-eBpf-Nuget
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
         Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
+    }
+
+    if ($ForEbpfBuild) {
+        $EbpfExportProgram = "$EbpfNugetRestoreDir/build/native/bin/export_program_info.exe"
+
+        if (!(Test-Path $EbpfExportProgram)) {
+            Write-Error "Missing eBPF helper export_program_info.exe. Is the NuGet package installed?"
+        }
+
+        Write-Verbose $EbpfExportProgram
+        & $EbpfExportProgram | Write-Verbose
     }
 
     if ($ForFunctionalTest) {
