@@ -23,7 +23,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>fnbpf</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\bpf\</OutDir>
   </PropertyGroup>
   <ItemGroup>
     <CustomBuild Include="drop.c">

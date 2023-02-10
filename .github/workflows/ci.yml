@@ -39,6 +39,10 @@ jobs:
     - name: Prepare Machine
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
+    - name: Install LLVM 11.0
+      run: |
+        choco install -y llvm --version 11.0.1 --allow-downgrade
+        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Nuget Restore
       run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
     - name: Build

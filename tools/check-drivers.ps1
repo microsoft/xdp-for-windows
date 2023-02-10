@@ -44,14 +44,6 @@ function Check-And-Remove-Driver($Driver, $Component) {
     }
 }
 
-# Checks for the precense of a loaded driver and writes an error.
-function Check-And-Error-Driver($Driver) {
-    if (Check-Driver $Driver) {
-        $AllDrivers | Write-Verbose
-        Write-Error "$Driver loaded!"
-    }
-}
-
 # Check for any XDP drivers.
 Check-And-Remove-Driver "xdpfnmp.sys" "xdpfnmp"
 Check-And-Remove-Driver "xdpfnlwf.sys" "xdpfnlwf"
@@ -61,8 +53,8 @@ Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Check for any eBPF drivers.
 if ($IncludeEbpf) {
-    Check-And-Error-Driver "ebpfcore.sys"
-    Check-And-Error-Driver "netebpfext.sys"
+    Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
+    Check-And-Remove-Driver "netebpfext.sys" "ebpf"
 }
 
 # Yay! No XDP drivers found.

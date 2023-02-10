@@ -505,6 +505,8 @@ function Install-Ebpf {
         Write-Error "eBPF could not be installed"
     }
     Refresh-Path
+    # Stop eBPF's XDP hook that conflicts with our XDP implementation.
+    Stop-Service netebpfext
 }
 
 function Uninstall-Ebpf {
