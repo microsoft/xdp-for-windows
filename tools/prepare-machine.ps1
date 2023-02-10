@@ -104,8 +104,8 @@ function Download-eBpf-Nuget {
 
     if (!(Test-Path $NugetDir/$EbpfNuget)) {
         # Remove any old builds of the package.
-        if (Test-Path $EbpfNugetDir) {
-            Remove-Item -Recurse -Force $EbpfNugetDir
+        if (Test-Path $EbpfNugetRestoreDir) {
+            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
         }
         Remove-Item -Force $NugetDir/$EbpfNugetVersion*
 
