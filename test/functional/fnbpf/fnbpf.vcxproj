@@ -36,6 +36,15 @@
         powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -ProgramName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
         popd</Command>
     </CustomBuild>
+    <CustomBuild Include="l1fwd.c">
+      <FileType>CppCode</FileType>
+      <Outputs>$(OutDir)l1fwd.sys</Outputs>
+      <Command>
+        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
+        pushd $(OutDir)
+        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -ProgramName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
+        popd</Command>
+    </CustomBuild>
     <CustomBuild Include="pass.c">
       <FileType>CppCode</FileType>
       <Outputs>$(OutDir)pass.sys</Outputs>
