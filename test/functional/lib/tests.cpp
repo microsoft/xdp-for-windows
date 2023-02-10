@@ -99,6 +99,8 @@ using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&:
 
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 
+using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
+
 static unique_xdp_api XdpApi;
 
 typedef enum _XDP_MODE {
@@ -3700,22 +3702,20 @@ GenericRxEbpf()
 {
     auto If = FnMpIf;
     std::string BpfFile;
-    bpf_object *BpfObject;
+    unique_bpf_object BpfObject;
     bpf_program *Program;
     int ProgramFd;
-
-    // TODO: resource wrapper.
 
     BpfFile = GetTestPath();
     BpfFile += "\\bpf\\drop.o";
 
     TraceVerbose("bpf_object__open(%s)", BpfFile.c_str());
-    BpfObject = bpf_object__open(BpfFile.c_str());
-    TEST_NOT_EQUAL(NULL, BpfObject);
+    BpfObject.reset(bpf_object__open(BpfFile.c_str()));
+    TEST_NOT_EQUAL(NULL, BpfObject.get());
 
-    TEST_EQUAL(0, bpf_object__load(BpfObject));
+    TEST_EQUAL(0, bpf_object__load(BpfObject.get()));
 
-    Program = bpf_object__find_program_by_name(BpfObject, "drop");
+    Program = bpf_object__find_program_by_name(BpfObject.get(), "drop");
     TEST_NOT_EQUAL(NULL, Program);
 
     ProgramFd = bpf_program__fd(Program);
@@ -3726,8 +3726,6 @@ GenericRxEbpf()
     // TODO: verify the program has taken effect.
 
     TEST_EQUAL(0, bpf_xdp_detach(If.GetIfIndex(), XDP_FLAGS_REPLACE, NULL));
-
-    bpf_object__close(BpfObject);
 }
 
 VOID
