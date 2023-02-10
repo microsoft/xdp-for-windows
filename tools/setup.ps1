@@ -499,8 +499,8 @@ function Install-Ebpf {
         Write-Error "$EbpfPath is already installed!"
     }
 
-    Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Development /qn"
-    msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Development /qn | Write-Verbose
+    Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn"
+    msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn | Write-Verbose
     if (!(Test-Path $EbpfPath)) {
         Write-Error "eBPF could not be installed"
     }
