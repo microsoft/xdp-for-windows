@@ -420,7 +420,7 @@ function Install-XdpFnMp {
 
 # Uninstalls the xdpfnmp driver.
 function Uninstall-XdpFnMp {
-    netsh int ipv4 delete address dpfnmp 192.168.200.1 | Out-Null
+    netsh int ipv4 delete address xdpfnmp 192.168.200.1 | Out-Null
     netsh int ipv4 delete neighbors xdpfnmp | Out-Null
     netsh int ipv6 delete address xdpfnmp fc00::200:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp | Out-Null
