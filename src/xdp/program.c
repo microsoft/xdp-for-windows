@@ -2030,11 +2030,11 @@ XdpProgramAttach(
             XdpIfGetInterfaceOffloadCapabilities(
                 IfSetHandle, InterfaceOffloadHandle,
                 XdpOffloadRss, &RssCapabilities, &RssCapabilitiesSize);
+        XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
 
-        XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
         TraceInfo(
             TRACE_CORE, "Attaching ProgramObject=%p to all %u queues",
             ProgramObject, RssCapabilities.NumberOfReceiveQueues);
