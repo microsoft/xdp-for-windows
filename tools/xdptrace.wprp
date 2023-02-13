@@ -44,7 +44,7 @@
             </Stacks>
         </SystemProvider>
 
-        <!-- Leave the highest keywords bit unset to workaround downlevel WPR bug. -->
+        <!-- Leave the highest keywords bit unset to work around downlevel WPR bug. -->
         <EventProvider Id="EP_XdpEtw" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="5" />
         <EventProvider Id="EP_XdpEtwPerFrame" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="25" />
         <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
