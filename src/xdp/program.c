@@ -166,7 +166,8 @@ ebpf_result_t
 EbpfExtensionInvokeProgram(
     _In_ const EBPF_EXTENSION_CLIENT *Client,
     _In_ const VOID *Context,
-    _Out_ uint32_t *Result)
+    _Out_ uint32_t *Result
+    )
 {
     ebpf_invoke_program_function_t InvokeProgram = Client->InvokeProgram;
     const void* ClientBindingContext = Client->ClientBindingContext;
