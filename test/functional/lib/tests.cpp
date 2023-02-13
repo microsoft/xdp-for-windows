@@ -27,10 +27,21 @@
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 
+//
+// Visual Studio 2019 generates more warnings for the WIL classes below.
+//
+#if _MSCVER < 1930
+#pragma warning(push)
+#pragma warning(disable:6001)
+#pragma warning(disable:6387)
+#endif
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
 #pragma warning(pop)
+#if _MSCVER < 1930
+#pragma warning(pop)
+#endif
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
@@ -94,23 +105,11 @@ static CONST XDP_HOOK_ID XdpInspectTxL2 =
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
 C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
 
-//
-// Visual Studio 2019 generates warnings for the WIL classes below.
-//
-#if _MSCVER < 1930
-#pragma warning(push)
-#pragma warning(disable:6001)
-#pragma warning(disable:6387)
-#endif
 
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
-
-#if _MSCVER < 1930
-#pragma warning(pop)
-#endif
 
 static unique_xdp_api XdpApi;
 
