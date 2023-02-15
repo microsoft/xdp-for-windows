@@ -29,7 +29,7 @@ Write-Host "Enable driver verifier"
 #
 # WARNING: xdp.sys itself may fail to load due to low resources simulation.
 #
-verifier.exe /standard /faults 599 `"`" `"`" 1 /driver xdp.sys
+verifier.exe /standard /faults 599 `"`" `"`" 1 /driver xdp.sys ebpfcore.sys
 
 #
 # Disable TDX and its dependent service NetBT. These drivers are implicated in

@@ -235,8 +235,8 @@ if ($Cleanup) {
         # Verifier configuration: standard flags on all XDP components, and NDIS.
         # The NDIS verifier is required, otherwise allocations NDIS makes on
         # behalf of XDP components (e.g. NBLs) will not be verified.
-        Write-Verbose "verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys"
-        verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys | Write-Verbose
+        Write-Verbose "verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys ebpfcore.sys"
+        verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }
@@ -255,8 +255,8 @@ if ($Cleanup) {
         # 1   - Delay (in minutes) after boot until simulation engages
         #       This is the lowest value configurable via verifier.exe.
         # WARNING: xdp.sys itself may fail to load due to low resources simulation.
-        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys"
-        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys | Write-Verbose
+        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
+        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }

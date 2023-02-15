@@ -499,14 +499,21 @@ function Install-Ebpf {
         Write-Error "$EbpfPath is already installed!"
     }
 
-    Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn"
-    msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn | Write-Verbose
-    if (!(Test-Path $EbpfPath)) {
+    # Try to install eBPF several times, since driver verifier's fault injection
+    # may occasionally prevent the eBPF driver from loading.
+    for ($i = 0; $i -lt 20; $i++) {
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn | Write-Verbose
+        if ($?) {
+            break;
+        }
+    }
+    if (!$? -or !(Test-Path $EbpfPath)) {
         Write-Error "eBPF could not be installed"
     }
-    Refresh-Path
-    # Stop eBPF's XDP hook that conflicts with our XDP implementation.
+    # Stop eBPF's XDP hook since it conflicts with our XDP implementation.
     Stop-Service netebpfext
+    Refresh-Path
 }
 
 function Uninstall-Ebpf {

@@ -14,4 +14,4 @@ Write-Host "Enable test signing"
 bcdedit.exe /set testsigning on
 
 Write-Host "Enable driver verifier"
-verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys
+verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys ebpfcore.sys
