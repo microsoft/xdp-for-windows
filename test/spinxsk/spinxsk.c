@@ -269,6 +269,12 @@ ULONGLONG perfFreq;
 CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
 
+//
+// eBPF-for-Windows currently does not support concurrent API usage.
+// As a workaround, require a global lock to perform BPF operations.
+//
+CRITICAL_SECTION BpfLock;
+
 ULONG
 RandUlong(
     VOID
@@ -388,6 +394,8 @@ AttachXdpEbpfProgram(
     UNREFERENCED_PARAMETER(Queue);
     UNREFERENCED_PARAMETER(Sock);
 
+    EnterCriticalSection(&BpfLock);
+
     //
     // Since eBPF does not support per-queue programs, attach to the entire
     // interface.
@@ -400,17 +408,16 @@ AttachXdpEbpfProgram(
 
     //
     // TODO: create an eBPF program for spinxsk that performs a mix of actions.
-    // TODO: BPF .o files cause crashes in eBPF, so use native (.sys) files.
     //
     switch (RandUlong() % 3) {
     case 0:
-        ProgramRelativePath = "\\bpf\\drop.sys";
+        ProgramRelativePath = "\\bpf\\drop.o";
         break;
     case 1:
         ProgramRelativePath = "\\bpf\\pass.sys";
         break;
     case 2:
-        ProgramRelativePath = "\\bpf\\l1fwd.sys";
+        ProgramRelativePath = "\\bpf\\l1fwd.o";
         break;
     default:
         ASSERT_FRE(FALSE);
@@ -475,6 +482,8 @@ Exit:
             bpf_object__close(BpfObject);
         }
     }
+
+    LeaveCriticalSection(&BpfLock);
 
     return Result;
 }
@@ -624,7 +633,9 @@ DetachXdpProgram(
     }
 
     if (BpfObject != NULL) {
+        EnterCriticalSection(&BpfLock);
         bpf_object__close(BpfObject);
+        LeaveCriticalSection(&BpfLock);
     }
 }
 
@@ -2311,6 +2322,8 @@ main(
 
     workersDoneEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     ASSERT_FRE(workersDoneEvent != NULL);
+
+    InitializeCriticalSection(&BpfLock);
 
     ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
 

@@ -133,24 +133,24 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
-        $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
-        $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
-        $Args += " -QueueCount $QueueCount"
-        $Args += " -Minutes $ThisIterationMinutes"
+        $Args = "-IfIndex", (Get-NetAdapter XDPMP).ifIndex, `
+            "-WatchdogCmd", "$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula", `
+            "-QueueCount", $QueueCount, `
+            "-Minutes", $ThisIterationMinutes
         if ($Stats) {
-            $Args += " -Stats"
+            $Args += "-Stats"
         }
         if ($FuzzerCount -ne 0) {
-            $Args += " -FuzzerCount $FuzzerCount"
+            $Args += "-FuzzerCount", $FuzzerCount
         }
         if ($CleanDatapath) {
-            $Args += " -CleanDatapath"
+            $Args += "-CleanDatapath"
         }
         if ($SuccessThresholdPercent -ge 0) {
-            $Args += " -SuccessThresholdPercent $SuccessThresholdPercent"
+            $Args += "-SuccessThresholdPercent", $SuccessThresholdPercent
         }
-        Write-Verbose ($SpinXsk + " " + $Args)
-        Invoke-Expression ($SpinXsk + " " + $Args)
+        Write-Verbose "$SpinXsk $Args"
+        & $SpinXsk $Args
         if ($LastExitCode -ne 0) {
             throw "SpinXsk failed with $LastExitCode"
         }
