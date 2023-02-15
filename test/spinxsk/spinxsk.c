@@ -3,6 +3,9 @@
 // Licensed under the MIT License.
 //
 
+#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
+#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+
 #include <windows.h>
 #include <assert.h>
 #include <stdio.h>
@@ -13,12 +16,12 @@
 #include <xdpapi.h>
 #include <xdpapi_internal.h>
 #include <xdprtl.h>
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
 
 #include "trace.h"
 #include "util.h"
 #include "spinxsk.tmh"
-
-#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #define SHALLOW_STR_OF(x) #x
 #define STR_OF(x) SHALLOW_STR_OF(x)
@@ -131,10 +134,23 @@ typedef struct {
     QUEUE_CONTEXT *queue;
 } XSK_DATAPATH_SHARED;
 
+typedef enum {
+    ProgramHandleXdp,
+    ProgramHandleEbpf,
+} PROGRAM_HANDLE_TYPE;
+
+typedef struct {
+    PROGRAM_HANDLE_TYPE Type;
+    union {
+        HANDLE Handle;
+        struct bpf_object *BpfObject;
+    };
+} PROGRAM_HANDLE;
+
 typedef struct {
     CRITICAL_SECTION Lock;
     UINT32 HandleCount;
-    HANDLE Handles[8];
+    PROGRAM_HANDLE Handles[8];
 } XSK_PROGRAM_SET;
 
 typedef struct {
@@ -356,6 +372,114 @@ FuzzHookId(
 }
 
 HRESULT
+AttachXdpEbpfProgram(
+    _In_ QUEUE_CONTEXT *Queue,
+    _In_ HANDLE Sock,
+    _Inout_ XSK_PROGRAM_SET *RxProgramSet
+    )
+{
+    HRESULT Result;
+    CHAR Path[MAX_PATH];
+    const CHAR *ProgramRelativePath = NULL;
+    struct bpf_object *BpfObject = NULL;
+    struct bpf_program *BpfProgram = NULL;
+    int ProgramFd;
+
+    UNREFERENCED_PARAMETER(Queue);
+    UNREFERENCED_PARAMETER(Sock);
+
+    //
+    // Since eBPF does not support per-queue programs, attach to the entire
+    // interface.
+    //
+
+    Result = GetCurrentBinaryPath(Path, sizeof(Path));
+    if (FAILED(Result)) {
+        goto Exit;
+    }
+
+    //
+    // TODO: create an eBPF program for spinxsk that performs a mix of actions.
+    // TODO: BPF .o files cause crashes in eBPF, so use native (.sys) files.
+    //
+    switch (RandUlong() % 3) {
+    case 0:
+        ProgramRelativePath = "\\bpf\\drop.sys";
+        break;
+    case 1:
+        ProgramRelativePath = "\\bpf\\pass.sys";
+        break;
+    case 2:
+        ProgramRelativePath = "\\bpf\\l1fwd.sys";
+        break;
+    default:
+        ASSERT_FRE(FALSE);
+    }
+
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
+
+    BpfObject = bpf_object__open(Path);
+    if (BpfObject == NULL) {
+        TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    BpfProgram = bpf_object__next_program(BpfObject, NULL);
+    if (BpfProgram == NULL) {
+        TraceVerbose("bpf_object__next_program failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
+        TraceVerbose("bpf_program__set_type failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    if (bpf_object__load(BpfObject) < 0) {
+        TraceVerbose("bpf_object__load failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    ProgramFd = bpf_program__fd(BpfProgram);
+    if (ProgramFd < 0) {
+        TraceVerbose("bpf_program__fd failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    if (bpf_xdp_attach(ifindex, ProgramFd, 0, NULL) < 0) {
+        TraceVerbose("bpf_xdp_attach failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    EnterCriticalSection(&RxProgramSet->Lock);
+    if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
+        RxProgramSet->Handles[RxProgramSet->HandleCount].Type = ProgramHandleEbpf;
+        RxProgramSet->Handles[RxProgramSet->HandleCount].BpfObject = BpfObject;
+        RxProgramSet->HandleCount++;
+        Result = S_OK;
+    } else {
+        Result = E_NOT_SUFFICIENT_BUFFER;
+    }
+    LeaveCriticalSection(&RxProgramSet->Lock);
+
+Exit:
+
+    if (FAILED(Result)) {
+        if (BpfObject != NULL) {
+            bpf_object__close(BpfObject);
+        }
+    }
+
+    return Result;
+}
+
+HRESULT
 AttachXdpProgram(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
@@ -379,7 +503,7 @@ AttachXdpProgram(
     } else {
         rule.Match = XDP_MATCH_ALL;
 
-        switch (RandUlong() % 2) {
+        switch (RandUlong() % 3) {
         case 0:
             rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
             rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
@@ -389,6 +513,9 @@ AttachXdpProgram(
         case 1:
             rule.Action = XDP_PROGRAM_ACTION_L2FWD;
             break;
+
+        case 2:
+            return AttachXdpEbpfProgram(Queue, Sock, RxProgramSet);
         }
     }
 
@@ -446,7 +573,9 @@ AttachXdpProgram(
     if (SUCCEEDED(res)) {
         EnterCriticalSection(&RxProgramSet->Lock);
         if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
-            RxProgramSet->Handles[RxProgramSet->HandleCount++] = handle;
+            RxProgramSet->Handles[RxProgramSet->HandleCount].Type = ProgramHandleXdp;
+            RxProgramSet->Handles[RxProgramSet->HandleCount].Handle = handle;
+            RxProgramSet->HandleCount++;
         } else {
             ASSERT_FRE(CloseHandle(handle));
         }
@@ -467,18 +596,35 @@ DetachXdpProgram(
     _Inout_ XSK_PROGRAM_SET *RxProgramSet
     )
 {
-    HANDLE handle = NULL;
+    HANDLE Handle = NULL;
+    struct bpf_object *BpfObject = NULL;
 
     EnterCriticalSection(&RxProgramSet->Lock);
     if (RxProgramSet->HandleCount > 0) {
         UINT32 detachIndex = RandUlong() % RxProgramSet->HandleCount;
-        handle = RxProgramSet->Handles[detachIndex];
+
+        switch (RxProgramSet->Handles[detachIndex].Type) {
+        case ProgramHandleXdp:
+            Handle = RxProgramSet->Handles[detachIndex].Handle;
+            break;
+
+        case ProgramHandleEbpf:
+            BpfObject = RxProgramSet->Handles[detachIndex].BpfObject;
+            break;
+
+        default:
+            ASSERT_FRE(FALSE);
+        }
         RxProgramSet->Handles[detachIndex] = RxProgramSet->Handles[--RxProgramSet->HandleCount];
     }
     LeaveCriticalSection(&RxProgramSet->Lock);
 
-    if (handle != NULL) {
-        ASSERT_FRE(CloseHandle(handle));
+    if (Handle != NULL) {
+        ASSERT_FRE(CloseHandle(Handle));
+    }
+
+    if (BpfObject != NULL) {
+        bpf_object__close(BpfObject);
     }
 }
 

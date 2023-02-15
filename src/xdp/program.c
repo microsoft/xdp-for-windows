@@ -1501,14 +1501,6 @@ EbpfExtensionDetachClientCompletion(
     ASSERT(HookClient != NULL);
     _Analysis_assume_(HookClient != NULL);
 
-    // The NMR model is async, but the only Windows run-down protection API available is a blocking API, so the
-    // following call will block until all using threads are complete. This should be fixed in the future.
-    // Issue: https://github.com/microsoft/ebpf-for-windows/issues/1854
-
-    // Wait for any in progress callbacks to complete.
-    //_ebpf_ext_attach_wait_for_rundown(&hook_client->rundown);
-
-    // Note: This frees the provider binding context (hook_client).
     NmrProviderDetachClientComplete(HookClient->NmrBindingHandle);
 
     TraceExitSuccess(TRACE_CORE);
@@ -1551,13 +1543,19 @@ EbpfExtensionProviderAttachClient(
     Client->ClientBindingContext = ClientBindingContext;
     Client->ClientData =
         (const ebpf_extension_data_t *)ClientRegistrationInstance->NpiSpecificCharacteristics;
+
     ClientDispatch = (ebpf_extension_dispatch_table_t *)ClientNpiDispatch;
     if (ClientDispatch == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
+    //
+    // TODO: Should InvokeProgram apply to all NMR bindings? Only the XDP hook
+    // needs it, not the program info extension.
+    //
     Client->InvokeProgram = (ebpf_invoke_program_function_t)ClientDispatch->function[0];
+
     Client->ProviderContext = Provider;
 
     if (Provider->AttachCallback != NULL) {
@@ -1680,7 +1678,8 @@ EbpfExtensionProviderRegister(
     Characteristics->ProviderCleanupBindingContext = EbpfExtensionProviderCleanup;
     Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
     Characteristics->ProviderRegistrationInstance.NpiId = NpiId;
-    Characteristics->ProviderRegistrationInstance.NpiSpecificCharacteristics = Parameters->ProviderData;
+    Characteristics->ProviderRegistrationInstance.NpiSpecificCharacteristics =
+        Parameters->ProviderData;
     Characteristics->ProviderRegistrationInstance.ModuleId = Parameters->ProviderModuleId;
 
     Provider->AttachCallback = AttachCallback;
@@ -2314,11 +2313,11 @@ XdpCaptureProgram(
             // eBPF programs must be the sole, unconditional action.
             //
             if (RuleCount != 1 || ValidatedRule->Match != XDP_MATCH_ALL) {
-                ASSERT(Index == 0);
                 Status = STATUS_INVALID_PARAMETER;
                 goto Exit;
             }
 
+            ASSERT(Index == 0);
             ValidatedRule->Ebpf.Target = UserRule.Ebpf.Target;
 
             break;

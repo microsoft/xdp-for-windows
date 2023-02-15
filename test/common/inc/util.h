@@ -12,6 +12,18 @@ extern "C" {
 CONST CHAR*
 GetPowershellPrefix();
 
+HRESULT
+GetCurrentBinaryFileName(
+    _Out_ CHAR *Path,
+    _In_ UINT32 PathSize
+    );
+
+HRESULT
+GetCurrentBinaryPath(
+    _Out_ CHAR *Path,
+    _In_ UINT32 PathSize
+    );
+
 _Success_(return==0)
 DWORD
 ConvertInterfaceAliasToIndex(

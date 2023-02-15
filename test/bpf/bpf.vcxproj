@@ -6,7 +6,7 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{5de7385c-80b3-40cd-97d0-7c24dec2f95c}</ProjectGuid>
-    <RootNamespace>fnbpf</RootNamespace>
+    <RootNamespace>bpf</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -23,7 +23,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <TargetName>fnbpf</TargetName>
+    <TargetName>bpf</TargetName>
     <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\bpf\</OutDir>
   </PropertyGroup>
   <ItemGroup>

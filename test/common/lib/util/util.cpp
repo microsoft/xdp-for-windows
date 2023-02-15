@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <iphlpapi.h>
+#include <pathcch.h>
 #include <stdio.h>
 
 #include "util.h"
@@ -20,6 +21,52 @@ CONST CHAR*
 GetPowershellPrefix()
 {
     return "powershell -noprofile -ExecutionPolicy Bypass";
+}
+
+EXTERN_C
+HRESULT
+GetCurrentBinaryFileName(
+    _Out_ CHAR *Path,
+    _In_ UINT32 PathSize
+    )
+{
+    HMODULE Module;
+
+    if (!GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            (LPCSTR)&GetCurrentBinaryPath, &Module)) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    if (!GetModuleFileNameA(Module, Path, PathSize)) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
+EXTERN_C
+HRESULT
+GetCurrentBinaryPath(
+    _Out_ CHAR *Path,
+    _In_ UINT32 PathSize
+    )
+{
+    HRESULT Result;
+    CHAR *FinalBackslash;
+
+    Result = GetCurrentBinaryFileName(Path, PathSize);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    FinalBackslash = strrchr(Path, '\\');
+    if (FinalBackslash == NULL) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+    }
+
+    *FinalBackslash = '\0';
+    return S_OK;
 }
 
 EXTERN_C

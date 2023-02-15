@@ -512,7 +512,8 @@ function Install-Ebpf {
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     if (!(Test-Path $EbpfPath)) {
-        Write-Error "$EbpfPath does not exist!"
+        Write-Verbose "$EbpfPath does not exist. Assuming eBPF is not installed."
+        return
     }
     Write-Verbose "Uninstalling eBPF for Windows"
     $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF for Windows'").IdentifyingNumber

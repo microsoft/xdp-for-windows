@@ -10,7 +10,6 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <future>
 #include <initializer_list>
 #include <memory>
@@ -228,22 +227,6 @@ ProcessorIndexToProcessorNumber(
 
     ProcNumber->Group = Group;
     ProcNumber->Number = (UINT8)ProcIndex;
-}
-
-static
-std::string
-GetTestPath()
-{
-    CHAR Filename[MAX_PATH];
-    HMODULE Module;
-
-    TEST_TRUE(
-        GetModuleHandleExA(
-            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            (LPCSTR)&GetTestPath, &Module));
-    TEST_TRUE(GetModuleFileNameA(Module, Filename, sizeof(Filename)));
-
-    return std::filesystem::path(Filename).parent_path().string();
 }
 
 static
@@ -3711,15 +3694,17 @@ VOID
 GenericRxEbpf()
 {
     auto If = FnMpIf;
+    CHAR Path[MAX_PATH];
     std::string BpfFile;
     unique_bpf_object BpfObject;
     bpf_program *Program;
     int ProgramFd;
 
-    BpfFile = GetTestPath();
+    TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
+
+    BpfFile = Path;
     BpfFile += "\\bpf\\drop.o";
 
-    TraceVerbose("bpf_object__open(%s)", BpfFile.c_str());
     BpfObject.reset(bpf_object__open(BpfFile.c_str()));
     TEST_NOT_EQUAL(NULL, BpfObject.get());
 
@@ -3729,7 +3714,7 @@ GenericRxEbpf()
     TEST_NOT_EQUAL(NULL, Program);
 
     ProgramFd = bpf_program__fd(Program);
-    TEST_TRUE(ProgramFd > 0);
+    TEST_TRUE(ProgramFd >= 0);
 
     TEST_EQUAL(0, bpf_xdp_attach(If.GetIfIndex(), ProgramFd, 0, NULL));
 
