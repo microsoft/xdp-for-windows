@@ -390,6 +390,7 @@ AttachXdpEbpfProgram(
     struct bpf_object *BpfObject = NULL;
     struct bpf_program *BpfProgram = NULL;
     int ProgramFd;
+    int AttachFlags = 0;
 
     UNREFERENCED_PARAMETER(Queue);
     UNREFERENCED_PARAMETER(Sock);
@@ -458,7 +459,11 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
-    if (bpf_xdp_attach(ifindex, ProgramFd, 0, NULL) < 0) {
+    if ((RandUlong() % 2) == 0) {
+        AttachFlags |= XDP_FLAGS_REPLACE;
+    }
+
+    if (bpf_xdp_attach(ifindex, ProgramFd, AttachFlags, NULL) < 0) {
         TraceVerbose("bpf_xdp_attach failed: %d", errno);
         Result = E_FAIL;
         goto Exit;
