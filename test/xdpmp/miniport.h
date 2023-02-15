@@ -46,7 +46,10 @@ typedef struct {
     TX_SOURCE Source;
 } TX_SHADOW_DESCRIPTOR;
 
-typedef struct {
+typedef struct _ADAPTER_RX_QUEUE ADAPTER_RX_QUEUE;
+typedef struct _ADAPTER_TX_QUEUE ADAPTER_TX_QUEUE;
+
+typedef struct _ADAPTER_RX_QUEUE {
     XDP_QUEUE_STATE XdpState;
     BOOLEAN NeedFlush;
 
@@ -58,10 +61,14 @@ typedef struct {
     HW_RING *HwRing;
     UCHAR *BufferArray;
     UINT32 *RecycleArray;
+    UINT32 *RxTxArray;
+    CONST ADAPTER_TX_QUEUE *Tq;
     UINT32 NumBuffers;
     UINT32 BufferLength;
+    UINT32 BufferMask;
     UINT32 DataLength;
     UINT32 RecycleIndex;
+    UINT32 RxTxIndex;
 
     UINT32 RateSimFramesAvailable;
 
@@ -78,7 +85,7 @@ typedef struct {
     KEVENT *DeleteComplete;
 } ADAPTER_RX_QUEUE;
 
-typedef struct {
+typedef struct _ADAPTER_TX_QUEUE {
     XDP_QUEUE_STATE XdpState;
     BOOLEAN NeedFlush;
 
@@ -89,6 +96,7 @@ typedef struct {
 
     HW_RING *HwRing;
     TX_SHADOW_DESCRIPTOR *ShadowRing;
+    CONST ADAPTER_RX_QUEUE *Rq;
 
     UINT32 RateSimFramesAvailable;
 
@@ -107,7 +115,7 @@ typedef struct {
     KEVENT *DeleteComplete;
 } ADAPTER_TX_QUEUE;
 
-typedef struct DECLSPEC_CACHEALIGN {
+typedef struct DECLSPEC_CACHEALIGN _ADAPTER_QUEUE {
     UINT32 QueueId;
 
     ADAPTER_RX_QUEUE Rq;
