@@ -79,8 +79,8 @@ typedef struct _DATA_FLUSH_IN {
 //
 
 typedef struct _DATA_FILTER_IN {
-    UCHAR *Pattern;
-    UCHAR *Mask;
+    const UCHAR *Pattern;
+    const UCHAR *Mask;
     UINT32 Length;
 } DATA_FILTER_IN;
 

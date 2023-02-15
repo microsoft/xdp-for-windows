@@ -26,10 +26,10 @@
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 
-//
-// Visual Studio 2019 generates more warnings for the WIL classes below.
-//
 #if _MSCVER < 1930
+//
+// WIL causes VS2019 to warn on benign errors.
+//
 #pragma warning(push)
 #pragma warning(disable:6001)
 #pragma warning(disable:6387)
@@ -47,6 +47,7 @@
 #include <pkthlp.h>
 #include <xdpfnmpapi.h>
 #include <xdpfnlwfapi.h>
+#include <xdpndisuser.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -1327,7 +1328,7 @@ VOID
 RxInitializeFrame(
     _Out_ RX_FRAME *Frame,
     _In_ UINT32 HashQueueId,
-    _In_ UCHAR *FrameBuffer,
+    _In_ const UCHAR *FrameBuffer,
     _In_ UINT32 FrameLength
     )
 {
@@ -1346,8 +1347,8 @@ static
 VOID
 MpTxFilter(
     _In_ const wil::unique_handle& Handle,
-    _In_ VOID *Pattern,
-    _In_ VOID *Mask,
+    _In_ const VOID *Pattern,
+    _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {
@@ -1464,8 +1465,8 @@ static
 VOID
 LwfRxFilter(
     _In_ const wil::unique_handle& Handle,
-    _In_ VOID *Pattern,
-    _In_ VOID *Mask,
+    _In_ const VOID *Pattern,
+    _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {
@@ -3690,27 +3691,31 @@ GenericRxFromTxInspect(
     }
 }
 
-VOID
-GenericRxEbpf()
+static
+unique_bpf_object
+AttachEbpfXdpProgram(
+    _In_ const TestInterface &If,
+    _In_ const CHAR *BpfRelativeFileName,
+    _In_ const CHAR *BpfProgramName
+    )
 {
-    auto If = FnMpIf;
-    CHAR Path[MAX_PATH];
-    std::string BpfFile;
     unique_bpf_object BpfObject;
+    CHAR Path[MAX_PATH];
+    std::string BpfAbsoluteFileName;
     bpf_program *Program;
     int ProgramFd;
 
     TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
 
-    BpfFile = Path;
-    BpfFile += "\\bpf\\drop.o";
+    BpfAbsoluteFileName = Path;
+    BpfAbsoluteFileName += BpfRelativeFileName;
 
-    BpfObject.reset(bpf_object__open(BpfFile.c_str()));
+    BpfObject.reset(bpf_object__open(BpfAbsoluteFileName.c_str()));
     TEST_NOT_EQUAL(NULL, BpfObject.get());
 
     TEST_EQUAL(0, bpf_object__load(BpfObject.get()));
 
-    Program = bpf_object__find_program_by_name(BpfObject.get(), "drop");
+    Program = bpf_object__find_program_by_name(BpfObject.get(), BpfProgramName);
     TEST_NOT_EQUAL(NULL, Program);
 
     ProgramFd = bpf_program__fd(Program);
@@ -3718,9 +3723,86 @@ GenericRxEbpf()
 
     TEST_EQUAL(0, bpf_xdp_attach(If.GetIfIndex(), ProgramFd, 0, NULL));
 
-    // TODO: verify the program has taken effect.
+    return BpfObject;
+}
 
-    TEST_EQUAL(0, bpf_xdp_detach(If.GetIfIndex(), XDP_FLAGS_REPLACE, NULL));
+VOID
+GenericRxEbpfDrop()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfDrop";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
+GenericRxEbpfPass()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfPass";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
+    LwfRxDequeueFrame(FnLwf, If.GetQueueId());
+    LwfRxFlush(FnLwf);
+}
+
+VOID
+GenericRxEbpfTx()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    const UCHAR Payload[] = "GenericRxEbpfTx";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.o", "l1fwd");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
 }
 
 VOID

@@ -90,8 +90,8 @@ FnMpRxFlush(
 HRESULT
 FnMpTxFilter(
     _In_ HANDLE Handle,
-    _In_ VOID *Pattern,
-    _In_ VOID *Mask,
+    _In_ const VOID *Pattern,
+    _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {

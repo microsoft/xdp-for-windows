@@ -95,7 +95,13 @@ GenericRxFromTxInspect(
     );
 
 VOID
-GenericRxEbpf();
+GenericRxEbpfDrop();
+
+VOID
+GenericRxEbpfPass();
+
+VOID
+GenericRxEbpfTx();
 
 VOID
 GenericTxToRxInject();

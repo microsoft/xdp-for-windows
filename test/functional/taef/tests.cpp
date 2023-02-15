@@ -360,8 +360,16 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
-    TEST_METHOD(GenericRxEbpf) {
-        ::GenericRxEbpf();
+    TEST_METHOD(GenericRxEbpfDrop) {
+        ::GenericRxEbpfDrop();
+    }
+
+    TEST_METHOD(GenericRxEbpfPass) {
+        ::GenericRxEbpfPass();
+    }
+
+    TEST_METHOD(GenericRxEbpfTx) {
+        ::GenericRxEbpfTx();
     }
 
     TEST_METHOD(GenericLoopbackV4) {
