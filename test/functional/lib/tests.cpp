@@ -3806,6 +3806,98 @@ GenericRxEbpfTx()
 }
 
 VOID
+GenericRxEbpfPayload()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    UINT16 LocalPort = 0, RemotePort = 0;
+    ETHERNET_ADDRESS LocalHw = {}, RemoteHw = {};
+    INET_ADDR LocalIp = {}, RemoteIp = {};
+    const UINT32 Backfill = 13;
+    const UINT32 Trailer = 17;
+    const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.o", "allow_ipv6");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    UCHAR UdpFrame[Backfill + UDP_HEADER_STORAGE + sizeof(UdpPayload) + Trailer];
+    UINT32 UdpFrameLength = sizeof(UdpFrame) - Backfill - Trailer;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame + Backfill, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    std::vector<UCHAR> Mask(UdpFrameLength, 0xFF);
+    LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
+
+    RX_FRAME Frame;
+    DATA_BUFFER Buffer = {0};
+    Buffer.DataOffset = Backfill;
+    Buffer.DataLength = UdpFrameLength;
+    Buffer.BufferLength = Backfill + UdpFrameLength + Trailer;
+    Buffer.VirtualAddress = UdpFrame;
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), &Buffer);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
+    LwfRxDequeueFrame(FnLwf, If.GetQueueId());
+    LwfRxFlush(FnLwf);
+}
+
+VOID
+GenericRxEbpfFragments()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UINT32 Backfill = 3;
+    const UINT32 Trailer = 4;
+    const UINT32 SplitAt = 4;
+    DATA_BUFFER Buffers[2] = {};
+    const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    Buffers[0].DataLength = SplitAt;
+    Buffers[0].DataOffset = Backfill;
+    Buffers[0].BufferLength = Backfill + SplitAt;
+    Buffers[0].VirtualAddress = Payload;
+    Buffers[1].DataLength = sizeof(Payload) - Buffers[0].BufferLength - Trailer;
+    Buffers[1].DataOffset = 0;
+    Buffers[1].BufferLength = Buffers[1].DataLength + Trailer;
+    Buffers[1].VirtualAddress = Payload + Buffers[0].BufferLength;
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
+
+    std::vector<UCHAR> Mask(sizeof(Payload) - Backfill - Trailer, 0xFF);
+    LwfRxFilter(FnLwf, Payload + Backfill, &Mask[0], sizeof(Payload) - Backfill - Trailer);
+
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    //
+    // We currently do not support fragments with eBPF, so this packet should
+    // be dropped.
+    //
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
 GenericTxToRxInject()
 {
     auto If = FnMpIf;

@@ -104,6 +104,12 @@ VOID
 GenericRxEbpfTx();
 
 VOID
+GenericRxEbpfPayload();
+
+VOID
+GenericRxEbpfFragments();
+
+VOID
 GenericTxToRxInject();
 
 VOID

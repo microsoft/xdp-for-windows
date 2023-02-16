@@ -7,6 +7,7 @@
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
 
 #include <windows.h>
+#include <iphlpapi.h>
 #include <assert.h>
 #include <stdio.h>
 #define _CRT_RAND_S
@@ -389,13 +390,21 @@ AttachXdpEbpfProgram(
     const CHAR *ProgramRelativePath = NULL;
     struct bpf_object *BpfObject = NULL;
     struct bpf_program *BpfProgram = NULL;
+    NET_IFINDEX IfIndex = ifindex;
     int ProgramFd;
     int AttachFlags = 0;
 
     UNREFERENCED_PARAMETER(Queue);
     UNREFERENCED_PARAMETER(Sock);
 
-    EnterCriticalSection(&BpfLock);
+    //
+    // Since the BPF global lock is highly contended, just bail if it cannot be
+    // acquired immediately. There's no value in spinning on the BPF lock.
+    //
+    if (!TryEnterCriticalSection(&BpfLock)) {
+        Result = E_FAIL;
+        goto ExitUnlocked;
+    }
 
     //
     // Since eBPF does not support per-queue programs, attach to the entire
@@ -463,7 +472,15 @@ AttachXdpEbpfProgram(
         AttachFlags |= XDP_FLAGS_REPLACE;
     }
 
-    if (bpf_xdp_attach(ifindex, ProgramFd, AttachFlags, NULL) < 0) {
+    if ((RandUlong() % 8) == 0) {
+        //
+        // Try IFI_UNSPECIFIED, which is an invalid interface index since XDP
+        // does not support wildcards.
+        //
+        IfIndex = IFI_UNSPECIFIED;
+    }
+
+    if (bpf_xdp_attach(IfIndex, ProgramFd, AttachFlags, NULL) < 0) {
         TraceVerbose("bpf_xdp_attach failed: %d", errno);
         Result = E_FAIL;
         goto Exit;
@@ -489,6 +506,8 @@ Exit:
     }
 
     LeaveCriticalSection(&BpfLock);
+
+ExitUnlocked:
 
     return Result;
 }

@@ -372,6 +372,14 @@ public:
         ::GenericRxEbpfTx();
     }
 
+    TEST_METHOD(GenericRxEbpfPayload) {
+        ::GenericRxEbpfPayload();
+    }
+
+    TEST_METHOD(GenericRxEbpfFragments) {
+        ::GenericRxEbpfFragments();
+    }
+
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);
     }
