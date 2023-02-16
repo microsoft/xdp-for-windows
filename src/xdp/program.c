@@ -1103,7 +1103,7 @@ XdpProgramGetXskBypassTarget(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    UNREFERENCED_PARAMETER(RxQueue);
+    DBG_UNREFERENCED_PARAMETER(RxQueue);
 
     ASSERT(XdpProgramCanXskBypass(Program, RxQueue));
     return Program->Rules[0].Redirect.Target;
@@ -1635,7 +1635,7 @@ XdpProgramCanXskBypass(
         Program->Rules[0].Match == XDP_MATCH_ALL &&
         Program->Rules[0].Action == XDP_PROGRAM_ACTION_REDIRECT &&
         Program->Rules[0].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSK &&
-        XskIsDatapathHandleQueueMatched(Program->Rules[0].Redirect.Target, RxQueue);
+        XskCanBypass(Program->Rules[0].Redirect.Target, RxQueue);
 }
 
 static

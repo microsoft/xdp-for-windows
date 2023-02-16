@@ -1677,12 +1677,20 @@ XskValidateDatapathHandle(
 }
 
 BOOLEAN
-XskIsDatapathHandleQueueMatched(
+XskCanBypass(
     _In_ HANDLE XskHandle,
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
     XSK *Xsk = (XSK *)XskHandle;
+
+    //
+    // Allow XSKs that are terminally disconnected to bypass on any queue since
+    // the receive path becomes a NOP.
+    //
+    if (Xsk->State > XskActive && !Xsk->Rx.Xdp.Flags.DatapathAttached) {
+        return TRUE;
+    }
 
     if (Xsk->Rx.Xdp.Queue != RxQueue) {
         return FALSE;
