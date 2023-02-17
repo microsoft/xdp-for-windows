@@ -71,7 +71,7 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
 }
 
 $EbpfNugetVersion = "eBPF-for-Windows.0.6.0"
-$EbpfNugetBuild = "4132383742"
+$EbpfNugetBuild = "4206724729"
 $EbpfNuget = "$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
 $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
 $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
