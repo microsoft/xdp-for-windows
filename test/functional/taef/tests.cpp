@@ -380,6 +380,10 @@ public:
         ::GenericRxEbpfFragments();
     }
 
+    TEST_METHOD(GenericRxEbpfUnload) {
+        ::GenericRxEbpfUnload();
+    }
+
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);
     }

@@ -406,6 +406,8 @@ AttachXdpEbpfProgram(
         goto ExitUnlocked;
     }
 
+    TraceVerbose("Acquired BPF lock");
+
     //
     // Since eBPF does not support per-queue programs, attach to the entire
     // interface.
@@ -435,6 +437,7 @@ AttachXdpEbpfProgram(
 
     ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
 
+    TraceVerbose("bpf_object__open(%s)", Path);
     BpfObject = bpf_object__open(Path);
     if (BpfObject == NULL) {
         TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
@@ -442,6 +445,7 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
+    TraceVerbose("bpf_object__next_program(%p, %p)", BpfObject, NULL);
     BpfProgram = bpf_object__next_program(BpfObject, NULL);
     if (BpfProgram == NULL) {
         TraceVerbose("bpf_object__next_program failed: %d", errno);
@@ -449,18 +453,21 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
+    TraceVerbose("bpf_program__set_type(%p, %d)", BpfProgram, BPF_PROG_TYPE_XDP);
     if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
         TraceVerbose("bpf_program__set_type failed: %d", errno);
         Result = E_FAIL;
         goto Exit;
     }
 
+    TraceVerbose("bpf_object__load(%p)", BpfObject);
     if (bpf_object__load(BpfObject) < 0) {
         TraceVerbose("bpf_object__load failed: %d", errno);
         Result = E_FAIL;
         goto Exit;
     }
 
+    TraceVerbose("bpf_program__fd(%p)", BpfProgram);
     ProgramFd = bpf_program__fd(BpfProgram);
     if (ProgramFd < 0) {
         TraceVerbose("bpf_program__fd failed: %d", errno);
@@ -480,6 +487,7 @@ AttachXdpEbpfProgram(
         IfIndex = IFI_UNSPECIFIED;
     }
 
+    TraceVerbose("bpf_xdp_attach(%u, %d, 0x%x, %p)", IfIndex, ProgramFd, AttachFlags, NULL);
     if (bpf_xdp_attach(IfIndex, ProgramFd, AttachFlags, NULL) < 0) {
         TraceVerbose("bpf_xdp_attach failed: %d", errno);
         Result = E_FAIL;
@@ -501,11 +509,14 @@ Exit:
 
     if (FAILED(Result)) {
         if (BpfObject != NULL) {
+            TraceVerbose("bpf_object__close(%p)", BpfObject);
             bpf_object__close(BpfObject);
         }
     }
 
     LeaveCriticalSection(&BpfLock);
+
+    TraceVerbose("Released BPF lock");
 
 ExitUnlocked:
 
@@ -657,9 +668,15 @@ DetachXdpProgram(
     }
 
     if (BpfObject != NULL) {
+        TraceVerbose("Acquiring BPF lock");
         EnterCriticalSection(&BpfLock);
+        TraceVerbose("Acquired BPF lock");
+
+        TraceVerbose("bpf_object__close(%p)", BpfObject);
         bpf_object__close(BpfObject);
+
         LeaveCriticalSection(&BpfLock);
+        TraceVerbose("Released BPF lock");
     }
 }
 

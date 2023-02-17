@@ -474,6 +474,74 @@ static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_A
 
 static
 HRESULT
+TryStartService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+    UINT32 ServiceState;
+
+    TraceVerbose("Starting %s", ServiceName);
+
+    Result = StartServiceAsync(ServiceName);
+    if (FAILED(Result)) {
+        TraceError("StartServiceAsync failed Result=%!HRESULT!", Result);
+        return Result;
+    }
+
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
+        Result = GetServiceState(&ServiceState, ServiceName);
+        if (FAILED(Result)) {
+            TraceError("GetServiceState failed Result=%!HRESULT!", Result);
+            return Result;
+        }
+        if (ServiceState == SERVICE_RUNNING) {
+            break;
+        }
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
+    Result = (ServiceState == SERVICE_RUNNING) ? S_OK : E_FAIL;
+    TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
+    return Result;
+}
+
+static
+HRESULT
+TryStopService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+    UINT32 ServiceState;
+
+    TraceVerbose("Stopping %s", ServiceName);
+
+    Result = StopServiceAsync(ServiceName);
+    if (FAILED(Result)) {
+        TraceError("StopServiceAsync failed Result=%!HRESULT!", Result);
+        return Result;
+    }
+
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
+        Result = GetServiceState(&ServiceState, ServiceName);
+        if (FAILED(Result)) {
+            TraceError("GetServiceState failed Result=%!HRESULT!", Result);
+            return Result;
+        }
+        if (ServiceState == SERVICE_STOPPED) {
+            break;
+        }
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
+    Result = (ServiceState == SERVICE_STOPPED) ? S_OK : E_FAIL;
+    TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
+    return Result;
+}
+
+static
+HRESULT
 TryOpenApi(
     _Out_ unique_xdp_api &XdpApiTable,
     _In_ UINT32 Version = XDP_VERSION_PRERELEASE
@@ -3895,6 +3963,17 @@ GenericRxEbpfFragments()
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
         LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
+GenericRxEbpfUnload()
+{
+    auto If = FnMpIf;
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
+
+    TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
+    TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
 }
 
 VOID

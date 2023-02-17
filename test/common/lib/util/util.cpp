@@ -8,13 +8,9 @@
 #include <iphlpapi.h>
 #include <pathcch.h>
 #include <stdio.h>
+#include <xdpassert.h>
 
 #include "util.h"
-
-#define XDP_SERVICE_NAME "xdp"
-
-#define NT_VERIFY(expr) \
-    if (!(expr)) { printf("("#expr") failed line %d\n", __LINE__); exit(1); } // TODO: return error values instead of exit
 
 EXTERN_C
 CONST CHAR*
@@ -89,24 +85,27 @@ ConvertInterfaceAliasToIndex(
 }
 
 static
-SC_HANDLE
+HRESULT
 OpenServiceHandle(
+    _Out_ SC_HANDLE *Handle,
     _In_z_ CONST CHAR *ServiceName
     )
 {
+    HRESULT Result = S_OK;
+
     SC_HANDLE ScmHandle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
-    NT_VERIFY(ScmHandle);
+    FRE_ASSERT(ScmHandle);
 
-    SC_HANDLE SvcHandle = OpenServiceA(ScmHandle, ServiceName, SERVICE_QUERY_STATUS);
-    NT_VERIFY(ScmHandle);
+    *Handle = OpenServiceA(ScmHandle, ServiceName, SERVICE_ALL_ACCESS);
 
-    if (!ScmHandle) {
-        NT_VERIFY(GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST);
+    if (*Handle == nullptr) {
+        FRE_ASSERT(GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST);
+        Result = HRESULT_FROM_WIN32(GetLastError());
     }
 
-    CloseServiceHandle(ScmHandle);
+    FRE_ASSERT(CloseServiceHandle(ScmHandle));
 
-    return SvcHandle;
+    return Result;
 }
 
 EXTERN_C
@@ -115,32 +114,103 @@ IsServiceInstalled(
     _In_z_ CONST CHAR *ServiceName
     )
 {
-    SC_HANDLE SvcHandle = OpenServiceHandle(ServiceName);
-    BOOLEAN Result = SvcHandle != nullptr;
-    if (SvcHandle) {
-        CloseServiceHandle(SvcHandle);
+    HRESULT Result;
+    SC_HANDLE SvcHandle;
+
+    Result = OpenServiceHandle(&SvcHandle, ServiceName);
+    FRE_ASSERT(SUCCEEDED(Result) == (SvcHandle != nullptr));
+
+    if (SUCCEEDED(Result)) {
+        FRE_ASSERT(CloseServiceHandle(SvcHandle));
     }
-    return Result;
+
+    return SUCCEEDED(Result);
 }
 
 EXTERN_C
-BOOLEAN
-IsServiceRunning(
+HRESULT
+GetServiceState(
+    _Out_ UINT32 *ServiceState,
     _In_z_ CONST CHAR *ServiceName
     )
 {
-    SC_HANDLE SvcHandle = OpenServiceHandle(ServiceName);
+    HRESULT Result;
+    SC_HANDLE SvcHandle;
     SERVICE_STATUS ServiceStatus;
 
-    if (!SvcHandle) {
-        return FALSE;
+    Result = OpenServiceHandle(&SvcHandle, ServiceName);
+    if (FAILED(Result)) {
+        return Result;
     }
 
-    NT_VERIFY(QueryServiceStatus(SvcHandle, &ServiceStatus));
+    FRE_ASSERT(QueryServiceStatus(SvcHandle, &ServiceStatus));
 
-    CloseServiceHandle(SvcHandle);
+    FRE_ASSERT(CloseServiceHandle(SvcHandle));
 
-    return ServiceStatus.dwCurrentState != SERVICE_STOPPED;
+    *ServiceState = ServiceStatus.dwCurrentState;
+    return S_OK;
+}
+
+EXTERN_C
+HRESULT
+StartServiceAsync(
+    _In_z_ CONST CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+    SC_HANDLE SvcHandle;
+
+    Result = OpenServiceHandle(&SvcHandle, ServiceName);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    if (!StartServiceA(SvcHandle, 0, nullptr)) {
+        Result = HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    FRE_ASSERT(CloseServiceHandle(SvcHandle));
+
+    return S_OK;
+}
+
+EXTERN_C
+HRESULT
+StopServiceAsync(
+    _In_z_ CONST CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+    SC_HANDLE SvcHandle = nullptr;
+    SERVICE_STATUS ServiceStatus;
+    SERVICE_CONTROL_STATUS_REASON_PARAMSA ReasonParameters = {0};
+
+    Result = OpenServiceHandle(&SvcHandle, ServiceName);
+    if (FAILED(Result)) {
+        goto Exit;
+    }
+
+    FRE_ASSERT(QueryServiceStatus(SvcHandle, &ServiceStatus));
+    if (ServiceStatus.dwCurrentState == SERVICE_STOPPED) {
+        Result = HRESULT_FROM_WIN32(ERROR_INVALID_STATE);
+        goto Exit;
+    }
+
+    ReasonParameters.dwReason =
+        SERVICE_STOP_REASON_FLAG_PLANNED | SERVICE_STOP_REASON_MAJOR_NONE |
+            SERVICE_STOP_REASON_MINOR_NONE;
+
+    // Stop service
+    FRE_ASSERT(ControlServiceExA(
+        SvcHandle, SERVICE_CONTROL_STOP, SERVICE_CONTROL_STATUS_REASON_INFO, &ReasonParameters));
+
+Exit:
+
+    if (SvcHandle != nullptr) {
+        FRE_ASSERT(CloseServiceHandle(SvcHandle));
+    }
+
+    return Result;
 }
 
 static BOOLEAN XdpPreinstalled = TRUE;
@@ -155,7 +225,7 @@ XdpInstall()
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s .\\xdp.ps1 -Install %s", GetPowershellPrefix(), XdpPreinstalled ? "-DriverPreinstalled" : "");
-    NT_VERIFY(system(CmdBuff) == 0);
+    FRE_ASSERT(system(CmdBuff) == 0);
     return TRUE;
 }
 
@@ -166,7 +236,7 @@ XdpUninstall()
     CHAR CmdBuff[256];
 
     sprintf_s(CmdBuff, "%s  .\\xdp.ps1 -Uninstall %s", GetPowershellPrefix(), XdpPreinstalled ? "-DriverPreinstalled" : "");
-    NT_VERIFY(system(CmdBuff) == 0);
-    NT_VERIFY(!IsServiceRunning(XDP_SERVICE_NAME));
+    FRE_ASSERT(system(CmdBuff) == 0);
+    FRE_ASSERT(!IsServiceInstalled(XDP_SERVICE_NAME));
     return TRUE;
 }

@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#define XDP_SERVICE_NAME "xdp"
+
 CONST CHAR*
 GetPowershellPrefix();
 
@@ -36,8 +38,19 @@ IsServiceInstalled(
     _In_z_ CONST CHAR *ServiceName
     );
 
-BOOLEAN
-IsServiceRunning(
+HRESULT
+GetServiceState(
+    _Out_ UINT32 *ServiceState,
+    _In_z_ CONST CHAR *ServiceName
+    );
+
+HRESULT
+StartServiceAsync(
+    _In_z_ CONST CHAR *ServiceName
+    );
+
+HRESULT
+StopServiceAsync(
     _In_z_ CONST CHAR *ServiceName
     );
 

@@ -110,6 +110,9 @@ VOID
 GenericRxEbpfFragments();
 
 VOID
+GenericRxEbpfUnload();
+
+VOID
 GenericTxToRxInject();
 
 VOID
