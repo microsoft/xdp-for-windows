@@ -42,7 +42,7 @@ XskValidateDatapathHandle(
     );
 
 BOOLEAN
-XskIsDatapathHandleQueueMatched(
+XskCanBypass(
     _In_ HANDLE XskHandle,
     _In_ XDP_RX_QUEUE *RxQueue
     );
