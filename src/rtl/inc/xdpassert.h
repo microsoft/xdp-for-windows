@@ -14,7 +14,14 @@
 #endif
 
 #ifdef KERNEL_MODE
+#if DBG
+// Ensure the system bugchecks if KD is disabled.
+#define ASSERT(e) \
+    ((NT_ASSERT_ASSUME(e)) ? \
+        TRUE : (KD_DEBUGGER_ENABLED ? FALSE : (RtlFailFast(FAST_FAIL_INVALID_ARG), FALSE)))
+#else
 #define ASSERT(e) NT_ASSERT_ASSUME(e)
+#endif
 #else
 #if DBG
 #define ASSERT(e) ((e) ? TRUE : (DbgRaiseAssertionFailure(), FALSE))
