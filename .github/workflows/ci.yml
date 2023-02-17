@@ -94,7 +94,7 @@ jobs:
       uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
     - name: Check Drivers
       shell: pwsh
-      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
+      run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
@@ -128,7 +128,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: pwsh
-      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
+      run: tools/check-drivers.ps1 -Verbose
 
   stress_tests:
     name: Stress Tests
@@ -156,7 +156,7 @@ jobs:
       uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
     - name: Check Drivers
       shell: pwsh
-      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
+      run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
@@ -188,7 +188,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: pwsh
-      run: tools/check-drivers.ps1 -IncludeEbpf -Verbose
+      run: tools/check-drivers.ps1 -Verbose
 
   devkit:
     name: Dev Kit

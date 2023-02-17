@@ -7,7 +7,7 @@ This checks for the presence of any XDP drivers currently loaded.
 
 [cmdletbinding()]Param(
     [Parameter(Mandatory = $false)]
-    [switch]$IncludeEbpf = $false
+    [switch]$IgnoreEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -52,7 +52,7 @@ Check-And-Remove-Driver "xdp.sys" "xdp"
 Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Check for any eBPF drivers.
-if ($IncludeEbpf) {
+if (!$IgnoreEbpf) {
     Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
     Check-And-Remove-Driver "netebpfext.sys" "ebpf"
 }
