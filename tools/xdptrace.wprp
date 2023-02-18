@@ -117,7 +117,6 @@
                     <EventProviders>
                         <EventProviderId Value="EP_XdpEtw" />
                         <EventProviderId Value="EP_XdpWpp" />
-                        <EventProviderId Value="EP_EbpfEtw" />
                         <EventProviderId Value="EP_SpinXskWpp" />
                         <EventProviderId Value="EP_XdpMpWpp" />
                         <EventProviderId Value="EP_FndisWpp" />
