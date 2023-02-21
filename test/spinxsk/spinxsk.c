@@ -9,6 +9,7 @@
 #include <windows.h>
 #include <iphlpapi.h>
 #include <assert.h>
+#include <crtdbg.h>
 #include <stdio.h>
 #define _CRT_RAND_S
 #include <stdlib.h>
@@ -547,7 +548,7 @@ AttachXdpProgram(
     } else {
         rule.Match = XDP_MATCH_ALL;
 
-        switch (RandUlong() % 3) {
+        switch (RandUlong() % 4) {
         case 0:
             rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
             rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
@@ -559,6 +560,12 @@ AttachXdpProgram(
             break;
 
         case 2:
+            rule.Action = XDP_PROGRAM_ACTION_EBPF;
+            rule.Ebpf.Target =
+                (HANDLE)((((UINT64)(RandUlong() & 0x3)) << 32) | (RandUlong() & 0x3));
+            break;
+
+        case 3:
             return AttachXdpEbpfProgram(Queue, Sock, RxProgramSet);
         }
     }
@@ -2351,6 +2358,15 @@ main(
     HANDLE watchdogThread;
 
     WPP_INIT_TRACING(NULL);
+
+#if DBG
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+#endif
 
     ParseArgs(argc, argv);
 

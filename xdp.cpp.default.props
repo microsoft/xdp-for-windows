@@ -1,0 +1,7 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Use the highest available VS toolset -->
+  <PropertyGroup>
+    <XdpPlatformToolset>v143</XdpPlatformToolset>
+    <XdpPlatformToolset Condition="'$(VisualStudioVersion)' == '16.0'">v142</XdpPlatformToolset>
+  </PropertyGroup>
+</Project>
