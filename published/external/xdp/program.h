@@ -90,6 +90,17 @@ typedef enum _XDP_MATCH_TYPE {
     // The port number is specified by field Port in XDP_MATCH_PATTERN.
     //
     XDP_MATCH_TCP_DST,
+    //
+    // Match TCP destination port and QUIC source connection IDs in long header
+    // QUIC packets. The supplied buffer must match the CID at the given offset.
+    //
+    XDP_MATCH_TCP_QUIC_FLOW_SRC_CID,
+    //
+    // Match TCP destination port and QUIC destination connection IDs in short
+    // header QUIC packets. The supplied buffer must match the CID at the given
+    // offset.
+    //
+    XDP_MATCH_TCP_QUIC_FLOW_DST_CID,
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {

@@ -2344,7 +2344,7 @@ GenericRxMatch(
     }
 
     const UCHAR GenericPayload[] = "GenericRxMatch";
-    const UCHAR QuicLongHdrUdpPayload[40] = {
+    const UCHAR QuicLongHdrPayload[40] = {
         0x80, // IsLongHeader
         0x01, 0x00, 0x00, 0x00, // Version
         0x08, // DestCidLength
@@ -2353,7 +2353,7 @@ GenericRxMatch(
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // SrcCid
         0x00  // The rest
     };
-    const UCHAR QuicShortHdrUdpPayload[20] = {
+    const UCHAR QuicShortHdrPayload[20] = {
         0x00, // IsLongHeader
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
         0x00 // The rest
@@ -2365,16 +2365,18 @@ GenericRxMatch(
         0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00
     };
 
-    CHAR RecvPayload[sizeof(QuicLongHdrUdpPayload)];
-    UCHAR PacketBuffer[TCP_HEADER_STORAGE + sizeof(QuicLongHdrUdpPayload)];
+    CHAR RecvPayload[sizeof(QuicLongHdrPayload)];
+    UCHAR PacketBuffer[TCP_HEADER_STORAGE + sizeof(QuicLongHdrPayload)];
     const UCHAR* Payload;
     UINT16 PayloadLength;
-    if (MatchType == XDP_MATCH_QUIC_FLOW_SRC_CID) {
-        Payload = QuicLongHdrUdpPayload;
-        PayloadLength = sizeof(QuicLongHdrUdpPayload);
-    } else if (MatchType == XDP_MATCH_QUIC_FLOW_DST_CID) {
-        Payload = QuicShortHdrUdpPayload;
-        PayloadLength = sizeof(QuicShortHdrUdpPayload);
+    if (MatchType == XDP_MATCH_QUIC_FLOW_SRC_CID ||
+        MatchType == XDP_MATCH_TCP_QUIC_FLOW_SRC_CID) {
+        Payload = QuicLongHdrPayload;
+        PayloadLength = sizeof(QuicLongHdrPayload);
+    } else if (MatchType == XDP_MATCH_QUIC_FLOW_DST_CID ||
+               MatchType == XDP_MATCH_TCP_QUIC_FLOW_DST_CID) {
+        Payload = QuicShortHdrPayload;
+        PayloadLength = sizeof(QuicShortHdrPayload);
     } else {
         Payload = GenericPayload;
         PayloadLength = sizeof(GenericPayload);
@@ -2405,7 +2407,9 @@ GenericRxMatch(
         memcpy(&Rule.Pattern.Tuple.SourceAddress, &RemoteIp, sizeof(INET_ADDR));
         memcpy(&Rule.Pattern.Tuple.DestinationAddress, &LocalIp, sizeof(INET_ADDR));
     } else if (MatchType == XDP_MATCH_QUIC_FLOW_SRC_CID ||
-               MatchType == XDP_MATCH_QUIC_FLOW_DST_CID) {
+               MatchType == XDP_MATCH_QUIC_FLOW_DST_CID ||
+               MatchType == XDP_MATCH_TCP_QUIC_FLOW_SRC_CID ||
+               MatchType == XDP_MATCH_TCP_QUIC_FLOW_DST_CID) {
         Rule.Pattern.QuicFlow.UdpPort = LocalPort;
         Rule.Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
         Rule.Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
@@ -2549,43 +2553,64 @@ GenericRxMatch(
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID ||
-               Rule.Match == XDP_MATCH_QUIC_FLOW_DST_CID) {
+               Rule.Match == XDP_MATCH_QUIC_FLOW_DST_CID ||
+               Rule.Match == XDP_MATCH_TCP_QUIC_FLOW_SRC_CID ||
+               Rule.Match == XDP_MATCH_TCP_QUIC_FLOW_DST_CID) {
         //
         // Verify other header QUIC packets don't match.
         //
-        if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID) {
-            Payload = QuicShortHdrUdpPayload;
-            PayloadLength = sizeof(QuicShortHdrUdpPayload);
+        if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID ||
+            Rule.Match == XDP_MATCH_TCP_QUIC_FLOW_SRC_CID) {
+            Payload = QuicShortHdrPayload;
+            PayloadLength = sizeof(QuicShortHdrPayload);
         } else {
-            Payload = QuicLongHdrUdpPayload;
-            PayloadLength = sizeof(QuicLongHdrUdpPayload);
+            Payload = QuicLongHdrPayload;
+            PayloadLength = sizeof(QuicLongHdrPayload);
         }
         PacketBufferLength = sizeof(PacketBuffer);
-        TEST_TRUE(
-            PktBuildUdpFrame(
-                PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        if (IsUdp) {
+            TEST_TRUE(
+                PktBuildUdpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+                    &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        } else {
+            TEST_TRUE(
+                PktBuildTcpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength,
+                    NULL, 0, SeqNum, AckNum, TH_ACK, 65535,
+                    &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        }
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
+        SeqNum += PayloadLength;
 
         //
         // Revert UDP payload change from test above.
         //
-        if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID) {
-            Payload = QuicLongHdrUdpPayload;
-            PayloadLength = sizeof(QuicLongHdrUdpPayload);
+        if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID ||
+            Rule.Match == XDP_MATCH_TCP_QUIC_FLOW_SRC_CID) {
+            Payload = QuicLongHdrPayload;
+            PayloadLength = sizeof(QuicLongHdrPayload);
         } else {
-            Payload = QuicShortHdrUdpPayload;
-            PayloadLength = sizeof(QuicShortHdrUdpPayload);
+            Payload = QuicShortHdrPayload;
+            PayloadLength = sizeof(QuicShortHdrPayload);
         }
         PacketBufferLength = sizeof(PacketBuffer);
-        TEST_TRUE(
-            PktBuildUdpFrame(
-                PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        if (IsUdp) {
+            TEST_TRUE(
+                PktBuildUdpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+                    &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        } else {
+            TEST_TRUE(
+                PktBuildTcpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength,
+                    NULL, 0, SeqNum, AckNum, TH_ACK, 65535,
+                    &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        }
 
         //
         // Verify the CID matching part.
@@ -2603,6 +2628,15 @@ GenericRxMatch(
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
         TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
+        SeqNum += PayloadLength;
+
+        if (!IsUdp) {
+            TEST_TRUE(
+                PktBuildTcpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength,
+                    NULL, 0, SeqNum, AckNum, TH_ACK, 65535,
+                    &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        }
 
         //
         // Verify the port matching part.
