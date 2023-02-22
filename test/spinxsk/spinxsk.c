@@ -271,12 +271,6 @@ ULONGLONG perfFreq;
 CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
 
-//
-// eBPF-for-Windows currently does not support concurrent API usage.
-// As a workaround, require a global lock to perform BPF operations.
-//
-CRITICAL_SECTION BpfLock;
-
 ULONG
 RandUlong(
     VOID
@@ -399,17 +393,6 @@ AttachXdpEbpfProgram(
     UNREFERENCED_PARAMETER(Sock);
 
     //
-    // Since the BPF global lock is highly contended, just bail if it cannot be
-    // acquired immediately. There's no value in spinning on the BPF lock.
-    //
-    if (!TryEnterCriticalSection(&BpfLock)) {
-        Result = E_FAIL;
-        goto ExitUnlocked;
-    }
-
-    TraceVerbose("Acquired BPF lock");
-
-    //
     // Since eBPF does not support per-queue programs, attach to the entire
     // interface.
     //
@@ -514,10 +497,6 @@ Exit:
             bpf_object__close(BpfObject);
         }
     }
-
-    LeaveCriticalSection(&BpfLock);
-
-    TraceVerbose("Released BPF lock");
 
 ExitUnlocked:
 
@@ -675,15 +654,8 @@ DetachXdpProgram(
     }
 
     if (BpfObject != NULL) {
-        TraceVerbose("Acquiring BPF lock");
-        EnterCriticalSection(&BpfLock);
-        TraceVerbose("Acquired BPF lock");
-
         TraceVerbose("bpf_object__close(%p)", BpfObject);
         bpf_object__close(BpfObject);
-
-        LeaveCriticalSection(&BpfLock);
-        TraceVerbose("Released BPF lock");
     }
 }
 
@@ -2235,14 +2207,13 @@ WatchdogFn(
         QueryPerformanceCounter((LARGE_INTEGER*)&perfCount);
         for (UINT32 i = 0; i < queueCount; i++) {
             if ((LONGLONG)(queueWorkers[i].watchdogPerfCount + watchdogTimeoutInCounts - perfCount) < 0) {
+                DebugBreak();
                 TraceError( "WATCHDOG exceeded on queue %d", i);
                 printf("WATCHDOG exceeded on queue %d\n", i);
                 if (strlen(watchdogCmd) > 0) {
                     TraceInfo("watchdogCmd=%s", watchdogCmd);
                     system(watchdogCmd);
                 }
-                DebugBreak();
-                DbgRaiseAssertionFailure();
                 exit(ERROR_TIMEOUT);
             }
         }
@@ -2379,8 +2350,6 @@ main(
 
     workersDoneEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     ASSERT_FRE(workersDoneEvent != NULL);
-
-    InitializeCriticalSection(&BpfLock);
 
     ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
 
