@@ -107,7 +107,7 @@ EbpfExtensionProviderAttachClient(
     *ProviderBindingContext = NULL;
     *ProviderDispatch = NULL;
 
-    Client = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Client), XDP_POOLTAG_PROGRAM_NMR);
+    Client = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Client), XDP_POOLTAG_EBPF_NMR);
     if (Client == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -145,7 +145,7 @@ Exit:
         Client = NULL;
     } else {
         if (Client != NULL) {
-            ExFreePoolWithTag(Client, XDP_POOLTAG_PROGRAM_NMR);
+            ExFreePoolWithTag(Client, XDP_POOLTAG_EBPF_NMR);
         }
     }
 
@@ -192,7 +192,7 @@ EbpfExtensionProviderCleanup(
 {
     TraceEnter(TRACE_CORE, "ProviderBindingContext=%p", ProviderBindingContext);
 
-    ExFreePoolWithTag(ProviderBindingContext, XDP_POOLTAG_PROGRAM_NMR);
+    ExFreePoolWithTag(ProviderBindingContext, XDP_POOLTAG_EBPF_NMR);
 
     TraceExitSuccess(TRACE_CORE);
 }
@@ -211,7 +211,7 @@ EbpfExtensionProviderUnregister(
             NmrWaitForProviderDeregisterComplete(ProviderContext->NmrProviderHandle);
         }
 
-        ExFreePoolWithTag(ProviderContext, XDP_POOLTAG_PROGRAM_NMR);
+        ExFreePoolWithTag(ProviderContext, XDP_POOLTAG_EBPF_NMR);
     }
 
     TraceExitSuccess(TRACE_CORE);
@@ -233,7 +233,7 @@ EbpfExtensionProviderRegister(
 
     TraceEnter(TRACE_CORE, "Parameters=%p", Parameters);
 
-    Provider = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Provider), XDP_POOLTAG_PROGRAM_NMR);
+    Provider = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Provider), XDP_POOLTAG_EBPF_NMR);
     if (Provider == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
