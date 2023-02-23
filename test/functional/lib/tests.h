@@ -65,7 +65,8 @@ GenericRxUdpFragmentQuicShortHeader(
 
 VOID
 GenericRxUdpFragmentQuicLongHeader(
-    _In_ ADDRESS_FAMILY Af
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     );
 
 VOID

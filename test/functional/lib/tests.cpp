@@ -3188,20 +3188,26 @@ GenericRxUdpFragmentQuicShortHeader(
 
 VOID
 GenericRxUdpFragmentQuicLongHeader(
-    _In_ ADDRESS_FAMILY Af
+    _In_ ADDRESS_FAMILY Af,
+    _In_ BOOLEAN IsUdp
     )
 {
-    auto If = FnMpIf;
-    UINT16 LocalPort, RemotePort;
+    auto If = IsUdp ? FnMpIf : FnMp1QIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
     UINT32 TotalOffset = 0;
+    UINT32 AckNum = 0;
+    UINT32 SeqNum = 1;
 
-    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto Socket =
+        IsUdp ?
+            CreateUdpSocket(Af, &If, &LocalPort) :
+            CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
-    RemotePort = htons(1234);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -3231,7 +3237,7 @@ GenericRxUdpFragmentQuicLongHeader(
 
     XDP_RULE Rules[2];
     Rules[0].Action = XDP_PROGRAM_ACTION_DROP;
-    Rules[0].Match = XDP_MATCH_QUIC_FLOW_SRC_CID;
+    Rules[0].Match = (IsUdp ? XDP_MATCH_QUIC_FLOW_SRC_CID : XDP_MATCH_TCP_QUIC_FLOW_SRC_CID);
     Rules[0].Pattern.QuicFlow.UdpPort = LocalPort;
     Rules[0].Pattern.QuicFlow.CidOffset = 2; // Some arbitrary offset.
     Rules[0].Pattern.QuicFlow.CidLength = 4; // Some arbitrary length.
@@ -3246,13 +3252,13 @@ GenericRxUdpFragmentQuicLongHeader(
                 CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Rules, 2);
 
     CHAR RecvPayload[sizeof(QuicLongHdrUdpPayload)];
-    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(QuicLongHdrUdpPayload)];
-    const UCHAR* UdpPayload;
-    UINT16 UdpPayloadLength = 0;
-    UdpPayload = QuicLongHdrUdpPayload;
+    UCHAR PacketBuffer[TCP_HEADER_STORAGE + sizeof(QuicLongHdrUdpPayload)];
+    const UCHAR* Payload;
+    UINT16 PayloadLength = (IsUdp ? 0 : 1); // zero-payload TCP packets are not data packets.
+    Payload = QuicLongHdrUdpPayload;
 
-    for (; UdpPayloadLength < sizeof(QuicLongHdrUdpPayload); UdpPayloadLength++) {
-        if (UdpPayloadLength == MinQuicHdrLength) {
+    for (; PayloadLength < sizeof(QuicLongHdrUdpPayload); PayloadLength++) {
+        if (PayloadLength == MinQuicHdrLength) {
             Rules[0].Action = XDP_PROGRAM_ACTION_PASS;
             Rules[1].Action = XDP_PROGRAM_ACTION_DROP;
             ProgramHandle.reset();
@@ -3264,32 +3270,49 @@ GenericRxUdpFragmentQuicLongHeader(
         // Test a full length buffer
         //
 
-        UINT32 UdpFrameLength = sizeof(UdpFrame);
-        TEST_TRUE(
-            PktBuildUdpFrame(
-                UdpFrame, &UdpFrameLength, UdpPayload, UdpPayloadLength, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        UINT32 PacketBufferLength = sizeof(PacketBuffer);
+        if (IsUdp) {
+            TEST_TRUE(
+                PktBuildUdpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+                    &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        } else {
+            TEST_TRUE(
+                PktBuildTcpFrame(
+                    PacketBuffer, &PacketBufferLength, Payload, PayloadLength,
+                    NULL, 0, SeqNum, AckNum, TH_ACK, 65535,
+                    &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        }
 
         RX_FRAME RxFrame;
-        RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+        RxInitializeFrame(&RxFrame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-        TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
+        SeqNum += PayloadLength;
 
         //
         // Test Payload Fragmented at all points
         //
 
-        for (UINT16 FragmentOffset = 0; FragmentOffset < UdpPayloadLength; FragmentOffset++) {
+        for (UINT16 FragmentOffset = 0; FragmentOffset < PayloadLength; FragmentOffset++) {
 
             Buffers.clear();
             TotalOffset = 0;
 
+            if (!IsUdp) {
+                TEST_TRUE(
+                    PktBuildTcpFrame(
+                        PacketBuffer, &PacketBufferLength, Payload, PayloadLength,
+                        NULL, 0, SeqNum, AckNum, TH_ACK, 65535,
+                        &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+            }
+
             std::memset(&Buffer, 0, sizeof(Buffer));
             Buffer.DataOffset = 0;
-            Buffer.DataLength = UdpFrameLength - (FragmentOffset + 1);
+            Buffer.DataLength = PacketBufferLength - (FragmentOffset + 1);
             Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
-            Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+            Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
             TotalOffset += Buffer.BufferLength;
             Buffers.push_back(Buffer);
 
@@ -3297,14 +3320,15 @@ GenericRxUdpFragmentQuicLongHeader(
             Buffer.DataOffset = 0;
             Buffer.DataLength = (FragmentOffset + 1);
             Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
-            Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
+            Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
             TotalOffset += Buffer.BufferLength;
             Buffers.push_back(Buffer);
 
             RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-            TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-            TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
+            TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
+            SeqNum += PayloadLength;
         }
     }
 }

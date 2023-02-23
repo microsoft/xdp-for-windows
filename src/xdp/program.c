@@ -1232,10 +1232,30 @@ XdpProgramTraceObject(
                 WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
             break;
 
+        case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_TCP_QUIC_FLOW_SRC_CID "
+                "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
+                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
+                WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
+            break;
+
         case XDP_MATCH_QUIC_FLOW_DST_CID:
             TraceInfo(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW_DST_CID "
+                "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
+                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
+                WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
+            break;
+
+        case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_TCP_QUIC_FLOW_DST_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
                 ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
@@ -1765,6 +1785,8 @@ XdpCaptureProgram(
         switch (ValidatedRule->Match) {
         case XDP_MATCH_QUIC_FLOW_SRC_CID:
         case XDP_MATCH_QUIC_FLOW_DST_CID:
+        case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
+        case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
             if (UserRule.Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
                 Status = STATUS_INVALID_PARAMETER;
                 goto Exit;
