@@ -132,6 +132,7 @@ static
 XDP_RX_ACTION
 XdpInvokeEbpf(
     _In_ HANDLE EbpfTarget,
+    _In_opt_ XDP_INSPECTION_EBPF_CONTEXT *EbpfContext,
     _In_ XDP_FRAME *Frame,
     _In_opt_ XDP_RING *FragmentRing,
     _In_opt_ XDP_EXTENSION *FragmentExtension,
@@ -140,8 +141,6 @@ XdpInvokeEbpf(
     )
 {
     const EBPF_EXTENSION_CLIENT *Client = (const EBPF_EXTENSION_CLIENT *)EbpfTarget;
-    ebpf_invoke_program_function_t EbpfInvokeProgram =
-        (ebpf_invoke_program_function_t)EbpfExtensionClientGetDispatch(Client)->function[0];
     const VOID *ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
     XDP_BUFFER *Buffer;
     UCHAR *Va;
@@ -172,7 +171,17 @@ XdpInvokeEbpf(
     XdpMd.Base.data_meta = 0;
     XdpMd.Base.ingress_ifindex = IFI_UNSPECIFIED; // TODO: Propagate from RX queue.
 
-    EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result);
+    if (EbpfContext != NULL) {
+        ebpf_invoke_program_batch_function_t EbpfInvokeProgram =
+            (ebpf_invoke_program_batch_function_t)
+                EbpfExtensionClientGetDispatch(Client)->function[2];
+        EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result, EbpfContext);
+    } else {
+        ebpf_invoke_program_function_t EbpfInvokeProgram =
+            (ebpf_invoke_program_function_t)EbpfExtensionClientGetDispatch(Client)->function[0];
+        EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result);
+    }
+
     if (EbpfResult != EBPF_SUCCESS) {
         RxAction = XDP_RX_ACTION_DROP;
         goto Exit;
@@ -198,6 +207,90 @@ XdpInvokeEbpf(
 Exit:
 
     return RxAction;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+XDP_RX_ACTION
+XdpInspectEbpf(
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_INSPECTION_CONTEXT *InspectionContext,
+    _In_ XDP_RING *FrameRing,
+    _In_ UINT32 FrameIndex,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension
+    )
+{
+    XDP_FRAME *Frame;
+
+    ASSERT(XdpProgramIsEbpf(Program));
+    ASSERT(FrameIndex <= FrameRing->Mask);
+    ASSERT(
+        (FragmentRing == NULL && FragmentIndex == 0) ||
+        (FragmentRing && FragmentIndex <= FragmentRing->Mask));
+
+    Frame = XdpRingGetElement(FrameRing, FrameIndex);
+
+    return
+        XdpInvokeEbpf(
+            Program->Rules[0].Ebpf.Target, &InspectionContext->EbpfContext, Frame, FragmentRing,
+            FragmentExtension, FragmentIndex, VirtualAddressExtension);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+BOOLEAN
+XdpInspectEbpfStartBatch(
+    _In_ XDP_PROGRAM *Program,
+    _Inout_ XDP_INSPECTION_CONTEXT *InspectionContext
+    )
+{
+    const EBPF_EXTENSION_CLIENT *Client;
+    const VOID *ClientBindingContext;
+    ebpf_result_t EbpfResult;
+
+    ASSERT(XdpProgramIsEbpf(Program));
+
+    Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
+
+    ebpf_invoke_batch_begin_function_t EbpfBatchBegin =
+        (ebpf_invoke_batch_begin_function_t)
+            EbpfExtensionClientGetDispatch(Client)->function[1];
+
+    EbpfResult =
+        EbpfBatchBegin(
+            ClientBindingContext, sizeof(InspectionContext->EbpfContext),
+            &InspectionContext->EbpfContext);
+
+    return EbpfResult == EBPF_SUCCESS;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpInspectEbpfEndBatch(
+    _In_ XDP_PROGRAM *Program,
+    _Inout_ XDP_INSPECTION_CONTEXT *InspectionContext
+    )
+{
+    const EBPF_EXTENSION_CLIENT *Client;
+    const VOID *ClientBindingContext;
+    ebpf_result_t EbpfResult;
+
+    UNREFERENCED_PARAMETER(InspectionContext);
+
+    ASSERT(XdpProgramIsEbpf(Program));
+
+    Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
+
+    ebpf_invoke_batch_end_function_t EbpfBatchEnd =
+        (ebpf_invoke_batch_end_function_t)
+            EbpfExtensionClientGetDispatch(Client)->function[3];
+
+    EbpfResult = EbpfBatchEnd(ClientBindingContext);
+
+    ASSERT(EbpfResult == EBPF_SUCCESS);
 }
 
 static
@@ -907,7 +1000,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
     _In_ XDP_PROGRAM *Program,
-    _In_ XDP_REDIRECT_CONTEXT *RedirectContext,
+    _In_ XDP_INSPECTION_CONTEXT *InspectionContext,
     _In_ XDP_RING *FrameRing,
     _In_ UINT32 FrameIndex,
     _In_opt_ XDP_RING *FragmentRing,
@@ -1138,8 +1231,8 @@ XdpInspect(
 
             case XDP_PROGRAM_ACTION_REDIRECT:
                 XdpRedirect(
-                    RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
-                    Rule->Redirect.Target);
+                    &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
+                    Rule->Redirect.TargetType, Rule->Redirect.Target);
 
                 Action = XDP_RX_ACTION_DROP;
                 break;
@@ -1162,8 +1255,8 @@ XdpInspect(
             case XDP_PROGRAM_ACTION_EBPF:
                 Action =
                     XdpInvokeEbpf(
-                        Rule->Ebpf.Target, Frame, FragmentRing, FragmentExtension, FragmentIndex,
-                        VirtualAddressExtension);
+                        Rule->Ebpf.Target, NULL, Frame, FragmentRing, FragmentExtension,
+                        FragmentIndex, VirtualAddressExtension);
                 break;
 
             default:
@@ -1811,7 +1904,6 @@ XdpProgramRxQueueNotify(
     }
 }
 
-static
 BOOLEAN
 XdpProgramIsEbpf(
     _In_ XDP_PROGRAM *Program
@@ -1820,7 +1912,6 @@ XdpProgramIsEbpf(
     return Program->RuleCount == 1 && Program->Rules[0].Action == XDP_PROGRAM_ACTION_EBPF;
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
 BOOLEAN
 XdpProgramCanXskBypass(
     _In_ XDP_PROGRAM *Program,
@@ -2571,7 +2662,7 @@ EbpfProgramOnClientAttach(
         goto Exit;
     }
 
-    if (ClientDispatch->version < 1 || ClientDispatch->size < 1) {
+    if (ClientDispatch->version < 1 || ClientDispatch->size < 4) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }

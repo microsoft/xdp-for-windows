@@ -51,9 +51,9 @@ typedef struct _XDP_RX_QUEUE {
 #endif
 
     //
-    // Metadata to group batches of redirected frames together.
+    // Serialized inspection context.
     //
-    XDP_REDIRECT_CONTEXT RedirectContext;
+    XDP_INSPECTION_CONTEXT InspectionContext;
 
     //
     // The pending data path / control path serialization callback.
@@ -105,7 +105,7 @@ XdpRxQueueFromRedirectContext(
     _In_ XDP_REDIRECT_CONTEXT *RedirectContext
     )
 {
-    return CONTAINING_RECORD(RedirectContext, XDP_RX_QUEUE, RedirectContext);
+    return CONTAINING_RECORD(RedirectContext, XDP_RX_QUEUE, InspectionContext.RedirectContext);
 }
 
 static
@@ -117,7 +117,7 @@ XdppFlushReceive(
 {
     XDP_RING *FrameRing = RxQueue->FrameRing;
 
-    XdpFlushRedirect(&RxQueue->RedirectContext);
+    XdpFlushRedirect(&RxQueue->InspectionContext.RedirectContext);
 
     //
     // We've removed all references to the internally buffered frames, so
@@ -152,7 +152,8 @@ static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdppReceiveBatch(
-    _In_ XDP_RX_QUEUE *RxQueue
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ XDP_RX_INSPECT_ROUTINE *InspectRoutine
     )
 {
     XDP_RING *FrameRing = RxQueue->FrameRing;
@@ -179,8 +180,8 @@ XdppReceiveBatch(
         }
 
         Action =
-            XdpInspect(
-                RxQueue->Program, &RxQueue->RedirectContext, RxQueue->FrameRing, FrameIndex,
+            InspectRoutine(
+                RxQueue->Program, &RxQueue->InspectionContext, RxQueue->FrameRing, FrameIndex,
                 RxQueue->FragmentRing, &RxQueue->FragmentExtension, FragmentIndex,
                 &RxQueue->VirtualAddressExtension);
 
@@ -210,7 +211,27 @@ XdpReceive(
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
     XdbgEnterQueueEc(RxQueue, TRUE);
-    XdppReceiveBatch(RxQueue);
+    XdppReceiveBatch(RxQueue, XdpInspect);
+    XdbgExitQueueEc(RxQueue);
+}
+
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpReceiveEbpf(
+    _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
+
+    XdbgEnterQueueEc(RxQueue, TRUE);
+
+    if (XdpInspectEbpfStartBatch(RxQueue->Program, &RxQueue->InspectionContext)) {
+        XdppReceiveBatch(RxQueue, XdpInspectEbpf);
+        XdpInspectEbpfEndBatch(RxQueue->Program, &RxQueue->InspectionContext);
+    } else {
+        XdppReceiveBatch(RxQueue, XdpInspect);
+    }
     XdbgExitQueueEc(RxQueue);
 }
 
@@ -259,7 +280,7 @@ XdpReceiveXskExclusiveBatch(
         //
         // XSK could not process the batch, so fall back to the common code path.
         //
-        XdppReceiveBatch(RxQueue);
+        XdppReceiveBatch(RxQueue, XdpInspect);
     }
 
     XdbgExitQueueEc(RxQueue);
@@ -276,6 +297,15 @@ static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
 //
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxExclusiveXskDispatch = {
     .Receive = XdpReceiveXskExclusiveBatch,
+    .FlushReceive = XdpFlushReceive,
+};
+
+//
+// This dispatch table optimizes the case with an eBPF program receiving all
+// traffic.
+//
+static CONST XDP_RX_QUEUE_DISPATCH XdpRxEbpfDispatch = {
+    .Receive = XdpReceiveEbpf,
     .FlushReceive = XdpFlushReceive,
 };
 
@@ -674,6 +704,24 @@ XdpRxQueueDetachInterface(
 }
 
 static
+VOID
+XdpRxQueueUpdateDispatch(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    if (XdpProgramIsEbpf(RxQueue->Program)) {
+        RxQueue->Dispatch = XdpRxEbpfDispatch;
+    } else if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue)) {
+        //
+        // Implement a fast path for a single XSK receiving all frames.
+        //
+        RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
+    } else {
+        RxQueue->Dispatch = XdpRxDispatch;
+    }
+}
+
+static
 NTSTATUS
 XdpRxQueueAttachInterface(
     _In_ XDP_RX_QUEUE *RxQueue,
@@ -797,14 +845,7 @@ XdpRxQueueAttachInterface(
         }
     }
 
-    //
-    // Implement a fast path for a single XSK receiving all frames.
-    //
-    if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue)) {
-        RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
-    } else {
-        RxQueue->Dispatch = XdpRxDispatch;
-    }
+    XdpRxQueueUpdateDispatch(RxQueue);
 
     XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
 
@@ -1073,16 +1114,8 @@ XdpRxQueueSwapProgram(
 
     ASSERT(CallbackContext != NULL);
 
-    //
-    // Implement a fast path for a single XSK receiving all frames.
-    //
-    if (XdpProgramCanXskBypass(SwapParams->NewProgram, SwapParams->RxQueue)) {
-        SwapParams->RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
-    } else {
-        SwapParams->RxQueue->Dispatch = XdpRxDispatch;
-    }
-
     SwapParams->RxQueue->Program = SwapParams->NewProgram;
+    XdpRxQueueUpdateDispatch(SwapParams->RxQueue);
 }
 
 NTSTATUS

@@ -31,6 +31,21 @@ typedef struct _ebpf_extension_data
 typedef ebpf_result_t (*ebpf_invoke_program_function_t)(
     _In_ const void* client_binding_context, _In_ const void* context, _Out_ uint32_t* result);
 
+
+typedef ebpf_result_t
+(*ebpf_invoke_batch_begin_function_t)(
+    _In_ const void* extension_client_binding_context, size_t state_size, _Out_writes_(state_size) void* state);
+
+typedef ebpf_result_t
+(*ebpf_invoke_program_batch_function_t)(
+    _In_ const void* extension_client_binding_context,
+    _Inout_ void* program_context,
+    _Out_ uint32_t* result,
+    _In_ const void* state);
+
+typedef ebpf_result_t
+(*ebpf_invoke_batch_end_function_t)(_In_ const void* extension_client_binding_context);
+
 typedef ebpf_result_t (*_ebpf_extension_dispatch_function)();
 
 typedef struct _ebpf_extension_dispatch_table

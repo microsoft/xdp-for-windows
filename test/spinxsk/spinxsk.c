@@ -388,14 +388,21 @@ AttachXdpEbpfProgram(
     NET_IFINDEX IfIndex = ifindex;
     int ProgramFd;
     int AttachFlags = 0;
-
-    UNREFERENCED_PARAMETER(Queue);
-    UNREFERENCED_PARAMETER(Sock);
+    int OriginalThreadPriority;
 
     //
     // Since eBPF does not support per-queue programs, attach to the entire
     // interface.
     //
+    UNREFERENCED_PARAMETER(Queue);
+
+    //
+    // Since eBPF does not yet support AF_XDP, ignore the socket.
+    //
+    UNREFERENCED_PARAMETER(Sock);
+
+    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
 
     Result = GetCurrentBinaryPath(Path, sizeof(Path));
     if (FAILED(Result)) {
@@ -420,6 +427,12 @@ AttachXdpEbpfProgram(
     }
 
     ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
+
+    //
+    // To work around control path delays caused by eBPF's epoch implementation,
+    // boost this thread's priority when invoking eBPF APIs.
+    //
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
 
     TraceVerbose("bpf_object__open(%s)", Path);
     BpfObject = bpf_object__open(Path);
@@ -498,7 +511,7 @@ Exit:
         }
     }
 
-ExitUnlocked:
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
 
     return Result;
 }
@@ -654,8 +667,19 @@ DetachXdpProgram(
     }
 
     if (BpfObject != NULL) {
+        int OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+        ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+
+        //
+        // To work around control path delays caused by eBPF's epoch implementation,
+        // boost this thread's priority when invoking eBPF APIs.
+        //
+        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
         TraceVerbose("bpf_object__close(%p)", BpfObject);
         bpf_object__close(BpfObject);
+
+        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
     }
 }
 
