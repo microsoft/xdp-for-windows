@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "rx.tmh"
 
 typedef struct _DEFAULT_RX {
     DEFAULT_CONTEXT *Default;
@@ -295,8 +296,13 @@ FilterReturnNetBufferLists(
 {
     LWF_FILTER *Filter = (LWF_FILTER *)FilterModuleContext;
 
+    TraceEnter(TRACE_DATAPATH, "Filter=%p", Filter);
+    TraceNbls(NetBufferLists);
+
     NdisFReturnNetBufferLists(
         Filter->NdisFilterHandle, NetBufferLists, ReturnFlags);
+
+    TraceExitSuccess(TRACE_DATAPATH);
 }
 
 _Use_decl_annotations_
@@ -312,6 +318,9 @@ FilterReceiveNetBufferLists(
     LWF_FILTER *Filter = (LWF_FILTER *)FilterModuleContext;
     NBL_COUNTED_QUEUE NblChain, IndicateChain;
     KIRQL OldIrql;
+
+    TraceEnter(TRACE_DATAPATH, "Filter=%p", Filter);
+    TraceNbls(NetBufferLists);
 
     UNREFERENCED_PARAMETER(NumberOfNetBufferLists);
 
@@ -338,4 +347,6 @@ FilterReceiveNetBufferLists(
             NdisGetNblChainFromNblCountedQueue(&IndicateChain), PortNumber,
             (ULONG)IndicateChain.NblCount, ReceiveFlags);
     }
+
+    TraceExitSuccess(TRACE_DATAPATH);
 }

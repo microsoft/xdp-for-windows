@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "rx.tmh"
 
 typedef struct _GENERIC_RX {
     GENERIC_CONTEXT *Generic;
@@ -135,9 +136,14 @@ MpReturnNetBufferLists(
 
     UNREFERENCED_PARAMETER(ReturnFlags);
 
+    TraceEnter(TRACE_DATAPATH, "Adapter=%p", Adapter);
+
+    TraceNbls(NetBufferLists);
     Count = GenericRxCleanupNblChain(NetBufferLists);
 
     ExReleaseRundownProtectionEx(&Adapter->Generic->NblRundown, Count);
+
+    TraceExitSuccess(TRACE_DATAPATH);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -156,6 +162,8 @@ GenericIrpRxFlush(
     BOOLEAN SetAffinity = FALSE;
     GROUP_AFFINITY OldAffinity;
     NTSTATUS Status;
+
+    TraceEnter(TRACE_DATAPATH, "Adapter=%p", Adapter);
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
         Status = STATUS_BUFFER_TOO_SMALL;
@@ -216,6 +224,7 @@ GenericIrpRxFlush(
         KeRaiseIrql(DISPATCH_LEVEL, &OldIrql);
     }
 
+    TraceNbls(NdisGetNblChainFromNblCountedQueue(&Nbls));
     NdisMIndicateReceiveNetBufferLists(
         Adapter->MiniportHandle, NdisGetNblChainFromNblCountedQueue(&Nbls),
         NDIS_DEFAULT_PORT_NUMBER, (UINT32)Nbls.NblCount, NdisFlags);
@@ -256,6 +265,8 @@ Exit:
     if (SetAffinity) {
         KeRevertToUserGroupAffinityThread(&OldAffinity);
     }
+
+    TraceExitStatus(TRACE_DATAPATH);
 
     return Status;
 }

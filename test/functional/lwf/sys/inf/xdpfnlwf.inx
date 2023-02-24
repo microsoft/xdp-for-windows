@@ -6,19 +6,16 @@ Signature       = "$WINDOWS NT$"
 Class           = NetService
 ClassGUID       = {4D36E974-E325-11CE-BFC1-08002BE10318}
 Provider        = %Msft%
-DriverVer       = 11/15/2021,1.0.0.0
 PnpLockdown     = 1
 
 [DestinationDirs]
-DefaultDestDir     = %DIRID_DRIVERS%
 xdpfnlwf.CopyFiles = %DIRID_DRIVERS%
 
 [SourceDisksNames]
- ; diskid = description[, [tagfile] [, <unused>, subdir]]
- 1 = %xdpfnlwf.DeviceDesc%,,,
+1 = disk
 
 [SourceDisksFiles]
-xdpfnlwf.Sys = 1,,
+xdpfnlwf.sys = 1
 
 [Manufacturer]
 %Msft% = MSFT,NT$ARCH$
@@ -52,7 +49,7 @@ AddService=xdpfnlwf,, AddService
 [AddService]
 DisplayName     = %xdpfnlwf.DeviceDesc%
 ServiceType     = 1 ;SERVICE_KERNEL_DRIVER
-StartType       = 3 ;SERVICE_DEMAND_START
+StartType       = 1 ;SERVICE_SYSTEM_START
 ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
 ServiceBinary   = %12%\xdpfnlwf.sys ; %DIRID_DRIVERS%\xdpfnlwf.sys
 LoadOrderGroup  = NDIS
