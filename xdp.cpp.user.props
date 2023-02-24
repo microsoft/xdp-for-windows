@@ -8,7 +8,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDll</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <PreprocessorDefinitions>
         USER_MODE=1;
