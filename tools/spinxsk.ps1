@@ -69,6 +69,9 @@ param (
     [switch]$NoLogs = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$BreakOnWatchdog = $false,
+
+    [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
     [string]$XdpmpPollProvider = "NDIS"
 )
@@ -133,8 +136,8 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
-        $Args = "-IfIndex", (Get-NetAdapter XDPMP).ifIndex, `
-            "-WatchdogCmd", "$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula", `
+        $Args = `
+            "-IfIndex", (Get-NetAdapter XDPMP).ifIndex, `
             "-QueueCount", $QueueCount, `
             "-Minutes", $ThisIterationMinutes
         if ($Stats) {
@@ -148,6 +151,11 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($SuccessThresholdPercent -ge 0) {
             $Args += "-SuccessThresholdPercent", $SuccessThresholdPercent
+        }
+        if ($BreakOnWatchdog) {
+            $Args += "-WatchdogCmd", "break"
+        } else {
+            $Args += "-WatchdogCmd", "$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula"
         }
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args

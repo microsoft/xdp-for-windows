@@ -59,6 +59,8 @@ CHAR *HELP =
 "   -CleanDatapath        Avoid actions that invalidate the datapath\n"
 "                         Default: off\n"
 "   -WatchdogCmd <cmd>    Execute a system command after a watchdog violation\n"
+"                         If cmd is \"break\" then a debug breakpoint is\n"
+"                         triggered instead\n"
 "                         Default: \"\"\n"
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
@@ -2231,12 +2233,15 @@ WatchdogFn(
         QueryPerformanceCounter((LARGE_INTEGER*)&perfCount);
         for (UINT32 i = 0; i < queueCount; i++) {
             if ((LONGLONG)(queueWorkers[i].watchdogPerfCount + watchdogTimeoutInCounts - perfCount) < 0) {
-                DebugBreak();
                 TraceError( "WATCHDOG exceeded on queue %d", i);
                 printf("WATCHDOG exceeded on queue %d\n", i);
                 if (strlen(watchdogCmd) > 0) {
-                    TraceInfo("watchdogCmd=%s", watchdogCmd);
-                    system(watchdogCmd);
+                    if (!_stricmp(watchdogCmd, "break")) {
+                        DbgRaiseAssertionFailure();
+                    } else {
+                        TraceInfo("watchdogCmd=%s", watchdogCmd);
+                        system(watchdogCmd);
+                    }
                 }
                 exit(ERROR_TIMEOUT);
             }

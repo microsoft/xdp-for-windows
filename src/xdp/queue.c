@@ -123,8 +123,7 @@ XdpDbgInitializeQueueEc(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpDbgEnterQueueEc(
-    _Inout_ XDP_DBG_QUEUE_EC *Ec,
-    _In_ BOOLEAN Flush
+    _Inout_ XDP_DBG_QUEUE_EC *Ec
     )
 {
     KIRQL OldIrql;
@@ -132,13 +131,28 @@ XdpDbgEnterQueueEc(
     KeAcquireSpinLock(&Ec->Lock, &OldIrql);
 
     ASSERT(!Ec->Active);
+    ASSERT(!Ec->Flushed);
     Ec->Active = TRUE;
 
-    if (Flush) {
-        Ec->NotifyFlags = 0;
-        Ec->FlushQpc = KeQueryPerformanceCounter(NULL);
-        Ec->FlushCpu = KeGetCurrentProcessorIndex();
-    }
+    KeReleaseSpinLock(&Ec->Lock, OldIrql);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpDbgFlushQueueEc(
+    _Inout_ XDP_DBG_QUEUE_EC *Ec
+    )
+{
+    KIRQL OldIrql;
+
+    KeAcquireSpinLock(&Ec->Lock, &OldIrql);
+
+    ASSERT(Ec->Active);
+
+    Ec->NotifyFlags = 0;
+    Ec->FlushQpc = KeQueryPerformanceCounter(NULL);
+    Ec->FlushCpu = KeGetCurrentProcessorIndex();
+    Ec->Flushed = TRUE;
 
     KeReleaseSpinLock(&Ec->Lock, OldIrql);
 }
@@ -154,7 +168,9 @@ XdpDbgExitQueueEc(
     KeAcquireSpinLock(&Ec->Lock, &OldIrql);
 
     ASSERT(Ec->Active);
+    ASSERT(Ec->Flushed);
     Ec->Active = FALSE;
+    Ec->Flushed = FALSE;
 
     KeReleaseSpinLock(&Ec->Lock, OldIrql);
 }

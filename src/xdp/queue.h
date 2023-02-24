@@ -85,6 +85,7 @@ XdpInitializeQueueInfo(
 typedef struct _XDP_DBG_QUEUE_EC {
     KSPIN_LOCK Lock;
     BOOLEAN Active;
+    BOOLEAN Flushed;
     UINT32 NotifyFlags;
     LARGE_INTEGER NotifyQpc;
     LARGE_INTEGER FlushQpc;
@@ -100,8 +101,13 @@ XdpDbgInitializeQueueEc(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpDbgEnterQueueEc(
-    _Inout_ XDP_DBG_QUEUE_EC *Ec,
-    _In_ BOOLEAN Flush
+    _Inout_ XDP_DBG_QUEUE_EC *Ec
+    );
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpDbgFlushQueueEc(
+    _Inout_ XDP_DBG_QUEUE_EC *Ec
     );
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -118,14 +124,16 @@ XdpDbgNotifyQueueEc(
     );
 
 #define XdbgInitializeQueueEc(T)            XdpDbgInitializeQueueEc(&(T)->DbgEc)
-#define XdbgEnterQueueEc(T, Flush)          XdpDbgEnterQueueEc(&(T)->DbgEc, Flush)
+#define XdbgEnterQueueEc(T)                 XdpDbgEnterQueueEc(&(T)->DbgEc)
+#define XdbgFlushQueueEc(T)                 XdpDbgFlushQueueEc(&(T)->DbgEc)
 #define XdbgExitQueueEc(T)                  XdpDbgExitQueueEc(&(T)->DbgEc)
 #define XdbgNotifyQueueEc(T, NotifyFlags)   XdpDbgNotifyQueueEc(&(T)->DbgEc, NotifyFlags)
 
 #else
 
 #define XdbgInitializeQueueEc(T)
-#define XdbgEnterQueueEc(T, Flush)
+#define XdbgEnterQueueEc(T)
+#define XdbgFlushQueueEc(T)
 #define XdbgExitQueueEc(T)
 #define XdbgNotifyQueueEc(T, NotifyFlags)
 

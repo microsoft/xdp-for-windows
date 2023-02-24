@@ -133,6 +133,8 @@ XdppFlushReceive(
     }
 
     XdpQueueDatapathSync(&RxQueue->Sync);
+
+    XdbgFlushQueueEc(RxQueue);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -143,7 +145,7 @@ XdpFlushReceive(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue, TRUE);
+    XdbgEnterQueueEc(RxQueue);
     XdppFlushReceive(RxQueue);
     XdbgExitQueueEc(RxQueue);
 }
@@ -198,8 +200,6 @@ XdppReceiveBatch(
         RxQueue->FrameConsumerIndex = FrameRing->ConsumerIndex;
 #endif
     }
-
-    XdppFlushReceive(RxQueue);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -210,8 +210,11 @@ XdpReceive(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue, TRUE);
+    XdbgEnterQueueEc(RxQueue);
+
     XdppReceiveBatch(RxQueue, XdpInspect);
+    XdppFlushReceive(RxQueue);
+
     XdbgExitQueueEc(RxQueue);
 }
 
@@ -224,19 +227,17 @@ XdpReceiveEbpf(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue, TRUE);
+    XdbgEnterQueueEc(RxQueue);
 
     if (XdpInspectEbpfStartBatch(RxQueue->Program, &RxQueue->InspectionContext)) {
         XdppReceiveBatch(RxQueue, XdpInspectEbpf);
-        //
-        // TODO: RxQueue->Program may have changed during XdppReceiveBatch's
-        // implicit flush! Today it can't change, but this should be made more
-        // robust.
-        //
         XdpInspectEbpfEndBatch(RxQueue->Program, &RxQueue->InspectionContext);
     } else {
         XdppReceiveBatch(RxQueue, XdpInspect);
     }
+
+    XdppFlushReceive(RxQueue);
+
     XdbgExitQueueEc(RxQueue);
 }
 
@@ -264,6 +265,8 @@ XdpRxQueueExclusiveFlush(
 #endif
 
     XdpQueueDatapathSync(&RxQueue->Sync);
+
+    XdbgFlushQueueEc(RxQueue);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -274,7 +277,7 @@ XdpReceiveXskExclusiveBatch(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue, TRUE);
+    XdbgEnterQueueEc(RxQueue);
 
     //
     // Attempt to pass the entire batch to XSK.
@@ -286,6 +289,7 @@ XdpReceiveXskExclusiveBatch(
         // XSK could not process the batch, so fall back to the common code path.
         //
         XdppReceiveBatch(RxQueue, XdpInspect);
+        XdppFlushReceive(RxQueue);
     }
 
     XdbgExitQueueEc(RxQueue);
