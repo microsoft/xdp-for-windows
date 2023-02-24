@@ -8,7 +8,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
-      <RuntimeLibrary>MultiThreadedDll</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <PreprocessorDefinitions>
         USER_MODE=1;
@@ -18,5 +18,8 @@
     <Link>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <Link><AdditionalOptions>/NODEFAULTLIB:libucrt.lib</AdditionalOptions></Link>
   </ItemDefinitionGroup>
 </Project>
