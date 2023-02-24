@@ -5062,8 +5062,6 @@ OffloadRssError()
     UINT16 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
     UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
 
-    TEST_EQUAL((HANDLE)3, GetCurrentThread());
-
     //
     // Only run if we have at least 2 LPs.
     // Our expected test automation environment is at least a 2VP VM.
