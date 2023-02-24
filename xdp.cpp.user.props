@@ -23,7 +23,4 @@
       <AdditionalOptions>/NODEFAULTLIB:libucrt.lib /DEFAULTLIB:ucrt.lib</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup>
-    <Link><AdditionalOptions>/NODEFAULTLIB:libucrt.lib</AdditionalOptions></Link>
-  </ItemDefinitionGroup>
 </Project>
