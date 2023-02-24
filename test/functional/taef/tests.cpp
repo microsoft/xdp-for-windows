@@ -6,10 +6,12 @@
 #include <winsock2.h>
 #include <CppUnitTest.h>
 #include <xdpapi.h>
+#include <fntrace.h>
 
 #include "xdptest.h"
 #include "tests.h"
 #include "util.h"
+#include "tests.tmh"
 
 //
 // Test suite(s).
@@ -44,6 +46,7 @@ LogTestFailure(
     _vsnwprintf_s(Buffer, Size, _TRUNCATE, Format, Args);
     va_end(Args);
 
+    TraceError("%S", Buffer);
     Logger::WriteMessage(Buffer);
 }
 
@@ -68,6 +71,7 @@ LogTestWarning(
     _vsnwprintf_s(Buffer, Size, _TRUNCATE, Format, Args);
     va_end(Args);
 
+    TraceWarn("%S", Buffer);
     Logger::WriteMessage(Buffer);
 }
 

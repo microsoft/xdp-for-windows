@@ -36,12 +36,13 @@
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>
-        tracewpp.exe -odir:$(IntDir) -scan:$(ProjectDir)trace.h $(ProjectDir)*.cpp -p:xdpfntest -cfgdir:"$(WindowsSdkDir)bin\$(TargetPlatformVersion)\WppConfig\Rev1"
+        tracewpp.exe -odir:$(IntDir) -scan:$(SolutionDir)test\functional\inc\fntrace.h $(ProjectDir)*.cpp -p:xdpfntest -cfgdir:"$(WindowsSdkDir)bin\$(TargetPlatformVersion)\WppConfig\Rev1"
       </Command>
     </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\inc;
         $(SolutionDir)test\functional\lwf\inc;
         $(SolutionDir)test\functional\mp\inc;
         $(SolutionDir)test\pkthlp;

@@ -36,10 +36,10 @@
 #include <pkthlp.h>
 #include <xdpfnmpapi.h>
 #include <xdpfnlwfapi.h>
+#include <fntrace.h>
 
 #include "xdptest.h"
 #include "tests.h"
-#include "trace.h"
 #include "util.h"
 
 #include "tests.tmh"

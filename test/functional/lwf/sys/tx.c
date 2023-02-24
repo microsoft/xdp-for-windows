@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "tx.tmh"
 
 typedef struct _DEFAULT_TX {
     DEFAULT_CONTEXT *Default;
@@ -138,6 +139,8 @@ TxIrpFlush(
     UINT32 NdisFlags = 0;
     NTSTATUS Status;
 
+    TraceEnter(TRACE_DATAPATH, "Tx=%p", Tx);
+
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(*In)) {
         Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
@@ -182,6 +185,8 @@ TxIrpFlush(
 
 Exit:
 
+    TraceExitStatus(TRACE_DATAPATH);
+
     return Status;
 }
 
@@ -221,6 +226,7 @@ FilterSendNetBufferListsComplete(
     while (!NdisIsNblQueueEmpty(&NblQueue)) {
         Nbl = NdisPopFirstNblFromNblQueue(&NblQueue);
         if (Nbl->SourceHandle == Filter->NdisFilterHandle) {
+            TraceVerbose(TRACE_DATAPATH, "Nbl=%p", Nbl);
             FnIoEnqueueFrameReturn(Nbl);
             ExReleaseRundownProtectionEx(&Filter->NblRundown, 1);
         } else {
