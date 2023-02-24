@@ -8,31 +8,24 @@
 
 XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
 
-- XDP requires the Microsoft Visual C++ Redistributable, which is available
-   [here](https://aka.ms/vs/17/release/vc_redist.x64.exe).
+If xdp.sys is not production-signed:
+```PowerShell
+CertUtil.exe -addstore Root CoreNetSignRoot.cer
+CertUtil.exe -addstore TrustedPublisher CoreNetSignRoot.cer
+bcdedit.exe /set testsigning on
+[reboot]
+```
 
-- Since XDP is not production-signed, configure Windows to load the test-signed
-   driver:
+Install:
+```PowerShell
+netcfg.exe -l .\xdp.inf -c s -i ms_xdp
+```
 
-    ```PowerShell
-    CertUtil.exe -addstore Root CoreNetSignRoot.cer
-    CertUtil.exe -addstore TrustedPublisher CoreNetSignRoot.cer
-    bcdedit.exe /set testsigning on
-    [reboot]
-    ```
-
-- Install the XDP driver and usermode library:
-
-    ```PowerShell
-    netcfg.exe -l .\xdp.inf -c s -i ms_xdp
-    ```
-
-- To uninstall the XDP driver and usermode library:
-
-    ```PowerShell
-    netcfg.exe -u ms_xdp
-    pnputil.exe /delete-driver xdp.inf
-    ```
+Uninstall:
+```PowerShell
+netcfg.exe -u ms_xdp
+pnputil.exe /delete-driver xdp.inf
+```
 
 ## Logging
 
