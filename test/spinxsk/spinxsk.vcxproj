@@ -24,6 +24,9 @@
     <RootNamespace>spinxsk</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <EnableASAN>true</EnableASAN>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
