@@ -3760,38 +3760,111 @@ GenericRxFromTxInspect(
 }
 
 static
-unique_bpf_object
-AttachEbpfXdpProgram(
+HRESULT
+TryAttachEbpfXdpProgram(
+    _Out_ unique_bpf_object &BpfObject,
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
-    _In_ const CHAR *BpfProgramName
+    _In_ const CHAR *BpfProgramName,
+    _In_ INT AttachFlags = 0
     )
 {
-    unique_bpf_object BpfObject;
+    HRESULT Result;
     CHAR Path[MAX_PATH];
     std::string BpfAbsoluteFileName;
     bpf_program *Program;
     int ProgramFd;
+    int ErrnoResult;
 
-    TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
+    Result = GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path));
+    if (FAILED(Result)) {
+        goto Exit;
+    }
 
     BpfAbsoluteFileName = Path;
     BpfAbsoluteFileName += BpfRelativeFileName;
 
     BpfObject.reset(bpf_object__open(BpfAbsoluteFileName.c_str()));
-    TEST_NOT_EQUAL(NULL, BpfObject.get());
+    if (BpfObject.get() == NULL) {
+        TraceError("bpf_object__open failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
 
-    TEST_EQUAL(0, bpf_object__load(BpfObject.get()));
+    ErrnoResult = bpf_object__load(BpfObject.get());
+    if (ErrnoResult != 0) {
+        TraceError("bpf_object__load failed: %d, errno=%d", ErrnoResult, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
 
     Program = bpf_object__find_program_by_name(BpfObject.get(), BpfProgramName);
-    TEST_NOT_EQUAL(NULL, Program);
+    if (Program == NULL) {
+        TraceError("bpf_object__find_program_by_name failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
 
     ProgramFd = bpf_program__fd(Program);
-    TEST_TRUE(ProgramFd >= 0);
+    if (ProgramFd < 0) {
+        TraceError("bpf_program__fd failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
 
-    TEST_EQUAL(0, bpf_xdp_attach(If.GetIfIndex(), ProgramFd, 0, NULL));
+    ErrnoResult = bpf_xdp_attach(If.GetIfIndex(), ProgramFd, AttachFlags, NULL);
+    if (ErrnoResult != 0) {
+        TraceError("bpf_xdp_attach failed: %d, errno=%d", ErrnoResult, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    Result = S_OK;
+
+Exit:
+
+    if (FAILED(Result)) {
+        BpfObject.reset();
+    }
+
+    return Result;
+}
+
+static
+unique_bpf_object
+AttachEbpfXdpProgram(
+    _In_ const TestInterface &If,
+    _In_ const CHAR *BpfRelativeFileName,
+    _In_ const CHAR *BpfProgramName,
+    _In_ INT AttachFlags = 0
+    )
+{
+    unique_bpf_object BpfObject;
+
+    TEST_HRESULT(TryAttachEbpfXdpProgram(
+        BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags));
 
     return BpfObject;
+}
+
+VOID
+GenericRxEbpfAttach()
+{
+    auto If = FnMpIf;
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
+
+    unique_bpf_object BpfObjectReplacement;
+    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
+
+    //
+    // TODO: eBPF doesn't wait for the pass.sys driver to completely unload
+    // after tearing down the object, so allow some time for that to happen
+    // before retrying with the replace flag.
+    //
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    BpfObjectReplacement =
+        AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
 
 VOID

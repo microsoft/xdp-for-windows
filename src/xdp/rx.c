@@ -228,6 +228,11 @@ XdpReceiveEbpf(
 
     if (XdpInspectEbpfStartBatch(RxQueue->Program, &RxQueue->InspectionContext)) {
         XdppReceiveBatch(RxQueue, XdpInspectEbpf);
+        //
+        // TODO: RxQueue->Program may have changed during XdppReceiveBatch's
+        // implicit flush! Today it can't change, but this should be made more
+        // robust.
+        //
         XdpInspectEbpfEndBatch(RxQueue->Program, &RxQueue->InspectionContext);
     } else {
         XdppReceiveBatch(RxQueue, XdpInspect);
