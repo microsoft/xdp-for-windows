@@ -200,6 +200,22 @@ public:
         GenericRxMatch(AF_INET6, XDP_MATCH_QUIC_FLOW_DST_CID, TRUE);
     }
 
+    TEST_METHOD(GenericRxMatchTcpQuicSrcV4) {
+        GenericRxMatch(AF_INET, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicSrcV6) {
+        GenericRxMatch(AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicDstV4) {
+        GenericRxMatch(AF_INET, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicDstV6) {
+        GenericRxMatch(AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE);
+    }
+
     TEST_METHOD(GenericRxMatchIpPrefixV4) {
         GenericRxMatchIpPrefix(AF_INET);
     }
@@ -277,11 +293,19 @@ public:
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV4) {
-        GenericRxUdpFragmentQuicLongHeader(AF_INET);
+        GenericRxUdpFragmentQuicLongHeader(AF_INET, TRUE);
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV6) {
-        GenericRxUdpFragmentQuicLongHeader(AF_INET6);
+        GenericRxUdpFragmentQuicLongHeader(AF_INET6, TRUE);
+    }
+
+    TEST_METHOD(GenericRxTcpFragmentQuicLongHeaderV4) {
+        GenericRxUdpFragmentQuicLongHeader(AF_INET, FALSE);
+    }
+
+    TEST_METHOD(GenericRxTcpFragmentQuicLongHeaderV6) {
+        GenericRxUdpFragmentQuicLongHeader(AF_INET6, FALSE);
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicShortHeaderV4) {

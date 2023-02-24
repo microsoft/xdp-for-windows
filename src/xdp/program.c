@@ -640,7 +640,9 @@ QuicCidMatch(
     _In_ CONST XDP_QUIC_FLOW *Flow
     )
 {
-    if ((Type == XDP_MATCH_QUIC_FLOW_SRC_CID) != (QuicHeader->QuicIsLongHeader == 1)) {
+    if ((Type == XDP_MATCH_QUIC_FLOW_SRC_CID ||
+         Type == XDP_MATCH_TCP_QUIC_FLOW_SRC_CID) !=
+        (QuicHeader->QuicIsLongHeader == 1)) {
         return FALSE;
     }
     ASSERT(Flow->CidOffset + Flow->CidLength <= QUIC_MAX_CID_LENGTH);
@@ -1050,6 +1052,34 @@ XdpInspect(
             }
             break;
 
+        case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
+        case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
+            if (!FrameCache.TcpCached || !FrameCache.TransportPayloadCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+
+            if (!FrameCache.TcpValid || !FrameCache.TransportPayloadValid ||
+                FrameCache.TcpHdr->th_dport != Rule->Pattern.QuicFlow.UdpPort) {
+                break;
+            }
+
+            if (!FrameCache.QuicCached) {
+                XdpParseQuicHeader(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache.TransportPayload, &Program->FrameStorage, &FrameCache);
+            }
+
+            if (FrameCache.QuicValid &&
+                QuicCidMatch(
+                    Rule->Match,
+                    &FrameCache,
+                    &Rule->Pattern.QuicFlow)) {
+                Matched = TRUE;
+            }
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1202,10 +1232,30 @@ XdpProgramTraceObject(
                 WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
             break;
 
+        case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_TCP_QUIC_FLOW_SRC_CID "
+                "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
+                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
+                WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
+            break;
+
         case XDP_MATCH_QUIC_FLOW_DST_CID:
             TraceInfo(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW_DST_CID "
+                "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
+                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
+                WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
+            break;
+
+        case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_TCP_QUIC_FLOW_DST_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
                 ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
@@ -1721,7 +1771,7 @@ XdpCaptureProgram(
         RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
         Program->RuleCount++;
 
-        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_DST) {
+        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_QUIC_FLOW_DST_CID) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -1735,6 +1785,8 @@ XdpCaptureProgram(
         switch (ValidatedRule->Match) {
         case XDP_MATCH_QUIC_FLOW_SRC_CID:
         case XDP_MATCH_QUIC_FLOW_DST_CID:
+        case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
+        case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
             if (UserRule.Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
                 Status = STATUS_INVALID_PARAMETER;
                 goto Exit;
