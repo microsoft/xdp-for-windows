@@ -1080,6 +1080,19 @@ XdpInspect(
             }
             break;
 
+        case XDP_MATCH_TCP_CONTROL_DST:
+            if (!FrameCache.TcpCached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.TcpValid &&
+                FrameCache.TcpHdr->th_dport == Rule->Pattern.Port &&
+                (FrameCache.TcpHdr->th_flags & (TH_SYN | TH_FIN | TH_RST)) != 0) {
+                Matched = TRUE;
+            }
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1326,6 +1339,12 @@ XdpProgramTraceObject(
         case XDP_MATCH_TCP_DST:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_TCP_DST Port=%u",
+                ProgramObject, i, ntohs(Rule->Pattern.Port));
+            break;
+
+        case XDP_MATCH_TCP_CONTROL_DST:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_TCP_CONTROL_DST Port=%u",
                 ProgramObject, i, ntohs(Rule->Pattern.Port));
             break;
 
@@ -1771,7 +1790,7 @@ XdpCaptureProgram(
         RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
         Program->RuleCount++;
 
-        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_QUIC_FLOW_DST_CID) {
+        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_CONTROL_DST) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }

@@ -101,6 +101,12 @@ typedef enum _XDP_MATCH_TYPE {
     // offset.
     //
     XDP_MATCH_TCP_QUIC_FLOW_DST_CID,
+    //
+    // Match frames with a specific TCP port number as their destination port and
+    // TCP control flags (SYN, FIN and RST). The port number is specified by field
+    // Port in XDP_MATCH_PATTERN.
+    //
+    XDP_MATCH_TCP_CONTROL_DST,
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {
