@@ -156,6 +156,14 @@ public:
         ::FnMpNativeHandleTest();
     }
 
+    TEST_METHOD(GenericRxTcpControlV4) {
+        GenericRxTcpControl(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxTcpControlV6) {
+        GenericRxTcpControl(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxAllQueueRedirectV4) {
         GenericRxAllQueueRedirect(AF_INET);
     }

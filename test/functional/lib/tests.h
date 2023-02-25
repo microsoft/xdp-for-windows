@@ -38,6 +38,11 @@ GenericRxAllQueueRedirect(
     );
 
 VOID
+GenericRxTcpControl(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 GenericRxMatch(
     _In_ ADDRESS_FAMILY Af,
     _In_ XDP_MATCH_TYPE MatchType,

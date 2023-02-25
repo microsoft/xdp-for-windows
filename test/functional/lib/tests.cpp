@@ -2311,6 +2311,209 @@ GenericRxAllQueueRedirect(
 }
 
 VOID
+GenericRxTcpControl(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMp1QIf;
+    UINT16 LocalPort = htons(4321);
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    WaitForWfpQuarantine(If);
+
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    auto Xsk =
+        CreateAndBindSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_TCP_CONTROL_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    Rule.Redirect.Target = Xsk.Handle.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    const UCHAR Payload[] = "GenericRxTcpControls";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[TCP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 6);
+
+    //
+    // Indicate a packet without control flags.
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength,
+            NULL, 0, 0, 1, TH_ACK, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+
+    //
+    // Indicate a SYN packet.
+    //
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, NULL, 0,
+            NULL, 0, 0, 1, TH_SYN, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            PacketBuffer,
+            PacketBufferLength));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+
+    //
+    // Indicate a SYN+ACK packet.
+    //
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, NULL, 0,
+            NULL, 0, 0, 1, TH_SYN | TH_ACK, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            PacketBuffer,
+            PacketBufferLength));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+
+    //
+    // Indicate a FIN packet.
+    //
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, NULL, 0,
+            NULL, 0, 0, 1, TH_FIN, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            PacketBuffer,
+            PacketBufferLength));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+
+    //
+    // Indicate a FIN+ACK packet.
+    //
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, NULL, 0,
+            NULL, 0, 0, 1, TH_FIN | TH_ACK, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            PacketBuffer,
+            PacketBufferLength));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+
+    //
+    // Indicate a RST packet.
+    //
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, NULL, 0,
+            NULL, 0, 0, 1, TH_RST, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            PacketBuffer,
+            PacketBufferLength));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+
+    //
+    // Indicate a RST+ACK packet.
+    //
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            PacketBuffer, &PacketBufferLength, NULL, 0,
+            NULL, 0, 0, 1, TH_RST | TH_ACK, 65535,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            PacketBuffer,
+            PacketBufferLength));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+}
+
+VOID
 GenericRxMatch(
     _In_ ADDRESS_FAMILY Af,
     _In_ XDP_MATCH_TYPE MatchType,
