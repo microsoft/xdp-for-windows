@@ -407,8 +407,7 @@ AttachXdpEbpfProgram(
     UNREFERENCED_PARAMETER(Sock);
 
     if (!enableEbpf) {
-        Result = HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-        goto Exit;
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
     }
 
     OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
