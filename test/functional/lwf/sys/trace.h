@@ -112,3 +112,8 @@ WppHexDump(
 
     return WppHexDump;
 }
+
+VOID
+TraceNbls(
+    _In_ NET_BUFFER_LIST *NblChain
+    );

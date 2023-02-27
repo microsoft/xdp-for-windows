@@ -12,6 +12,7 @@
     <ClCompile Include="miniport.c" />
     <ClCompile Include="oid.c" />
     <ClCompile Include="rss.c" />
+    <ClCompile Include="trace.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h" />

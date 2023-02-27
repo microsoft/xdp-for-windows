@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "tx.tmh"
 
 typedef struct _GENERIC_TX {
     GENERIC_CONTEXT *Generic;
@@ -139,6 +140,9 @@ MpSendNetBufferLists(
     NBL_COUNTED_QUEUE NblChain, ReturnChain;
     KIRQL OldIrql;
 
+    TraceEnter(TRACE_DATAPATH, "Adapter=%p", Adapter);
+    TraceNbls(NetBufferLists);
+
     UNREFERENCED_PARAMETER(PortNumber);
     UNREFERENCED_PARAMETER(SendFlags);
 
@@ -168,6 +172,8 @@ MpSendNetBufferLists(
             Adapter->Generic, NdisGetNblChainFromNblCountedQueue(&ReturnChain),
             ReturnChain.NblCount);
     }
+
+    TraceExitSuccess(TRACE_DATAPATH);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

@@ -6,10 +6,12 @@
 #include <winsock2.h>
 #include <CppUnitTest.h>
 #include <xdpapi.h>
+#include <fntrace.h>
 
 #include "xdptest.h"
 #include "tests.h"
 #include "util.h"
+#include "tests.tmh"
 
 //
 // Test suite(s).
@@ -44,6 +46,7 @@ LogTestFailure(
     _vsnwprintf_s(Buffer, Size, _TRUNCATE, Format, Args);
     va_end(Args);
 
+    TraceError("%S", Buffer);
     Logger::WriteMessage(Buffer);
 }
 
@@ -68,6 +71,7 @@ LogTestWarning(
     _vsnwprintf_s(Buffer, Size, _TRUNCATE, Format, Args);
     va_end(Args);
 
+    TraceWarn("%S", Buffer);
     Logger::WriteMessage(Buffer);
 }
 
@@ -152,6 +156,14 @@ public:
         ::FnMpNativeHandleTest();
     }
 
+    TEST_METHOD(GenericRxTcpControlV4) {
+        GenericRxTcpControl(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxTcpControlV6) {
+        GenericRxTcpControl(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxAllQueueRedirectV4) {
         GenericRxAllQueueRedirect(AF_INET);
     }
@@ -198,6 +210,22 @@ public:
 
     TEST_METHOD(GenericRxMatchUdpQuicDstV6) {
         GenericRxMatch(AF_INET6, XDP_MATCH_QUIC_FLOW_DST_CID, TRUE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicSrcV4) {
+        GenericRxMatch(AF_INET, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicSrcV6) {
+        GenericRxMatch(AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicDstV4) {
+        GenericRxMatch(AF_INET, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE);
+    }
+
+    TEST_METHOD(GenericRxMatchTcpQuicDstV6) {
+        GenericRxMatch(AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE);
     }
 
     TEST_METHOD(GenericRxMatchIpPrefixV4) {
@@ -277,11 +305,19 @@ public:
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV4) {
-        GenericRxUdpFragmentQuicLongHeader(AF_INET);
+        GenericRxUdpFragmentQuicLongHeader(AF_INET, TRUE);
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV6) {
-        GenericRxUdpFragmentQuicLongHeader(AF_INET6);
+        GenericRxUdpFragmentQuicLongHeader(AF_INET6, TRUE);
+    }
+
+    TEST_METHOD(GenericRxTcpFragmentQuicLongHeaderV4) {
+        GenericRxUdpFragmentQuicLongHeader(AF_INET, FALSE);
+    }
+
+    TEST_METHOD(GenericRxTcpFragmentQuicLongHeaderV6) {
+        GenericRxUdpFragmentQuicLongHeader(AF_INET6, FALSE);
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicShortHeaderV4) {
