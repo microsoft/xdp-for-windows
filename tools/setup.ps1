@@ -15,6 +15,9 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
 
+.PARAMETER EnableEbpf
+    Enable eBPF in the XDP driver.
+
 #>
 
 param (
@@ -36,7 +39,10 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
-    [string]$XdpmpPollProvider = "NDIS"
+    [string]$XdpmpPollProvider = "NDIS",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -230,6 +236,12 @@ function Install-Xdp {
     netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
     if ($LastExitCode) {
         Write-Error "netcfg.exe exit code: $LastExitCode"
+    }
+
+    if ($EnableEbpf) {
+        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+        Stop-Service xdp
     }
 
     Start-Service-With-Retry xdp

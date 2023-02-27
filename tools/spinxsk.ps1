@@ -36,6 +36,9 @@ more coverage for setup and cleanup.
 .PARAMETER XdpmpPollProvider
     Poll provider for XDPMP.
 
+.PARAMETER EnableEbpf
+    Enable eBPF in the XDP driver and spinxsk test cases.
+
 #>
 
 param (
@@ -73,7 +76,10 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
-    [string]$XdpmpPollProvider = "NDIS"
+    [string]$XdpmpPollProvider = "NDIS",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -119,7 +125,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf:$EnableEbpf
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing xdpmp..."
@@ -156,6 +162,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             $Args += "-WatchdogCmd", "break"
         } else {
             $Args += "-WatchdogCmd", "$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula"
+        }
+        if ($EnableEbpf) {
+            $Args += "-EnableEbpf"
         }
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args

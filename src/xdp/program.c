@@ -2741,24 +2741,32 @@ XdpProgramStart(
         .ProviderModuleId = &EbpfXdpHookProviderModuleId,
         .ProviderData = &EbpfXdpHookProviderData,
     };
+    DWORD EbpfEnabled;
     NTSTATUS Status;
 
     TraceEnter(TRACE_CORE, "-");
 
-    Status =
-        EbpfExtensionProviderRegister(
-            &EBPF_PROGRAM_INFO_EXTENSION_IID, &EbpfProgramInfoProviderParameters, NULL, NULL, NULL,
-            &EbpfXdpProgramInfoProvider);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    //
+    // eBPF is disabled by default while reliability bugs are outstanding.
+    //
 
-    Status =
-        EbpfExtensionProviderRegister(
-            &EBPF_HOOK_EXTENSION_IID, &EbpfHookProviderParameters, EbpfProgramOnClientAttach,
-            EbpfProgramOnClientDetach, NULL, &EbpfXdpProgramHookProvider);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
+    Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"XdpEbpfEnabled", &EbpfEnabled);
+    if (NT_SUCCESS(Status) && EbpfEnabled) {
+        Status =
+            EbpfExtensionProviderRegister(
+                &EBPF_PROGRAM_INFO_EXTENSION_IID, &EbpfProgramInfoProviderParameters, NULL, NULL, NULL,
+                &EbpfXdpProgramInfoProvider);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        Status =
+            EbpfExtensionProviderRegister(
+                &EBPF_HOOK_EXTENSION_IID, &EbpfHookProviderParameters, EbpfProgramOnClientAttach,
+                EbpfProgramOnClientDetach, NULL, &EbpfXdpProgramHookProvider);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
     }
 
     Status = STATUS_SUCCESS;

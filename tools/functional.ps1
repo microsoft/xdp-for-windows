@@ -65,7 +65,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing xdpfnmp..."
