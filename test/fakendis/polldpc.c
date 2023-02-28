@@ -8,6 +8,12 @@
 #define MAX_ITERATIONS_INLINE   1
 #define MAX_ITERATIONS_PER_DPC  16
 
+//
+// The NDIS polling API uses a default thread priority of 10 for affinitized
+// polling contexts, so use that here, too.
+//
+#define PASSIVE_THREAD_PRIORITY 10
+
 #if DBG
 //
 // Use smaller quotas to reduce NBL chain lengths. Since debug builds of the
@@ -203,7 +209,9 @@ NdisPollCpu(
     if (PollCpu->LastYieldTick < CurrentTick.QuadPart) {
         PollCpu->LastYieldTick = CurrentTick.QuadPart;
         if (KeShouldYieldProcessor()) {
-            IoQueueWorkItem(PollCpu->WorkItem, NdisPollCpuPassiveWorker, DelayedWorkQueue, PollCpu);
+            IoQueueWorkItem(
+                PollCpu->WorkItem, NdisPollCpuPassiveWorker,
+                CustomPriorityWorkQueue + PASSIVE_THREAD_PRIORITY, PollCpu);
             return;
         }
     }

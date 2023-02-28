@@ -8,7 +8,6 @@
 //
 
 #include "precomp.h"
-#include <netiodef.h>
 #include <xdptransport.h>
 #include "program.tmh"
 
@@ -112,6 +111,10 @@ typedef struct _XDP_PROGRAM {
     XDP_RULE Rules[0];
 } XDP_PROGRAM;
 
+typedef struct _EBPF_XDP_MD {
+    xdp_md_t Base;
+} EBPF_XDP_MD;
+
 //
 // Data path routines.
 //
@@ -123,6 +126,173 @@ XdpInitializeFrameCache(
     )
 {
     Cache->Flags = 0;
+}
+
+static
+XDP_RX_ACTION
+XdpInvokeEbpf(
+    _In_ HANDLE EbpfTarget,
+    _In_opt_ XDP_INSPECTION_EBPF_CONTEXT *EbpfContext,
+    _In_ XDP_FRAME *Frame,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension
+    )
+{
+    const EBPF_EXTENSION_CLIENT *Client = (const EBPF_EXTENSION_CLIENT *)EbpfTarget;
+    const VOID *ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
+    XDP_BUFFER *Buffer;
+    UCHAR *Va;
+    EBPF_XDP_MD XdpMd;
+    ebpf_result_t EbpfResult;
+    XDP_RX_ACTION RxAction;
+    UINT32 Result;
+
+    UNREFERENCED_PARAMETER(FragmentIndex);
+
+    ASSERT((FragmentRing == NULL) || (FragmentExtension != NULL));
+
+    //
+    // Fragmented frames are currently not supported by eBPF.
+    //
+    if (FragmentRing != NULL &&
+        XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount != 0) {
+        RxAction = XDP_RX_ACTION_DROP;
+        goto Exit;
+    }
+
+    Buffer = &Frame->Buffer;
+    Va = XdpGetVirtualAddressExtension(Buffer, VirtualAddressExtension)->VirtualAddress;
+    Va += Buffer->DataOffset;
+
+    XdpMd.Base.data = Va;
+    XdpMd.Base.data_end = Va + Buffer->DataLength;
+    XdpMd.Base.data_meta = 0;
+    XdpMd.Base.ingress_ifindex = IFI_UNSPECIFIED;
+
+    if (EbpfContext != NULL) {
+        ebpf_invoke_program_batch_function_t EbpfInvokeProgram =
+            (ebpf_invoke_program_batch_function_t)
+                EbpfExtensionClientGetDispatch(Client)->function[2];
+        EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result, EbpfContext);
+    } else {
+        ebpf_invoke_program_function_t EbpfInvokeProgram =
+            (ebpf_invoke_program_function_t)EbpfExtensionClientGetDispatch(Client)->function[0];
+        EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result);
+    }
+
+    if (EbpfResult != EBPF_SUCCESS) {
+        EventWriteEbpfProgramFailure(&MICROSOFT_XDP_PROVIDER, ClientBindingContext, EbpfResult);
+        RxAction = XDP_RX_ACTION_DROP;
+        goto Exit;
+    }
+
+    switch (Result) {
+    case XDP_PASS:
+        RxAction = XDP_RX_ACTION_PASS;
+        break;
+
+    case XDP_TX:
+        RxAction = XDP_RX_ACTION_TX;
+        break;
+
+    default:
+        ASSERT(FALSE);
+        __fallthrough;
+    case XDP_DROP:
+        RxAction = XDP_RX_ACTION_DROP;
+        break;
+    }
+
+Exit:
+
+    return RxAction;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+XDP_RX_ACTION
+XdpInspectEbpf(
+    _In_ XDP_PROGRAM *Program,
+    _In_ XDP_INSPECTION_CONTEXT *InspectionContext,
+    _In_ XDP_RING *FrameRing,
+    _In_ UINT32 FrameIndex,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension
+    )
+{
+    XDP_FRAME *Frame;
+
+    ASSERT(XdpProgramIsEbpf(Program));
+    ASSERT(FrameIndex <= FrameRing->Mask);
+    ASSERT(
+        (FragmentRing == NULL && FragmentIndex == 0) ||
+        (FragmentRing && FragmentIndex <= FragmentRing->Mask));
+
+    Frame = XdpRingGetElement(FrameRing, FrameIndex);
+
+    return
+        XdpInvokeEbpf(
+            Program->Rules[0].Ebpf.Target, &InspectionContext->EbpfContext, Frame, FragmentRing,
+            FragmentExtension, FragmentIndex, VirtualAddressExtension);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+_Success_(return)
+BOOLEAN
+XdpInspectEbpfStartBatch(
+    _In_ XDP_PROGRAM *Program,
+    _Inout_ XDP_INSPECTION_CONTEXT *InspectionContext
+    )
+{
+    const EBPF_EXTENSION_CLIENT *Client;
+    const VOID *ClientBindingContext;
+    ebpf_result_t EbpfResult;
+
+    ASSERT(XdpProgramIsEbpf(Program));
+
+    Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
+
+    ebpf_invoke_batch_begin_function_t EbpfBatchBegin =
+        (ebpf_invoke_batch_begin_function_t)
+            EbpfExtensionClientGetDispatch(Client)->function[1];
+
+    EbpfResult =
+        EbpfBatchBegin(
+            ClientBindingContext, sizeof(InspectionContext->EbpfContext),
+            &InspectionContext->EbpfContext);
+
+    return EbpfResult == EBPF_SUCCESS;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpInspectEbpfEndBatch(
+    _In_ XDP_PROGRAM *Program,
+    _Inout_ XDP_INSPECTION_CONTEXT *InspectionContext
+    )
+{
+    const EBPF_EXTENSION_CLIENT *Client;
+    const VOID *ClientBindingContext;
+    ebpf_result_t EbpfResult;
+
+    UNREFERENCED_PARAMETER(InspectionContext);
+
+    ASSERT(XdpProgramIsEbpf(Program));
+
+    Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
+
+    ebpf_invoke_batch_end_function_t EbpfBatchEnd =
+        (ebpf_invoke_batch_end_function_t)
+            EbpfExtensionClientGetDispatch(Client)->function[3];
+
+    EbpfResult = EbpfBatchEnd(ClientBindingContext);
+
+    ASSERT(EbpfResult == EBPF_SUCCESS);
 }
 
 static
@@ -834,7 +1004,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_RX_ACTION
 XdpInspect(
     _In_ XDP_PROGRAM *Program,
-    _In_ XDP_REDIRECT_CONTEXT *RedirectContext,
+    _In_ XDP_INSPECTION_CONTEXT *InspectionContext,
     _In_ XDP_RING *FrameRing,
     _In_ UINT32 FrameIndex,
     _In_opt_ XDP_RING *FragmentRing,
@@ -1106,8 +1276,8 @@ XdpInspect(
 
             case XDP_PROGRAM_ACTION_REDIRECT:
                 XdpRedirect(
-                    RedirectContext, FrameIndex, FragmentIndex, Rule->Redirect.TargetType,
-                    Rule->Redirect.Target);
+                    &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
+                    Rule->Redirect.TargetType, Rule->Redirect.Target);
 
                 Action = XDP_RX_ACTION_DROP;
                 break;
@@ -1125,6 +1295,13 @@ XdpInspect(
                     XdpL2Fwd(
                         Frame, FragmentRing, FragmentExtension, FragmentIndex,
                         VirtualAddressExtension, &FrameCache, &Program->FrameStorage);
+                break;
+
+            case XDP_PROGRAM_ACTION_EBPF:
+                Action =
+                    XdpInvokeEbpf(
+                        Rule->Ebpf.Target, NULL, Frame, FragmentRing, FragmentExtension,
+                        FragmentIndex, VirtualAddressExtension);
                 break;
 
             default:
@@ -1386,6 +1563,107 @@ XdpProgramTraceObject(
         }
     }
 }
+
+static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
+    .size = sizeof(xdp_md_t),
+    .data = FIELD_OFFSET(xdp_md_t, data),
+    .end = FIELD_OFFSET(xdp_md_t, data_end),
+    .meta = FIELD_OFFSET(xdp_md_t, data_meta),
+};
+
+#define XDP_EXT_HELPER_FUNCTION_START EBPF_MAX_GENERAL_HELPER_FUNCTION
+
+// XDP helper function prototype descriptors.
+static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] = {
+    {
+        .helper_id = XDP_EXT_HELPER_FUNCTION_START + 1,
+        .name = "bpf_xdp_adjust_head",
+        .return_type = EBPF_RETURN_TYPE_INTEGER,
+        .arguments = {
+            EBPF_ARGUMENT_TYPE_PTR_TO_CTX,
+            EBPF_ARGUMENT_TYPE_ANYTHING,
+        },
+    },
+};
+
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_program_info_t EbpfXdpProgramInfo = {
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+    .program_type_descriptor = {
+        .name = "xdp",
+        .context_descriptor = &EbpfXdpContextDescriptor,
+        .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
+        BPF_PROG_TYPE_XDP,
+    },
+    .count_of_program_type_specific_helpers = RTL_NUMBER_OF(EbpfXdpHelperFunctionPrototype),
+    .program_type_specific_helper_prototype = EbpfXdpHelperFunctionPrototype,
+};
+
+static
+int
+EbpfXdpAdjustHead(
+    _Inout_ xdp_md_t *Context,
+    _In_ int Delta
+    )
+{
+    //
+    // Not implemented. Any return < 0 is an error.
+    //
+    UNREFERENCED_PARAMETER(Context);
+    UNREFERENCED_PARAMETER(Delta);
+    return -1;
+}
+
+static const VOID *EbpfXdpHelperFunctions[] = {
+    (VOID *)EbpfXdpAdjustHead,
+};
+
+static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
+    .helper_function_count = RTL_NUMBER_OF(EbpfXdpHelperFunctions),
+    .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
+};
+
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_program_data_t EbpfXdpProgramData = {
+    .program_info = &EbpfXdpProgramInfo,
+    .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
+    .required_irql = DISPATCH_LEVEL,
+};
+
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
+    .version = 0, // Review: versioning?
+    .size = sizeof(EbpfXdpProgramData),
+    .data = &EbpfXdpProgramData,
+};
+
+static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
+    .Length = sizeof(NPI_MODULEID),
+    .Type = MIT_GUID,
+    .Guid = EBPF_PROGRAM_TYPE_XDP_INIT,
+};
+
+static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
+    .supported_program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
+    .bpf_attach_type = BPF_XDP,
+    .link_type = BPF_LINK_TYPE_XDP,
+};
+
+#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+static const ebpf_extension_data_t EbpfXdpHookProviderData = {
+    .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
+    .size = sizeof(EbpfXdpHookAttachProviderData),
+    .data = &EbpfXdpHookAttachProviderData,
+};
+
+static const NPI_MODULEID EbpfXdpHookProviderModuleId = {
+    .Length = sizeof(NPI_MODULEID),
+    .Type = MIT_GUID,
+    .Guid = EBPF_ATTACH_TYPE_XDP_INIT,
+};
+
+static EBPF_EXTENSION_PROVIDER *EbpfXdpProgramInfoProvider;
+static EBPF_EXTENSION_PROVIDER *EbpfXdpProgramHookProvider;
 
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -1692,7 +1970,14 @@ XdpProgramRxQueueNotify(
     }
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+BOOLEAN
+XdpProgramIsEbpf(
+    _In_ XDP_PROGRAM *Program
+    )
+{
+    return Program->RuleCount == 1 && Program->Rules[0].Action == XDP_PROGRAM_ACTION_EBPF;
+}
+
 BOOLEAN
 XdpProgramCanXskBypass(
     _In_ XDP_PROGRAM *Program,
@@ -1839,7 +2124,7 @@ XdpCaptureProgram(
         }
 
         if (UserRule.Action < XDP_PROGRAM_ACTION_DROP ||
-            UserRule.Action > XDP_PROGRAM_ACTION_L2FWD) {
+            UserRule.Action > XDP_PROGRAM_ACTION_EBPF) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -1850,8 +2135,8 @@ XdpCaptureProgram(
         // Capture object handle references in the context of the calling thread.
         // The handle will be validated further on the control path.
         //
-        if (UserRule.Action == XDP_PROGRAM_ACTION_REDIRECT) {
-
+        switch (UserRule.Action) {
+        case XDP_PROGRAM_ACTION_REDIRECT:
             switch (UserRule.Redirect.TargetType) {
 
             case XDP_REDIRECT_TARGET_TYPE_XSK:
@@ -1869,6 +2154,27 @@ XdpCaptureProgram(
             if (!NT_SUCCESS(Status)) {
                 goto Exit;
             }
+
+            break;
+
+        case XDP_PROGRAM_ACTION_EBPF:
+            if (RequestorMode != KernelMode) {
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            //
+            // eBPF programs must be the sole, unconditional action.
+            //
+            if (RuleCount != 1 || ValidatedRule->Match != XDP_MATCH_ALL) {
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            ASSERT(Index == 0);
+            ValidatedRule->Ebpf.Target = UserRule.Ebpf.Target;
+
+            break;
         }
     }
 
@@ -1906,6 +2212,18 @@ XdpProgramValidateIfQueue(
     //
     // Perform further rule validation that requires an interface RX queue.
     //
+
+    //
+    // Since we don't know what an eBPF program will return, assume it will
+    // return all statuses.
+    //
+    if (XdpProgramIsEbpf(Program) && !XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(RxQueue))) {
+        TraceError(
+            TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
     for (ULONG Index = 0; Index < Program->RuleCount; Index++) {
         XDP_RULE *Rule = &Program->Rules[Index];
 
@@ -2006,6 +2324,18 @@ XdpProgramBindingAttach(
         }
     }
 
+    XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(ProgramBinding->RxQueue);
+
+    //
+    // Do not allow eBPF programs to be replaced or to replace existing
+    // programs.
+    //
+    if (OldCompiledProgram != NULL &&
+        (XdpProgramIsEbpf(OldCompiledProgram) || XdpProgramIsEbpf(Program))) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
     InsertTailList(
         XdpRxQueueGetProgramBindingList(ProgramBinding->RxQueue), &ProgramBinding->RxQueueEntry);
     Status = XdpProgramCompileNewProgram(ProgramBinding->RxQueue, &CompiledProgram);
@@ -2023,7 +2353,6 @@ XdpProgramBindingAttach(
         !IsListEmpty(&ProgramBinding->RxQueueEntry) &&
         !IsListEmpty(&ProgramBinding->Link));
 
-    XDP_PROGRAM *OldCompiledProgram = XdpRxQueueGetProgram(ProgramBinding->RxQueue);
     Status =
         XdpRxQueueSetProgram(
             ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
@@ -2163,18 +2492,14 @@ XdpProgramDetach(
     TraceExitSuccess(TRACE_CORE);
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
+static
 NTSTATUS
-XdpIrpCreateProgram(
-    _Inout_ IRP *Irp,
-    _Inout_ IO_STACK_LOCATION *IrpSp,
-    _In_ UCHAR Disposition,
-    _In_ VOID *InputBuffer,
-    _In_ SIZE_T InputBufferLength
+XdpProgramCreate(
+    _Out_ XDP_PROGRAM_OBJECT **NewProgramObject,
+    _In_ const XDP_PROGRAM_OPEN *Params,
+    _In_ KPROCESSOR_MODE RequestorMode
     )
 {
-    CONST XDP_PROGRAM_OPEN *Params = NULL;
     XDP_INTERFACE_MODE InterfaceMode;
     XDP_INTERFACE_MODE *RequiredMode = NULL;
     XDP_BINDING_HANDLE BindingHandle = NULL;
@@ -2185,12 +2510,6 @@ XdpIrpCreateProgram(
         XDP_CREATE_PROGRAM_FLAG_GENERIC |
         XDP_CREATE_PROGRAM_FLAG_NATIVE |
         XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
-
-    if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
-    Params = InputBuffer;
 
     TraceEnter(
         TRACE_CORE,
@@ -2224,7 +2543,7 @@ RetryBinding:
     }
 
     Status =
-        XdpCaptureProgram(Params->Rules, Params->RuleCount, Irp->RequestorMode, &ProgramObject);
+        XdpCaptureProgram(Params->Rules, Params->RuleCount, RequestorMode, &ProgramObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -2246,7 +2565,7 @@ RetryBinding:
 
     Status = WorkItem.CompletionStatus;
 
-    if (Status == STATUS_NOT_SUPPORTED &&
+    if (!NT_SUCCESS(Status) &&
         XdpIfGetCapabilities(BindingHandle)->Mode == XDP_INTERFACE_MODE_NATIVE &&
         RequiredMode == NULL) {
         //
@@ -2254,11 +2573,11 @@ RetryBinding:
         // application did not require native mode, attempt to fall back to
         // generic mode.
         //
-        TraceVerbose(
+        TraceInfo(
             TRACE_CORE,
-            "IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u native mode not supported, trying generic mode",
+            "IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u Status=%!STATUS! native mode failed, trying generic mode",
             Params->IfIndex, Params->HookId.Layer, Params->HookId.Direction,
-            Params->HookId.SubLayer, Params->QueueId);
+            Params->HookId.SubLayer, Params->QueueId, Status);
 
         ProgramObject = NULL;
         XdpIfDereferenceBinding(BindingHandle);
@@ -2272,24 +2591,19 @@ RetryBinding:
 Exit:
 
     if (NT_SUCCESS(Status)) {
-        ProgramObject->Header.ObjectType = XDP_OBJECT_TYPE_PROGRAM;
-        ProgramObject->Header.Dispatch = &XdpProgramFileDispatch;
         ProgramObject->IfHandle = BindingHandle, BindingHandle = NULL;
-        IrpSp->FileObject->FsContext = ProgramObject;
+        *NewProgramObject = ProgramObject;
     }
 
     if (BindingHandle != NULL) {
         XdpIfDereferenceBinding(BindingHandle);
     }
 
-    if (Params != NULL) {
-        TraceInfo(
-            TRACE_CORE,
-            "Program=%p IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u Flags=%x Status=%!STATUS!",
-            ProgramObject, Params->IfIndex, Params->HookId.Layer,
-            Params->HookId.Direction, Params->HookId.SubLayer, Params->QueueId,
-            Params->Flags, Status);
-    }
+    TraceInfo(
+        TRACE_CORE,
+        "Program=%p IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u Flags=%x Status=%!STATUS!",
+        ProgramObject, Params->IfIndex, Params->HookId.Layer, Params->HookId.Direction,
+        Params->HookId.SubLayer, Params->QueueId, Params->Flags, Status);
 
     TraceExitStatus(TRACE_CORE);
 
@@ -2299,22 +2613,58 @@ Exit:
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
-XdpIrpProgramClose(
+XdpIrpCreateProgram(
     _Inout_ IRP *Irp,
-    _Inout_ IO_STACK_LOCATION *IrpSp
+    _Inout_ IO_STACK_LOCATION *IrpSp,
+    _In_ UCHAR Disposition,
+    _In_ VOID *InputBuffer,
+    _In_ SIZE_T InputBufferLength
     )
 {
-    XDP_PROGRAM_OBJECT *Program = IrpSp->FileObject->FsContext;
+    CONST XDP_PROGRAM_OPEN *Params = NULL;
+    XDP_PROGRAM_OBJECT *ProgramObject = NULL;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "Irp=%p", Irp);
+
+    if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+    Params = InputBuffer;
+
+    Status = XdpProgramCreate(&ProgramObject, Params, Irp->RequestorMode);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+Exit:
+
+    if (NT_SUCCESS(Status)) {
+        ProgramObject->Header.ObjectType = XDP_OBJECT_TYPE_PROGRAM;
+        ProgramObject->Header.Dispatch = &XdpProgramFileDispatch;
+        IrpSp->FileObject->FsContext = ProgramObject;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+static
+VOID
+XdpProgramClose(
+    _In_ XDP_PROGRAM_OBJECT *ProgramObject
+    )
+{
     XDP_PROGRAM_WORKITEM WorkItem = {0};
 
-    UNREFERENCED_PARAMETER(Irp);
-
-    TraceEnter(TRACE_CORE, "Program=%p", Program);
-    TraceInfo(TRACE_CORE, "Closing Program=%p", Program);
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
+    TraceInfo(TRACE_CORE, "Closing ProgramObject=%p", ProgramObject);
 
     KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
-    WorkItem.ProgramObject = Program;
-    WorkItem.Bind.BindingHandle = Program->IfHandle;
+    WorkItem.ProgramObject = ProgramObject;
+    WorkItem.Bind.BindingHandle = ProgramObject->IfHandle;
     WorkItem.Bind.WorkRoutine = XdpProgramDetach;
 
     //
@@ -2325,6 +2675,193 @@ XdpIrpProgramClose(
     ASSERT(NT_SUCCESS(WorkItem.CompletionStatus));
 
     TraceExitSuccess(TRACE_CORE);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
+XdpIrpProgramClose(
+    _Inout_ IRP *Irp,
+    _Inout_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    XDP_PROGRAM_OBJECT *ProgramObject = IrpSp->FileObject->FsContext;
+
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
+
+    UNREFERENCED_PARAMETER(Irp);
+
+    XdpProgramClose(ProgramObject);
+
+    TraceExitSuccess(TRACE_CORE);
 
     return STATUS_SUCCESS;
+}
+
+static
+NTSTATUS
+EbpfProgramOnClientAttach(
+    _In_ const EBPF_EXTENSION_CLIENT *AttachingClient,
+    _In_ const EBPF_EXTENSION_PROVIDER *AttachingProvider
+    )
+{
+    NTSTATUS Status;
+    const ebpf_extension_data_t *ClientData = EbpfExtensionClientGetClientData(AttachingClient);
+    const ebpf_extension_dispatch_table_t *ClientDispatch =
+        EbpfExtensionClientGetDispatch(AttachingClient);
+    UINT32 IfIndex;
+    XDP_PROGRAM_OPEN OpenParams = {0};
+    XDP_RULE XdpRule = {0};
+    XDP_PROGRAM_OBJECT *ProgramObject;
+    ULONG RequiredMode;
+
+    TraceEnter(
+        TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
+
+    if (ClientData == NULL || ClientData->size != sizeof(IfIndex) || ClientData->data == NULL) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    IfIndex = *(UINT32 *)ClientData->data;
+
+    if (IfIndex == IFI_UNSPECIFIED) {
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    if (ClientDispatch->version < 1 || ClientDispatch->size < 4) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    OpenParams.IfIndex = IfIndex;
+    OpenParams.HookId.Layer = XDP_HOOK_L2;
+    OpenParams.HookId.Direction = XDP_HOOK_RX;
+    OpenParams.HookId.SubLayer = XDP_HOOK_INSPECT;
+    OpenParams.Flags = XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
+    OpenParams.RuleCount = 1;
+    OpenParams.Rules = &XdpRule;
+
+    Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"XdpEbpfMode", &RequiredMode);
+    if (NT_SUCCESS(Status)) {
+        switch (RequiredMode) {
+        case XDP_INTERFACE_MODE_GENERIC:
+            OpenParams.Flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
+            break;
+
+        case XDP_INTERFACE_MODE_NATIVE:
+            OpenParams.Flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
+            break;
+
+        default:
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+    }
+
+    XdpRule.Match = XDP_MATCH_ALL;
+    XdpRule.Action = XDP_PROGRAM_ACTION_EBPF;
+    XdpRule.Ebpf.Target = (HANDLE)AttachingClient;
+
+    Status = XdpProgramCreate(&ProgramObject, &OpenParams, KernelMode);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    EbpfExtensionClientSetProviderData(AttachingClient, ProgramObject);
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+static
+NTSTATUS
+EbpfProgramOnClientDetach(
+    _In_ const EBPF_EXTENSION_CLIENT *DetachingClient
+    )
+{
+    XDP_PROGRAM_OBJECT *ProgramObject = EbpfExtensionClientGetProviderData(DetachingClient);
+
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
+
+    ASSERT(ProgramObject != NULL);
+
+    XdpProgramClose(ProgramObject);
+
+    TraceExitSuccess(TRACE_CORE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+XdpProgramStart(
+    VOID
+    )
+{
+    const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfProgramInfoProviderParameters = {
+        .ProviderModuleId = &EbpfXdpProgramInfoProviderModuleId,
+        .ProviderData = &EbpfXdpProgramInfoProviderData,
+    };
+    const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfHookProviderParameters = {
+        .ProviderModuleId = &EbpfXdpHookProviderModuleId,
+        .ProviderData = &EbpfXdpHookProviderData,
+    };
+    DWORD EbpfEnabled;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "-");
+
+    //
+    // eBPF is disabled by default while reliability bugs are outstanding.
+    //
+
+    Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"XdpEbpfEnabled", &EbpfEnabled);
+    if (NT_SUCCESS(Status) && EbpfEnabled) {
+        Status =
+            EbpfExtensionProviderRegister(
+                &EBPF_PROGRAM_INFO_EXTENSION_IID, &EbpfProgramInfoProviderParameters, NULL, NULL, NULL,
+                &EbpfXdpProgramInfoProvider);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        Status =
+            EbpfExtensionProviderRegister(
+                &EBPF_HOOK_EXTENSION_IID, &EbpfHookProviderParameters, EbpfProgramOnClientAttach,
+                EbpfProgramOnClientDetach, NULL, &EbpfXdpProgramHookProvider);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+VOID
+XdpProgramStop(
+    VOID
+    )
+{
+    TraceEnter(TRACE_CORE, "-");
+
+    if (EbpfXdpProgramHookProvider != NULL) {
+        EbpfExtensionProviderUnregister(EbpfXdpProgramHookProvider);
+        EbpfXdpProgramHookProvider = NULL;
+    }
+
+    if (EbpfXdpProgramInfoProvider != NULL) {
+        EbpfExtensionProviderUnregister(EbpfXdpProgramInfoProvider);
+        EbpfXdpProgramInfoProvider = NULL;
+    }
+
+    TraceExitSuccess(TRACE_CORE);
 }

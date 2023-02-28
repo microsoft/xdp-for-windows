@@ -63,7 +63,10 @@ for ($i = 1; $i -le $Iterations; $i++) {
         }
 
         & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+
+        Write-Verbose "installing xdp..."
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+        Write-Verbose "installed xdp."
 
         Write-Verbose "installing xdpfnmp..."
         & "$RootDir\tools\setup.ps1" -Install xdpfnmp -Config $Config -Arch $Arch
@@ -72,6 +75,10 @@ for ($i = 1; $i -le $Iterations; $i++) {
         Write-Verbose "installing xdpfnlwf..."
         & "$RootDir\tools\setup.ps1" -Install xdpfnlwf -Config $Config -Arch $Arch
         Write-Verbose "installed xdpfnlwf."
+
+        Write-Verbose "installing ebpf..."
+        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
+        Write-Verbose "installed ebpf."
 
         $Args = @("$ArtifactsDir\xdpfunctionaltests.dll")
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
@@ -90,6 +97,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
             $IterationFailureCount++
         }
     } finally {
+        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdpfnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdpfnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'

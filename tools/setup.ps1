@@ -15,6 +15,9 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
 
+.PARAMETER EnableEbpf
+    Enable eBPF in the XDP driver.
+
 #>
 
 param (
@@ -27,23 +30,28 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
-    [string]$XdpmpPollProvider = "NDIS"
+    [string]$XdpmpPollProvider = "NDIS",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-# Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
+# Important paths.
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = "C:\devcon.exe"
@@ -228,6 +236,12 @@ function Install-Xdp {
     netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
     if ($LastExitCode) {
         Write-Error "netcfg.exe exit code: $LastExitCode"
+    }
+
+    if ($EnableEbpf) {
+        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+        Stop-Service xdp
     }
 
     Start-Service-With-Retry xdp
@@ -418,7 +432,7 @@ function Install-XdpFnMp {
 
 # Uninstalls the xdpfnmp driver.
 function Uninstall-XdpFnMp {
-    netsh int ipv4 delete address dpfnmp 192.168.200.1 | Out-Null
+    netsh int ipv4 delete address xdpfnmp 192.168.200.1 | Out-Null
     netsh int ipv4 delete neighbors xdpfnmp | Out-Null
     netsh int ipv6 delete address xdpfnmp fc00::200:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp | Out-Null
@@ -487,6 +501,49 @@ function Uninstall-XdpFnLwf {
     Write-Verbose "xdpfnlwf.sys uninstall complete!"
 }
 
+function Install-Ebpf {
+    $EbpfPath = Get-EbpfInstallPath
+    $EbpfMsiUrl = Get-EbpfMsiUrl
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
+
+    if (Test-Path $EbpfPath) {
+        Write-Error "$EbpfPath is already installed!"
+    }
+
+    # Try to install eBPF several times, since driver verifier's fault injection
+    # may occasionally prevent the eBPF driver from loading.
+    for ($i = 0; $i -lt 100; $i++) {
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn | Write-Verbose
+        if ($?) {
+            break;
+        }
+    }
+    if (!$? -or !(Test-Path $EbpfPath)) {
+        Write-Error "eBPF could not be installed"
+    }
+    # Stop eBPF's XDP hook since it conflicts with our XDP implementation.
+    Stop-Service netebpfext
+    Refresh-Path
+}
+
+function Uninstall-Ebpf {
+    $EbpfPath = Get-EbpfInstallPath
+    if (!(Test-Path $EbpfPath)) {
+        Write-Verbose "$EbpfPath does not exist. Assuming eBPF is not installed."
+        return
+    }
+    Write-Verbose "Uninstalling eBPF for Windows"
+    $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF for Windows'").IdentifyingNumber
+    Write-Verbose "msiexec.exe /x $InstallId /qn"
+    msiexec.exe /x $InstallId /qn | Write-Verbose
+    if (Test-Path $EbpfPath) {
+        Write-Error "eBPF could not be uninstalled"
+    }
+    Refresh-Path
+}
+
 if ($Install -eq "fndis") {
     Install-FakeNdis
 }
@@ -501,6 +558,9 @@ if ($Install -eq "xdpfnmp") {
 }
 if ($Install -eq "xdpfnlwf") {
     Install-XdpFnLwf
+}
+if ($Install -eq "ebpf") {
+    Install-Ebpf
 }
 
 if ($Uninstall -eq "fndis") {
@@ -517,4 +577,7 @@ if ($Uninstall -eq "xdpfnmp") {
 }
 if ($Uninstall -eq "xdpfnlwf") {
     Uninstall-XdpFnLwf
+}
+if ($Uninstall -eq "ebpf") {
+    Uninstall-Ebpf
 }

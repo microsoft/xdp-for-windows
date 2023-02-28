@@ -24,4 +24,8 @@
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <!-- Project-wide properties -->
+  <PropertyGroup>
+    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.6.0\</EbpfPackagePath>
+  </PropertyGroup>
 </Project>

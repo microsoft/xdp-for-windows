@@ -10,6 +10,7 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <winternl.h>
+#include <crtdbg.h>
 #include <ifdef.h>
 #include <xdpapi.h>
 #include <xdpassert.h>

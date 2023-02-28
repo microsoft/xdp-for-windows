@@ -36,6 +36,9 @@ more coverage for setup and cleanup.
 .PARAMETER XdpmpPollProvider
     Poll provider for XDPMP.
 
+.PARAMETER EnableEbpf
+    Enable eBPF in the XDP driver and spinxsk test cases.
+
 #>
 
 param (
@@ -69,8 +72,14 @@ param (
     [switch]$NoLogs = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$BreakOnWatchdog = $false,
+
+    [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
-    [string]$XdpmpPollProvider = "NDIS"
+    [string]$XdpmpPollProvider = "NDIS",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -110,13 +119,22 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Arch $Arch
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
+            Write-Verbose "installing fndis..."
             & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
+            Write-Verbose "installed fndis."
         }
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+
+        Write-Verbose "installing xdp..."
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf:$EnableEbpf
+        Write-Verbose "installed xdp."
 
         Write-Verbose "installing xdpmp..."
         & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Arch $Arch
         Write-Verbose "installed xdpmp."
+
+        Write-Verbose "installing ebpf..."
+        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
+        Write-Verbose "installed ebpf."
 
         Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
         Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
@@ -124,28 +142,37 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
-        $Args = "-IfIndex $((Get-NetAdapter XDPMP).ifIndex)"
-        $Args += " -WatchdogCmd '$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula'"
-        $Args += " -QueueCount $QueueCount"
-        $Args += " -Minutes $ThisIterationMinutes"
+        $Args = `
+            "-IfIndex", (Get-NetAdapter XDPMP).ifIndex, `
+            "-QueueCount", $QueueCount, `
+            "-Minutes", $ThisIterationMinutes
         if ($Stats) {
-            $Args += " -Stats"
+            $Args += "-Stats"
         }
         if ($FuzzerCount -ne 0) {
-            $Args += " -FuzzerCount $FuzzerCount"
+            $Args += "-FuzzerCount", $FuzzerCount
         }
         if ($CleanDatapath) {
-            $Args += " -CleanDatapath"
+            $Args += "-CleanDatapath"
         }
         if ($SuccessThresholdPercent -ge 0) {
-            $Args += " -SuccessThresholdPercent $SuccessThresholdPercent"
+            $Args += "-SuccessThresholdPercent", $SuccessThresholdPercent
         }
-        Write-Verbose ($SpinXsk + " " + $Args)
-        Invoke-Expression ($SpinXsk + " " + $Args)
+        if ($BreakOnWatchdog) {
+            $Args += "-WatchdogCmd", "break"
+        } else {
+            $Args += "-WatchdogCmd", "$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula"
+        }
+        if ($EnableEbpf) {
+            $Args += "-EnableEbpf"
+        }
+        Write-Verbose "$SpinXsk $Args"
+        & $SpinXsk $Args
         if ($LastExitCode -ne 0) {
             throw "SpinXsk failed with $LastExitCode"
         }
     } finally {
+        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         if ($XdpmpPollProvider -eq "FNDIS") {

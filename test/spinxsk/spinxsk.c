@@ -3,8 +3,13 @@
 // Licensed under the MIT License.
 //
 
+#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
+#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+
 #include <windows.h>
+#include <iphlpapi.h>
 #include <assert.h>
+#include <crtdbg.h>
 #include <stdio.h>
 #define _CRT_RAND_S
 #include <stdlib.h>
@@ -13,12 +18,12 @@
 #include <xdpapi.h>
 #include <xdpapi_internal.h>
 #include <xdprtl.h>
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
 
 #include "trace.h"
 #include "util.h"
 #include "spinxsk.tmh"
-
-#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #define SHALLOW_STR_OF(x) #x
 #define STR_OF(x) SHALLOW_STR_OF(x)
@@ -54,9 +59,13 @@ CHAR *HELP =
 "   -CleanDatapath        Avoid actions that invalidate the datapath\n"
 "                         Default: off\n"
 "   -WatchdogCmd <cmd>    Execute a system command after a watchdog violation\n"
+"                         If cmd is \"break\" then a debug breakpoint is\n"
+"                         triggered instead\n"
 "                         Default: \"\"\n"
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
+"   -EnableEbpf           Enables eBPF testing\n"
+"                         Default: off\n"
 ;
 
 #define ASSERT_FRE(expr) \
@@ -131,10 +140,23 @@ typedef struct {
     QUEUE_CONTEXT *queue;
 } XSK_DATAPATH_SHARED;
 
+typedef enum {
+    ProgramHandleXdp,
+    ProgramHandleEbpf,
+} PROGRAM_HANDLE_TYPE;
+
+typedef struct {
+    PROGRAM_HANDLE_TYPE Type;
+    union {
+        HANDLE Handle;
+        struct bpf_object *BpfObject;
+    };
+} PROGRAM_HANDLE;
+
 typedef struct {
     CRITICAL_SECTION Lock;
     UINT32 HandleCount;
-    HANDLE Handles[8];
+    PROGRAM_HANDLE Handles[8];
 } XSK_PROGRAM_SET;
 
 typedef struct {
@@ -243,6 +265,7 @@ BOOLEAN verbose = FALSE;
 BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
+BOOLEAN enableEbpf = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
@@ -356,6 +379,150 @@ FuzzHookId(
 }
 
 HRESULT
+AttachXdpEbpfProgram(
+    _In_ QUEUE_CONTEXT *Queue,
+    _In_ HANDLE Sock,
+    _Inout_ XSK_PROGRAM_SET *RxProgramSet
+    )
+{
+    HRESULT Result;
+    CHAR Path[MAX_PATH];
+    const CHAR *ProgramRelativePath = NULL;
+    struct bpf_object *BpfObject = NULL;
+    struct bpf_program *BpfProgram = NULL;
+    NET_IFINDEX IfIndex = ifindex;
+    int ProgramFd;
+    int AttachFlags = 0;
+    int OriginalThreadPriority;
+
+    //
+    // Since eBPF does not support per-queue programs, attach to the entire
+    // interface.
+    //
+    UNREFERENCED_PARAMETER(Queue);
+
+    //
+    // Since eBPF does not yet support AF_XDP, ignore the socket.
+    //
+    UNREFERENCED_PARAMETER(Sock);
+
+    if (!enableEbpf) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+
+    Result = GetCurrentBinaryPath(Path, sizeof(Path));
+    if (FAILED(Result)) {
+        goto Exit;
+    }
+
+    switch (RandUlong() % 3) {
+    case 0:
+        ProgramRelativePath = "\\bpf\\drop.o";
+        break;
+    case 1:
+        ProgramRelativePath = "\\bpf\\pass.sys";
+        break;
+    case 2:
+        ProgramRelativePath = "\\bpf\\l1fwd.o";
+        break;
+    default:
+        ASSERT_FRE(FALSE);
+    }
+
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
+
+    //
+    // To work around control path delays caused by eBPF's epoch implementation,
+    // boost this thread's priority when invoking eBPF APIs.
+    //
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
+    TraceVerbose("bpf_object__open(%s)", Path);
+    BpfObject = bpf_object__open(Path);
+    if (BpfObject == NULL) {
+        TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_object__next_program(%p, %p)", BpfObject, NULL);
+    BpfProgram = bpf_object__next_program(BpfObject, NULL);
+    if (BpfProgram == NULL) {
+        TraceVerbose("bpf_object__next_program failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_program__set_type(%p, %d)", BpfProgram, BPF_PROG_TYPE_XDP);
+    if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
+        TraceVerbose("bpf_program__set_type failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_object__load(%p)", BpfObject);
+    if (bpf_object__load(BpfObject) < 0) {
+        TraceVerbose("bpf_object__load failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_program__fd(%p)", BpfProgram);
+    ProgramFd = bpf_program__fd(BpfProgram);
+    if (ProgramFd < 0) {
+        TraceVerbose("bpf_program__fd failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    if ((RandUlong() % 2) == 0) {
+        AttachFlags |= XDP_FLAGS_REPLACE;
+    }
+
+    if ((RandUlong() % 8) == 0) {
+        //
+        // Try IFI_UNSPECIFIED, which is an invalid interface index since XDP
+        // does not support wildcards.
+        //
+        IfIndex = IFI_UNSPECIFIED;
+    }
+
+    TraceVerbose("bpf_xdp_attach(%u, %d, 0x%x, %p)", IfIndex, ProgramFd, AttachFlags, NULL);
+    if (bpf_xdp_attach(IfIndex, ProgramFd, AttachFlags, NULL) < 0) {
+        TraceVerbose("bpf_xdp_attach failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    EnterCriticalSection(&RxProgramSet->Lock);
+    if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
+        RxProgramSet->Handles[RxProgramSet->HandleCount].Type = ProgramHandleEbpf;
+        RxProgramSet->Handles[RxProgramSet->HandleCount].BpfObject = BpfObject;
+        RxProgramSet->HandleCount++;
+        Result = S_OK;
+    } else {
+        Result = E_NOT_SUFFICIENT_BUFFER;
+    }
+    LeaveCriticalSection(&RxProgramSet->Lock);
+
+Exit:
+
+    if (FAILED(Result)) {
+        if (BpfObject != NULL) {
+            TraceVerbose("bpf_object__close(%p)", BpfObject);
+            bpf_object__close(BpfObject);
+        }
+    }
+
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+
+    return Result;
+}
+
+HRESULT
 AttachXdpProgram(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
@@ -379,7 +546,7 @@ AttachXdpProgram(
     } else {
         rule.Match = XDP_MATCH_ALL;
 
-        switch (RandUlong() % 2) {
+        switch (RandUlong() % 4) {
         case 0:
             rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
             rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
@@ -389,6 +556,15 @@ AttachXdpProgram(
         case 1:
             rule.Action = XDP_PROGRAM_ACTION_L2FWD;
             break;
+
+        case 2:
+            rule.Action = XDP_PROGRAM_ACTION_EBPF;
+            rule.Ebpf.Target =
+                (HANDLE)((((UINT64)(RandUlong() & 0x3)) << 32) | (RandUlong() & 0x3));
+            break;
+
+        case 3:
+            return AttachXdpEbpfProgram(Queue, Sock, RxProgramSet);
         }
     }
 
@@ -446,7 +622,9 @@ AttachXdpProgram(
     if (SUCCEEDED(res)) {
         EnterCriticalSection(&RxProgramSet->Lock);
         if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
-            RxProgramSet->Handles[RxProgramSet->HandleCount++] = handle;
+            RxProgramSet->Handles[RxProgramSet->HandleCount].Type = ProgramHandleXdp;
+            RxProgramSet->Handles[RxProgramSet->HandleCount].Handle = handle;
+            RxProgramSet->HandleCount++;
         } else {
             ASSERT_FRE(CloseHandle(handle));
         }
@@ -467,18 +645,47 @@ DetachXdpProgram(
     _Inout_ XSK_PROGRAM_SET *RxProgramSet
     )
 {
-    HANDLE handle = NULL;
+    HANDLE Handle = NULL;
+    struct bpf_object *BpfObject = NULL;
 
     EnterCriticalSection(&RxProgramSet->Lock);
     if (RxProgramSet->HandleCount > 0) {
         UINT32 detachIndex = RandUlong() % RxProgramSet->HandleCount;
-        handle = RxProgramSet->Handles[detachIndex];
+
+        switch (RxProgramSet->Handles[detachIndex].Type) {
+        case ProgramHandleXdp:
+            Handle = RxProgramSet->Handles[detachIndex].Handle;
+            break;
+
+        case ProgramHandleEbpf:
+            BpfObject = RxProgramSet->Handles[detachIndex].BpfObject;
+            break;
+
+        default:
+            ASSERT_FRE(FALSE);
+        }
         RxProgramSet->Handles[detachIndex] = RxProgramSet->Handles[--RxProgramSet->HandleCount];
     }
     LeaveCriticalSection(&RxProgramSet->Lock);
 
-    if (handle != NULL) {
-        ASSERT_FRE(CloseHandle(handle));
+    if (Handle != NULL) {
+        ASSERT_FRE(CloseHandle(Handle));
+    }
+
+    if (BpfObject != NULL) {
+        int OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+        ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+
+        //
+        // To work around control path delays caused by eBPF's epoch implementation,
+        // boost this thread's priority when invoking eBPF APIs.
+        //
+        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
+        TraceVerbose("bpf_object__close(%p)", BpfObject);
+        bpf_object__close(BpfObject);
+
+        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
     }
 }
 
@@ -2033,11 +2240,13 @@ WatchdogFn(
                 TraceError( "WATCHDOG exceeded on queue %d", i);
                 printf("WATCHDOG exceeded on queue %d\n", i);
                 if (strlen(watchdogCmd) > 0) {
-                    TraceInfo("watchdogCmd=%s", watchdogCmd);
-                    system(watchdogCmd);
+                    if (!_stricmp(watchdogCmd, "break")) {
+                        DbgRaiseAssertionFailure();
+                    } else {
+                        TraceInfo("watchdogCmd=%s", watchdogCmd);
+                        system(watchdogCmd);
+                    }
                 }
-                DebugBreak();
-                DbgRaiseAssertionFailure();
                 exit(ERROR_TIMEOUT);
             }
         }
@@ -2112,6 +2321,8 @@ ParseArgs(
             }
             successThresholdPercent = (UINT8)atoi(argv[i]);
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
+        } else if (!strcmp(argv[i], "-EnableEbpf")) {
+            enableEbpf = TRUE;
         } else {
             Usage();
         }
@@ -2153,6 +2364,15 @@ main(
     HANDLE watchdogThread;
 
     WPP_INIT_TRACING(NULL);
+
+#if DBG
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+#endif
 
     ParseArgs(argc, argv);
 

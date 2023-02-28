@@ -189,13 +189,14 @@ XdpFlushTransmit(
 {
     XDP_TX_QUEUE *TxQueue = CONTAINING_RECORD(XdpTxQueue, XDP_TX_QUEUE, Dispatch);
 
-    XdbgEnterQueueEc(TxQueue, TRUE);
+    XdbgEnterQueueEc(TxQueue);
 
     XdpTxQueueDatapathComplete(TxQueue);
     XdpTxQueueDatapathFill(TxQueue);
 
     XdpQueueDatapathSync(&TxQueue->Sync);
 
+    XdbgFlushQueueEc(TxQueue);
     XdbgExitQueueEc(TxQueue);
 }
 

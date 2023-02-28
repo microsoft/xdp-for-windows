@@ -384,6 +384,7 @@ XdpStop(
         XdpDeviceObject = NULL;
     }
 
+    XdpProgramStop();
     XskStop();
     XdpIfStop();
     XdpTxStop();
@@ -463,6 +464,11 @@ XdpStart(
     }
 
     Status = XskStart();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = XdpProgramStart();
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

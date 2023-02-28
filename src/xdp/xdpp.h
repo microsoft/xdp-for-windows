@@ -16,6 +16,7 @@
 //
 
 #define XDP_POOLTAG_CPU_CONTEXT         'CpdX' // XdpC
+#define XDP_POOLTAG_EBPF_NMR            'epdX' // Xdpe
 #define XDP_POOLTAG_EXTENSION           'EpdX' // XdpE
 #define XDP_POOLTAG_IF                  'IpdX' // XdpI
 #define XDP_POOLTAG_IFSET               'ipdX' // Xdpi

@@ -5,7 +5,10 @@ This checks for the presence of any XDP drivers currently loaded.
 
 #>
 
-[cmdletbinding()]Param()
+[cmdletbinding()]Param(
+    [Parameter(Mandatory = $false)]
+    [switch]$IgnoreEbpf = $false
+)
 
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
@@ -47,6 +50,12 @@ Check-And-Remove-Driver "xdpfnlwf.sys" "xdpfnlwf"
 Check-And-Remove-Driver "xdpmp.sys" "xdpmp"
 Check-And-Remove-Driver "xdp.sys" "xdp"
 Check-And-Remove-Driver "fndis.sys" "fndis"
+
+# Check for any eBPF drivers.
+if (!$IgnoreEbpf) {
+    Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
+    Check-And-Remove-Driver "netebpfext.sys" "ebpf"
+}
 
 # Yay! No XDP drivers found.
 Write-Host "No loaded XDP drivers found!"

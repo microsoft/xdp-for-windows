@@ -39,8 +39,14 @@ jobs:
     - name: Prepare Machine
       shell: pwsh
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
+    - name: Install LLVM 11.0
+      run: |
+        choco install -y llvm --version 11.0.1 --allow-downgrade
+        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Nuget Restore
-      run: nuget.exe restore xdp.sln
+      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+    - name: Prepare for compiling eBPF programs
+      run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
     - name: Clean up Artifacts
@@ -228,6 +234,9 @@ jobs:
       uses: actions/setup-dotnet@607fce577a46308457984d59e4954e075820f10a
       with:
         dotnet-version: 6.0.x
+    - name: Prepare Machine
+      shell: pwsh
+      run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
     - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce

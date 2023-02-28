@@ -26,17 +26,32 @@
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 
+#if _MSCVER < 1930
+//
+// WIL causes VS2019 to warn on benign errors.
+//
+#pragma warning(push)
+#pragma warning(disable:6001)
+#pragma warning(disable:6387)
+#endif
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
 #pragma warning(pop)
+#if _MSCVER < 1930
+#pragma warning(pop)
+#endif
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
 #include <pkthlp.h>
 #include <xdpfnmpapi.h>
 #include <xdpfnlwfapi.h>
+#include <xdpndisuser.h>
 #include <fntrace.h>
+
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
 
 #include "xdptest.h"
 #include "tests.h"
@@ -90,10 +105,11 @@ static CONST XDP_HOOK_ID XdpInspectTxL2 =
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
 C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
 
+
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
-
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
+using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 
 static unique_xdp_api XdpApi;
 
@@ -455,6 +471,74 @@ public:
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
 static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
+
+static
+HRESULT
+TryStartService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+    UINT32 ServiceState;
+
+    TraceVerbose("Starting %s", ServiceName);
+
+    Result = StartServiceAsync(ServiceName);
+    if (FAILED(Result)) {
+        TraceError("StartServiceAsync failed Result=%!HRESULT!", Result);
+        return Result;
+    }
+
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
+        Result = GetServiceState(&ServiceState, ServiceName);
+        if (FAILED(Result)) {
+            TraceError("GetServiceState failed Result=%!HRESULT!", Result);
+            return Result;
+        }
+        if (ServiceState == SERVICE_RUNNING) {
+            break;
+        }
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
+    Result = (ServiceState == SERVICE_RUNNING) ? S_OK : E_FAIL;
+    TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
+    return Result;
+}
+
+static
+HRESULT
+TryStopService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+    UINT32 ServiceState;
+
+    TraceVerbose("Stopping %s", ServiceName);
+
+    Result = StopServiceAsync(ServiceName);
+    if (FAILED(Result)) {
+        TraceError("StopServiceAsync failed Result=%!HRESULT!", Result);
+        return Result;
+    }
+
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
+        Result = GetServiceState(&ServiceState, ServiceName);
+        if (FAILED(Result)) {
+            TraceError("GetServiceState failed Result=%!HRESULT!", Result);
+            return Result;
+        }
+        if (ServiceState == SERVICE_STOPPED) {
+            break;
+        }
+    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
+    Result = (ServiceState == SERVICE_STOPPED) ? S_OK : E_FAIL;
+    TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
+    return Result;
+}
 
 static
 HRESULT
@@ -1312,7 +1396,7 @@ VOID
 RxInitializeFrame(
     _Out_ RX_FRAME *Frame,
     _In_ UINT32 HashQueueId,
-    _In_ UCHAR *FrameBuffer,
+    _In_ const UCHAR *FrameBuffer,
     _In_ UINT32 FrameLength
     )
 {
@@ -1331,8 +1415,8 @@ static
 VOID
 MpTxFilter(
     _In_ const wil::unique_handle& Handle,
-    _In_ VOID *Pattern,
-    _In_ VOID *Mask,
+    _In_ const VOID *Pattern,
+    _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {
@@ -1449,8 +1533,8 @@ static
 VOID
 LwfRxFilter(
     _In_ const wil::unique_handle& Handle,
-    _In_ VOID *Pattern,
-    _In_ VOID *Mask,
+    _In_ const VOID *Pattern,
+    _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {
@@ -3934,6 +4018,296 @@ GenericRxFromTxInspect(
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
+}
+
+static
+HRESULT
+TryAttachEbpfXdpProgram(
+    _Out_ unique_bpf_object &BpfObject,
+    _In_ const TestInterface &If,
+    _In_ const CHAR *BpfRelativeFileName,
+    _In_ const CHAR *BpfProgramName,
+    _In_ INT AttachFlags = 0
+    )
+{
+    HRESULT Result;
+    CHAR Path[MAX_PATH];
+    std::string BpfAbsoluteFileName;
+    bpf_program *Program;
+    int ProgramFd;
+    int ErrnoResult;
+
+    Result = GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path));
+    if (FAILED(Result)) {
+        goto Exit;
+    }
+
+    BpfAbsoluteFileName = Path;
+    BpfAbsoluteFileName += BpfRelativeFileName;
+
+    BpfObject.reset(bpf_object__open(BpfAbsoluteFileName.c_str()));
+    if (BpfObject.get() == NULL) {
+        TraceError("bpf_object__open failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    ErrnoResult = bpf_object__load(BpfObject.get());
+    if (ErrnoResult != 0) {
+        TraceError("bpf_object__load failed: %d, errno=%d", ErrnoResult, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    Program = bpf_object__find_program_by_name(BpfObject.get(), BpfProgramName);
+    if (Program == NULL) {
+        TraceError("bpf_object__find_program_by_name failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    ProgramFd = bpf_program__fd(Program);
+    if (ProgramFd < 0) {
+        TraceError("bpf_program__fd failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    ErrnoResult = bpf_xdp_attach(If.GetIfIndex(), ProgramFd, AttachFlags, NULL);
+    if (ErrnoResult != 0) {
+        TraceError("bpf_xdp_attach failed: %d, errno=%d", ErrnoResult, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    Result = S_OK;
+
+Exit:
+
+    if (FAILED(Result)) {
+        BpfObject.reset();
+    }
+
+    return Result;
+}
+
+static
+unique_bpf_object
+AttachEbpfXdpProgram(
+    _In_ const TestInterface &If,
+    _In_ const CHAR *BpfRelativeFileName,
+    _In_ const CHAR *BpfProgramName,
+    _In_ INT AttachFlags = 0
+    )
+{
+    unique_bpf_object BpfObject;
+
+    TEST_HRESULT(TryAttachEbpfXdpProgram(
+        BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags));
+
+    return BpfObject;
+}
+
+VOID
+GenericRxEbpfAttach()
+{
+    auto If = FnMpIf;
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
+
+    unique_bpf_object BpfObjectReplacement;
+    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
+
+    //
+    // eBPF doesn't wait for the pass.sys driver to completely unload after
+    // tearing down the object, so allow some time for that to happen before
+    // retrying with the replace flag.
+    //
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    BpfObjectReplacement =
+        AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
+}
+
+VOID
+GenericRxEbpfDrop()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfDrop";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
+GenericRxEbpfPass()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfPass";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
+    LwfRxDequeueFrame(FnLwf, If.GetQueueId());
+    LwfRxFlush(FnLwf);
+}
+
+VOID
+GenericRxEbpfTx()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    const UCHAR Payload[] = "GenericRxEbpfTx";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.o", "l1fwd");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
+}
+
+VOID
+GenericRxEbpfPayload()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    UINT16 LocalPort = 0, RemotePort = 0;
+    ETHERNET_ADDRESS LocalHw = {}, RemoteHw = {};
+    INET_ADDR LocalIp = {}, RemoteIp = {};
+    const UINT32 Backfill = 13;
+    const UINT32 Trailer = 17;
+    const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.o", "allow_ipv6");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    UCHAR UdpFrame[Backfill + UDP_HEADER_STORAGE + sizeof(UdpPayload) + Trailer];
+    UINT32 UdpFrameLength = sizeof(UdpFrame) - Backfill - Trailer;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame + Backfill, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    std::vector<UCHAR> Mask(UdpFrameLength, 0xFF);
+    LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
+
+    RX_FRAME Frame;
+    DATA_BUFFER Buffer = {0};
+    Buffer.DataOffset = Backfill;
+    Buffer.DataLength = UdpFrameLength;
+    Buffer.BufferLength = Backfill + UdpFrameLength + Trailer;
+    Buffer.VirtualAddress = UdpFrame;
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), &Buffer);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
+    LwfRxDequeueFrame(FnLwf, If.GetQueueId());
+    LwfRxFlush(FnLwf);
+}
+
+VOID
+GenericRxEbpfFragments()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UINT32 Backfill = 3;
+    const UINT32 Trailer = 4;
+    const UINT32 SplitAt = 4;
+    DATA_BUFFER Buffers[2] = {};
+    const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    Buffers[0].DataLength = SplitAt;
+    Buffers[0].DataOffset = Backfill;
+    Buffers[0].BufferLength = Backfill + SplitAt;
+    Buffers[0].VirtualAddress = Payload;
+    Buffers[1].DataLength = sizeof(Payload) - Buffers[0].BufferLength - Trailer;
+    Buffers[1].DataOffset = 0;
+    Buffers[1].BufferLength = Buffers[1].DataLength + Trailer;
+    Buffers[1].VirtualAddress = Payload + Buffers[0].BufferLength;
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
+
+    std::vector<UCHAR> Mask(sizeof(Payload) - Backfill - Trailer, 0xFF);
+    LwfRxFilter(FnLwf, Payload + Backfill, &Mask[0], sizeof(Payload) - Backfill - Trailer);
+
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    //
+    // We currently do not support fragments with eBPF, so this packet should
+    // be dropped.
+    //
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
+GenericRxEbpfUnload()
+{
+    auto If = FnMpIf;
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
+
+    TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
+    TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
 }
 
 VOID

@@ -12,7 +12,25 @@
 #include <ntifs.h>
 #include <ntintsafe.h>
 #include <ndis.h>
+//
+// The stdint.h header is included by eBPF headers, and stdint.h throws
+// warnings. Include it directly and suppress the warnings.
+//
+#pragma warning(push)
+#pragma warning(disable:4083)
+#pragma warning(disable:4005)
+#include <stdint.h>
+#pragma warning(pop)
 #include <stdlib.h>
+#include <netiodef.h>
+#include <netioddk.h>
+#include <ebpf_extension_uuids.h>
+#include <ebpf_nethooks.h>
+#include <ebpf_program_attach_type_guids.h>
+#include <ebpf_program_types.h>
+#include <ebpf_result.h>
+#include <ebpf_structs.h>
+#include "ebpf_private_extension.h"
 
 #define XDPAPI
 #define XDPEXPORT(RoutineName) RoutineName##Thunk
@@ -50,6 +68,7 @@
 #include "xdpp.h"
 #include "bind.h"
 #include "dispatch.h"
+#include "ebpfextension.h"
 #include "extensionset.h"
 #include "offload.h"
 #include "program.h"

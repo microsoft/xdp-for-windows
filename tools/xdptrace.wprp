@@ -44,7 +44,7 @@
             </Stacks>
         </SystemProvider>
 
-        <!-- Leave the highest keywords bit unset to workaround downlevel WPR bug. -->
+        <!-- Leave the highest keywords bit unset to work around downlevel WPR bug. -->
         <EventProvider Id="EP_XdpEtw" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="5" />
         <EventProvider Id="EP_XdpEtwPerFrame" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="25" />
         <EventProvider Id="EP_XdpWpp" Name="D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
@@ -52,6 +52,7 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
+        <EventProvider Id="EP_EbpfEtw" Name="394f321c-5cf4-404c-aa34-4df1428a7f9c" NonPagedMemory="true"/>
         <EventProvider Id="EP_SpinXskWpp" Name="D6143B5D-9FD6-44BA-BA02-FAD9EA0C263D" Level="5">
             <Keywords>
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
@@ -89,6 +90,7 @@
                     <EventProviders>
                         <EventProviderId Value="EP_XdpEtwPerFrame" />
                         <EventProviderId Value="EP_XdpWpp" />
+                        <EventProviderId Value="EP_EbpfEtw" />
                     </EventProviders>
                 </EventCollectorId>
             </Collectors>
@@ -100,6 +102,7 @@
                     <EventProviders>
                         <EventProviderId Value="EP_XdpEtwPerFrame" />
                         <EventProviderId Value="EP_XdpWpp" />
+                        <EventProviderId Value="EP_EbpfEtw" />
                         <EventProviderId Value="EP_XdpFnMpWpp" />
                         <EventProviderId Value="EP_XdpFnLwfWpp" />
                         <EventProviderId Value="EP_XdpFnTestWpp" />

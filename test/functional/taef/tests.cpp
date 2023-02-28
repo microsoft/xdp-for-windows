@@ -27,10 +27,10 @@ StopTest()
 
 VOID
 LogTestFailure(
-    _In_z_ const LPWSTR File,
-    _In_z_ const LPWSTR Function,
+    _In_z_ PCWSTR File,
+    _In_z_ PCWSTR Function,
     INT Line,
-    _Printf_format_string_ const LPWSTR Format,
+    _Printf_format_string_ PCWSTR Format,
     ...
     )
 {
@@ -52,10 +52,10 @@ LogTestFailure(
 
 VOID
 LogTestWarning(
-    _In_z_ const LPWSTR File,
-    _In_z_ const LPWSTR Function,
+    _In_z_ PCWSTR File,
+    _In_z_ PCWSTR Function,
     INT Line,
-    _Printf_format_string_ const LPWSTR Format,
+    _Printf_format_string_ PCWSTR Format,
     ...
     )
 {
@@ -394,6 +394,34 @@ public:
 
     TEST_METHOD(GenericRxFromTxInspectV6) {
         GenericRxFromTxInspect(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxEbpfAttach) {
+        ::GenericRxEbpfAttach();
+    }
+
+    TEST_METHOD(GenericRxEbpfDrop) {
+        ::GenericRxEbpfDrop();
+    }
+
+    TEST_METHOD(GenericRxEbpfPass) {
+        ::GenericRxEbpfPass();
+    }
+
+    TEST_METHOD(GenericRxEbpfTx) {
+        ::GenericRxEbpfTx();
+    }
+
+    TEST_METHOD(GenericRxEbpfPayload) {
+        ::GenericRxEbpfPayload();
+    }
+
+    TEST_METHOD(GenericRxEbpfFragments) {
+        ::GenericRxEbpfFragments();
+    }
+
+    TEST_METHOD(GenericRxEbpfUnload) {
+        ::GenericRxEbpfUnload();
     }
 
     TEST_METHOD(GenericLoopbackV4) {
