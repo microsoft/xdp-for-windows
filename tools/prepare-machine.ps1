@@ -173,7 +173,7 @@ function Setup-VcRuntime {
         Remove-Item -Force "artifacts\vc_redist.x64.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "artifacts\vc_redist.x64.exe"
+        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "artifacts\vc_redist.x64.exe"
         Invoke-Expression -Command "artifacts\vc_redist.x64.exe /install /passive"
     }
 }
