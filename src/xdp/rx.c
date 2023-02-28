@@ -718,12 +718,14 @@ XdpRxQueueUpdateDispatch(
     _Inout_ XDP_RX_QUEUE *RxQueue
     )
 {
-    if (XdpProgramIsEbpf(RxQueue->Program)) {
+    //
+    // This routine attempts to select an optimized dispatch table for specific
+    // scenarios, otherwise falls back to the common code path.
+    //
+
+    if (XdpProgramIsEbpf(RxQueue->Program) && !XdpFaultInject()) {
         RxQueue->Dispatch = XdpRxEbpfDispatch;
-    } else if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue)) {
-        //
-        // Implement a fast path for a single XSK receiving all frames.
-        //
+    } else if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue) && !XdpFaultInject()) {
         RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
     } else {
         RxQueue->Dispatch = XdpRxDispatch;

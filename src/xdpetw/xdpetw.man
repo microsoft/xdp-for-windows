@@ -62,6 +62,11 @@
             mask="0x10"
             symbol="EC_KEYWORD"
             />
+          <keyword
+            name="Ebpf"
+            mask="0x20"
+            symbol="EBPF_KEYWORD"
+            />
         </keywords>
         <opcodes>
           <opcode
@@ -298,6 +303,18 @@
                 outType="win:NTSTATUS"
                 />
           </template>
+          <template tid="tid_EbpfProgramFailure">
+            <data
+                inType="win:Pointer"
+                name="ClientBindingContext"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="EbpfResult"
+                outType="win:HexInt32"
+                />
+          </template>
         </templates>
         <events>
           <event
@@ -489,6 +506,16 @@
               template="tid_XskNotifyAsyncComplete"
               value="19"
               />
+          <event
+              channel="CHID_XDP"
+              keywords="Rx Tx Ebpf"
+              level="XdpPerFrame"
+              message="$(string.EbpfProgramFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfProgramFailure"
+              template="tid_EbpfProgramFailure"
+              value="20"
+              />
         </events>
       </provider>
     </events>
@@ -571,6 +598,10 @@
         <string
             id="XskNotifyAsyncComplete.EventMessage"
             value="[ xsk][%1] notify pended complete Irp=%2 Status=%3"
+            />
+        <string
+            id="EbpfProgramFailure.EventMessage"
+            value="[ebpf][%1] program failed EbpfResult=%2"
             />
       </stringTable>
     </resources>

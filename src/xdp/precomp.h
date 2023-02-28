@@ -16,8 +16,6 @@
 // The stdint.h header is included by eBPF headers, and stdint.h throws
 // warnings. Include it directly and suppress the warnings.
 //
-// TODO: Attempt to eliminate the warnings.
-//
 #pragma warning(push)
 #pragma warning(disable:4083)
 #pragma warning(disable:4005)

@@ -104,9 +104,6 @@ EbpfExtensionProviderAttachClient(
         goto Exit;
     }
 
-    *ProviderBindingContext = NULL;
-    *ProviderDispatch = NULL;
-
     Client = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Client), XDP_POOLTAG_EBPF_NMR);
     if (Client == NULL) {
         Status = STATUS_NO_MEMORY;
@@ -116,10 +113,9 @@ EbpfExtensionProviderAttachClient(
     Client->NmrBindingHandle = NmrBindingHandle;
     Client->ClientModuleId = ClientRegistrationInstance->ModuleId->Guid;
     Client->ClientBindingContext = ClientBindingContext;
-    Client->ClientData =
-        (const ebpf_extension_data_t *)ClientRegistrationInstance->NpiSpecificCharacteristics;
+    Client->ClientData = ClientRegistrationInstance->NpiSpecificCharacteristics;
 
-    ClientDispatch = (const ebpf_extension_dispatch_table_t *)ClientNpiDispatch;
+    ClientDispatch = ClientNpiDispatch;
     if (ClientDispatch == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
@@ -143,6 +139,7 @@ Exit:
     if (NT_SUCCESS(Status)) {
         *ProviderBindingContext = Client;
         Client = NULL;
+        *ProviderDispatch = NULL;
     } else {
         if (Client != NULL) {
             ExFreePoolWithTag(Client, XDP_POOLTAG_EBPF_NMR);
@@ -151,7 +148,7 @@ Exit:
 
     TraceVerbose(
         TRACE_CORE, "ProviderContext=%p ProviderBindingContext=%p",
-        ProviderContext, *ProviderBindingContext);
+        ProviderContext, NT_SUCCESS(Status) ? *ProviderBindingContext : NULL);
     TraceExitStatus(TRACE_CORE);
     return Status;
 }
@@ -168,7 +165,7 @@ EbpfExtensionProviderDetachClient(
 
     TraceEnter(TRACE_CORE, "ProviderBindingContext=%p", ProviderBindingContext);
 
-    if (Client == NULL) {
+    if (!NT_VERIFY(Client != NULL)) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -255,8 +252,10 @@ EbpfExtensionProviderRegister(
     Provider->CustomData = CustomData;
 
     Status = NmrRegisterProvider(Characteristics, Provider, &Provider->NmrProviderHandle);
-    if (!NT_SUCCESS(Status))
+    if (!NT_SUCCESS(Status)) {
+        TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
         goto Exit;
+    }
 
     *ProviderContext = Provider;
     Provider = NULL;

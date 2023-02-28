@@ -418,9 +418,6 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
-    //
-    // TODO: create an eBPF program for spinxsk that performs a mix of actions.
-    //
     switch (RandUlong() % 3) {
     case 0:
         ProgramRelativePath = "\\bpf\\drop.o";

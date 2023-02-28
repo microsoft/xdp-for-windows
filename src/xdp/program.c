@@ -169,7 +169,7 @@ XdpInvokeEbpf(
     XdpMd.Base.data = Va;
     XdpMd.Base.data_end = Va + Buffer->DataLength;
     XdpMd.Base.data_meta = 0;
-    XdpMd.Base.ingress_ifindex = IFI_UNSPECIFIED; // TODO: Propagate from RX queue.
+    XdpMd.Base.ingress_ifindex = IFI_UNSPECIFIED;
 
     if (EbpfContext != NULL) {
         ebpf_invoke_program_batch_function_t EbpfInvokeProgram =
@@ -183,6 +183,7 @@ XdpInvokeEbpf(
     }
 
     if (EbpfResult != EBPF_SUCCESS) {
+        EventWriteEbpfProgramFailure(&MICROSOFT_XDP_PROVIDER, ClientBindingContext, EbpfResult);
         RxAction = XDP_RX_ACTION_DROP;
         goto Exit;
     }
@@ -239,6 +240,7 @@ XdpInspectEbpf(
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
+_Success_(return)
 BOOLEAN
 XdpInspectEbpfStartBatch(
     _In_ XDP_PROGRAM *Program,
@@ -1584,10 +1586,8 @@ static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] =
     },
 };
 
-// TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_info_t EbpfXdpProgramInfo = {
-// TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
     .program_type_descriptor = {
         .name = "xdp",
@@ -1607,7 +1607,7 @@ EbpfXdpAdjustHead(
     )
 {
     //
-    // Not implemented.
+    // Not implemented. Any return < 0 is an error.
     //
     UNREFERENCED_PARAMETER(Context);
     UNREFERENCED_PARAMETER(Delta);
@@ -1623,7 +1623,6 @@ static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
     .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
 };
 
-// TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_data_t EbpfXdpProgramData = {
     .program_info = &EbpfXdpProgramInfo,
@@ -1631,7 +1630,6 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
     .required_irql = DISPATCH_LEVEL,
 };
 
-// TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
     .version = 0, // Review: versioning?
@@ -1651,7 +1649,6 @@ static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
     .link_type = BPF_LINK_TYPE_XDP,
 };
 
-// TODO: fix and upstream const-correct definitions
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_extension_data_t EbpfXdpHookProviderData = {
     .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,

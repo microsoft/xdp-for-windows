@@ -188,6 +188,11 @@ DllMain(
     switch (Reason) {
     case DLL_PROCESS_ATTACH:
 #if DBG
+        //
+        // Redirect all CRT errors to stderr + the debugger, rather than
+        // creating a message dialog box and waiting for user interaction.
+        // This is primarily required for ASAN interop.
+        //
         _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
         _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
         _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
