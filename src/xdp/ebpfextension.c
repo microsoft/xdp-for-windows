@@ -95,7 +95,7 @@ EbpfExtensionProviderAttachClient(
     NTSTATUS Status = STATUS_SUCCESS;
     EBPF_EXTENSION_PROVIDER *Provider = (EBPF_EXTENSION_PROVIDER *)ProviderContext;
     EBPF_EXTENSION_CLIENT *Client = NULL;
-    const ebpf_extension_dispatch_table_t *ClientDispatch;
+    const ebpf_extension_dispatch_table_t *ClientDispatch = ClientNpiDispatch;
 
     TraceEnter(TRACE_CORE, "ProviderContext=%p", ProviderContext);
 
@@ -115,12 +115,6 @@ EbpfExtensionProviderAttachClient(
     Client->ClientBindingContext = ClientBindingContext;
     Client->ClientData = ClientRegistrationInstance->NpiSpecificCharacteristics;
 
-    ClientDispatch = ClientNpiDispatch;
-    if (ClientDispatch == NULL) {
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
-
     Client->ClientDispatch = ClientDispatch;
     Client->ProviderContext = Provider;
 
@@ -131,7 +125,7 @@ EbpfExtensionProviderAttachClient(
     if (NT_SUCCESS(Status)) {
         Status = STATUS_SUCCESS;
     } else {
-        Status = STATUS_ACCESS_DENIED;
+        Status = STATUS_NOINTERFACE;
     }
 
 Exit:
