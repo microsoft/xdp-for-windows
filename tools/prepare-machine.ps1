@@ -70,8 +70,8 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, or -ForLogging'
 }
 
-$EbpfNugetVersion = "eBPF-for-Windows.0.6.0"
-$EbpfNugetBuild = "4245975873"
+$EbpfNugetVersion = "eBPF-for-Windows.0.7.0"
+$EbpfNugetBuild = "4483556553"
 $EbpfNuget = "$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
 $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
 $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
