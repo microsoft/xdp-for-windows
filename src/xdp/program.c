@@ -2730,7 +2730,7 @@ EbpfProgramOnClientAttach(
         goto Exit;
     }
 
-    if (ClientDispatch->version < 1 || ClientDispatch->size < 4) {
+    if (ClientDispatch == NULL || ClientDispatch->version < 1 || ClientDispatch->size < 4) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
