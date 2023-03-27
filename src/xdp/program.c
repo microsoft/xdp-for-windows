@@ -927,7 +927,8 @@ XdpParseQuicHeader(
 {
     UINT32 BufferDataOffset = Payload->BufferDataOffset;
     XDP_BUFFER *Buffer = Payload->Buffer;
-    UCHAR *Va = XdpGetVirtualAddressExtension(Payload->Buffer, VirtualAddressExtension)->VirtualAddress;
+    UCHAR *Va =
+        XdpGetVirtualAddressExtension(Payload->Buffer, VirtualAddressExtension)->VirtualAddress;
     Va += Buffer->DataOffset;
 
     FrameCache->QuicCached = TRUE;
@@ -1370,37 +1371,33 @@ static XDP_FILE_DISPATCH XdpProgramFileDispatch = {
 
 static
 VOID
-XdpProgramTraceObject(
-    _In_ CONST XDP_PROGRAM_OBJECT *ProgramObject
+XdpProgramTrace(
+    _In_ CONST XDP_PROGRAM *Program
     )
 {
-    TraceInfo(
-        TRACE_CORE, "Program=%p CreatedByPid=%Iu",
-        ProgramObject, ProgramObject->CreatedByPid);
-
-    for (UINT32 i = 0; i < ProgramObject->Program.RuleCount; i++) {
-        CONST XDP_RULE *Rule = &ProgramObject->Program.Rules[i];
+    for (UINT32 i = 0; i < Program->RuleCount; i++) {
+        CONST XDP_RULE *Rule = &Program->Rules[i];
 
         switch (Rule->Match) {
         case XDP_MATCH_ALL:
-            TraceInfo(TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_ALL", ProgramObject, i);
+            TraceInfo(TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_ALL", Program, i);
             break;
 
         case XDP_MATCH_UDP:
-            TraceInfo(TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_UDP", ProgramObject, i);
+            TraceInfo(TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_UDP", Program, i);
             break;
 
         case XDP_MATCH_UDP_DST:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_UDP_DST Port=%u",
-                ProgramObject, i, ntohs(Rule->Pattern.Port));
+                Program, i, ntohs(Rule->Pattern.Port));
             break;
 
         case XDP_MATCH_IPV4_DST_MASK:
             TraceInfo(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV4_DST_MASK Ip=%!IPADDR! Mask=%!IPADDR!",
-                ProgramObject, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr,
+                Program, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr,
                 Rule->Pattern.IpMask.Mask.Ipv4.s_addr);
             break;
 
@@ -1408,7 +1405,7 @@ XdpProgramTraceObject(
             TraceInfo(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV6_DST_MASK Ip=%!IPV6ADDR! Mask=%!IPV6ADDR!",
-                ProgramObject, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte,
+                Program, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte,
                 Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
             break;
 
@@ -1417,7 +1414,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW_SRC_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
-                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Program, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
                 WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
             break;
@@ -1427,7 +1424,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_TCP_QUIC_FLOW_SRC_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
-                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Program, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
                 WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
             break;
@@ -1437,7 +1434,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_QUIC_FLOW_DST_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
-                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Program, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
                 WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
             break;
@@ -1447,7 +1444,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_TCP_QUIC_FLOW_DST_CID "
                 "Port=%u CidOffset=%u CidLength=%u CidData=%!HEXDUMP!",
-                ProgramObject, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
+                Program, i, ntohs(Rule->Pattern.QuicFlow.UdpPort),
                 Rule->Pattern.QuicFlow.CidOffset, Rule->Pattern.QuicFlow.CidLength,
                 WppHexDump(Rule->Pattern.QuicFlow.CidData, Rule->Pattern.QuicFlow.CidLength));
             break;
@@ -1457,7 +1454,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV4_UDP_TUPLE "
                 "Source=%!IPADDR!:%u Destination=%!IPADDR!:%u",
-                ProgramObject, i, Rule->Pattern.Tuple.SourceAddress.Ipv4.s_addr,
+                Program, i, Rule->Pattern.Tuple.SourceAddress.Ipv4.s_addr,
                 ntohs(Rule->Pattern.Tuple.SourcePort),
                 Rule->Pattern.Tuple.DestinationAddress.Ipv4.s_addr,
                 ntohs(Rule->Pattern.Tuple.DestinationPort));
@@ -1468,7 +1465,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV6_UDP_TUPLE "
                 "Source=[%!IPV6ADDR!]:%u Destination=[%!IPV6ADDR!]:%u",
-                ProgramObject, i, Rule->Pattern.Tuple.SourceAddress.Ipv6.u.Byte,
+                Program, i, Rule->Pattern.Tuple.SourceAddress.Ipv6.u.Byte,
                 ntohs(Rule->Pattern.Tuple.SourcePort),
                 Rule->Pattern.Tuple.DestinationAddress.Ipv6.u.Byte,
                 ntohs(Rule->Pattern.Tuple.DestinationPort));
@@ -1478,7 +1475,7 @@ XdpProgramTraceObject(
             TraceInfo(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_UDP_PORT_SET PortSet=?",
-                ProgramObject, i);
+                Program, i);
             break;
 
         case XDP_MATCH_IPV4_UDP_PORT_SET:
@@ -1486,7 +1483,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV4_UDP_PORT_SET "
                 "Destination=%!IPADDR! PortSet=?",
-                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
+                Program, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
             break;
 
         case XDP_MATCH_IPV6_UDP_PORT_SET:
@@ -1494,7 +1491,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV6_UDP_PORT_SET "
                 "Destination=%!IPV6ADDR! PortSet=?",
-                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
+                Program, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
             break;
 
         case XDP_MATCH_IPV4_TCP_PORT_SET:
@@ -1502,7 +1499,7 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV4_TCP_PORT_SET "
                 "Destination=%!IPADDR! PortSet=?",
-                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
+                Program, i, Rule->Pattern.IpPortSet.Address.Ipv4.s_addr);
             break;
 
         case XDP_MATCH_IPV6_TCP_PORT_SET:
@@ -1510,19 +1507,19 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u]=XDP_MATCH_IPV6_TCP_PORT_SET "
                 "Destination=%!IPV6ADDR! PortSet=?",
-                ProgramObject, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
+                Program, i, Rule->Pattern.IpPortSet.Address.Ipv6.u.Byte);
             break;
 
         case XDP_MATCH_TCP_DST:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_TCP_DST Port=%u",
-                ProgramObject, i, ntohs(Rule->Pattern.Port));
+                Program, i, ntohs(Rule->Pattern.Port));
             break;
 
         case XDP_MATCH_TCP_CONTROL_DST:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_TCP_CONTROL_DST Port=%u",
-                ProgramObject, i, ntohs(Rule->Pattern.Port));
+                Program, i, ntohs(Rule->Pattern.Port));
             break;
 
         default:
@@ -1534,13 +1531,13 @@ XdpProgramTraceObject(
         case XDP_PROGRAM_ACTION_DROP:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_DROP",
-                ProgramObject, i);
+                Program, i);
             break;
 
         case XDP_PROGRAM_ACTION_PASS:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_PASS",
-                ProgramObject, i);
+                Program, i);
             break;
 
         case XDP_PROGRAM_ACTION_REDIRECT:
@@ -1548,13 +1545,21 @@ XdpProgramTraceObject(
                 TRACE_CORE,
                 "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_REDIRECT "
                 "TargetType=%!REDIRECT_TARGET_TYPE! Target=%p",
-                ProgramObject, i, Rule->Redirect.TargetType, Rule->Redirect.Target);
+                Program, i, Rule->Redirect.TargetType, Rule->Redirect.Target);
             break;
 
         case XDP_PROGRAM_ACTION_L2FWD:
             TraceInfo(
                 TRACE_CORE, "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_L2FWD",
-                ProgramObject, i);
+                Program, i);
+            break;
+
+        case XDP_PROGRAM_ACTION_EBPF:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_EBPF "
+                "Target=%p",
+                Program, i, Rule->Ebpf.Target);
             break;
 
         default:
@@ -1562,6 +1567,19 @@ XdpProgramTraceObject(
             break;
         }
     }
+}
+
+static
+VOID
+XdpProgramTraceObject(
+    _In_ CONST XDP_PROGRAM_OBJECT *ProgramObject
+    )
+{
+    TraceInfo(
+        TRACE_CORE, "ProgramObject=%p Program=%p CreatedByPid=%Iu",
+        ProgramObject, &ProgramObject->Program, ProgramObject->CreatedByPid);
+
+    XdpProgramTrace(&ProgramObject->Program);
 }
 
 static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
@@ -1677,19 +1695,22 @@ XdpProgramUpdateCompiledProgram(
     LIST_ENTRY *Entry = BindingListHead->Flink;
     UINT32 RuleIndex = 0;
 
-    TraceEnter(TRACE_CORE, "Updating program on RxQueue=%p", RxQueue);
+    TraceEnter(TRACE_CORE, "Updating Program=%p on RxQueue=%p", Program, RxQueue);
 
     while (Entry != BindingListHead) {
-        XDP_PROGRAM_BINDING* ProgramBinding =
+        XDP_PROGRAM_BINDING *ProgramBinding =
             CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
         CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
+
+        TraceInfo(
+            TRACE_CORE, "Compiling ProgramObject=%p into Program=%p",
+            BoundProgramObject, Program);
+        XdpProgramTraceObject(BoundProgramObject);
 
         for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
             Program->Rules[RuleIndex++] = BoundProgramObject->Program.Rules[i];
         }
 
-        TraceInfo(TRACE_CORE, "Updated ProgramObject=%p", BoundProgramObject);
-        XdpProgramTraceObject(BoundProgramObject);
         Entry = Entry->Flink;
     }
 
@@ -1699,6 +1720,9 @@ XdpProgramUpdateCompiledProgram(
     //
     ASSERT(Program->RuleCount >= RuleIndex);
     Program->RuleCount = RuleIndex;
+
+    TraceInfo(TRACE_CORE, "Updated Program=%p on RxQueue=%p", Program, RxQueue);
+    XdpProgramTrace(Program);
     TraceExitSuccess(TRACE_CORE);
 }
 
@@ -1720,7 +1744,8 @@ XdpProgramCompileNewProgram(
     TraceEnter(TRACE_CORE, "Compiling new program on RxQueue=%p", RxQueue);
 
     while (Entry != BindingListHead) {
-        XDP_PROGRAM_BINDING* ProgramBinding = CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
+        XDP_PROGRAM_BINDING *ProgramBinding =
+            CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
         Status =
             RtlUInt32Add(
                 RuleCount, ProgramBinding->OwningProgram->Program.RuleCount, &RuleCount);
@@ -1757,9 +1782,14 @@ XdpProgramCompileNewProgram(
 
     Entry = BindingListHead->Flink;
     while (Entry != BindingListHead) {
-        XDP_PROGRAM_BINDING* ProgramBinding =
+        XDP_PROGRAM_BINDING *ProgramBinding =
             CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
         CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
+
+        TraceInfo(
+            TRACE_CORE, "Compiling ProgramObject=%p into Program=%p",
+            BoundProgramObject, NewProgram);
+        XdpProgramTraceObject(BoundProgramObject);
 
         for (UINT32 i = 0; i < BoundProgramObject->Program.RuleCount; i++) {
             NewProgram->Rules[NewProgram->RuleCount++] = BoundProgramObject->Program.Rules[i];
@@ -1770,6 +1800,8 @@ XdpProgramCompileNewProgram(
 
     ASSERT(NewProgram->RuleCount == RuleCount);
 
+    TraceInfo(TRACE_CORE, "Compiled Program=%p on RxQueue=%p", NewProgram, RxQueue);
+    XdpProgramTrace(NewProgram);
     *Program = NewProgram;
 
 Exit:
@@ -2049,7 +2081,7 @@ XdpCaptureProgram(
         goto Exit;
     }
 
-    TraceVerbose(TRACE_CORE, "Allocated Program=%p", ProgramObject);
+    TraceVerbose(TRACE_CORE, "Allocated ProgramObject=%p", ProgramObject);
 
     Program = &ProgramObject->Program;
 
@@ -2184,6 +2216,8 @@ Exit:
 
     if (NT_SUCCESS(Status)) {
         ASSERT(ProgramObject != NULL);
+        TraceInfo(TRACE_CORE, "Captured ProgramObject=%p", ProgramObject);
+        XdpProgramTraceObject(ProgramObject);
         *NewProgramObject = ProgramObject;
     } else {
         if (ProgramObject != NULL) {
@@ -2207,7 +2241,7 @@ XdpProgramValidateIfQueue(
     XDP_PROGRAM *Program = &ProgramObject->Program;
     NTSTATUS Status;
 
-    TraceEnter(TRACE_CORE, "Program=%p", ProgramObject);
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
     //
     // Perform further rule validation that requires an interface RX queue.
@@ -2219,7 +2253,7 @@ XdpProgramValidateIfQueue(
     //
     if (XdpProgramIsEbpf(Program) && !XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(RxQueue))) {
         TraceError(
-            TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
+            TRACE_CORE, "ProgramObject=%p RX queue does not support TX action", ProgramObject);
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
     }
@@ -2230,7 +2264,8 @@ XdpProgramValidateIfQueue(
         if (Rule->Action == XDP_PROGRAM_ACTION_L2FWD) {
             if (!XdpRxQueueIsTxActionSupported(XdpRxQueueGetConfig(RxQueue))) {
                 TraceError(
-                    TRACE_CORE, "Program=%p RX queue does not support TX action", ProgramObject);
+                    TRACE_CORE, "ProgramObject=%p RX queue does not support TX action",
+                    ProgramObject);
                 Status = STATUS_NOT_SUPPORTED;
                 goto Exit;
             }
@@ -2280,25 +2315,27 @@ Exit:
 static
 NTSTATUS
 XdpProgramBindingAttach(
-    _In_ XDP_BINDING_HANDLE XdpBinding,
+    _In_ XDP_BINDING_HANDLE IfHandle,
     _In_ CONST XDP_HOOK_ID *HookId,
     _Inout_ XDP_PROGRAM_OBJECT *ProgramObject,
     _In_ UINT32 QueueId
     )
 {
     XDP_PROGRAM *Program = &ProgramObject->Program;
-    XDP_PROGRAM_BINDING* ProgramBinding = NULL;
+    XDP_PROGRAM_BINDING *ProgramBinding = NULL;
     XDP_PROGRAM *CompiledProgram = NULL;
     NTSTATUS Status;
+
+    TraceEnter(
+        TRACE_CORE, "IfHandle=%p ProgramObject=%p QueueId=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!}",
+        IfHandle, ProgramObject, QueueId, HookId->Layer, HookId->Direction, HookId->SubLayer);
 
     Status = XdpProgramBindingAllocate(&ProgramBinding, ProgramObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    Status =
-        XdpRxQueueFindOrCreate(
-            XdpBinding, HookId, QueueId, &ProgramBinding->RxQueue);
+    Status = XdpRxQueueFindOrCreate(IfHandle, HookId, QueueId, &ProgramBinding->RxQueue);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -2347,17 +2384,26 @@ XdpProgramBindingAttach(
     // Register for interface/queue removal notifications.
     //
     XdpRxQueueRegisterNotifications(
-        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry, XdpProgramRxQueueNotify);
+        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
+        XdpProgramRxQueueNotify);
 
     ASSERT(
         !IsListEmpty(&ProgramBinding->RxQueueEntry) &&
         !IsListEmpty(&ProgramBinding->Link));
+
+    TraceInfo(
+        TRACE_CORE, "Attaching ProgramBinding=%p RxQueue=%p ProgramObject=%p",
+        ProgramBinding, ProgramBinding->RxQueue, ProgramObject);
+    XdpProgramTraceObject(ProgramObject);
 
     Status =
         XdpRxQueueSetProgram(
             ProgramBinding->RxQueue, CompiledProgram, XdpProgramValidateIfQueue,
             ProgramObject);
     if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE, "Failed to attach ProgramObject=%p to RxQueue=%p Status=%!STATUS!",
+            ProgramObject, ProgramBinding->RxQueue, Status);
         goto Exit;
     }
 
@@ -2371,10 +2417,6 @@ XdpProgramBindingAttach(
         OldCompiledProgram = NULL;
     }
 
-    TraceInfo(
-        TRACE_CORE, "Attached ProgramBinding %p RxQueue=%p ProgramObject=%p",
-        ProgramBinding, ProgramBinding->RxQueue, ProgramObject);
-
 Exit:
 
     if (!NT_SUCCESS(Status)) {
@@ -2383,6 +2425,7 @@ Exit:
         }
     }
 
+    TraceExitStatus(TRACE_CORE);
     return Status;
 }
 
@@ -2480,11 +2523,11 @@ XdpProgramDetach(
 {
     XDP_PROGRAM_WORKITEM *Item = (XDP_PROGRAM_WORKITEM *)WorkItem;
 
-    TraceEnter(TRACE_CORE, "Program=%p", Item->ProgramObject);
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", Item->ProgramObject);
 
     XdpIfDereferenceBinding(Item->ProgramObject->IfHandle);
     XdpProgramDelete(Item->ProgramObject);
-    TraceInfo(TRACE_CORE, "Detached Program=%p", Item->ProgramObject);
+    TraceInfo(TRACE_CORE, "Detached ProgramObject=%p", Item->ProgramObject);
 
     Item->CompletionStatus = STATUS_SUCCESS;
     KeSetEvent(&Item->CompletionEvent, 0, FALSE);
@@ -2558,7 +2601,7 @@ RetryBinding:
     WorkItem.Bind.WorkRoutine = XdpProgramAttach;
 
     //
-    // Attach the program using the inteface's work queue.
+    // Attach the program using the interface's work queue.
     //
     XdpIfQueueWorkItem(&WorkItem.Bind);
     KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
@@ -2601,7 +2644,7 @@ Exit:
 
     TraceInfo(
         TRACE_CORE,
-        "Program=%p IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u Flags=%x Status=%!STATUS!",
+        "ProgramObject=%p IfIndex=%u Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} QueueId=%u Flags=%x Status=%!STATUS!",
         ProgramObject, Params->IfIndex, Params->HookId.Layer, Params->HookId.Direction,
         Params->HookId.SubLayer, Params->QueueId, Params->Flags, Status);
 
@@ -2822,8 +2865,8 @@ XdpProgramStart(
     if (NT_SUCCESS(Status) && EbpfEnabled) {
         Status =
             EbpfExtensionProviderRegister(
-                &EBPF_PROGRAM_INFO_EXTENSION_IID, &EbpfProgramInfoProviderParameters, NULL, NULL, NULL,
-                &EbpfXdpProgramInfoProvider);
+                &EBPF_PROGRAM_INFO_EXTENSION_IID, &EbpfProgramInfoProviderParameters, NULL, NULL,
+                NULL, &EbpfXdpProgramInfoProvider);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
