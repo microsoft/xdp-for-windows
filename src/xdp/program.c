@@ -172,13 +172,13 @@ XdpInvokeEbpf(
     XdpMd.Base.ingress_ifindex = IFI_UNSPECIFIED;
 
     if (EbpfContext != NULL) {
-        ebpf_invoke_program_batch_function_t EbpfInvokeProgram =
-            (ebpf_invoke_program_batch_function_t)
+        ebpf_program_batch_invoke_function_t EbpfInvokeProgram =
+            (ebpf_program_batch_invoke_function_t)
                 EbpfExtensionClientGetDispatch(Client)->function[2];
         EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result, EbpfContext);
     } else {
-        ebpf_invoke_program_function_t EbpfInvokeProgram =
-            (ebpf_invoke_program_function_t)EbpfExtensionClientGetDispatch(Client)->function[0];
+        ebpf_program_invoke_function_t EbpfInvokeProgram =
+            (ebpf_program_invoke_function_t)EbpfExtensionClientGetDispatch(Client)->function[0];
         EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result);
     }
 
@@ -256,8 +256,8 @@ XdpInspectEbpfStartBatch(
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
     ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
-    ebpf_invoke_batch_begin_function_t EbpfBatchBegin =
-        (ebpf_invoke_batch_begin_function_t)
+    ebpf_program_batch_begin_invoke_function_t EbpfBatchBegin =
+        (ebpf_program_batch_begin_invoke_function_t)
             EbpfExtensionClientGetDispatch(Client)->function[1];
 
     EbpfResult =
@@ -286,8 +286,8 @@ XdpInspectEbpfEndBatch(
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
     ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
-    ebpf_invoke_batch_end_function_t EbpfBatchEnd =
-        (ebpf_invoke_batch_end_function_t)
+    ebpf_program_batch_end_invoke_function_t EbpfBatchEnd =
+        (ebpf_program_batch_end_invoke_function_t)
             EbpfExtensionClientGetDispatch(Client)->function[3];
 
     EbpfResult = EbpfBatchEnd(ClientBindingContext);
@@ -2730,7 +2730,7 @@ EbpfProgramOnClientAttach(
         goto Exit;
     }
 
-    if (ClientDispatch == NULL || ClientDispatch->version < 1 || ClientDispatch->size < 4) {
+    if (ClientDispatch == NULL || ClientDispatch->version < 1 || ClientDispatch->count < 4) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
