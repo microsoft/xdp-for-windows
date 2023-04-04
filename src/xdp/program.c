@@ -459,7 +459,7 @@ XdpParseFragmentedIp4(
         XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
             VirtualAddressExtension, &Storage->Ip4Hdr, sizeof(Storage->Ip4Hdr), &Cache->Ip4Hdr) &&
-        (((UINT64) Cache->Ip4Hdr->HeaderLength) << 2) == sizeof(*Cache->Ip4Hdr);
+        (((UINT64)Cache->Ip4Hdr->HeaderLength) << 2) == sizeof(*Cache->Ip4Hdr);
 }
 
 static
@@ -692,7 +692,7 @@ XdpParseFrame(
             goto BufferTooSmall;
         }
         Cache->Ip4Hdr = (IPV4_HEADER *)&Va[Offset];
-        if ((((UINT64) Cache->Ip4Hdr->HeaderLength) << 2) != sizeof(*Cache->Ip4Hdr)) {
+        if ((((UINT64)Cache->Ip4Hdr->HeaderLength) << 2) != sizeof(*Cache->Ip4Hdr)) {
             return;
         }
         Cache->Ip4Valid = TRUE;
