@@ -4,6 +4,7 @@
 //
 
 #include <ntddk.h>
+#include <xdprtl.h>
 #include "bounce.h"
 
 #define POOLTAG_BOUNCE          'BnfX' // XfnB
@@ -77,7 +78,7 @@ BounceBuffer(
 
     __try {
         ProbeForRead((VOID *)Buffer, BufferSize, Alignment);
-        RtlCopyMemory(Bounce->Buffer, Buffer, BufferSize);
+        RtlCopyVolatileMemory(Bounce->Buffer, Buffer, BufferSize);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;

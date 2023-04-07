@@ -63,7 +63,7 @@ RtlUInt32RoundUpToPowerOfTwo(
     _In_ UINT32 Value,
     _Out_ UINT32 *Result
     );
-    
+
 _IRQL_requires_max_(APC_LEVEL)
 _Acquires_exclusive_lock_(Lock)
 VOID
@@ -91,6 +91,27 @@ VOID
 RtlReleasePushLockShared(
     _Inout_ EX_PUSH_LOCK *Lock
     );
+
+__forceinline
+VOID
+RtlCopyVolatileMemory(
+    _Out_writes_bytes_(Size) VOID *Destination,
+    _In_reads_bytes_(Size) volatile const VOID *Source,
+    _In_ SIZE_T Size
+    )
+{
+    RtlCopyMemory(Destination, (const VOID *)Source, Size);
+    _ReadWriteBarrier();
+}
+
+__forceinline
+HANDLE
+ReadHandleNoFence(
+    _In_reads_bytes_(sizeof(HANDLE)) volatile CONST HANDLE *Address
+    )
+{
+    return (HANDLE)ReadPointerNoFence((PVOID *)Address);
+}
 
 #else
 

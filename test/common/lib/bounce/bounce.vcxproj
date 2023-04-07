@@ -38,6 +38,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
+        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\common\inc;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
