@@ -21,6 +21,17 @@ concurrency:
 permissions: read-all
 
 jobs:
+  azure_ci:
+    name: Azure Pipelines CI
+    runs-on: ubuntu-latest
+    steps:
+    - name: Azure Pipelines CI
+      uses: Azure/pipelines@v1
+      with:
+        azure-devops-project-url: https://dev.azure.com/mscodehub/WindowsXDP
+        azure-pipeline-name: 'CI'
+        azure-devops-token: ${{ secrets.AZDO_PAT }}
+
   build:
     name: Build
     runs-on: windows-2022
