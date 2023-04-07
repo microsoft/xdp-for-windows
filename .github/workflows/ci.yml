@@ -30,6 +30,7 @@ jobs:
       with:
         azure-devops-project-url: https://dev.azure.com/mscodehub/WindowsXDP
         azure-pipeline-name: 'CI'
+        azure-pipelines-variables: '{"git_repo": "${{github.repository}}", "git_branch": "${{github.ref_name}}", "git_sha": "${{github.sha}}", "git_actor": "${{github.actor}}", "git_owner": "${{github.repository_owner}}"}'
         azure-devops-token: ${{ secrets.AZDO_PAT }}
 
   build:
