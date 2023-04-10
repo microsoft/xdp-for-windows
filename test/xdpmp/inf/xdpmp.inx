@@ -19,8 +19,8 @@
  BusType           = 15
  Characteristics   = 0x4           ; NCF_PHYSICAL
  CopyFiles         = xdpmp.CopyFiles
-*IfType            = 6             ; IF_TYPE_ETHERNET_CSMACD
-*MediaType         = 0             ; NdisMedium802_3
+*IfType            = 23            ; IF_TYPE_PPP
+*MediaType         = 19            ; NdisMediumIP
 *PhysicalMediaType = 0             ; NdisPhysicalMediumUnspecified
 
 [xdpmp.ndi.reg]

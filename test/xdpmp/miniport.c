@@ -363,10 +363,10 @@ MpInitialize(
     }
 
     GeneralAttributes.AccessType = NET_IF_ACCESS_BROADCAST;
-    GeneralAttributes.DirectionType = NET_IF_DIRECTION_SENDRECEIVE;
+    GeneralAttributes.DirectionType = NET_IF_DIRECTION_SENDONLY;
     GeneralAttributes.ConnectionType =
         (NET_IF_CONNECTION_TYPE)IF_CONNECTION_DEDICATED;
-    GeneralAttributes.IfType = (NET_IFTYPE)IF_TYPE_ETHERNET_CSMACD;
+    GeneralAttributes.IfType = IF_TYPE_PPP;
     GeneralAttributes.IfConnectorPresent = TRUE;
     GeneralAttributes.SupportedStatistics =
         NDIS_STATISTICS_GEN_STATISTICS_SUPPORTED;
@@ -660,7 +660,7 @@ DriverEntry(
         XDP_EXTENSION_TYPE_FRAME);
 
     MpGlobalContext.NdisVersion = NdisGetVersion();
-    MpGlobalContext.Medium = NdisMedium802_3;
+    MpGlobalContext.Medium = NdisMediumIP;
     MpGlobalContext.LinkSpeed = MAXULONG;
     MpGlobalContext.MaxRecvLinkSpeed = 100000000000;
     MpGlobalContext.RecvLinkSpeed = 100000000000;

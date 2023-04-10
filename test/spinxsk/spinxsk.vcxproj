@@ -26,6 +26,9 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)xdp.cpp.default.props" />
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <EnableASAN>true</EnableASAN>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>$(XdpPlatformToolset)</PlatformToolset>
