@@ -2093,7 +2093,7 @@ XdpCaptureProgram(
         if (RequestorMode != KernelMode) {
             ProbeForRead((VOID*)Rules, sizeof(*Rules) * RuleCount, PROBE_ALIGNMENT(XDP_RULE));
         }
-        RtlCopyMemory(ProgramObject->Program.Rules, Rules, sizeof(*Rules) * RuleCount);
+        RtlCopyVolatileMemory(ProgramObject->Program.Rules, Rules, sizeof(*Rules) * RuleCount);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;

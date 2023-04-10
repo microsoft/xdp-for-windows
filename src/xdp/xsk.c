@@ -912,13 +912,13 @@ XskReferenceDatapathHandle(
     if (RequestorMode != KernelMode && !HandleBounced) {
         __try {
             ProbeForRead((VOID *)HandleBuffer, sizeof(HANDLE), PROBE_ALIGNMENT(HANDLE));
-            TargetHandle = *(HANDLE *)HandleBuffer;
+            TargetHandle = ReadHandleNoFence((volatile const HANDLE *)HandleBuffer);
         } __except (EXCEPTION_EXECUTE_HANDLER) {
             Status = GetExceptionCode();
             goto Exit;
         }
     } else {
-        TargetHandle = *(HANDLE*)HandleBuffer;
+        TargetHandle = *(HANDLE *)HandleBuffer;
     }
 
     Status =
@@ -2924,7 +2924,7 @@ XskSockoptSetUmem(
                 (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
                 PROBE_ALIGNMENT(XSK_UMEM_REG));
         }
-        Umem->Reg = *(XSK_UMEM_REG*)SockoptInputBuffer;
+        RtlCopyVolatileMemory(&Umem->Reg, SockoptInputBuffer, sizeof(XSK_UMEM_REG));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
@@ -3070,7 +3070,7 @@ XskSockoptShareUmem(
                 (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
                 PROBE_ALIGNMENT(HANDLE));
         }
-        SharedUmemSock = *(HANDLE*)SockoptInputBuffer;
+        SharedUmemSock = ReadHandleNoFence((volatile const HANDLE *)SockoptInputBuffer);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
@@ -3165,7 +3165,7 @@ XskSockoptSetRingSize(
         if (RequestorMode != KernelMode) {
             ProbeForRead((VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(UINT32));
         }
-        NumDescriptors = *(UINT32 *)SockoptInputBuffer;
+        NumDescriptors = ReadUInt32NoFence(SockoptInputBuffer);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
@@ -3408,7 +3408,7 @@ XskSockoptSetHookId(
         if (RequestorMode != KernelMode) {
             ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(XDP_HOOK_ID));
         }
-        HookId = *(CONST XDP_HOOK_ID *)SockoptIn;
+        RtlCopyVolatileMemory(&HookId, SockoptIn, sizeof(XDP_HOOK_ID));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
@@ -3718,7 +3718,7 @@ XskSockoptSetPollMode(
             ProbeForRead(
                 (VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(XSK_POLL_MODE));
         }
-        PollMode = *(XSK_POLL_MODE *)SockoptInputBuffer;
+        RtlCopyVolatileMemory(&PollMode, SockoptInputBuffer, sizeof(XSK_POLL_MODE));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
@@ -3978,9 +3978,9 @@ XskNotifyValidateParams(
                 (VOID*)InputBuffer, InputBufferLength, PROBE_ALIGNMENT(XSK_NOTIFY_IN));
         }
 
-        *InFlags = ((XSK_NOTIFY_IN*)InputBuffer)->Flags;
+        *InFlags = ReadUInt32NoFence((UINT32 *)&((XSK_NOTIFY_IN *)InputBuffer)->Flags);
         *TimeoutMilliseconds =
-            ((XSK_NOTIFY_IN*)InputBuffer)->WaitTimeoutMilliseconds;
+            ReadUInt32NoFence(&((XSK_NOTIFY_IN *)InputBuffer)->WaitTimeoutMilliseconds);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return GetExceptionCode();
     }
