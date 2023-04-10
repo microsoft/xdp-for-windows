@@ -912,7 +912,7 @@ XskReferenceDatapathHandle(
     if (RequestorMode != KernelMode && !HandleBounced) {
         __try {
             ProbeForRead((VOID *)HandleBuffer, sizeof(HANDLE), PROBE_ALIGNMENT(HANDLE));
-            TargetHandle = ReadHandleNoFence(HandleBuffer);
+            TargetHandle = ReadHandleNoFence((volatile const HANDLE *)HandleBuffer);
         } __except (EXCEPTION_EXECUTE_HANDLER) {
             Status = GetExceptionCode();
             goto Exit;
@@ -3070,7 +3070,7 @@ XskSockoptShareUmem(
                 (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
                 PROBE_ALIGNMENT(HANDLE));
         }
-        SharedUmemSock = ReadHandleNoFence(SockoptInputBuffer);
+        SharedUmemSock = ReadHandleNoFence((volatile const HANDLE *)SockoptInputBuffer);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
