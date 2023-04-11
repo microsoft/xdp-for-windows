@@ -220,6 +220,17 @@ XdpGenericCompleteTx(
             *CompletionContext = NblTxContext(Nbl)->CompletionContext;
         }
 
+        //
+        // In lieu of calling MmPrepareMdlForReuse, assert our MDL did not get
+        // mapped by the memory manager: the original MDL should have been
+        // mapped by XDP itself, and the partial MDL inherited that mapping,
+        // precluding the need for it to be mapped by itself.
+        //
+        ASSERT(Nbl->FirstNetBuffer->Next == NULL);
+        ASSERT(Nbl->FirstNetBuffer->MdlChain->Next == NULL);
+        ASSERT(Nbl->FirstNetBuffer->MdlChain->MdlFlags & MDL_PARTIAL);
+        ASSERT((Nbl->FirstNetBuffer->MdlChain->MdlFlags & MDL_PARTIAL_HAS_BEEN_MAPPED) == 0);
+
         // Return the NBL to the TX free list.
         NT_VERIFY(TxQueue->OutstandingCount-- > 0);
         Nbl->Next = TxQueue->FreeNbls;
