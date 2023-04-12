@@ -101,7 +101,7 @@ function Get-EbpfInstallPath {
 
 # Returns the eBPF MSI filename
 function Get-EbpfMsiFilename {
-    return "ebpf-for-windows.0.7.0+4646404288.msi"
+    return "ebpf-for-windows.0.8.0.msi"
 }
 
 # Returns the eBPF MSI full path

@@ -70,10 +70,10 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, or -ForLogging'
 }
 
-$EbpfNugetVersion = "eBPF-for-Windows.0.7.0"
-$EbpfNugetBuild = "4646404288"
-$EbpfNuget = "$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
-$EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion+$EbpfNugetBuild.nupkg"
+$EbpfNugetVersion = "eBPF-for-Windows.0.8.0"
+$EbpfNugetBuild = ""
+$EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+$EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/download/v0.8.0/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
 $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
 # Flag that indicates something required a reboot.
