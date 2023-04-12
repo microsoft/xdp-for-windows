@@ -132,7 +132,7 @@ static
 XDP_RX_ACTION
 XdpInvokeEbpf(
     _In_ HANDLE EbpfTarget,
-    _In_opt_ XDP_INSPECTION_EBPF_CONTEXT *EbpfContext,
+    _In_opt_ ebpf_execution_context_state_t *EbpfContext,
     _In_ XDP_FRAME *Frame,
     _In_opt_ XDP_RING *FragmentRing,
     _In_opt_ XDP_EXTENSION *FragmentExtension,
