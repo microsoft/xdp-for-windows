@@ -114,7 +114,7 @@ function Get-EbpfMsiFullPath {
 # Returns the eBPF MSI download URL
 function Get-EbpfMsiUrl {
     $EbpfMsiFilename = Get-EbpfMsiFilename
-    return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/v0.8.0/$EbpfMsiFilename"
 }
 
 # Refreshes the PATH environment variable.
