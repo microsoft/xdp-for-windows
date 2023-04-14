@@ -407,8 +407,6 @@ XdpStart(
 {
     NTSTATUS Status;
     DECLARE_CONST_UNICODE_STRING(DeviceName, XDP_DEVICE_NAME);
-    
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
 
 #pragma warning(push)
 #pragma warning(disable:28175) // We can access the DRIVER_OBJECT
@@ -492,6 +490,8 @@ Exit:
     return Status;
 }
 
+static volatile BOOLEAN Bugcheck = TRUE;
+
 _Use_decl_annotations_
 NTSTATUS
 DriverEntry(
@@ -502,6 +502,10 @@ DriverEntry(
     NTSTATUS Status;
 
     XdpDriverObject = DriverObject;
+
+    if (Bugcheck) {
+            KeBugCheck(MANUALLY_INITIATED_CRASH);
+    }
 
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
