@@ -407,6 +407,8 @@ XdpStart(
 {
     NTSTATUS Status;
     DECLARE_CONST_UNICODE_STRING(DeviceName, XDP_DEVICE_NAME);
+    
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
 
 #pragma warning(push)
 #pragma warning(disable:28175) // We can access the DRIVER_OBJECT
