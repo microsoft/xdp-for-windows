@@ -15,3 +15,6 @@ bcdedit.exe /set testsigning on
 
 Write-Host "Enable driver verifier"
 verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys ebpfcore.sys
+
+Write-Host "Enable complete system crash dumps"
+reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
