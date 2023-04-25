@@ -116,6 +116,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
     try {
         if (!$NoLogs) {
             & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Arch $Arch
+            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Arch $Arch
             & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Arch $Arch
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
@@ -180,6 +181,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if (!$NoLogs) {
             & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }
     }

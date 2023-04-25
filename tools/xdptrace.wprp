@@ -11,6 +11,10 @@
             <Buffers Value="5" PercentageOfTotalMemory="true"/>
         </EventCollector>
 
+        <EventCollector Id="EC_HighVolume1GB" Name="High Volume (1GB limit)" Base="EC_HighVolume">
+            <Buffers Value="20" PercentageOfTotalMemory="true" MaximumBufferSpace="1024"/>
+        </EventCollector>
+
         <SystemProvider Id="SystemProviderCpu">
             <Keywords>
                 <Keyword Value="ProcessThread"/>
@@ -132,6 +136,16 @@
             DetailLevel = "Verbose"
             Name = "SpinXsk"
             Description = "XDP SpinXsk Stress Test"/>
+
+        <Profile Id="SpinXskEbpf.Verbose.Memory" Name="SpinXskEbpf" Description="XDP SpinXsk Stress Test (eBPF)" LoggingMode="Memory" DetailLevel="Verbose">
+            <Collectors>
+                <EventCollectorId Value="EC_HighVolume1GB">
+                    <EventProviders>
+                        <EventProviderId Value="EP_EbpfEtw" />
+                    </EventProviders>
+                </EventCollectorId>
+            </Collectors>
+        </Profile>
 
         <Profile Id="CpuCswitchSample.Verbose.File" Name="CpuCswitchSample" Description="CPU precise and sampled profile" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>
