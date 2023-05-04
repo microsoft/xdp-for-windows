@@ -173,12 +173,11 @@ XdpInvokeEbpf(
 
     if (EbpfContext != NULL) {
         ebpf_program_batch_invoke_function_t EbpfInvokeProgram =
-            (ebpf_program_batch_invoke_function_t)
-                EbpfExtensionClientGetDispatch(Client)->function[2];
+            EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_invoke_function;
         EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result, EbpfContext);
     } else {
         ebpf_program_invoke_function_t EbpfInvokeProgram =
-            (ebpf_program_invoke_function_t)EbpfExtensionClientGetDispatch(Client)->function[0];
+            EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_invoke_function;
         EbpfResult = EbpfInvokeProgram(ClientBindingContext, &XdpMd.Base, &Result);
     }
 
@@ -257,8 +256,7 @@ XdpInspectEbpfStartBatch(
     ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
     ebpf_program_batch_begin_invoke_function_t EbpfBatchBegin =
-        (ebpf_program_batch_begin_invoke_function_t)
-            EbpfExtensionClientGetDispatch(Client)->function[1];
+        EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_begin_invoke_function;
 
     EbpfResult =
         EbpfBatchBegin(
@@ -279,18 +277,15 @@ XdpInspectEbpfEndBatch(
     const VOID *ClientBindingContext;
     ebpf_result_t EbpfResult;
 
-    UNREFERENCED_PARAMETER(InspectionContext);
-
     ASSERT(XdpProgramIsEbpf(Program));
 
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
     ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
     ebpf_program_batch_end_invoke_function_t EbpfBatchEnd =
-        (ebpf_program_batch_end_invoke_function_t)
-            EbpfExtensionClientGetDispatch(Client)->function[3];
+            EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_end_invoke_function;
 
-    EbpfResult = EbpfBatchEnd(ClientBindingContext);
+    EbpfResult = EbpfBatchEnd(ClientBindingContext, &InspectionContext->EbpfContext);
 
     ASSERT(EbpfResult == EBPF_SUCCESS);
 }
