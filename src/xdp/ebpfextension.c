@@ -49,6 +49,14 @@ EbpfExtensionClientGetDispatch(
     return Client->ClientDispatch;
 }
 
+const ebpf_extension_program_dispatch_table_t *
+EbpfExtensionClientGetProgramDispatch(
+    _In_ const EBPF_EXTENSION_CLIENT *Client
+    )
+{
+    return (ebpf_extension_program_dispatch_table_t *)Client->ClientDispatch;
+}
+
 const VOID *
 EbpfExtensionClientGetClientContext(
     _In_ const EBPF_EXTENSION_CLIENT *Client
