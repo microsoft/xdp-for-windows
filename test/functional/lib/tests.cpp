@@ -1204,6 +1204,21 @@ SocketProducerCheckNeedPoke(
 }
 
 static
+VOID
+InitializeOidKey(
+    _Out_ OID_KEY *Key,
+    _In_ NDIS_OID Oid,
+    _In_ NDIS_REQUEST_TYPE RequestType,
+    _In_opt_ OID_REQUEST_INTERFACE RequestInterface = OID_REQUEST_INTERFACE_REGULAR
+    )
+{
+    RtlZeroMemory(Key, sizeof(*Key));
+    Key->Oid = Oid;
+    Key->RequestType = RequestType;
+    Key->RequestInterface = RequestInterface;
+}
+
+static
 wil::unique_handle
 MpOpenGeneric(
     _In_ UINT32 IfIndex
@@ -5314,7 +5329,7 @@ FnLwfTx()
 VOID
 FnLwfOid()
 {
-    OID_KEY OidKeys[2] = {0};
+    OID_KEY OidKeys[2];
     UINT32 MpInfoBufferLength;
     unique_malloc_ptr<VOID> MpInfoBuffer;
     UINT32 LwfInfoBufferLength;
@@ -5327,8 +5342,7 @@ FnLwfOid()
     // the set OID makes it to the miniport. N.B. this get OID is handled by
     // NDIS, not the miniport.
     //
-    OidKeys[0].Oid = OID_GEN_CURRENT_PACKET_FILTER;
-    OidKeys[0].RequestType = NdisRequestQueryInformation;
+    InitializeOidKey(&OidKeys[0], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestQueryInformation);
     LwfInfoBufferLength = sizeof(OriginalPacketFilter);
     TEST_HRESULT(
         LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &OriginalPacketFilter));
@@ -5336,14 +5350,12 @@ FnLwfOid()
     //
     // Get.
     //
-    OidKeys[0].Oid = OID_GEN_RECEIVE_BLOCK_SIZE;
-    OidKeys[0].RequestType = NdisRequestQueryInformation;
+    InitializeOidKey(&OidKeys[0], OID_GEN_RECEIVE_BLOCK_SIZE, NdisRequestQueryInformation);
 
     //
     // Set.
     //
-    OidKeys[1].Oid = OID_GEN_CURRENT_PACKET_FILTER;
-    OidKeys[1].RequestType = NdisRequestSetInformation;
+    InitializeOidKey(&OidKeys[1], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestSetInformation);
 
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
         auto AdapterMp = MpOpenAdapter(FnMpIf.GetIfIndex());
@@ -5459,9 +5471,8 @@ SetXdpRss(
     // the handle to allow OID completion.
     //
 
-    OID_KEY Key {0};
-    Key.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
-    Key.RequestType = NdisRequestSetInformation;
+    OID_KEY Key;
+    InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
     auto AsyncThread = std::async(
@@ -5981,8 +5992,7 @@ OffloadRssUpperSet()
     // Get original settings (both XDP and NDIS formats for convenience).
     //
 
-    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
-    OidKey.RequestType = NdisRequestQueryInformation;
+    InitializeOidKey(&OidKey, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestQueryInformation);
     OriginalNdisRssParams =
         LwfOidAllocateAndSubmitRequest<NDIS_RECEIVE_SCALE_PARAMETERS>(
             DefaultLwf, OidKey, &OriginalNdisRssParamsSize);
@@ -6003,8 +6013,7 @@ OffloadRssUpperSet()
     //
     // Set upper edge settings via NDIS.
     //
-    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
-    OidKey.RequestType = NdisRequestSetInformation;
+    InitializeOidKey(&OidKey, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     UpperNdisRssParams.Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
     UpperNdisRssParams.Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
     UpperNdisRssParams.Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
@@ -6036,8 +6045,7 @@ OffloadRssUpperSet()
     //
     // Verify upper edge settings.
     //
-    OidKey.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
-    OidKey.RequestType = NdisRequestQueryInformation;
+    InitializeOidKey(&OidKey, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestQueryInformation);
     NdisRssParams =
         LwfOidAllocateAndSubmitRequest<NDIS_RECEIVE_SCALE_PARAMETERS>(
             DefaultLwf, OidKey, &NdisRssParamsSize);
@@ -6252,8 +6260,7 @@ OffloadSetHardwareCapabilities()
         NDIS_OFFLOAD_PARAMETERS OffloadParams;
         InitializeOffloadParams(&OffloadParams);
         OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED;
-        OidKey.Oid = Configs[i].Oid;
-        OidKey.RequestType = NdisRequestSetInformation;
+        InitializeOidKey(&OidKey, Configs[i].Oid, NdisRequestSetInformation);
         UINT32 OidBufferSize = sizeof(OffloadParams);
         TEST_HRESULT(LwfOidSubmitRequest(DefaultLwf, OidKey, &OidBufferSize, &OffloadParams));
 
@@ -6276,8 +6283,7 @@ OffloadSetHardwareCapabilities()
     //
 
     OID_KEY OidKey;
-    OidKey.Oid = OID_TCP_OFFLOAD_CURRENT_CONFIG;
-    OidKey.RequestType = NdisRequestQueryInformation;
+    InitializeOidKey(&OidKey, OID_TCP_OFFLOAD_CURRENT_CONFIG, NdisRequestQueryInformation);
     UINT32 NdisOffloadSize;
     unique_malloc_ptr<NDIS_OFFLOAD> Offload =
         LwfOidAllocateAndSubmitRequest<NDIS_OFFLOAD>(DefaultLwf, OidKey, &NdisOffloadSize);

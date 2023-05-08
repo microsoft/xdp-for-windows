@@ -61,7 +61,11 @@ MpCreateAdapter(
     Adapter->IfIndex = IfIndex;
     Adapter->ReferenceCount = 1;
     InitializeListHead(&Adapter->AdapterListLink);
-    ExInitializePushLock(&Adapter->Lock);
+    KeInitializeSpinLock(&Adapter->Lock);
+
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(Adapter->FilteredOidRequestLists); i++) {
+        InitializeListHead(&Adapter->FilteredOidRequestLists[i]);
+    }
 
     Adapter->Generic = GenericAdapterCreate(Adapter);
     if (Adapter->Generic == NULL) {
@@ -630,14 +634,14 @@ DriverEntry(
     MChars.PauseHandler = MiniportPauseHandler;
     MChars.RestartHandler = MiniportRestartHandler;
     MChars.OidRequestHandler = MiniportRequestHandler;
-    MChars.DirectOidRequestHandler = MiniportRequestHandler;
+    MChars.DirectOidRequestHandler = MiniportDirectRequestHandler;
     MChars.SendNetBufferListsHandler = MpSendNetBufferLists;
     MChars.ReturnNetBufferListsHandler = MpReturnNetBufferLists;
     MChars.CancelSendHandler = MiniportCancelSendHandler;
     MChars.DevicePnPEventNotifyHandler = MiniportPnPEventNotifyHandler;
     MChars.ShutdownHandlerEx = MiniportShutdownHandler;
     MChars.CancelOidRequestHandler = MiniportCancelRequestHandler;
-    MChars.CancelDirectOidRequestHandler = MiniportCancelRequestHandler;
+    MChars.CancelDirectOidRequestHandler = MiniportCancelDirectRequestHandler;
 
     Status =
         NdisMRegisterMiniportDriver(

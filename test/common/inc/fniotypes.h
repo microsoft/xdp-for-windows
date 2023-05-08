@@ -101,12 +101,33 @@ typedef struct _DATA_DEQUEUE_FRAME_IN {
 } DATA_DEQUEUE_FRAME_IN;
 
 //
+// The OID request interface.
+//
+
+typedef enum _FNIO_OID_REQUEST_INTERFACE {
+    //
+    // The regular, NDIS-serialized OID request interface.
+    //
+    OID_REQUEST_INTERFACE_REGULAR,
+
+    //
+    // The direct OID request interface. These requests are not serialized and
+    // can be pended.
+    //
+    OID_REQUEST_INTERFACE_DIRECT,
+
+    OID_REQUEST_INTERFACE_MAX
+} OID_REQUEST_INTERFACE;
+
+//
 // Helper type used by parameters for OID related IOCTLs.
 //
 
 typedef struct _OID_KEY {
     NDIS_OID Oid;
     NDIS_REQUEST_TYPE RequestType;
+    OID_REQUEST_INTERFACE RequestInterface;
 } OID_KEY;
+
 
 EXTERN_C_END
