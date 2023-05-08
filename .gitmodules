@@ -4,3 +4,6 @@
 [submodule "submodules/wil"]
 	path = submodules/wil
 	url = https://github.com/microsoft/wil
+[submodule "submodules/quic-offloads"]
+	path = submodules/quic-offloads
+	url = https://github.com/microsoft/quic-offloads.git
