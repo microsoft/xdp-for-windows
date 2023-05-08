@@ -5329,6 +5329,7 @@ FnLwfOid()
     //
     OidKeys[0].Oid = OID_GEN_CURRENT_PACKET_FILTER;
     OidKeys[0].RequestType = NdisRequestQueryInformation;
+    OidKeys[0].RequestInterface = OID_REQUEST_INTERFACE_REGULAR;
     LwfInfoBufferLength = sizeof(OriginalPacketFilter);
     TEST_HRESULT(
         LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &OriginalPacketFilter));
@@ -5338,12 +5339,14 @@ FnLwfOid()
     //
     OidKeys[0].Oid = OID_GEN_RECEIVE_BLOCK_SIZE;
     OidKeys[0].RequestType = NdisRequestQueryInformation;
+    OidKeys[0].RequestInterface = OID_REQUEST_INTERFACE_REGULAR;
 
     //
     // Set.
     //
     OidKeys[1].Oid = OID_GEN_CURRENT_PACKET_FILTER;
     OidKeys[1].RequestType = NdisRequestSetInformation;
+    OidKeys[1].RequestInterface = OID_REQUEST_INTERFACE_REGULAR;
 
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
         auto AdapterMp = MpOpenAdapter(FnMpIf.GetIfIndex());
@@ -5462,6 +5465,7 @@ SetXdpRss(
     OID_KEY Key {0};
     Key.Oid = OID_GEN_RECEIVE_SCALE_PARAMETERS;
     Key.RequestType = NdisRequestSetInformation;
+    Key.RequestInterface = OID_REQUEST_INTERFACE_REGULAR;
     MpOidFilter(AdapterMp, &Key, 1);
 
     auto AsyncThread = std::async(
