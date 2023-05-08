@@ -264,6 +264,22 @@ XDP_RSS_GET_FN(
     _Inout_ UINT32 *RssConfigurationSize
     );
 
+typedef struct _XDP_QEO_CONFIGURATION {
+    XDP_OBJECT_HEADER Header;
+} XDP_QEO_CONFIGURATION;
+
+//
+// Set QEO settings on an interface. Configured settings will remain valid until
+// the handle is closed. Upon handle closure, QEO settings will revert back to
+// their original state.
+//
+typedef HRESULT
+XDP_QEO_SET_FN(
+    _In_ HANDLE InterfaceHandle,
+    _In_ CONST XDP_QEO_CONFIGURATION *QeoConfiguration,
+    _In_ UINT32 QeoConfigurationSize
+    );
+
 #include "afxdp.h"
 
 typedef struct _XDP_API_TABLE XDP_API_TABLE;
@@ -272,7 +288,7 @@ typedef struct _XDP_API_TABLE XDP_API_TABLE;
 // The only API version currently supported. Any change to the API is considered
 // a breaking change and support for previous versions will be removed.
 //
-#define XDP_VERSION_PRERELEASE 100004
+#define XDP_VERSION_PRERELEASE 100005
 
 //
 // Opens the API and returns an API function table with the rest of the API's
@@ -307,6 +323,7 @@ typedef struct _XDP_API_TABLE {
     XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities;
     XDP_RSS_SET_FN *XdpRssSet;
     XDP_RSS_GET_FN *XdpRssGet;
+    XDP_QEO_SET_FN *XdpQeoSet;
     XSK_CREATE_FN *XskCreate;
     XSK_BIND_FN *XskBind;
     XSK_ACTIVATE_FN *XskActivate;

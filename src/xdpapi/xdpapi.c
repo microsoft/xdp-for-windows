@@ -12,6 +12,7 @@ XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
 XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
 XDP_RSS_SET_FN XdpRssSet;
 XDP_RSS_GET_FN XdpRssGet;
+XDP_QEO_SET_FN XdpQeoSet;
 XSK_CREATE_FN XskCreate;
 XSK_BIND_FN XskBind;
 XSK_ACTIVATE_FN XskActivate;
@@ -30,6 +31,7 @@ static CONST XDP_API_TABLE XdpApiTablePrerelease = {
     .XdpRssGetCapabilities = XdpRssGetCapabilities,
     .XdpRssSet = XdpRssSet,
     .XdpRssGet = XdpRssGet,
+    .XdpQeoSet = XdpQeoSet,
     .XskCreate = XskCreate,
     .XskBind = XskBind,
     .XskActivate = XskActivate,
@@ -168,6 +170,26 @@ XdpRssGet(
         XdpIoctl(
             InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_GET, NULL, 0, RssConfiguration,
             *RssConfigurationSize, (ULONG *)RssConfigurationSize, NULL, TRUE);
+    if (!Success) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return S_OK;
+}
+
+HRESULT
+XdpQeoSet(
+    _In_ HANDLE InterfaceHandle,
+    _In_ CONST XDP_QEO_CONFIGURATION *QeoConfiguration,
+    _In_ UINT32 QeoConfigurationSize
+    )
+{
+    BOOL Success =
+        XdpIoctl(
+            InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_QEO_SET,
+            (XDP_QEO_CONFIGURATION *)QeoConfiguration, QeoConfigurationSize,
+            (XDP_QEO_CONFIGURATION *)QeoConfiguration, QeoConfigurationSize,
+            (ULONG *)&QeoConfigurationSize, NULL, TRUE);
     if (!Success) {
         return HRESULT_FROM_WIN32(GetLastError());
     }

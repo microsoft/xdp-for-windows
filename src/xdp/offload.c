@@ -354,6 +354,20 @@ Exit:
     return Status;
 }
 
+static
+NTSTATUS
+XdpIrpInterfaceOffloadQeoSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _Inout_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceObject);
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IrpSp);
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
@@ -503,6 +517,9 @@ XdpIrpInterfaceDeviceIoControl(
             XdpIrpInterfaceOffloadRssSet(
                 InterfaceObject, Irp->AssociatedIrp.SystemBuffer,
                 IrpSp->Parameters.DeviceIoControl.InputBufferLength);
+        break;
+    case IOCTL_INTERFACE_OFFLOAD_QEO_SET:
+        Status = XdpIrpInterfaceOffloadQeoSet(InterfaceObject, Irp, IrpSp);
         break;
     default:
         Status = STATUS_NOT_SUPPORTED;
