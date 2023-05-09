@@ -979,7 +979,48 @@ Exit:
 }
 
 VOID
-FuzzRss(
+FuzzQeoSet(
+    _In_ XSK_FUZZER_WORKER *fuzzer,
+    _In_ QUEUE_CONTEXT *queue
+    )
+{
+    XDP_QUIC_CONNECTION *Connections = NULL;
+    UINT32 ConnectionCount = RandUlong() % 16;
+    UINT32 ConnectionsSize = ConnectionCount * sizeof(*Connections);
+
+    Connections = calloc(1, ConnectionsSize);
+    if (Connections == NULL) {
+        goto Exit;
+    }
+
+    for (UINT32 i = 0; i < ConnectionCount; i++) {
+        XDP_QUIC_CONNECTION *Connection = &Connections[i];
+
+        XdpInitializeQuicConnection(Connection, sizeof(*Connection));
+        Connection->Operation = RandUlong() % 4;
+        Connection->Direction = RandUlong() % 4;
+        Connection->DecryptFailureAction = RandUlong() % 4;
+        Connection->KeyPhase = RandUlong() % 4;
+        Connection->CipherType = RandUlong() % 8;
+        Connection->AddressFamily = RandUlong() % 4;
+        Connection->UdpPort = (UINT16)RandUlong();
+        Connection->NextPacketNumber = RandUlong();
+        Connection->ConnectionIdLength = RandUlong() % (sizeof(Connection->ConnectionId) + 4);
+    }
+
+    if (fuzzer->fuzzerInterface != NULL) {
+        (void)queue->xdpApi->XdpQeoSet(fuzzer->fuzzerInterface, Connections, ConnectionsSize);
+    }
+
+Exit:
+
+    if (Connections != NULL) {
+        free(Connections);
+    }
+}
+
+VOID
+FuzzInterface(
     _In_ XSK_FUZZER_WORKER *fuzzer,
     _In_ QUEUE_CONTEXT *queue
     )
@@ -1035,6 +1076,10 @@ FuzzRss(
 
     if (RandUlong() % 10 == 0) {
         FuzzRssGetCapabilities(fuzzer, queue);
+    }
+
+    if (RandUlong() % 10 == 0) {
+        FuzzQeoSet(fuzzer, queue);
     }
 }
 
@@ -1880,7 +1925,7 @@ XskFuzzerWorkerFn(
                 queue, queue->sharedUmemSock, queue->sock);
         }
 
-        FuzzRss(fuzzer, queue);
+        FuzzInterface(fuzzer, queue);
 
         FuzzSocketRxTxSetup(
             queue, queue->sock,
