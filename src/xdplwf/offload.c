@@ -1217,12 +1217,11 @@ XdpLwfOffloadQeoSet(
 
     TraceEnter(TRACE_LWF, "Filter=%p OffloadContext=%p", Filter, OffloadContext);
 
-    ASSERT(XdpQeoParams != NULL && XdpQeoParamsSize == sizeof(*XdpQeoParams));
-    ASSERT(XdpQeoParams->ConnectionCount > 0);
-
     RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
 
-    if (OffloadResultSize < XdpQeoParams->ConnectionsSize) {
+    if (XdpQeoParamsSize != sizeof(*XdpQeoParams) ||
+        XdpQeoParams->ConnectionCount == 0 ||
+        OffloadResultSize < XdpQeoParams->ConnectionsSize) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
