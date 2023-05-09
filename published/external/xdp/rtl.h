@@ -15,6 +15,11 @@ extern "C" {
     ((VOID *)((ULONG_PTR)(Pointer) + (ULONG_PTR)(Value)))
 #endif
 
+#ifndef RTL_PTR_SUBTRACT
+#define RTL_PTR_SUBTRACT(Pointer, Value) \
+    ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Value)))
+#endif
+
 #if (!defined(NTDDI_WIN10_CO) || (WDK_NTDDI_VERSION < NTDDI_WIN10_CO)) && \
     !defined(UINT32_VOLATILE_ACCESSORS)
 #define UINT32_VOLATILE_ACCESSORS

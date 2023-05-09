@@ -16,6 +16,7 @@
 #include <ndis/ndl/nblclassify.h>
 #include <netiodef.h>
 #include <qeo_ndis.h>
+#include <winerror.h>
 
 #define XDPEXPORT(RoutineName) RoutineName##Thunk
 

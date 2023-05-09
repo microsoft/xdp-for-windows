@@ -43,6 +43,7 @@ CONST NDIS_OID MpSupportedOidArray[] =
     OID_XDP_QUERY_CAPABILITIES,
     OID_TCP_OFFLOAD_PARAMETERS,
     OID_TCP_OFFLOAD_HW_PARAMETERS,
+    OID_QUIC_CONNECTION_ENCRYPTION,
 };
 
 CONST UINT32 MpSupportedOidArraySize = sizeof(MpSupportedOidArray);
@@ -88,7 +89,8 @@ MpFilterOid(
     for (UINT32 Index = 0; Index < Adapter->OidFilterKeyCount; Index++) {
         OID_KEY *Filter = &Adapter->OidFilterKeys[Index];
         if (NdisRequest->DATA.Oid == Filter->Oid &&
-            NdisRequest->RequestType == Filter->RequestType) {
+            NdisRequest->RequestType == Filter->RequestType &&
+            RequestInterface == Filter->RequestInterface) {
             InsertTailList(
                 &Adapter->FilteredOidRequestLists[RequestInterface],
                 MpOidRequestToListEntry(NdisRequest));
@@ -515,9 +517,11 @@ MpProcessMethodOid(
 {
     NDIS_STATUS Status;
     NDIS_OID Oid = NdisRequest->DATA.METHOD_INFORMATION.Oid;
-    // PUINT BytesRead = &NdisRequest->DATA.METHOD_INFORMATION.BytesRead;
-    // PUINT BytesWritten = &NdisRequest->DATA.METHOD_INFORMATION.BytesWritten;
-    // PUINT BytesNeeded = &NdisRequest->DATA.METHOD_INFORMATION.BytesNeeded;
+    VOID *DataBuffer = NdisRequest->DATA.METHOD_INFORMATION.InformationBuffer;
+    UINT32 InputBufferLength = NdisRequest->DATA.METHOD_INFORMATION.InputBufferLength;
+    UINT32 OutputBufferLength = NdisRequest->DATA.METHOD_INFORMATION.OutputBufferLength;
+    PUINT BytesRead = &NdisRequest->DATA.METHOD_INFORMATION.BytesRead;
+    PUINT BytesWritten = &NdisRequest->DATA.METHOD_INFORMATION.BytesWritten;
 
     if (ShouldFilter) {
         Status = MpFilterOid(Adapter, RequestInterface, NdisRequest);
@@ -527,10 +531,35 @@ MpProcessMethodOid(
     }
 
     switch (Oid) {
+    case OID_QUIC_CONNECTION_ENCRYPTION:
+    {
+        NDIS_QUIC_CONNECTION *Connection = DataBuffer;
+
+        if (InputBufferLength == 0 ||
+            InputBufferLength % sizeof(*Connection) != 0 ||
+            InputBufferLength != OutputBufferLength) {
+            Status = NDIS_STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        while (InputBufferLength > 0) {
+            Connection->Status = NDIS_STATUS_SUCCESS;
+            Connection++;
+            InputBufferLength -= sizeof(*Connection);
+        }
+
+        *BytesRead = InputBufferLength;
+        *BytesWritten = OutputBufferLength;
+        Status = NDIS_STATUS_SUCCESS;
+        break;
+    }
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         break;
     }
+
+Exit:
 
     return Status;
 }
@@ -648,7 +677,19 @@ MpOidCompleteRequest(
             break;
     }
 
-    NdisMOidRequestComplete(Adapter->MiniportHandle, Request, Status);
+    switch (RequestInterface) {
+    case OID_REQUEST_INTERFACE_REGULAR:
+        NdisMOidRequestComplete(Adapter->MiniportHandle, Request, Status);
+        break;
+
+    case OID_REQUEST_INTERFACE_DIRECT:
+        NdisMDirectOidRequestComplete(Adapter->MiniportHandle, Request, Status);
+        break;
+
+    default:
+        FRE_ASSERT(FALSE);
+        break;
+    }
 }
 
 static
@@ -729,7 +770,13 @@ MpIrpOidSetFilter(
     for (UINT32 Index = 0; Index < KeyCount; Index++) {
         OID_KEY *Key = &Keys[Index];
         if (Key->RequestType != NdisRequestQueryInformation &&
-            Key->RequestType != NdisRequestSetInformation) {
+            Key->RequestType != NdisRequestSetInformation &&
+            Key->RequestType != NdisRequestMethod) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        if ((UINT32)Key->RequestInterface >= (UINT32)OID_REQUEST_INTERFACE_MAX) {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -822,9 +869,12 @@ MpIrpOidGetRequest(
     } else if (Request->RequestType == NdisRequestSetInformation) {
         InformationBuffer = Request->DATA.QUERY_INFORMATION.InformationBuffer;
         InformationBufferLength = Request->DATA.QUERY_INFORMATION.InformationBufferLength;
+    } else if (Request->RequestType == NdisRequestMethod) {
+        InformationBuffer = Request->DATA.METHOD_INFORMATION.InformationBuffer;
+        InformationBufferLength = Request->DATA.METHOD_INFORMATION.InputBufferLength;
     } else {
         //
-        // We only should have filtered get/set requests.
+        // We only should have filtered get/set/method requests.
         //
         ASSERT(FALSE);
         Status = STATUS_NOT_SUPPORTED;

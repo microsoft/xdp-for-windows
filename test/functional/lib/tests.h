@@ -200,3 +200,6 @@ OffloadSetHardwareCapabilities();
 
 VOID
 GenericXskQueryAffinity();
+
+VOID
+OffloadQeoSingleAdd();

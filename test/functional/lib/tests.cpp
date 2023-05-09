@@ -49,6 +49,7 @@
 #include <xdpfnlwfapi.h>
 #include <xdpndisuser.h>
 #include <fntrace.h>
+#include <qeo_ndis.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -882,6 +883,17 @@ RssGet(
     )
 {
     TEST_HRESULT(TryRssGet(InterfaceHandle, RssConfiguration, RssConfigurationSize));
+}
+
+static
+HRESULT
+TryQeoSet(
+    _In_ HANDLE InterfaceHandle,
+    _In_ XDP_QUIC_CONNECTION *QuicConnections,
+    _In_ UINT32 QuicConnectionsSize
+    )
+{
+    return XdpApi->XdpQeoSet(InterfaceHandle, QuicConnections, QuicConnectionsSize);
 }
 
 static
@@ -6444,6 +6456,115 @@ GenericXskQueryAffinity()
             }
         }
     }
+}
+
+VOID
+OffloadQeoSingleAdd()
+{
+    auto If = FnMpIf;
+    auto InterfaceHandle = InterfaceOpen(If.GetIfIndex());
+    auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
+
+    //
+    // Initialize the connection for the add operation.
+    //
+    XDP_QUIC_CONNECTION Connection;
+    XdpInitializeQuicConnection(&Connection, sizeof(Connection));
+    Connection.Operation = XDP_QUIC_OPERATION_ADD;
+    Connection.Direction = XDP_QUIC_DIRECTION_TRANSMIT;
+    Connection.DecryptFailureAction = XDP_QUIC_DECRYPT_FAILURE_ACTION_DROP;
+    Connection.CipherType = XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
+    Connection.AddressFamily = XDP_QUIC_ADDRESS_FAMILY_INET4;
+    Connection.UdpPort = htons(1234);
+    Connection.NextPacketNumber = 5678;
+    Connection.ConnectionIdLength = 3;
+    RtlCopyMemory(Connection.Address, &in4addr_loopback, sizeof(in4addr_loopback));
+    strcpy_s((CHAR *)Connection.ConnectionId, sizeof(Connection.ConnectionId), "Id");
+    strcpy_s((CHAR *)Connection.PayloadKey, sizeof(Connection.PayloadKey), "PayloadKey");
+    strcpy_s((CHAR *)Connection.HeaderKey, sizeof(Connection.HeaderKey), "HeaderKey");
+    strcpy_s((CHAR *)Connection.PayloadIv, sizeof(Connection.PayloadIv), "PayloadIv");
+    Connection.Status = E_FAIL;
+
+    //
+    // Configure the functional miniport to capture the offload request OID.
+    //
+    OID_KEY Key;
+    InitializeOidKey(
+        &Key, OID_QUIC_CONNECTION_ENCRYPTION, NdisRequestMethod, OID_REQUEST_INTERFACE_DIRECT);
+    MpOidFilter(AdapterMp, &Key, 1);
+
+    //
+    // Initiate the offload request on a separate thread: the operation will
+    // block until the OID is completed, which won't happen until the miniport
+    // handle is reset below.
+    //
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return TryQeoSet(InterfaceHandle.get(), &Connection, sizeof(Connection));
+        }
+    );
+
+    //
+    // Retrieve the captured offload OID from the functional miniport.
+    //
+    UINT32 OidInfoBufferLength;
+    unique_malloc_ptr<VOID> OidInfoBuffer =
+        MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength);
+
+    //
+    // Verify the OID parameters match the XDP connection request.
+    //
+    NDIS_QUIC_CONNECTION *NdisConnection = (NDIS_QUIC_CONNECTION *)OidInfoBuffer.get();
+    TEST_EQUAL(NDIS_QUIC_OPERATION_ADD, NdisConnection->Operation);
+    TEST_EQUAL(NDIS_QUIC_DIRECTION_TRANSMIT, NdisConnection->Direction);
+    TEST_EQUAL(NDIS_QUIC_DECRYPT_FAILURE_ACTION_DROP, NdisConnection->DecryptFailureAction);
+    TEST_EQUAL(NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM, NdisConnection->CipherType);
+    TEST_EQUAL(NDIS_QUIC_ADDRESS_FAMILY_INET4, NdisConnection->AddressFamily);
+    TEST_EQUAL(Connection.UdpPort, NdisConnection->UdpPort);
+    TEST_EQUAL(Connection.NextPacketNumber, NdisConnection->NextPacketNumber);
+    TEST_EQUAL(Connection.ConnectionIdLength, NdisConnection->ConnectionIdLength);
+
+    C_ASSERT(sizeof(Connection.Address) == sizeof(NdisConnection->Address));
+    TEST_TRUE(RtlEqualMemory(
+        Connection.Address, NdisConnection->Address, sizeof(Connection.Address)));
+
+    C_ASSERT(sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId));
+    TEST_TRUE(RtlEqualMemory(
+        Connection.ConnectionId, NdisConnection->ConnectionId, Connection.ConnectionIdLength));
+
+    C_ASSERT(sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey));
+    TEST_TRUE(RtlEqualMemory(
+        Connection.PayloadKey, NdisConnection->PayloadKey, sizeof(Connection.PayloadKey)));
+
+    C_ASSERT(sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey));
+    TEST_TRUE(RtlEqualMemory(
+        Connection.HeaderKey, NdisConnection->HeaderKey, sizeof(Connection.HeaderKey)));
+
+    C_ASSERT(sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv));
+    TEST_TRUE(RtlEqualMemory(
+        Connection.PayloadIv, NdisConnection->PayloadIv, sizeof(Connection.PayloadIv)));
+
+    //
+    // Reset the miniport handle, allowing the captured OID to be completed.
+    //
+    AdapterMp.reset();
+
+    //
+    // Verify the XDP request is completed once the OID completes.
+    //
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+
+    //
+    // Verify the XDP offload API succeeded.
+    //
+    TEST_HRESULT(AsyncThread.get());
+
+    //
+    // Verify the connection's status field was updated with the miniport
+    // status.
+    //
+    TEST_HRESULT(Connection.Status);
 }
 
 /**

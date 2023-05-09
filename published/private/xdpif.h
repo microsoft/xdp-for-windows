@@ -36,6 +36,7 @@
 
 #pragma once
 
+#include <xdpapi.h>
 #include <xdp/control.h>
 #include <xdpifmode.h>
 
@@ -93,6 +94,7 @@ XDP_DELETE_INTERFACE_SET_COMPLETE(
 
 typedef enum {
     XdpOffloadRss,
+    XdpOffloadQeo,
 } XDP_INTERFACE_OFFLOAD_TYPE;
 
 typedef enum {
@@ -145,6 +147,12 @@ typedef struct _XDP_OFFLOAD_PARAMS_RSC {
     XDP_OFFLOAD_STATE Ipv4;
     XDP_OFFLOAD_STATE Ipv6;
 } XDP_OFFLOAD_PARAMS_RSC;
+
+typedef struct _XDP_OFFLOAD_PARAMS_QEO {
+    const XDP_QUIC_CONNECTION *Connections;
+    UINT32 ConnectionsSize;
+    UINT32 ConnectionCount;
+} XDP_OFFLOAD_PARAMS_QEO;
 
 //
 // Open an interface queue offload configuration handle.
@@ -236,7 +244,10 @@ XDP_SET_INTERFACE_OFFLOAD(
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize
+    _In_ UINT32 OffloadParamsSize,
+    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
+    _In_ UINT32 OffloadResultSize,
+    _Out_opt_ UINT32 *OffloadResultWritten
     );
 
 //

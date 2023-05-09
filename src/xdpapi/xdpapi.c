@@ -180,16 +180,16 @@ XdpRssGet(
 HRESULT
 XdpQeoSet(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_QEO_CONFIGURATION *QeoConfiguration,
-    _In_ UINT32 QeoConfigurationSize
+    _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
+    _In_ UINT32 QuicConnectionsSize
     )
 {
     BOOL Success =
         XdpIoctl(
             InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_QEO_SET,
-            (XDP_QEO_CONFIGURATION *)QeoConfiguration, QeoConfigurationSize,
-            (XDP_QEO_CONFIGURATION *)QeoConfiguration, QeoConfigurationSize,
-            (ULONG *)&QeoConfigurationSize, NULL, TRUE);
+            QuicConnections, QuicConnectionsSize,
+            QuicConnections, QuicConnectionsSize,
+            (ULONG *)&QuicConnectionsSize, NULL, TRUE);
     if (!Success) {
         return HRESULT_FROM_WIN32(GetLastError());
     }

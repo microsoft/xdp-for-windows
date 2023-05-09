@@ -764,14 +764,19 @@ XdpIfSetInterfaceOffload(
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize
+    _In_ UINT32 OffloadParamsSize,
+    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
+    _In_ UINT32 OffloadResultSize,
+    _Out_opt_ UINT32 *OffloadResultWritten
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
 
+    #pragma warning(suppress:6001) // Using uninitialized memory '*OffloadResultWritten'
     return
         IfSet->OffloadDispatch->SetInterfaceOffload(
-            InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+            InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize, OffloadResult,
+            OffloadResultSize, OffloadResultWritten);
 }
 
 NTSTATUS
