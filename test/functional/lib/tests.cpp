@@ -6530,6 +6530,7 @@ OffloadQeoConnection()
     for (const auto &Operation : QeoOperationMap) {
     for (const auto &Direction : QeoDirectionMap) {
     for (const auto &DecryptFailureAction : QeoDecryptFailureActionMap) {
+    for (const auto &KeyPhase : {0U, 1U}) {
     for (const auto &CipherType : QeoCipherTypeMap) {
     for (const auto &AddressFamily : QeoAddressFamilyMap) {
         auto If = FnMpIf;
@@ -6544,6 +6545,7 @@ OffloadQeoConnection()
         Connection.Operation = Operation.Xdp;
         Connection.Direction = Direction.Xdp;
         Connection.DecryptFailureAction = DecryptFailureAction.Xdp;
+        Connection.KeyPhase = KeyPhase;
         Connection.CipherType = CipherType.Xdp;
         Connection.AddressFamily = AddressFamily.Xdp;
         Connection.UdpPort = htons(1234);
@@ -6591,6 +6593,7 @@ OffloadQeoConnection()
         TEST_EQUAL((UINT32)Operation.Ndis, NdisConnection->Operation);
         TEST_EQUAL((UINT32)Direction.Ndis, NdisConnection->Direction);
         TEST_EQUAL((UINT32)DecryptFailureAction.Ndis, NdisConnection->DecryptFailureAction);
+        TEST_EQUAL(KeyPhase, NdisConnection->KeyPhase);
         TEST_EQUAL((UINT32)CipherType.Ndis, NdisConnection->CipherType);
         TEST_EQUAL(AddressFamily.Ndis, NdisConnection->AddressFamily);
         TEST_EQUAL(Connection.UdpPort, NdisConnection->UdpPort);
@@ -6637,7 +6640,7 @@ OffloadQeoConnection()
         // status.
         //
         TEST_HRESULT(Connection.Status);
-    }}}}}
+    }}}}}}
 }
 
 /**

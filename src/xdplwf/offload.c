@@ -1308,6 +1308,8 @@ XdpLwfOffloadQeoSet(
             goto Exit;
         }
 
+        NdisConnection->KeyPhase = XdpQeoConnection->KeyPhase;
+
         switch (XdpQeoConnection->CipherType) {
         case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM:
             NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
