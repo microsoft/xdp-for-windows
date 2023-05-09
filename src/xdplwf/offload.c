@@ -1284,10 +1284,10 @@ XdpLwfOffloadQeoSet(
 
         switch (XdpQeoConnection->Direction) {
         case XDP_QUIC_DIRECTION_TRANSMIT:
-            NdisConnection->Operation = NDIS_QUIC_DIRECTION_TRANSMIT;
+            NdisConnection->Direction = NDIS_QUIC_DIRECTION_TRANSMIT;
             break;
         case XDP_QUIC_DIRECTION_RECEIVE:
-            NdisConnection->Operation = NDIS_QUIC_DIRECTION_RECEIVE;
+            NdisConnection->Direction = NDIS_QUIC_DIRECTION_RECEIVE;
             break;
         default:
             ASSERT(FALSE);
@@ -1297,10 +1297,10 @@ XdpLwfOffloadQeoSet(
 
         switch (XdpQeoConnection->DecryptFailureAction) {
         case XDP_QUIC_DECRYPT_FAILURE_ACTION_DROP:
-            NdisConnection->Operation = NDIS_QUIC_DECRYPT_FAILURE_ACTION_DROP;
+            NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_DROP;
             break;
         case XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE:
-            NdisConnection->Operation = NDIS_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE;
+            NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE;
             break;
         default:
             ASSERT(FALSE);
@@ -1310,16 +1310,16 @@ XdpLwfOffloadQeoSet(
 
         switch (XdpQeoConnection->CipherType) {
         case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM:
-            NdisConnection->Operation = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
             break;
         case XDP_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM:
-            NdisConnection->Operation = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM;
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM;
             break;
         case XDP_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305:
-            NdisConnection->Operation = NDIS_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305;
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305;
             break;
         case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM:
-            NdisConnection->Operation = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM;
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM;
             break;
         default:
             ASSERT(FALSE);
@@ -1329,10 +1329,10 @@ XdpLwfOffloadQeoSet(
 
         switch (XdpQeoConnection->AddressFamily) {
         case XDP_QUIC_ADDRESS_FAMILY_INET4:
-            NdisConnection->Operation = NDIS_QUIC_ADDRESS_FAMILY_INET4;
+            NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET4;
             break;
         case XDP_QUIC_ADDRESS_FAMILY_INET6:
-            NdisConnection->Operation = NDIS_QUIC_ADDRESS_FAMILY_INET6;
+            NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET6;
             break;
         default:
             ASSERT(FALSE);

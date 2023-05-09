@@ -480,7 +480,7 @@ public:
         ::GenericXskQueryAffinity();
     }
 
-    TEST_METHOD(OffloadQeoSingleAdd) {
-        ::OffloadQeoSingleAdd();
+    TEST_METHOD(OffloadQeoConnection) {
+        ::OffloadQeoConnection();
     }
 };

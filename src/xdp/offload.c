@@ -407,8 +407,8 @@ XdpIrpInterfaceOffloadQeoSet(
         if ((UINT32)ConnectionsIn->Operation > (UINT32)XDP_QUIC_OPERATION_REMOVE ||
             (UINT32)ConnectionsIn->Direction > (UINT32)XDP_QUIC_DIRECTION_RECEIVE ||
             (UINT32)ConnectionsIn->DecryptFailureAction > (UINT32)XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE ||
-            (UINT32)ConnectionsIn->KeyPhase != 0 ||
-            (UINT32)ConnectionsIn->RESERVED != 0 ||
+            ConnectionsIn->KeyPhase != 0 ||
+            ConnectionsIn->RESERVED != 0 ||
             (UINT32)ConnectionsIn->CipherType > (UINT32)XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM ||
             (UINT32)ConnectionsIn->AddressFamily > (UINT32)XDP_QUIC_ADDRESS_FAMILY_INET6 ||
             ConnectionsIn->ConnectionIdLength > sizeof(ConnectionsIn->ConnectionId)) {

@@ -202,4 +202,4 @@ VOID
 GenericXskQueryAffinity();
 
 VOID
-OffloadQeoSingleAdd();
+OffloadQeoConnection();
