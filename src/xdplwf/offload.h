@@ -27,6 +27,14 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
 typedef struct _XDP_LWF_OFFLOAD {
     EX_PUSH_LOCK Lock;
 
+    //
+    // This rundown prevents the filter from detaching from the NDIS stack.
+    // A rundown reference must be held while issuing OID requests.
+    //
+    XDP_RUNDOWN_REF FilterRundown;
+    KEVENT FilterRundownComplete;
+
+    XDP_WORK_QUEUE *WorkQueue;
 
     //
     // Hardware capabilities.
@@ -78,6 +86,11 @@ XdpLwfOffloadDeactivate(
 
 VOID
 XdpLwfOffloadRssInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    );
+
+NTSTATUS
+XdpLwfOffloadStart(
     _In_ XDP_LWF_FILTER *Filter
     );
 

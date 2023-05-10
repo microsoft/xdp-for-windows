@@ -28,6 +28,20 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_CONTEXT {
     BOOLEAN IsInvalid;
 } XDP_LWF_INTERFACE_OFFLOAD_CONTEXT;
 
+typedef struct _XDP_LWF_OFFLOAD_WORKITEM XDP_LWF_OFFLOAD_WORKITEM;
+
+typedef
+VOID
+XDP_LWF_OFFLOAD_WORK_ROUTINE(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    );
+
+typedef struct _XDP_LWF_OFFLOAD_WORKITEM {
+    SINGLE_LIST_ENTRY Link;
+    XDP_LWF_FILTER *Filter;
+    XDP_LWF_OFFLOAD_WORK_ROUTINE *WorkRoutine;
+} XDP_LWF_OFFLOAD_WORKITEM;
+
 #define RSS_HASH_SECRET_KEY_MAX_SIZE NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2
 
 static XDP_OPEN_INTERFACE_OFFLOAD_HANDLE XdpLwfOpenInterfaceOffloadHandle;
@@ -45,6 +59,62 @@ CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
     .ReferenceInterfaceOffload = XdpLwfReferenceInterfaceOffload,
     .CloseInterfaceOffloadHandle = XdpLwfCloseInterfaceOffloadHandle,
 };
+
+static
+BOOLEAN
+XdpOffloadAcquireRundown(
+    _In_ XDP_LWF_OFFLOAD *Offload
+    )
+{
+    return XdpAcquireRundown(&Offload->FilterRundown);
+}
+
+static
+VOID
+XdpOffloadReleaseRundown(
+    _In_ XDP_LWF_OFFLOAD *Offload
+    )
+{
+    if (XdpReleaseRundown(&Offload->FilterRundown)) {
+        KeSetEvent(&Offload->FilterRundownComplete, 0, FALSE);
+    }
+}
+
+static
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpLwfOffloadWorker(
+    _In_ SINGLE_LIST_ENTRY *WorkQueueHead
+    )
+{
+    while (WorkQueueHead != NULL) {
+        XDP_LWF_OFFLOAD_WORKITEM *Item;
+        XDP_LWF_FILTER *Filter;
+
+        Item = CONTAINING_RECORD(WorkQueueHead, XDP_LWF_OFFLOAD_WORKITEM, Link);
+        Filter = Item->Filter;
+        WorkQueueHead = WorkQueueHead->Next;
+
+        Item->WorkRoutine(Item);
+
+        XdpLwfDereferenceFilter(Filter);
+    }
+}
+
+static
+VOID
+XdpLwfOffloadQueueWorkItem(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem,
+    _In_ XDP_LWF_OFFLOAD_WORK_ROUTINE *WorkRoutine
+    )
+{
+    WorkItem->Filter = Filter;
+    WorkItem->WorkRoutine = WorkRoutine;
+
+    XdpLwfReferenceFilter(Filter);
+    XdpInsertWorkQueue(Filter->Offload.WorkQueue, &WorkItem->Link);
+}
 
 static
 USHORT
@@ -1210,6 +1280,7 @@ XdpLwfOffloadQeoSet(
     )
 {
     NTSTATUS Status;
+    BOOLEAN RundownAcquired = FALSE;
     const XDP_QUIC_CONNECTION *XdpQeoConnection;
     NDIS_QUIC_CONNECTION *NdisConnections = NULL;
     UINT32 NdisConnectionsSize;
@@ -1217,21 +1288,17 @@ XdpLwfOffloadQeoSet(
 
     TraceEnter(TRACE_LWF, "Filter=%p OffloadContext=%p", Filter, OffloadContext);
 
-    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
+    if (!XdpOffloadAcquireRundown(&Filter->Offload)) {
+        Status = STATUS_DELETE_PENDING;
+        goto Exit;
+    }
+
+    RundownAcquired = TRUE;
 
     if (XdpQeoParamsSize != sizeof(*XdpQeoParams) ||
         XdpQeoParams->ConnectionCount == 0 ||
         OffloadResultSize < XdpQeoParams->ConnectionsSize) {
         Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
-
-    if (OffloadContext->IsInvalid) {
-        TraceError(
-            TRACE_LWF,
-            "OffloadContext=%p Interface offload context invalidated",
-            OffloadContext);
-        Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
 
@@ -1433,7 +1500,9 @@ Exit:
         ExFreePoolWithTag(NdisConnections, POOLTAG_OFFLOAD);
     }
 
-    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
+    if (RundownAcquired) {
+        XdpOffloadReleaseRundown(&Filter->Offload);
+    }
 
     TraceExitStatus(TRACE_LWF);
 
@@ -1919,16 +1988,39 @@ XdpLwfOffloadInitialize(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
-    //
-    // Initialize the existing upper edge settings by querying the miniport.
-    //
-    // TODO: how do we avoid a race with the protocol driver plumbing offload
-    // OIDS? The OIDs might already be in flight before this LWF has a chance to
-    // inspect it and might still be in flight after we query NDIS.
-    //
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     ExInitializePushLock(&Filter->Offload.Lock);
+    XdpInitializeRundown(&Filter->Offload.FilterRundown);
+    KeInitializeEvent(&Filter->Offload.FilterRundownComplete, NotificationEvent, FALSE);
     InitializeListHead(&Filter->Offload.InterfaceOffloadHandleListHead);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+NTSTATUS
+XdpLwfOffloadStart(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    Filter->Offload.WorkQueue =
+        XdpCreateWorkQueue(XdpLwfOffloadWorker, PASSIVE_LEVEL, XdpLwfDriverObject, NULL);
+    if (Filter->Offload.WorkQueue == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
 }
 
 VOID
@@ -1936,5 +2028,15 @@ XdpLwfOffloadUnInitialize(
     _In_ XDP_LWF_FILTER *Filter
     )
 {
-    UNREFERENCED_PARAMETER(Filter);
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    KeWaitForSingleObject(
+        &Filter->Offload.FilterRundownComplete, Executive, KernelMode, FALSE, NULL);
+
+    if (Filter->Offload.WorkQueue != NULL) {
+        XdpShutdownWorkQueue(Filter->Offload.WorkQueue, TRUE);
+        Filter->Offload.WorkQueue = NULL;
+    }
+
+    TraceExitSuccess(TRACE_LWF);
 }

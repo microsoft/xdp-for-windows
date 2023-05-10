@@ -40,11 +40,13 @@
 #include <xdplwf.h>
 #include <xdpregistry.h>
 #include <xdprtl.h>
+#include <xdprundown.h>
 #include <xdprxqueue_internal.h>
 #include <xdpstatusconvert.h>
 #include <xdptimer.h>
 #include <xdptxqueue_internal.h>
 #include <xdptrace.h>
+#include <xdpworkqueue.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 

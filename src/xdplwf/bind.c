@@ -182,6 +182,11 @@ XdpLwfFilterAttach(
         goto Exit;
     }
 
+    Status = XdpLwfOffloadStart(Filter);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     Status =
         XdpIfCreateInterfaceSet(
             Filter->MiniportIfIndex, &XdpLwfOffloadDispatch, Filter,
