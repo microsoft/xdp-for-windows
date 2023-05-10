@@ -9,7 +9,7 @@ param (
 
     [ValidateSet("Debug", "Release")]
     [Parameter(Mandatory=$false)]
-    [string]$Flavor = "Debug",
+    [string]$Config = "Debug",
 
     [Parameter(Mandatory = $false)]
     [switch]$NoClean = $false,
@@ -41,7 +41,7 @@ msbuild.exe xdp.sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
-    /p:Configuration=$Flavor `
+    /p:Configuration=$Config `
     /p:Platform=$Platform
 if (!$?) {
     Write-Verbose "Restoring NuGet packages failed: $LastExitCode"
@@ -51,7 +51,7 @@ if (!$?) {
 tools/prepare-machine.ps1 -ForEbpfBuild
 
 msbuild.exe xdp.sln `
-    /p:Configuration=$Flavor `
+    /p:Configuration=$Config `
     /p:Platform=$Platform `
     /t:$($Tasks -join ",") `
     /maxCpuCount
@@ -61,13 +61,13 @@ if (!$?) {
 }
 
 if (!$NoSign) {
-    tools/sign.ps1 -Config $Flavor -Arch $Platform
+    tools/sign.ps1 -Config $Config -Arch $Platform
 }
 
 if ($DevKit) {
-    tools/create-devkit.ps1 -Flavor $Flavor
+    tools/create-devkit.ps1 -Config $Config
 }
 
 if ($RuntimeKit) {
-    tools/create-runtime-kit.ps1 -Flavor $Flavor
+    tools/create-runtime-kit.ps1 -Config $Config
 }
