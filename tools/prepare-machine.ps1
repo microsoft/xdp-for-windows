@@ -240,6 +240,13 @@ if ($Cleanup) {
         if (!$?) {
             $Reboot = $true
         }
+
+        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).CrashDumpEnabled -ne 1) {
+            # Enable complete (kernel + user) system crash dumps
+            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
+            $Reboot = $true
+        }
     }
 
     if ($ForSpinxskTest) {
@@ -258,6 +265,13 @@ if ($Cleanup) {
         Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
         verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
+            $Reboot = $true
+        }
+
+        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).CrashDumpEnabled -ne 1) {
+            # Enable complete (kernel + user) system crash dumps
+            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
             $Reboot = $true
         }
     }
