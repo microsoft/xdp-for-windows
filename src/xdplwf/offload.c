@@ -30,53 +30,12 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_CONTEXT {
 
 #define RSS_HASH_SECRET_KEY_MAX_SIZE NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2
 
-static
-NTSTATUS
-XdpLwfOpenInterfaceOffloadHandle(
-    _In_ XDP_LWF_FILTER *Filter,
-    _In_ CONST XDP_HOOK_ID *HookId,
-    _Out_ VOID **InterfaceOffloadHandle
-    );
-
-static
-VOID
-XdpLwfCloseInterfaceOffloadHandle(
-    _In_ VOID *InterfaceOffloadHandle
-    );
-
-static
-NTSTATUS
-XdpLwfGetInterfaceOffloadCapabilities(
-    _In_ VOID *InterfaceOffloadHandle,
-    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
-    _Out_opt_ VOID *OffloadCapabilities,
-    _Inout_ UINT32 *OffloadCapabilitiesSize
-    );
-
-static
-NTSTATUS
-XdpLwfGetInterfaceOffload(
-    _In_ VOID *InterfaceOffloadHandle,
-    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
-    _Out_opt_ VOID *OffloadParams,
-    _Inout_ UINT32 *OffloadParamsSize
-    );
-
-static
-NTSTATUS
-XdpLwfSetInterfaceOffload(
-    _In_ VOID *InterfaceOffloadHandle,
-    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
-    _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize
-    );
-
-static
-NTSTATUS
-XdpLwfReferenceInterfaceOffload(
-    _In_ VOID *InterfaceOffloadHandle,
-    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
-    );
+static XDP_OPEN_INTERFACE_OFFLOAD_HANDLE XdpLwfOpenInterfaceOffloadHandle;
+static XDP_GET_INTERFACE_OFFLOAD_CAPABILITIES XdpLwfGetInterfaceOffloadCapabilities;
+static XDP_GET_INTERFACE_OFFLOAD XdpLwfGetInterfaceOffload;
+static XDP_SET_INTERFACE_OFFLOAD XdpLwfSetInterfaceOffload;
+static XDP_REFERENCE_INTERFACE_OFFLOAD XdpLwfReferenceInterfaceOffload;
+static XDP_CLOSE_INTERFACE_OFFLOAD_HANDLE XdpLwfCloseInterfaceOffloadHandle;
 
 CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
     .OpenInterfaceOffloadHandle = XdpLwfOpenInterfaceOffloadHandle,
@@ -638,7 +597,7 @@ RemoveLowerEdgeRssSetting(
 
     Status =
         XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, NdisRequestSetInformation,
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR, NdisRequestSetInformation,
             OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength, 0, 0,
             &BytesReturned);
     if (!NT_SUCCESS(Status)) {
@@ -690,17 +649,16 @@ DereferenceRssSetting(
 }
 
 static
-_Requires_lock_held_(&Filter->Offload.Lock)
 NTSTATUS
 XdpLwfOffloadRssSet(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
     _In_ XDP_OFFLOAD_PARAMS_RSS *RssParams,
-    _In_ UINT32 RssParamsLength,
-    _Out_ BOOLEAN *AttachRxDatapath
+    _In_ UINT32 RssParamsLength
     )
 {
     NTSTATUS Status;
+    BOOLEAN AttachRxDatapath = FALSE;
     ULONG *BitmapBuffer = NULL;
     XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting = NULL;
     XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting = NULL;
@@ -713,7 +671,16 @@ XdpLwfOffloadRssSet(
     ASSERT(RssParams != NULL);
     ASSERT(RssParamsLength == sizeof(*RssParams));
 
-    *AttachRxDatapath = FALSE;
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
+
+    if (OffloadContext->IsInvalid) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p Interface offload context invalidated",
+            OffloadContext);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
 
     //
     // Determine the appropriate edge.
@@ -920,7 +887,7 @@ XdpLwfOffloadRssSet(
 
     Status =
         XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, NdisRequestSetInformation,
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR, NdisRequestSetInformation,
             OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, NdisRssParamsLength, 0, 0,
             &BytesReturned);
     if (!NT_SUCCESS(Status)) {
@@ -943,7 +910,7 @@ XdpLwfOffloadRssSet(
     RssSetting = NULL;
 
     if (OldRssSetting == NULL) {
-        *AttachRxDatapath = TRUE;
+        AttachRxDatapath = TRUE;
     } else {
         DereferenceRssSetting(OldRssSetting, Filter);
     }
@@ -965,6 +932,12 @@ Exit:
     }
 
     XdpGenericRssFreeIndirection(&Indirection);
+
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    if (AttachRxDatapath) {
+        XdpGenericAttachDatapath(&Filter->Generic, TRUE, FALSE);
+    }
 
     return Status;
 }
@@ -1126,8 +1099,8 @@ XdpLwfOffloadRssInitialize(
 
     Status =
         XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, NdisRequestQueryInformation,
-            OID_GEN_RECEIVE_SCALE_CAPABILITIES, &RssCaps,
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR,
+            NdisRequestQueryInformation, OID_GEN_RECEIVE_SCALE_CAPABILITIES, &RssCaps,
             sizeof(RssCaps), 0, 0, &BytesReturned);
     if (!NT_SUCCESS(Status) && Status != STATUS_NOT_SUPPORTED) {
         TraceError(
@@ -1147,8 +1120,8 @@ XdpLwfOffloadRssInitialize(
 
     Status =
         XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, NdisRequestQueryInformation,
-            OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, 0, 0, 0,
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR,
+            NdisRequestQueryInformation, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, 0, 0, 0,
             &BytesReturned);
     if (Status != STATUS_BUFFER_TOO_SMALL || BytesReturned == 0) {
         if (Status == STATUS_NOT_SUPPORTED) {
@@ -1173,9 +1146,9 @@ XdpLwfOffloadRssInitialize(
 
     Status =
         XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, NdisRequestQueryInformation,
-            OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams, BytesReturned, 0, 0,
-            &BytesReturned);
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR,
+            NdisRequestQueryInformation, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRssParams,
+            BytesReturned, 0, 0, &BytesReturned);
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_LWF,
@@ -1226,13 +1199,257 @@ XdpLwfOffloadRssDeactivate(
 
 static
 NTSTATUS
-XdpLwfOpenInterfaceOffloadHandle(
+XdpLwfOffloadQeoSet(
     _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
+    _In_ const XDP_OFFLOAD_PARAMS_QEO *XdpQeoParams,
+    _In_ UINT32 XdpQeoParamsSize,
+    _Out_opt_ VOID *OffloadResult,
+    _In_ UINT32 OffloadResultSize,
+    _Out_opt_ UINT32 *OffloadResultWritten
+    )
+{
+    NTSTATUS Status;
+    const XDP_QUIC_CONNECTION *XdpQeoConnection;
+    NDIS_QUIC_CONNECTION *NdisConnections = NULL;
+    UINT32 NdisConnectionsSize;
+    ULONG NdisBytesReturned;
+
+    TraceEnter(TRACE_LWF, "Filter=%p OffloadContext=%p", Filter, OffloadContext);
+
+    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
+
+    if (XdpQeoParamsSize != sizeof(*XdpQeoParams) ||
+        XdpQeoParams->ConnectionCount == 0 ||
+        OffloadResultSize < XdpQeoParams->ConnectionsSize) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (OffloadContext->IsInvalid) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p Interface offload context invalidated",
+            OffloadContext);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    if (OffloadContext->Edge != XdpOffloadEdgeLower) {
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    //
+    // Clone the input params.
+    //
+
+    Status =
+        RtlUInt32Mult(
+            XdpQeoParams->ConnectionCount, sizeof(*NdisConnections), &NdisConnectionsSize);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    NdisConnections = ExAllocatePoolZero(NonPagedPoolNx, NdisConnectionsSize, POOLTAG_OFFLOAD);
+    if (NdisConnections == NULL) {
+        TraceError(
+            TRACE_LWF, "OffloadContext=%p Failed to allocate NDIS connections", OffloadContext);
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    //
+    // Form and issue the OID.
+    //
+
+    XdpQeoConnection = XdpQeoParams->Connections;
+
+    for (UINT32 i = 0; i < XdpQeoParams->ConnectionCount; i++) {
+        NDIS_QUIC_CONNECTION *NdisConnection = &NdisConnections[i];
+
+        switch (XdpQeoConnection->Operation) {
+        case XDP_QUIC_OPERATION_ADD:
+            NdisConnection->Operation = NDIS_QUIC_OPERATION_ADD;
+            break;
+        case XDP_QUIC_OPERATION_REMOVE:
+            NdisConnection->Operation = NDIS_QUIC_OPERATION_REMOVE;
+            break;
+        default:
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        switch (XdpQeoConnection->Direction) {
+        case XDP_QUIC_DIRECTION_TRANSMIT:
+            NdisConnection->Direction = NDIS_QUIC_DIRECTION_TRANSMIT;
+            break;
+        case XDP_QUIC_DIRECTION_RECEIVE:
+            NdisConnection->Direction = NDIS_QUIC_DIRECTION_RECEIVE;
+            break;
+        default:
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        switch (XdpQeoConnection->DecryptFailureAction) {
+        case XDP_QUIC_DECRYPT_FAILURE_ACTION_DROP:
+            NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_DROP;
+            break;
+        case XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE:
+            NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE;
+            break;
+        default:
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        NdisConnection->KeyPhase = XdpQeoConnection->KeyPhase;
+
+        switch (XdpQeoConnection->CipherType) {
+        case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM:
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
+            break;
+        case XDP_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM:
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM;
+            break;
+        case XDP_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305:
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305;
+            break;
+        case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM:
+            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM;
+            break;
+        default:
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        switch (XdpQeoConnection->AddressFamily) {
+        case XDP_QUIC_ADDRESS_FAMILY_INET4:
+            NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET4;
+            break;
+        case XDP_QUIC_ADDRESS_FAMILY_INET6:
+            NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET6;
+            break;
+        default:
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        NdisConnection->UdpPort = XdpQeoConnection->UdpPort;
+        NdisConnection->NextPacketNumber = XdpQeoConnection->NextPacketNumber;
+        NdisConnection->ConnectionIdLength = XdpQeoConnection->ConnectionIdLength;
+
+        C_ASSERT(sizeof(NdisConnection->Address) >= sizeof(XdpQeoConnection->Address));
+        RtlCopyMemory(
+            NdisConnection->Address, XdpQeoConnection->Address,
+            sizeof(XdpQeoConnection->Address));
+
+        C_ASSERT(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpQeoConnection->ConnectionId));
+        RtlCopyMemory(
+            NdisConnection->ConnectionId, XdpQeoConnection->ConnectionId,
+            sizeof(XdpQeoConnection->ConnectionId));
+
+        C_ASSERT(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpQeoConnection->PayloadKey));
+        RtlCopyMemory(
+            NdisConnection->PayloadKey, XdpQeoConnection->PayloadKey,
+            sizeof(XdpQeoConnection->PayloadKey));
+
+        C_ASSERT(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpQeoConnection->HeaderKey));
+        RtlCopyMemory(
+            NdisConnection->HeaderKey, XdpQeoConnection->HeaderKey,
+            sizeof(XdpQeoConnection->HeaderKey));
+
+        C_ASSERT(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpQeoConnection->PayloadIv));
+        RtlCopyMemory(
+            NdisConnection->PayloadIv, XdpQeoConnection->PayloadIv,
+            sizeof(XdpQeoConnection->PayloadIv));
+
+        NdisConnection->Status = NDIS_STATUS_PENDING;
+
+        //
+        // Advance to the next input connection.
+        //
+        XdpQeoConnection = RTL_PTR_ADD(XdpQeoConnection, XdpQeoConnection->Header.Size);
+    }
+
+    Status =
+        XdpLwfOidInternalRequest(
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_DIRECT, NdisRequestMethod,
+            OID_QUIC_CONNECTION_ENCRYPTION, NdisConnections, NdisConnectionsSize,
+            NdisConnectionsSize, 0, &NdisBytesReturned);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p Failed OID_QUIC_CONNECTION_ENCRYPTION Status=%!STATUS!",
+            OffloadContext, Status);
+        goto Exit;
+    }
+
+    if (!NT_VERIFY(NdisBytesReturned == NdisConnectionsSize)) {
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p OID_QUIC_CONNECTION_ENCRYPTION unexpected NdisBytesReturned=%u",
+            OffloadContext, NdisBytesReturned);
+        Status = STATUS_DEVICE_DATA_ERROR;
+        goto Exit;
+    }
+
+    //
+    // Initialize the XDP output buffer with the data from the input buffer
+    // before updating each connection's offload status code.
+    //
+    RtlMoveMemory(OffloadResult, XdpQeoParams->Connections, XdpQeoParams->ConnectionsSize);
+
+    //
+    // Use the immutable, validated input buffer to walk the output array: the
+    // output buffer may be writable by user mode, so we treat it as strictly
+    // write-only.
+    //
+    XdpQeoConnection = XdpQeoParams->Connections;
+
+    for (UINT32 i = 0; i < XdpQeoParams->ConnectionCount; i++) {
+        NDIS_QUIC_CONNECTION *NdisConnection = &NdisConnections[i];
+        XDP_QUIC_CONNECTION *XdpQeoConnectionResult =
+            RTL_PTR_ADD(OffloadResult,
+                RTL_PTR_SUBTRACT(XdpQeoConnection, XdpQeoParams->Connections));
+
+        XdpQeoConnectionResult->Status =
+            HRESULT_FROM_WIN32(RtlNtStatusToDosErrorNoTeb(NdisConnection->Status));
+
+        XdpQeoConnection = RTL_PTR_ADD(XdpQeoConnection, XdpQeoConnection->Header.Size);
+    }
+
+    *OffloadResultWritten = XdpQeoParams->ConnectionsSize;
+
+Exit:
+
+    if (NdisConnections != NULL) {
+        ExFreePoolWithTag(NdisConnections, POOLTAG_OFFLOAD);
+    }
+
+    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
+}
+
+static
+NTSTATUS
+XdpLwfOpenInterfaceOffloadHandle(
+    _In_ VOID *InterfaceContext,
     _In_ CONST XDP_HOOK_ID *HookId,
     _Out_ VOID **InterfaceOffloadHandle
     )
 {
     NTSTATUS Status;
+    XDP_LWF_FILTER *Filter = InterfaceContext;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = NULL;
 
     RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
@@ -1418,45 +1635,36 @@ XdpLwfSetInterfaceOffload(
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize
+    _In_ UINT32 OffloadParamsSize,
+    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
+    _In_ UINT32 OffloadResultSize,
+    _Out_opt_ UINT32 *OffloadResultWritten
     )
 {
     NTSTATUS Status;
     XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext = InterfaceOffloadHandle;
     XDP_LWF_FILTER *Filter = OffloadContext->Filter;
-    BOOLEAN AttachRxDatapath = FALSE;
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
-    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
-
-    if (OffloadContext->IsInvalid) {
-        TraceError(
-            TRACE_LWF,
-            "OffloadContext=%p Interface offload context invalidated",
-            OffloadContext);
-        Status = STATUS_INVALID_DEVICE_STATE;
-        goto Exit;
+    if (OffloadResultWritten != NULL) {
+        *OffloadResultWritten = 0;
     }
 
     switch (OffloadType) {
     case XdpOffloadRss:
+        Status = XdpLwfOffloadRssSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
+        break;
+    case XdpOffloadQeo:
         Status =
-            XdpLwfOffloadRssSet(
-                Filter, OffloadContext, OffloadParams, OffloadParamsSize, &AttachRxDatapath);
+            XdpLwfOffloadQeoSet(
+                Filter, OffloadContext, OffloadParams, OffloadParamsSize, OffloadResult,
+                OffloadResultSize, OffloadResultWritten);
         break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
         Status = STATUS_NOT_SUPPORTED;
         break;
-    }
-
-Exit:
-
-    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
-
-    if (AttachRxDatapath) {
-        XdpGenericAttachDatapath(&Filter->Generic, TRUE, FALSE);
     }
 
     TraceExitStatus(TRACE_LWF);

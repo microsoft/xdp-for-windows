@@ -479,4 +479,8 @@ public:
     TEST_METHOD(GenericXskQueryAffinity) {
         ::GenericXskQueryAffinity();
     }
+
+    TEST_METHOD(OffloadQeoConnection) {
+        ::OffloadQeoConnection();
+    }
 };

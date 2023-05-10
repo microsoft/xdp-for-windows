@@ -171,7 +171,7 @@ StartServiceAsync(
 
     FRE_ASSERT(CloseServiceHandle(SvcHandle));
 
-    return S_OK;
+    return Result;
 }
 
 EXTERN_C

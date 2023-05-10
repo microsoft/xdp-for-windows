@@ -341,7 +341,7 @@ XdpIrpInterfaceOffloadRssSet(
     Status =
         XdpIfSetInterfaceOffload(
             InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
-            XdpOffloadRss, &RssParams, sizeof(RssParams));
+            XdpOffloadRss, &RssParams, sizeof(RssParams), NULL, 0, NULL);
 
 Exit:
 
@@ -362,10 +362,85 @@ XdpIrpInterfaceOffloadQeoSet(
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceObject);
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IrpSp);
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+    XDP_OFFLOAD_PARAMS_QEO QeoParams = {0};
+    const XDP_QUIC_CONNECTION *ConnectionsIn = Irp->AssociatedIrp.SystemBuffer;
+    UINT32 InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    UINT32 BytesWritten = 0;
+
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    if (InputBufferLength == 0) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    QeoParams.Connections = ConnectionsIn;
+    QeoParams.ConnectionsSize = InputBufferLength;
+    QeoParams.ConnectionCount = 0;
+
+    while (InputBufferLength > 0) {
+        //
+        // Validate input.
+        //
+
+        if (InputBufferLength < sizeof(ConnectionsIn->Header) ||
+            InputBufferLength < ConnectionsIn->Header.Size) {
+            TraceError(
+                TRACE_CORE,
+                "Interface=%p Input buffer length too small InputBufferLength=%u",
+                InterfaceObject, InputBufferLength);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        if (ConnectionsIn->Header.Revision != XDP_QUIC_CONNECTION_REVISION_1 ||
+            ConnectionsIn->Header.Size < XDP_SIZEOF_QUIC_CONNECTION_REVISION_1) {
+            TraceError(
+                TRACE_CORE, "Interface=%p Unsupported revision Revision=%u Size=%u",
+                InterfaceObject, ConnectionsIn->Header.Revision, ConnectionsIn->Header.Size);
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        if ((UINT32)ConnectionsIn->Operation > (UINT32)XDP_QUIC_OPERATION_REMOVE ||
+            (UINT32)ConnectionsIn->Direction > (UINT32)XDP_QUIC_DIRECTION_RECEIVE ||
+            (UINT32)ConnectionsIn->DecryptFailureAction > (UINT32)XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE ||
+            (UINT32)ConnectionsIn->CipherType > (UINT32)XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM ||
+            (UINT32)ConnectionsIn->AddressFamily > (UINT32)XDP_QUIC_ADDRESS_FAMILY_INET6 ||
+            ConnectionsIn->ConnectionIdLength > sizeof(ConnectionsIn->ConnectionId)) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        InputBufferLength -= ConnectionsIn->Header.Size;
+        ConnectionsIn = RTL_PTR_ADD(ConnectionsIn, ConnectionsIn->Header.Size);
+        QeoParams.ConnectionCount++;
+    }
+
+    ASSERT(InputBufferLength == 0);
+    InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+
+    //
+    // Issue the internal request to the interface.
+    //
+    Status =
+        XdpIfSetInterfaceOffload(
+            InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
+            XdpOffloadQeo, &QeoParams, sizeof(QeoParams), Irp->AssociatedIrp.SystemBuffer,
+            OutputBufferLength, &BytesWritten);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Irp->IoStatus.Information = BytesWritten;
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

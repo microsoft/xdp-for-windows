@@ -98,9 +98,13 @@ XdpLwfBindStart(
 #if DBG
     FChars.OidRequestHandler                = XdpVfLwfOidRequest;
     FChars.OidRequestCompleteHandler        = XdpVfLwfOidRequestComplete;
+    FChars.DirectOidRequestHandler          = XdpVfLwfDirectOidRequest;
+    FChars.DirectOidRequestCompleteHandler  = XdpVfLwfDirectOidRequestComplete;
 #else
     FChars.OidRequestHandler                = XdpLwfOidRequest;
     FChars.OidRequestCompleteHandler        = XdpLwfOidRequestComplete;
+    FChars.DirectOidRequestHandler          = XdpLwfDirectOidRequest;
+    FChars.DirectOidRequestCompleteHandler  = XdpLwfDirectOidRequestComplete;
 #endif
 
     Status = NdisFRegisterFilterDriver(DriverObject, NULL, &FChars, &XdpLwfNdisDriverHandle);

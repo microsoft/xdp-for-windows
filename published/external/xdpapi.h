@@ -264,9 +264,72 @@ XDP_RSS_GET_FN(
     _Inout_ UINT32 *RssConfigurationSize
     );
 
-typedef struct _XDP_QEO_CONFIGURATION {
+typedef enum _XDP_QUIC_OPERATION {
+    XDP_QUIC_OPERATION_ADD,     // Add (or modify) a QUIC connection offload
+    XDP_QUIC_OPERATION_REMOVE,  // Remove a QUIC connection offload
+} XDP_QUIC_OPERATION;
+
+typedef enum _XDP_QUIC_DIRECTION {
+    XDP_QUIC_DIRECTION_TRANSMIT, // An offload for the transmit path
+    XDP_QUIC_DIRECTION_RECEIVE,  // An offload for the receive path
+} XDP_QUIC_DIRECTION;
+
+typedef enum _XDP_QUIC_DECRYPT_FAILURE_ACTION {
+    XDP_QUIC_DECRYPT_FAILURE_ACTION_DROP,     // Drop the packet on decryption failure
+    XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE, // Continue and pass the packet up on decryption failure
+} XDP_QUIC_DECRYPT_FAILURE_ACTION;
+
+typedef enum _XDP_QUIC_CIPHER_TYPE {
+    XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM,
+    XDP_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM,
+    XDP_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305,
+    XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM,
+} XDP_QUIC_CIPHER_TYPE;
+
+typedef enum _XDP_QUIC_ADDRESS_FAMILY {
+    XDP_QUIC_ADDRESS_FAMILY_INET4,
+    XDP_QUIC_ADDRESS_FAMILY_INET6,
+} XDP_QUIC_ADDRESS_FAMILY;
+
+typedef struct _XDP_QUIC_CONNECTION {
     XDP_OBJECT_HEADER Header;
-} XDP_QEO_CONFIGURATION;
+    UINT32 Operation            : 1;  // XDP_QUIC_OPERATION
+    UINT32 Direction            : 1;  // XDP_QUIC_DIRECTION
+    UINT32 DecryptFailureAction : 1;  // XDP_QUIC_DECRYPT_FAILURE_ACTION
+    UINT32 KeyPhase             : 1;
+    UINT32 RESERVED             : 12; // Must be set to 0. Don't read.
+    UINT32 CipherType           : 16; // XDP_QUIC_CIPHER_TYPE
+    XDP_QUIC_ADDRESS_FAMILY AddressFamily;
+    UINT16 UdpPort;         // Destination port.
+    UINT64 NextPacketNumber;
+    UINT8 ConnectionIdLength;
+    UINT8 Address[16];      // Destination IP address.
+    UINT8 ConnectionId[20]; // QUIC v1 and v2 max CID size
+    UINT8 PayloadKey[32];   // Length determined by CipherType
+    UINT8 HeaderKey[32];    // Length determined by CipherType
+    UINT8 PayloadIv[12];
+    HRESULT Status;         // The result of trying to offload this connection.
+} XDP_QUIC_CONNECTION;
+
+#define XDP_QUIC_CONNECTION_REVISION_1 1
+
+#define XDP_SIZEOF_QUIC_CONNECTION_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_QUIC_CONNECTION, Status)
+
+//
+// Initializes a QEO configuration object.
+//
+inline
+VOID
+XdpInitializeQuicConnection(
+    _Out_writes_bytes_(XdpQuicConnectionSize) XDP_QUIC_CONNECTION *XdpQuicConnection,
+    _In_ UINT32 XdpQuicConnectionSize
+    )
+{
+    RtlZeroMemory(XdpQuicConnection, XdpQuicConnectionSize);
+    XdpQuicConnection->Header.Revision = XDP_QUIC_CONNECTION_REVISION_1;
+    XdpQuicConnection->Header.Size = XDP_SIZEOF_QUIC_CONNECTION_REVISION_1;
+}
 
 //
 // Set QEO settings on an interface. Configured settings will remain valid until
@@ -276,8 +339,8 @@ typedef struct _XDP_QEO_CONFIGURATION {
 typedef HRESULT
 XDP_QEO_SET_FN(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_QEO_CONFIGURATION *QeoConfiguration,
-    _In_ UINT32 QeoConfigurationSize
+    _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
+    _In_ UINT32 QuicConnectionsSize
     );
 
 #include "afxdp.h"

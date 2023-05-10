@@ -17,10 +17,63 @@ typedef struct _XDP_OID_REQUEST {
     KEVENT CompletionEvent;
 } XDP_OID_REQUEST;
 
+static
+NDIS_STATUS
+XdpLwfInvokeFOidRequest(
+    _In_ NDIS_HANDLE NdisFilterHandle,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
+    _In_ NDIS_OID_REQUEST *NdisRequest
+    )
+{
+    NDIS_STATUS Status;
+
+    switch (RequestInterface) {
+    case XDP_OID_REQUEST_INTERFACE_REGULAR:
+        Status = NdisFOidRequest(NdisFilterHandle, NdisRequest);
+        break;
+
+    case XDP_OID_REQUEST_INTERFACE_DIRECT:
+        Status = NdisFDirectOidRequest(NdisFilterHandle, NdisRequest);
+        break;
+
+    default:
+        ASSERT(FALSE);
+        Status = NDIS_STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    return Status;
+}
+
+static
+VOID
+XdpLwfInvokeFOidRequestComplete(
+    _In_ NDIS_HANDLE NdisFilterHandle,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
+    _In_ NDIS_OID_REQUEST *NdisRequest,
+    _In_ NDIS_STATUS Status
+    )
+{
+    switch (RequestInterface) {
+    case XDP_OID_REQUEST_INTERFACE_REGULAR:
+        NdisFOidRequestComplete(NdisFilterHandle, NdisRequest, Status);
+        break;
+
+    case XDP_OID_REQUEST_INTERFACE_DIRECT:
+        NdisFDirectOidRequestComplete(NdisFilterHandle, NdisRequest, Status);
+        break;
+
+    default:
+        FRE_ASSERT(FALSE);
+        break;
+    }
+}
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpLwfOidInternalRequest(
     _In_ NDIS_HANDLE NdisFilterHandle,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
     _In_ NDIS_REQUEST_TYPE RequestType,
     _In_ NDIS_OID Oid,
     _Inout_updates_bytes_to_(InformationBufferLength, *pBytesProcessed)
@@ -80,7 +133,7 @@ XdpLwfOidInternalRequest(
 
     NdisRequest->RequestId = (VOID *)XdpLwfOidInternalRequest;
 
-    Status = NdisFOidRequest(NdisFilterHandle, NdisRequest);
+    Status = XdpLwfInvokeFOidRequest(NdisFilterHandle, RequestInterface, NdisRequest);
 
     if (Status == NDIS_STATUS_PENDING) {
         KeWaitForSingleObject(
@@ -192,36 +245,44 @@ XdpLwfOidRequestWorker(
     FRE_ASSERT(XdpLwfOidRequest((NDIS_HANDLE)Filter, Request) == NDIS_STATUS_PENDING);
 }
 
-_Use_decl_annotations_
 NDIS_STATUS
-XdpLwfOidRequest(
-    NDIS_HANDLE FilterModuleContext,
-    NDIS_OID_REQUEST *Request
+XdpLwfCommonOidRequest(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
+    _Inout_ NDIS_OID_REQUEST *Request
     )
 {
-    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
     NDIS_STATUS Status;
     NDIS_OID_REQUEST *ClonedRequest = NULL;
     XDP_OID_CLONE *Context;
     XDP_OID_ACTION Action;
-    NDIS_STATUS CompletionStatus;
+    NDIS_STATUS CompletionStatus = NDIS_STATUS_FAILURE;
 
-    if (KeGetCurrentIrql() == DISPATCH_LEVEL) {
-        //
-        // NDIS serializes OID requests for filters but, unlike miniports, OID
-        // requests to filters may run at dispatch level. Since our
-        // implementation requires OID inspection to run at passive level, queue
-        // a passive level work item and return.
-        //
-        FRE_ASSERT(InterlockedExchangePointer(&Filter->OidWorkerRequest, Request) == NULL);
-        IoQueueWorkItemEx(Filter->OidWorker, XdpLwfOidRequestWorker, DelayedWorkQueue, Filter);
-        Status = NDIS_STATUS_PENDING;
-        goto Exit;
-    }
+    if (RequestInterface == XDP_OID_REQUEST_INTERFACE_REGULAR) {
+        if (KeGetCurrentIrql() == DISPATCH_LEVEL) {
+            //
+            // NDIS serializes OID requests for filters but, unlike miniports, OID
+            // requests to filters may run at dispatch level. Since our
+            // implementation requires OID inspection to run at passive level, queue
+            // a passive level work item and return.
+            //
+            FRE_ASSERT(InterlockedExchangePointer(&Filter->OidWorkerRequest, Request) == NULL);
+            IoQueueWorkItemEx(Filter->OidWorker, XdpLwfOidRequestWorker, DelayedWorkQueue, Filter);
+            Status = NDIS_STATUS_PENDING;
+            goto Exit;
+        }
 
-    Status = XdpLwfOidInspectRequest(Filter, Request, &Action, &CompletionStatus);
-    if (Status != NDIS_STATUS_SUCCESS) {
-        goto Exit;
+        Status = XdpLwfOidInspectRequest(Filter, Request, &Action, &CompletionStatus);
+        if (Status != NDIS_STATUS_SUCCESS) {
+            goto Exit;
+        }
+    } else {
+        //
+        // Inspection of direct or synchronous OIDs will require a redesign of
+        // the passive serialized worker model. Since we are not interested in
+        // inspecting any of those right now, simply pass them down the stack.
+        //
+        Action = XdpOidActionPass;
     }
 
     switch (Action) {
@@ -240,10 +301,11 @@ XdpLwfOidRequest(
         Context = (XDP_OID_CLONE *)(&ClonedRequest->SourceReserved[0]);
         Context->OriginalRequest = Request;
         ClonedRequest->RequestId = Request->RequestId;
-        Status = NdisFOidRequest(Filter->NdisFilterHandle, ClonedRequest);
+        Status = XdpLwfInvokeFOidRequest(Filter->NdisFilterHandle, RequestInterface, ClonedRequest);
         break;
     default:
         ASSERT(FALSE);
+        Status = NDIS_STATUS_FAILURE;
         break;
     }
 
@@ -253,11 +315,36 @@ Exit:
         if (ClonedRequest != NULL) {
             XdpLwfOidRequestComplete(Filter, ClonedRequest, Status);
         } else {
-            NdisFOidRequestComplete(Filter->NdisFilterHandle, Request, Status);
+            XdpLwfInvokeFOidRequestComplete(
+                Filter->NdisFilterHandle, RequestInterface, Request, Status);
         }
     }
 
     return NDIS_STATUS_PENDING;
+}
+
+_Use_decl_annotations_
+NDIS_STATUS
+XdpLwfOidRequest(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    return XdpLwfCommonOidRequest(Filter, XDP_OID_REQUEST_INTERFACE_REGULAR, Request);
+}
+
+_Use_decl_annotations_
+NDIS_STATUS
+XdpLwfDirectOidRequest(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    return XdpLwfCommonOidRequest(Filter, XDP_OID_REQUEST_INTERFACE_DIRECT, Request);
 }
 
 #if DBG
@@ -289,17 +376,45 @@ XdpVfLwfOidRequest(
 
     return Status;
 }
-#endif
 
 _Use_decl_annotations_
-VOID
-XdpLwfOidRequestComplete(
+NDIS_STATUS
+XdpVfLwfDirectOidRequest(
     NDIS_HANDLE FilterModuleContext,
-    NDIS_OID_REQUEST *Request,
-    NDIS_STATUS Status
+    NDIS_OID_REQUEST *Request
     )
 {
-    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+    NDIS_STATUS Status;
+    KIRQL OldIrql = KeGetCurrentIrql();
+
+    //
+    // Verifier hook for XdpLwfOidRequest.
+    //
+    // Since OIDs are typically issued at passive level but may be running at
+    // dispatch level, randomly raise IRQL to dispatch level to provide code
+    // coverage.
+    //
+
+    if (RtlRandomNumberInRange(0, 2)) {
+        OldIrql = KeRaiseIrqlToDpcLevel();
+    }
+
+    Status = XdpLwfDirectOidRequest(FilterModuleContext, Request);
+
+    KeLowerIrql(OldIrql);
+
+    return Status;
+}
+#endif
+
+VOID
+XdpLwfCommonOidRequestComplete(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
+    _In_ NDIS_OID_REQUEST *Request,
+    _In_ NDIS_STATUS Status
+    )
+{
     NDIS_OID_REQUEST *OriginalRequest;
     XDP_OID_CLONE *Context;
 
@@ -345,7 +460,35 @@ XdpLwfOidRequestComplete(
     }
 
     NdisFreeCloneOidRequest(Filter->NdisFilterHandle, Request);
-    NdisFOidRequestComplete(Filter->NdisFilterHandle, OriginalRequest, Status);
+
+    XdpLwfInvokeFOidRequestComplete(
+        Filter->NdisFilterHandle, RequestInterface, OriginalRequest, Status);
+}
+
+_Use_decl_annotations_
+VOID
+XdpLwfOidRequestComplete(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request,
+    NDIS_STATUS Status
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    XdpLwfCommonOidRequestComplete(Filter, XDP_OID_REQUEST_INTERFACE_REGULAR, Request, Status);
+}
+
+_Use_decl_annotations_
+VOID
+XdpLwfDirectOidRequestComplete(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request,
+    NDIS_STATUS Status
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    XdpLwfCommonOidRequestComplete(Filter, XDP_OID_REQUEST_INTERFACE_DIRECT, Request, Status);
 }
 
 #if DBG
@@ -375,4 +518,32 @@ XdpVfLwfOidRequestComplete(
 
     KeLowerIrql(OldIrql);
 }
+
+_Use_decl_annotations_
+VOID
+XdpVfLwfDirectOidRequestComplete(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request,
+    NDIS_STATUS Status
+    )
+{
+    KIRQL OldIrql = KeGetCurrentIrql();
+
+    //
+    // Verifier hook for XdpLwfDirectOidRequestComplete.
+    //
+    // Since OIDs are typically completed at passive level but may be running at
+    // dispatch level, randomly raise IRQL to dispatch level to provide code
+    // coverage.
+    //
+
+    if (RtlRandomNumberInRange(0, 2)) {
+        OldIrql = KeRaiseIrqlToDpcLevel();
+    }
+
+    XdpLwfDirectOidRequestComplete(FilterModuleContext, Request, Status);
+
+    KeLowerIrql(OldIrql);
+}
+
 #endif

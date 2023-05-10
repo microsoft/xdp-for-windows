@@ -20,7 +20,7 @@ extern "C" {
 #define OID_TCP_OFFLOAD_CURRENT_CONFIG          0xFC01020B  // query only, handled by NDIS
 #define OID_TCP_OFFLOAD_PARAMETERS              0xFC01020C  // set only
 #define OID_TCP_OFFLOAD_HARDWARE_CAPABILITIES   0xFC01020D  // query only
-
+#define OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA 0xFC030204
 
 typedef ULONG NDIS_OID, *PNDIS_OID;
 
