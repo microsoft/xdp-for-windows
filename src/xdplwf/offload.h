@@ -28,12 +28,26 @@ typedef struct _XDP_LWF_OFFLOAD {
     EX_PUSH_LOCK Lock;
 
     //
+    // Indicates offload handles have been swept and no new handles may be
+    // opened.
+    //
+    BOOLEAN Deactivated;
+
+    //
     // This rundown prevents the filter from detaching from the NDIS stack.
-    // A rundown reference must be held while issuing OID requests.
+    // A rundown reference must be held while issuing OID requests. Once the
+    // rundown is complete, the event is set and no new requests should be made
+    // to the filter.
     //
     XDP_RUNDOWN_REF FilterRundown;
     KEVENT FilterRundownComplete;
 
+    //
+    // A serialized work queue for handling requests that interact with the
+    // regular, NDIS-serialized OID control path. This allows offloads to be
+    // serialized with respect to both the OID control path and arbitrary user
+    // mode requests.
+    //
     XDP_WORK_QUEUE *WorkQueue;
 
     //
