@@ -1811,26 +1811,28 @@ XdpLwfSetInterfaceOffload(
     return Status;
 }
 
-//
-// TODO: let this return pending.
-//
+typedef struct _XDP_LWF_OFFLOAD_INSPECT_OID {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _In_ NDIS_OID_REQUEST *Request;
+    _In_ XDP_OID_INSPECT_COMPLETE *InspectComplete;
+} XDP_LWF_OFFLOAD_INSPECT_OID;
 
-NDIS_STATUS
-XdpLwfOffloadInspectOidRequest(
-    _In_ XDP_LWF_FILTER *Filter,
-    _In_ NDIS_OID_REQUEST *Request,
-    _Out_ XDP_OID_ACTION *Action,
-    _Out_ NDIS_STATUS *CompletionStatus
+static
+_Offload_work_routine_
+VOID
+XdpLwfOffloadInspectOidRequestWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
     )
 {
+    XDP_LWF_OFFLOAD_INSPECT_OID *InspectRequest =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_INSPECT_OID, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+    NDIS_OID_REQUEST *Request = InspectRequest->Request;
     NTSTATUS Status;
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams = NULL;
     UINT32 NdisRssParamsLength;
-
-    *Action = XdpOidActionPass;
-    *CompletionStatus = NDIS_STATUS_SUCCESS;
-
-    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
+    XDP_OID_ACTION Action = XdpOidActionPass;
+    NDIS_STATUS CompletionStatus = NDIS_STATUS_SUCCESS;
 
     if (Request->RequestType == NdisRequestSetInformation &&
         Request->DATA.SET_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
@@ -1856,8 +1858,8 @@ XdpLwfOffloadInspectOidRequest(
                 TRACE_LWF,
                 "Filter=%p Completing upper edge OID_GEN_RECEIVE_SCALE_PARAMETERS set",
                 Filter);
-            *Action = XdpOidActionComplete;
-            *CompletionStatus = NDIS_STATUS_SUCCESS;
+            Action = XdpOidActionComplete;
+            CompletionStatus = NDIS_STATUS_SUCCESS;
         } else {
             //
             // The lower edge does not have independently managed RSS state.
@@ -1871,7 +1873,7 @@ XdpLwfOffloadInspectOidRequest(
                 TRACE_LWF,
                 "Filter=%p Passing upper edge OID_GEN_RECEIVE_SCALE_PARAMETERS set",
                 Filter);
-            *Action = XdpOidActionPass;
+            Action = XdpOidActionPass;
         }
     } else if (Request->RequestType == NdisRequestQueryInformation &&
         Request->DATA.QUERY_INFORMATION.Oid == OID_GEN_RECEIVE_SCALE_PARAMETERS) {
@@ -1880,11 +1882,11 @@ XdpLwfOffloadInspectOidRequest(
         // Complete the OID and return upper edge settings, if any.
         //
 
-        *Action = XdpOidActionComplete;
+        Action = XdpOidActionComplete;
 
         if (Filter->Offload.UpperEdge.Rss == NULL) {
             TraceError(TRACE_LWF, "Filter=%p Upper edge RSS params not present", Filter);
-            *CompletionStatus = NDIS_STATUS_FAILURE;
+            CompletionStatus = NDIS_STATUS_FAILURE;
             Status = STATUS_SUCCESS;
             goto Exit;
         }
@@ -1897,14 +1899,14 @@ XdpLwfOffloadInspectOidRequest(
                 TRACE_LWF,
                 "Filter=%p Failed to create NDIS RSS params Status=%!STATUS!",
                 Filter, Status);
-            *CompletionStatus = NDIS_STATUS_FAILURE;
+            CompletionStatus = NDIS_STATUS_FAILURE;
             Status = STATUS_SUCCESS;
             goto Exit;
         }
 
         if (Request->DATA.QUERY_INFORMATION.InformationBufferLength < NdisRssParamsLength) {
             Request->DATA.QUERY_INFORMATION.BytesNeeded = NdisRssParamsLength;
-            *CompletionStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
+            CompletionStatus = NDIS_STATUS_BUFFER_TOO_SHORT;
             Status = STATUS_SUCCESS;
             goto Exit;
         }
@@ -1913,20 +1915,51 @@ XdpLwfOffloadInspectOidRequest(
             Request->DATA.QUERY_INFORMATION.InformationBuffer,
             NdisRssParams, NdisRssParamsLength);
         Request->DATA.QUERY_INFORMATION.BytesWritten = NdisRssParamsLength;
-        *CompletionStatus = NDIS_STATUS_SUCCESS;
+        CompletionStatus = NDIS_STATUS_SUCCESS;
     }
 
     Status = STATUS_SUCCESS;
 
 Exit:
 
-    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
-
     if (NdisRssParams != NULL) {
         ExFreePoolWithTag(NdisRssParams, POOLTAG_OFFLOAD);
     }
 
-    return XdpConvertNtStatusToNdisStatus(Status);
+    InspectRequest->InspectComplete(Filter, Request, Action, CompletionStatus);
+
+    ExFreePoolWithTag(InspectRequest, POOLTAG_OFFLOAD);
+}
+
+NDIS_STATUS
+XdpLwfOffloadInspectOidRequest(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ NDIS_OID_REQUEST *Request,
+    _In_ XDP_OID_INSPECT_COMPLETE *InspectComplete
+    )
+{
+    XDP_LWF_OFFLOAD_INSPECT_OID *InspectRequest;
+    NDIS_STATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p Request=%p OID=%x", Filter, Request, Request->DATA.Oid);
+
+    InspectRequest = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*InspectRequest), POOLTAG_OFFLOAD);
+    if (InspectRequest == NULL) {
+        Status = NDIS_STATUS_RESOURCES;
+        goto Exit;
+    }
+
+    InspectRequest->Request = Request;
+    InspectRequest->InspectComplete = InspectComplete;
+    XdpLwfOffloadQueueWorkItem(
+        Filter, &InspectRequest->WorkItem, XdpLwfOffloadInspectOidRequestWorker);
+    Status = NDIS_STATUS_PENDING;
+
+Exit:
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
 }
 
 VOID

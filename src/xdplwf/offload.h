@@ -82,8 +82,7 @@ NDIS_STATUS
 XdpLwfOffloadInspectOidRequest(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_OID_REQUEST *Request,
-    _Out_ XDP_OID_ACTION *Action,
-    _Out_ NDIS_STATUS *CompletionStatus
+    _In_ XDP_OID_INSPECT_COMPLETE *InspectComplete
     );
 
 VOID

@@ -27,6 +27,15 @@ typedef enum _XDP_OID_REQUEST_INTERFACE {
     XDP_OID_REQUEST_INTERFACE_DIRECT,
 } XDP_OID_REQUEST_INTERFACE;
 
+typedef
+VOID
+XDP_OID_INSPECT_COMPLETE(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ NDIS_OID_REQUEST *Request,
+    _In_ XDP_OID_ACTION Action,
+    _In_ NDIS_STATUS Status
+    );
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpLwfOidInternalRequest(
