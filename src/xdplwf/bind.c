@@ -33,6 +33,7 @@ XdpLwfDereferenceFilter(
     )
 {
     if (XdpDecrementReferenceCount(&Filter->ReferenceCount)) {
+        XdpLwfOffloadUnInitialize(Filter);
         ExFreePoolWithTag(Filter, POOLTAG_FILTER);
     }
 }
@@ -179,6 +180,11 @@ XdpLwfFilterAttach(
     Filter->OidWorker = IoAllocateWorkItem((DEVICE_OBJECT *)XdpLwfDriverObject);
     if (Filter->OidWorker == NULL) {
         Status = NDIS_STATUS_RESOURCES;
+        goto Exit;
+    }
+
+    Status = XdpLwfOffloadStart(Filter);
+    if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
@@ -338,8 +344,6 @@ XdpLwfFilterDetach(
         IoFreeWorkItem(Filter->OidWorker);
         Filter->OidWorker = NULL;
     }
-
-    XdpLwfOffloadUnInitialize(Filter);
 
     Filter->NdisFilterHandle = NULL;
 

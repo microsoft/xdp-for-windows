@@ -45,6 +45,7 @@
 #include <xdptimer.h>
 #include <xdptxqueue_internal.h>
 #include <xdptrace.h>
+#include <xdpworkqueue.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 

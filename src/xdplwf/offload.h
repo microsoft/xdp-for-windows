@@ -27,6 +27,26 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
 typedef struct _XDP_LWF_OFFLOAD {
     EX_PUSH_LOCK Lock;
 
+    //
+    // Indicates offload handles have been swept and no new handles may be
+    // opened.
+    //
+    BOOLEAN Deactivated;
+
+    //
+    // This rundown prevents the filter from detaching from the NDIS stack. A
+    // rundown reference must be held while issuing OID requests. Once the
+    // rundown is complete, no new requests should be made to the filter.
+    //
+    EX_RUNDOWN_REF FilterRundown;
+
+    //
+    // A serialized work queue for handling requests that interact with the
+    // regular, NDIS-serialized OID control path. This allows offloads to be
+    // serialized with respect to both the OID control path and arbitrary user
+    // mode requests.
+    //
+    XDP_WORK_QUEUE *WorkQueue;
 
     //
     // Hardware capabilities.
@@ -60,8 +80,7 @@ NDIS_STATUS
 XdpLwfOffloadInspectOidRequest(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_OID_REQUEST *Request,
-    _Out_ XDP_OID_ACTION *Action,
-    _Out_ NDIS_STATUS *CompletionStatus
+    _In_ XDP_OID_INSPECT_COMPLETE *InspectComplete
     );
 
 VOID
@@ -78,6 +97,11 @@ XdpLwfOffloadDeactivate(
 
 VOID
 XdpLwfOffloadRssInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    );
+
+NTSTATUS
+XdpLwfOffloadStart(
     _In_ XDP_LWF_FILTER *Filter
     );
 

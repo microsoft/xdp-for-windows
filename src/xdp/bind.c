@@ -779,20 +779,6 @@ XdpIfSetInterfaceOffload(
             OffloadResultSize, OffloadResultWritten);
 }
 
-NTSTATUS
-XdpIfReferenceInterfaceOffload(
-    _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ VOID *InterfaceOffloadHandle,
-    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
-    )
-{
-    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
-
-    return
-        IfSet->OffloadDispatch->ReferenceInterfaceOffload(
-            InterfaceOffloadHandle, OffloadType);
-}
-
 static
 VOID
 XdpIfpStartRundown(

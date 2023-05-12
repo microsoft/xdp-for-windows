@@ -125,13 +125,6 @@ XdpIfSetInterfaceOffload(
     _Out_opt_ UINT32 *OffloadResultWritten
     );
 
-NTSTATUS
-XdpIfReferenceInterfaceOffload(
-    _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ VOID *InterfaceOffloadHandle,
-    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType
-    );
-
 //
 // The following routines must be invoked from the serialized work queue.
 //

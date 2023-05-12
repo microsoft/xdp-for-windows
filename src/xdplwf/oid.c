@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "oid.tmh"
 
 typedef struct _XDP_OID_CLONE {
     NDIS_OID_REQUEST *OriginalRequest;
@@ -194,35 +195,6 @@ XdpLwfOidInternalRequestComplete(
 }
 
 static
-NDIS_STATUS
-XdpLwfOidInspectRequest(
-    _In_ XDP_LWF_FILTER *Filter,
-    _In_ NDIS_OID_REQUEST *Request,
-    _Out_ XDP_OID_ACTION *Action,
-    _Out_ NDIS_STATUS *CompletionStatus
-    )
-{
-    NDIS_STATUS Status;
-
-    Status = XdpLwfOffloadInspectOidRequest(Filter, Request, Action, CompletionStatus);
-    if (Status != NDIS_STATUS_SUCCESS) {
-        goto Exit;
-    }
-    if (*Action == XdpOidActionComplete) {
-        goto Exit;
-    }
-
-    Status = XdpGenericInspectOidRequest(&Filter->Generic, Request);
-    if (Status != NDIS_STATUS_SUCCESS) {
-        goto Exit;
-    }
-
-Exit:
-
-    return Status;
-}
-
-static
 _Function_class_(IO_WORKITEM_ROUTINE_EX)
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
@@ -245,50 +217,27 @@ XdpLwfOidRequestWorker(
     FRE_ASSERT(XdpLwfOidRequest((NDIS_HANDLE)Filter, Request) == NDIS_STATUS_PENDING);
 }
 
-NDIS_STATUS
-XdpLwfCommonOidRequest(
+VOID
+XdpLwfCommonOidRequestInspectComplete(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
-    _Inout_ NDIS_OID_REQUEST *Request
+    _Inout_ NDIS_OID_REQUEST *Request,
+    _In_ XDP_OID_ACTION Action,
+    _In_ NDIS_STATUS Status
     )
 {
-    NDIS_STATUS Status;
     NDIS_OID_REQUEST *ClonedRequest = NULL;
     XDP_OID_CLONE *Context;
-    XDP_OID_ACTION Action;
-    NDIS_STATUS CompletionStatus = NDIS_STATUS_FAILURE;
 
-    if (RequestInterface == XDP_OID_REQUEST_INTERFACE_REGULAR) {
-        if (KeGetCurrentIrql() == DISPATCH_LEVEL) {
-            //
-            // NDIS serializes OID requests for filters but, unlike miniports, OID
-            // requests to filters may run at dispatch level. Since our
-            // implementation requires OID inspection to run at passive level, queue
-            // a passive level work item and return.
-            //
-            FRE_ASSERT(InterlockedExchangePointer(&Filter->OidWorkerRequest, Request) == NULL);
-            IoQueueWorkItemEx(Filter->OidWorker, XdpLwfOidRequestWorker, DelayedWorkQueue, Filter);
-            Status = NDIS_STATUS_PENDING;
-            goto Exit;
-        }
-
-        Status = XdpLwfOidInspectRequest(Filter, Request, &Action, &CompletionStatus);
-        if (Status != NDIS_STATUS_SUCCESS) {
-            goto Exit;
-        }
-    } else {
-        //
-        // Inspection of direct or synchronous OIDs will require a redesign of
-        // the passive serialized worker model. Since we are not interested in
-        // inspecting any of those right now, simply pass them down the stack.
-        //
-        Action = XdpOidActionPass;
-    }
+    TraceEnter(
+        TRACE_LWF,
+        "Filter=%p Request=%p Oid=%x RequestInterface=%!OID_REQUEST_INTERFACE! "
+        "Action=%!OID_ACTION! Status=%!STATUS!",
+        Filter, Request, Request->DATA.Oid, RequestInterface, Action, Status);
 
     switch (Action) {
     case XdpOidActionComplete:
-        ASSERT(CompletionStatus != NDIS_STATUS_PENDING);
-        Status = CompletionStatus;
+        ASSERT(Status != NDIS_STATUS_PENDING);
         break;
     case XdpOidActionPass:
         Status =
@@ -301,7 +250,8 @@ XdpLwfCommonOidRequest(
         Context = (XDP_OID_CLONE *)(&ClonedRequest->SourceReserved[0]);
         Context->OriginalRequest = Request;
         ClonedRequest->RequestId = Request->RequestId;
-        Status = XdpLwfInvokeFOidRequest(Filter->NdisFilterHandle, RequestInterface, ClonedRequest);
+        Status =
+            XdpLwfInvokeFOidRequest(Filter->NdisFilterHandle, RequestInterface, ClonedRequest);
         break;
     default:
         ASSERT(FALSE);
@@ -319,6 +269,116 @@ Exit:
                 Filter->NdisFilterHandle, RequestInterface, Request, Status);
         }
     }
+
+    TraceExitStatus(TRACE_LWF);
+}
+
+static
+VOID
+XdpLwfOidInspectRequestOffloadComplete(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ NDIS_OID_REQUEST *Request,
+    _In_ XDP_OID_ACTION Action,
+    _In_ NDIS_STATUS Status
+    )
+{
+    TraceEnter(
+        TRACE_LWF,
+        "Filter=%p Request=%p Oid=%x Action=%!OID_ACTION! Status=%!STATUS!",
+        Filter, Request, Request->DATA.Oid, Action, Status);
+
+    if (Action == XdpOidActionComplete) {
+        goto Exit;
+    }
+
+    Status = XdpGenericInspectOidRequest(&Filter->Generic, Request);
+    if (Status != NDIS_STATUS_SUCCESS) {
+        goto Exit;
+    }
+
+Exit:
+
+    if (Status != NDIS_STATUS_PENDING) {
+        XdpLwfCommonOidRequestInspectComplete(
+            Filter, XDP_OID_REQUEST_INTERFACE_REGULAR, Request, Action, Status);
+    }
+
+    TraceExitStatus(TRACE_LWF);
+}
+
+static
+NDIS_STATUS
+XdpLwfOidInspectRequest(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ NDIS_OID_REQUEST *Request
+    )
+{
+    NDIS_STATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p Request=%p Oid=%x ", Filter, Request, Request->DATA.Oid);
+
+    Status =
+        XdpLwfOffloadInspectOidRequest(Filter, Request, XdpLwfOidInspectRequestOffloadComplete);
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
+}
+
+NDIS_STATUS
+XdpLwfCommonOidRequest(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
+    _Inout_ NDIS_OID_REQUEST *Request
+    )
+{
+    NDIS_STATUS Status;
+    XDP_OID_ACTION Action = XdpOidActionPass;
+    NDIS_STATUS CompletionStatus = NDIS_STATUS_FAILURE;
+
+    TraceEnter(
+        TRACE_LWF, "Filter=%p Request=%p Oid=%x RequestInterface=%!OID_REQUEST_INTERFACE!",
+        Filter, Request, Request->DATA.Oid, RequestInterface);
+
+    if (RequestInterface == XDP_OID_REQUEST_INTERFACE_REGULAR) {
+        if (KeGetCurrentIrql() == DISPATCH_LEVEL) {
+            //
+            // NDIS serializes OID requests for filters but, unlike miniports, OID
+            // requests to filters may run at dispatch level. Since our
+            // implementation requires OID inspection to run at passive level, queue
+            // a passive level work item and return.
+            //
+            FRE_ASSERT(InterlockedExchangePointer(&Filter->OidWorkerRequest, Request) == NULL);
+            IoQueueWorkItemEx(Filter->OidWorker, XdpLwfOidRequestWorker, DelayedWorkQueue, Filter);
+            Status = NDIS_STATUS_PENDING;
+            goto Exit;
+        }
+
+        Status = XdpLwfOidInspectRequest(Filter, Request);
+        if (Status != NDIS_STATUS_PENDING) {
+            ASSERT(Status != NDIS_STATUS_SUCCESS);
+            Action = XdpOidActionComplete;
+            CompletionStatus = Status;
+            goto Exit;
+        }
+    } else {
+        //
+        // Inspection of direct or synchronous OIDs will require a redesign of
+        // the passive serialized worker model. Since we are not interested in
+        // inspecting any of those right now, simply pass them down the stack.
+        //
+        Action = XdpOidActionPass;
+        Status = NDIS_STATUS_SUCCESS;
+    }
+
+Exit:
+
+    if (Status != NDIS_STATUS_PENDING) {
+        XdpLwfCommonOidRequestInspectComplete(
+            Filter, RequestInterface, Request, Action, CompletionStatus);
+    }
+
+    TraceExitStatus(TRACE_LWF);
 
     return NDIS_STATUS_PENDING;
 }
