@@ -40,7 +40,6 @@
 #include <xdplwf.h>
 #include <xdpregistry.h>
 #include <xdprtl.h>
-#include <xdprundown.h>
 #include <xdprxqueue_internal.h>
 #include <xdpstatusconvert.h>
 #include <xdptimer.h>

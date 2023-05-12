@@ -34,13 +34,11 @@ typedef struct _XDP_LWF_OFFLOAD {
     BOOLEAN Deactivated;
 
     //
-    // This rundown prevents the filter from detaching from the NDIS stack.
-    // A rundown reference must be held while issuing OID requests. Once the
-    // rundown is complete, the event is set and no new requests should be made
-    // to the filter.
+    // This rundown prevents the filter from detaching from the NDIS stack. A
+    // rundown reference must be held while issuing OID requests. Once the
+    // rundown is complete, no new requests should be made to the filter.
     //
-    XDP_RUNDOWN_REF FilterRundown;
-    KEVENT FilterRundownComplete;
+    EX_RUNDOWN_REF FilterRundown;
 
     //
     // A serialized work queue for handling requests that interact with the

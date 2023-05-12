@@ -65,26 +65,6 @@ CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
 };
 
 static
-BOOLEAN
-XdpLwfOffloadAcquireRundown(
-    _In_ XDP_LWF_OFFLOAD *Offload
-    )
-{
-    return XdpAcquireRundown(&Offload->FilterRundown);
-}
-
-static
-VOID
-XdpLwfOffloadReleaseRundown(
-    _In_ XDP_LWF_OFFLOAD *Offload
-    )
-{
-    if (XdpReleaseRundown(&Offload->FilterRundown)) {
-        KeSetEvent(&Offload->FilterRundownComplete, 0, FALSE);
-    }
-}
-
-static
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpLwfOffloadWorker(
@@ -824,7 +804,7 @@ XdpLwfOffloadRssSetWorker(
 
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
-    if (!XdpLwfOffloadAcquireRundown(&Filter->Offload)) {
+    if (!ExAcquireRundownProtection(&Filter->Offload.FilterRundown)) {
         TraceError(
             TRACE_LWF,
             "OffloadContext=%p interface has been removed",
@@ -1091,7 +1071,7 @@ Exit:
     XdpGenericRssFreeIndirection(&Indirection);
 
     if (RundownAcquired) {
-        XdpLwfOffloadReleaseRundown(&Filter->Offload);
+        ExReleaseRundownProtection(&Filter->Offload.FilterRundown);
     }
 
     KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
@@ -1364,7 +1344,7 @@ XdpLwfOffloadQeoSet(
 
     TraceEnter(TRACE_LWF, "Filter=%p OffloadContext=%p", Filter, OffloadContext);
 
-    if (!XdpLwfOffloadAcquireRundown(&Filter->Offload)) {
+    if (!ExAcquireRundownProtection(&Filter->Offload.FilterRundown)) {
         Status = STATUS_DELETE_PENDING;
         goto Exit;
     }
@@ -1577,7 +1557,7 @@ Exit:
     }
 
     if (RundownAcquired) {
-        XdpLwfOffloadReleaseRundown(&Filter->Offload);
+        ExReleaseRundownProtection(&Filter->Offload.FilterRundown);
     }
 
     TraceExitStatus(TRACE_LWF);
@@ -2051,19 +2031,19 @@ XdpLwfOffloadDeactivate(
 
     //
     // Prevent new offload requests and wait for outstanding requests to drain.
-    // TODO: replace with EX_RUNDOWN_REF.
     //
-    if (!XdpDisableRundown(&Filter->Offload.FilterRundown)) {
-        KeWaitForSingleObject(
-            &Filter->Offload.FilterRundownComplete, Executive, KernelMode, FALSE, NULL);
-    }
+    ExWaitForRundownProtectionRelease(&Filter->Offload.FilterRundown);
 
     //
-    // Clean up any state requiring the serialized work queue.
+    // Clean up any state requiring the serialized work queue. If the queue
+    // doesn't exist, then the offload module never started and there is nothing
+    // to clean up.
     //
-    KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
-    XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadDeactivateWorker);
-    KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
+    if (Filter->Offload.WorkQueue != NULL) {
+        KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
+        XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadDeactivateWorker);
+        KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
+    }
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -2076,8 +2056,7 @@ XdpLwfOffloadInitialize(
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     ExInitializePushLock(&Filter->Offload.Lock);
-    XdpInitializeRundown(&Filter->Offload.FilterRundown);
-    KeInitializeEvent(&Filter->Offload.FilterRundownComplete, NotificationEvent, FALSE);
+    ExInitializeRundownProtection(&Filter->Offload.FilterRundown);
     InitializeListHead(&Filter->Offload.InterfaceOffloadHandleListHead);
 
     TraceExitSuccess(TRACE_LWF);
