@@ -33,6 +33,7 @@ XdpLwfDereferenceFilter(
     )
 {
     if (XdpDecrementReferenceCount(&Filter->ReferenceCount)) {
+        XdpLwfOffloadUnInitialize(Filter);
         ExFreePoolWithTag(Filter, POOLTAG_FILTER);
     }
 }
@@ -343,8 +344,6 @@ XdpLwfFilterDetach(
         IoFreeWorkItem(Filter->OidWorker);
         Filter->OidWorker = NULL;
     }
-
-    XdpLwfOffloadUnInitialize(Filter);
 
     Filter->NdisFilterHandle = NULL;
 

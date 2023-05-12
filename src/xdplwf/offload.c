@@ -1657,10 +1657,7 @@ XdpLwfCloseInterfaceOffloadHandleWorker(
         CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_RSS_DEREFERENCE, WorkItem);
     XDP_LWF_FILTER *Filter = WorkItem->Filter;
 
-    if (XdpLwfOffloadAcquireRundown(&Filter->Offload)) {
-        DereferenceRssSetting(Filter, Request->OffloadContext->Settings.Rss);
-        XdpLwfOffloadReleaseRundown(&Filter->Offload);
-    }
+    DereferenceRssSetting(Filter, Request->OffloadContext->Settings.Rss);
 
     KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
 }
@@ -1682,6 +1679,8 @@ XdpLwfCloseInterfaceOffloadHandle(
 
     if (OffloadContext->Settings.Rss != NULL) {
         XDP_LWF_OFFLOAD_RSS_DEREFERENCE Request = {0};
+
+        Request.OffloadContext = OffloadContext;
 
         KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
         XdpLwfOffloadQueueWorkItem(
@@ -2040,13 +2039,6 @@ XdpLwfOffloadDeactivate(
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     //
-    // Acquire a rundown reference to protect all cleanup operations, then
-    // disable new rundown references.
-    //
-    XdpLwfOffloadAcquireRundown(&Filter->Offload);
-    XdpDisableRundown(&Filter->Offload.FilterRundown);
-
-    //
     // Prevent new offload handle creation.
     //
     RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
@@ -2058,16 +2050,20 @@ XdpLwfOffloadDeactivate(
     RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     //
+    // Prevent new offload requests and wait for outstanding requests to drain.
+    // TODO: replace with EX_RUNDOWN_REF.
+    //
+    if (!XdpDisableRundown(&Filter->Offload.FilterRundown)) {
+        KeWaitForSingleObject(
+            &Filter->Offload.FilterRundownComplete, Executive, KernelMode, FALSE, NULL);
+    }
+
+    //
     // Clean up any state requiring the serialized work queue.
     //
     KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
     XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadDeactivateWorker);
     KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
-
-    //
-    // Release the rundown reference protecting cleanup.
-    //
-    XdpLwfOffloadReleaseRundown(&Filter->Offload);
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -2118,9 +2114,6 @@ XdpLwfOffloadUnInitialize(
     )
 {
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
-
-    KeWaitForSingleObject(
-        &Filter->Offload.FilterRundownComplete, Executive, KernelMode, FALSE, NULL);
 
     if (Filter->Offload.WorkQueue != NULL) {
         XdpShutdownWorkQueue(Filter->Offload.WorkQueue, TRUE);
