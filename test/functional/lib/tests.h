@@ -196,6 +196,9 @@ VOID
 OffloadRssCapabilities();
 
 VOID
+OffloadRssReset();
+
+VOID
 OffloadSetHardwareCapabilities();
 
 VOID

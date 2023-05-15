@@ -24,6 +24,7 @@ typedef struct _XDP_LWF_FILTER {
     XDP_LWF_FILTER_STATE NdisState;
     XDP_REFERENCE_COUNT ReferenceCount;
     XDPIF_INTERFACE_SET_HANDLE XdpIfInterfaceSetHandle;
+    BOOLEAN PreDetached;
 
     XDP_LWF_OFFLOAD Offload;
 

@@ -460,6 +460,10 @@ public:
         ::OffloadRssCapabilities();
     }
 
+    TEST_METHOD(OffloadRssReset) {
+        ::OffloadRssReset();
+    }
+
     TEST_METHOD(FnLwfRx) {
         ::FnLwfRx();
     }
