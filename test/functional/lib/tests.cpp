@@ -6256,6 +6256,15 @@ OffloadRssReset()
     UINT32 IndirectionTableSize;
     UINT32 OriginalIndirectionTableSize;
 
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
     auto InterfaceHandle = InterfaceOpen(FnMpIf.GetIfIndex());
     auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
 
@@ -6269,7 +6278,7 @@ OffloadRssReset()
     // Create and set a new RSS table.
     //
 
-    CreateIndirectionTable({3, 1}, IndirectionTable, &IndirectionTableSize);
+    CreateIndirectionTable({1, 0}, IndirectionTable, &IndirectionTableSize);
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT16 HashSecretKeySize = 40;
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
