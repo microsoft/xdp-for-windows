@@ -468,6 +468,30 @@ public:
         TEST_EQUAL(0, system(CmdBuff));
         Restart();
     }
+
+    HRESULT
+    TryUnbindXdp() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(
+            CmdBuff,
+            "%s /c \"(Get-NetAdapter -ifDesc '%s') | Disable-NetAdapterBinding -ComponentID ms_xdp",
+            PowershellPrefix, _IfDesc);
+        return HRESULT_FROM_WIN32(system(CmdBuff));
+    }
+
+    HRESULT
+    TryRebindXdp() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(
+            CmdBuff,
+            "%s /c \"(Get-NetAdapter -ifDesc '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
+            PowershellPrefix, _IfDesc);
+        return HRESULT_FROM_WIN32(system(CmdBuff));
+    }
 };
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
@@ -1790,18 +1814,20 @@ MpOidGetRequest(
     return FnMpOidGetRequest(Handle.get(), Key, InformationBufferLength, InformationBuffer);
 }
 
+template<typename T=decltype(TEST_TIMEOUT_ASYNC)>
 static
 unique_malloc_ptr<VOID>
 MpOidAllocateAndGetRequest(
     _In_ const wil::unique_handle& Handle,
     _In_ OID_KEY Key,
-    _Out_ UINT32 *InformationBufferLength
+    _Out_ UINT32 *InformationBufferLength,
+    _In_opt_ T Timeout = TEST_TIMEOUT_ASYNC
     )
 {
     unique_malloc_ptr<VOID> InformationBuffer;
     UINT32 Length = 0;
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch<T> Watchdog(Timeout);
 
     //
     // Poll FNMP for an OID: the driver doesn't support overlapped IO.
@@ -6218,6 +6244,101 @@ OffloadRssCapabilities()
     TEST_EQUAL(RssCapabilities->HashSecretKeySize, 40);
     TEST_EQUAL(RssCapabilities->NumberOfReceiveQueues, FNMP_DEFAULT_RSS_QUEUES);
     TEST_EQUAL(RssCapabilities->NumberOfIndirectionTableEntries, FNMP_MAX_RSS_INDIR_COUNT);
+}
+
+VOID
+OffloadRssReset()
+{
+    auto &If = FnMpIf;
+    unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
+    unique_malloc_ptr<PROCESSOR_NUMBER> OriginalIndirectionTable;
+    unique_malloc_ptr<PROCESSOR_NUMBER> ResetIndirectionTable;
+    UINT32 IndirectionTableSize;
+    UINT32 OriginalIndirectionTableSize;
+
+    //
+    // Only run if we have at least 2 LPs.
+    // Our expected test automation environment is at least a 2VP VM.
+    //
+    if (GetProcessorCount() < 2) {
+        TEST_WARNING("Test requires at least 2 logical processors. Skipping.");
+        return;
+    }
+
+    auto InterfaceHandle = InterfaceOpen(FnMpIf.GetIfIndex());
+    auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
+
+    //
+    // Query the original RSS table. This is what XDP should revert to when the
+    // interface is being torn down.
+    //
+    GetXdpRssIndirectionTable(FnMpIf, OriginalIndirectionTable, OriginalIndirectionTableSize);
+
+    //
+    // Create and set a new RSS table.
+    //
+
+    CreateIndirectionTable({1, 0}, IndirectionTable, &IndirectionTableSize);
+    unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
+    UINT16 HashSecretKeySize = 40;
+    UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
+
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
+    RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
+    RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
+
+    PROCESSOR_NUMBER *IndirectionTableDst =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
+    RtlCopyMemory(IndirectionTableDst, IndirectionTable.get(), IndirectionTableSize);
+
+    RssConfig->Flags =
+        XDP_RSS_FLAG_SET_HASH_TYPE | XDP_RSS_FLAG_SET_HASH_SECRET_KEY |
+        XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
+    RssConfig->HashType = XDP_RSS_HASH_TYPE_TCP_IPV4 | XDP_RSS_HASH_TYPE_TCP_IPV6;
+    RssConfig->HashSecretKeySize = HashSecretKeySize;
+    RssConfig->IndirectionTableSize = (USHORT)IndirectionTableSize;
+
+    RssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize);
+
+    //
+    // Set an OID filter, start tearing down the NIC and filter binding, verify
+    // the resulting OID, then close the handle to allow OID completion.
+    //
+
+    OID_KEY Key;
+    InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
+    MpOidFilter(AdapterMp, &Key, 1);
+
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return If.TryUnbindXdp();
+        }
+    );
+
+    auto BindingScopeGuard = wil::scope_exit([&]
+    {
+        TEST_HRESULT(If.TryRebindXdp());
+    });
+
+    UINT32 OidInfoBufferLength;
+    unique_malloc_ptr<VOID> OidInfoBuffer =
+        MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength, MP_RESTART_TIMEOUT);
+
+    NDIS_RECEIVE_SCALE_PARAMETERS *NdisParams =
+        (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
+    TEST_EQUAL(NdisParams->IndirectionTableSize, OriginalIndirectionTableSize);
+    PROCESSOR_NUMBER *NdisIndirectionTable =
+        (PROCESSOR_NUMBER *)RTL_PTR_ADD(NdisParams, NdisParams->IndirectionTableOffset);
+    TEST_TRUE(
+        RtlEqualMemory(NdisIndirectionTable,
+        OriginalIndirectionTable.get(),
+        OriginalIndirectionTableSize));
+
+    AdapterMp.reset();
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    TEST_HRESULT(AsyncThread.get());
 }
 
 static
