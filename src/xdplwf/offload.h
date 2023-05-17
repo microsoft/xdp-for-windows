@@ -65,16 +65,55 @@ typedef struct _XDP_LWF_OFFLOAD {
     LIST_ENTRY InterfaceOffloadHandleListHead;
 } XDP_LWF_OFFLOAD;
 
-inline
-BOOLEAN
-XdpLwfOffloadIsNdisRssEnabled(
-    _In_ CONST NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams
-    )
-{
-    return
-        NDIS_RSS_HASH_FUNC_FROM_HASH_INFO(NdisRssParams->HashInformation) != 0 &&
-        (NdisRssParams->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) == 0;
-}
+typedef enum {
+    //
+    // Control path below the XDP LWF.
+    //
+    XdpOffloadEdgeLower,
+    //
+    // Control path above the XDP LWF.
+    //
+    XdpOffloadEdgeUpper,
+} XDP_LWF_OFFLOAD_EDGE;
+
+//
+// Context backing the interface offload handle.
+//
+typedef struct _XDP_LWF_INTERFACE_OFFLOAD_CONTEXT {
+    LIST_ENTRY Link;
+    XDP_LWF_FILTER *Filter;
+    XDP_LWF_OFFLOAD_EDGE Edge;
+    XDP_LWF_INTERFACE_OFFLOAD_SETTINGS Settings;
+} XDP_LWF_INTERFACE_OFFLOAD_CONTEXT;
+
+typedef struct _XDP_LWF_OFFLOAD_WORKITEM XDP_LWF_OFFLOAD_WORKITEM;
+
+//
+// Annotate routines that must be invoked from the serialized offload work
+// queue.
+//
+#define _Offload_work_routine_
+#define _Requires_offload_rundown_ref_
+
+typedef
+_Offload_work_routine_
+VOID
+XDP_LWF_OFFLOAD_WORK_ROUTINE(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    );
+
+typedef struct _XDP_LWF_OFFLOAD_WORKITEM {
+    SINGLE_LIST_ENTRY Link;
+    XDP_LWF_FILTER *Filter;
+    XDP_LWF_OFFLOAD_WORK_ROUTINE *WorkRoutine;
+} XDP_LWF_OFFLOAD_WORKITEM;
+
+VOID
+XdpLwfOffloadQueueWorkItem(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem,
+    _In_ XDP_LWF_OFFLOAD_WORK_ROUTINE *WorkRoutine
+    );
 
 NDIS_STATUS
 XdpLwfOffloadInspectOidRequest(
@@ -92,11 +131,6 @@ XdpLwfOffloadTransformNbls(
 
 VOID
 XdpLwfOffloadDeactivate(
-    _In_ XDP_LWF_FILTER *Filter
-    );
-
-VOID
-XdpLwfOffloadRssInitialize(
     _In_ XDP_LWF_FILTER *Filter
     );
 

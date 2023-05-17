@@ -56,6 +56,8 @@
 #include "generic.h"
 #include "native.h"
 #include "offload.h"
+#include "offloadqeo.h"
+#include "offloadrss.h"
 #include "oid.h"
 #include "recv.h"
 #include "send.h"
