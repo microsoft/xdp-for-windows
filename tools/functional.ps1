@@ -33,7 +33,10 @@ param (
     [switch]$ListTestCases = $false,
 
     [Parameter(Mandatory = $false)]
-    [int]$Iterations = 1
+    [int]$Iterations = 1,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EbpfPreinstalled = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -76,9 +79,11 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Install xdpfnlwf -Config $Config -Arch $Arch
         Write-Verbose "installed xdpfnlwf."
 
-        Write-Verbose "installing ebpf..."
-        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
-        Write-Verbose "installed ebpf."
+        if (!$EbpfPreinstalled) {
+            Write-Verbose "installing ebpf..."
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
+            Write-Verbose "installed ebpf."
+        }
 
         $Args = @("$ArtifactsDir\xdpfunctionaltests.dll")
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
@@ -97,7 +102,9 @@ for ($i = 1; $i -le $Iterations; $i++) {
             $IterationFailureCount++
         }
     } finally {
-        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        if (!$EbpfPreinstalled) {
+            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        }
         & "$RootDir\tools\setup.ps1" -Uninstall xdpfnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdpfnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
