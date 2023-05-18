@@ -24,9 +24,9 @@ XDP-for-Windows uses [Semantic Versioning](https://semver.org/) for versioning r
 
 - **Patch** version changes indicate **bug fixes**. This means that code that worked in a previous patch version will continue to work in the new patch version.
 
-XDP-for-Windows uses the `release/(major).(minor)` naming convention for all release **branches**. For example the first official release branch will be `release/1.0`.
+XDP-for-Windows uses the `release/(major).(minor)` naming convention for all release **branches**. For example, the first official release branch will be `release/1.0`.
 
-XDP then uses the `v(major).(minor).(patch)` naming convention for all **tags**. For example the first official release will be `v1.0.0`.
+XDP then uses the `v(major).(minor).(patch)` naming convention for all **tags**. For example, the first official release will be `v1.0.0`.
 
 ## Lifecycle and Support Policies
 
