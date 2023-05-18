@@ -4,7 +4,7 @@ All active development occurs on GitHub in the `main` branch. When it is time to
 
 ## Branches
 
-XDP-for-Windows has two primary types of branches **main** and **release** defined as:
+XDP-for-Windows has two primary types of branches:
 
 * **Main** - Main is the active development branch, and receives security and bug fixes just the same as the release branches. However, it may experience breaking changes as we develop new features. For this reason, it is recommended that no dependencies be taken on the main branch.
 
