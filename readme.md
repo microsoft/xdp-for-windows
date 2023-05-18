@@ -9,6 +9,7 @@ used to send and receive packets at high rates by bypassing most of the OS netwo
 
 * [Usage](./docs/usage.md)
 * [Development](./docs/development.md)
+* [Release and Support](./docs/release.md)
 * [FAQ](./docs/faq.md)
 
 ## Contributing
