@@ -30,7 +30,7 @@ XDP then uses the `v(major).(minor).(patch)` naming convention for all **tags**.
 
 ## Lifecycle and Support Policies
 
-XDP-for-Windows follows a model where only the latest release of each major version is supported, for 18 months. In other words, each release is supported for at 18 months, unless a new minor or patch version replaces it, at which point the 18 month window resets.
+XDP-for-Windows follows a model where only the latest release of each major version is supported, for 18 months. In other words, each release is supported for 18 months, unless a new minor or patch version replaces it, at which point the 18 month window resets.
 
 This means that when a new major version is released, the previous major version will still be supported for 18 months from its last release date. This allows customers to upgrade and consume breaking changes at their own pace, while still receiving security and bug fixes for the previous version.
 
