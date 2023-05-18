@@ -36,9 +36,11 @@ This means that when a new major version is released, the previous major version
 
 It also means that when a new minor version is released, the previous minor version (of the matching major version) is no longer supported, and that customers will be expected to consume any servicing fixes via the new minor version releases. Because they are only minor version changes, they will not require any code changes from customers.
 
-For example, if `v1.0` is released on January 1st, 2024, then `v2.0` is released on July 1st, 2024, then `v1.0` will be supported until July 1st, 2025. Then, if `v2.1` is released on January 1st, 2025, then v2.0 is no longer supported. Fixes will only go into `v2.1` and since `v2.1` has no breaking changes, customers that were on `v2.0` can upgrade to `v2.1` without any code changes.
-
 > **Note** - XDP-for-Windows plans to try to never to have any breaking changes, and therefore never have any major version changes. However, this policy is in place just in case.
+
+### Example
+
+For example, if `v1.0` is released on January 1st, 2024 and then `v2.0` is released on July 1st, 2024, then `v1.0` will be supported until July 1st, 2025. Then, if `v2.1` is released on January 1st, 2025, then `v2.0` is no longer supported. Fixes will only go into `v2.1` and since `v2.1` has no breaking changes, customers that were on `v2.0` can upgrade to `v2.1` without any code changes.
 
 # Official Releases
 
