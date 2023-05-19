@@ -468,7 +468,7 @@ XdpLwfOffloadUnInitialize(
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     if (Filter->Offload.WorkQueue != NULL) {
-        XdpShutdownWorkQueue(Filter->Offload.WorkQueue, TRUE);
+        XdpShutdownWorkQueue(Filter->Offload.WorkQueue, FALSE);
         Filter->Offload.WorkQueue = NULL;
     }
 
