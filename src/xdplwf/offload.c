@@ -216,10 +216,7 @@ XdpLwfSetInterfaceOffload(
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize,
-    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
-    _In_ UINT32 OffloadResultSize,
-    _Out_opt_ UINT32 *OffloadResultWritten
+    _In_ UINT32 OffloadParamsSize
     )
 {
     NTSTATUS Status;
@@ -228,19 +225,12 @@ XdpLwfSetInterfaceOffload(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
-    if (OffloadResultWritten != NULL) {
-        *OffloadResultWritten = 0;
-    }
-
     switch (OffloadType) {
     case XdpOffloadRss:
         Status = XdpLwfOffloadRssSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
     case XdpOffloadQeo:
-        Status =
-            XdpLwfOffloadQeoSet(
-                Filter, OffloadContext, OffloadParams, OffloadParamsSize, OffloadResult,
-                OffloadResultSize, OffloadResultWritten);
+        Status = XdpLwfOffloadQeoSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <netiodef.h>
 #include <netioddk.h>
+#include <winerror.h>
 #include <ebpf_extension.h>
 #include <ebpf_extension_uuids.h>
 #include <ebpf_nethooks.h>

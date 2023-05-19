@@ -98,6 +98,7 @@ typedef struct _XDP_IF_OFFLOAD_OBJECT {
     XDP_REFERENCE_COUNT ReferenceCount;
     LIST_ENTRY Entry;
     VOID *InterfaceOffloadHandle;
+    XDP_OFFLOAD_IF_SETTINGS OffloadSettings;
 } XDP_IF_OFFLOAD_OBJECT;
 
 //
@@ -781,6 +782,19 @@ XdpIfpDereferenceInterfaceOffloadObject(
     }
 }
 
+XDP_OFFLOAD_IF_SETTINGS *
+XdpIfGetOffloadIfSettings(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
+    )
+{
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+
+    UNREFERENCED_PARAMETER(IfSetHandle);
+
+    return &OffloadObject->OffloadSettings;
+}
+
 static
 VOID
 XdpIfpCleanupInterfaceOffloadObject(
@@ -800,13 +814,7 @@ XdpIfpCleanupInterfaceOffloadObject(
     //    proceed.
     //
 
-    //
-    // TODO: clean up offloads.
-    //
-
-    // XdpOfloadQeoRevertSettings(
-    //     InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
-    //     &InterfaceObject->QeoSettings);
+    XdpOffloadRevertSettings((XDP_IFSET_HANDLE)IfSet, (XDP_IF_OFFLOAD_HANDLE)OffloadObject);
 
     IfSet->OffloadDispatch->CloseInterfaceOffloadHandle(OffloadObject->InterfaceOffloadHandle);
     OffloadObject->InterfaceOffloadHandle = NULL;
@@ -835,6 +843,7 @@ XdpIfOpenInterfaceOffloadHandle(
 
     XdpInitializeReferenceCount(&OffloadObject->ReferenceCount);
     InitializeListHead(&OffloadObject->Entry);
+    XdpOffloadInitializeIfSettings(&OffloadObject->OffloadSettings);
 
     if (!ExAcquireRundownProtection(&IfSet->OffloadRundown)) {
         Status = STATUS_DEVICE_NOT_READY;
@@ -984,10 +993,7 @@ XdpIfSetInterfaceOffload(
     _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize,
-    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
-    _In_ UINT32 OffloadResultSize,
-    _Out_opt_ UINT32 *OffloadResultWritten
+    _In_ UINT32 OffloadParamsSize
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
@@ -1003,11 +1009,9 @@ XdpIfSetInterfaceOffload(
         goto Exit;
     }
 
-    #pragma warning(suppress:6001) // Using uninitialized memory '*OffloadResultWritten'
     Status =
         IfSet->OffloadDispatch->SetInterfaceOffload(
-            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize,
-            OffloadResult, OffloadResultSize, OffloadResultWritten);
+            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
 
     ExReleaseRundownProtection(&IfSet->OffloadRundown);
 

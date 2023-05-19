@@ -13,6 +13,7 @@ typedef struct _XDP_BINDING_CLIENT_ENTRY XDP_BINDING_CLIENT_ENTRY;
 typedef struct _XDP_BINDING_WORKITEM XDP_BINDING_WORKITEM;
 typedef struct _XDP_IFSET_HANDLE *XDP_IFSET_HANDLE;
 typedef struct _XDP_IF_OFFLOAD_HANDLE *XDP_IF_OFFLOAD_HANDLE;
+typedef struct _XDP_OFFLOAD_IF_SETTINGS XDP_OFFLOAD_IF_SETTINGS;
 
 //
 // Serialized work queue callback.
@@ -93,6 +94,12 @@ XdpIfReleaseOffloadRundown(
     _In_ XDP_IFSET_HANDLE IfSetHandle
     );
 
+XDP_OFFLOAD_IF_SETTINGS *
+XdpIfGetOffloadIfSettings(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
+    );
+
 NTSTATUS
 XdpIfOpenInterfaceOffloadHandle(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
@@ -130,10 +137,7 @@ XdpIfSetInterfaceOffload(
     _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize,
-    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
-    _In_ UINT32 OffloadResultSize,
-    _Out_opt_ UINT32 *OffloadResultWritten
+    _In_ UINT32 OffloadParamsSize
     );
 
 //

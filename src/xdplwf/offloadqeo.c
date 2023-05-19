@@ -129,14 +129,11 @@ XdpLwfOffloadQeoSet(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
     _In_ const XDP_OFFLOAD_PARAMS_QEO *XdpQeoParams,
-    _In_ UINT32 XdpQeoParamsSize,
-    _Out_opt_ VOID *OffloadResult,
-    _In_ UINT32 OffloadResultSize,
-    _Out_opt_ UINT32 *OffloadResultWritten
+    _In_ UINT32 XdpQeoParamsSize
     )
 {
     NTSTATUS Status;
-    const XDP_QUIC_CONNECTION *XdpQeoConnection;
+    LIST_ENTRY *Entry;
     NDIS_QUIC_CONNECTION *NdisConnections = NULL;
     UINT32 NdisConnectionsSize;
     ULONG NdisBytesReturned;
@@ -144,8 +141,7 @@ XdpLwfOffloadQeoSet(
     TraceEnter(TRACE_LWF, "Filter=%p OffloadContext=%p", Filter, OffloadContext);
 
     if (XdpQeoParamsSize != sizeof(*XdpQeoParams) ||
-        XdpQeoParams->ConnectionCount == 0 ||
-        OffloadResultSize < XdpQeoParams->ConnectionsSize) {
+        XdpQeoParams->ConnectionCount == 0) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -178,23 +174,20 @@ XdpLwfOffloadQeoSet(
     // Form and issue the OID.
     //
 
-    XdpQeoConnection = XdpQeoParams->Connections;
+    Entry = XdpQeoParams->Connections.Flink;
 
-    for (UINT32 i = 0; i < XdpQeoParams->ConnectionCount; i++) {
+    for (UINT32 i = 0; Entry != &XdpQeoParams->Connections; i++) {
+        XDP_OFFLOAD_PARAMS_QEO_CONNECTION *XdpQeoConnection =
+            CONTAINING_RECORD(Entry, XDP_OFFLOAD_PARAMS_QEO_CONNECTION, TransactionEntry);
+        Entry = Entry->Flink;
         NDIS_QUIC_CONNECTION *NdisConnection = &NdisConnections[i];
 
-        Status =
-            XdpLwfOffloadQeoConvertXdpToNdis(NdisConnection, XdpQeoConnection);
+        Status = XdpLwfOffloadQeoConvertXdpToNdis(NdisConnection, &XdpQeoConnection->Params);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
 
         NdisConnection->Status = NDIS_STATUS_PENDING;
-
-        //
-        // Advance to the next input connection.
-        //
-        XdpQeoConnection = RTL_PTR_ADD(XdpQeoConnection, XdpQeoConnection->Header.Size);
     }
 
     Status =
@@ -219,33 +212,18 @@ XdpLwfOffloadQeoSet(
         goto Exit;
     }
 
-    //
-    // Initialize the XDP output buffer with the data from the input buffer
-    // before updating each connection's offload status code.
-    //
-    RtlMoveMemory(OffloadResult, XdpQeoParams->Connections, XdpQeoParams->ConnectionsSize);
+    Entry = XdpQeoParams->Connections.Flink;
 
-    //
-    // Use the immutable, validated input buffer to walk the output array: the
-    // output buffer may be writable by user mode, so we treat it as strictly
-    // write-only.
-    //
-    XdpQeoConnection = XdpQeoParams->Connections;
-
-    for (UINT32 i = 0; i < XdpQeoParams->ConnectionCount; i++) {
+    for (UINT32 i = 0; Entry != &XdpQeoParams->Connections; i++) {
+        XDP_OFFLOAD_PARAMS_QEO_CONNECTION *XdpQeoConnection =
+            CONTAINING_RECORD(Entry, XDP_OFFLOAD_PARAMS_QEO_CONNECTION, TransactionEntry);
+        Entry = Entry->Flink;
         NDIS_QUIC_CONNECTION *NdisConnection = &NdisConnections[i];
-        XDP_QUIC_CONNECTION *XdpQeoConnectionResult =
-            RTL_PTR_ADD(OffloadResult,
-                RTL_PTR_SUBTRACT(XdpQeoConnection, XdpQeoParams->Connections));
 
-        XdpQeoConnectionResult->Status =
+        XdpQeoConnection->Params.Status =
             HRESULT_FROM_WIN32(RtlNtStatusToDosErrorNoTeb(XdpConvertNdisStatusToNtStatus(
                 NdisConnection->Status)));
-
-        XdpQeoConnection = RTL_PTR_ADD(XdpQeoConnection, XdpQeoConnection->Header.Size);
     }
-
-    *OffloadResultWritten = XdpQeoParams->ConnectionsSize;
 
 Exit:
 

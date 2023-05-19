@@ -13,10 +13,9 @@ XdpOffloadQeoInitializeSettings(
     );
 
 VOID
-XdpOfloadQeoRevertSettings(
+XdpOffloadQeoRevertSettings(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
-    _Inout_ XDP_OFFLOAD_QEO_SETTINGS *QeoSettings
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
     );
 
 NTSTATUS

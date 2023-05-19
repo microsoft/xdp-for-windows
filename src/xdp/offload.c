@@ -335,7 +335,7 @@ XdpIrpInterfaceOffloadRssSet(
     Status =
         XdpIfSetInterfaceOffload(
             InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
-            XdpOffloadRss, &RssParams, sizeof(RssParams), NULL, 0, NULL);
+            XdpOffloadRss, &RssParams, sizeof(RssParams));
 
 Exit:
 
@@ -346,6 +346,14 @@ Exit:
     TraceExitStatus(TRACE_CORE);
 
     return Status;
+}
+
+VOID
+XdpOffloadInitializeIfSettings(
+    _Out_ XDP_OFFLOAD_IF_SETTINGS *OffloadIfSettings
+    )
+{
+    XdpOffloadQeoInitializeSettings(&OffloadIfSettings->Qeo);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -407,7 +415,6 @@ XdpIrpCreateInterface(
     InterfaceObject->Header.Dispatch = &XdpInterfaceFileDispatch;
     InterfaceObject->IfSetHandle = IfSetHandle;
     InterfaceObject->InterfaceOffloadHandle = InterfaceOffloadHandle;
-    XdpOffloadQeoInitializeSettings(&InterfaceObject->QeoSettings);
     IrpSp->FileObject->FsContext = InterfaceObject;
     IfSetHandle = NULL;
     InterfaceOffloadHandle = NULL;
@@ -436,6 +443,15 @@ Exit:
     TraceExitStatus(TRACE_CORE);
 
     return Status;
+}
+
+VOID
+XdpOffloadRevertSettings(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
+    )
+{
+    XdpOffloadQeoRevertSettings(IfSetHandle, InterfaceOffloadHandle);
 }
 
 static
