@@ -131,17 +131,6 @@ XdpLwfBindStop(
     }
 }
 
-static
-VOID
-XdpLwfDeleteIfSetComplete(
-    _In_ VOID *InterfaceContext
-    )
-{
-    XDP_LWF_FILTER *Filter = InterfaceContext;
-
-    XdpLwfDereferenceFilter(Filter);
-}
-
 _Use_decl_annotations_
 NDIS_STATUS
 XdpLwfFilterAttach(
@@ -177,7 +166,6 @@ XdpLwfFilterAttach(
     Filter->NdisFilterHandle = NdisFilterHandle;
     Filter->NdisState = FilterPaused;
     XdpInitializeReferenceCount(&Filter->ReferenceCount);
-    XdpLwfOffloadInitialize(Filter);
 
     Filter->OidWorker = IoAllocateWorkItem((DEVICE_OBJECT *)XdpLwfDriverObject);
     if (Filter->OidWorker == NULL) {
@@ -193,7 +181,7 @@ XdpLwfFilterAttach(
     Status =
         XdpIfCreateInterfaceSet(
             Filter->MiniportIfIndex, &XdpLwfOffloadDispatch, Filter,
-            XdpLwfDeleteIfSetComplete, &Filter->XdpIfInterfaceSetHandle);
+            &Filter->XdpIfInterfaceSetHandle);
     if (!NT_SUCCESS(Status)) {
         ASSERT(Filter->XdpIfInterfaceSetHandle == NULL);
         Status = XdpConvertNtStatusToNdisStatus(Status);
@@ -333,6 +321,18 @@ XdpLwfFilterPreDetach(
 
     Filter->PreDetached = TRUE;
 
+    if (Filter->XdpIfInterfaceSetHandle != NULL) {
+        XdpNativeDetachInterface(&Filter->Native);
+        XdpGenericDetachInterface(&Filter->Generic);
+        XdpIfDeleteInterfaceSet(Filter->XdpIfInterfaceSetHandle);
+        XdpNativeWaitForDetachInterfaceComplete(&Filter->Native);
+        XdpGenericWaitForDetachInterfaceComplete(&Filter->Generic);
+    }
+
+    //
+    // TODO: Review: is this necessary if all offload handles are guaranteed to
+    // be closed by the XDP interface manager?
+    //
     XdpLwfOffloadDeactivate(Filter);
 }
 
@@ -350,18 +350,6 @@ XdpLwfFilterDetach(
 
     if (!Filter->PreDetached) {
         XdpLwfFilterPreDetach(Filter);
-    }
-
-    if (Filter->XdpIfInterfaceSetHandle != NULL) {
-        XdpNativeDetachInterface(&Filter->Native);
-        XdpGenericDetachInterface(&Filter->Generic);
-
-        //
-        // Ensure the filter remains valid until the interface set is deleted
-        // asynchronously.
-        //
-        XdpLwfReferenceFilter(Filter);
-        XdpIfDeleteInterfaceSet(Filter->XdpIfInterfaceSetHandle);
     }
 
     if (Filter->OidWorker != NULL) {

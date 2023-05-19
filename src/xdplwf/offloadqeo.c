@@ -6,6 +6,124 @@
 #include "precomp.h"
 #include "offloadqeo.tmh"
 
+static
+NTSTATUS
+XdpLwfOffloadQeoConvertXdpToNdis(
+    _Out_ NDIS_QUIC_CONNECTION *NdisConnection,
+    _In_ const XDP_QUIC_CONNECTION *XdpConnection
+    )
+{
+    NTSTATUS Status;
+
+    switch (XdpConnection->Operation) {
+    case XDP_QUIC_OPERATION_ADD:
+        NdisConnection->Operation = NDIS_QUIC_OPERATION_ADD;
+        break;
+    case XDP_QUIC_OPERATION_REMOVE:
+        NdisConnection->Operation = NDIS_QUIC_OPERATION_REMOVE;
+        break;
+    default:
+        ASSERT(FALSE);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    switch (XdpConnection->Direction) {
+    case XDP_QUIC_DIRECTION_TRANSMIT:
+        NdisConnection->Direction = NDIS_QUIC_DIRECTION_TRANSMIT;
+        break;
+    case XDP_QUIC_DIRECTION_RECEIVE:
+        NdisConnection->Direction = NDIS_QUIC_DIRECTION_RECEIVE;
+        break;
+    default:
+        ASSERT(FALSE);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    switch (XdpConnection->DecryptFailureAction) {
+    case XDP_QUIC_DECRYPT_FAILURE_ACTION_DROP:
+        NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_DROP;
+        break;
+    case XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE:
+        NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE;
+        break;
+    default:
+        ASSERT(FALSE);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    NdisConnection->KeyPhase = XdpConnection->KeyPhase;
+
+    switch (XdpConnection->CipherType) {
+    case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM:
+        NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
+        break;
+    case XDP_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM:
+        NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM;
+        break;
+    case XDP_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305:
+        NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305;
+        break;
+    case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM:
+        NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM;
+        break;
+    default:
+        ASSERT(FALSE);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    switch (XdpConnection->AddressFamily) {
+    case XDP_QUIC_ADDRESS_FAMILY_INET4:
+        NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET4;
+        break;
+    case XDP_QUIC_ADDRESS_FAMILY_INET6:
+        NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET6;
+        break;
+    default:
+        ASSERT(FALSE);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    NdisConnection->UdpPort = XdpConnection->UdpPort;
+    NdisConnection->NextPacketNumber = XdpConnection->NextPacketNumber;
+    NdisConnection->ConnectionIdLength = XdpConnection->ConnectionIdLength;
+
+    C_ASSERT(sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address));
+    RtlCopyMemory(
+        NdisConnection->Address, XdpConnection->Address,
+        sizeof(XdpConnection->Address));
+
+    C_ASSERT(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId));
+    RtlCopyMemory(
+        NdisConnection->ConnectionId, XdpConnection->ConnectionId,
+        sizeof(XdpConnection->ConnectionId));
+
+    C_ASSERT(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey));
+    RtlCopyMemory(
+        NdisConnection->PayloadKey, XdpConnection->PayloadKey,
+        sizeof(XdpConnection->PayloadKey));
+
+    C_ASSERT(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey));
+    RtlCopyMemory(
+        NdisConnection->HeaderKey, XdpConnection->HeaderKey,
+        sizeof(XdpConnection->HeaderKey));
+
+    C_ASSERT(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv));
+    RtlCopyMemory(
+        NdisConnection->PayloadIv, XdpConnection->PayloadIv,
+        sizeof(XdpConnection->PayloadIv));
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    return Status;
+}
+
 NTSTATUS
 XdpLwfOffloadQeoSet(
     _In_ XDP_LWF_FILTER *Filter,
@@ -18,20 +136,12 @@ XdpLwfOffloadQeoSet(
     )
 {
     NTSTATUS Status;
-    BOOLEAN RundownAcquired = FALSE;
     const XDP_QUIC_CONNECTION *XdpQeoConnection;
     NDIS_QUIC_CONNECTION *NdisConnections = NULL;
     UINT32 NdisConnectionsSize;
     ULONG NdisBytesReturned;
 
     TraceEnter(TRACE_LWF, "Filter=%p OffloadContext=%p", Filter, OffloadContext);
-
-    if (!ExAcquireRundownProtection(&Filter->Offload.FilterRundown)) {
-        Status = STATUS_DELETE_PENDING;
-        goto Exit;
-    }
-
-    RundownAcquired = TRUE;
 
     if (XdpQeoParamsSize != sizeof(*XdpQeoParams) ||
         XdpQeoParams->ConnectionCount == 0 ||
@@ -73,107 +183,11 @@ XdpLwfOffloadQeoSet(
     for (UINT32 i = 0; i < XdpQeoParams->ConnectionCount; i++) {
         NDIS_QUIC_CONNECTION *NdisConnection = &NdisConnections[i];
 
-        switch (XdpQeoConnection->Operation) {
-        case XDP_QUIC_OPERATION_ADD:
-            NdisConnection->Operation = NDIS_QUIC_OPERATION_ADD;
-            break;
-        case XDP_QUIC_OPERATION_REMOVE:
-            NdisConnection->Operation = NDIS_QUIC_OPERATION_REMOVE;
-            break;
-        default:
-            ASSERT(FALSE);
-            Status = STATUS_INVALID_PARAMETER;
+        Status =
+            XdpLwfOffloadQeoConvertXdpToNdis(NdisConnection, XdpQeoConnection);
+        if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
-
-        switch (XdpQeoConnection->Direction) {
-        case XDP_QUIC_DIRECTION_TRANSMIT:
-            NdisConnection->Direction = NDIS_QUIC_DIRECTION_TRANSMIT;
-            break;
-        case XDP_QUIC_DIRECTION_RECEIVE:
-            NdisConnection->Direction = NDIS_QUIC_DIRECTION_RECEIVE;
-            break;
-        default:
-            ASSERT(FALSE);
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        switch (XdpQeoConnection->DecryptFailureAction) {
-        case XDP_QUIC_DECRYPT_FAILURE_ACTION_DROP:
-            NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_DROP;
-            break;
-        case XDP_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE:
-            NdisConnection->DecryptFailureAction = NDIS_QUIC_DECRYPT_FAILURE_ACTION_CONTINUE;
-            break;
-        default:
-            ASSERT(FALSE);
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        NdisConnection->KeyPhase = XdpQeoConnection->KeyPhase;
-
-        switch (XdpQeoConnection->CipherType) {
-        case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM:
-            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_GCM;
-            break;
-        case XDP_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM:
-            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_256_GCM;
-            break;
-        case XDP_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305:
-            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_CHACHA20_POLY1305;
-            break;
-        case XDP_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM:
-            NdisConnection->CipherType = NDIS_QUIC_CIPHER_TYPE_AEAD_AES_128_CCM;
-            break;
-        default:
-            ASSERT(FALSE);
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        switch (XdpQeoConnection->AddressFamily) {
-        case XDP_QUIC_ADDRESS_FAMILY_INET4:
-            NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET4;
-            break;
-        case XDP_QUIC_ADDRESS_FAMILY_INET6:
-            NdisConnection->AddressFamily = NDIS_QUIC_ADDRESS_FAMILY_INET6;
-            break;
-        default:
-            ASSERT(FALSE);
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        NdisConnection->UdpPort = XdpQeoConnection->UdpPort;
-        NdisConnection->NextPacketNumber = XdpQeoConnection->NextPacketNumber;
-        NdisConnection->ConnectionIdLength = XdpQeoConnection->ConnectionIdLength;
-
-        C_ASSERT(sizeof(NdisConnection->Address) >= sizeof(XdpQeoConnection->Address));
-        RtlCopyMemory(
-            NdisConnection->Address, XdpQeoConnection->Address,
-            sizeof(XdpQeoConnection->Address));
-
-        C_ASSERT(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpQeoConnection->ConnectionId));
-        RtlCopyMemory(
-            NdisConnection->ConnectionId, XdpQeoConnection->ConnectionId,
-            sizeof(XdpQeoConnection->ConnectionId));
-
-        C_ASSERT(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpQeoConnection->PayloadKey));
-        RtlCopyMemory(
-            NdisConnection->PayloadKey, XdpQeoConnection->PayloadKey,
-            sizeof(XdpQeoConnection->PayloadKey));
-
-        C_ASSERT(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpQeoConnection->HeaderKey));
-        RtlCopyMemory(
-            NdisConnection->HeaderKey, XdpQeoConnection->HeaderKey,
-            sizeof(XdpQeoConnection->HeaderKey));
-
-        C_ASSERT(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpQeoConnection->PayloadIv));
-        RtlCopyMemory(
-            NdisConnection->PayloadIv, XdpQeoConnection->PayloadIv,
-            sizeof(XdpQeoConnection->PayloadIv));
 
         NdisConnection->Status = NDIS_STATUS_PENDING;
 
@@ -225,7 +239,8 @@ XdpLwfOffloadQeoSet(
                 RTL_PTR_SUBTRACT(XdpQeoConnection, XdpQeoParams->Connections));
 
         XdpQeoConnectionResult->Status =
-            HRESULT_FROM_WIN32(RtlNtStatusToDosErrorNoTeb(NdisConnection->Status));
+            HRESULT_FROM_WIN32(RtlNtStatusToDosErrorNoTeb(XdpConvertNdisStatusToNtStatus(
+                NdisConnection->Status)));
 
         XdpQeoConnection = RTL_PTR_ADD(XdpQeoConnection, XdpQeoConnection->Header.Size);
     }
@@ -236,10 +251,6 @@ Exit:
 
     if (NdisConnections != NULL) {
         ExFreePoolWithTag(NdisConnections, POOLTAG_OFFLOAD);
-    }
-
-    if (RundownAcquired) {
-        ExReleaseRundownProtection(&Filter->Offload.FilterRundown);
     }
 
     TraceExitStatus(TRACE_LWF);

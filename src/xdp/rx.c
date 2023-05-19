@@ -81,7 +81,7 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
-    VOID *InterfaceOffloadHandle;
+    XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
 
     LIST_ENTRY NotifyClients;
 } XDP_RX_QUEUE;

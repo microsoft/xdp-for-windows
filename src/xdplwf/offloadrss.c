@@ -690,7 +690,6 @@ XdpLwfOffloadRssSetWorker(
         CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_RSS_SET, WorkItem);
     XDP_LWF_FILTER *Filter = WorkItem->Filter;
     XDP_OFFLOAD_PARAMS_RSS *RssParams = Request->RssParams;
-    BOOLEAN RundownAcquired = FALSE;
     ULONG *BitmapBuffer = NULL;
     XDP_LWF_OFFLOAD_SETTING_RSS *RssSetting = NULL;
     XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting = NULL;
@@ -701,17 +700,6 @@ XdpLwfOffloadRssSetWorker(
     XDP_LWF_GENERIC_INDIRECTION_STORAGE Indirection = {0};
 
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
-
-    if (!ExAcquireRundownProtection(&Filter->Offload.FilterRundown)) {
-        TraceError(
-            TRACE_LWF,
-            "OffloadContext=%p interface has been removed",
-            Request->OffloadContext);
-        Request->Status = STATUS_INVALID_DEVICE_STATE;
-        goto Exit;
-    }
-
-    RundownAcquired = TRUE;
 
     //
     // Determine the appropriate edge.
@@ -968,10 +956,6 @@ Exit:
 
     XdpGenericRssFreeIndirection(&Indirection);
 
-    if (RundownAcquired) {
-        ExReleaseRundownProtection(&Filter->Offload.FilterRundown);
-    }
-
     KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
 
     TraceExitSuccess(TRACE_LWF);
@@ -1201,11 +1185,10 @@ XdpLwfOffloadRssDeactivate(
     XDP_LWF_OFFLOAD_SETTING_RSS *OldRssSetting;
 
     //
-    // Restore the miniport's RSS settings to what the upper layers expect.
+    // All offload handles should be closed, and therefore the lower edge should
+    // already be cleaned up.
     //
-    if (Filter->Offload.LowerEdge.Rss != NULL) {
-        RemoveLowerEdgeRssSetting(Filter);
-    }
+    ASSERT(Filter->Offload.LowerEdge.Rss == NULL);
 
     //
     // Free the upper edge RSS settings.

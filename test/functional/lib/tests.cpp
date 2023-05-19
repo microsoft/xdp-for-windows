@@ -5943,11 +5943,11 @@ OffloadRssInterfaceRestart()
 
     UINT32 Size = RssConfigSize;
     TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_BAD_COMMAND),
+        HRESULT_FROM_WIN32(ERROR_NOT_READY),
         TryRssGet(InterfaceHandle.get(), RssConfig.get(), &Size));
 
     TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_BAD_COMMAND),
+        HRESULT_FROM_WIN32(ERROR_NOT_READY),
         TryRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize));
 
     InterfaceHandle.reset();

@@ -75,16 +75,6 @@ XDP_REMOVE_INTERFACE_COMPLETE(
     _In_ VOID *InterfaceContext
     );
 
-
-//
-// Completes an XDP interface set deletion.
-//
-typedef
-VOID
-XDP_DELETE_INTERFACE_SET_COMPLETE(
-    _In_ VOID *InterfaceContext
-    );
-
 //
 // Offload configuration.
 //
@@ -313,12 +303,11 @@ XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
     _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
-    _In_ XDP_DELETE_INTERFACE_SET_COMPLETE *DeleteInterfaceSetComplete,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     );
 
 //
-// Delete XDP interfaces.
+// Delete XDP interface set. The set must be empty.
 //
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID

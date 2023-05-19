@@ -135,6 +135,15 @@ XdpNativeDetachInterface(
         // Initiate core XDP cleanup and wait for completion.
         //
         XdpIfRemoveInterfaces(&Native->XdpIfInterfaceHandle, 1);
+    }
+}
+
+VOID
+XdpNativeWaitForDetachInterfaceComplete(
+    _In_ XDP_LWF_NATIVE *Native
+    )
+{
+    if (Native->XdpIfInterfaceHandle != NULL) {
         KeWaitForSingleObject(
             &Native->InterfaceRemovedEvent, Executive, KernelMode, FALSE, NULL);
         Native->XdpIfInterfaceHandle = NULL;

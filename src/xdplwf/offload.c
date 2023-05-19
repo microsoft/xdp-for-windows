@@ -75,7 +75,6 @@ XdpLwfConvertHookIdToOffloadEdge(
     }
 }
 
-
 static
 NTSTATUS
 XdpLwfOpenInterfaceOffloadHandle(
@@ -90,14 +89,6 @@ XdpLwfOpenInterfaceOffloadHandle(
 
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
-    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
-
-    if (Filter->Offload.Deactivated) {
-        TraceError(TRACE_LWF, "Filter=%p interface offload is deactivated", Filter);
-        Status = STATUS_INVALID_DEVICE_STATE;
-        goto Exit;
-    }
-
     OffloadContext =
         ExAllocatePoolZero(NonPagedPoolNx, sizeof(*OffloadContext), POOLTAG_OFFLOAD);
     if (OffloadContext == NULL) {
@@ -110,10 +101,10 @@ XdpLwfOpenInterfaceOffloadHandle(
 
     TraceVerbose(TRACE_LWF, "Filter=%p OffloadContext=%p Created", Filter, OffloadContext);
 
-    InsertTailList(&Filter->Offload.InterfaceOffloadHandleListHead, &OffloadContext->Link);
-    XdpLwfReferenceFilter(Filter);
     OffloadContext->Filter = Filter;
     OffloadContext->Edge = XdpLwfConvertHookIdToOffloadEdge(HookId);
+
+    XdpLwfReferenceFilter(Filter);
     *InterfaceOffloadHandle = OffloadContext;
     OffloadContext = NULL;
     Status = STATUS_SUCCESS;
@@ -123,8 +114,6 @@ Exit:
     if (OffloadContext != NULL) {
         ExFreePoolWithTag(OffloadContext, POOLTAG_OFFLOAD);
     }
-
-    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceExitStatus(TRACE_LWF);
 
@@ -147,10 +136,6 @@ XdpLwfCloseInterfaceOffloadHandle(
     //
 
     XdpLwfOffloadRssCloseInterfaceOffloadHandle(Filter, OffloadContext);
-
-    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
-    RemoveEntryList(&OffloadContext->Link);
-    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
 
     TraceVerbose(TRACE_LWF, "OffloadContext=%p Deleted", OffloadContext);
 
@@ -392,22 +377,6 @@ XdpLwfOffloadDeactivate(
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     //
-    // Prevent new offload handle creation.
-    //
-    RtlAcquirePushLockExclusive(&Filter->Offload.Lock);
-    Filter->Offload.Deactivated = TRUE;
-    //
-    // TODO: Tie offload handle validity to XDPIF interface set lifetime and
-    //       notify XDPIF interface set clients upon interface set deletion.
-    //
-    RtlReleasePushLockExclusive(&Filter->Offload.Lock);
-
-    //
-    // Prevent new offload requests and wait for outstanding requests to drain.
-    //
-    ExWaitForRundownProtectionRelease(&Filter->Offload.FilterRundown);
-
-    //
     // Clean up any state requiring the serialized work queue. If the queue
     // doesn't exist, then the offload module never started and there is nothing
     // to clean up.
@@ -417,20 +386,6 @@ XdpLwfOffloadDeactivate(
         XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadDeactivateWorker);
         KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
     }
-
-    TraceExitSuccess(TRACE_LWF);
-}
-
-VOID
-XdpLwfOffloadInitialize(
-    _In_ XDP_LWF_FILTER *Filter
-    )
-{
-    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
-
-    ExInitializePushLock(&Filter->Offload.Lock);
-    ExInitializeRundownProtection(&Filter->Offload.FilterRundown);
-    InitializeListHead(&Filter->Offload.InterfaceOffloadHandleListHead);
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -471,8 +426,6 @@ XdpLwfOffloadUnInitialize(
         XdpShutdownWorkQueue(Filter->Offload.WorkQueue, FALSE);
         Filter->Offload.WorkQueue = NULL;
     }
-
-    ASSERT(IsListEmpty(&Filter->Offload.InterfaceOffloadHandleListHead));
 
     TraceExitSuccess(TRACE_LWF);
 }

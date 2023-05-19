@@ -19,10 +19,12 @@
 #define XDP_POOLTAG_EBPF_NMR            'epdX' // Xdpe
 #define XDP_POOLTAG_EXTENSION           'EpdX' // XdpE
 #define XDP_POOLTAG_IF                  'IpdX' // XdpI
+#define XDP_POOLTAG_IF_OFFLOAD          'opdX' // Xdpo
 #define XDP_POOLTAG_IFSET               'ipdX' // Xdpi
 #define XDP_POOLTAG_INTERFACE           'fIdX' // XdIf
 #define XDP_POOLTAG_MAP                 'MpdX' // XdpM
 #define XDP_POOLTAG_NMR                 'NpdX' // XdpN
+#define XDP_POOLTAG_OFFLOAD_QEO         'QodX' // XdoQ
 #define XDP_POOLTAG_PROGRAM             'PpdX' // XdpP
 #define XDP_POOLTAG_PROGRAM_OBJECT      'OpdX' // XdpO
 #define XDP_POOLTAG_PROGRAM_BINDING     'bPdX' // XdPb
