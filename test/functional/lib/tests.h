@@ -206,3 +206,13 @@ GenericXskQueryAffinity();
 
 VOID
 OffloadQeoConnection();
+
+typedef enum _REVERT_REASON {
+    RevertReasonInterfaceRemoval,
+    RevertReasonHandleClosure,
+} REVERT_REASON;
+
+VOID
+OffloadQeoRevert(
+    _In_ REVERT_REASON RevertReason
+    );
