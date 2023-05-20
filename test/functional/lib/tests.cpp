@@ -6772,6 +6772,21 @@ OffloadQeoConnection()
             // status.
             //
             TEST_HRESULT(Connection.Status);
+
+            //
+            // Verify duplicate connections cannot be added, and non-existent
+            // entries cannot be removed.
+            //
+            if (Operation.Xdp == XDP_QUIC_OPERATION_ADD) {
+                TEST_EQUAL(
+                    HRESULT_FROM_WIN32(ERROR_OBJECT_ALREADY_EXISTS),
+                    TryQeoSet(InterfaceHandle.get(), &Connection, sizeof(Connection)));
+            } else {
+                ASSERT(Operation.Xdp == XDP_QUIC_OPERATION_REMOVE);
+                TEST_EQUAL(
+                    HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+                    TryQeoSet(InterfaceHandle.get(), &Connection, sizeof(Connection)));
+            }
         }}}}}
     }
 }

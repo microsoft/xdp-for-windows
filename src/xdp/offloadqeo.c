@@ -178,6 +178,11 @@ XdpIrpInterfaceOffloadQeoSet(
 
         switch (ConnectionsIn->Operation) {
         case XDP_QUIC_OPERATION_ADD:
+            if (XdpOffloadQeoFindOffloadedConnection(QeoSettings, ConnectionsIn)) {
+                Status = STATUS_DUPLICATE_OBJECTID;
+                goto Exit;
+            }
+
             OffloadConnection =
                 ExAllocatePoolZero(
                     NonPagedPoolNx, sizeof(*OffloadConnection), XDP_POOLTAG_OFFLOAD_QEO);
@@ -191,13 +196,6 @@ XdpIrpInterfaceOffloadQeoSet(
                 &OffloadConnection->Offload.Params, ConnectionsIn,
                 sizeof(OffloadConnection->Offload.Params));
             InsertTailList(&QeoParams.Connections, &OffloadConnection->Offload.TransactionEntry);
-
-            if (XdpOffloadQeoFindOffloadedConnection(
-                    QeoSettings, &OffloadConnection->Offload.Params)) {
-                Status = STATUS_DUPLICATE_OBJECTID;
-                goto Exit;
-            }
-
             InsertTailList(&QeoSettings->Connections, &OffloadConnection->Entry);
 
             break;
