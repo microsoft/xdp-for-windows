@@ -1286,8 +1286,6 @@ XdpIfDeleteInterfaceSet(
     RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
     //
-    // TODO: clean up offloads. requires:
-    //
     // 1. Prevent new IF object creation / new IOCTLs.
     // 2. Wait for all oustanding get/set operations to quiesce.
     // 3. Tear down each IF object: revert settings, close IF handle.
