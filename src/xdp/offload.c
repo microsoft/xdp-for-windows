@@ -465,14 +465,13 @@ XdpIrpInterfaceClose(
 {
     XDP_INTERFACE_OBJECT *InterfaceObject = IrpSp->FileObject->FsContext;
 
-    UNREFERENCED_PARAMETER(Irp);
-
     TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    UNREFERENCED_PARAMETER(Irp);
 
     ASSERT(InterfaceObject->IfSetHandle != NULL);
     ASSERT(InterfaceObject->InterfaceOffloadHandle != NULL);
 
-    // TODO: deref instead of close.
     XdpIfCloseInterfaceOffloadHandle(
         InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle);
     XdpIfDereferenceIfSet(InterfaceObject->IfSetHandle);

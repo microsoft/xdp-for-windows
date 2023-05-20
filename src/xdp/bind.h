@@ -140,6 +140,15 @@ XdpIfSetInterfaceOffload(
     _In_ UINT32 OffloadParamsSize
     );
 
+NTSTATUS
+XdpIfRevertInterfaceOffload(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    );
+
 //
 // The following routines must be invoked from the serialized work queue.
 //

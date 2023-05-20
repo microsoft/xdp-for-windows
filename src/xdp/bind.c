@@ -1022,6 +1022,51 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+XdpIfRevertInterfaceOffload(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    )
+{
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+    NTSTATUS Status;
+
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u IfSet=%p OffloadObject=%p",
+        IfSet->IfIndex, IfSet, OffloadObject);
+
+    //
+    // This routine is identical to XdpIfSetInterfaceOffload, except it can be
+    // called while the offload interface is being run down. It must not be
+    // invoked after the offload interface has been cleaned up. The gratuitous
+    // reference counts below assert this routine is invoked before clean up.
+    //
+
+    //
+    // The RTL reference count routine asserts the reference count did not
+    // bounce off zero.
+    //
+    XdpIncrementReferenceCount(&IfSet->OffloadReferenceCount);
+
+    Status =
+        IfSet->OffloadDispatch->SetInterfaceOffload(
+            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+
+    //
+    // Verify the caller implicitly held a reference on the offload for the
+    // duration of the downcall.
+    //
+    FRE_ASSERT(!XdpDecrementReferenceCount(&IfSet->OffloadReferenceCount));
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
 static
 VOID
 XdpIfpStartRundown(

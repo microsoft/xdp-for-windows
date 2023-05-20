@@ -113,12 +113,8 @@ XdpIrpInterfaceOffloadQeoSet(
     const XDP_QUIC_CONNECTION *ConnectionsIn = Irp->AssociatedIrp.SystemBuffer;
     UINT32 InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
     UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    BOOLEAN RundownAcquired = FALSE;
     BOOLEAN LockHeld = FALSE;
-    enum {
-        TransactionNone,
-        TransactionValidating,
-        TransactionValidated,
-    } TransactionState = TransactionNone;
 
     TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
@@ -134,9 +130,15 @@ XdpIrpInterfaceOffloadQeoSet(
         goto Exit;
     }
 
+    if (XdpIfAcquireOffloadRundown(InterfaceObject->IfSetHandle)) {
+        RundownAcquired = TRUE;
+    } else {
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
+
     RtlAcquirePushLockExclusive(&QeoSettings->Lock);
     LockHeld = TRUE;
-    TransactionState = TransactionValidating;
 
     while (InputBufferLength > 0) {
         XDP_OFFLOAD_QEO_CONNECTION *OffloadConnection = NULL;
@@ -237,7 +239,6 @@ XdpIrpInterfaceOffloadQeoSet(
         QeoParams.ConnectionCount++;
     }
 
-    TransactionState = TransactionValidated;
     RtlReleasePushLockExclusive(&QeoSettings->Lock);
     LockHeld = FALSE;
 
@@ -276,60 +277,27 @@ Exit:
 
         Connection->OutputResult = NULL;
 
-        switch (TransactionState) {
-        case TransactionValidating:
-            ASSERT(!NT_SUCCESS(Status));
-
-            switch (Connection->State) {
-            case XdpOffloadQeoAdding:
+        switch (Connection->State) {
+        case XdpOffloadQeoAdding:
+            if (NT_SUCCESS(Status) && SUCCEEDED(Connection->Offload.Params.Status)) {
+                Connection->State = XdpOffloadQeoAdded;
+            } else {
                 XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
+            }
 
-                break;
+            break;
 
-            case XdpOffloadQeoRemoving:
+        case XdpOffloadQeoRemoving:
+            if (NT_SUCCESS(Status) && SUCCEEDED(Connection->Offload.Params.Status)) {
+                XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
+            } else {
                 Connection->State = XdpOffloadQeoAdded;
                 Connection->Offload.Params.Operation = XDP_QUIC_OPERATION_ADD;
                 Connection->Offload.Params.Status = S_OK;
-
-                break;
-
-            default:
-                FRE_ASSERT(FALSE);
-                break;
             }
 
             break;
 
-        case TransactionValidated:
-            switch (Connection->State) {
-            case XdpOffloadQeoAdding:
-                if (NT_SUCCESS(Status) && SUCCEEDED(Connection->Offload.Params.Status)) {
-                    Connection->State = XdpOffloadQeoAdded;
-                } else {
-                    XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
-                }
-
-                break;
-
-            case XdpOffloadQeoRemoving:
-                if (NT_SUCCESS(Status) && SUCCEEDED(Connection->Offload.Params.Status)) {
-                    XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
-                } else {
-                    Connection->State = XdpOffloadQeoAdded;
-                    Connection->Offload.Params.Operation = XDP_QUIC_OPERATION_ADD;
-                    Connection->Offload.Params.Status = S_OK;
-                }
-
-                break;
-
-            default:
-                FRE_ASSERT(FALSE);
-                break;
-            }
-
-            break;
-
-        case TransactionNone:
         default:
             FRE_ASSERT(FALSE);
             break;
@@ -338,6 +306,10 @@ Exit:
 
     if (LockHeld) {
         RtlReleasePushLockExclusive(&QeoSettings->Lock);
+    }
+
+    if (RundownAcquired) {
+        XdpIfReleaseOffloadRundown(InterfaceObject->IfSetHandle);
     }
 
     if (NT_SUCCESS(Status)) {
@@ -366,59 +338,69 @@ XdpOffloadQeoRevertSettings(
 {
     XDP_OFFLOAD_QEO_SETTINGS *QeoSettings;
     LIST_ENTRY *Entry;
-    LIST_ENTRY TransactionConnections;
     NTSTATUS Status;
-
-    InitializeListHead(&TransactionConnections);
+    static const UINT32 BatchLimit = 10000;
 
     QeoSettings = &XdpIfGetOffloadIfSettings(IfSetHandle, InterfaceOffloadHandle)->Qeo;
 
     RtlAcquirePushLockExclusive(&QeoSettings->Lock);
 
-    Entry = QeoSettings->Connections.Flink;
+    while (!IsListEmpty(&QeoSettings->Connections)) {
+        XDP_OFFLOAD_PARAMS_QEO QeoParams = {0};
 
-    while (Entry != &QeoSettings->Connections) {
-        XDP_OFFLOAD_QEO_CONNECTION *Connection =
-            CONTAINING_RECORD(Entry, XDP_OFFLOAD_QEO_CONNECTION, Entry);
-        Entry = Entry->Flink;
+        InitializeListHead(&QeoParams.Connections);
+        QeoParams.ConnectionCount = 0;
 
-        FRE_ASSERT(Connection->State == XdpOffloadQeoAdded);
-        Connection->State = XdpOffloadQeoRemoving;
-        Connection->Offload.Params.Operation = XDP_QUIC_OPERATION_REMOVE;
-        Connection->Offload.Params.Status = HRESULT_FROM_WIN32(ERROR_IO_PENDING);
-        InsertTailList(&TransactionConnections, &Connection->Offload.TransactionEntry);
-    }
+        //
+        // Revert connections in batches to avoid creating excessively large
+        // OID requests. Arguably this logic belongs at the LWF layer, but it is
+        // simpler to perform here.
+        //
 
-    RtlReleasePushLockExclusive(&QeoSettings->Lock);
+        Entry = QeoSettings->Connections.Flink;
 
-    //
-    // TODO: attempt to deplumb the connection from the interface.
-    //
-    Status = STATUS_NOT_IMPLEMENTED;
+        while (Entry != &QeoSettings->Connections && QeoParams.ConnectionCount++ < BatchLimit) {
+            XDP_OFFLOAD_QEO_CONNECTION *Connection =
+                CONTAINING_RECORD(Entry, XDP_OFFLOAD_QEO_CONNECTION, Entry);
+            Entry = Entry->Flink;
 
-    RtlAcquirePushLockExclusive(&QeoSettings->Lock);
-
-    while (!IsListEmpty(&TransactionConnections)) {
-        Entry = RemoveHeadList(&TransactionConnections);
-        XDP_OFFLOAD_QEO_CONNECTION *Connection =
-            CONTAINING_RECORD(Entry, XDP_OFFLOAD_QEO_CONNECTION, Offload.TransactionEntry);
-
-        FRE_ASSERT(Connection->State == XdpOffloadQeoRemoving);
-
-        InitializeListHead(&Connection->Offload.TransactionEntry);
-
-        if (!NT_SUCCESS(Status) || FAILED(Connection->Offload.Params.Status)) {
-            TraceError(
-                TRACE_CORE,
-                "Failed to revert QEO connection from interface "
-                "IfSetHandle=%p InterfaceOffloadHandle=%p Status=%!STATUS! Connection.Status=%!HRESULT!",
-                IfSetHandle, InterfaceOffloadHandle, Status, Connection->Offload.Params.Status);
+            FRE_ASSERT(Connection->State == XdpOffloadQeoAdded);
+            Connection->State = XdpOffloadQeoRemoving;
+            Connection->Offload.Params.Operation = XDP_QUIC_OPERATION_REMOVE;
+            Connection->Offload.Params.Status = HRESULT_FROM_WIN32(ERROR_IO_PENDING);
+            InsertTailList(&QeoParams.Connections, &Connection->Offload.TransactionEntry);
         }
 
-        XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
-    }
+        RtlReleasePushLockExclusive(&QeoSettings->Lock);
 
-    FRE_ASSERT(IsListEmpty(&QeoSettings->Connections));
+        ASSERT(QeoParams.ConnectionCount > 0 && !IsListEmpty(&QeoParams.Connections));
+
+        Status =
+            XdpIfRevertInterfaceOffload(
+                IfSetHandle, InterfaceOffloadHandle, XdpOffloadQeo, &QeoParams, sizeof(QeoParams));
+
+        RtlAcquirePushLockExclusive(&QeoSettings->Lock);
+
+        while (!IsListEmpty(&QeoParams.Connections)) {
+            Entry = RemoveHeadList(&QeoParams.Connections);
+            XDP_OFFLOAD_QEO_CONNECTION *Connection =
+                CONTAINING_RECORD(Entry, XDP_OFFLOAD_QEO_CONNECTION, Offload.TransactionEntry);
+
+            FRE_ASSERT(Connection->State == XdpOffloadQeoRemoving);
+
+            InitializeListHead(&Connection->Offload.TransactionEntry);
+
+            if (!NT_SUCCESS(Status) || FAILED(Connection->Offload.Params.Status)) {
+                TraceError(
+                    TRACE_CORE,
+                    "Failed to revert QEO connection from interface "
+                    "IfSetHandle=%p InterfaceOffloadHandle=%p Status=%!STATUS! Connection.Status=%!HRESULT!",
+                    IfSetHandle, InterfaceOffloadHandle, Status, Connection->Offload.Params.Status);
+            }
+
+            XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
+        }
+    }
 
     RtlReleasePushLockExclusive(&QeoSettings->Lock);
 }
