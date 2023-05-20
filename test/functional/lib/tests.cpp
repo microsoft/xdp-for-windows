@@ -166,6 +166,12 @@ WaitForNdisDatapath(
     _In_ const TestInterface& If
     );
 
+static
+BOOLEAN
+TryWaitForNdisDatapath(
+    _In_ const TestInterface& If
+    );
+
 typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
 
 RTL_OSVERSIONINFOW
@@ -446,17 +452,32 @@ public:
         Ipv6Address->u.Byte[sizeof(*Ipv6Address) - 1]++;
     }
 
+    BOOLEAN
+    TryRestart(BOOLEAN WaitForUp = TRUE) const
+    {
+        CHAR CmdBuff[256];
+        INT ExitCode;
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
+        ExitCode = system(CmdBuff);
+
+        if (ExitCode != 0) {
+            TraceError("ExitCode=%u", ExitCode);
+            return FALSE;
+        }
+
+        if (WaitForUp && !TryWaitForNdisDatapath(*this)) {
+            TraceError("TryWaitForNdisDatapath=FALSE");
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
     VOID
     Restart(BOOLEAN WaitForUp = TRUE) const
     {
-        CHAR CmdBuff[256];
-        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
-        TEST_EQUAL(0, system(CmdBuff));
-
-        if (WaitForUp) {
-            WaitForNdisDatapath(*this);
-        }
+        TEST_TRUE(TryRestart(WaitForUp));
     }
 
     VOID
@@ -2052,8 +2073,8 @@ WaitForWfpQuarantine(
 }
 
 static
-VOID
-WaitForNdisDatapath(
+BOOLEAN
+TryWaitForNdisDatapath(
     _In_ const TestInterface& If
     )
 {
@@ -2087,8 +2108,26 @@ WaitForNdisDatapath(
         LwfUp = LwfIsDatapathActive(FnLwf);
     } while (Sleep(POLL_INTERVAL_MS), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
 
-    TEST_TRUE(AdapterUp);
-    TEST_TRUE(LwfUp);
+    if (!AdapterUp) {
+        TraceError("AdapterUp=FALSE");
+        return FALSE;
+    }
+
+    if (!LwfUp) {
+        TraceError("LwfUp=FALSE");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static
+VOID
+WaitForNdisDatapath(
+    _In_ const TestInterface& If
+    )
+{
+    TEST_TRUE(TryWaitForNdisDatapath(If));
 }
 
 static
@@ -6852,10 +6891,11 @@ OffloadQeoRevert(
         std::launch::async,
         [&] {
             if (RevertReason == RevertReasonInterfaceRemoval) {
-                If.Restart();
+                return If.TryRestart();
             } else {
                 ASSERT(RevertReason == RevertReasonHandleClosure);
                 InterfaceHandle.reset();
+                return (BOOLEAN)TRUE;
             }
         }
     );
@@ -6921,6 +6961,11 @@ OffloadQeoRevert(
     // Verify the revert/teardown is completed once the OID completes.
     //
     TEST_EQUAL(AsyncThread.wait_for(Timeout), std::future_status::ready);
+
+    //
+    // Verify the revert/teardown succeeded.
+    //
+    TEST_TRUE(AsyncThread.get());
 }
 
 /**
