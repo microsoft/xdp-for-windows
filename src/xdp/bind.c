@@ -87,7 +87,7 @@ typedef struct _XDP_INTERFACE_SET {
     //
     // This event is set once all offload downcalls are complete.
     //
-    KEVENT *OffloadSomethingEvent;
+    KEVENT *OffloadDowncallsComplete;
     LIST_ENTRY OffloadObjects;
     CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch;
     VOID *XdpIfInterfaceSetContext;
@@ -758,7 +758,7 @@ XdpIfpReleaseOffloadReference(
     )
 {
     if (XdpDecrementReferenceCount(&IfSet->OffloadReferenceCount)) {
-        KeSetEvent(IfSet->OffloadSomethingEvent, IO_NO_INCREMENT, FALSE);
+        KeSetEvent(IfSet->OffloadDowncallsComplete, IO_NO_INCREMENT, FALSE);
     }
 }
 
@@ -1267,7 +1267,7 @@ XdpIfDeleteInterfaceSet(
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)InterfaceSetHandle;
-    KEVENT OffloadSomethingEvent;
+    KEVENT OffloadDowncallsComplete;
 
     //
     // This function is invoked by an interface provider (e.g. XDP LWF)
@@ -1317,10 +1317,10 @@ XdpIfDeleteInterfaceSet(
     // Release initialize reference to offload interface and wait for all
     // offload downcalls to complete.
     //
-    KeInitializeEvent(&OffloadSomethingEvent, NotificationEvent, FALSE);
-    IfSet->OffloadSomethingEvent = &OffloadSomethingEvent;
+    KeInitializeEvent(&OffloadDowncallsComplete, NotificationEvent, FALSE);
+    IfSet->OffloadDowncallsComplete = &OffloadDowncallsComplete;
     XdpIfpReleaseOffloadReference(IfSet);
-    KeWaitForSingleObject(&OffloadSomethingEvent, Executive, KernelMode, FALSE, NULL);
+    KeWaitForSingleObject(&OffloadDowncallsComplete, Executive, KernelMode, FALSE, NULL);
 
     XdpIfpDereferenceIfSet(IfSet);
 }

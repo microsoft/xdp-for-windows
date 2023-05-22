@@ -329,10 +329,6 @@ XdpLwfFilterPreDetach(
         XdpGenericWaitForDetachInterfaceComplete(&Filter->Generic);
     }
 
-    //
-    // TODO: Review: is this necessary if all offload handles are guaranteed to
-    // be closed by the XDP interface manager?
-    //
     XdpLwfOffloadDeactivate(Filter);
 }
 

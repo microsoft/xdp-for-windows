@@ -130,6 +130,10 @@ XdpIrpInterfaceOffloadQeoSet(
         goto Exit;
     }
 
+    //
+    // Acquire an interface offload rundown reference to ensure offload cleanup
+    // waits until all QEO pre- and post-processing has completed.
+    //
     if (XdpIfAcquireOffloadRundown(InterfaceObject->IfSetHandle)) {
         RundownAcquired = TRUE;
     } else {
