@@ -280,3 +280,29 @@ FnMpOidGetRequest(
             Handle, IOCTL_OID_GET_REQUEST, &In, sizeof(In), InformationBuffer,
             *InformationBufferLength, InformationBufferLength, NULL);
 }
+
+HRESULT
+FnMpOidCompleteRequest(
+    _In_ HANDLE Handle,
+    _In_ OID_KEY Key,
+    _In_ NDIS_STATUS Status,
+    _In_opt_ const VOID *InformationBuffer,
+    _In_ UINT32 InformationBufferLength
+    )
+{
+    OID_COMPLETE_REQUEST_IN In = {0};
+
+    //
+    // Supports adapter handles only. Completes an OID request previously pended
+    // by the OID filter set via FnMpOidFilter. If the completion status is set
+    // to NDIS_STATUS_PENDING, then the information buffer parameter is ignored
+    // and the regular FNMP OID processing path is invoked.
+    //
+
+    In.Key = Key;
+    In.Status = Status;
+    In.InformationBuffer = InformationBuffer;
+    In.InformationBufferLength = InformationBufferLength;
+
+    return FnMpIoctl(Handle, IOCTL_OID_COMPLETE_REQUEST, &In, sizeof(In), NULL, 0, NULL, NULL);
+}

@@ -9,6 +9,7 @@
 #include <winioctl.h>
 #include <winternl.h>
 #include <ifdef.h>
+#include <xdpndisuser.h>
 #include <xdpfnmpapi.h>
 #include <xdpfnmpioctl.h>
 #include <xdprtl.h>

@@ -110,4 +110,13 @@ FnMpOidGetRequest(
     _Out_opt_ VOID *InformationBuffer
     );
 
+HRESULT
+FnMpOidCompleteRequest(
+    _In_ HANDLE Handle,
+    _In_ OID_KEY Key,
+    _In_ NDIS_STATUS Status,
+    _In_opt_ const VOID *InformationBuffer,
+    _In_ UINT32 InformationBufferLength
+    );
+
 EXTERN_C_END

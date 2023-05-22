@@ -216,3 +216,7 @@ VOID
 OffloadQeoRevert(
     _In_ REVERT_REASON RevertReason
     );
+
+VOID
+OffloadQeoOidFailure(
+    );

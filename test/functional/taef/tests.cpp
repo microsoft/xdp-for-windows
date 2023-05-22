@@ -495,4 +495,8 @@ public:
     TEST_METHOD(OffloadQeoRevertHandleClosure) {
         ::OffloadQeoRevert(RevertReasonHandleClosure);
     }
+
+    TEST_METHOD(OffloadQeoOidFailure) {
+        ::OffloadQeoOidFailure();
+    }
 };
