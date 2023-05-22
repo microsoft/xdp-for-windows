@@ -684,7 +684,6 @@ DriverEntry(
         //
         MChars.MajorNdisVersion = 6;
         MChars.MinorNdisVersion = 85;
-#ifdef FNDIS
     } else if (MpGlobalContext.NdisVersion >= NDIS_RUNTIME_VERSION_682) {
         //
         // RS5 / 17763 / Windows 1809 / Windows Server 2019 or higher.
@@ -697,7 +696,6 @@ DriverEntry(
         //
         MChars.MajorNdisVersion = 6;
         MChars.MinorNdisVersion = 60;
-#endif
     } else {
         Status = NDIS_STATUS_NOT_SUPPORTED;
         goto Exit;

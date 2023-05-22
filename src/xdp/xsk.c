@@ -3938,9 +3938,11 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_SHARE_UMEM:
         Status = XskSockoptShareUmem(Xsk, Sockopt, Irp->RequestorMode);
         break;
+#if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
         Status = XskSockoptSetPollMode(Xsk, Sockopt, Irp->RequestorMode);
         break;
+#endif // !defined(XDP_OFFICIAL_BUILD)
     default:
         Status = STATUS_NOT_SUPPORTED;
         break;
