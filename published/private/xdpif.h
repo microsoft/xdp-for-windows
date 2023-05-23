@@ -75,16 +75,6 @@ XDP_REMOVE_INTERFACE_COMPLETE(
     _In_ VOID *InterfaceContext
     );
 
-
-//
-// Completes an XDP interface set deletion.
-//
-typedef
-VOID
-XDP_DELETE_INTERFACE_SET_COMPLETE(
-    _In_ VOID *InterfaceContext
-    );
-
 //
 // Offload configuration.
 //
@@ -148,9 +138,13 @@ typedef struct _XDP_OFFLOAD_PARAMS_RSC {
     XDP_OFFLOAD_STATE Ipv6;
 } XDP_OFFLOAD_PARAMS_RSC;
 
+typedef struct _XDP_OFFLOAD_PARAMS_QEO_CONNECTION {
+    LIST_ENTRY TransactionEntry;
+    XDP_QUIC_CONNECTION Params;
+} XDP_OFFLOAD_PARAMS_QEO_CONNECTION;
+
 typedef struct _XDP_OFFLOAD_PARAMS_QEO {
-    const XDP_QUIC_CONNECTION *Connections;
-    UINT32 ConnectionsSize;
+    LIST_ENTRY Connections;
     UINT32 ConnectionCount;
 } XDP_OFFLOAD_PARAMS_QEO;
 
@@ -244,10 +238,7 @@ XDP_SET_INTERFACE_OFFLOAD(
     _In_ VOID *InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize,
-    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
-    _In_ UINT32 OffloadResultSize,
-    _Out_opt_ UINT32 *OffloadResultWritten
+    _In_ UINT32 OffloadParamsSize
     );
 
 //
@@ -313,12 +304,11 @@ XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
     _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
-    _In_ XDP_DELETE_INTERFACE_SET_COMPLETE *DeleteInterfaceSetComplete,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     );
 
 //
-// Delete XDP interfaces.
+// Delete XDP interface set. The set must be empty.
 //
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID

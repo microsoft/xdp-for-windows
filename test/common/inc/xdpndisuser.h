@@ -9,6 +9,12 @@
 extern "C" {
 #endif
 
+typedef _Return_type_success_(return >= 0) int NDIS_STATUS;
+
+#define NDIS_STATUS_SUCCESS                     ((NDIS_STATUS)STATUS_SUCCESS)
+#define NDIS_STATUS_PENDING                     ((NDIS_STATUS)STATUS_PENDING)
+#define NDIS_STATUS_FAILURE                     ((NDIS_STATUS)STATUS_UNSUCCESSFUL)
+
 #include <xdpfnoid.h>
 
 #pragma warning(push)

@@ -45,7 +45,7 @@ typedef struct _XDP_TX_QUEUE {
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
-    VOID *InterfaceOffloadHandle;
+    XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
 
     BOOLEAN DeleteNeeded;
     XDP_BINDING_WORKITEM DeleteWorkItem;

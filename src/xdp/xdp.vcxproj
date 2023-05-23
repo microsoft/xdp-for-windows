@@ -13,6 +13,7 @@
     <ClCompile Include="ebpfextension.c" />
     <ClCompile Include="extensionset.c" />
     <ClCompile Include="offload.c" />
+    <ClCompile Include="offloadqeo.c" />
     <ClCompile Include="program.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="redirect.c" />

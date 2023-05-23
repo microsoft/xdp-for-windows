@@ -487,4 +487,16 @@ public:
     TEST_METHOD(OffloadQeoConnection) {
         ::OffloadQeoConnection();
     }
+
+    TEST_METHOD(OffloadQeoRevertInterfaceRemoval) {
+        ::OffloadQeoRevert(RevertReasonInterfaceRemoval);
+    }
+
+    TEST_METHOD(OffloadQeoRevertHandleClosure) {
+        ::OffloadQeoRevert(RevertReasonHandleClosure);
+    }
+
+    TEST_METHOD(OffloadQeoOidFailure) {
+        ::OffloadQeoOidFailure();
+    }
 };

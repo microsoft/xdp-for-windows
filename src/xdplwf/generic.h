@@ -93,6 +93,11 @@ XdpGenericDetachInterface(
     );
 
 VOID
+XdpGenericWaitForDetachInterfaceComplete(
+    _In_ XDP_LWF_GENERIC *Generic
+    );
+
+VOID
 XdpGenericPause(
     _In_ XDP_LWF_GENERIC *Generic
     );

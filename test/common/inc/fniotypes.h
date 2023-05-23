@@ -129,5 +129,4 @@ typedef struct _OID_KEY {
     OID_REQUEST_INTERFACE RequestInterface;
 } OID_KEY;
 
-
 EXTERN_C_END

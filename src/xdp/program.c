@@ -2452,7 +2452,7 @@ XdpProgramAttach(
     }
 
     if (Item->BindToAllQueues) {
-        VOID *InterfaceOffloadHandle;
+        XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
         XDP_RSS_CAPABILITIES RssCapabilities;
         UINT32 RssCapabilitiesSize = sizeof(RssCapabilities);
         IfSetHandle = XdpIfFindAndReferenceIfSet(Item->IfIndex, &Item->HookId, 1, NULL);

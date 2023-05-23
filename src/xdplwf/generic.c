@@ -727,6 +727,15 @@ XdpGenericDetachInterface(
         // Initiate core XDP cleanup and wait for completion.
         //
         XdpIfRemoveInterfaces(&Generic->XdpIfInterfaceHandle, 1);
+    }
+}
+
+VOID
+XdpGenericWaitForDetachInterfaceComplete(
+    _In_ XDP_LWF_GENERIC *Generic
+    )
+{
+    if (Generic->XdpIfInterfaceHandle != NULL) {
         KeWaitForSingleObject(
             &Generic->InterfaceRemovedEvent, Executive, KernelMode, FALSE, NULL);
         Generic->XdpIfInterfaceHandle = NULL;

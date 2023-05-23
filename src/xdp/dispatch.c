@@ -200,6 +200,11 @@ XdpIrpDispatch(
 
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
 
+    //
+    // Ensure threads cannot be frozen by user mode within any driver routines.
+    //
+    KeEnterCriticalRegion();
+
     switch (IrpSp->MajorFunction) {
     case IRP_MJ_CREATE:
         Status = XdpIrpCreate(Irp, IrpSp);
@@ -216,6 +221,8 @@ XdpIrpDispatch(
     default:
         break;
     }
+
+    KeLeaveCriticalRegion();
 
     if (Status != STATUS_PENDING) {
         Irp->IoStatus.Status = Status;
@@ -245,6 +252,11 @@ XdpIrpDeviceIoControl(
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
     FileHeader = IrpSp->FileObject->FsContext;
 
+    //
+    // Ensure threads cannot be frozen by user mode within any driver routines.
+    //
+    KeEnterCriticalRegion();
+
     if (FileHeader != NULL) {
         if (FileHeader->Dispatch->IoControl != NULL) {
             Status = FileHeader->Dispatch->IoControl(Irp, IrpSp);
@@ -260,6 +272,8 @@ XdpIrpDeviceIoControl(
     }
 
 Exit:
+
+    KeLeaveCriticalRegion();
 
     if (Status != STATUS_PENDING) {
         Irp->IoStatus.Status = Status;

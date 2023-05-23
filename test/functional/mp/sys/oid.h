@@ -30,6 +30,14 @@ MpIrpOidGetRequest(
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+MpIrpOidCompleteRequest(
+    _In_ ADAPTER_CONTEXT *Adapter,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 MpOidClearFilterAndFlush(
     _In_ ADAPTER_CONTEXT *Adapter

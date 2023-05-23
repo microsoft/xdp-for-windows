@@ -70,11 +70,36 @@ typedef struct _XDP_INTERFACE_SET {
     LIST_ENTRY Link;
     NET_IFINDEX IfIndex;
     XDP_REFERENCE_COUNT ReferenceCount;
+    EX_PUSH_LOCK Lock;
+
+    //
+    // The offload rundown must be acquired to create new interface offload
+    // handles or invoke interface routines, except cleanup.
+    //
+    EX_RUNDOWN_REF OffloadRundown;
+
+    //
+    // The offload reference count must be held until all interface offload
+    // downcalls are complete, including cleanup.
+    //
+    XDP_REFERENCE_COUNT OffloadReferenceCount;
+
+    //
+    // This event is set once all offload downcalls are complete.
+    //
+    KEVENT *OffloadDowncallsComplete;
+    LIST_ENTRY OffloadObjects;
     CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch;
     VOID *XdpIfInterfaceSetContext;
-    XDP_DELETE_INTERFACE_SET_COMPLETE *XdpIfDeleteInterfaceSetComplete;
     XDP_INTERFACE *Interfaces[2];   // One interface for both generic and native.
 } XDP_INTERFACE_SET;
+
+typedef struct _XDP_IF_OFFLOAD_OBJECT {
+    XDP_REFERENCE_COUNT ReferenceCount;
+    LIST_ENTRY Entry;
+    VOID *InterfaceOffloadHandle;
+    XDP_OFFLOAD_IF_SETTINGS OffloadSettings;
+} XDP_IF_OFFLOAD_OBJECT;
 
 //
 // Latest version of the XDP driver API.
@@ -193,10 +218,7 @@ XdpIfpDereferenceIfSet(
     )
 {
     if (XdpDecrementReferenceCount(&IfSet->ReferenceCount)) {
-        IfSet->XdpIfDeleteInterfaceSetComplete(IfSet->XdpIfInterfaceSetContext);
-        TraceVerbose(
-            TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p Delete completed",
-            IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
+        TraceVerbose(TRACE_CORE, "IfIndex=%u IfSet=%p cleaned up", IfSet->IfIndex, IfSet);
         ExFreePoolWithTag(IfSet, XDP_POOLTAG_IFSET);
     }
 }
@@ -700,83 +722,349 @@ XdpIfGetCapabilities(
     return &Interface->Capabilities;
 }
 
-NTSTATUS
-XdpIfOpenInterfaceOffloadHandle(
-    _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ CONST XDP_HOOK_ID *HookId,
-    _Out_ VOID **InterfaceOffloadHandle
+BOOLEAN
+XdpIfAcquireOffloadRundown(
+    _In_ XDP_IFSET_HANDLE IfSetHandle
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
 
-    return
+    return ExAcquireRundownProtection(&IfSet->OffloadRundown);
+}
+
+VOID
+XdpIfReleaseOffloadRundown(
+    _In_ XDP_IFSET_HANDLE IfSetHandle
+    )
+{
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+
+    ExReleaseRundownProtection(&IfSet->OffloadRundown);
+}
+
+static
+VOID
+XdpIfpAcquireOffloadReference(
+    _In_ XDP_INTERFACE_SET *IfSet
+    )
+{
+    XdpIncrementReferenceCount(&IfSet->OffloadReferenceCount);
+}
+
+static
+VOID
+XdpIfpReleaseOffloadReference(
+    _In_ XDP_INTERFACE_SET *IfSet
+    )
+{
+    if (XdpDecrementReferenceCount(&IfSet->OffloadReferenceCount)) {
+        KeSetEvent(IfSet->OffloadDowncallsComplete, IO_NO_INCREMENT, FALSE);
+    }
+}
+
+static
+VOID
+XdpIfpReferenceInterfaceOffloadObject(
+    _In_ XDP_IF_OFFLOAD_OBJECT *OffloadObject
+    )
+{
+    XdpIncrementReferenceCount(&OffloadObject->ReferenceCount);
+}
+
+static
+VOID
+XdpIfpDereferenceInterfaceOffloadObject(
+    _In_ XDP_IF_OFFLOAD_OBJECT *OffloadObject
+    )
+{
+    if (XdpDecrementReferenceCount(&OffloadObject->ReferenceCount)) {
+        ExFreePoolWithTag(OffloadObject, XDP_POOLTAG_IF_OFFLOAD);
+    }
+}
+
+XDP_OFFLOAD_IF_SETTINGS *
+XdpIfGetOffloadIfSettings(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
+    )
+{
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+
+    UNREFERENCED_PARAMETER(IfSetHandle);
+
+    return &OffloadObject->OffloadSettings;
+}
+
+static
+VOID
+XdpIfpCleanupInterfaceOffloadObject(
+    _In_ XDP_INTERFACE_SET *IfSet,
+    _In_ XDP_IF_OFFLOAD_OBJECT *OffloadObject
+    )
+{
+    ASSERT(IsListEmpty(&OffloadObject->Entry));
+    ASSERT(OffloadObject->InterfaceOffloadHandle != NULL);
+
+    //
+    // We can be here in one of two cases, whichever comes first:
+    //
+    // 1. Interface removal, in which case the interface offload has been
+    //    run down and cleanup can safely proceed.
+    // 2. Interface handle closure, in which case cleanup can safely
+    //    proceed.
+    //
+
+    XdpOffloadRevertSettings((XDP_IFSET_HANDLE)IfSet, (XDP_IF_OFFLOAD_HANDLE)OffloadObject);
+
+    IfSet->OffloadDispatch->CloseInterfaceOffloadHandle(OffloadObject->InterfaceOffloadHandle);
+    OffloadObject->InterfaceOffloadHandle = NULL;
+    XdpIfpReleaseOffloadReference(IfSet);
+}
+
+NTSTATUS
+XdpIfOpenInterfaceOffloadHandle(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _Out_ XDP_IF_OFFLOAD_HANDLE *InterfaceOffloadHandle
+    )
+{
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = NULL;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "IfIndex=%u IfSet=%p", IfSet->IfIndex, IfSet);
+
+    OffloadObject =
+        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*OffloadObject), XDP_POOLTAG_IF_OFFLOAD);
+    if (OffloadObject == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    XdpInitializeReferenceCount(&OffloadObject->ReferenceCount);
+    InitializeListHead(&OffloadObject->Entry);
+    XdpOffloadInitializeIfSettings(&OffloadObject->OffloadSettings);
+
+    if (!ExAcquireRundownProtection(&IfSet->OffloadRundown)) {
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
+
+    Status =
         IfSet->OffloadDispatch->OpenInterfaceOffloadHandle(
-            IfSet->XdpIfInterfaceSetContext, HookId, InterfaceOffloadHandle);
+            IfSet->XdpIfInterfaceSetContext, HookId, &OffloadObject->InterfaceOffloadHandle);
+
+    if (NT_SUCCESS(Status)) {
+        *InterfaceOffloadHandle = (XDP_IF_OFFLOAD_HANDLE)OffloadObject;
+
+        XdpIfpAcquireOffloadReference(IfSet);
+
+        RtlAcquirePushLockExclusive(&IfSet->Lock);
+        InsertTailList(&IfSet->OffloadObjects, &OffloadObject->Entry);
+        RtlReleasePushLockExclusive(&IfSet->Lock);
+
+        TraceVerbose(
+            TRACE_CORE, "IfIndex=%u IfSet=%p created OffloadObject=%p InterfaceOffloadHandle=%p",
+            IfSet->IfIndex, IfSet, OffloadObject, OffloadObject->InterfaceOffloadHandle);
+    }
+
+    ExReleaseRundownProtection(&IfSet->OffloadRundown);
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (OffloadObject != NULL) {
+            XdpIfpDereferenceInterfaceOffloadObject(OffloadObject);
+        }
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID
 XdpIfCloseInterfaceOffloadHandle(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ VOID *InterfaceOffloadHandle
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+    BOOLEAN NeedCleanup = FALSE;
 
-    IfSet->OffloadDispatch->CloseInterfaceOffloadHandle(InterfaceOffloadHandle);
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u IfSet=%p OffloadObject=%p",
+        IfSet->IfIndex, IfSet, OffloadObject);
+
+    RtlAcquirePushLockExclusive(&IfSet->Lock);
+
+    if (!IsListEmpty(&OffloadObject->Entry)) {
+        RemoveEntryList(&OffloadObject->Entry);
+        InitializeListHead(&OffloadObject->Entry);
+        NeedCleanup = TRUE;
+    }
+
+    RtlReleasePushLockExclusive(&IfSet->Lock);
+
+    if (NeedCleanup) {
+        XdpIfpCleanupInterfaceOffloadObject(IfSet, OffloadObject);
+    }
+
+    XdpIfpDereferenceInterfaceOffloadObject(OffloadObject);
+
+    TraceExitSuccess(TRACE_CORE);
 }
 
 NTSTATUS
 XdpIfGetInterfaceOffloadCapabilities(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _Out_opt_ VOID *OffloadCapabilities,
     _Inout_ UINT32 *OffloadCapabilitiesSize
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+    NTSTATUS Status;
 
-    return
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u IfSet=%p OffloadObject=%p",
+        IfSet->IfIndex, IfSet, OffloadObject);
+
+    if (!ExAcquireRundownProtection(&IfSet->OffloadRundown)) {
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
+
+    Status =
         IfSet->OffloadDispatch->GetInterfaceOffloadCapabilities(
-            InterfaceOffloadHandle, OffloadType, OffloadCapabilities,
+            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadCapabilities,
             OffloadCapabilitiesSize);
+
+    ExReleaseRundownProtection(&IfSet->OffloadRundown);
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 NTSTATUS
 XdpIfGetInterfaceOffload(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _Out_opt_ VOID *OffloadParams,
     _Inout_ UINT32 *OffloadParamsSize
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+    NTSTATUS Status;
 
-    return
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u IfSet=%p OffloadObject=%p",
+        IfSet->IfIndex, IfSet, OffloadObject);
+
+    if (!ExAcquireRundownProtection(&IfSet->OffloadRundown)) {
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
+
+    Status =
         IfSet->OffloadDispatch->GetInterfaceOffload(
-            InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+
+    ExReleaseRundownProtection(&IfSet->OffloadRundown);
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 NTSTATUS
 XdpIfSetInterfaceOffload(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ VOID *InterfaceOffloadHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
     _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
     _In_ VOID *OffloadParams,
-    _In_ UINT32 OffloadParamsSize,
-    _Out_writes_bytes_opt_(*OffloadResultWritten) VOID *OffloadResult,
-    _In_ UINT32 OffloadResultSize,
-    _Out_opt_ UINT32 *OffloadResultWritten
+    _In_ UINT32 OffloadParamsSize
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+    NTSTATUS Status;
 
-    #pragma warning(suppress:6001) // Using uninitialized memory '*OffloadResultWritten'
-    return
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u IfSet=%p OffloadObject=%p",
+        IfSet->IfIndex, IfSet, OffloadObject);
+
+    if (!ExAcquireRundownProtection(&IfSet->OffloadRundown)) {
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
+
+    Status =
         IfSet->OffloadDispatch->SetInterfaceOffload(
-            InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize, OffloadResult,
-            OffloadResultSize, OffloadResultWritten);
+            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+
+    ExReleaseRundownProtection(&IfSet->OffloadRundown);
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+NTSTATUS
+XdpIfRevertInterfaceOffload(
+    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle,
+    _In_ XDP_INTERFACE_OFFLOAD_TYPE OffloadType,
+    _In_ VOID *OffloadParams,
+    _In_ UINT32 OffloadParamsSize
+    )
+{
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
+    XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+    NTSTATUS Status;
+
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u IfSet=%p OffloadObject=%p",
+        IfSet->IfIndex, IfSet, OffloadObject);
+
+    //
+    // This routine is identical to XdpIfSetInterfaceOffload, except it can be
+    // called while the offload interface is being run down. It must not be
+    // invoked after the offload interface has been cleaned up. The gratuitous
+    // reference counts below assert this routine is invoked before clean up.
+    //
+
+    //
+    // The RTL reference count routine asserts the reference count did not
+    // bounce off zero.
+    //
+    XdpIncrementReferenceCount(&IfSet->OffloadReferenceCount);
+
+    Status =
+        IfSet->OffloadDispatch->SetInterfaceOffload(
+            OffloadObject->InterfaceOffloadHandle, OffloadType, OffloadParams, OffloadParamsSize);
+
+    //
+    // Verify the caller implicitly held a reference on the offload for the
+    // duration of the downcall.
+    //
+    FRE_ASSERT(!XdpDecrementReferenceCount(&IfSet->OffloadReferenceCount));
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 static
@@ -916,7 +1204,6 @@ XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
     _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
-    _In_ XDP_DELETE_INTERFACE_SET_COMPLETE *DeleteInterfaceSetComplete,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     )
 {
@@ -949,17 +1236,20 @@ XdpIfCreateInterfaceSet(
     IfSet->IfIndex = IfIndex;
     IfSet->OffloadDispatch = OffloadDispatch;
     IfSet->XdpIfInterfaceSetContext = InterfaceSetContext;
-    IfSet->XdpIfDeleteInterfaceSetComplete = DeleteInterfaceSetComplete;
     XdpInitializeReferenceCount(&IfSet->ReferenceCount);
     InitializeListHead(&IfSet->Link);
+    ExInitializeRundownProtection(&IfSet->OffloadRundown);
+    XdpInitializeReferenceCount(&IfSet->OffloadReferenceCount);
+    ExInitializePushLock(&IfSet->Lock);
+    InitializeListHead(&IfSet->OffloadObjects);
     InsertTailList(&XdpInterfaceSets, &IfSet->Link);
 
     *InterfaceSetHandle = (XDPIF_INTERFACE_SET_HANDLE)IfSet;
     Status = STATUS_SUCCESS;
 
     TraceVerbose(
-        TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p Created",
-        IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
+        TRACE_CORE, "IfIndex=%u IfSet=%p XdpIfInterfaceSetContext=%p Created",
+        IfSet->IfIndex, IfSet, IfSet->XdpIfInterfaceSetContext);
 
 Exit:
 
@@ -977,6 +1267,7 @@ XdpIfDeleteInterfaceSet(
     )
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)InterfaceSetHandle;
+    KEVENT OffloadDowncallsComplete;
 
     //
     // This function is invoked by an interface provider (e.g. XDP LWF)
@@ -985,17 +1276,51 @@ XdpIfDeleteInterfaceSet(
 
     RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
 
-    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(IfSet->Interfaces); Index++) {
-        FRE_ASSERT(IfSet->Interfaces[Index] == NULL);
-    }
-
     TraceVerbose(
         TRACE_CORE, "IfIndex=%u XdpIfInterfaceSetContext=%p Deleted",
         IfSet->IfIndex, IfSet->XdpIfInterfaceSetContext);
 
     RemoveEntryList(&IfSet->Link);
+    InitializeListHead(&IfSet->Link);
 
     RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
+
+    //
+    // 1. Prevent new IF object creation / new IOCTLs.
+    // 2. Wait for all oustanding get/set operations to quiesce.
+    // 3. Tear down each IF object: revert settings, close IF handle.
+    //
+
+    ExWaitForRundownProtectionRelease(&IfSet->OffloadRundown);
+
+    RtlAcquirePushLockExclusive(&IfSet->Lock);
+
+    while (!IsListEmpty(&IfSet->OffloadObjects)) {
+        LIST_ENTRY *Entry = RemoveHeadList(&IfSet->OffloadObjects);
+        XDP_IF_OFFLOAD_OBJECT *OffloadObject =
+            CONTAINING_RECORD(Entry, XDP_IF_OFFLOAD_OBJECT, Entry);
+
+        InitializeListHead(&OffloadObject->Entry);
+        XdpIfpReferenceInterfaceOffloadObject(OffloadObject);
+
+        RtlReleasePushLockExclusive(&IfSet->Lock);
+
+        XdpIfpCleanupInterfaceOffloadObject(IfSet, OffloadObject);
+        XdpIfpDereferenceInterfaceOffloadObject(OffloadObject);
+
+        RtlAcquirePushLockExclusive(&IfSet->Lock);
+    }
+
+    RtlReleasePushLockExclusive(&IfSet->Lock);
+
+    //
+    // Release initialize reference to offload interface and wait for all
+    // offload downcalls to complete.
+    //
+    KeInitializeEvent(&OffloadDowncallsComplete, NotificationEvent, FALSE);
+    IfSet->OffloadDowncallsComplete = &OffloadDowncallsComplete;
+    XdpIfpReleaseOffloadReference(IfSet);
+    KeWaitForSingleObject(&OffloadDowncallsComplete, Executive, KernelMode, FALSE, NULL);
 
     XdpIfpDereferenceIfSet(IfSet);
 }
@@ -1124,6 +1449,14 @@ XdpIfRemoveInterfaces(
         TraceVerbose(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Removing",
             Interface->IfIndex, Interface->Capabilities.Mode);
+
+        RtlAcquirePushLockExclusive(&XdpInterfaceSetsLock);
+        //
+        // The caller must not remove interfaces after the interface set has
+        // been deleted.
+        //
+        FRE_ASSERT(!IsListEmpty(&Interface->IfSet->Link));
+        RtlReleasePushLockExclusive(&XdpInterfaceSetsLock);
 
         Interface->RemoveWorkItem.BindingHandle = (XDP_BINDING_HANDLE)Interface;
         Interface->RemoveWorkItem.WorkRoutine = XdpIfpRemoveXdpIfInterface;

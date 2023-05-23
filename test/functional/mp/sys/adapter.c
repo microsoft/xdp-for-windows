@@ -27,6 +27,10 @@ AdapterIrpDeviceIoControl(
         Status = MpIrpOidGetRequest(UserContext->Adapter, Irp, IrpSp);
         break;
 
+    case IOCTL_OID_COMPLETE_REQUEST:
+        Status = MpIrpOidCompleteRequest(UserContext->Adapter, Irp, IrpSp);
+        break;
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
