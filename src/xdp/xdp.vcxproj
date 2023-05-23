@@ -66,11 +66,6 @@
       </PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' != ''">
         XDP_BUILD_VERSION=$(BUILD_BUILDID);
-        XDP_BUILD_TYPE=official;
-        %(PreprocessorDefinitions)
-      </PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' == ''">
-        XDP_BUILD_TYPE=private;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
     </ResourceCompile>
@@ -142,11 +137,6 @@
       </PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' != ''">
         XDP_BUILD_VERSION=$(BUILD_BUILDID);
-        XDP_BUILD_TYPE=official;
-        %(PreprocessorDefinitions)
-      </PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(BUILD_BUILDID)' == ''">
-        XDP_BUILD_TYPE=private;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
