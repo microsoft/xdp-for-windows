@@ -134,6 +134,7 @@ XdpLwfOffloadQeoSet(
 {
     NTSTATUS Status;
     LIST_ENTRY *Entry;
+    NDIS_OID Oid;
     NDIS_QUIC_CONNECTION *NdisConnections = NULL;
     UINT32 NdisConnectionsSize;
     ULONG NdisBytesReturned;
@@ -190,16 +191,32 @@ XdpLwfOffloadQeoSet(
         NdisConnection->Status = NDIS_STATUS_PENDING;
     }
 
+    Oid = OID_QUIC_CONNECTION_ENCRYPTION;
+
+RetryWithPrototypeOid:
+
     Status =
         XdpLwfOidInternalRequest(
-            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_DIRECT, NdisRequestMethod,
-            OID_QUIC_CONNECTION_ENCRYPTION, NdisConnections, NdisConnectionsSize,
-            NdisConnectionsSize, 0, &NdisBytesReturned);
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_DIRECT, NdisRequestMethod, Oid,
+            NdisConnections, NdisConnectionsSize, NdisConnectionsSize, 0, &NdisBytesReturned);
     if (!NT_SUCCESS(Status)) {
+        if (NdisGetVersion() <= NDIS_RUNTIME_VERSION_688 &&
+            Status == NDIS_STATUS_NOT_SUPPORTED &&
+            Oid == OID_QUIC_CONNECTION_ENCRYPTION) {
+            //
+            // As a temporary workaround for a lack of support for the QEO OID
+            // in older versions of Windows, retry the request using a
+            // repurposed IPSec OID. This workaround should be removed as soon
+            // as possible.
+            //
+            Oid = OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE;
+            goto RetryWithPrototypeOid;
+        }
+
         TraceError(
             TRACE_LWF,
-            "OffloadContext=%p Failed OID_QUIC_CONNECTION_ENCRYPTION Status=%!STATUS!",
-            OffloadContext, Status);
+            "OffloadContext=%p Failed OID=%x Status=%!STATUS!",
+            OffloadContext, Oid, Status);
         goto Exit;
     }
 
