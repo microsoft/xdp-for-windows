@@ -44,6 +44,7 @@ CONST NDIS_OID MpSupportedOidArray[] =
     OID_TCP_OFFLOAD_PARAMETERS,
     OID_TCP_OFFLOAD_HW_PARAMETERS,
     OID_QUIC_CONNECTION_ENCRYPTION,
+    OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE,
 };
 
 CONST UINT32 MpSupportedOidArraySize = sizeof(MpSupportedOidArray);
@@ -532,6 +533,7 @@ MpProcessMethodOid(
 
     switch (Oid) {
     case OID_QUIC_CONNECTION_ENCRYPTION:
+    case OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE:
     {
         NDIS_QUIC_CONNECTION *Connection = DataBuffer;
 

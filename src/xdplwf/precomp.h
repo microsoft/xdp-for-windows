@@ -47,6 +47,12 @@
 #include <xdptrace.h>
 #include <xdpworkqueue.h>
 
+#ifndef NDIS_RUNTIME_VERSION_688
+#define NDIS_RUNTIME_VERSION_688 ((6 << 16) | 88)
+#else
+C_ASSERT(!"NDIS_RUNTIME_VERSION_688 has been publicly defined. Remove redundant definition.");
+#endif
+
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #include "filter.h"

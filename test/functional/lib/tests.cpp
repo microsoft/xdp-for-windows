@@ -6752,7 +6752,7 @@ OffloadQeoConnection()
             //
             OID_KEY Key;
             InitializeOidKey(
-                &Key, OID_QUIC_CONNECTION_ENCRYPTION, NdisRequestMethod,
+                &Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
                 OID_REQUEST_INTERFACE_DIRECT);
             MpOidFilter(AdapterMp, &Key, 1);
 
@@ -6916,7 +6916,8 @@ OffloadQeoRevert(
     //
     OID_KEY Key;
     InitializeOidKey(
-        &Key, OID_QUIC_CONNECTION_ENCRYPTION, NdisRequestMethod, OID_REQUEST_INTERFACE_DIRECT);
+        &Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        OID_REQUEST_INTERFACE_DIRECT);
     MpOidFilter(AdapterMp, &Key, 1);
 
     //
@@ -7050,7 +7051,8 @@ OffloadQeoOidFailure(
     //
     OID_KEY Key;
     InitializeOidKey(
-        &Key, OID_QUIC_CONNECTION_ENCRYPTION, NdisRequestMethod, OID_REQUEST_INTERFACE_DIRECT);
+        &Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        OID_REQUEST_INTERFACE_DIRECT);
     MpOidFilter(AdapterMp, &Key, 1);
 
     //
