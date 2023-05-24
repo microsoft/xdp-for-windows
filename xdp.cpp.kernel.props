@@ -5,7 +5,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)submodules\ndis-driver-library\src\include;
-        $(SolutionDir)submodules\quic-offloads\include;
+        $(SolutionDir)submodules\net-offloads\include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
