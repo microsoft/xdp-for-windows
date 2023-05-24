@@ -67,6 +67,8 @@ typedef struct _ADAPTER_RX_QUEUE {
     UINT32 BufferLength;
     UINT32 BufferMask;
     UINT32 DataLength;
+    UINT32 PatternLength;
+    CONST UCHAR *PatternBuffer;
     UINT32 RecycleIndex;
     UINT32 RxTxIndex;
 
@@ -189,6 +191,7 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RxDataLength;
     ULONG RxPatternLength;
     UCHAR RxPattern[128];
+    ULONG RxPatternCopy;
     XDPMP_RATE_SIM_WMI RateSim;
     FNDIS_NPI_CLIENT FndisClient;
     ADAPTER_POLL_PROVIDER PollProvider;

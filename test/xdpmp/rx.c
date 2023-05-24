@@ -240,6 +240,16 @@ MpReceiveUseXdpMultiFrameApi(
 
             HwRxDescriptor = HwRingConsPopElement(Rq->HwRing);
 
+            if (Rq->PatternLength > 0) {
+                //
+                // Reinitialize packet content. This is disabled by default, but
+                // needs to be enabled in scenarios where the upper protocol
+                // rewrites packets.
+                //
+                UCHAR *Pkt = Rq->BufferArray + *HwRxDescriptor;
+                RtlCopyMemory(Pkt, Rq->PatternBuffer, Rq->PatternLength);
+            }
+
             Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex++ & FrameRing->Mask);
 
             Frame->Buffer.DataLength = Rq->DataLength;
@@ -265,6 +275,17 @@ MpReceiveUseXdpMultiFrameApi(
     } else {
         while (FrameQuota-- > 0 && HwRingConsPeek(Rq->HwRing) > 0) {
             HwRxDescriptor = HwRingConsPopElement(Rq->HwRing);
+
+            if (Rq->PatternLength > 0) {
+                //
+                // Reinitialize packet content. This is disabled by default, but
+                // needs to be enabled in scenarios where the upper protocol
+                // rewrites packets.
+                //
+                UCHAR *Pkt = Rq->BufferArray + *HwRxDescriptor;
+                RtlCopyMemory(Pkt, Rq->PatternBuffer, Rq->PatternLength);
+            }
+
             MpNdisReceive(Rq, *HwRxDescriptor, 0, Rq->DataLength, NblChain);
         }
     }
@@ -420,6 +441,7 @@ MpInitializeReceiveQueue(
 {
     NDIS_STATUS Status;
     CONST ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
+    const UINT32 PatternLength = min(Adapter->RxDataLength, Adapter->RxPatternLength);
 
     TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
 
@@ -470,6 +492,9 @@ MpInitializeReceiveQueue(
         goto Exit;
     }
 
+    Rq->PatternBuffer = Adapter->RxPattern;
+    Rq->PatternLength = Adapter->RxPatternCopy ? PatternLength : 0;
+
     for (UINT32 i = 0; i < Rq->NumBuffers; i++) {
         UINT32 *Descriptor = HwRingGetElement(Rq->HwRing, i & Rq->HwRing->Mask);
         NET_BUFFER_LIST *NetBufferList;
@@ -518,9 +543,9 @@ MpInitializeReceiveQueue(
         //
         // Initialize packet content.
         //
-        for (UINT32 j = 0; j < min(Adapter->RxBufferLength, Adapter->RxPatternLength); j++) {
+        if (PatternLength > 0) {
             UCHAR *Pkt = Rq->BufferArray + *Descriptor;
-            Pkt[j] = Adapter->RxPattern[j];
+            RtlCopyMemory(Pkt, Rq->PatternBuffer, PatternLength);
         }
 
         MpReceiveRecycle(Rq, *Descriptor);

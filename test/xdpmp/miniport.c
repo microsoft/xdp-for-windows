@@ -16,6 +16,7 @@ NDIS_STRING RegNumRxBuffers = NDIS_STRING_CONST("NumRxBuffers");
 NDIS_STRING RegRxBufferLength = NDIS_STRING_CONST("RxBufferLength");
 NDIS_STRING RegRxDataLength = NDIS_STRING_CONST("RxDataLength");
 NDIS_STRING RegRxPattern = NDIS_STRING_CONST("RxPattern");
+NDIS_STRING RegRxPatternCopy = NDIS_STRING_CONST("RxPatternCopy");
 NDIS_STRING RegPollProvider = NDIS_STRING_CONST("PollProvider");
 
 PCSTR MpDriverFriendlyName = "XDPMP";
@@ -1024,6 +1025,10 @@ MpReadConfiguration(
             goto Exit;
         }
     }
+
+    Adapter->RxPatternCopy = 0;
+    TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxPatternCopy, &Adapter->RxPatternCopy);
+    Adapter->RxPatternCopy = !!Adapter->RxPatternCopy;
 
     Adapter->RateSim.IntervalUs = 1000;             // 1ms
     Adapter->RateSim.RxFramesPerInterval = 1000;    // 1Mpps

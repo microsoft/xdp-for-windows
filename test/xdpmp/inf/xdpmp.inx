@@ -119,6 +119,13 @@
  HKR, Ndi\Params\RxPattern,             LimitText,         0, "256"
  HKR, Ndi\Params\RxPattern,             Optional,          0, "1"
 
+; RxPatternCopy
+ HKR, Ndi\Params\RxPatternCopy,         ParamDesc,         0, "RxPatternCopy"
+ HKR, Ndi\Params\RxPatternCopy,         default,           0, "0"
+ HKR, Ndi\Params\RxPatternCopy,         type,              0, "enum"
+ HKR, Ndi\Params\RxPatternCopy\Enum,   "0",               0, %DISABLED_STR%
+ HKR, Ndi\Params\RxPatternCopy\Enum,   "1",               0, %ENABLED_STR%
+
 ; PollProvider
  HKR, Ndi\Params\PollProvider,          ParamDesc,         0, "PollProvider"
  HKR, Ndi\Params\PollProvider,          default,           0, "0"
