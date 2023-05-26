@@ -71,9 +71,9 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
 }
 
 $EbpfNugetVersion = "eBPF-for-Windows.0.9.0"
-$EbpfNugetBuild = ""
+$EbpfNugetBuild = "+5085436227"
 $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-$EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/download/v0.9.0/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+$EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
 $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
 # Flag that indicates something required a reboot.
