@@ -100,8 +100,6 @@ Processes can drop RX and TX traffic. This may lead to a denial of service.
 
 ### OS networking stack bypass
 
-> **Note** - Currently considered "out of scope" as the target scenario is currently server workloads that do not leverage the in-box firewall.
-
 The following OS components are bypassed by XDP:
 
 * Windows Firewall
@@ -117,6 +115,8 @@ The following OS components are bypassed by XDP:
   * PktMon
   * ndiscap
 * TDI filters (deprecated)
+
+> **Note** - Threats resulting as a bypass of the above components are considered "out of scope" as the target scenario is currently server workloads that do not leverage the in-box firewall.
 
 ### Filtering
 
