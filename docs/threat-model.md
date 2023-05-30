@@ -9,12 +9,12 @@ XDP consists of several components:
 1. The `xdp.sys` kernel mode driver. This driver interacts with other parts of the system through the following interfaces:
 
     * IOCTLs
-    * Memory mapped in shared user/kernel buffers
+    * Memory mapped in shared user-kernel buffers
     * NDIS lightweight filter (LWF) driver API
     * Function tables exchanged with XDP-aware kernel NIC drivers
     * Windows registry
     * Network Module Registrar (NMR)
-    * Miscellaneous kernel APIs (including `Ke*`, `Ex*`, `Rtl*`, `Mm*`, `Io*`, `Zw*`, DMA, and more APIs)
+    * Miscellaneous kernel APIs
 
 2. The `xdpapi.dll` user mode library. This library exports wrapper routines to provide a developer-friendly API. The library itself is stateless: it simply translates requests from its C export routines into the required formats to issue IOCTLs to the XDP driver. It relies on the XDP driver to perform all validation, enforce security constraints, etc.
 3. The `xdp.inf` and `xdp.cat` driver package files. These are digitally signed, non-executable files used to install and uninstall XDP.
@@ -31,7 +31,7 @@ These results actions may be taken directly while handling the IOCTL, or when sh
 
 In either case, securing the IOCTL interface is the first mitigation against threats. Today, XDP requires full administrator privileges to open any IOCTL handle to the driver.
 
-### Memory mapped in shared user/kernel buffers
+### Memory mapped in shared user-kernel buffers
 
 To optimize performance, XDP establishes shared memory buffers between user and kernel mode contexts. These shared buffers include `AF_XDP` packet descriptor rings, `AF_XDP` packet data buffers, and `XDP` program port filtering tables. The `AF_XDP` packet descriptor rings and `XDP` program port tables are provided by user mode and mapped into kernel memory by XDP, while `AF_XDP` descriptor rings are allocated by XDP and mapped into user virtual memory.
 
@@ -56,7 +56,9 @@ With a handful of narrow exceptions, all LWF actions are fully trusted by NDIS, 
 
 ### Function tables exchanged with XDP-aware kernel NIC drivers
 
-TODO
+The XDP driver can exchange function dispatch tables with NIC drivers, which allows NIC drivers and XDP to directly invoke each other's routines. We call this API surface Native XDP, and it is used both on the XDP control path and data path. The critical operations supported by this API are binding XDP to a native NIC driver, filtering RX packets (i.e., inspect and return one of: drop, modify, redirect, or forward) and injecting TX packets.
+
+Directly exchanging dispatch tables has performance and agility benefits (e.g., no intermediate OS components need to be updated for API revisions) but denies the OS visibility or control into any activities occurring via the dispatch tables.
 
 ### Windows registry
 
@@ -64,47 +66,57 @@ Some XDP behavior can be modified via registry settings, including adjusting or 
 
 ### Network Module Registrar (NMR)
 
-TODO
+NMR is used for the exchange of function dispatch tables between XDP and NIC drivers. NMR supports dynamic registration and deregistration of client and provider modules, allowing XDP and NIC drivers to start and stop without any ordering dependencies. As long as both XDP and a NIC driver is loaded, it is possible to exchange dispatch tables.
+
+Prior to using NMR to exchange dispatch tables, XDP sends an NDIS query OID to the NIC driver to determine whether it natively supports XDP, and if so, how to identify its NMR binding. This provides the OS or any intermediate NDIS drivers an opportunity to modify or reject the native XDP binding.
 
 ### Miscellaneous kernel APIs
 
-TODO
+As a Windows kernel driver, XDP uses a variety of APIs exposed by the Windows kernel. These include, but are not limited to: `Ke*`, `Ex*`, `Rtl*`, `Mm*`, `Io*`, `Zw*`, DMA (HAL). Many of these APIs can create attack surfaces if used incorrectly; however, as these are common kernel routines, this document does not exhaustively list their usage nor potential vulnerabilities.
 
 ## Networking threats
 
-TODO
+XDP allows user mode applications to inspect, drop, modify, redirect, forward, and inject raw packets at a very low layer of the Windows networking stack. This section focuses on the threats created by the XDP user space API. The threats listed below can also be combined.
 
 ### Spoofing TX Traffic
 
-TODO
+Processes can inject or modify packets containing headers and payload that are typically arbitrated by OS components. For example, a process can send packets using a TCP port owned by a different process, initiate or respond to ARP requests, and so on. This can cause a wide range of issues. Though modern networking protocols are designed to be resistant to such traffic, denial of service is possible at minimum.
+
+See also [shared user/kernel buffers](#memory-mapped-in-shared-user-kernel-buffers).
 
 ### Injecting RX Traffic
 
-TODO
+Processes can inject or modify packets containing headers and payload that may have been delivered via a trusted network interface. Some networks and network devices are configured to drop certain traffic prior to reaching endpoints; XDP allows such traffic to reach the OS networking stack. Though modern networking protocols are designed to be resistant to such traffic, denial of service is possible at minimum.
+
+See also [shared user/kernel buffers](#memory-mapped-in-shared-user-kernel-buffers).
 
 ### Stealing RX Traffic
 
-TODO
+Processes can redirect or forward RX traffic prior to it reaching the OS networking stack. This may lead to a denial of service of the original target, as well as access to the packet contents by the XDP process, which is normally arbitrated and denied by the OS networking stack.
 
-### Inspection or Drop of Traffic
+### Drop of Traffic
 
-TODO
-
-### Modifying RX Traffic
-
-TODO
+Processes can drop RX and TX traffic. This may lead to a denial of service.
 
 ### OS networking stack bypass
 
 > **Note** - Currently considered "out of scope" as the target scenario is currently server workloads that do not leverage the in-box firewall.
 
-* Firewall
+The following OS components are bypassed by XDP:
+
+* Windows Firewall
 * WFP (Windows Filtering Platform)
-* IPSNPI bypass
-* QoS bypass
-* Port and address pool bypass
+* IPSNPI
+* QoS
+* TCP, UDP, ICMP, IPv4, IPv6, ARP
+* Port and address pool
+* Windows raw sockets privilege checks and header-include validation
 * NDIS lightweight filtering (partial: LWFs below XDP are not bypassed)
-* Logging/observation bypass (partial: generic XDP does not bypass)
+* Logging/observability (partial: generic XDP does not fully bypass)
+  * Wireshark
+  * PktMon
+  * ndiscap
+* TDI filters (deprecated)
 
 ### Filtering
 
