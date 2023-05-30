@@ -24,7 +24,8 @@ netcfg.exe -l .\xdp.inf -c s -i ms_xdp
 Uninstall:
 ```PowerShell
 netcfg.exe -u ms_xdp
-pnputil.exe /delete-driver xdp.inf
+pnputil.exe /enum-drivers # Find the entry that has xdp.inf as the 'Original Name' and note down the corresponding 'Published Name'.
+pnputil.exe /delete-driver <Published Name>
 ```
 
 ## Logging
