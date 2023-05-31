@@ -103,6 +103,10 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>
+        /DEPENDENTLOADFLAG:0x800
+        %(AdditionalOptions)
+      </AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
