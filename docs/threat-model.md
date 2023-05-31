@@ -90,9 +90,9 @@ Processes can inject or modify packets containing headers and payload that may h
 
 See also [shared user/kernel buffers](#memory-mapped-in-shared-user-kernel-buffers).
 
-### Stealing RX Traffic
+### Stealing Traffic
 
-Processes can redirect or forward RX traffic prior to it reaching the OS networking stack. This may lead to a denial of service of the original target, as well as access to the packet contents by the XDP process, which is normally arbitrated and denied by the OS networking stack.
+Processes can redirect or forward RX and TX traffic prior to it reaching the OS networking stack. This may lead to a denial of service of the original target, as well as access to the packet contents by the XDP process, which is normally arbitrated and denied by the OS networking stack.
 
 ### Drop of Traffic
 
@@ -120,40 +120,36 @@ The following OS components are bypassed by XDP:
 
 ### Filtering
 
-XDP-for-Windows has built in logic to match and filter packets on the RX path. This logic may be augmented or replaced by eBPF programs in the future. Regardless, this functionality provides a unique set of threats.
+XDP includes logic to filter and perform actions on matching packets. This logic may be augmented or replaced by eBPF programs in the future. Regardless, this functionality provides a unique set of threats.
+
+The packet parsing code must handle all possible inputs gracefully, and must apply filter conditions without false positives or false negatives. Issue [#195](https://github.com/microsoft/xdp-for-windows/issues/195) tracks adding a fuzz tester for packet parsing code paths.
+
+Potential defects include access violations (including write violations for packet modification actions), infinite loops, and misclassified packets.
 
 ## Other threats
 
 ### XDP Offloads
 
-In addition to the normal datapath flows, XDP-for-Windows provides interfaces for the app to configure various offloads, such as RSS, with the goal of improving performance of the system.
+XDP provides interfaces for the app to configure various NIC offloads. These interfaces are capable of overriding the offload settings configured by OS components.
 
-#### Configuring RSS
+#### RSS
 
-TODO
+The RSS (receive side scaling) offload API allows applications to reconfigure the RSS offload on the NIC, including the CPU indirection table, hash functions, and hash key. If the hash key is modified, XDP clears the RSS hash value for each packet it passes on to the OS network stack, which contains the effect of the hash key change to only components lower than XDP in the NDIS stack.
 
-#### Plumbing QEO
+#### QEO
 
-TODO
+The QEO (QUIC encryption offload) API allows applications to configure QUIC connection offload policy on the NIC. The OS currently does not have any support for QUIC connection offload. This feature is experimental and QEO currently is not supported in the OS and the QEO specificiation does not provide a security model.
+
+There is currently no requirement that QEO isolate processes from each other, so packets offloading encryption and/or decryption to the NIC can be delivered to unrelated processes in plaintext and plaintext from unrelated processes can be encrypted and signed by the NIC.
+
+### CPU time consumption
+
+The XDP driver performs work on behalf of the user mode process, including potentially expensive data path work. This CPU time is usually not attributed to the requesting process, so process thread priorities and CPU quotas are not applied, and identifying the process that is causing CPU consumption within the XDP driver requires nontrivial steps.
 
 ### System memory consumption
 
-TODO
+XDP can consume a large amount of memory, and typically the memory is not pageable. In most cases, this memory consumption is not charged to the quota of the requesting process. In some cases it would be possible for XDP to more accurately charge quota, but since many kernel APIs for networking drivers do not support quota, it is impossible to close all gaps without additional support from the OS.
 
 ### Lockless programming
 
 XDP minimizes locking on the network data path, which complicates analysis and testing of race conditions. Additionally, NIC drivers that support native XDP are trusted to provide mutual exclusion on behalf of the XDP driver, so any synchronization defects in third party NIC drivers could be leveraged into XDP attack vectors.
-
-## TODO
-
-- Packet contents TOCTOU
-- Packet parsing (read violation, infinite loop, etc.)
-- Packet rewriting (write violation, information disclosure, etc.)
-- IOCTL surface
-- Memory mapping into process
-- Locked memory exhaustion (no quotas)
-- Elevation of thread priority?
-- WFP bypass, including Windows Firewall
-- QEO silent failure to encrypt or misdelivery of decrypted payload
-- Local DoS (drop packets, consume CPU, inject expensive packets, etc.)
-- Spoofing/repudiation
