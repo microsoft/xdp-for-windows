@@ -101,7 +101,7 @@ function Get-EbpfInstallPath {
 
 # Returns the eBPF MSI filename
 function Get-EbpfMsiFilename {
-    return "ebpf-for-windows.0.9.0.msi"
+    return "ebpf-for-windows.0.9.0+5122375852.msi"
 }
 
 # Returns the eBPF MSI full path
@@ -114,7 +114,7 @@ function Get-EbpfMsiFullPath {
 # Returns the eBPF MSI download URL
 function Get-EbpfMsiUrl {
     $EbpfMsiFilename = Get-EbpfMsiFilename
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/v0.9.0/$EbpfMsiFilename"
+    return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
 }
 
 # Refreshes the PATH environment variable.
