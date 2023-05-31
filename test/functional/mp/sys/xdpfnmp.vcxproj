@@ -91,6 +91,13 @@
       <WppRecorderEnabled>true</WppRecorderEnabled>
       <WppAdditionalOptions>-p:xdpfnmp</WppAdditionalOptions>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        ndis.lib;
+        netio.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="inf\xdpfnmp.inx">

@@ -85,7 +85,12 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>fndis.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>
+        fndis.lib;
+        ndis.lib;
+        netio.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

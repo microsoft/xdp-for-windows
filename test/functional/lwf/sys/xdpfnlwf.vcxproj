@@ -82,6 +82,12 @@
       <WppRecorderEnabled>true</WppRecorderEnabled>
       <WppAdditionalOptions>-p:xdpfnlwf</WppAdditionalOptions>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        ndis.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="inf\xdpfnlwf.inx">

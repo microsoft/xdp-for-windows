@@ -143,6 +143,16 @@
       <WppScanConfigurationData>$(SolutionDir)src\xdp\inc\xdptrace.h</WppScanConfigurationData>
       <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        msnetioid.lib;
+        ndis.lib;
+        netio.lib;
+        uuid.lib;
+        wdmsec.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="xdp.inx">

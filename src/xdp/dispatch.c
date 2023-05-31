@@ -31,6 +31,13 @@ static RTL_OSVERSIONINFOW XdpOsVersion;
 static WCHAR XdpParametersKeyStorage[256] = { 0 };
 CONST WCHAR *XDP_PARAMETERS_KEY = XdpParametersKeyStorage;
 
+static CONST GUID XdpDeviceClassGuid = { /* 28f93d3f-4c0a-4a7c-8ff1-96b24e19b856 */
+    0x28f93d3f,
+    0x4c0a,
+    0x4a7c,
+    {0x8f, 0xf1, 0x96, 0xb2, 0x4e, 0x19, 0xb8, 0x56}
+};
+
 DRIVER_OBJECT *XdpDriverObject;
 DEVICE_OBJECT *XdpDeviceObject;
 XDP_REG_WATCHER *XdpRegWatcher;
@@ -488,9 +495,10 @@ XdpStart(
     }
 
     Status =
-        IoCreateDevice(
+        IoCreateDeviceSecure(
             XdpDriverObject, 0, (PUNICODE_STRING)&DeviceName, FILE_DEVICE_NETWORK,
-            FILE_DEVICE_SECURE_OPEN, FALSE, &XdpDeviceObject);
+            FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL, &XdpDeviceClassGuid,
+            &XdpDeviceObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
