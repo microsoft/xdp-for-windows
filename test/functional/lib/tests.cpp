@@ -4225,12 +4225,6 @@ GenericRxEbpfAttach()
     unique_bpf_object BpfObjectReplacement;
     TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
 
-    //
-    // eBPF doesn't wait for the pass.sys driver to completely unload after
-    // tearing down the object, so allow some time for that to happen before
-    // retrying with the replace flag.
-    //
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
     BpfObjectReplacement =
         AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
