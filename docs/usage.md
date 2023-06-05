@@ -102,7 +102,7 @@ Access to XDP is restricted to `SYSTEM` and the built-in administrators group by
 xdpcfg.exe SetDeviceSddl "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-1626206346-3338949459-3778528156-1001)"
 ```
 
-The XDP driver must be restarted for these changes to take effect.
+The XDP driver must be restarted for these changes to take effect; the configuration is persistent across driver and machine restarts.
 
 ## AF_XDP
 
