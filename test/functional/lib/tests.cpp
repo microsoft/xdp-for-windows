@@ -25,6 +25,7 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <lm.h>
 
 #if _MSCVER < 1930
 //
@@ -608,11 +609,20 @@ OpenApi(
 }
 
 static
+HRESULT
+TryCreateSocket(
+    _Inout_ wil::unique_handle &Socket
+    )
+{
+    return XdpApi->XskCreate(&Socket);
+}
+
+static
 wil::unique_handle
 CreateSocket()
 {
     wil::unique_handle Socket;
-    TEST_HRESULT(XdpApi->XskCreate(&Socket));
+    TEST_HRESULT(TryCreateSocket(Socket));
     return Socket;
 }
 
@@ -4125,6 +4135,51 @@ GenericRxFromTxInspect(
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
+}
+
+VOID
+SecurityAdjustDeviceAcl()
+{
+    USER_INFO_1 UserInfo = {0};
+    PCWSTR UserName = L"xdpfnuser";
+    PCWSTR UserPassword = L"SecurityAdjustDeviceAcl!1"; // TODO: randomly generate?
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    TEST_EQUAL(NERR_Success, NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL));
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+    auto Unimpersonate = wil::scope_exit([&]
+    {
+        RevertToSelf();
+    });
+
+    wil::unique_handle Socket;
+    TEST_TRUE(FAILED(TryCreateSocket(Socket)));
 }
 
 static
