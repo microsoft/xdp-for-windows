@@ -94,6 +94,16 @@ a network interface. The XDP queue IDs are assigned [0, N-1] for an interface
 with N configured RSS queues. XDP programs and AF_XDP applications bind to RSS
 queues using this queue ID space.
 
+### XDP access control
+
+Access to XDP is restricted to `SYSTEM` and the built-in administrators group by default. The `xdpcfg.exe` tool can be used to add or remove privileges. For example, to grant access to `SYSTEM`, built-in administrators, and the user or group represented by the `S-1-5-21-1626206346-3338949459-3778528156-1001` SID:
+
+```PowerShell
+xdpcfg.exe SetDeviceSddl "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-1626206346-3338949459-3778528156-1001)"
+```
+
+The XDP driver must be restarted for these changes to take effect.
+
 ## AF_XDP
 
 AF_XDP is the API for redirecting traffic to a usermode application. To use the API,

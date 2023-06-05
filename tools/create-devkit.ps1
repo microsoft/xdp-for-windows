@@ -33,6 +33,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.inf" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.sys" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.cat" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdpapi.dll" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdpcfg.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xskbench.exe" $DstPath\bin
@@ -40,6 +41,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xskbench.exe" $DstPath\bin
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\xdp.pdb"   $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xdpapi.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xskbench.pdb" $DstPath\symbols

@@ -4,41 +4,47 @@
 //
 
 #include <windows.h>
-#include <sddl.h>
+#include <setupapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <xdpioctl.h>
+
+static
 VOID
 Usage(
     VOID
     )
 {
-    fprintf(stderr, "Usage: TODO\n");
+    fprintf(stderr,
+        "Usage: xdpcfg.exe <SetDeviceSddl> [OPTIONS ...]\n"
+        "\n"
+        "OPTIONS:\n"
+        "\n"
+        "    SetDeviceSddl <SDDL>\n");
     exit(EXIT_FAILURE);
 }
 
+static
 INT
-AddXdpSid(
-    INT ArgC,
-    WCHAR **ArgV
+SetDeviceSddl(
+    _In_ INT ArgC,
+    _In_ WCHAR **ArgV
     )
 {
-    SID Sid;
-    HANDLE CfgMutex = NULL;
 
     if (ArgC < 3) {
         Usage();
     }
 
-    if (!ConvertStringSidToSidW(ArgV[2], &Sid)) {
-        fprintf(stderr, "Invalid SID\n");
-        Usage();
+    if (!SetupDiSetClassRegistryPropertyW(
+        &XDP_DEVICE_CLASS_GUID, SPCRP_SECURITY_SDS, (BYTE *)ArgV[2],
+        wcslen(ArgV[2]) * sizeof(WCHAR) + sizeof(UNICODE_NULL), NULL, NULL)) {
+        fprintf(stderr, "SetupDiSetClassRegistryPropertyW failed: 0x%x\n", GetLastError());
+        return EXIT_FAILURE;
     }
 
-    //
-    // TODO: protect with a mutex? how do we secure the mutex?
-    //
-
+    return EXIT_SUCCESS;
 }
 
 INT
@@ -52,8 +58,8 @@ wmain(
         Usage();
     }
 
-    if (!_wcsicmp(ArgV[1], L"AddXdpSid")) {
-        return AddXdpSid(ArgC, ArgV);
+    if (!_wcsicmp(ArgV[1], L"SetDeviceSddl")) {
+        return SetDeviceSddl(ArgC, ArgV);
     } else {
         Usage();
     }
