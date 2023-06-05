@@ -4173,11 +4173,12 @@ CreateTestPassword(
 VOID
 SecurityAdjustDeviceAcl()
 {
-    USER_INFO_1 UserInfo = {0};
     PCWSTR UserName = L"xdpfnuser";
     WCHAR UserPassword[32 + 1];
+    USER_INFO_1 UserInfo = {0};
     SE_SID UserSid;
     SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
 
     CreateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
 
@@ -4214,7 +4215,14 @@ SecurityAdjustDeviceAcl()
     });
 
     wil::unique_handle Socket;
-    TEST_TRUE(FAILED(TryCreateSocket(Socket)));
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+        TryCreateSocket(Socket));
+
+    wil::unique_handle Interface;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+        TryInterfaceOpen(If.GetIfIndex(), Interface));
 }
 
 static
