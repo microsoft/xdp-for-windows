@@ -6,10 +6,11 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
+#define _CRT_RAND_S
+#include <cstdlib>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <future>
 #include <initializer_list>
 #include <memory>
@@ -4137,14 +4138,48 @@ GenericRxFromTxInspect(
     }
 }
 
+static
+VOID
+CreateTestPassword(
+    _Out_writes_z_(BufferCount) WCHAR *Buffer,
+    _In_ UINT32 BufferCount
+    )
+{
+    TEST_TRUE(BufferCount >= 4);
+    ASSERT(BufferCount >= 4);
+
+    //
+    // Terminate the string and attempt to satisfy complexity requirements with
+    // some hard-coded values.
+    //
+    Buffer[--BufferCount] = L'\0';
+    Buffer[--BufferCount] = L'A';
+    Buffer[--BufferCount] = L'b';
+    Buffer[--BufferCount] = L'#';
+
+    for (UINT32 i = 0; i < BufferCount; i++) {
+        static const WCHAR Characters[] =
+            L"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789";
+
+        unsigned int r;
+        rand_s(&r);
+
+        Buffer[i] = Characters[r % RTL_NUMBER_OF(Characters)];
+    }
+}
+
 VOID
 SecurityAdjustDeviceAcl()
 {
     USER_INFO_1 UserInfo = {0};
     PCWSTR UserName = L"xdpfnuser";
-    PCWSTR UserPassword = L"SecurityAdjustDeviceAcl!1"; // TODO: randomly generate?
+    WCHAR UserPassword[32 + 1];
     SE_SID UserSid;
     SID_NAME_USE UserSidUse;
+
+    CreateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
 
     UserInfo.usri1_name = (PWSTR)UserName;
     UserInfo.usri1_password = (PWSTR)UserPassword;
