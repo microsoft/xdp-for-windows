@@ -2299,6 +2299,8 @@ BindingTest(
                 Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
                 If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
+
+                TEST_TRUE(TryWaitForNdisDatapath(If));
             }
         }
 
@@ -2313,6 +2315,8 @@ BindingTest(
                 Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
                 If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
+
+                TEST_TRUE(TryWaitForNdisDatapath(If));
             }
 
             Socket.RxProgram.reset();
@@ -2333,7 +2337,6 @@ BindingTest(
 
     if (RestartAdapter) {
         WaitForWfpQuarantine(If);
-        WaitForNdisDatapath(If);
     }
 }
 
