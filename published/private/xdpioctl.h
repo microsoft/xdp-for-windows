@@ -17,6 +17,13 @@
 
 #define XDP_OPEN_PACKET_NAME "XdpOpenPacket000"
 
+CONST GUID DECLSPEC_SELECTANY XDP_DEVICE_CLASS_GUID = { /* 28f93d3f-4c0a-4a7c-8ff1-96b24e19b856 */
+    0x28f93d3f,
+    0x4c0a,
+    0x4a7c,
+    {0x8f, 0xf1, 0x96, 0xb2, 0x4e, 0x19, 0xb8, 0x56}
+};
+
 //
 // Type of XDP object to create or open.
 //

@@ -12,6 +12,8 @@
 #include <ntifs.h>
 #include <ntintsafe.h>
 #include <ndis.h>
+#include <wdmsec.h>
+
 //
 // The stdint.h header is included by eBPF headers, and stdint.h throws
 // warnings. Include it directly and suppress the warnings.

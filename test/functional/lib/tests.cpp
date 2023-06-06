@@ -6,10 +6,11 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
+#define _CRT_RAND_S
+#include <cstdlib>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <future>
 #include <initializer_list>
 #include <memory>
@@ -25,6 +26,8 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <lm.h>
+#include <sddl.h>
 
 #if _MSCVER < 1930
 //
@@ -72,6 +75,8 @@
 #define DEFAULT_UMEM_CHUNK_SIZE 4096
 #define DEFAULT_UMEM_HEADROOM 0
 #define DEFAULT_RING_SIZE (DEFAULT_UMEM_SIZE / DEFAULT_UMEM_CHUNK_SIZE)
+
+#define DEFAULT_XDP_SDDL "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
 
 static CONST XDP_HOOK_ID XdpInspectRxL2 =
 {
@@ -588,6 +593,38 @@ TryStopService(
 
 static
 HRESULT
+TryRestartService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+
+    Result = TryStopService(ServiceName);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    return TryStartService(ServiceName);
+}
+
+static
+VOID
+SetDeviceSddl(
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR CmdBuff[256];
+    CHAR Path[MAX_PATH];
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+
+    TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
+
+    sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
+    TEST_EQUAL(0, system(CmdBuff));
+}
+
+static
+HRESULT
 TryOpenApi(
     _Out_ unique_xdp_api &XdpApiTable,
     _In_ UINT32 Version = XDP_VERSION_PRERELEASE
@@ -608,11 +645,20 @@ OpenApi(
 }
 
 static
+HRESULT
+TryCreateSocket(
+    _Inout_ wil::unique_handle &Socket
+    )
+{
+    return XdpApi->XskCreate(&Socket);
+}
+
+static
 wil::unique_handle
 CreateSocket()
 {
     wil::unique_handle Socket;
-    TEST_HRESULT(XdpApi->XskCreate(&Socket));
+    TEST_HRESULT(TryCreateSocket(Socket));
     return Socket;
 }
 
@@ -4124,6 +4170,150 @@ GenericRxFromTxInspect(
                         XskDescriptorGetOffset(RxDesc->address),
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
+    }
+}
+
+static
+VOID
+GenerateTestPassword(
+    _Out_writes_z_(BufferCount) WCHAR *Buffer,
+    _In_ UINT32 BufferCount
+    )
+{
+    TEST_TRUE(BufferCount >= 4);
+    ASSERT(BufferCount >= 4);
+
+    //
+    // Terminate the string and attempt to satisfy complexity requirements with
+    // some hard-coded values.
+    //
+    Buffer[--BufferCount] = L'\0';
+    Buffer[--BufferCount] = L'A';
+    Buffer[--BufferCount] = L'b';
+    Buffer[--BufferCount] = L'#';
+
+    for (UINT32 i = 0; i < BufferCount; i++) {
+        static const WCHAR Characters[] =
+            L"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789";
+
+        unsigned int r;
+        rand_s(&r);
+
+        Buffer[i] = Characters[r % RTL_NUMBER_OF(Characters)];
+    }
+}
+
+VOID
+SecurityAdjustDeviceAcl()
+{
+    PCWSTR UserName = L"xdpfnuser";
+    WCHAR UserPassword[16 + 1];
+    USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
+
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    //
+    // As the non-admin user, verify XDP denies access to all handle types.
+    //
+    {
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        wil::unique_handle Socket;
+        TEST_EQUAL(
+            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+            TryCreateSocket(Socket));
+
+        wil::unique_handle Interface;
+        TEST_EQUAL(
+            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+            TryInterfaceOpen(If.GetIfIndex(), Interface));
+    }
+
+    //
+    // Grant the test's standard user access to XDP.
+    //
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
+
+    CHAR SddlBuff[256];
+    RtlZeroMemory(SddlBuff, sizeof(SddlBuff));
+    sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    SetDeviceSddl(SddlBuff);
+    auto ResetSddl = wil::scope_exit([&]
+    {
+        SetDeviceSddl(DEFAULT_XDP_SDDL);
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
+    });
+
+    TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
+    //
+    // As the non-admin user, verify XDP now grants access to all handle types.
+    //
+    {
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        CreateSocket();
+        InterfaceOpen(If.GetIfIndex());
     }
 }
 

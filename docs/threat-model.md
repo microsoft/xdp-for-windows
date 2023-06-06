@@ -29,7 +29,7 @@ When the XDP driver is started, it is in a passive state; it does not inspect, m
 
 These results actions may be taken directly while handling the IOCTL, or when shared objects created by the IOCTL are later modified. Several components within XDP, most notably `AF_XDP` sockets, establish shared buffers between
 
-In either case, securing the IOCTL interface is the first mitigation against threats. Today, XDP requires full administrator privileges to open any IOCTL handle to the driver.
+In either case, securing the IOCTL interface is the first mitigation against threats. By default, XDP requires full administrator privileges to open any IOCTL handle to the driver; administrators can grant XDP privileges to additional users as needed.
 
 ### Memory mapped in shared user-kernel buffers
 

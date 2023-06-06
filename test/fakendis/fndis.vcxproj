@@ -67,6 +67,10 @@
     </ClCompile>
     <Link>
       <ModuleDefinitionFile>fndis.def</ModuleDefinitionFile>
+      <AdditionalDependencies>
+        ndis.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

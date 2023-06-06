@@ -488,9 +488,10 @@ XdpStart(
     }
 
     Status =
-        IoCreateDevice(
+        IoCreateDeviceSecure(
             XdpDriverObject, 0, (PUNICODE_STRING)&DeviceName, FILE_DEVICE_NETWORK,
-            FILE_DEVICE_SECURE_OPEN, FALSE, &XdpDeviceObject);
+            FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL, &XDP_DEVICE_CLASS_GUID,
+            &XdpDeviceObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
