@@ -4175,7 +4175,7 @@ GenericRxFromTxInspect(
 
 static
 VOID
-CreateTestPassword(
+GenerateTestPassword(
     _Out_writes_z_(BufferCount) WCHAR *Buffer,
     _In_ UINT32 BufferCount
     )
@@ -4209,8 +4209,9 @@ VOID
 SecurityAdjustDeviceAcl()
 {
     PCWSTR UserName = L"xdpfnuser";
-    WCHAR UserPassword[32 + 1];
+    WCHAR UserPassword[16 + 1];
     USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
     SE_SID UserSid;
     SID_NAME_USE UserSidUse;
     auto If = FnMpIf;
@@ -4220,13 +4221,22 @@ SecurityAdjustDeviceAcl()
     // session for them.
     //
 
-    CreateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
     UserInfo.usri1_name = (PWSTR)UserName;
     UserInfo.usri1_password = (PWSTR)UserPassword;
     UserInfo.usri1_priv = USER_PRIV_USER;
     UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
 
-    TEST_EQUAL(NERR_Success, NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL));
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
     auto UserRemove = wil::scope_exit([&]
     {
         NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
