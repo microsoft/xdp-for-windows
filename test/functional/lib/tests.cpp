@@ -27,6 +27,7 @@
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 #include <lm.h>
+#include <sddl.h>
 
 #if _MSCVER < 1930
 //
@@ -74,6 +75,8 @@
 #define DEFAULT_UMEM_CHUNK_SIZE 4096
 #define DEFAULT_UMEM_HEADROOM 0
 #define DEFAULT_RING_SIZE (DEFAULT_UMEM_SIZE / DEFAULT_UMEM_CHUNK_SIZE)
+
+#define DEFAULT_XDP_SDDL "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
 
 static CONST XDP_HOOK_ID XdpInspectRxL2 =
 {
@@ -586,6 +589,38 @@ TryStopService(
     Result = (ServiceState == SERVICE_STOPPED) ? S_OK : E_FAIL;
     TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
     return Result;
+}
+
+static
+HRESULT
+TryRestartService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+
+    Result = TryStopService(ServiceName);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    return TryStartService(ServiceName);
+}
+
+static
+VOID
+SetDeviceSddl(
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR CmdBuff[256];
+    CHAR Path[MAX_PATH];
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+
+    TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
+
+    sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
+    TEST_EQUAL(0, system(CmdBuff));
 }
 
 static
@@ -4180,8 +4215,12 @@ SecurityAdjustDeviceAcl()
     SID_NAME_USE UserSidUse;
     auto If = FnMpIf;
 
-    CreateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
 
+    CreateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
     UserInfo.usri1_name = (PWSTR)UserName;
     UserInfo.usri1_password = (PWSTR)UserPassword;
     UserInfo.usri1_priv = USER_PRIV_USER;
@@ -4197,6 +4236,35 @@ SecurityAdjustDeviceAcl()
         }
     });
 
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    //
+    // As the non-admin user, verify XDP denies access to all handle types.
+    //
+    {
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        wil::unique_handle Socket;
+        TEST_EQUAL(
+            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+            TryCreateSocket(Socket));
+
+        wil::unique_handle Interface;
+        TEST_EQUAL(
+            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+            TryInterfaceOpen(If.GetIfIndex(), Interface));
+    }
+
+    //
+    // Grant the test's standard user access to XDP.
+    //
+
     DWORD SidSize = sizeof(UserSid);
     WCHAR Domain[256];
     DWORD DomainSize = RTL_NUMBER_OF(Domain);
@@ -4204,25 +4272,39 @@ SecurityAdjustDeviceAcl()
     TEST_TRUE(LookupAccountNameW(
         NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
 
-    wil::unique_handle Token;
-    TEST_TRUE(LogonUserW(
-        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
 
-    TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
-    auto Unimpersonate = wil::scope_exit([&]
+    CHAR SddlBuff[256];
+    RtlZeroMemory(SddlBuff, sizeof(SddlBuff));
+    sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    SetDeviceSddl(SddlBuff);
+    auto ResetSddl = wil::scope_exit([&]
     {
-        RevertToSelf();
+        SetDeviceSddl(DEFAULT_XDP_SDDL);
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
     });
 
-    wil::unique_handle Socket;
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
-        TryCreateSocket(Socket));
+    TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
 
-    wil::unique_handle Interface;
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
-        TryInterfaceOpen(If.GetIfIndex(), Interface));
+    //
+    // As the non-admin user, verify XDP now grants access to all handle types.
+    //
+    {
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        CreateSocket();
+        InterfaceOpen(If.GetIfIndex());
+    }
 }
 
 static

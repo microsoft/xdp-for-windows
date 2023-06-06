@@ -36,7 +36,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.inf" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.sys" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.cat" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdpapi.dll" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdpcfg.exe" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.exe" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\xdp.pdb"   $DstPath\symbols
@@ -44,9 +44,9 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpapi.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.pdb" $DstPath\symbols
 
 [xml]$XdpVersion = Get-Content $RootDir\xdp.props
-$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion[0]
+$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion[0]
+$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
 
 $VersionString = "$Major.$Minor.$Patch"
 
