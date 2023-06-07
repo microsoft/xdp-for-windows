@@ -77,10 +77,10 @@ jobs:
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 60 # minutes
+      fullRuntime: 120 # minutes
       fullIters: 10
       # For PRs
-      prRuntime: 5 # minutes
+      prRuntime: 15 # minutes
       prIters: 1
     strategy:
       fail-fast: false
