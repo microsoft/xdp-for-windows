@@ -60,10 +60,8 @@ $LiveKD = "C:\livekd64.exe"
 $KD = "C:\kd.exe"
 
 # File paths.
-$CodeSignCertPath = "$ArtifactsDir\CoreNetSignRoot.cer"
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
-$XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
@@ -80,16 +78,16 @@ $XdpFnLwfSys = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.sys"
 $XdpFnLwfInf = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.inf"
 $XdpFnLwfComponentId = "ms_xdpfnlwf"
 
-# Helper to reboot the machine
+# Helper to capture failure diagnostics and trigger CI agent reboot
 function Uninstall-Failure {
     Write-Host "Capturing live kernel dump"
 
     New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
     Write-Verbose "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
-    & $LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula
+    & $LiveKD -o $LogsDir\xdpuninstall.dmp -k $KD -ml -accepteula
 
     Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-    Write-Error "Preparing to reboot machine!"
+    Write-Error "Uninstall failed"
 }
 
 # Helper to start (with retry) a service.
@@ -503,7 +501,6 @@ function Uninstall-XdpFnLwf {
 
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiUrl = Get-EbpfMsiUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
 
@@ -536,8 +533,19 @@ function Uninstall-Ebpf {
     }
     Write-Verbose "Uninstalling eBPF for Windows"
     $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF for Windows'").IdentifyingNumber
-    Write-Verbose "msiexec.exe /x $InstallId /qn"
-    msiexec.exe /x $InstallId /qn | Write-Verbose
+
+    try {
+        Write-Verbose "msiexec.exe /x $InstallId /qn"
+        $Job = Start-Job -ScriptBlock { msiexec.exe /x $Using:InstallId /qn | Out-Null }
+
+        if (!(Wait-Job -Job $Job -Timeout 60)) {
+            Write-Host "eBPF failed to uninstall within 60 seconds"
+            Uninstall-Failure
+        }
+    } finally {
+        Remove-Job -Job $Job
+    }
+
     if (Test-Path $EbpfPath) {
         Write-Error "eBPF could not be uninstalled"
     }
