@@ -527,20 +527,35 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
+
     if (!(Test-Path $EbpfPath)) {
         Write-Verbose "$EbpfPath does not exist. Assuming eBPF is not installed."
         return
     }
+
     Write-Verbose "Uninstalling eBPF for Windows"
-    $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF for Windows'").IdentifyingNumber
 
     try {
-        Write-Verbose "msiexec.exe /x $InstallId /qn"
-        $Job = Start-Job -ScriptBlock { msiexec.exe /x $Using:InstallId /qn | Out-Null }
+        Write-Verbose "msiexec.exe /x $EbpfMsiFullPath /qn"
+        $Job = Start-Job -ScriptBlock {
+            msiexec.exe /x $Using:EbpfMsiFullPath /qn | Out-Null
+            return $LastExitCode
+        }
 
         if (!(Wait-Job -Job $Job -Timeout 60)) {
             Write-Host "eBPF failed to uninstall within 60 seconds"
             Uninstall-Failure
+        }
+
+        if (($Status = Receive-Job -Job $Job) -ne 0) {
+            if ($Status -eq 0x666) {
+                Write-Error "An unexpected version of eBPF could not be uninstalled"
+            } else {
+                Write-Error "MSI uninstall failed with status $Status" -ErrorAction:Continue
+                Uninstall-Failure
+            }
         }
     } finally {
         Remove-Job -Job $Job
