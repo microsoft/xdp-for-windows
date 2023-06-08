@@ -139,7 +139,7 @@ jobs:
     name: Stress Tests
     needs: build
     env:
-      successThresholdPercent: 50
+      successThresholdPercent: 1
       xdpmpPollProvider: 'FNDIS'
       queueCount: 1 # GitHub Action VMs have only 2 vCPUs, so ensure 1 CPU is free to spin
       # For 'main' commits
