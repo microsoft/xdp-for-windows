@@ -102,7 +102,7 @@ static CONST XDP_HOOK_ID XdpInspectTxL2 =
 //
 // The expected maximum time needed for a network adapter to restart.
 //
-#define MP_RESTART_TIMEOUT std::chrono::seconds(10)
+#define MP_RESTART_TIMEOUT std::chrono::seconds(15)
 
 //
 // Interval between polling attempts.
