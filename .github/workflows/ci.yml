@@ -179,12 +179,12 @@ jobs:
       if: ${{ github.event_name == 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.prTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.fullTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
       shell: pwsh
