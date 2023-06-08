@@ -363,10 +363,11 @@ XdpEcInitialize(
     Ec->Poll = Poll;
     Ec->PollContext = PollContext;
     Ec->IdealProcessor = IdealProcessor;
+    Ec->OwningProcessor = ReadUInt32NoFence(IdealProcessor);
     Ec->Armed = TRUE;
 
     KeInitializeDpc(&Ec->Dpc, XdpEcDpcThunk, Ec);
-    KeGetProcessorNumberFromIndex(*Ec->IdealProcessor, &ProcessorNumber);
+    KeGetProcessorNumberFromIndex(Ec->OwningProcessor, &ProcessorNumber);
     KeSetTargetProcessorDpcEx(&Ec->Dpc, &ProcessorNumber);
     KeInitializeEvent(&Ec->PassiveEvent, SynchronizationEvent, FALSE);
 
