@@ -558,7 +558,7 @@ function Uninstall-Ebpf {
             }
         }
     } finally {
-        Remove-Job -Job $Job
+        Remove-Job -Job $Job -Force
     }
 
     if (Test-Path $EbpfPath) {
