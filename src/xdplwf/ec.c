@@ -363,7 +363,7 @@ XdpEcInitialize(
     Ec->Poll = Poll;
     Ec->PollContext = PollContext;
     Ec->IdealProcessor = IdealProcessor;
-    Ec->OwningProcessor = ReadUInt32NoFence(IdealProcessor);
+    Ec->OwningProcessor = ReadULongNoFence(IdealProcessor);
     Ec->Armed = TRUE;
 
     KeInitializeDpc(&Ec->Dpc, XdpEcDpcThunk, Ec);
