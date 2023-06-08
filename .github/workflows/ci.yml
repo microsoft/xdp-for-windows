@@ -158,7 +158,7 @@ jobs:
     runs-on:
         [
         self-hosted,
-        "1ES.Pool=xdp-ci-functional-gh",
+        "1ES.Pool=xdp-ci-spinxsk-gh",
         "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
       ]
     steps:
