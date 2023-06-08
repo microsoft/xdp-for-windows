@@ -88,7 +88,12 @@ jobs:
         windows: [2019, 2022]
         configuration: [Release, Debug]
         platform: [x64]
-    runs-on: windows-${{ matrix.windows }}
+    runs-on:
+      - [
+          self-hosted,
+          "1ES.Pool=xdp-ci-functional-gh",
+          "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
+        ]
     steps:
     - name: Checkout repository
       uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
