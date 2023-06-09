@@ -111,7 +111,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
 
         if ($IterationTimeout -gt 0) {
             $Watchdog = Start-Job -ScriptBlock {
-                Start-Sleep -Minutes $Using:IterationTimeout
+                Start-Sleep -Seconds (60 * $Using:IterationTimeout)
 
                 . $Using:RootDir\tools\common.ps1
                 Collect-LiveKD -OutFile "$Using:LogsDir\$Using:LogName-livekd.dmp"
