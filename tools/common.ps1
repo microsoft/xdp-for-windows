@@ -125,7 +125,6 @@ function Refresh-Path {
     ) -match '.' -join ';'
 }
 
-
 function Collect-LiveKD {
     param (
         [Parameter()]
