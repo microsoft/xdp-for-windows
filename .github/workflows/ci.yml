@@ -89,11 +89,9 @@ jobs:
         configuration: [Release, Debug]
         platform: [x64]
     runs-on:
-      [
-        self-hosted,
-        "1ES.Pool=xdp-ci-functional-gh",
-        "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
-      ]
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
       uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
@@ -141,7 +139,6 @@ jobs:
     env:
       successThresholdPercent: 1
       xdpmpPollProvider: 'FNDIS'
-      queueCount: 1 # GitHub Action VMs have only 2 vCPUs, so ensure 1 CPU is free to spin
       # For 'main' commits
       fullRuntime: 60 # minutes
       fullTimeout: 65 # minutes
@@ -156,11 +153,9 @@ jobs:
         platform: [x64]
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
-        [
-        self-hosted,
-        "1ES.Pool=xdp-ci-spinxsk-gh",
-        "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
-      ]
+     - self-hosted
+     - "1ES.Pool=xdp-ci-spinxsk-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
       uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
@@ -179,12 +174,12 @@ jobs:
       if: ${{ github.event_name == 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.prTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.fullTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
       shell: pwsh
