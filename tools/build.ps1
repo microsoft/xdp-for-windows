@@ -71,3 +71,11 @@ if ($DevKit) {
 if ($RuntimeKit) {
     tools/create-runtime-kit.ps1 -Config $Config
 }
+
+msbuild.exe xdp.sln /target:xdpinstaller:Rebuild `
+    /p:Configuration=Installer-$Config `
+    /p:Platform=$Platform
+if (!$?) {
+    Write-Verbose "Building the XDP installer failed: $LastExitCode"
+    return
+}

@@ -5,17 +5,6 @@ ClassGUID       = {4D36E974-E325-11CE-BFC1-08002BE10318}
 Provider        = %Msft%
 PnpLockdown     = 1
 
-[DestinationDirs]
-Drivers_Dir = %DIRID_DRIVERS%
-System_Dir = %DIRID_SYSTEM%
-
-[SourceDisksFiles]
-xdp.sys = 1
-xdpapi.dll = 1
-
-[SourceDisksNames]
-1 = disk
-
 [Manufacturer]
 %Msft% = MSFT,NT$ARCH$
 
@@ -25,15 +14,7 @@ xdpapi.dll = 1
 [Install]
 Characteristics     = %NCF_LW_FILTER%
 NetCfgInstanceId    = "{c0be1ebc-74b8-4ba9-8c1e-ecd227e2be3b}"
-CopyFiles           = Drivers_Dir
-CopyFiles           = System_Dir
 AddReg              = XDP.NDI
-
-[Drivers_Dir]
-xdp.sys
-
-[System_Dir]
-xdpapi.dll
 
 [XDP.NDI]
 HKR, Ndi, Service,, "xdp"
@@ -56,27 +37,6 @@ StartType       = 1 ;SERVICE_SYSTEM_START
 ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
 ServiceBinary   = %12%\xdp.sys ; %DIRID_DRIVERS%\xdp.sys
 LoadOrderGroup  = NDIS
-AddReg          = AddServiceReg
-
-[AddServiceReg]
-; Enable circular log buffer at verbose level during development.
-HKR, "Parameters", "VerboseOn", %REG_DWORD%, 1
-HKR, "Parameters", "LogPages", %REG_DWORD%, 64
-
-; Register ETW provider
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic","OwningPublisher",0x0,"{580bbdea-b364-4369-b291-d3539e35d20b}"
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic","Enabled",%REG_DWORD%,0
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic","Isolation",%REG_DWORD%,1
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic","ChannelAccess",0x0,"O:BAG:SYD:(A;;0xf0007;;;SY)(A;;0x7;;;BA)(A;;0x3;;;BO)(A;;0x5;;;SO)(A;;0x1;;;IU)(A;;0x3;;;SU)(A;;0x1;;;S-1-5-3)(A;;0x2;;;S-1-5-33)(A;;0x1;;;S-1-5-32-573)"
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic","Type",%REG_DWORD%,2
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}",,0x0,"Microsoft-XDP"
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","Enabled",%REG_DWORD%,1
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences\0",,0x0,"Microsoft-XDP/Diagnostic"
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences\0","Id",%REG_DWORD%,0x00000010
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences\0","Flags",%REG_DWORD%,0
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences",Count,%REG_DWORD%,1
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","ResourceFileName",%REG_EXPAND_SZ%,"%%SystemRoot%%\system32\drivers\xdp.sys"
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","MessageFileName",%REG_EXPAND_SZ%,"%%SystemRoot%%\system32\drivers\xdp.sys"
 
 [Install.Remove.Services]
 DelService = xdp, %SPSVCINST_STOPSERVICE%
@@ -88,12 +48,10 @@ Xdp                 = "XDP"
 XdpDescription      = "Microsoft XDP Platform Driver"
 
 ; non-localizable strings
-DIRID_SYSTEM                = 11
 DIRID_DRIVERS               = 12
 FILTER_RUN_TYPE_OPTIONAL    = 2
 FILTER_TYPE_MODIFYING       = 2
 NCF_LW_FILTER               = 0x40000
 REG_MULTI_SZ                = 0x10000
 REG_DWORD                   = 0x10001
-REG_EXPAND_SZ               = 0x20000
 SPSVCINST_STOPSERVICE       = 0x200
