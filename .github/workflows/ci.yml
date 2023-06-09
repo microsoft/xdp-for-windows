@@ -195,6 +195,53 @@ jobs:
       shell: pwsh
       run: tools/check-drivers.ps1 -Verbose
 
+  perf_tests:
+    name: Perf Tests
+    needs: build
+    env:
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022]
+        configuration: [Release]
+        platform: [x64]
+    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-perf-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+    - name: Check Drivers
+      shell: pwsh
+      run: tools/check-drivers.ps1 -Verbose
+    - name: Prepare Machine
+      shell: pwsh
+      run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run spinxsk (PR)
+      shell: pwsh
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs"
+    - name: Convert Logs
+      if: ${{ always() }}
+      shell: pwsh
+      run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: ${{ always() }}
+      with:
+        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: pwsh
+      run: tools/check-drivers.ps1 -Verbose
+
   devkit:
     name: Dev Kit
     needs: build

@@ -132,74 +132,100 @@ if ($DeepInspection) {
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 
-$Format = "{0,-73} {1,-14} {2,-14}"
-Write-Host $($Format -f "Test Case", "Avg (Kpps)", "Std Dev (Kpps)")
-foreach ($AdapterName in $AdapterNames) {
-    foreach ($XdpMode in $XdpModes) {
-        foreach ($Mode in $Modes) {
-            foreach ($WaitMode in $WaitModes) {
-                foreach ($IoBufferPair in $IoBufferPairs) {
-                    $kppsList = @()
+try {
+    if ($AdapterNames.Contains("XDPMP")) {
+        if ($Fndis) {
+            Write-Verbose "installing fndis..."
+            & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
+            Write-Verbose "installed fndis."
+        }
 
-                    $WaitMode = $WaitMode.ToUpper()
-                    $Wait = $WaitMode -eq "WAIT"
-                    $Options = ""
-                    $XperfFile = $null
+        Write-Verbose "installing xdpmp..."
+        & "$RootDir\tools\setup.ps1" -Install xdpmp -Config $Config -Arch $Arch
+        Write-Verbose "installed xdpmp."
+    }
 
-                    if ($RxInject) {
-                        $Options += "-RXINJECT"
-                    }
-                    if ($TxInspect) {
-                        $Options += "-TXINSPECT"
-                    }
-                    if ($Fndis) {
-                        $Options += "-FNDIS"
-                    }
+    Write-Verbose "installing xdp..."
+    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf:$EnableEbpf
+    Write-Verbose "installed xdp."
 
-                    $ScenarioName = `
-                        $AdapterName `
-                        + "-" + $XdpMode.ToUpper() `
-                        + "-" + $Mode `
-                        + "-" + $WaitMode `
-                        + "-" + $IoBufferPair.ChunkSize + "chunksize" `
-                        + "-" + $IoBufferPair.IoSize + "iosize" `
-                        + $Options
+    $Format = "{0,-73} {1,-14} {2,-14}"
+    Write-Host $($Format -f "Test Case", "Avg (Kpps)", "Std Dev (Kpps)")
+    foreach ($AdapterName in $AdapterNames) {
+        foreach ($XdpMode in $XdpModes) {
+            foreach ($Mode in $Modes) {
+                foreach ($WaitMode in $WaitModes) {
+                    foreach ($IoBufferPair in $IoBufferPairs) {
+                        $kppsList = @()
 
-                    if (-not [string]::IsNullOrEmpty($XperfDirectory)) {
-                        New-Item -ItemType "directory" -Path $XperfDirectory -Force | Out-Null
-                        $XperfFile = "$XperfDirectory\$ScenarioName.etl"
-                    }
+                        $WaitMode = $WaitMode.ToUpper()
+                        $Wait = $WaitMode -eq "WAIT"
+                        $Options = ""
+                        $XperfFile = $null
 
-                    try {
-                        for ($i = 0; $i -lt $Iterations; $i++) {
-                            $TmpFile = [System.IO.Path]::GetTempFileName()
-                            & $RootDir\tools\xskperf.ps1 `
-                                -AdapterName $AdapterName -Mode $Mode `
-                                -BufferSize $IoBufferPair.ChunkSize -BufferCount $XskNumBuffers `
-                                -IoSize $IoBufferPair.IoSize -BatchSize $XskBatchSize `
-                                -Wait:$Wait -Duration $Duration -OutFile $TmpFile `
-                                -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
-                                -RxInject:$RxInject -TxInspect:$TxInspect `
-                                -TxInspectContentionCount $TxInspectContentionCount `
-                                -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
-                                -Arch $Arch -XperfFile $XperfFile
-
-                            $kppsList += ExtractKppsStat $TmpFile
+                        if ($RxInject) {
+                            $Options += "-RXINJECT"
+                        }
+                        if ($TxInspect) {
+                            $Options += "-TXINSPECT"
+                        }
+                        if ($Fndis) {
+                            $Options += "-FNDIS"
                         }
 
-                        $avg = ($kppsList | Measure-Object -Average).Average
-                        $stddev = MeasureStandardDeviation $kppsList
-                        Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
+                        $ScenarioName = `
+                            $AdapterName `
+                            + "-" + $XdpMode.ToUpper() `
+                            + "-" + $Mode `
+                            + "-" + $WaitMode `
+                            + "-" + $IoBufferPair.ChunkSize + "chunksize" `
+                            + "-" + $IoBufferPair.IoSize + "iosize" `
+                            + $Options
 
-                        if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
-                            Add-Content -Path $RawResultsFile -Value ("{0},{1}" -f $ScenarioName, ($kppsList -join ","))
+                        if (-not [string]::IsNullOrEmpty($XperfDirectory)) {
+                            New-Item -ItemType "directory" -Path $XperfDirectory -Force | Out-Null
+                            $XperfFile = "$XperfDirectory\$ScenarioName.etl"
                         }
-                    } catch {
-                        Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
-                        Write-Host $($Format -f $ScenarioName, -1, -1)
+
+                        try {
+                            for ($i = 0; $i -lt $Iterations; $i++) {
+                                $TmpFile = [System.IO.Path]::GetTempFileName()
+                                & $RootDir\tools\xskperf.ps1 `
+                                    -AdapterName $AdapterName -Mode $Mode `
+                                    -BufferSize $IoBufferPair.ChunkSize -BufferCount $XskNumBuffers `
+                                    -IoSize $IoBufferPair.IoSize -BatchSize $XskBatchSize `
+                                    -Wait:$Wait -Duration $Duration -OutFile $TmpFile `
+                                    -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
+                                    -RxInject:$RxInject -TxInspect:$TxInspect `
+                                    -TxInspectContentionCount $TxInspectContentionCount `
+                                    -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
+                                    -Arch $Arch -XperfFile $XperfFile
+
+                                $kppsList += ExtractKppsStat $TmpFile
+                            }
+
+                            $avg = ($kppsList | Measure-Object -Average).Average
+                            $stddev = MeasureStandardDeviation $kppsList
+                            Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
+
+                            if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
+                                Add-Content -Path $RawResultsFile -Value ("{0},{1}" -f $ScenarioName, ($kppsList -join ","))
+                            }
+                        } catch {
+                            Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
+                            Write-Host $($Format -f $ScenarioName, -1, -1)
+                        }
                     }
                 }
             }
+        }
+    }
+} finally {
+    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    if ($AdapterNames.Contains("XDPMP")) {
+        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        if ($Fndis) {
+            & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }
     }
 }
