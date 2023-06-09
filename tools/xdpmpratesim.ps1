@@ -31,7 +31,7 @@ if ($Unlimited) {
 $Retries = 10
 do {
     try {
-        $Config = Get-WmiObject -Namespace root\wmi -Class XdpMpRateSim -Filter "InstanceName = '$IfDesc'"
+        $Config = Get-CimInstance -Namespace root\wmi -Class XdpMpRateSim -Filter "InstanceName = '$IfDesc'"
         if ($Config -eq $null) {
             throw "WMI object not found."
         }
@@ -44,7 +44,7 @@ do {
             $Config.TxFramesPerInterval = $TxFramesPerInterval
         }
 
-        $Config.Put() | Out-Null
+        Set-CimInstance $Config | Out-Null
 
         break
     } catch {
