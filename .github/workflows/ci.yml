@@ -223,7 +223,7 @@ jobs:
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
-    - name: Run spinxsk (PR)
+    - name: Run xskperfsuite
       shell: pwsh
       run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs"
     - name: Convert Logs

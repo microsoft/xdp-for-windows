@@ -134,14 +134,18 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 
 try {
     if ($AdapterNames.Contains("XDPMP")) {
+        $XdpmpPollProvider = "NDIS"
+
         if ($Fndis) {
+            $XdpmpPollProvider = "FNDIS"
+
             Write-Verbose "installing fndis..."
             & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
             Write-Verbose "installed fndis."
         }
 
         Write-Verbose "installing xdpmp..."
-        & "$RootDir\tools\setup.ps1" -Install xdpmp -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install xdpmp -Config $Config -Arch $Arch -XdpmpPollProvider $XdpmpPollProvider
         Write-Verbose "installed xdpmp."
     }
 
