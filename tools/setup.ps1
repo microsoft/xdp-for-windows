@@ -46,7 +46,8 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$OriginalErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
@@ -561,40 +562,44 @@ function Uninstall-Ebpf {
     Refresh-Path
 }
 
-if ($Install -eq "fndis") {
-    Install-FakeNdis
-}
-if ($Install -eq "xdp") {
-    Install-Xdp
-}
-if ($Install -eq "xdpmp") {
-    Install-XdpMp
-}
-if ($Install -eq "xdpfnmp") {
-    Install-XdpFnMp
-}
-if ($Install -eq "xdpfnlwf") {
-    Install-XdpFnLwf
-}
-if ($Install -eq "ebpf") {
-    Install-Ebpf
-}
+try {
+    if ($Install -eq "fndis") {
+        Install-FakeNdis
+    }
+    if ($Install -eq "xdp") {
+        Install-Xdp
+    }
+    if ($Install -eq "xdpmp") {
+        Install-XdpMp
+    }
+    if ($Install -eq "xdpfnmp") {
+        Install-XdpFnMp
+    }
+    if ($Install -eq "xdpfnlwf") {
+        Install-XdpFnLwf
+    }
+    if ($Install -eq "ebpf") {
+        Install-Ebpf
+    }
 
-if ($Uninstall -eq "fndis") {
-    Uninstall-FakeNdis
-}
-if ($Uninstall -eq "xdp") {
-    Uninstall-Xdp
-}
-if ($Uninstall -eq "xdpmp") {
-    Uninstall-XdpMp
-}
-if ($Uninstall -eq "xdpfnmp") {
-    Uninstall-XdpFnMp
-}
-if ($Uninstall -eq "xdpfnlwf") {
-    Uninstall-XdpFnLwf
-}
-if ($Uninstall -eq "ebpf") {
-    Uninstall-Ebpf
+    if ($Uninstall -eq "fndis") {
+        Uninstall-FakeNdis
+    }
+    if ($Uninstall -eq "xdp") {
+        Uninstall-Xdp
+    }
+    if ($Uninstall -eq "xdpmp") {
+        Uninstall-XdpMp
+    }
+    if ($Uninstall -eq "xdpfnmp") {
+        Uninstall-XdpFnMp
+    }
+    if ($Uninstall -eq "xdpfnlwf") {
+        Uninstall-XdpFnLwf
+    }
+    if ($Uninstall -eq "ebpf") {
+        Uninstall-Ebpf
+    }
+} catch {
+    Write-Error $_ -ErrorAction $OriginalErrorActionPreference
 }

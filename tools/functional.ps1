@@ -43,7 +43,7 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
@@ -124,7 +124,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & $VsTestPath\vstest.console.exe $Args
 
         if ($LastExitCode -ne 0) {
-            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction 'Continue'
+            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode"
             $IterationFailureCount++
         }
     } finally {
