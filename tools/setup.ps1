@@ -56,8 +56,6 @@ $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = "C:\devcon.exe"
 $DswDevice = "C:\dswdevice.exe"
-$LiveKD = "C:\livekd64.exe"
-$KD = "C:\kd.exe"
 
 # File paths.
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
@@ -80,11 +78,7 @@ $XdpFnLwfComponentId = "ms_xdpfnlwf"
 
 # Helper to capture failure diagnostics and trigger CI agent reboot
 function Uninstall-Failure {
-    Write-Host "Capturing live kernel dump"
-
-    New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
-    Write-Verbose "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
-    & $LiveKD -o $LogsDir\xdpuninstall.dmp -k $KD -ml -accepteula
+    Collect-LiveKD -OutFile $LogsDir\xdpuninstall.dmp
 
     Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
     Write-Error "Uninstall failed"
