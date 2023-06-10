@@ -28,7 +28,7 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 $Tasks = @("Build")
 if (!$NoClean) {

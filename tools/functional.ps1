@@ -36,17 +36,21 @@ param (
     [int]$Iterations = 1,
 
     [Parameter(Mandatory = $false)]
-    [switch]$EbpfPreinstalled = $false
+    [switch]$EbpfPreinstalled = $false,
+
+    [Parameter(Mandatory = $false)]
+    [int]$Timeout = 0
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 $IterationFailureCount = 0
+$IterationTimeout = 0
 
 . $RootDir\tools\common.ps1
 
@@ -55,11 +59,21 @@ if ($VsTestPath -eq $null) {
     Write-Error "Could not find VSTest path"
 }
 
+if ($Timeout -gt 0) {
+    $WatchdogReservedMinutes = 2
+    $IterationTimeout = $Timeout / $Iterations - $WatchdogReservedMinutes
+
+    if ($IterationTimeout -le 0) {
+        Write-Error "Timeout must allow at least $WatchdogReservedMinutes minutes per iteration"
+    }
+}
+
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 for ($i = 1; $i -le $Iterations; $i++) {
     try {
+        $Watchdog = $null
         $LogName = "xdpfunc"
         if ($Iterations -gt 1) {
             $LogName += "-$i"
@@ -95,13 +109,28 @@ for ($i = 1; $i -le $Iterations; $i++) {
         $Args += "/logger:trx"
         $Args += "/ResultsDirectory:$LogsDir"
 
+        if ($IterationTimeout -gt 0) {
+            $Watchdog = Start-Job -ScriptBlock {
+                Start-Sleep -Seconds (60 * $Using:IterationTimeout)
+
+                . $Using:RootDir\tools\common.ps1
+                Collect-LiveKD -OutFile "$Using:LogsDir\$Using:LogName-livekd.dmp"
+                Collect-ProcessDump -ProcessName "testhost.exe" -OutFile "$Using:LogsDir\$Using:LogName-testhost.dmp"
+                Stop-Process -Name "vstest.console" -Force
+            }
+        }
+
         Write-Verbose "$VsTestPath\vstest.console.exe $Args"
         & $VsTestPath\vstest.console.exe $Args
+
         if ($LastExitCode -ne 0) {
-            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction 'Continue'
+            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode"
             $IterationFailureCount++
         }
     } finally {
+        if ($Watchdog -ne $null) {
+            Remove-Job -Job $Watchdog -Force
+        }
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }

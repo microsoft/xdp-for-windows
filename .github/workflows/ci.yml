@@ -110,14 +110,14 @@ jobs:
       if: ${{ github.event_name == 'pull_request' }}
       shell: pwsh
       #timeout-minutes: ${{ env.prRuntime }}
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: pwsh
       # currently getting a weird error:
       #  .github/workflows/ci.yml (Line: 107, Col: 24): Unexpected value '60'
       #timeout-minutes: ${{ env.fullRuntime }}
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
       shell: pwsh

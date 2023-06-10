@@ -23,7 +23,7 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 # Artifact paths.
 $RootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent

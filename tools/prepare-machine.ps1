@@ -61,7 +61,7 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
@@ -287,6 +287,7 @@ if ($Cleanup) {
         Copy-Item artifacts\corenet-ci-main\vm-setup\kd.exe C:\kd.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\livekd64.exe C:\livekd64.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\notmyfault64.exe C:\notmyfault64.exe
+        Copy-Item artifacts\corenet-ci-main\vm-setup\procdump64.exe C:\procdump64.exe
         Copy-Item artifacts\corenet-ci-main\vm-setup\wsario.exe C:\wsario.exe
         Install-Certs
         Setup-VcRuntime
