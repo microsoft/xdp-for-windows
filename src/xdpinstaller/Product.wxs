@@ -21,26 +21,20 @@ SPDX-License-Identifier: MIT
 		</Property>
 
 		<!-- Define the Product features and installation steps -->
-		<Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="TARGETDIR" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >
-			<Feature Id="xdp_Runtime_Components" Level="1" Title="Runtime Components" Absent="disallow" Display="expand" AllowAdvertise="no" >
-				<ComponentGroupRef Id="EtwRegistryEntries" />
-				<ComponentGroupRef Id="xdpapi_dll" />
-				<ComponentGroupRef Id="xdp_driver" />
-			</Feature>
+		<Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="TARGETDIR" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >	
+			<ComponentGroupRef Id="xdpapi_dll" />
+			<ComponentGroupRef Id="xdp_driver" />
 		</Feature>
 
 		<InstallExecuteSequence>
 			<!--Rollback sequence-->
-			<Custom Action="xdp_driver_stop_rollback" Before="xdpInf_install">NOT Installed</Custom>
-			<Custom Action="xdpInf_uninstall_rollback" Before="xdp_driver_stop_rollback">NOT Installed</Custom>
+			<Custom Action="xdp_uninstall_rollback" Before="xdp_install">NOT Installed</Custom>
 
 			<!--Install sequence-->
-			<Custom Action="xdpInf_install" After="InstallFiles">NOT Installed</Custom>
-			<Custom Action="xdp_driver_start" After="xdpInf_install">NOT Installed</Custom>
+			<Custom Action="xdp_install" After="InstallFiles" />
 
 			<!--Uninstall sequence-->
-			<Custom Action="xdp_driver_stop" After="InstallInitialize">REMOVE="ALL"</Custom>
-			<Custom Action="xdpInf_uninstall" After="xdp_driver_stop">REMOVE="ALL"</Custom>
+			<Custom Action="xdp_uninstall" After="InstallInitialize">REMOVE="ALL"</Custom>
 		</InstallExecuteSequence>
 
 		<!-- Define the UI style & behavior -->
@@ -53,59 +47,19 @@ SPDX-License-Identifier: MIT
 	<!-- Define installation directories -->
 	<Fragment>
 		<Directory Id="TARGETDIR" Name="SourceDir">
-			<Directory Id="SystemFolder" Name="SystemFolder">
+			<Directory Id="System64Folder" Name="System64Folder">
 				<Directory Id="dir_drivers" Name="drivers"/>
 			</Directory>
 		</Directory>
-	</Fragment>
-
-	<!-- Define the product's ETW providers -->
-	<Fragment>
-		<ComponentGroup Id="EtwRegistryEntries" Directory="TARGETDIR">
-			<Component Id="RegistryEntries" Guid="{723DC1A6-B5F7-49F9-B20C-29DA2272109B}">
-
-				<RegistryKey Root="HKLM" Key="HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\xdp\Parameters"
-					Action="createAndRemoveOnUninstall">
-					<RegistryValue Name="VerboseOn" Type="integer" Value="1"/>
-					<RegistryValue Name="LogPages" Type="integer" Value="64"/>
-				</RegistryKey>
-				
-				<RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic"
-					Action="createAndRemoveOnUninstall">
-					<RegistryValue Name="OwningPublisher" Type="string" Value="{580bbdea-b364-4369-b291-d3539e35d20b}"/>
-					<RegistryValue Name="Enabled" Type="integer" Value="0"/>
-					<RegistryValue Name="Isolation" Type="integer" Value="1"/>
-					<RegistryValue Name="ChannelAccess" Type="string" Value="O:BAG:SYD:(A;;0xf0007;;;SY)(A;;0x7;;;BA)(A;;0x3;;;BO)(A;;0x5;;;SO)(A;;0x1;;;IU)(A;;0x3;;;SU)(A;;0x1;;;S-1-5-3)(A;;0x2;;;S-1-5-33)(A;;0x1;;;S-1-5-32-573)" KeyPath="yes"/>
-					<RegistryValue Name="Type" Type="integer" Value="2"/>
-				</RegistryKey>
-				
-				<RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}"
-					Action="createAndRemoveOnUninstall">
-					<RegistryValue Type="string" Value="Microsoft-XDP"/>
-					<RegistryValue Name="Enabled" Type="integer" Value="1"/>
-					<RegistryValue Name="ResourceFileName" Type="expandable" Value="%%SystemRoot%%\system32\drivers\xdp.sys"/>
-					<RegistryValue Name="MessageFileName" Type="expandable" Value="%%SystemRoot%%\system32\drivers\xdp.sys"/>
-				</RegistryKey>
-				
-				<RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences"
-					Action="createAndRemoveOnUninstall">
-					<RegistryValue Name="Count" Type="integer" Value="1"/>
-				</RegistryKey>
-				
-				<RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences\0"
-					Action="createAndRemoveOnUninstall">
-					<RegistryValue Type="string" Value="Microsoft-XDP/Diagnostic"/>
-					<RegistryValue Name="Id" Type="integer" Value="0x00000010"/>
-					<RegistryValue Name="Flags" Type="integer" Value="0"/>
-				</RegistryKey>
-			</Component>
-		</ComponentGroup>
 	</Fragment>
 
 	<!-- Define the product components -->
 	<Fragment>
 		<!-- XDP driver file components -->
 		<ComponentGroup Id="xdp_driver" Directory="dir_drivers">
+			<Component Id="xdp_setup" Guid="{0D991B56-5C01-4E57-AB33-E81696B73D55}">
+				<File Id="xdp_setup_ps1" Source="scripts\xdp-setup.ps1" KeyPath="yes"/>
+			</Component>
 			<Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
 				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.xdp.TargetDir)xdp\xdp.inf" KeyPath="yes"/>
 			</Component>
@@ -121,7 +75,7 @@ SPDX-License-Identifier: MIT
 		</ComponentGroup>
 		
 		<!-- XDL DLL file components -->
-		<ComponentGroup Id="xdpapi_dll" Directory="SystemFolder">
+		<ComponentGroup Id="xdpapi_dll" Directory="System64Folder">
 			<Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
 				<File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.xdpapi.TargetDir)xdpapi.dll" KeyPath="yes" />
 			</Component>
@@ -130,21 +84,14 @@ SPDX-License-Identifier: MIT
 			</Component>
 		</ComponentGroup>
 
-		<!-- Install/Uninstall the WinPE in xdp.inf -->
-		<!--<Property Id="xdpInf_install" Value='"netcfg.exe -v -l xdp.inf -c s -i ms_xdp"'/>-->
-		<SetProperty Id="xdpInf_install" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;cd '[dir_drivers]';netcfg.exe -v -l xdp.inf -c s -i ms_xdp&quot;" Before="xdpInf_install" Sequence="execute"/>
-		<CustomAction Id="xdpInf_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
-		<Property Id="xdpInf_uninstall" Value='"netcfg.exe -u ms_xdp"'/>
-		<CustomAction Id="xdpInf_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
-		<Property Id="xdpInf_uninstall_rollback" Value='"netcfg.exe -u ms_xdp"'/>
-		<CustomAction Id="xdpInf_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
+		<!-- Install/Uninstall/Rollback the XDP driver installation -->
+		<SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Install xdp&quot;" Before="xdp_install" Sequence="execute"/>
+		<CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
-		<!-- Start/Stop the XDP driver -->
-		<Property Id="xdp_driver_start" Value='"net.exe" start xdp' />
-		<CustomAction Id="xdp_driver_start" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
-		<Property Id="xdp_driver_stop" Value='"net.exe" stop xdp' />
-		<CustomAction Id="xdp_driver_stop" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
-		<Property Id="xdp_driver_stop_rollback" Value='"net.exe" stop xdp' />
-		<CustomAction Id="xdp_driver_stop_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
+		<SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp&quot;" Before="xdp_uninstall" Sequence="execute"/>
+		<CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
+
+		<SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
+		<CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 	</Fragment>
 </Wix>
