@@ -37,7 +37,7 @@ jobs:
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Install LLVM 11.0
       run: |
@@ -50,10 +50,10 @@ jobs:
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
     - name: Clean up Artifacts
-      shell: pwsh
+      shell: PowerShell
       run: .azure/scripts/clean-artifacts.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Sign and Package
-      shell: pwsh
+      shell: PowerShell
       run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Artifacts
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -96,10 +96,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Check Drivers
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
@@ -108,19 +108,19 @@ jobs:
         path: artifacts/bin
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       #timeout-minutes: ${{ env.prRuntime }}
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       # currently getting a weird error:
       #  .github/workflows/ci.yml (Line: 107, Col: 24): Unexpected value '60'
       #timeout-minutes: ${{ env.fullRuntime }}
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -130,7 +130,7 @@ jobs:
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
   stress_tests:
@@ -160,10 +160,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Check Drivers
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
@@ -172,17 +172,17 @@ jobs:
         path: artifacts/bin
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       #timeout-minutes: ${{ env.prTimeout }}
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       #timeout-minutes: ${{ env.fullTimeout }}
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -192,7 +192,7 @@ jobs:
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
   perf_tests:
@@ -213,10 +213,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
     - name: Check Drivers
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
@@ -224,7 +224,7 @@ jobs:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Run xskperfsuite
-      shell: pwsh
+      shell: PowerShell
       run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs"
     - name: Upload Logs
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -234,7 +234,7 @@ jobs:
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
   devkit:
@@ -255,10 +255,10 @@ jobs:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Create Dev Kit
-      shell: pwsh
+      shell: PowerShell
       run: tools/create-devkit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Create Runtime Kit
-      shell: pwsh
+      shell: PowerShell
       run: tools/create-runtime-kit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Kit
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -282,7 +282,7 @@ jobs:
       with:
         dotnet-version: 6.0.x
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
