@@ -31,7 +31,7 @@ jobs:
         platform: [x64]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
       with:
         submodules: recursive
     - name: Setup MSBuild.exe
@@ -94,7 +94,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Check Drivers
       shell: pwsh
       run: tools/check-drivers.ps1 -Verbose
@@ -158,7 +158,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Check Drivers
       shell: pwsh
       run: tools/check-drivers.ps1 -Verbose
@@ -206,7 +206,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
       with:
@@ -234,7 +234,7 @@ jobs:
         configuration: [Release, Debug]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Setup .NET
       uses: actions/setup-dotnet@3447fd6a9f9e57506b15f895c5b76d3b197dc7c2
       with:
