@@ -114,10 +114,10 @@ function MeasureStandardDeviation {
 }
 
 $IoBufferPairs = @(
-    @{ChunkSize="64";IoSize="64"}     # artificial min packet
+#    @{ChunkSize="64";IoSize="64"}     # artificial min packet
     @{ChunkSize="2048";IoSize="64"}   # >= MTU chunks, mostly small packets
     @{ChunkSize="2048";IoSize="1514"}  # >= MTU chunks, mostly large packets
-    @{ChunkSize="65536";IoSize="64000"}  # GSO/GRO packets
+#    @{ChunkSize="65536";IoSize="64000"}  # GSO/GRO packets
 )
 
 if ($Iterations -lt 2) {
