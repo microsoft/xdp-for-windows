@@ -292,6 +292,12 @@ public:
         return T((ElapsedQpc * T::period::den) / T::period::num / _FrequencyQpc.QuadPart);
     }
 
+    T
+    Remaining()
+    {
+        return std::max(T(0), _TimeoutInterval - Elapsed());
+    }
+
     bool
     IsExpired()
     {
@@ -1987,7 +1993,7 @@ CreateTcpSocket(
     //
     WaitForWfpQuarantine(*If);
 
-    wil::unique_socket Socket(socket(Af, SOCK_STREAM,IPPROTO_TCP));
+    wil::unique_socket Socket(socket(Af, SOCK_STREAM, IPPROTO_TCP));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
@@ -2056,15 +2062,34 @@ CreateTcpSocket(
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
     //
-    // Verify the SYN+ACK has been redirected to XSK.
+    // Verify the SYN+ACK has been redirected to XSK, filtering out other
+    // TCP connections using the same remote port.
     //
-    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, std::chrono::milliseconds(5000));
-    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
-    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+
     TCP_HDR *TcpHeaderParsed = NULL;
-    TEST_TRUE(PktParseTcpFrame(
-        Xsk.Umem.Buffer.get() + XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
-        RxDesc->length, &TcpHeaderParsed, NULL, 0));
+    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(5));
+    do {
+        UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, Watchdog.Remaining());
+        TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+        auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+
+        TEST_TRUE(PktParseTcpFrame(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            RxDesc->length, &TcpHeaderParsed, NULL, 0));
+
+        if (*LocalPort == TcpHeaderParsed->th_sport) {
+            break;
+        }
+
+        SocketProduceRxFill(&Xsk, 1);
+        TcpHeaderParsed = NULL;
+    } while (!Watchdog.IsExpired());
+
+    TEST_NOT_NULL(TcpHeaderParsed);
+    TEST_EQUAL(*LocalPort, TcpHeaderParsed->th_sport);
+    TEST_EQUAL(TH_SYN | TH_ACK, TcpHeaderParsed->th_flags & (TH_SYN | TH_ACK | TH_RST | TH_FIN));
+
     //
     // Construct and inject the ACK for SYN+ACK.
     //
@@ -2075,8 +2100,28 @@ CreateTcpSocket(
             &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
     RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    wil::unique_socket AcceptedSocket(accept(Socket.get(), NULL, 0));
+
+    //
+    // Start a blocking accept and ensure that if the accept fails to complete
+    // within the timeout, the listening socket gets closed, which will cancel
+    // the accept request.
+    //
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return wil::unique_socket(accept(Socket.get(), NULL, 0));
+        }
+    );
+    auto CloseListener = wil::scope_exit([&]
+    {
+        Socket.reset();
+    });
+
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+
+    wil::unique_socket AcceptedSocket = std::move(AsyncThread.get());
     TEST_NOT_NULL(AcceptedSocket.get());
+
     *AckNum = AckNumForSynAck;
     return AcceptedSocket;
 }
