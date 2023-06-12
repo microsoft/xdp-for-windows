@@ -2088,6 +2088,7 @@ CreateTcpSocket(
 
     TEST_NOT_NULL(TcpHeaderParsed);
     TEST_EQUAL(*LocalPort, TcpHeaderParsed->th_sport);
+    TEST_EQUAL(TH_SYN | TH_ACK, TcpHeaderParsed->th_flags & (TH_SYN | TH_ACK | TH_RST | TH_FIN));
 
     //
     // Construct and inject the ACK for SYN+ACK.
