@@ -2082,6 +2082,7 @@ CreateTcpSocket(
             break;
         }
 
+        XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
         SocketProduceRxFill(&Xsk, 1);
         TcpHeaderParsed = NULL;
     } while (!Watchdog.IsExpired());
