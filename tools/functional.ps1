@@ -124,7 +124,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & $VsTestPath\vstest.console.exe $Args
 
         if ($LastExitCode -ne 0) {
-            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode"
+            Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction Continue
             $IterationFailureCount++
         }
     } finally {
