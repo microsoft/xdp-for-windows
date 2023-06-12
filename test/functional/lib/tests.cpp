@@ -2098,8 +2098,28 @@ CreateTcpSocket(
             &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
     RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    wil::unique_socket AcceptedSocket(accept(Socket.get(), NULL, 0));
+
+    //
+    // Start a blocking accept and ensure that if the accept fails to complete
+    // within the timeout, the listening socket gets closed, which will cancel
+    // the accept request.
+    //
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return wil::unique_socket(accept(Socket.get(), NULL, 0));
+        }
+    );
+    auto CloseListener = wil::scope_exit([&]
+    {
+        Socket.reset();
+    });
+
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+
+    wil::unique_socket AcceptedSocket = std::move(AsyncThread.get());
     TEST_NOT_NULL(AcceptedSocket.get());
+
     *AckNum = AckNumForSynAck;
     return AcceptedSocket;
 }
