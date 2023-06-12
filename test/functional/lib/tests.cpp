@@ -2082,6 +2082,7 @@ CreateTcpSocket(
             break;
         }
 
+        SocketProduceRxFill(&Xsk, 1);
         TcpHeaderParsed = NULL;
     } while (!Watchdog.IsExpired());
 
