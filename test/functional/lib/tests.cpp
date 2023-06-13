@@ -177,6 +177,21 @@ TryWaitForNdisDatapath(
     _In_ const TestInterface& If
     );
 
+static
+INT
+InvokeSystem(
+    _In_z_ const CHAR *Command
+    )
+{
+    INT Result;
+
+    TraceVerbose("system(%s)", Command);
+    Result = system(Command);
+    TraceVerbose("system(%s) returned %u", Command, Result);
+
+    return Result;
+}
+
 typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
 
 RTL_OSVERSIONINFOW
@@ -470,7 +485,7 @@ public:
         INT ExitCode;
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
-        ExitCode = system(CmdBuff);
+        ExitCode = InvokeSystem(CmdBuff);
 
         if (ExitCode != 0) {
             TraceError("ExitCode=%u", ExitCode);
@@ -497,7 +512,7 @@ public:
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
-        TEST_EQUAL(0, system(CmdBuff));
+        TEST_EQUAL(0, InvokeSystem(CmdBuff));
         Restart();
     }
 
@@ -510,7 +525,7 @@ public:
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Disable-NetAdapterBinding -ComponentID ms_xdp",
             PowershellPrefix, _IfDesc);
-        return HRESULT_FROM_WIN32(system(CmdBuff));
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 
     HRESULT
@@ -522,7 +537,7 @@ public:
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
             PowershellPrefix, _IfDesc);
-        return HRESULT_FROM_WIN32(system(CmdBuff));
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 };
 
@@ -626,7 +641,7 @@ SetDeviceSddl(
     TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
 
     sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
-    TEST_EQUAL(0, system(CmdBuff));
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
 static
@@ -2209,11 +2224,11 @@ TryWaitForNdisDatapath(
             CmdBuff,
             "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
             PowershellPrefix, If.GetIfDesc());
-        AdapterUp = !!system(CmdBuff);
+        AdapterUp = !!InvokeSystem(CmdBuff);
 
         wil::unique_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfUp = LwfIsDatapathActive(FnLwf);
-    } while (Sleep(POLL_INTERVAL_MS), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
+    } while (Sleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
 
     if (!AdapterUp) {
         TraceError("AdapterUp=FALSE");
@@ -2264,7 +2279,7 @@ TestSetup()
     XdpApi = OpenApi();
     PowershellPrefix = GetPowershellPrefix();
     TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
-    TEST_EQUAL(0, system("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
+    TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     WaitForWfpQuarantine(FnMpIf);
     WaitForNdisDatapath(FnMpIf);
     WaitForWfpQuarantine(FnMp1QIf);
@@ -2275,7 +2290,7 @@ TestSetup()
 bool
 TestCleanup()
 {
-    TEST_EQUAL(0, system("netsh advfirewall firewall delete rule name=xdpfntest"));
+    TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
     TEST_EQUAL(0, WSACleanup());
     XdpApi.reset();
     WPP_CLEANUP();
@@ -6722,11 +6737,11 @@ OffloadSetHardwareCapabilities()
     CHAR CmdBuff[256];
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4Capability -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
-    TEST_EQUAL(0, system(CmdBuff));
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
-    TEST_EQUAL(0, system(CmdBuff));
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
 
     If.Restart();
 
