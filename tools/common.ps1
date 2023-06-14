@@ -158,3 +158,15 @@ function Collect-ProcessDump {
     Write-Verbose "$ProcDump -accepteula -ma $ProcessName $OutFile"
     & $ProcDump -accepteula -ma $ProcessName $OutFile
 }
+
+function Initiate-Bugcheck {
+    param (
+        [Parameter()]
+        [string]$Code = "0xE2"
+    )
+
+    $NotMyFault = "C:\notmyfault64.exe"
+
+    Write-Host "$NotMyFault -accepteula -bugcheck $Code"
+    & $NotMyFault -accepteula -bugcheck $Code
+}
