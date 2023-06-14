@@ -346,11 +346,13 @@ function Uninstall-XdpMp {
     netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v4" | Out-Null
     netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v6" | Out-Null
 
+    Write-Verbose "$DswDevice -u $XdpMpDeviceId"
     cmd.exe /c "$DswDevice -u $XdpMpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpMpDeviceId device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId"
     cmd.exe /c "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpMpDeviceId device failed: $LastExitCode"
@@ -435,21 +437,25 @@ function Uninstall-XdpFnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
+    Write-Verbose "$DswDevice -u $XdpFnMpDeviceId1"
     cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId1 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1"
     cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DswDevice -u $XdpFnMpDeviceId0"
     cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId0 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId0 device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0"
     cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpFnMpDeviceId0 device failed: $LastExitCode"
@@ -540,8 +546,10 @@ function Uninstall-Ebpf {
         }
 
         if (!(Wait-Job -Job $Job -Timeout 60)) {
-            Write-Host "eBPF failed to uninstall within 60 seconds"
-            Uninstall-Failure
+            Write-Error "eBPF failed to uninstall within 60 seconds" -ErrorAction Continue
+            Write-Warning "The system will bugcheck in 5 seconds..."
+            Start-Sleep -Seconds 5
+            Initiate-Bugcheck
         }
 
         if (($Status = Receive-Job -Job $Job) -ne 0) {
