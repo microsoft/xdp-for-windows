@@ -208,6 +208,9 @@ function Install-AzStorageModule {
         Write-Host "Installing Az.Storage module"
         Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -AllowClobber -Force | Write-Verbose
     }
+    # AzureRM is installed by default on some CI images and is incompatible with
+    # Az. Uninstall.
+    Uninstall-AzureRm
 }
 
 if ($Cleanup) {
