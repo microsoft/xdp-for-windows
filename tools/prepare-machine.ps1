@@ -199,6 +199,17 @@ function Setup-VsTest {
     }
 }
 
+function Install-AzStorageModule {
+    if (!(Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Ignore)) {
+        Write-Host "Installing NuGet package provider"
+        Install-PackageProvider -Name NuGet -Force | Write-Verbose
+    }
+    if (!(Get-Module -ListAvailable -Name Az.Storage)) {
+        Write-Host "Installing Az.Storage module"
+        Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -Force | Write-Verbose
+    }
+}
+
 if ($Cleanup) {
     if ($ForTest) {
         Uninstall-Certs
@@ -292,6 +303,7 @@ if ($Cleanup) {
         Install-Certs
         Setup-VcRuntime
         Setup-VsTest
+        Install-AzStorageModule
     }
 
     if ($ForLogging) {

@@ -20,7 +20,7 @@ function ImportDataset {
     foreach ($line in $contents) {
         $array = $line.Split(",")
         $scenarioName = $array[0]
-        $scenarioData = $array[1..$array.Count]
+        $scenarioData = $array[3..$array.Count]
         $dataset.Add($scenarioName, $scenarioData)
     }
 
