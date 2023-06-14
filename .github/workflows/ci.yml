@@ -23,12 +23,16 @@ permissions: read-all
 jobs:
   build:
     name: Build
-    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
+        # Some driver developers are building for WS2022 LTSC targets using VS2019 +
+        # the Windows Server 2022 WDK, so validate our project still builds in that
+        # environment, in addition to the default WS 2022.
+        os: [2019, 2022]
         configuration: [Release, Debug]
         platform: [x64]
+    runs-on: windows-${{ matrix.os }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
@@ -56,6 +60,7 @@ jobs:
       shell: PowerShell
       run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Artifacts
+      if: matrix.os == 2022
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -66,7 +71,7 @@ jobs:
           !artifacts/bin/**/*.lastcodeanalysissucceeded
     - name: Publish Symbols
       uses: microsoft/action-publish-symbols@719c40b80e38bca806f3e01e1e3dd3a67554cd68
-      if: github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request' && matrix.os == 2022
       with:
         accountName: mscodehub
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
