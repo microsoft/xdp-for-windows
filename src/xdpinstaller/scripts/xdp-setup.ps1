@@ -29,12 +29,10 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $SystemFolder = [Environment]::SystemDirectory
 $XdpSys = "$SystemFolder\drivers\xdp.sys"
 $XdpInf = "$SystemFolder\drivers\xdp.inf"
+$LogsDir = "$SystemFolder\Logs"
 
 # Set the temporary working directory and testore it on exit.
 Push-Location -Path $SystemFolder
-Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
-    Pop-Location
-}
 
 # Helper to reboot the machine.
 function Uninstall-Failure {
@@ -223,3 +221,5 @@ if ($Install -eq "xdp") {
 if ($Uninstall -eq "xdp") {
     Uninstall-Xdp
 }
+
+Pop-Location
