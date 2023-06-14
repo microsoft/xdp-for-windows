@@ -32,7 +32,7 @@ jobs:
         os: [2019, 2022]
         configuration: [Release, Debug]
         platform: [x64]
-    runs-on: windows-$${{ matrix.os }}
+    runs-on: windows-${{ matrix.os }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
