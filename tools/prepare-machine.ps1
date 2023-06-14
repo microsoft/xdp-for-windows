@@ -206,7 +206,7 @@ function Install-AzStorageModule {
     }
     if (!(Get-Module -ListAvailable -Name Az.Storage)) {
         Write-Host "Installing Az.Storage module"
-        Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -Force | Write-Verbose
+        Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -AllowClobber -Force | Write-Verbose
     }
 }
 
