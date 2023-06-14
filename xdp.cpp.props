@@ -29,8 +29,6 @@
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
-        NTDDI_VERSION=NTDDI_WIN10_VB;
-        _WIN32_WINNT=_WIN32_WINNT_WIN10;
         POOL_NX_OPTIN_AUTO=1;
         POOL_ZERO_DOWN_LEVEL_SUPPORT=1;
         %(PreprocessorDefinitions)
