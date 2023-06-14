@@ -72,6 +72,53 @@ jobs:
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
         personalAccessToken: ${{ secrets.AZDO_PAT }}
 
+  # Some driver developers are building for WS2022 LTSC targets using VS2019 +
+  # the Windows Server 2022 WDK, so validate our project still builds in that
+  # environment.
+  build_downlevel:
+    name: Build (VS 2019)
+    runs-on: windows-2019
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+        platform: [x64]
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+      with:
+        submodules: recursive
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -ForBuild -Verbose
+    - name: Install LLVM 11.0
+      run: |
+        choco install -y llvm --version 11.0.1 --allow-downgrade
+        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Nuget Restore
+      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+    - name: Prepare for compiling eBPF programs
+      run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
+    - name: Build
+      run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
+    - name: Clean up Artifacts
+      shell: PowerShell
+      run: .azure/scripts/clean-artifacts.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Sign and Package
+      shell: PowerShell
+      run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      with:
+        name: bin_downlevel_vs2019_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: |
+          artifacts/bin
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
+
   functional_tests:
     name: Functional Tests
     needs: build
