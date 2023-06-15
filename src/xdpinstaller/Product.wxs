@@ -31,7 +31,7 @@ SPDX-License-Identifier: MIT
 			<Custom Action="xdp_uninstall_rollback" Before="xdp_install">NOT Installed</Custom>
 
 			<!--Install sequence-->
-			<Custom Action="xdp_install" After="InstallFiles" />
+			<Custom Action="xdp_install" After="InstallFiles">NOT Installed</Custom>
 
 			<!--Uninstall sequence-->
 			<Custom Action="xdp_uninstall" After="InstallInitialize">REMOVE="ALL"</Custom>
@@ -64,7 +64,7 @@ SPDX-License-Identifier: MIT
 				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.xdp.TargetDir)xdp\xdp.inf" KeyPath="yes"/>
 			</Component>
 			<Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
-				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.xdp.TargetPath)" KeyPath="yes" />
+				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.xdp.TargetDir)xdp\xdp.sys" KeyPath="yes" />
 			</Component>
 			<Component Id="xdp.pdb" Guid="{BC5C7A2C-613B-4831-A721-1FDFC4129F12}">
 				<File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.xdp.TargetDir)xdp.pdb" KeyPath="yes" />
@@ -85,13 +85,13 @@ SPDX-License-Identifier: MIT
 		</ComponentGroup>
 
 		<!-- Install/Uninstall/Rollback the XDP driver installation -->
-		<SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Install xdp&quot;" Before="xdp_install" Sequence="execute"/>
+		<SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute"/>
 		<CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
-		<SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp&quot;" Before="xdp_uninstall" Sequence="execute"/>
+		<SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall" Sequence="execute"/>
 		<CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
-		<SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
+		<SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
 		<CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 	</Fragment>
 </Wix>

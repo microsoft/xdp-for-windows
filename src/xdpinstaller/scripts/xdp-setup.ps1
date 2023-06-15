@@ -29,6 +29,7 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 $SystemFolder = [Environment]::SystemDirectory
 $XdpSys = "$SystemFolder\drivers\xdp.sys"
 $XdpInf = "$SystemFolder\drivers\xdp.inf"
+$XdpCat = "$SystemFolder\drivers\xdp.cat"
 $LogsDir = "$SystemFolder\Logs"
 
 # Set the temporary working directory and testore it on exit.
@@ -181,9 +182,38 @@ function Uninstall-Driver($Inf) {
 }
 
 # Installs the xdp driver.
-function Install-Xdp {
+if ($Install -eq "xdp") {
+    if (!(Test-Path $XdpInf)) {
+        Write-Error "$XdpInf does not exist!"
+    }
     if (!(Test-Path $XdpSys)) {
         Write-Error "$XdpSys does not exist!"
+    }
+    if (!(Test-Path $XdpCat)) {
+        Write-Error "$XdpCat does not exist!"
+    }
+
+    Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
+    netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
+    if ($LastExitCode) {
+        Write-Error "netcfg.exe exit code: $LastExitCode"
+    }
+
+    Start-Service-With-Retry xdp
+
+    Write-Verbose "xdp.sys install complete!"  
+}
+
+# Uninstalls the xdp driver.
+if ($Uninstall -eq "xdp") {
+    if (!(Test-Path $XdpInf)) {
+        Write-Error "$XdpInf does not exist!"
+    }
+    if (!(Test-Path $XdpSys)) {
+        Write-Error "$XdpSys does not exist!"
+    }
+    if (!(Test-Path $XdpCat)) {
+        Write-Error "$XdpCat does not exist!"
     }
 
     Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
@@ -195,31 +225,6 @@ function Install-Xdp {
     Start-Service-With-Retry xdp
 
     Write-Verbose "xdp.sys install complete!"
-}
-
-# Uninstalls the xdp driver.
-function Uninstall-Xdp {
-    Write-Verbose "netcfg.exe -u ms_xdp"
-    cmd.exe /c "netcfg.exe -u ms_xdp 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "netcfg.exe failed: $LastExitCode"
-    }
-
-    Uninstall-Driver "xdp.inf"
-
-    Cleanup-Service xdp
-
-    Write-Verbose "xdp.sys uninstall complete!"
-}
-
-# Installs the xdp driver.
-if ($Install -eq "xdp") {
-    Install-Xdp    
-}
-
-# Uninstalls the xdp driver.
-if ($Uninstall -eq "xdp") {
-    Uninstall-Xdp
 }
 
 Pop-Location
