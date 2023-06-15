@@ -21,24 +21,6 @@
     <Compile Include="Product.wxs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\xdpapi\xdpapi.vcxproj">
-      <Name>xdpapi</Name>
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
-      <Private>True</Private>
-      <DoNotHarvest>True</DoNotHarvest>
-      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
-      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
-    </ProjectReference>
-    <ProjectReference Include="..\xdp\xdp.vcxproj">
-      <Name>xdp</Name>
-      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
-      <Private>True</Private>
-      <DoNotHarvest>True</DoNotHarvest>
-      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
-      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="packages.config" />
     <Content Include="scripts\xdp-setup.ps1" />
   </ItemGroup>
@@ -60,6 +42,9 @@
   <Target Name="EnsureWixToolsetInstalled" Condition=" '$(WixTargetsImported)' != 'true' ">
     <Error Text="The WiX Toolset v3.11 build tools must be installed to build this project. To download the WiX Toolset, see https://wixtoolset.org/releases/v3.11/stable" />
   </Target>
+  <PropertyGroup>
+    <PreBuildEvent>powershell.exe $(SolutionDir)tools\sign.ps1 $(ConfigurationName) $(PlatformName)</PreBuildEvent>
+  </PropertyGroup>
   <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it.
 	Other similar extension points exist, see Wix.targets.
