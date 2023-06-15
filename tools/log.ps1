@@ -75,8 +75,10 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
-$TracePdb = "c:\tracepdb.exe"
+$TracePdb = Get-CoreNetCiArtifactPath -Name "tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"

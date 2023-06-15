@@ -117,6 +117,22 @@ function Get-EbpfMsiUrl {
     return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
 }
 
+function Get-CoreNetCiCommit {
+    return "61af6f56ef187dcedb459bcc56f56e305f98a6e4"
+}
+
+function Get-CoreNetCiArtifactPath {
+    param (
+        [Parameter()]
+        [string]$Name
+    )
+
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $Commit = Get-CoreNetCiCommit
+
+    return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
+}
+
 # Refreshes the PATH environment variable.
 function Refresh-Path {
     $env:Path=(
@@ -131,8 +147,8 @@ function Collect-LiveKD {
         [string]$OutFile
     )
 
-    $LiveKD = "C:\livekd64.exe"
-    $KD = "C:\kd.exe"
+    $LiveKD = Get-CoreNetCiArtifactPath -Name "livekd64.exe"
+    $KD = Get-CoreNetCiArtifactPath -Name "kd.exe"
 
     Write-Host "Capturing live kernel dump to $OutFile"
 
@@ -150,7 +166,7 @@ function Collect-ProcessDump {
         [string]$OutFile
     )
 
-    $ProcDump = "C:\procdump64.exe"
+    $ProcDump = Get-CoreNetCiArtifactPath -Name "procdump64.exe"
 
     Write-Host "Capturing process dump of $ProcessName to $OutFile"
 
@@ -165,7 +181,7 @@ function Initiate-Bugcheck {
         [string]$Code = "0xE2"
     )
 
-    $NotMyFault = "C:\notmyfault64.exe"
+    $NotMyFault = Get-CoreNetCiArtifactPath -Name "notmyfault64.exe"
 
     Write-Host "$NotMyFault -accepteula -bugcheck $Code"
     & $NotMyFault -accepteula -bugcheck $Code

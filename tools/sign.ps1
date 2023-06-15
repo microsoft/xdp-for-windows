@@ -24,6 +24,9 @@ param (
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
+$RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
 function Get-WindowsKitTool {
     param (
         [string]$Arch = "x86",
@@ -61,9 +64,9 @@ $RootDir = (Split-Path $PSScriptRoot -Parent)
 $ArtifactsDir = Join-Path $RootDir "artifacts\bin\$($Arch)_$($Config)"
 
 # Certificate paths.
-$CodeSignCertPath = Join-Path $RootDir "artifacts\CoreNetSignRoot.cer"
+$CodeSignCertPath = Get-CoreNetCiArtifactPath -Name "CoreNetSignRoot.cer"
 if (!(Test-Path $CodeSignCertPath)) { Write-Error "$CodeSignCertPath does not exist!" }
-$CertPath = Join-Path $RootDir "artifacts\CoreNetSign.pfx"
+$CertPath = Get-CoreNetCiArtifactPath -Name "CoreNetSign.pfx"
 if (!(Test-Path $CertPath)) { Write-Error "$CertPath does not exist!" }
 
 # All the file paths.
