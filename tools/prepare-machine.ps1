@@ -290,6 +290,7 @@ if ($Cleanup) {
         Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\livekd64.exe C:\livekd64.exe
         Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\notmyfault64.exe C:\notmyfault64.exe
         Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\procdump64.exe C:\procdump64.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\tracepdb.exe C:\tracepdb.exe
         Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\wsario.exe C:\wsario.exe
         Install-Certs
         Setup-VcRuntime
