@@ -79,14 +79,16 @@ $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 # Flag that indicates something required a reboot.
 $Reboot = $false
 
+$CoreNetCiCommit = "61af6f56ef187dcedb459bcc56f56e305f98a6e4"
+
 function Download-CoreNet-Deps {
     # Download and extract https://github.com/microsoft/corenet-ci.
     if (!(Test-Path "artifacts")) { mkdir artifacts }
-    if ($Force -and (Test-Path "artifacts/corenet-ci-main")) {
-        Remove-Item -Recurse -Force "artifacts/corenet-ci-main"
+    if ($Force -and (Test-Path "artifacts/corenet-ci-$CoreNetCiCommit")) {
+        Remove-Item -Recurse -Force "artifacts/corenet-ci-$CoreNetCiCommit"
     }
-    if (!(Test-Path "artifacts/corenet-ci-main")) {
-        Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/refs/heads/main.zip" -OutFile "artifacts\corenet-ci.zip"
+    if (!(Test-Path "artifacts/corenet-ci-$CoreNetCiCommit")) {
+        Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "artifacts\corenet-ci.zip"
         Expand-Archive -Path "artifacts\corenet-ci.zip" -DestinationPath "artifacts" -Force
         Remove-Item -Path "artifacts\corenet-ci.zip"
     }
@@ -207,8 +209,8 @@ if ($Cleanup) {
     if ($ForBuild) {
         Download-CoreNet-Deps
         Download-eBpf-Nuget
-        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
-        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
     }
 
     if ($ForEbpfBuild) {
@@ -280,15 +282,15 @@ if ($Cleanup) {
         Setup-TestSigning
         Download-CoreNet-Deps
         Download-Ebpf-Msi
-        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
-        Copy-Item artifacts\corenet-ci-main\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
-        Copy-Item artifacts\corenet-ci-main\vm-setup\devcon.exe C:\devcon.exe
-        Copy-Item artifacts\corenet-ci-main\vm-setup\dswdevice.exe C:\dswdevice.exe
-        Copy-Item artifacts\corenet-ci-main\vm-setup\kd.exe C:\kd.exe
-        Copy-Item artifacts\corenet-ci-main\vm-setup\livekd64.exe C:\livekd64.exe
-        Copy-Item artifacts\corenet-ci-main\vm-setup\notmyfault64.exe C:\notmyfault64.exe
-        Copy-Item artifacts\corenet-ci-main\vm-setup\procdump64.exe C:\procdump64.exe
-        Copy-Item artifacts\corenet-ci-main\vm-setup\wsario.exe C:\wsario.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\CoreNetSignRoot.cer artifacts\CoreNetSignRoot.cer
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\CoreNetSign.pfx artifacts\CoreNetSign.pfx
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\devcon.exe C:\devcon.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\dswdevice.exe C:\dswdevice.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\kd.exe C:\kd.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\livekd64.exe C:\livekd64.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\notmyfault64.exe C:\notmyfault64.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\procdump64.exe C:\procdump64.exe
+        Copy-Item artifacts\corenet-ci-$CoreNetCiCommit\vm-setup\wsario.exe C:\wsario.exe
         Install-Certs
         Setup-VcRuntime
         Setup-VsTest
