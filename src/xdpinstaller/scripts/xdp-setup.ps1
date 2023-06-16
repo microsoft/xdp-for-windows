@@ -193,6 +193,9 @@ if ($Install -eq "xdp") {
         Write-Error "$XdpCat does not exist!"
     }
 
+    # Uncomment for debugging only: list installed xdp files   
+    #Get-ChildItem -Path "$SystemFolder\xdp*.*" -File -Recurse | ForEach-Object { Write-Verbose $_.FullName }
+
     Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
     netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
     if ($LastExitCode) {

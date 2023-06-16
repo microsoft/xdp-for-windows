@@ -19,13 +19,13 @@ SPDX-License-Identifier: MIT
 		<Property Id="TARGETDIR" Secure="yes">
 			<RegistrySearch Id="FindInstallLocation" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[WIX_UPGRADE_DETECTED]" Name="InstallLocation" Type="raw" Win64="yes" />
 		</Property>
-
+		
 		<!-- Define the Product features and installation steps -->
 		<Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="TARGETDIR" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >	
-			<ComponentGroupRef Id="xdpapi_dll" />
 			<ComponentGroupRef Id="xdp_driver" />
+			<ComponentGroupRef Id="xdpapi_dll" />
 		</Feature>
-
+		
 		<InstallExecuteSequence>
 			<!--Rollback sequence-->
 			<Custom Action="xdp_uninstall_rollback" Before="xdp_install">NOT Installed</Custom>
@@ -55,32 +55,32 @@ SPDX-License-Identifier: MIT
 
 	<!-- Define the product components -->
 	<Fragment>
-		<!-- XDP driver file components -->
+		<!-- XDP driver components -->
 		<ComponentGroup Id="xdp_driver" Directory="dir_drivers">
 			<Component Id="xdp_setup" Guid="{0D991B56-5C01-4E57-AB33-E81696B73D55}">
 				<File Id="xdp_setup_ps1" Source="scripts\xdp-setup.ps1" KeyPath="yes"/>
 			</Component>
 			<Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
-				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.xdp.TargetDir)xdp\xdp.inf" KeyPath="yes"/>
+				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)\xdp\xdp.inf" KeyPath="yes"/>
 			</Component>
 			<Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
-				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.xdp.TargetDir)xdp\xdp.sys" KeyPath="yes" />
+				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp\xdp.sys" KeyPath="yes" />
 			</Component>
 			<Component Id="xdp.pdb" Guid="{BC5C7A2C-613B-4831-A721-1FDFC4129F12}">
-				<File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.xdp.TargetDir)xdp.pdb" KeyPath="yes" />
+				<File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.TargetDir)xdp.pdb" KeyPath="yes" />
 			</Component>
 			<Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
-				<File Id="xdp.cat" Name="xdp.cat" Source="$(var.xdp.TargetDir)xdp\xdp.cat" KeyPath="yes"/>
+				<File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)xdp\xdp.cat" KeyPath="yes"/>
 			</Component>
 		</ComponentGroup>
 		
-		<!-- XDL DLL file components -->
+		<!-- XDP user-mode components -->
 		<ComponentGroup Id="xdpapi_dll" Directory="System64Folder">
 			<Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
-				<File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.xdpapi.TargetDir)xdpapi.dll" KeyPath="yes" />
+				<File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)xdpapi.dll" KeyPath="yes" />
 			</Component>
 			<Component Id="xdpapi.pdb" Guid="{12CB0C1D-F93D-4A4D-BEAC-4FEE589C7192}">
-				<File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.xdpapi.TargetDir)xdpapi.pdb" KeyPath="yes" />
+				<File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.TargetDir)xdpapi.pdb" KeyPath="yes" />
 			</Component>
 		</ComponentGroup>
 
@@ -89,9 +89,9 @@ SPDX-License-Identifier: MIT
 		<CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
 		<SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall" Sequence="execute"/>
-		<CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
+		<CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
 
 		<SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;[#xdp_setup_ps1] -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
-		<CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
+		<CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
 	</Fragment>
 </Wix>
