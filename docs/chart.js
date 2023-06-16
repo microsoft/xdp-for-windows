@@ -4,22 +4,56 @@ var dataMaxCount = 90
 var dataLineWidth = 2
 var dataRawPointRadius = 1
 
-function generateDataset(allData, name) {
-    var data = allData.filter(x => x.name === name)
-    var output = []
-    data.forEach(
-        p => output.push({commit:p.commit, x:new Date(p.time * 1000), y:p.p0}))
-    return output
+// Allow URL parameters to overwrite the values above
+function processSearchParams() {
+    var url = new URL(window.location.href);
+    var param = url.searchParams.get("count")
+    if (param) {
+        dataMaxCount = param
+    }
+    var param = url.searchParams.get("width")
+    if (param) {
+        dataLineWidth = param
+    }
+    var param = url.searchParams.get("radius")
+    if (param) {
+        dataRawPointRadius = param
+    }
 }
 
-function createDataset(name, data) {
+// Split the CSV data into more Javascript friendly types
+// csv format: name,commit,unix_time,p0,p1,etc.
+function processData(text) {
+    var allData = []
+    var lines = text.split(/\r\n|\n/);
+    lines.forEach(
+        line => {
+            var data = []
+            var raw = line.split(',')
+            data['name'] = raw[0]
+            data['commit'] = raw[1]
+            data['time'] = raw[2]
+            for (var i=3; i<raw.length; i++) {
+                data['p' + (i-3)] = raw[i]
+            }
+            allData.push(data);
+        })
+    return allData
+}
+
+// Find all the data matching the names and create a dataset for it
+function createDataset(chartName, dataName, allData) {
+    var data = allData.filter(x => x.name === chartName + "-" + dataName)
+    var dataset = []
+    data.forEach(
+        p => dataset.push({commit:p.commit, x:new Date(p.time * 1000), y:p.p0}))
     return {
         type: "line",
-        label: name,
+        label: dataName,
         borderWidth: dataLineWidth,
         pointRadius: dataRawPointRadius,
         tension: 0,
-        data: data.slice(-dataMaxCount)
+        data: dataset.slice(-dataMaxCount)
     };
 }
 
@@ -29,7 +63,12 @@ function titlePlacement(tooltipItem, data) {
     return new Date(datapoint.x).toString()
 }
 
+// Create everything necessary for the new chart
 function createChartwithData(allData, year, chart, names, displayLegend, stacked) {
+    // Generate the chart datasets
+    var datasets = [];
+    names.forEach(name => datasets.push(createDataset(chart, name, allData)))
+
     // Create the HTML elements first
     const chartParent = document.getElementById('chart-parent');
     const div = document.createElement('div');
@@ -55,11 +94,8 @@ function createChartwithData(allData, year, chart, names, displayLegend, stacked
     chartParent.appendChild(div);
 
     // Add the chart to the HTML element
-    var dataset = [];
-    names.forEach(
-        name => dataset.push(createDataset(name, generateDataset(allData, chart + "-" + name))))
     new Chart(canvas.getContext('2d'), {
-        data: { datasets: dataset },
+        data: { datasets: datasets },
         options: {
             maintainAspectRatio: false,
             scales: {
@@ -107,6 +143,7 @@ function createChartwithData(allData, year, chart, names, displayLegend, stacked
     })
 }
 
+// Create all the charts
 function createChart(allData, year) {
     var names = [
         'RX-BUSY-2048chunksize-64iosize-FNDIS',
@@ -120,40 +157,7 @@ function createChart(allData, year) {
     createChartwithData(allData, year, "XDPMP-GENERIC", names, true, false)
 }
 
-function processSearchParams() {
-    var url = new URL(window.location.href);
-    var param = url.searchParams.get("count")
-    if (param) {
-        dataMaxCount = param
-    }
-    var param = url.searchParams.get("width")
-    if (param) {
-        dataLineWidth = param
-    }
-    var param = url.searchParams.get("radius")
-    if (param) {
-        dataRawPointRadius = param
-    }
-}
-
-function processData(text) {
-    var allData = []
-    var lines = text.split(/\r\n|\n/);
-    lines.forEach(
-        line => {
-            var data = []
-            var raw = line.split(',')
-            data['name'] = raw[0]
-            data['commit'] = raw[1]
-            data['time'] = raw[2]
-            for (var i=3; i<raw.length; i++) {
-                data['p' + (i-3)] = raw[i]
-            }
-            allData.push(data);
-        })
-    return allData
-}
-
+// Immediately triggers on load of the HTML file. Loads all data and generates charts
 window.onload = function() {
     processSearchParams()
     // Read in the latest data.
