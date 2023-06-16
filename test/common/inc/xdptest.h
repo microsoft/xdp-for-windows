@@ -20,14 +20,14 @@
 #define TEST_WARNING(Format, ...) LogTestWarning(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__)
 
 #define TEST_EQUAL(expected, condition) { \
-    if (condition != expected) \
+    if ((condition) != (expected)) \
     { \
         TEST_FAILURE(#condition " not equal to " #expected); \
     } \
 }
 
 #define TEST_NOT_EQUAL(expected, condition) { \
-    if (condition == expected) { \
+    if ((condition) == (expected)) { \
         TEST_FAILURE(#condition " equals " #expected); \
     } \
 }
@@ -45,13 +45,13 @@
 }
 
 #define TEST_NOT_NULL(condition) { \
-    if (condition == NULL) { \
+    if ((condition) == NULL) { \
         TEST_FAILURE(#condition " is NULL"); \
     } \
 }
 
 #define TEST_HRESULT(condition) { \
-    HRESULT hr_ = condition; \
+    HRESULT hr_ = (condition); \
     if (FAILED(hr_)) { \
         TEST_FAILURE(#condition " failed, 0x%x", hr_); \
     } \

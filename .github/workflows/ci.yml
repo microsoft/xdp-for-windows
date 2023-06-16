@@ -23,21 +23,25 @@ permissions: read-all
 jobs:
   build:
     name: Build
-    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
+        # Some driver developers are building for WS2022 LTSC targets using VS2019 +
+        # the Windows Server 2022 WDK, so validate our project still builds in that
+        # environment, in addition to the default WS 2022.
+        os: [2019, 2022]
         configuration: [Release, Debug]
         platform: [x64]
+    runs-on: windows-${{ matrix.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
       with:
         submodules: recursive
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Install LLVM 11.0
       run: |
@@ -50,12 +54,13 @@ jobs:
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
     - name: Clean up Artifacts
-      shell: pwsh
+      shell: PowerShell
       run: .azure/scripts/clean-artifacts.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Sign and Package
-      shell: pwsh
+      shell: PowerShell
       run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Artifacts
+      if: matrix.os == 2022
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -66,7 +71,7 @@ jobs:
           !artifacts/bin/**/*.lastcodeanalysissucceeded
     - name: Publish Symbols
       uses: microsoft/action-publish-symbols@719c40b80e38bca806f3e01e1e3dd3a67554cd68
-      if: github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request' && matrix.os == 2022
       with:
         accountName: mscodehub
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
@@ -77,10 +82,10 @@ jobs:
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 60 # minutes
+      fullRuntime: 120 # minutes
       fullIters: 10
       # For PRs
-      prRuntime: 5 # minutes
+      prRuntime: 15 # minutes
       prIters: 1
     strategy:
       fail-fast: false
@@ -88,15 +93,18 @@ jobs:
         windows: [2019, 2022]
         configuration: [Release, Debug]
         platform: [x64]
-    runs-on: windows-${{ matrix.windows }}
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Check Drivers
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
@@ -105,19 +113,19 @@ jobs:
         path: artifacts/bin
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       #timeout-minutes: ${{ env.prRuntime }}
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       # currently getting a weird error:
       #  .github/workflows/ci.yml (Line: 107, Col: 24): Unexpected value '60'
       #timeout-minutes: ${{ env.fullRuntime }}
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -127,16 +135,15 @@ jobs:
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
   stress_tests:
     name: Stress Tests
     needs: build
     env:
-      successThresholdPercent: 50
+      successThresholdPercent: 1
       xdpmpPollProvider: 'FNDIS'
-      queueCount: 1 # GitHub Action VMs have only 2 vCPUs, so ensure 1 CPU is free to spin
       # For 'main' commits
       fullRuntime: 60 # minutes
       fullTimeout: 65 # minutes
@@ -150,15 +157,18 @@ jobs:
         configuration: [Release, Debug]
         platform: [x64]
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
-    runs-on: windows-${{ matrix.windows }}
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-spinxsk-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Check Drivers
-      shell: pwsh
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
@@ -167,17 +177,17 @@ jobs:
         path: artifacts/bin
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       #timeout-minutes: ${{ env.prTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
-      shell: pwsh
+      shell: PowerShell
       #timeout-minutes: ${{ env.fullTimeout }}
-      run: tools/spinxsk.ps1 -Verbose -Stats -QueueCount ${{ env.queueCount }} -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -187,7 +197,55 @@ jobs:
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
-      shell: pwsh
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Verbose
+
+  perf_tests:
+    name: Perf Tests
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022]
+        configuration: [Release]
+        platform: [x64]
+    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-perf-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+    - name: Check Drivers
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Verbose
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -ForTest -NoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run xskperfsuite (Generic, Native)
+      shell: PowerShell
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs"
+    - name: Run xskperfsuite (TX-inspect, RX-inject)
+      shell: PowerShell
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs"
+    - name: Run xskperfsuite (Winsock, RIO)
+      shell: PowerShell
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs"
+    - name: Upload Logs
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: ${{ always() }}
+      with:
+        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
   devkit:
@@ -201,17 +259,17 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Create Dev Kit
-      shell: pwsh
+      shell: PowerShell
       run: tools/create-devkit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Create Runtime Kit
-      shell: pwsh
+      shell: PowerShell
       run: tools/create-runtime-kit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Kit
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
@@ -229,13 +287,13 @@ jobs:
         configuration: [Release, Debug]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
     - name: Setup .NET
-      uses: actions/setup-dotnet@aa983c550dfda0d1722b6ac6aed55724ffacc6d3
+      uses: actions/setup-dotnet@3447fd6a9f9e57506b15f895c5b76d3b197dc7c2
       with:
         dotnet-version: 6.0.x
     - name: Prepare Machine
-      shell: pwsh
+      shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}

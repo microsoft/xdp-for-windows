@@ -69,6 +69,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bpf", "test\bpf\bpf.vcxproj
 EndProject
 Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "xdpinstaller", "src\xdpinstaller\xdpinstaller.wixproj", "{93635A7B-565E-4B41-AF67-5B375756B227}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpcfg", "src\xdpcfg\xdpcfg.vcxproj", "{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -997,6 +999,18 @@ Global
 		{93635A7B-565E-4B41-AF67-5B375756B227}.Release|x64.ActiveCfg = Release|x64
 		{93635A7B-565E-4B41-AF67-5B375756B227}.Release|x86.ActiveCfg = Release|x86
 		{93635A7B-565E-4B41-AF67-5B375756B227}.Release|x86.Build.0 = Release|x86
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Debug|ARM64.Build.0 = Debug|ARM64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Debug|ARM64.Deploy.0 = Debug|ARM64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Debug|x64.ActiveCfg = Debug|x64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Debug|x64.Build.0 = Debug|x64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Debug|x64.Deploy.0 = Debug|x64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Release|ARM64.ActiveCfg = Release|ARM64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Release|ARM64.Build.0 = Release|ARM64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Release|ARM64.Deploy.0 = Release|ARM64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Release|x64.ActiveCfg = Release|x64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Release|x64.Build.0 = Release|x64
+		{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}.Release|x64.Deploy.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

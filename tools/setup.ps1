@@ -46,7 +46,8 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$OriginalErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
@@ -56,14 +57,10 @@ $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = "C:\devcon.exe"
 $DswDevice = "C:\dswdevice.exe"
-$LiveKD = "C:\livekd64.exe"
-$KD = "C:\kd.exe"
 
 # File paths.
-$CodeSignCertPath = "$ArtifactsDir\CoreNetSignRoot.cer"
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
-$XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
@@ -80,16 +77,12 @@ $XdpFnLwfSys = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.sys"
 $XdpFnLwfInf = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.inf"
 $XdpFnLwfComponentId = "ms_xdpfnlwf"
 
-# Helper to reboot the machine
+# Helper to capture failure diagnostics and trigger CI agent reboot
 function Uninstall-Failure {
-    Write-Host "Capturing live kernel dump"
-
-    New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
-    Write-Verbose "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
-    & $LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula
+    Collect-LiveKD -OutFile $LogsDir\xdpuninstall.dmp
 
     Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-    Write-Error "Preparing to reboot machine!"
+    Write-Error "Uninstall failed"
 }
 
 # Helper to start (with retry) a service.
@@ -353,11 +346,13 @@ function Uninstall-XdpMp {
     netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v4" | Out-Null
     netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v6" | Out-Null
 
+    Write-Verbose "$DswDevice -u $XdpMpDeviceId"
     cmd.exe /c "$DswDevice -u $XdpMpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpMpDeviceId device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId"
     cmd.exe /c "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpMpDeviceId device failed: $LastExitCode"
@@ -442,21 +437,25 @@ function Uninstall-XdpFnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
+    Write-Verbose "$DswDevice -u $XdpFnMpDeviceId1"
     cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId1 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1"
     cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpFnMpDeviceId1 device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DswDevice -u $XdpFnMpDeviceId0"
     cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId0 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Deleting $XdpFnMpDeviceId0 device failed: $LastExitCode"
     }
 
+    Write-Verbose "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0"
     cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpFnMpDeviceId0 device failed: $LastExitCode"
@@ -503,7 +502,6 @@ function Uninstall-XdpFnLwf {
 
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiUrl = Get-EbpfMsiUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
 
@@ -530,54 +528,86 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
+
     if (!(Test-Path $EbpfPath)) {
         Write-Verbose "$EbpfPath does not exist. Assuming eBPF is not installed."
         return
     }
+
     Write-Verbose "Uninstalling eBPF for Windows"
-    $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF for Windows'").IdentifyingNumber
-    Write-Verbose "msiexec.exe /x $InstallId /qn"
-    msiexec.exe /x $InstallId /qn | Write-Verbose
+
+    try {
+        Write-Verbose "msiexec.exe /x $EbpfMsiFullPath /qn"
+        $Job = Start-Job -ScriptBlock {
+            msiexec.exe /x $Using:EbpfMsiFullPath /qn | Out-Null
+            return $LastExitCode
+        }
+
+        if (!(Wait-Job -Job $Job -Timeout 60)) {
+            Write-Error "eBPF failed to uninstall within 60 seconds" -ErrorAction Continue
+            Write-Warning "The system will bugcheck in 5 seconds..."
+            Start-Sleep -Seconds 5
+            Initiate-Bugcheck
+        }
+
+        if (($Status = Receive-Job -Job $Job) -ne 0) {
+            if ($Status -eq 0x666) {
+                Write-Error "An unexpected version of eBPF could not be uninstalled"
+            } else {
+                Write-Error "MSI uninstall failed with status $Status" -ErrorAction:Continue
+                Uninstall-Failure
+            }
+        }
+    } finally {
+        Remove-Job -Job $Job -Force
+    }
+
     if (Test-Path $EbpfPath) {
         Write-Error "eBPF could not be uninstalled"
     }
     Refresh-Path
 }
 
-if ($Install -eq "fndis") {
-    Install-FakeNdis
-}
-if ($Install -eq "xdp") {
-    Install-Xdp
-}
-if ($Install -eq "xdpmp") {
-    Install-XdpMp
-}
-if ($Install -eq "xdpfnmp") {
-    Install-XdpFnMp
-}
-if ($Install -eq "xdpfnlwf") {
-    Install-XdpFnLwf
-}
-if ($Install -eq "ebpf") {
-    Install-Ebpf
-}
+try {
+    if ($Install -eq "fndis") {
+        Install-FakeNdis
+    }
+    if ($Install -eq "xdp") {
+        Install-Xdp
+    }
+    if ($Install -eq "xdpmp") {
+        Install-XdpMp
+    }
+    if ($Install -eq "xdpfnmp") {
+        Install-XdpFnMp
+    }
+    if ($Install -eq "xdpfnlwf") {
+        Install-XdpFnLwf
+    }
+    if ($Install -eq "ebpf") {
+        Install-Ebpf
+    }
 
-if ($Uninstall -eq "fndis") {
-    Uninstall-FakeNdis
-}
-if ($Uninstall -eq "xdp") {
-    Uninstall-Xdp
-}
-if ($Uninstall -eq "xdpmp") {
-    Uninstall-XdpMp
-}
-if ($Uninstall -eq "xdpfnmp") {
-    Uninstall-XdpFnMp
-}
-if ($Uninstall -eq "xdpfnlwf") {
-    Uninstall-XdpFnLwf
-}
-if ($Uninstall -eq "ebpf") {
-    Uninstall-Ebpf
+    if ($Uninstall -eq "fndis") {
+        Uninstall-FakeNdis
+    }
+    if ($Uninstall -eq "xdp") {
+        Uninstall-Xdp
+    }
+    if ($Uninstall -eq "xdpmp") {
+        Uninstall-XdpMp
+    }
+    if ($Uninstall -eq "xdpfnmp") {
+        Uninstall-XdpFnMp
+    }
+    if ($Uninstall -eq "xdpfnlwf") {
+        Uninstall-XdpFnLwf
+    }
+    if ($Uninstall -eq "ebpf") {
+        Uninstall-Ebpf
+    }
+} catch {
+    Write-Error $_ -ErrorAction $OriginalErrorActionPreference
 }

@@ -452,10 +452,6 @@ XdpGenericRssInitialize(
     //
     // Attempt to query the indirection table.
     //
-    // TODO: how do we avoid a race with the protocol driver plumbing RSS? The
-    // OID might already be in flight before this LWF has a chance to inspect it
-    // and might still be in flight after we query NDIS.
-    //
 
     Status =
         XdpLwfOidInternalRequest(

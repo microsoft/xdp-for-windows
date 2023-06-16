@@ -143,6 +143,12 @@ PktBuildUdpFrame(
     UdpHeader->uh_ulen = htons(UdpLength);
     UdpHeader->uh_sum =
         PktPseudoHeaderChecksum(IpSource, IpDestination, AddressLength, UdpLength, IPPROTO_UDP);
+
+    Buffer = UdpHeader + 1;
+
+    RtlCopyMemory(Buffer, Payload, PayloadLength);
+    UdpHeader->uh_sum = PktChecksum(0, UdpHeader, UdpLength);
+
     if (UdpHeader->uh_sum == 0 && AddressFamily == AF_INET6) {
         //
         // UDPv6 requires a non-zero checksum field.
@@ -150,10 +156,6 @@ PktBuildUdpFrame(
         UdpHeader->uh_sum = (UINT16)~0;
     }
 
-    Buffer = UdpHeader + 1;
-
-    RtlCopyMemory(Buffer, Payload, PayloadLength);
-    UdpHeader->uh_sum = PktChecksum(0, UdpHeader, UdpLength);
     *BufferSize = TotalLength;
 
     return TRUE;
@@ -309,7 +311,7 @@ PktParseTcpFrame(
         if (FrameSize >= Offset + IPPayloadLength) {
             if (Payload != NULL) {
                 Offset += TcpHeaderLen;
-                *Payload = &Frame[Offset];                
+                *Payload = &Frame[Offset];
             }
 
             if (PayloadLength != NULL) {

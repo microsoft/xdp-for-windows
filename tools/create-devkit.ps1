@@ -35,6 +35,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.cat" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdpapi.dll" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.exe" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xskbench.exe" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
@@ -42,6 +43,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdp.pdb"   $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xdpapi.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xskbench.pdb" $DstPath\symbols
 
 New-Item -Path $DstPath\include -ItemType Directory > $null
@@ -55,9 +57,9 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.lib" $DstPath\lib
 copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.pdb" $DstPath\lib
 
 [xml]$XdpVersion = Get-Content $RootDir\xdp.props
-$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion[0]
+$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion[0]
+$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
 
 $VersionString = "$Major.$Minor.$Patch"
 

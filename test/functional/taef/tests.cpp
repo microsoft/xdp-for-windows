@@ -396,6 +396,10 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
+    TEST_METHOD(SecurityAdjustDeviceAcl) {
+        ::SecurityAdjustDeviceAcl();
+    }
+
     TEST_METHOD(GenericRxEbpfAttach) {
         ::GenericRxEbpfAttach();
     }

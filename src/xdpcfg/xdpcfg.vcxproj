@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(SolutionDir)xdp.props" />
   <!--The following lines configure the properties needed for sourcelink support -->
@@ -7,98 +7,48 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <ItemGroup>
-    <ClCompile Include="hwring.c" />
-    <ClCompile Include="miniport.c" />
-    <ClCompile Include="poll.c" />
-    <ClCompile Include="ratesim.c" />
-    <ClCompile Include="rss.c" />
-    <ClCompile Include="rx.c" />
-    <ClCompile Include="tx.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="poll.h" />
-    <ClInclude Include="precomp.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="xdpmp.rc">
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
-      <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\fakendis\fndis.vcxproj">
-      <Project>{8a82f294-00d6-40e1-9c55-6bc93c2bec0e}</Project>
-    </ProjectReference>
+    <ClCompile Include="xdpcfg.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{cb63d7e9-9661-468c-851d-dec51bcaad0c}</ProjectGuid>
-    <TemplateGuid>{1bc93793-694f-48fe-9372-81e2b05556fd}</TemplateGuid>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</ProjectGuid>
+    <RootNamespace>xdpcfg</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)xdp.cpp.default.props" />
   <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>KMDF</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>$(XdpPlatformToolset)</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)xdp.cpp.props" />
-  <Import Project="$(SolutionDir)xdp.cpp.kernel.props" />
+  <Import Project="$(SolutionDir)xdp.cpp.user.props" />
   <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
+    <TargetName>xdpcfg</TargetName>
     <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
-    <PreBuildEvent>
-      <Command>mofcomp.exe -WMI -B:"$(IntDir)xdpmp.bmf" xdpmp.mof
-wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
-    </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;
-        $(SolutionDir)src\rtl\inc;
-        $(SolutionDir)test\pkthlp;
-        $(SolutionDir)test\fakendis\inc;
-        $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>
-        NDIS_MINIPORT_DRIVER;
-        NDIS685_MINIPORT=1;
-        %(PreprocessorDefinitions)
-      </PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
-      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</AdditionalLibraryDirectories>
+      <SubSystem>Console</SubSystem>
       <AdditionalDependencies>
-        fndis.lib;
-        ndis.lib;
-        netio.lib;
+        ntdll.lib;
+        onecore.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <Inf Include="inf\xdpmp.inx">
-      <SpecifyDriverDirectiveVersion>true</SpecifyDriverDirectiveVersion>
-    </Inf>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>

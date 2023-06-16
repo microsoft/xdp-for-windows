@@ -124,3 +124,49 @@ function Refresh-Path {
         [System.Environment]::GetEnvironmentVariable("Path","User")
     ) -match '.' -join ';'
 }
+
+function Collect-LiveKD {
+    param (
+        [Parameter()]
+        [string]$OutFile
+    )
+
+    $LiveKD = "C:\livekd64.exe"
+    $KD = "C:\kd.exe"
+
+    Write-Host "Capturing live kernel dump to $OutFile"
+
+    New-Item -ItemType Directory -Force -Path (Split-Path $OutFile) | Out-Null
+    Write-Verbose "$LiveKD -o $OutFile -k $KD -ml -accepteula"
+    & $LiveKD -o $OutFile -k $KD -ml -accepteula
+}
+
+function Collect-ProcessDump {
+    param (
+        [Parameter()]
+        [string]$ProcessName,
+
+        [Parameter()]
+        [string]$OutFile
+    )
+
+    $ProcDump = "C:\procdump64.exe"
+
+    Write-Host "Capturing process dump of $ProcessName to $OutFile"
+
+    New-Item -ItemType Directory -Force -Path (Split-Path $OutFile) | Out-Null
+    Write-Verbose "$ProcDump -accepteula -ma $ProcessName $OutFile"
+    & $ProcDump -accepteula -ma $ProcessName $OutFile
+}
+
+function Initiate-Bugcheck {
+    param (
+        [Parameter()]
+        [string]$Code = "0xE2"
+    )
+
+    $NotMyFault = "C:\notmyfault64.exe"
+
+    Write-Host "$NotMyFault -accepteula -bugcheck $Code"
+    & $NotMyFault -accepteula -bugcheck $Code
+}

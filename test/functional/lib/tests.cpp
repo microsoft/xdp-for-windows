@@ -6,10 +6,11 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
+#define _CRT_RAND_S
+#include <cstdlib>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <future>
 #include <initializer_list>
 #include <memory>
@@ -25,6 +26,8 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <lm.h>
+#include <sddl.h>
 
 #if _MSCVER < 1930
 //
@@ -73,6 +76,8 @@
 #define DEFAULT_UMEM_HEADROOM 0
 #define DEFAULT_RING_SIZE (DEFAULT_UMEM_SIZE / DEFAULT_UMEM_CHUNK_SIZE)
 
+#define DEFAULT_XDP_SDDL "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
+
 static CONST XDP_HOOK_ID XdpInspectRxL2 =
 {
     XDP_HOOK_L2,
@@ -97,7 +102,7 @@ static CONST XDP_HOOK_ID XdpInspectTxL2 =
 //
 // The expected maximum time needed for a network adapter to restart.
 //
-#define MP_RESTART_TIMEOUT std::chrono::seconds(10)
+#define MP_RESTART_TIMEOUT std::chrono::seconds(15)
 
 //
 // Interval between polling attempts.
@@ -171,6 +176,21 @@ BOOLEAN
 TryWaitForNdisDatapath(
     _In_ const TestInterface& If
     );
+
+static
+INT
+InvokeSystem(
+    _In_z_ const CHAR *Command
+    )
+{
+    INT Result;
+
+    TraceVerbose("system(%s)", Command);
+    Result = system(Command);
+    TraceVerbose("system(%s) returned %u", Command, Result);
+
+    return Result;
+}
 
 typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
 
@@ -285,6 +305,12 @@ public:
         ElapsedQpc = End.QuadPart - _StartQpc.QuadPart;
 
         return T((ElapsedQpc * T::period::den) / T::period::num / _FrequencyQpc.QuadPart);
+    }
+
+    T
+    Remaining()
+    {
+        return std::max(T(0), _TimeoutInterval - Elapsed());
     }
 
     bool
@@ -459,7 +485,7 @@ public:
         INT ExitCode;
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
-        ExitCode = system(CmdBuff);
+        ExitCode = InvokeSystem(CmdBuff);
 
         if (ExitCode != 0) {
             TraceError("ExitCode=%u", ExitCode);
@@ -486,7 +512,7 @@ public:
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
-        TEST_EQUAL(0, system(CmdBuff));
+        TEST_EQUAL(0, InvokeSystem(CmdBuff));
         Restart();
     }
 
@@ -499,7 +525,7 @@ public:
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Disable-NetAdapterBinding -ComponentID ms_xdp",
             PowershellPrefix, _IfDesc);
-        return HRESULT_FROM_WIN32(system(CmdBuff));
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 
     HRESULT
@@ -511,7 +537,7 @@ public:
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
             PowershellPrefix, _IfDesc);
-        return HRESULT_FROM_WIN32(system(CmdBuff));
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 };
 
@@ -588,6 +614,38 @@ TryStopService(
 
 static
 HRESULT
+TryRestartService(
+    _In_z_ const CHAR *ServiceName
+    )
+{
+    HRESULT Result;
+
+    Result = TryStopService(ServiceName);
+    if (FAILED(Result)) {
+        return Result;
+    }
+
+    return TryStartService(ServiceName);
+}
+
+static
+VOID
+SetDeviceSddl(
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR CmdBuff[256];
+    CHAR Path[MAX_PATH];
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+
+    TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
+
+    sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+}
+
+static
+HRESULT
 TryOpenApi(
     _Out_ unique_xdp_api &XdpApiTable,
     _In_ UINT32 Version = XDP_VERSION_PRERELEASE
@@ -608,11 +666,20 @@ OpenApi(
 }
 
 static
+HRESULT
+TryCreateSocket(
+    _Inout_ wil::unique_handle &Socket
+    )
+{
+    return XdpApi->XskCreate(&Socket);
+}
+
+static
 wil::unique_handle
 CreateSocket()
 {
     wil::unique_handle Socket;
-    TEST_HRESULT(XdpApi->XskCreate(&Socket));
+    TEST_HRESULT(TryCreateSocket(Socket));
     return Socket;
 }
 
@@ -1941,7 +2008,7 @@ CreateTcpSocket(
     //
     WaitForWfpQuarantine(*If);
 
-    wil::unique_socket Socket(socket(Af, SOCK_STREAM,IPPROTO_TCP));
+    wil::unique_socket Socket(socket(Af, SOCK_STREAM, IPPROTO_TCP));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
@@ -2010,15 +2077,35 @@ CreateTcpSocket(
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
     //
-    // Verify the SYN+ACK has been redirected to XSK.
+    // Verify the SYN+ACK has been redirected to XSK, filtering out other
+    // TCP connections using the same remote port.
     //
-    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, std::chrono::milliseconds(5000));
-    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
-    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+
     TCP_HDR *TcpHeaderParsed = NULL;
-    TEST_TRUE(PktParseTcpFrame(
-        Xsk.Umem.Buffer.get() + XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
-        RxDesc->length, &TcpHeaderParsed, NULL, 0));
+    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(5));
+    do {
+        UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, Watchdog.Remaining());
+        TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+        auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
+
+        TEST_TRUE(PktParseTcpFrame(
+            Xsk.Umem.Buffer.get() +
+                XskDescriptorGetAddress(RxDesc->address) + XskDescriptorGetOffset(RxDesc->address),
+            RxDesc->length, &TcpHeaderParsed, NULL, 0));
+
+        if (*LocalPort == TcpHeaderParsed->th_sport) {
+            break;
+        }
+
+        XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+        SocketProduceRxFill(&Xsk, 1);
+        TcpHeaderParsed = NULL;
+    } while (!Watchdog.IsExpired());
+
+    TEST_NOT_NULL(TcpHeaderParsed);
+    TEST_EQUAL(*LocalPort, TcpHeaderParsed->th_sport);
+    TEST_EQUAL(TH_SYN | TH_ACK, TcpHeaderParsed->th_flags & (TH_SYN | TH_ACK | TH_RST | TH_FIN));
+
     //
     // Construct and inject the ACK for SYN+ACK.
     //
@@ -2029,8 +2116,28 @@ CreateTcpSocket(
             &RemoteHw, Af, &LocalIp, &RemoteIp, *LocalPort, RemotePort));
     RxInitializeFrame(&Frame, If->GetQueueId(), TcpFrame, TcpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    wil::unique_socket AcceptedSocket(accept(Socket.get(), NULL, 0));
+
+    //
+    // Start a blocking accept and ensure that if the accept fails to complete
+    // within the timeout, the listening socket gets closed, which will cancel
+    // the accept request.
+    //
+    auto AsyncThread = std::async(
+        std::launch::async,
+        [&] {
+            return wil::unique_socket(accept(Socket.get(), NULL, 0));
+        }
+    );
+    auto CloseListener = wil::scope_exit([&]
+    {
+        Socket.reset();
+    });
+
+    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+
+    wil::unique_socket AcceptedSocket = std::move(AsyncThread.get());
     TEST_NOT_NULL(AcceptedSocket.get());
+
     *AckNum = AckNumForSynAck;
     return AcceptedSocket;
 }
@@ -2117,11 +2224,11 @@ TryWaitForNdisDatapath(
             CmdBuff,
             "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
             PowershellPrefix, If.GetIfDesc());
-        AdapterUp = !!system(CmdBuff);
+        AdapterUp = !!InvokeSystem(CmdBuff);
 
         wil::unique_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfUp = LwfIsDatapathActive(FnLwf);
-    } while (Sleep(POLL_INTERVAL_MS), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
+    } while (Sleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
 
     if (!AdapterUp) {
         TraceError("AdapterUp=FALSE");
@@ -2172,7 +2279,7 @@ TestSetup()
     XdpApi = OpenApi();
     PowershellPrefix = GetPowershellPrefix();
     TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
-    TEST_EQUAL(0, system("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
+    TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     WaitForWfpQuarantine(FnMpIf);
     WaitForNdisDatapath(FnMpIf);
     WaitForWfpQuarantine(FnMp1QIf);
@@ -2183,7 +2290,7 @@ TestSetup()
 bool
 TestCleanup()
 {
-    TEST_EQUAL(0, system("netsh advfirewall firewall delete rule name=xdpfntest"));
+    TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
     TEST_EQUAL(0, WSACleanup());
     XdpApi.reset();
     WPP_CLEANUP();
@@ -2253,6 +2360,8 @@ BindingTest(
                 Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
                 If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
+
+                TEST_TRUE(TryWaitForNdisDatapath(If));
             }
         }
 
@@ -2267,6 +2376,8 @@ BindingTest(
                 Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
                 If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
+
+                TEST_TRUE(TryWaitForNdisDatapath(If));
             }
 
             Socket.RxProgram.reset();
@@ -2287,7 +2398,6 @@ BindingTest(
 
     if (RestartAdapter) {
         WaitForWfpQuarantine(If);
-        WaitForNdisDatapath(If);
     }
 }
 
@@ -4124,6 +4234,150 @@ GenericRxFromTxInspect(
                         XskDescriptorGetOffset(RxDesc->address),
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
+    }
+}
+
+static
+VOID
+GenerateTestPassword(
+    _Out_writes_z_(BufferCount) WCHAR *Buffer,
+    _In_ UINT32 BufferCount
+    )
+{
+    TEST_TRUE(BufferCount >= 4);
+    ASSERT(BufferCount >= 4);
+
+    //
+    // Terminate the string and attempt to satisfy complexity requirements with
+    // some hard-coded values.
+    //
+    Buffer[--BufferCount] = L'\0';
+    Buffer[--BufferCount] = L'A';
+    Buffer[--BufferCount] = L'b';
+    Buffer[--BufferCount] = L'#';
+
+    for (UINT32 i = 0; i < BufferCount; i++) {
+        static const WCHAR Characters[] =
+            L"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789";
+
+        unsigned int r;
+        rand_s(&r);
+
+        Buffer[i] = Characters[r % RTL_NUMBER_OF(Characters)];
+    }
+}
+
+VOID
+SecurityAdjustDeviceAcl()
+{
+    PCWSTR UserName = L"xdpfnuser";
+    WCHAR UserPassword[16 + 1];
+    USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
+
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    //
+    // As the non-admin user, verify XDP denies access to all handle types.
+    //
+    {
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        wil::unique_handle Socket;
+        TEST_EQUAL(
+            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+            TryCreateSocket(Socket));
+
+        wil::unique_handle Interface;
+        TEST_EQUAL(
+            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
+            TryInterfaceOpen(If.GetIfIndex(), Interface));
+    }
+
+    //
+    // Grant the test's standard user access to XDP.
+    //
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
+
+    CHAR SddlBuff[256];
+    RtlZeroMemory(SddlBuff, sizeof(SddlBuff));
+    sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    SetDeviceSddl(SddlBuff);
+    auto ResetSddl = wil::scope_exit([&]
+    {
+        SetDeviceSddl(DEFAULT_XDP_SDDL);
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
+    });
+
+    TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
+    //
+    // As the non-admin user, verify XDP now grants access to all handle types.
+    //
+    {
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        CreateSocket();
+        InterfaceOpen(If.GetIfIndex());
     }
 }
 
@@ -6483,11 +6737,11 @@ OffloadSetHardwareCapabilities()
     CHAR CmdBuff[256];
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4Capability -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
-    TEST_EQUAL(0, system(CmdBuff));
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
-    TEST_EQUAL(0, system(CmdBuff));
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
 
     If.Restart();
 

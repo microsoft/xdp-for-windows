@@ -101,6 +101,9 @@ GenericRxFromTxInspect(
     );
 
 VOID
+SecurityAdjustDeviceAcl();
+
+VOID
 GenericRxEbpfAttach();
 
 VOID

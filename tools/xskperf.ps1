@@ -182,6 +182,13 @@ try {
                 "$UdpDstPort $UdpSize"
             Write-Verbose "pktcmd.exe $ArgList"
             $UdpPattern = & $ArtifactsDir\pktcmd.exe $ArgList.Split(" ")
+
+            # Since the packet data is set to zero in pktcmd and XDPMP
+            # implicitly sets trailing packet data to zero, truncate the string
+            # to fit within the max NDIS string length.
+            if ($UdpPattern.Length -gt 150) {
+                $UdpPattern = $UdpPattern.Substring(0, 150)
+            }
         } else {
             $UdpPattern = $null
         }
@@ -269,16 +276,18 @@ try {
     # If using TxInspect, generate TX load.
     #
     if ($TxInspect) {
-        if ($XdpMode -ne "Generic" -or $Mode -ne "RX") {
-            Write-Error "TxInspect only supported in RX-Generic mode"
+        if ($XdpMode -ne "Generic") {
+            Write-Error "TxInspect only supported in Generic mode"
         }
 
-        $WsaRioCpu = $XdpCpu + 5
-        $ArgList =
-            "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup -CPU $WsaRioCpu " +
-            "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
-        Write-Verbose "$WsaRio $ArgList"
-        $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
+        if (@("RX", "FWD").Contains($Mode)) {
+            $WsaRioCpu = $XdpCpu + 5
+            $ArgList =
+                "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup -CPU $WsaRioCpu " +
+                "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
+            Write-Verbose "$WsaRio $ArgList"
+            $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
+        }
     }
 
     if ($Wait) {
