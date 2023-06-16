@@ -44,7 +44,7 @@ typedef struct _XSK_KERNEL_RING {
 typedef struct _UMEM_MAPPING {
     MDL *Mdl;
     UCHAR *SystemAddress;
-    DMA_LOGICAL_ADDRESS DmaAddress;
+    PHYSICAL_ADDRESS DmaAddress;
 } UMEM_MAPPING;
 
 typedef struct _UMEM {

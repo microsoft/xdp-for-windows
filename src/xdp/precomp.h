@@ -11,7 +11,6 @@
 #include <ntstatus.h>
 #include <ntifs.h>
 #include <ntintsafe.h>
-#include <ndis.h>
 #include <wdmsec.h>
 
 //
