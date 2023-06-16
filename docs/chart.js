@@ -30,10 +30,35 @@ function titlePlacement(tooltipItem, data) {
 }
 
 function createChartwithData(allData, year, chart, names, displayLegend, stacked) {
+    // Create the HTML elements first
+    const chartParent = document.getElementById('chart-parent');
+    const div = document.createElement('div');
+    div.classList.add('col-xl-12', 'col-lg-12');
+    const card = document.createElement('div');
+    card.classList.add('card', 'shadow', 'mb-4');
+    const cardHeader = document.createElement('div');
+    cardHeader.classList.add('card-header', 'py-3', 'd-flex', 'flex-row', 'align-items-center', 'justify-content-between');
+    const a = document.createElement('a');
+    a.classList.add('m-0', 'font-weight-bold', 'text-dark');
+    a.textContent = chart+" ("+year+")";
+    const cardBody = document.createElement('div');
+    cardBody.classList.add('card-body');
+    const chartArea = document.createElement('div');
+    chartArea.classList.add('chart-area');
+    const canvas = document.createElement('canvas');
+    chartArea.appendChild(canvas);
+    cardBody.appendChild(chartArea);
+    cardHeader.appendChild(a);
+    card.appendChild(cardHeader);
+    card.appendChild(cardBody);
+    div.appendChild(card);
+    chartParent.appendChild(div);
+
+    // Add the chart to the HTML element
     var dataset = [];
     names.forEach(
         name => dataset.push(createDataset(name, generateDataset(allData, chart + "-" + name))))
-    new Chart(document.getElementById("canvas-"+year+"-"+chart).getContext('2d'), {
+    new Chart(canvas.getContext('2d'), {
         data: { datasets: dataset },
         options: {
             maintainAspectRatio: false,
