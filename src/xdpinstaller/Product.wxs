@@ -61,26 +61,26 @@ SPDX-License-Identifier: MIT
 				<File Id="xdp_setup_ps1" Source="scripts\xdp-setup.ps1" KeyPath="yes"/>
 			</Component>
 			<Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
-				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)\xdp\xdp.inf" KeyPath="yes"/>
+				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)xdp.inf" KeyPath="yes"/>
 			</Component>
 			<Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
-				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp\xdp.sys" KeyPath="yes" />
+				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp.sys" KeyPath="yes" />
 			</Component>
 			<Component Id="xdp.pdb" Guid="{BC5C7A2C-613B-4831-A721-1FDFC4129F12}">
 				<File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.TargetDir)xdp.pdb" KeyPath="yes" />
 			</Component>
 			<Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
-				<File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)xdp\xdp.cat" KeyPath="yes"/>
+				<File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)xdp.cat" KeyPath="yes"/>
 			</Component>
 		</ComponentGroup>
 		
 		<!-- XDP user-mode components -->
 		<ComponentGroup Id="xdpapi_dll" Directory="System64Folder">
 			<Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
-				<File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)xdpapi.dll" KeyPath="yes" />
+				<File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)..\xdpapi.dll" KeyPath="yes" />
 			</Component>
 			<Component Id="xdpapi.pdb" Guid="{12CB0C1D-F93D-4A4D-BEAC-4FEE589C7192}">
-				<File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.TargetDir)xdpapi.pdb" KeyPath="yes" />
+				<File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.TargetDir)..\xdpapi.pdb" KeyPath="yes" />
 			</Component>
 		</ComponentGroup>
 

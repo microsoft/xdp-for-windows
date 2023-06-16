@@ -4,36 +4,19 @@ Class           = NetService
 ClassGUID       = {4D36E974-E325-11CE-BFC1-08002BE10318}
 Provider        = %Msft%
 PnpLockdown     = 1
-
-[DestinationDirs]
-Drivers_Dir = %DIRID_DRIVERS%
-System_Dir = %DIRID_SYSTEM%
-
-[SourceDisksFiles]
-xdp.sys = 1
-xdpapi.dll = 1
-
-[SourceDisksNames]
-1 = disk
+DriverVer = 06/15/2023,0.16.9.0
+CatalogFile = xdp.cat
 
 [Manufacturer]
-%Msft% = MSFT,NT$ARCH$
+%Msft% = MSFT,NTamd64
 
-[MSFT.NT$ARCH$]
+[MSFT.NTamd64]
 %Xdp% = Install, ms_xdp
 
 [Install]
 Characteristics     = %NCF_LW_FILTER%
 NetCfgInstanceId    = "{c0be1ebc-74b8-4ba9-8c1e-ecd227e2be3b}"
-CopyFiles           = Drivers_Dir
-CopyFiles           = System_Dir
 AddReg              = XDP.NDI
-
-[Drivers_Dir]
-xdp.sys
-
-[System_Dir]
-xdpapi.dll
 
 [XDP.NDI]
 HKR, Ndi, Service,, "xdp"

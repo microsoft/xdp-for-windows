@@ -72,6 +72,7 @@ if ($RuntimeKit) {
     tools/create-runtime-kit.ps1 -Config $Config
 }
 
+# Build the MSI installer
 msbuild.exe xdp.sln /target:xdpinstaller:Rebuild `
     /p:Configuration=Installer-$Config `
     /p:Platform=$Platform

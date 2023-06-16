@@ -10,11 +10,11 @@
     <OutputType>Package</OutputType>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
-    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
+    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
     <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
-    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
+    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
     <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>
@@ -35,6 +35,13 @@
     </WixExtension>
   </ItemGroup>
   <ItemGroup>
+    <Inf Include="xdp_msi.inx">
+      <CatalogFileName>xdp.cat</CatalogFileName>
+      <TimeStamp>$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion).0</TimeStamp>
+      <SpecifyDriverDirectiveVersion>true</SpecifyDriverDirectiveVersion>
+    </Inf>
+  </ItemGroup>
+  <ItemGroup>
     <Folder Include="scripts" />
   </ItemGroup>
   <Import Project="$(WixTargetsPath)" Condition=" '$(WixTargetsPath)' != '' " />
@@ -43,12 +50,11 @@
     <Error Text="The WiX Toolset v3.11 build tools must be installed to build this project. To download the WiX Toolset, see https://wixtoolset.org/releases/v3.11/stable" />
   </Target>
   <!-- The following Pre-Build event can be uncommented, for automating the signing of the artifacts that will be packaged in the MSI. -->
-  <!--
+  <!-- 
   <PropertyGroup>
     <PreBuildEvent>powershell.exe $(SolutionDir)tools\sign.ps1 $(ConfigurationName) $(PlatformName)</PreBuildEvent>
   </PropertyGroup>
   -->
-
   <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it.
 	Other similar extension points exist, see Wix.targets.
