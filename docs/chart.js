@@ -149,12 +149,12 @@ function createChart(allData, year) {
         'RX-BUSY-2048chunksize-64iosize-FNDIS',
         'RX-BUSY-2048chunksize-1514iosize-FNDIS',
         'TX-BUSY-2048chunksize-64iosize-FNDIS',
-        'TX-BUSY-2048chunksize-1514iosize-FNDIS',
-        'FWD-BUSY-2048chunksize-64iosize-FNDIS',
-        'FWD-BUSY-2048chunksize-1514iosize-FNDIS'
+        'TX-BUSY-2048chunksize-1514iosize-FNDIS'
     ]
     createChartwithData(allData, year, "XDPMP-NATIVE", names, true, false)
     createChartwithData(allData, year, "XDPMP-GENERIC", names, true, false)
+    createChartwithData(allData, year, "XDPMP-WINSOCK", names, true, false)
+    createChartwithData(allData, year, "XDPMP-RIO", names, true, false)
 }
 
 // Immediately triggers on load of the HTML file. Loads all data and generates charts
