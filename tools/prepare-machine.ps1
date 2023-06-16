@@ -299,6 +299,9 @@ if ($Cleanup) {
         Setup-VcRuntime
         Setup-VsTest
         Install-AzStorageModule
+
+        # take a crash dump
+        Initiate-Bugcheck
     }
 
     if ($ForLogging) {
