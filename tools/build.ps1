@@ -73,8 +73,8 @@ if ($RuntimeKit) {
 }
 
 # Build the MSI installer
-msbuild.exe xdp.sln /target:xdpinstaller:Rebuild `
-    /p:Configuration=Installer-$Config `
+msbuild.exe src\xdpinstaller\xdpinstaller.sln `
+    /p:Configuration=$Config `
     /p:Platform=$Platform
 if (!$?) {
     Write-Verbose "Building the XDP installer failed: $LastExitCode"

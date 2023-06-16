@@ -10,11 +10,11 @@
     <OutputType>Package</OutputType>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
-    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
+    <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
     <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
-    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
+    <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
     <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>

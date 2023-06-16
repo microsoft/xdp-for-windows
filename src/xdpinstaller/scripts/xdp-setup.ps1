@@ -30,22 +30,9 @@ $SystemFolder = [Environment]::SystemDirectory
 $XdpSys = "$SystemFolder\drivers\xdp.sys"
 $XdpInf = "$SystemFolder\drivers\xdp.inf"
 $XdpCat = "$SystemFolder\drivers\xdp.cat"
-$LogsDir = "$SystemFolder\Logs"
 
 # Set the temporary working directory and testore it on exit.
 Push-Location -Path $SystemFolder
-
-# Helper to reboot the machine.
-function Uninstall-Failure {
-    Write-Host "Capturing live kernel dump"
-
-    New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
-    Write-Verbose "$LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula"
-    & $LiveKD -o $LogsDir\xdp.dmp -k $KD -ml -accepteula
-
-    Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-    Write-Error "Preparing to reboot machine!"
-}
 
 # Helper to start (with retry) a service.
 function Start-Service-With-Retry($Name) {
@@ -61,25 +48,6 @@ function Start-Service-With-Retry($Name) {
     }
     if ($StartSuccess -eq $false) {
         Write-Error "Failed to start $Name"
-    }
-}
-
-# Helper to rename (with retry) a network adapter. On WS2022, renames sometimes
-# fail with ERROR_TRANSACTION_NOT_ACTIVE.
-function Rename-NetAdapter-With-Retry($IfDesc, $Name) {
-    Write-Verbose "Rename-NetAdapter $IfDesc $Name"
-    $RenameSuccess = $false
-    for ($i=0; $i -lt 10; $i++) {
-        try {
-            Rename-NetAdapter -InterfaceDescription $IfDesc $Name
-            $RenameSuccess = $true
-            break
-        } catch {
-            Start-Sleep -Milliseconds 100
-        }
-    }
-    if ($RenameSuccess -eq $false) {
-        Write-Error "Failed to rename $Name"
     }
 }
 
@@ -119,31 +87,8 @@ function Cleanup-Service($Name) {
             Start-Sleep -Milliseconds 10
         }
         if (!$DeleteSuccess) {
-            Write-Verbose "Failed to clean up $Name!"
-            Uninstall-Failure
+            Write-Error "Failed to clean up $Name!"
         }
-    }
-}
-
-# Helper to wait for an adapter to start.
-function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
-    Write-Verbose "Waiting for $Count `"$IfDesc`" adapter(s) to start"
-    $StartSuccess = $false
-    for ($i = 0; $i -lt 100; $i++) {
-        $Result = 0
-        $Filter = { $_.InterfaceDescription -like "$IfDesc*" -and (!$WaitForUp -or $_.Status -eq "Up") }
-        try { $Result = ((Get-NetAdapter | where $Filter) | Measure-Object).Count } catch {}
-        if ($Result -eq $Count) {
-            $StartSuccess = $true
-            break;
-        }
-        Start-Sleep -Milliseconds 100
-    }
-    if ($StartSuccess -eq $false) {
-        Get-NetAdapter | Format-Table | Out-String | Write-Verbose
-        Write-Error "Failed to start $Count `"$IfDesc`" adapters(s) [$Result/$Count]"
-    } else {
-        Write-Verbose "Started $Count `"$IfDesc`" adapter(s)"
     }
 }
 
@@ -192,9 +137,6 @@ if ($Install -eq "xdp") {
     if (!(Test-Path $XdpCat)) {
         Write-Error "$XdpCat does not exist!"
     }
-
-    # Uncomment for debugging only: list installed xdp files   
-    #Get-ChildItem -Path "$SystemFolder\xdp*.*" -File -Recurse | ForEach-Object { Write-Verbose $_.FullName }
 
     Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
     netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
