@@ -42,7 +42,7 @@ function processData(text) {
 }
 
 // Find all the data matching the names and create a dataset for it
-function createDataset(chartName, dataName, allData) {
+function createDataset(chartName, dataName, color, allData) {
     var data = allData.filter(x => x.name === chartName + "-" + dataName)
     var dataset = []
     data.forEach(
@@ -51,6 +51,7 @@ function createDataset(chartName, dataName, allData) {
         type: "line",
         label: dataName,
         borderWidth: dataLineWidth,
+        borderColor: color,
         pointRadius: dataRawPointRadius,
         tension: 0,
         fill: false,
@@ -65,10 +66,10 @@ function titlePlacement(tooltipItem, data) {
 }
 
 // Create everything necessary for the new chart
-function createChartwithData(allData, year, chart, names, displayLegend, stacked) {
+function createChartwithData(allData, year, chart, names, colors, displayLegend, stacked) {
     // Generate the chart datasets
     var datasets = [];
-    names.forEach(name => datasets.push(createDataset(chart, name, allData)))
+    names.forEach((name, i) => datasets.push(createDataset(chart, name, colors[i], allData)))
 
     // Create the HTML elements first
     const chartParent = document.getElementById('chart-parent');
@@ -124,7 +125,10 @@ function createChartwithData(allData, year, chart, names, displayLegend, stacked
                 }]
             },
             legend: {
-              display: displayLegend
+                display: displayLegend,
+                labels: {
+                    backgroundColor: colors
+                }
             },
             tooltips: {
                 backgroundColor: "rgb(255,255,255)",
@@ -152,10 +156,16 @@ function createChart(allData, year) {
         'TX-BUSY-2048chunksize-64iosize-FNDIS',
         'TX-BUSY-2048chunksize-1514iosize-FNDIS'
     ]
-    createChartwithData(allData, year, "XDPMP-NATIVE", names, true, false)
-    createChartwithData(allData, year, "XDPMP-GENERIC", names, true, false)
-    createChartwithData(allData, year, "XDPMP-RIO", names, true, false)
-    createChartwithData(allData, year, "XDPMP-WINSOCK", names, true, false)
+    var colors = [
+        'red',
+        'blue',
+        'green',
+        'black'
+    ]
+    createChartwithData(allData, year, "XDPMP-NATIVE", names, colors, true, false)
+    createChartwithData(allData, year, "XDPMP-GENERIC", names, colors, true, false)
+    createChartwithData(allData, year, "XDPMP-RIO", names, colors, true, false)
+    createChartwithData(allData, year, "XDPMP-WINSOCK", names, colors, true, false)
 }
 
 // Immediately triggers on load of the HTML file. Loads all data and generates charts
