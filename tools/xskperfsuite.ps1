@@ -62,7 +62,10 @@ param (
     [string]$RawResultsFile = "",
 
     [Parameter(Mandatory=$false)]
-    [string]$XperfDirectory = ""
+    [string]$XperfDirectory = "",
+
+    [Parameter(Mandatory=$false)]
+    [string]$CommitHash = ""
 )
 
 function ExtractKppsStat {
@@ -213,7 +216,12 @@ try {
                             Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
 
                             if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
-                                Add-Content -Path $RawResultsFile -Value ("{0},{1}" -f $ScenarioName, ($kppsList -join ","))
+                                Add-Content -Path $RawResultsFile -Value `
+                                    ("{0},{1},{2},{3}" -f `
+                                        $ScenarioName, `
+                                        $CommitHash, `
+                                        ([DateTimeOffset](Get-Date)).ToUnixTimeSeconds(), `
+                                        ($kppsList -join ","))
                             }
                         } catch {
                             Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
