@@ -4,6 +4,7 @@
 used to send and receive packets at high rates by bypassing most of the OS networking stack.
 
 [![CI](https://github.com/microsoft/xdp-for-windows/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/xdp-for-windows/actions/workflows/ci.yml)
+[![Perf Dashboard](https://img.shields.io/static/v1?label=Performance&message=Dashboard&color=blue)](https://microsoft.github.io/xdp-for-windows/)
 
 ## Documentation
 
