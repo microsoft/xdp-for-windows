@@ -6,6 +6,8 @@
 *.xml text
 
 # Ensure binary files stay binary
+*.eot binary
 *.pgd binary
 *.png binary
 *.jpg binary
+*.ttf binary
