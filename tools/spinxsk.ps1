@@ -90,11 +90,13 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 $SpinXsk = "$ArtifactsDir\spinxsk.exe"
-$LiveKD = "C:\livekd64.exe"
-$KD = "C:\kd.exe"
+$LiveKD = Get-CoreNetCiArtifactPath -Name "livekd64.exe"
+$KD = Get-CoreNetCiArtifactPath -Name "kd.exe"
 
 # Verify all the files are present.
 if (!(Test-Path $SpinXsk)) {

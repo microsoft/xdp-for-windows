@@ -55,8 +55,8 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 # Important paths.
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
-$DevCon = "C:\devcon.exe"
-$DswDevice = "C:\dswdevice.exe"
+$DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
+$DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
