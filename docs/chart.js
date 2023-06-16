@@ -153,8 +153,8 @@ function createChart(allData, year) {
     ]
     createChartwithData(allData, year, "XDPMP-NATIVE", names, true, false)
     createChartwithData(allData, year, "XDPMP-GENERIC", names, true, false)
-    createChartwithData(allData, year, "XDPMP-WINSOCK", names, true, false)
     createChartwithData(allData, year, "XDPMP-RIO", names, true, false)
+    createChartwithData(allData, year, "XDPMP-WINSOCK", names, true, false)
 }
 
 // Immediately triggers on load of the HTML file. Loads all data and generates charts
