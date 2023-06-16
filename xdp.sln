@@ -67,9 +67,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rxfilter", "samples\rxfilte
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bpf", "test\bpf\bpf.vcxproj", "{5DE7385C-80B3-40CD-97D0-7C24DEC2F95C}"
 EndProject
-Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "xdpinstaller", "src\xdpinstaller\xdpinstaller.wixproj", "{93635A7B-565E-4B41-AF67-5B375756B227}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpcfg", "src\xdpcfg\xdpcfg.vcxproj", "{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}"
+EndProject
+Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "xdpinstaller", "src\xdpinstaller\xdpinstaller.wixproj", "{93635A7B-565E-4B41-AF67-5B375756B227}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
