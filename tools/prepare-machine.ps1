@@ -266,6 +266,7 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
+        Setup-VcRuntime
         Setup-VsTest
     }
 
@@ -313,7 +314,6 @@ if ($Cleanup) {
         Download-CoreNet-Deps
         Download-Ebpf-Msi
         Install-Certs
-        Setup-VcRuntime
     }
 
     if ($ForLogging) {
