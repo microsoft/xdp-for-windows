@@ -299,6 +299,12 @@ if ($Cleanup) {
     if ($ForPerfTest) {
         $ForTest = $true
 
+        Write-Verbose "verifier.exe /reset"
+        verifier.exe /reset | Write-Verbose
+        if (!$?) {
+            $Reboot = $true
+        }
+
         Install-AzStorageModule
     }
 
