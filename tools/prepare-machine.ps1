@@ -48,6 +48,9 @@ param (
     [switch]$ForSpinxskTest = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$ForPerfTest = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$ForLogging = $false,
 
     [Parameter(Mandatory = $false)]
@@ -66,8 +69,8 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForLogging) {
-    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, or -ForLogging'
+if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
+    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
 }
 
 $EbpfNugetVersion = "eBPF-for-Windows.0.9.0"
@@ -262,6 +265,8 @@ if ($Cleanup) {
             reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
             $Reboot = $true
         }
+
+        Setup-VsTest
     }
 
     if ($ForSpinxskTest) {
@@ -291,14 +296,18 @@ if ($Cleanup) {
         }
     }
 
+    if ($ForPerfTest) {
+        $ForTest = $true
+
+        Install-AzStorageModule
+    }
+
     if ($ForTest) {
         Setup-TestSigning
         Download-CoreNet-Deps
         Download-Ebpf-Msi
         Install-Certs
         Setup-VcRuntime
-        Setup-VsTest
-        Install-AzStorageModule
     }
 
     if ($ForLogging) {
