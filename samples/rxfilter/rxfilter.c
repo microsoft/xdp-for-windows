@@ -85,19 +85,19 @@ ParseArgs(
 
     while (i < ArgC) {
         if (!_stricmp(ArgV[i], "-IfIndex")) {
-            if (++i > ArgC) {
+            if (++i >= ArgC) {
                 LOGERR("Missing IfIndex");
                 goto Usage;
             }
             IfIndex = atoi(ArgV[i]);
         } else if (!_stricmp(ArgV[i], "-QueueId")) {
-            if (++i > ArgC) {
+            if (++i >= ArgC) {
                 LOGERR("Missing QueueId");
                 goto Usage;
             }
             QueueId = atoi(ArgV[i]);
         } else if (!_stricmp(ArgV[i], "-XdpMode")) {
-            if (++i > ArgC) {
+            if (++i >= ArgC) {
                 LOGERR("Missing XdpMode");
                 goto Usage;
             }
@@ -110,7 +110,7 @@ ParseArgs(
                 goto Usage;
             }
         } else if (!_stricmp(ArgV[i], "-MatchType")) {
-            if (++i > ArgC) {
+            if (++i >= ArgC) {
                 LOGERR("Missing MatchType");
                 goto Usage;
             }
@@ -123,7 +123,7 @@ ParseArgs(
                 goto Usage;
             }
         } else if (!_stricmp(ArgV[i], "-Action")) {
-            if (++i > ArgC) {
+            if (++i >= ArgC) {
                 LOGERR("Missing Action");
                 goto Usage;
             }
@@ -138,7 +138,7 @@ ParseArgs(
                 goto Usage;
             }
         } else if (!_stricmp(ArgV[i], "-UdpDstPort")) {
-            if (++i > ArgC) {
+            if (++i >= ArgC) {
                 LOGERR("Missing UdpDstPort");
                 goto Usage;
             }

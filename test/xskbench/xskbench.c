@@ -1429,37 +1429,37 @@ ParseQueueArgs(
 
     for (INT i = 0; i < argc; i++) {
         if (!_stricmp(argv[i], "-id")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->queueId = atoi(argv[i]);
         } else if (!strcmp(argv[i], "-ring_size")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->ringsize = atoi(argv[i]);
         } else if (!strcmp(argv[i], "-c")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->umemchunksize = atoi(argv[i]);
         } else if (!_stricmp(argv[i], "-txio")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->txiosize = atoi(argv[i]);
         } else if (!strcmp(argv[i], "-u")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->umemsize = atoi(argv[i]);
         } else if (!strcmp(argv[i], "-b")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->iobatchsize = atoi(argv[i]);
         } else if (!strcmp(argv[i], "-h")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->umemheadroom = atoi(argv[i]);
@@ -1468,7 +1468,7 @@ ParseQueueArgs(
         } else if (!_stricmp(argv[i], "-ignore_needpoke")) {
             Queue->flags.optimizePoking = FALSE;
         } else if (!_stricmp(argv[i], "-poll")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             if (!_stricmp(argv[i], "system")) {
@@ -1481,7 +1481,7 @@ ParseQueueArgs(
                 Usage();
             }
         } else if (!_stricmp(argv[i], "-xdp_mode")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             if (!_stricmp(argv[i], "system")) {
@@ -1498,7 +1498,7 @@ ParseQueueArgs(
         } else if (!strcmp(argv[i], "-tx_inspect")) {
             Queue->flags.txInspect = TRUE;
         } else if (!strcmp(argv[i], "-tx_pattern")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->txPatternLength = (UINT32)strlen(argv[i]);
@@ -1508,7 +1508,7 @@ ParseQueueArgs(
             ASSERT_FRE(Queue->txPattern != NULL);
             GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
         } else if (!strcmp(argv[i], "-lat_count")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Queue->latSamplesCount = atoi(argv[i]);
@@ -1560,23 +1560,23 @@ ParseThreadArgs(
         if (!strcmp(argv[i], "-q")) {
             Thread->queueCount++;
         } else if (!_stricmp(argv[i], "-na")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Thread->nodeAffinity = atoi(argv[i]);
         } else if (!_stricmp(argv[i], "-group")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Thread->group = atoi(argv[i]);
             groupSet = TRUE;
         } else if (!_stricmp(argv[i], "-ci")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Thread->idealCpu = atoi(argv[i]);
         } else if (!_stricmp(argv[i], "-ca")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Thread->cpuAffinity = (DWORD_PTR)_strtoui64(argv[i], NULL, 0);
@@ -1584,7 +1584,7 @@ ParseThreadArgs(
         } else if (!strcmp(argv[i], "-w")) {
             Thread->wait = TRUE;
         } else if (!_stricmp(argv[i], "-yield")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             Thread->yieldCount = atoi(argv[i]);
@@ -1661,12 +1661,12 @@ ParseArgs(
         if (!strcmp(argv[i], "-t")) {
             threadCount++;
         } else if (!strcmp(argv[i], "-p")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             udpDestPort = (UINT16)atoi(argv[i]);
         } else if (!strcmp(argv[i], "-d")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             duration = atoi(argv[i]);

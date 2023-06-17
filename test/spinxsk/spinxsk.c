@@ -2330,7 +2330,7 @@ ParseArgs(
 
     while (i < argc) {
         if (!strcmp(argv[i], "-Minutes")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             duration = atoi(argv[i]) * 60;
@@ -2340,13 +2340,13 @@ ParseArgs(
         } else if (!strcmp(argv[i], "-Verbose")) {
             verbose = TRUE;
         } else if (!strcmp(argv[i], "-QueueCount")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             queueCount = atoi(argv[i]);
             TraceVerbose("queueCount=%u", queueCount);
         } else if (!strcmp(argv[i], "-FuzzerCount")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             fuzzerCount = atoi(argv[i]);
@@ -2355,13 +2355,13 @@ ParseArgs(
             cleanDatapath = TRUE;
             TraceVerbose("cleanDatapath=%!BOOLEAN!", cleanDatapath);
         } else if (!strcmp(argv[i], "-WatchdogCmd")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             watchdogCmd = argv[i];
             TraceVerbose("watchdogCmd=%s", watchdogCmd);
         } else if (!strcmp(argv[i], "-SuccessThresholdPercent")) {
-            if (++i > argc) {
+            if (++i >= argc) {
                 Usage();
             }
             successThresholdPercent = (UINT8)atoi(argv[i]);
