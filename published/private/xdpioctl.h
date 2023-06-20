@@ -10,8 +10,9 @@
 //
 
 #include <afxdp.h>
-#include <xdp/program.h>
+#include <xdpapi.h>
 #include <xdpifmode.h>
+#include <xdp/program.h>
 
 #define XDP_DEVICE_NAME L"\\Device\\xdp"
 
@@ -50,7 +51,7 @@ typedef struct _XDP_PROGRAM_OPEN {
     UINT32 IfIndex;
     XDP_HOOK_ID HookId;
     UINT32 QueueId;
-    UINT32 Flags;
+    XDP_CREATE_PROGRAM_FLAGS Flags;
     UINT32 RuleCount;
     CONST XDP_RULE *Rules;
 } XDP_PROGRAM_OPEN;
