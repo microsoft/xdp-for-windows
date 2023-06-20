@@ -32,7 +32,7 @@ const XDP_HOOK_ID XdpInspectRxL2 = {
 static
 VOID
 TranslateRxToTx(
-    _In_ UCHAR *Frame,
+    _Inout_ UCHAR *Frame,
     _In_ UINT32 Length
     )
 {
