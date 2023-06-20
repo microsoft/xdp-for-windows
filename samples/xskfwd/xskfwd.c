@@ -29,6 +29,28 @@ const XDP_HOOK_ID XdpInspectRxL2 = {
 #define LOGERR(...) \
     fprintf(stderr, "ERR: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n")
 
+static
+VOID
+TranslateRxToTx(
+    _In_ UCHAR *Frame,
+    _In_ UINT32 Length
+    )
+{
+    UCHAR MacAddress[6];
+
+    //
+    // This function echo a UDP datagram back to its sender at the Ethernet
+    // layer by swapping source and destination MAC addresses. The IP and UDP
+    // layer headers are left as-is.
+    //
+
+    if (Length >= sizeof(MacAddress) * 2) {
+        RtlCopyMemory(MacAddress, Frame, sizeof(MacAddress));
+        RtlCopyMemory(Frame, Frame + sizeof(MacAddress), sizeof(MacAddress));
+        RtlCopyMemory(Frame + sizeof(MacAddress), MacAddress, sizeof(MacAddress));
+    }
+}
+
 INT
 __cdecl
 main(
@@ -223,6 +245,14 @@ main(
             //
             XskRingProducerReserve(&TxRing, 1, &RingIndex);
             TxBuffer = XskRingGetElement(&TxRing, RingIndex);
+
+            //
+            // Swap source and destination fields within the frame payload.
+            //
+            TranslateRxToTx(
+                &Frame[XskDescriptorGetAddress(RxBuffer->address) +
+                       XskDescriptorGetOffset(RxBuffer->address)],
+                RxBuffer->length);
 
             //
             // Since the RX and TX buffer descriptor formats are identical,
