@@ -1286,24 +1286,16 @@ FuzzSocketSharedUmemSetup(
     _In_ HANDLE SharedUmemSock
     )
 {
+    HRESULT res;
+
     if (RandUlong() % 2) {
-        HRESULT res;
-
-        switch (RandUlong() % 4) {
-        case 0:
-            SharedUmemSock = NULL;
-            break;
-        case 1:
-            SharedUmemSock = Sock;
-            break;
-        }
-
         res =
             Queue->xdpApi->XskSetSockopt(
-                Sock, XSK_SOCKOPT_SHARE_UMEM, &SharedUmemSock, sizeof(SharedUmemSock));
+                Sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg, sizeof(Queue->umemReg));
         if (SUCCEEDED(res)) {
             TraceVerbose(
-                "q[%u]: umem shared with SharedUmemSock=%p", Queue->queueId, SharedUmemSock);
+                "q[%u]: umem shared with SharedUmemSock=%p Buffer=%p",
+                Queue->queueId, SharedUmemSock, Queue->umemReg.address);
         }
     }
 }
