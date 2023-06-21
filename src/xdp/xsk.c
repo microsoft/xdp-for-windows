@@ -3036,99 +3036,6 @@ Exit:
 
 static
 NTSTATUS
-XskSockoptShareUmem(
-    _In_ XSK *Xsk,
-    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
-    _In_ KPROCESSOR_MODE RequestorMode
-    )
-{
-    NTSTATUS Status;
-    CONST VOID *SockoptInputBuffer;
-    UINT32 SockoptInputBufferLength;
-    HANDLE SharedUmemSock;
-    UMEM *Umem = NULL;
-    FILE_OBJECT *FileObject = NULL;
-    XSK *XskUmemOwner;
-    KIRQL OldIrql = {0};
-
-    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
-
-    //
-    // This is a nested buffer not copied by IO manager, so it needs special care.
-    //
-    SockoptInputBuffer = Sockopt->InputBuffer;
-    SockoptInputBufferLength = Sockopt->InputBufferLength;
-
-    if (SockoptInputBufferLength < sizeof(HANDLE)) {
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
-
-    __try {
-        if (RequestorMode != KernelMode) {
-            ProbeForRead(
-                (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
-                PROBE_ALIGNMENT(HANDLE));
-        }
-        SharedUmemSock = ReadHandleNoFence((volatile const HANDLE *)SockoptInputBuffer);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        Status = GetExceptionCode();
-        goto Exit;
-    }
-
-    //
-    // Acquire reference on the shared UMEM first to avoid XSK deadlock.
-    //
-
-    Status =
-        XdpReferenceObjectByHandle(
-            SharedUmemSock, XDP_OBJECT_TYPE_XSK, RequestorMode, FILE_GENERIC_WRITE, &FileObject);
-    if (Status != STATUS_SUCCESS) {
-        goto Exit;
-    }
-
-    XskUmemOwner = (XSK*)FileObject->FsContext;
-    KeAcquireSpinLock(&XskUmemOwner->Lock, &OldIrql);
-    if (XskUmemOwner->State >= XskClosing || XskUmemOwner->Umem == NULL) {
-        KeReleaseSpinLock(&XskUmemOwner->Lock, OldIrql);
-        ObDereferenceObject(FileObject);
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
-    XskReferenceUmem(XskUmemOwner->Umem);
-    Umem = XskUmemOwner->Umem;
-    KeReleaseSpinLock(&XskUmemOwner->Lock, OldIrql);
-    ObDereferenceObject(FileObject);
-
-    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-
-    if (Xsk->Umem != NULL) {
-        Status = STATUS_INVALID_DEVICE_STATE;
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        goto Exit;
-    }
-
-    TraceInfo(TRACE_XSK, "Xsk=%p Set Umem=%p XskUmemOwner=%p", Xsk, Umem, XskUmemOwner);
-
-    Status = STATUS_SUCCESS;
-    Xsk->Umem = Umem;
-    Umem = NULL;
-
-    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-
-Exit:
-
-    if (Umem != NULL) {
-        XskDereferenceUmem(Umem);
-    }
-
-    TraceExitStatus(TRACE_XSK);
-
-    return Status;
-}
-
-static
-NTSTATUS
 XskSockoptSetRingSize(
     _In_ XSK *Xsk,
     _In_ XSK_SET_SOCKOPT_IN *Sockopt,
@@ -3934,9 +3841,6 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_RX_HOOK_ID:
     case XSK_SOCKOPT_TX_HOOK_ID:
         Status = XskSockoptSetHookId(Xsk, Sockopt, Irp->RequestorMode);
-        break;
-    case XSK_SOCKOPT_SHARE_UMEM:
-        Status = XskSockoptShareUmem(Xsk, Sockopt, Irp->RequestorMode);
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:

@@ -474,16 +474,6 @@ typedef enum _XSK_ERROR {
 #define XSK_SOCKOPT_TX_COMPLETION_ERROR   13
 
 //
-// Supports: set
-//
-// Optval type: HANDLE
-// Description: An AF_XDP socket can share a UMEM registered with another AF_XDP
-//              socket by supplying the handle of the socket already registered
-//              with a UMEM.
-//
-#define XSK_SOCKOPT_SHARE_UMEM 14
-
-//
 // XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION
 //
 // Supports: get
@@ -493,7 +483,7 @@ typedef enum _XSK_ERROR {
 //              set, and at least one socket option has enabled the frame layout
 //              extension.
 //
-#define XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION 15
+#define XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION 14
 
 //
 // XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION
@@ -505,7 +495,7 @@ typedef enum _XSK_ERROR {
 //              is set, and at least one socket option has enabled the frame
 //              layout extension.
 //
-#define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 16
+#define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 15
 
 //
 // XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX
@@ -517,7 +507,7 @@ typedef enum _XSK_ERROR {
 //              is not set. This option enables the XDP_FRAME_LAYOUT and
 //              XDP_FRAME_CHECKSUM extensions on the TX frame ring.
 //
-#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX 17
+#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX 16
 
 //
 // XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES
@@ -527,7 +517,7 @@ typedef enum _XSK_ERROR {
 // Description: Returns the UDP checksum transmit offload capabilities. This
 //              option requires the socket is bound.
 //
-#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES 18
+#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES 17
 
 typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
     BOOLEAN Supported;
@@ -544,7 +534,7 @@ typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
 //              HRESULT_FROM_WIN32(ERROR_NOT_CAPABLE), when the ideal processor
 //              affinity is unknown or unknowable.
 //
-#define XSK_SOCKOPT_RX_PROCESSOR_AFFINITY 19
+#define XSK_SOCKOPT_RX_PROCESSOR_AFFINITY 18
 
 //
 // XSK_SOCKOPT_TX_PROCESSOR_AFFINITY
@@ -557,7 +547,7 @@ typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
 //              HRESULT_FROM_WIN32(ERROR_NOT_CAPABLE), when the ideal processor
 //              affinity is unknown or unknowable.
 //
-#define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 20
+#define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 19
 
 #ifdef __cplusplus
 } // extern "C"
