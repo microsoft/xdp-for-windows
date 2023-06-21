@@ -58,7 +58,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.lib" $DstPath\lib
 # throw build exceptions if symbols are missing for statically linked code.
 copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.pdb" $DstPath\lib
 
-[xml]$XdpVersion = Get-Content $RootDir\xdp.props
+[xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
 $Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion[0]
 $Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion[0]
 $Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
