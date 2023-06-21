@@ -1018,7 +1018,7 @@ TryCreateXdpProg(
     _In_ XDP_MODE XdpMode,
     _In_ XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
-    _In_ UINT32 Flags = 0
+    _In_ XDP_CREATE_PROGRAM_FLAGS Flags = XDP_CREATE_PROGRAM_FLAG_NONE
     )
 {
     ASSERT(Flags & (XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE) == 0);
@@ -1042,7 +1042,7 @@ CreateXdpProg(
     _In_ XDP_MODE XdpMode,
     _In_ XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
-    _In_ UINT32 Flags = 0
+    _In_ XDP_CREATE_PROGRAM_FLAGS Flags = XDP_CREATE_PROGRAM_FLAG_NONE
     )
 {
     wil::unique_handle ProgramHandle;
