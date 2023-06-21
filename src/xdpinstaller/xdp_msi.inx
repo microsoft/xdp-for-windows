@@ -35,7 +35,7 @@ DisplayName     = %XdpDescription%
 ServiceType     = 1 ;SERVICE_KERNEL_DRIVER
 StartType       = 1 ;SERVICE_SYSTEM_START
 ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
-ServiceBinary   = %12%\xdp.sys ; %DIRID_DRIVERS%\xdp.sys
+ServiceBinary   = %01%\xdp.sys ; Directory from which the INF file was installed
 LoadOrderGroup  = NDIS
 AddReg          = AddServiceReg
 

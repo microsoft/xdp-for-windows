@@ -137,6 +137,7 @@ if (-not (Test-Path -Path $XdpMsiDir)) {
     # Create the destination folder if it doesn't exist (installer not yet built).
     New-Item -ItemType Directory -Path $XdpMsiDir | Out-Null
 }
+Remove-Item -Path "$XdpMsiDir\*" -Force
 Copy-Item -Path "$RootDir\src\xdpinstaller\xdp.inf" -Destination $XdpInstallerInf
 Copy-Item -Path "$XdpDir\xdp.sys" -Destination $XdpInstallerSys
 & $Inf2CatToolPath /driver:$XdpMsiDir /os:10_x64

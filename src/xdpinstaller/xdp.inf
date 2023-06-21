@@ -1,5 +1,5 @@
-; NOTE: THIS IS A TEMPORARY INF FILE, to be removed as the automated instantiation of 
-; 'xdp_msi.inx'->'xdp.inf' is implemented.
+; NOTE: THIS IS A TEMPORARY INF FILE, to be removed when the automated instantiation of 
+; 'xdp_msi.inx'->'\artifacts\bin\<Platform>_<Configuration>\msi\xdp.inf' is implemented.
 
 [Version]
 Signature       = "$WINDOWS NT$"
@@ -40,7 +40,7 @@ DisplayName     = %XdpDescription%
 ServiceType     = 1 ;SERVICE_KERNEL_DRIVER
 StartType       = 1 ;SERVICE_SYSTEM_START
 ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
-ServiceBinary   = %12%\xdp.sys ; %DIRID_DRIVERS%\xdp.sys
+ServiceBinary   = %01%\xdp.sys ; Directory from which the INF file was installed
 LoadOrderGroup  = NDIS
 AddReg          = AddServiceReg
 
