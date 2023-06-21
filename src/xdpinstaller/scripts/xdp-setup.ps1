@@ -26,30 +26,12 @@ Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 # Global paths.
-$SystemFolder = [Environment]::SystemDirectory
-$XdpSys = "$SystemFolder\drivers\xdp.sys"
-$XdpInf = "$SystemFolder\drivers\xdp.inf"
-$XdpCat = "$SystemFolder\drivers\xdp.cat"
+$XdpSys = "$Env:Programfiles\xdp\drivers\xdp.sys"
+$XdpInf = "$Env:Programfiles\xdp\drivers\xdp.inf"
+$XdpCat = "$Env:Programfiles\xdp\drivers\xdp.cat"
 
 # Set the temporary working directory and testore it on exit.
-Push-Location -Path $SystemFolder
-
-# Helper to start (with retry) a service.
-function Start-Service-With-Retry($Name) {
-    Write-Verbose "Start-Service $Name"
-    $StartSuccess = $false
-    for ($i=0; $i -lt 10; $i++) {
-        try {
-            Start-Sleep -Milliseconds 100
-            Start-Service $Name
-            $StartSuccess = $true
-            break
-        } catch { }
-    }
-    if ($StartSuccess -eq $false) {
-        Write-Error "Failed to start $Name"
-    }
-}
+Push-Location -Path "$Env:Programfiles\xdp\drivers\"
 
 # Helper wait for a service to stop and then delete it. Callers are responsible
 # making sure the service is already stopped or stopping.
@@ -128,23 +110,21 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 if ($Install -eq "xdp") {
-    if (!(Test-Path $XdpInf)) {
+    if (!(Test-Path "$XdpInf")) {
         Write-Error "$XdpInf does not exist!"
     }
-    if (!(Test-Path $XdpSys)) {
+    if (!(Test-Path "$XdpSys")) {
         Write-Error "$XdpSys does not exist!"
     }
-    if (!(Test-Path $XdpCat)) {
+    if (!(Test-Path "$XdpCat")) {
         Write-Error "$XdpCat does not exist!"
     }
 
-    Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
-    netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
+    Write-Verbose "netcfg.exe -v -l '$XdpInf' -c s -i ms_xdp"
+    netcfg.exe -v -l "$XdpInf" -c s -i ms_xdp | Write-Verbose
     if ($LastExitCode) {
         Write-Error "netcfg.exe exit code: $LastExitCode"
     }
-
-    Start-Service-With-Retry xdp
 
     Write-Verbose "xdp.sys install complete!"  
 }

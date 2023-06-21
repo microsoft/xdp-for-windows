@@ -56,8 +56,8 @@ HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364
 HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences\0","Id",%REG_DWORD%,0x00000010
 HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences\0","Flags",%REG_DWORD%,0
 HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}\ChannelReferences",Count,%REG_DWORD%,1
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","ResourceFileName",%REG_EXPAND_SZ%,"%%SystemRoot%%\system32\drivers\xdp.sys"
-HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","MessageFileName",%REG_EXPAND_SZ%,"%%SystemRoot%%\system32\drivers\xdp.sys"
+HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","ResourceFileName",%REG_EXPAND_SZ%,"%%ProgramFiles%%\xdp\drivers\xdp.sys"
+HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\{580bbdea-b364-4369-b291-d3539e35d20b}","MessageFileName",%REG_EXPAND_SZ%,"%%ProgramFiles%%\xdp\drivers\xdp.sys"
 
 [Install.Remove.Services]
 DelService = xdp, %SPSVCINST_STOPSERVICE%
@@ -69,8 +69,6 @@ Xdp                 = "XDP"
 XdpDescription      = "Microsoft XDP Platform Driver"
 
 ; non-localizable strings
-DIRID_SYSTEM                = 11
-DIRID_DRIVERS               = 12
 FILTER_RUN_TYPE_OPTIONAL    = 2
 FILTER_TYPE_MODIFYING       = 2
 NCF_LW_FILTER               = 0x40000

@@ -23,6 +23,7 @@
   <ItemGroup>
     <Content Include="packages.config" />
     <Content Include="scripts\xdp-setup.ps1" />
+    <Content Include="xdp.inf" />
   </ItemGroup>
   <ItemGroup>
     <WixExtension Include="WixUtilExtension">
