@@ -16,7 +16,7 @@ Tags are used for the actual releases. Tags are created from the release branche
 
 ## Versioning
 
-XDP-for-Windows uses [Semantic Versioning](https://semver.org/) for versioning releases. The version number is defined in the release branch name and can also be found in the [xdp.props](../xdp.props) file. SemVer specifies that:
+src\xdp-for-Windows uses [Semantic Versioning](https://semver.org/) for versioning releases. The version number is defined in the release branch name and can also be found in the [xdp.props](../xdp.props) file. SemVer specifies that:
 
 - **Major** version changes indicate **breaking changes**. This means that code that worked in a previous major version may not work in the new major version. This is generally due to API changes, but can also be due to changes in behavior.
 

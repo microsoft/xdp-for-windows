@@ -43,7 +43,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdp.pdb"   $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xdpapi.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.pdb" $DstPath\symbols
 
-[xml]$XdpVersion = Get-Content $RootDir\xdp.props
+[xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
 $Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion[0]
 $Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion[0]
 $Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
