@@ -26,7 +26,6 @@ Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 # Global paths.
-$XdpSys = "$Env:Programfiles\xdp\drivers\xdp.sys"
 $XdpInf = "$Env:Programfiles\xdp\drivers\xdp.inf"
 $XdpCat = "$Env:Programfiles\xdp\drivers\xdp.cat"
 
@@ -112,9 +111,6 @@ function Uninstall-Driver($Inf) {
 if ($Install -eq "xdp") {
     if (!(Test-Path "$XdpInf")) {
         Write-Error "$XdpInf does not exist!"
-    }
-    if (!(Test-Path "$XdpSys")) {
-        Write-Error "$XdpSys does not exist!"
     }
     if (!(Test-Path "$XdpCat")) {
         Write-Error "$XdpCat does not exist!"

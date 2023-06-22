@@ -23,6 +23,7 @@ SPDX-License-Identifier: MIT
 		<!-- Define the Product features and installation steps -->
 		<Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="INSTALLFOLDER" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >	
 			<ComponentGroupRef Id="xdp_driver" />
+			<ComponentGroupRef Id="xdp_sys_driver" />
 			<ComponentGroupRef Id="xdp_api" />
 			<ComponentGroupRef Id="xdp_scripts" />
 		</Feature>
@@ -39,16 +40,20 @@ SPDX-License-Identifier: MIT
 		</InstallExecuteSequence>
 
 		<!-- Define the UI style & behavior -->
-		<UIRef Id="WixUI_Minimal" />
+		<UIRef Id="WixUI_FeatureTree" />
 		<WixVariable Id="WixUILicenseRtf" Value="$(var.SolutionDir)..\..\LICENSE.rtf" />
 		<CustomAction Id="SetWixInstallLocation" Property="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
-		<InstallUISequence/>
-		<UI/>
+		<InstallUISequence>
+			<Custom Action="SetWixInstallLocation" After="CostFinalize" />
+		</InstallUISequence>
 	</Product>
 
 	<!-- Define installation directories -->
 	<Fragment>
 		<Directory Id="TARGETDIR" Name="SourceDir">
+			<Directory Id="System64Folder" Name="System64Folder">
+				<Directory Id="dir_sys_drivers" Name="drivers"/>
+			</Directory>
 			<Directory Id="ProgramFiles64Folder">
 				<Directory Id="INSTALLFOLDER" Name="xdp">
 					<Directory Id="dir_drivers" Name="drivers"/>					
@@ -78,12 +83,14 @@ SPDX-License-Identifier: MIT
 		</ComponentGroup>
 
 		<!-- XDP driver components -->
+		<ComponentGroup Id="xdp_sys_driver" Directory="dir_sys_drivers">
+			<Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
+				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp.sys" KeyPath="yes" />
+			</Component>
+		</ComponentGroup>
 		<ComponentGroup Id="xdp_driver" Directory="dir_drivers">
 			<Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
 				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)xdp.inf" KeyPath="yes"/>
-			</Component>
-			<Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
-				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp.sys" KeyPath="yes" />
 			</Component>
 			<Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
 				<File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)xdp.cat" KeyPath="yes"/>
