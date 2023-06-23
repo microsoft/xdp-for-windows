@@ -8,7 +8,7 @@
     <OutputName>xdpinstaller</OutputName>
     <OutputType>Package</OutputType>
     <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
-    <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
+    <IntermediateOutputPath>$(SolutionDir)..\..\build\$(Platform)_$(Configuration)\obj\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DefineConstants>
       XdpMajorVersion=$(XdpMajorVersion);
