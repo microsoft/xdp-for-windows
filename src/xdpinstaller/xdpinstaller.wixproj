@@ -1,15 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" InitialTargets="EnsureWixToolsetInstalled" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)..\..\src\xdp.props" />
   <PropertyGroup>
     <ProductVersion>3.10</ProductVersion>
     <ProjectGuid>93635a7b-565e-4b41-af67-5b375756b227</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>xdpinstaller</OutputName>
     <OutputType>Package</OutputType>
-  </PropertyGroup>
-  <PropertyGroup>
     <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
     <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>
+      XdpMajorVersion=$(XdpMajorVersion);
+      XdpMinorVersion=$(XdpMinorVersion);
+      XdpPatchVersion=$(XdpPatchVersion);
+      $(DefineConstants)
+    </DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
@@ -20,7 +26,6 @@
   <ItemGroup>
     <Content Include="packages.config" />
     <Content Include="scripts\xdp-setup.ps1" />
-    <Content Include="xdp.inf" />
   </ItemGroup>
   <ItemGroup>
     <WixExtension Include="WixUtilExtension">

@@ -33,14 +33,16 @@ param (
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
+$RootDir = Split-Path $PSScriptRoot -Parent
+
 $Tasks = @("Build")
 if (!$NoClean) {
     $Tasks = @("Clean") + $Tasks
 }
 
-tools/prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
+& $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
-msbuild.exe xdp.sln `
+msbuild.exe $RootDir\xdp.sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
@@ -51,9 +53,9 @@ if (!$?) {
     return
 }
 
-tools/prepare-machine.ps1 -ForEbpfBuild
+& $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 
-msbuild.exe xdp.sln `
+msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
     /t:$($Tasks -join ",") `
@@ -64,17 +66,17 @@ if (!$?) {
 }
 
 if (!$NoSign) {
-    tools/sign.ps1 -Config $Config -Arch $Platform
+    & $RootDir\tools\sign.ps1 -Config $Config -Arch $Platform
 }
 
 if (!$NoInstaller) {
-    tools/create-installer.ps1 -Config $Config -Platform $Platform
+    & $RootDir\tools\create-installer.ps1 -Config $Config -Platform $Platform
 }
 
 if ($DevKit) {
-    tools/create-devkit.ps1 -Config $Config
+    & $RootDir\tools\create-devkit.ps1 -Config $Config
 }
 
 if ($RuntimeKit) {
-    tools/create-runtime-kit.ps1 -Config $Config
+    & $RootDir\tools\create-runtime-kit.ps1 -Config $Config
 }

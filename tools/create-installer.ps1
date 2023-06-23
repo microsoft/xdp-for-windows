@@ -23,7 +23,7 @@ if (!$IsAdmin) {
     Write-Verbose "MSI validation requires admin privileges. Skipping."
 }
 
-msbuild.exe src\xdpinstaller\xdpinstaller.sln `
+msbuild.exe $RootDir\src\xdpinstaller\xdpinstaller.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
     /p:IsAdmin=$IsAdmin

@@ -12,7 +12,7 @@ This script installs or uninstalls various XDP components.
 #>
 
 param (
-    
+
     [Parameter(Mandatory = $false)]
     [ValidateSet("", "xdp")]
     [string]$Install = "",
@@ -25,12 +25,10 @@ param (
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-# Global paths.
-$XdpInf = "$Env:Programfiles\xdp\drivers\xdp.inf"
-$XdpCat = "$Env:Programfiles\xdp\drivers\xdp.cat"
+$InstallDir = $PSScriptRoot
 
-# Set the temporary working directory and testore it on exit.
-Push-Location -Path "$Env:Programfiles\xdp\drivers\"
+# Global paths.
+$XdpInf = "$InstallDir\xdp.inf"
 
 # Helper wait for a service to stop and then delete it. Callers are responsible
 # making sure the service is already stopped or stopping.
@@ -112,9 +110,6 @@ if ($Install -eq "xdp") {
     if (!(Test-Path "$XdpInf")) {
         Write-Error "$XdpInf does not exist!"
     }
-    if (!(Test-Path "$XdpCat")) {
-        Write-Error "$XdpCat does not exist!"
-    }
 
     Write-Verbose "netcfg.exe -v -l '$XdpInf' -c s -i ms_xdp"
     netcfg.exe -v -l "$XdpInf" -c s -i ms_xdp | Write-Verbose
@@ -122,7 +117,7 @@ if ($Install -eq "xdp") {
         Write-Error "netcfg.exe exit code: $LastExitCode"
     }
 
-    Write-Verbose "xdp.sys install complete!"  
+    Write-Verbose "xdp.sys install complete!"
 }
 
 # Uninstalls the xdp driver.
@@ -138,7 +133,8 @@ if ($Uninstall -eq "xdp") {
 
     Cleanup-Service xdp
 
+    Remove-Item $env:WINDIR\system32\xdpapi.dll -Force
+    Remove-Item $env:WINDIR\system32\drivers\xdp.sys -Force
+
     Write-Verbose "xdp.sys uninstall complete!"
 }
-
-Pop-Location
