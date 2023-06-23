@@ -69,8 +69,6 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = "$RootDir\artifacts"
-
 if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
 }
@@ -88,21 +86,21 @@ function Download-CoreNet-Deps {
     $CoreNetCiCommit = Get-CoreNetCiCommit
 
     # Download and extract https://github.com/microsoft/corenet-ci.
-    if (!(Test-Path $ArtifactsDir)) { mkdir $ArtifactsDir }
-    if ($Force -and (Test-Path "$ArtifactsDir/corenet-ci-$CoreNetCiCommit")) {
-        Remove-Item -Recurse -Force "$ArtifactsDir/corenet-ci-$CoreNetCiCommit"
+    if (!(Test-Path "artifacts")) { mkdir artifacts }
+    if ($Force -and (Test-Path "artifacts/corenet-ci-$CoreNetCiCommit")) {
+        Remove-Item -Recurse -Force "artifacts/corenet-ci-$CoreNetCiCommit"
     }
-    if (!(Test-Path "$ArtifactsDir/corenet-ci-$CoreNetCiCommit")) {
-        Remove-Item -Recurse -Force "$ArtifactsDir/corenet-ci-*"
-        Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "$ArtifactsDir\corenet-ci.zip"
-        Expand-Archive -Path "$ArtifactsDir\corenet-ci.zip" -DestinationPath $ArtifactsDir -Force
-        Remove-Item -Path "$ArtifactsDir\corenet-ci.zip"
+    if (!(Test-Path "artifacts/corenet-ci-$CoreNetCiCommit")) {
+        Remove-Item -Recurse -Force "artifacts/corenet-ci-*"
+        Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "artifacts\corenet-ci.zip"
+        Expand-Archive -Path "artifacts\corenet-ci.zip" -DestinationPath "artifacts" -Force
+        Remove-Item -Path "artifacts\corenet-ci.zip"
     }
 }
 
 function Download-eBpf-Nuget {
     # Download and extract private eBPF Nuget package.
-    $NugetDir = "$ArtifactsDir/nuget"
+    $NugetDir = "$RootDir/artifacts/nuget"
     if ($Force -and (Test-Path $NugetDir)) {
         Remove-Item -Recurse -Force $NugetDir
     }
@@ -177,12 +175,12 @@ function Setup-VcRuntime {
     if (!$Installed -or $Force) {
         Write-Host "Installing VC++ runtime"
 
-        if (!(Test-Path $ArtifactsDir)) { mkdir artifacts }
-        Remove-Item -Force "$ArtifactsDir\vc_redist.x64.exe" -ErrorAction Ignore
+        if (!(Test-Path "artifacts")) { mkdir artifacts }
+        Remove-Item -Force "artifacts\vc_redist.x64.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
-        Invoke-Expression -Command "$ArtifactsDir\vc_redist.x64.exe /install /passive"
+        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "artifacts\vc_redist.x64.exe"
+        Invoke-Expression -Command "artifacts\vc_redist.x64.exe /install /passive"
     }
 }
 
@@ -190,13 +188,13 @@ function Setup-VsTest {
     if (!(Get-VsTestPath) -or $Force) {
         Write-Host "Installing VsTest"
 
-        if (!(Test-Path $ArtifactsDir)) { mkdir $ArtifactsDir }
-        Remove-Item -Recurse -Force "$ArtifactsDir\Microsoft.TestPlatform" -ErrorAction Ignore
+        if (!(Test-Path "artifacts")) { mkdir artifacts }
+        Remove-Item -Recurse -Force "artifacts\Microsoft.TestPlatform" -ErrorAction Ignore
 
         # Download and extract.
-        Invoke-WebRequest-WithRetry -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/16.11.0" -OutFile "$ArtifactsDir\Microsoft.TestPlatform.zip"
-        Expand-Archive -Path "$ArtifactsDir\Microsoft.TestPlatform.zip" -DestinationPath "$ArtifactsDir\Microsoft.TestPlatform" -Force
-        Remove-Item -Path "$ArtifactsDir\Microsoft.TestPlatform.zip"
+        Invoke-WebRequest-WithRetry -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/16.11.0" -OutFile "artifacts\Microsoft.TestPlatform.zip"
+        Expand-Archive -Path "artifacts\Microsoft.TestPlatform.zip" -DestinationPath "artifacts\Microsoft.TestPlatform" -Force
+        Remove-Item -Path "artifacts\Microsoft.TestPlatform.zip"
 
         # Add to PATH.
         $RootDir = Split-Path $PSScriptRoot -Parent
@@ -312,9 +310,9 @@ if ($Cleanup) {
     }
 
     if ($ForTest) {
+        Setup-TestSigning
         Download-CoreNet-Deps
         Download-Ebpf-Msi
-        Setup-TestSigning
         Install-Certs
     }
 
