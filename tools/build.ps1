@@ -49,8 +49,7 @@ msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform
 if (!$?) {
-    Write-Verbose "Restoring NuGet packages failed: $LastExitCode"
-    return
+    Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
@@ -61,8 +60,7 @@ msbuild.exe $RootDir\xdp.sln `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
-    Write-Verbose "Build failed: $LastExitCode"
-    return
+    Write-Error "Build failed: $LastExitCode"
 }
 
 if (!$NoSign) {

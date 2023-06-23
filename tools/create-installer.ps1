@@ -28,5 +28,5 @@ msbuild.exe $RootDir\src\xdpinstaller\xdpinstaller.sln `
     /p:Platform=$Platform `
     /p:IsAdmin=$IsAdmin
 if (!$?) {
-    Write-Verbose "Building the XDP installer failed: $LastExitCode"
+    Write-Error "Building the XDP installer failed: $LastExitCode"
 }
