@@ -53,9 +53,6 @@ jobs:
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ matrix.configuration }} /p:platform=${{ matrix.platform }}
-    - name: Clean up Artifacts
-      shell: PowerShell
-      run: .azure/scripts/clean-artifacts.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Sign and Package
       shell: PowerShell
       run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
