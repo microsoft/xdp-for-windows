@@ -18,6 +18,9 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$NoInstaller = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
@@ -64,19 +67,14 @@ if (!$NoSign) {
     tools/sign.ps1 -Config $Config -Arch $Platform
 }
 
+if (!$NoInstaller) {
+    tools/create-installer.ps1 -Config $Config -Platform $Platform
+}
+
 if ($DevKit) {
     tools/create-devkit.ps1 -Config $Config
 }
 
 if ($RuntimeKit) {
     tools/create-runtime-kit.ps1 -Config $Config
-}
-
-# Build the MSI installer
-msbuild.exe src\xdpinstaller\xdpinstaller.sln `
-    /p:Configuration=$Config `
-    /p:Platform=$Platform
-if (!$?) {
-    Write-Verbose "Building the XDP installer failed: $LastExitCode"
-    return
 }

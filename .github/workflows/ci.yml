@@ -56,9 +56,12 @@ jobs:
     - name: Clean up Artifacts
       shell: PowerShell
       run: .azure/scripts/clean-artifacts.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
-    - name: Sign and Package
+    - name: Sign Binaries
       shell: PowerShell
       run: tools/sign.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Build Installer
+      shell: PowerShell
+      run: tools/create-installer.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Artifacts
       if: matrix.os == 2022
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
