@@ -71,6 +71,7 @@ if (!(Test-Path $CertPath)) { Write-Error "$CertPath does not exist!" }
 
 # All the file paths.
 $XdpDir = Join-Path $ArtifactsDir "xdp"
+$XdpMsiDir = Join-Path $ArtifactsDir "msi"
 $XdpSys = Join-Path $XdpDir "xdp.sys"
 $XdpInf = Join-Path $XdpDir "xdp.inf"
 $XdpCat = Join-Path $XdpDir "xdp.cat"
@@ -129,6 +130,22 @@ if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnMpCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnLwfCat
+if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
+
+# Copy and sign the installer artifacts.
+$XdpInstallerInf = Join-Path $XdpMsiDir "xdp.inf"
+$XdpInstallerCat = Join-Path $XdpMsiDir "xdp.cat"
+$XdpInstallerSys = Join-Path $XdpMsiDir "xdp.sys"
+if (-not (Test-Path -Path $XdpMsiDir)) {
+    # Create the destination folder if it doesn't exist (installer not yet built).
+    New-Item -ItemType Directory -Path $XdpMsiDir | Out-Null
+}
+Remove-Item -Path "$XdpMsiDir\*" -Force
+Copy-Item -Path "$RootDir\src\xdpinstaller\xdp.inf" -Destination $XdpInstallerInf
+Copy-Item -Path "$XdpDir\xdp.sys" -Destination $XdpInstallerSys
+& $Inf2CatToolPath /driver:$XdpMsiDir /os:10_x64
+if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpInstallerCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Copy the cert to the artifacts dir.
