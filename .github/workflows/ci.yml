@@ -111,14 +111,14 @@ jobs:
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      #timeout-minutes: ${{ env.prRuntime }}
+      timeout-minutes: ${{ env.prRuntime }}
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
       # currently getting a weird error:
       #  .github/workflows/ci.yml (Line: 107, Col: 24): Unexpected value '60'
-      #timeout-minutes: ${{ env.fullRuntime }}
+      timeout-minutes: ${{ env.fullRuntime }}
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
@@ -175,12 +175,12 @@ jobs:
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      #timeout-minutes: ${{ env.prTimeout }}
+      timeout-minutes: ${{ env.prTimeout }}
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      #timeout-minutes: ${{ env.fullTimeout }}
+      timeout-minutes: ${{ env.fullTimeout }}
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
