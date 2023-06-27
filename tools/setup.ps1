@@ -547,16 +547,14 @@ function Uninstall-Ebpf {
 
         if (!(Wait-Job -Job $Job -Timeout 60)) {
             Write-Error "eBPF failed to uninstall within 60 seconds" -ErrorAction Continue
-            Write-Warning "The system will bugcheck in 5 seconds..."
-            Start-Sleep -Seconds 5
-            Initiate-Bugcheck
+            Uninstall-Failure
         }
 
         if (($Status = Receive-Job -Job $Job) -ne 0) {
             if ($Status -eq 0x666) {
                 Write-Error "An unexpected version of eBPF could not be uninstalled"
             } else {
-                Write-Error "MSI uninstall failed with status $Status" -ErrorAction:Continue
+                Write-Error "MSI uninstall failed with status $Status" -ErrorAction Continue
                 Uninstall-Failure
             }
         }
