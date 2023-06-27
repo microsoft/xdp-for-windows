@@ -6,105 +6,86 @@ SPDX-License-Identifier: MIT
 <?define ProductVersion="{9363C0E3-4DE9-4067-9F5E-6A1A06034B59}"?>
 <?define UpgradeCode="{79F93392-843E-4B85-824B-2CFC7D16F080}"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:ui="http://schemas.microsoft.com/wix/UIExtension" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
-	<Product Id="$(var.ProductVersion)" Name="XDP for Windows" Language="1033" Version="0.16.9" Manufacturer="Microsoft" UpgradeCode="$(var.UpgradeCode)">
-		<Package Description="XDP for Windows" InstallerVersion="301" Compressed="yes" InstallScope="perMachine" Manufacturer="Microsoft" Platform="x64" />
-		<MajorUpgrade AllowSameVersionUpgrades="yes"
-					  Disallow="yes" DisallowUpgradeErrorMessage="An older version of [ProductName] is already installed. Please remove it first."
-					  AllowDowngrades="no" DowngradeErrorMessage="A newer version of [ProductName] is already installed. Please remove it first." Schedule="afterInstallFinalize" />
-		<MediaTemplate EmbedCab="yes" />
+    <Product Id="$(var.ProductVersion)" Name="XDP for Windows" Language="1033" Version="$(var.XdpMajorVersion).$(var.XdpMinorVersion).$(var.XdpPatchVersion)" Manufacturer="Microsoft" UpgradeCode="$(var.UpgradeCode)">
+        <Package Description="XDP for Windows" InstallerVersion="301" Compressed="yes" InstallScope="perMachine" Manufacturer="Microsoft" Platform="x64" />
+        <MajorUpgrade AllowSameVersionUpgrades="no"
+                      Disallow="yes" DisallowUpgradeErrorMessage="An older version of [ProductName] is already installed. Please remove it first."
+                      AllowDowngrades="no" DowngradeErrorMessage="A newer version of [ProductName] is already installed. Please remove it first." Schedule="afterInstallFinalize" />
+        <MediaTemplate EmbedCab="yes" />
 
-		<!-- Define global properties -->
-		<PropertyRef Id="WIX_ACCOUNT_LOCALSERVICE" />
-		<Property Id="ARPCONTACT" Value="opencode@microsoft.com" />
-		<Property Id="INSTALLFOLDER" Secure="yes">
-			<RegistrySearch Id="FindInstallLocation" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[WIX_UPGRADE_DETECTED]" Name="InstallLocation" Type="raw" Win64="yes" />
-		</Property>
-		
-		<!-- Define the Product features and installation steps -->
-		<Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="INSTALLFOLDER" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >	
-			<ComponentGroupRef Id="xdp_driver" />
-			<ComponentGroupRef Id="xdp_sys_driver" />
-			<ComponentGroupRef Id="xdp_api" />
-			<ComponentGroupRef Id="xdp_scripts" />
-		</Feature>
-		
-		<InstallExecuteSequence>
-			<!--Rollback sequence-->
-			<Custom Action="xdp_uninstall_rollback" Before="xdp_install">NOT Installed</Custom>
+        <!-- Define global properties -->
+        <PropertyRef Id="WIX_ACCOUNT_LOCALSERVICE" />
+        <Property Id="ARPCONTACT" Value="opencode@microsoft.com" />
+        <Property Id="INSTALLFOLDER" Secure="yes">
+            <RegistrySearch Id="FindInstallLocation" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[WIX_UPGRADE_DETECTED]" Name="InstallLocation" Type="raw" Win64="yes" />
+        </Property>
 
-			<!--Install sequence-->
-			<Custom Action="xdp_install" After="InstallFiles">NOT Installed</Custom>
+        <!-- Define the Product features and installation steps -->
+        <Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="INSTALLFOLDER" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >
+            <ComponentGroupRef Id="xdp" />
+        </Feature>
 
-			<!--Uninstall sequence-->
-			<Custom Action="xdp_uninstall" After="InstallInitialize">REMOVE="ALL"</Custom>
-		</InstallExecuteSequence>
+        <InstallExecuteSequence>
+            <!--Rollback sequence-->
+            <Custom Action="xdp_uninstall_rollback" Before="xdp_install">NOT Installed</Custom>
 
-		<!-- Define the UI style & behavior -->
-		<UIRef Id="WixUI_FeatureTree" />
-		<WixVariable Id="WixUILicenseRtf" Value="$(var.SolutionDir)..\..\LICENSE.rtf" />
-		<CustomAction Id="SetWixInstallLocation" Property="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
-		<InstallUISequence>
-			<Custom Action="SetWixInstallLocation" After="CostFinalize" />
-		</InstallUISequence>
-	</Product>
+            <!--Install sequence-->
+            <Custom Action="xdp_install" After="InstallFiles">NOT Installed</Custom>
 
-	<!-- Define installation directories -->
-	<Fragment>
-		<Directory Id="TARGETDIR" Name="SourceDir">
-			<Directory Id="System64Folder" Name="System64Folder">
-				<Directory Id="dir_sys_drivers" Name="drivers"/>
-			</Directory>
-			<Directory Id="ProgramFiles64Folder">
-				<Directory Id="INSTALLFOLDER" Name="xdp">
-					<Directory Id="dir_drivers" Name="drivers"/>					
-					<Directory Id="dir_scripts" Name="scripts"/>
-				</Directory>
-			</Directory>
-		</Directory>
-	</Fragment>
+            <!--Uninstall sequence-->
+            <Custom Action="xdp_uninstall" After="InstallInitialize">REMOVE="ALL"</Custom>
+        </InstallExecuteSequence>
 
-	<!-- Define the product components -->
-	<Fragment>
-		<!-- XDP user-mode components -->
-		<ComponentGroup Id="xdp_api" Directory="INSTALLFOLDER">
-			<Component Id ="xdpPATH" Guid="{0445C769-0841-4FD9-939F-C2E7F514E61A}" KeyPath="yes">
-				<Environment Id="xdpPATH" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" Separator=";" />
-			</Component>
-			<Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
-				<File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)..\xdpapi.dll" KeyPath="yes" />
-			</Component>
-		</ComponentGroup>
+        <!-- Define the UI style & behavior -->
+        <UIRef Id="WixUI_FeatureTree" />
+        <WixVariable Id="WixUILicenseRtf" Value="$(var.SolutionDir)..\..\LICENSE.rtf" />
+        <CustomAction Id="SetWixInstallLocation" Property="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
+        <InstallUISequence>
+            <Custom Action="SetWixInstallLocation" After="CostFinalize" />
+        </InstallUISequence>
+    </Product>
 
-		<!-- XDP script components -->
-		<ComponentGroup Id="xdp_scripts" Directory="dir_scripts">
-			<Component Id="xdp_setup" Guid="{0D991B56-5C01-4E57-AB33-E81696B73D55}">
-				<File Id="xdp_setup_ps1" Source="scripts\xdp-setup.ps1" KeyPath="yes"/>
-			</Component>
-		</ComponentGroup>
+    <!-- Define installation directories -->
+    <Fragment>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="xdp" />
+            </Directory>
+        </Directory>
+    </Fragment>
 
-		<!-- XDP driver components -->
-		<ComponentGroup Id="xdp_sys_driver" Directory="dir_sys_drivers">
-			<Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
-				<File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp.sys" KeyPath="yes" />
-			</Component>
-		</ComponentGroup>
-		<ComponentGroup Id="xdp_driver" Directory="dir_drivers">
-			<Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
-				<File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)xdp.inf" KeyPath="yes"/>
-			</Component>
-			<Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
-				<File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)xdp.cat" KeyPath="yes"/>
-			</Component>
-		</ComponentGroup>
+    <!-- Define the product components -->
+    <Fragment>
+        <!-- XDP user-mode components -->
+        <ComponentGroup Id="xdp" Directory="INSTALLFOLDER">
+            <Component Id ="xdpPATH" Guid="{0445C769-0841-4FD9-939F-C2E7F514E61A}" KeyPath="yes">
+                <Environment Id="xdpPATH" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" Separator=";" />
+            </Component>
+            <Component Id="xdp_setup" Guid="{0D991B56-5C01-4E57-AB33-E81696B73D55}">
+                <File Id="xdp_setup_ps1" Source="xdp-setup.ps1" KeyPath="yes"/>
+            </Component>
+            <Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
+                <File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)..\xdpapi.dll" KeyPath="yes" />
+            </Component>
+            <Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
+                <File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)..\xdp\xdp.sys" KeyPath="yes" />
+            </Component>
+            <Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
+                <File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)..\xdp\xdp.inf" KeyPath="yes"/>
+            </Component>
+            <Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
+                <File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)..\xdp\xdp.cat" KeyPath="yes"/>
+            </Component>
+        </ComponentGroup>
 
-		<!-- Install/Uninstall/Rollback the XDP driver installation -->
-		<SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;cd '[dir_drivers]';&amp; '[#xdp_setup_ps1]' -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute"/>
-		<CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
+        <!-- Install/Uninstall/Rollback the XDP driver installation -->
+        <SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute"/>
+        <CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
-		<SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall" Sequence="execute"/>
-		<CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
+        <SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall" Sequence="execute"/>
+        <CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
 
-		<SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
-		<CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
-	</Fragment>
+        <SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
+        <CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
+    </Fragment>
 </Wix>

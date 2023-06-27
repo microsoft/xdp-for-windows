@@ -133,6 +133,13 @@ function Get-CoreNetCiArtifactPath {
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
 }
 
+# Returns whether the script is running as a built-in administrator.
+function Test-Admin {
+    return ([Security.Principal.WindowsPrincipal] `
+        [Security.Principal.WindowsIdentity]::GetCurrent() `
+        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 # Refreshes the PATH environment variable.
 function Refresh-Path {
     $env:Path=(
