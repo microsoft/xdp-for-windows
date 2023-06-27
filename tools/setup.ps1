@@ -42,6 +42,10 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("MSI", "INF")]
+    [string]$XdpInstaller = "MSI",
+
+    [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $false
 )
 
@@ -61,6 +65,7 @@ $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 # File paths.
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
+$XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.msi"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
@@ -221,14 +226,21 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 function Install-Xdp {
-    if (!(Test-Path $XdpSys)) {
-        Write-Error "$XdpSys does not exist!"
-    }
+    if ($XdpInstaller -eq "MSI") {
+        $XdpPath = Get-XdpInstallPath
 
-    Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
-    netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "netcfg.exe exit code: $LastExitCode"
+        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /qn /l*v $LogsDir\xdpinstall.txt"
+        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /qn /l*v $LogsDir\xdpinstall.txt | Write-Verbose
+
+        if ($LastExitCode -ne 0) {
+            Write-Error "XDP MSI installation failed: $LastExitCode"
+        }
+    } elseif ($XdpInstaller -eq "INF") {
+        Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
+        netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
+        if ($LastExitCode) {
+            Write-Error "netcfg.exe exit code: $LastExitCode"
+        }
     }
 
     if ($EnableEbpf) {
@@ -244,15 +256,41 @@ function Install-Xdp {
 
 # Uninstalls the xdp driver.
 function Uninstall-Xdp {
-    Write-Verbose "netcfg.exe -u ms_xdp"
-    cmd.exe /c "netcfg.exe -u ms_xdp 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "netcfg.exe failed: $LastExitCode"
+    if ($XdpInstaller -eq "MSI") {
+        $XdpPath = Get-XdpInstallPath
+
+        if (!(Test-Path $XdpPath)) {
+            Write-Verbose "$XdpPath does not exist. Assuming XDP is not installed."
+            return
+        }
+
+        Write-Verbose "msiexec.exe /x $XdpMsiFullPath /qn /l*v $LogsDir\xdpuninstall.txt"
+        msiexec.exe /x $XdpMsiFullPath /qn /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
+
+        if ($LastExitCode -eq 0x666) {
+            Write-Warning "The current version of XDP could not be uninstalled using MSI. Trying the existing installer..."
+
+            $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'XDP for Windows'").IdentifyingNumber
+
+            Write-Verbose "msiexec.exe /x $InstallId /qn /l*v $LogsDir\xdpuninstallwmi.txt"
+            msiexec.exe /x $InstallId /qn /l*v $LogsDir\xdpuninstallwmi.txt
+        }
+
+        if ($LastExitCode -ne 0) {
+            Write-Error "XDP MSI uninstall failed with status $LastExitCode" -ErrorAction Continue
+            Uninstall-Failure
+        }
+    } elseif ($XdpInstaller -eq "INF") {
+        Write-Verbose "netcfg.exe -u ms_xdp"
+        cmd.exe /c "netcfg.exe -u ms_xdp 2>&1" | Write-Verbose
+        if (!$?) {
+            Write-Host "netcfg.exe failed: $LastExitCode"
+        }
+
+        Uninstall-Driver "xdp.inf"
+
+        Cleanup-Service xdp
     }
-
-    Uninstall-Driver "xdp.inf"
-
-    Cleanup-Service xdp
 
     Write-Verbose "xdp.sys uninstall complete!"
 }
