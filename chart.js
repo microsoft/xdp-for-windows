@@ -3,6 +3,7 @@
 var dataMaxCount = 90
 var dataLineWidth = 2
 var dataRawPointRadius = 2
+var dataByTest = 1
 
 // Allow URL parameters to overwrite the values above
 function processSearchParams() {
@@ -19,6 +20,39 @@ function processSearchParams() {
     if (param) {
         dataRawPointRadius = param
     }
+    var param = url.searchParams.get("byTest")
+    if (param) {
+        dataByTest = param
+    }
+}
+
+// Variables for building the charts
+var chartNames =
+[
+    [
+        'XDPMP-NATIVE',
+        'XDPMP-GENERIC',
+        'XDPMP-RIO',
+        'XDPMP-WINSOCK'
+    ],
+    [
+        'RX-BUSY-2048chunksize-64iosize-FNDIS',
+        'RX-BUSY-2048chunksize-1514iosize-FNDIS',
+        'TX-BUSY-2048chunksize-64iosize-FNDIS',
+        'TX-BUSY-2048chunksize-1514iosize-FNDIS'
+    ]
+]
+var chartColors = [
+    'red',
+    'blue',
+    'green',
+    'black'
+]
+
+// Takes a chart and variable name and returns the dataset name
+function datasetName(v0, v1) {
+    if (dataByTest == 1) return v1 + "-" + v0
+    else                 return v0 + "-" + v1
 }
 
 // Split the CSV data into more Javascript friendly types
@@ -42,14 +76,14 @@ function processData(text) {
 }
 
 // Find all the data matching the names and create a dataset for it
-function createDataset(chartName, dataName, color, allData) {
-    var data = allData.filter(x => x.name === chartName + "-" + dataName)
+function createDataset(chart, variable, color, allData) {
+    var data = allData.filter(x => x.name === datasetName(chart, variable))
     var dataset = []
     data.forEach(
         p => dataset.push({commit:p.commit, x:new Date(p.time * 1000), y:p.p0}))
     return {
         type: "line",
-        label: dataName,
+        label: variable,
         borderWidth: dataLineWidth,
         borderColor: color,
         pointRadius: dataRawPointRadius,
@@ -66,10 +100,10 @@ function titlePlacement(tooltipItem, data) {
 }
 
 // Create everything necessary for the new chart
-function createChartwithData(allData, year, chart, names, colors, displayLegend, stacked) {
+function createChartwithData(allData, year, chart, variables, displayLegend, stacked) {
     // Generate the chart datasets
     var datasets = [];
-    names.forEach((name, i) => datasets.push(createDataset(chart, name, colors[i], allData)))
+    variables.forEach((variable, i) => datasets.push(createDataset(chart, variable, chartColors[i], allData)))
 
     // Create the HTML elements first
     const chartParent = document.getElementById('chart-parent');
@@ -127,7 +161,7 @@ function createChartwithData(allData, year, chart, names, colors, displayLegend,
             legend: {
                 display: displayLegend,
                 labels: {
-                    backgroundColor: colors
+                    backgroundColor: chartColors
                 }
             },
             tooltips: {
@@ -148,24 +182,10 @@ function createChartwithData(allData, year, chart, names, colors, displayLegend,
     })
 }
 
-// Create all the charts
-function createChart(allData, year) {
-    var names = [
-        'RX-BUSY-2048chunksize-64iosize-FNDIS',
-        'RX-BUSY-2048chunksize-1514iosize-FNDIS',
-        'TX-BUSY-2048chunksize-64iosize-FNDIS',
-        'TX-BUSY-2048chunksize-1514iosize-FNDIS'
-    ]
-    var colors = [
-        'red',
-        'blue',
-        'green',
-        'black'
-    ]
-    createChartwithData(allData, year, "XDPMP-NATIVE", names, colors, true, false)
-    createChartwithData(allData, year, "XDPMP-GENERIC", names, colors, true, false)
-    createChartwithData(allData, year, "XDPMP-RIO", names, colors, true, false)
-    createChartwithData(allData, year, "XDPMP-WINSOCK", names, colors, true, false)
+// Create all the charts either by test type or technology type, depending on the dataByTest flag
+function createCharts(allData, year) {
+    chartNames[dataByTest].forEach(
+        chart => createChartwithData(allData, year, chart, chartNames[1-dataByTest], true, false))
 }
 
 // Immediately triggers on load of the HTML file. Loads all data and generates charts
@@ -176,5 +196,5 @@ window.onload = function() {
     years.forEach(year =>
         fetch('https://xdpperfdata.blob.core.windows.net/cidata/xskperf-ws'+year+'.csv')
         .then(response => response.text())
-        .then(text => createChart(processData(text), year)))
+        .then(text => createCharts(processData(text), year)))
 };
