@@ -82,10 +82,10 @@ jobs:
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 120 # minutes
+      fullRuntime: 120 # minutes. Update timeout-minutes with any changes.
       fullIters: 10
       # For PRs
-      prRuntime: 15 # minutes
+      prRuntime: 15 # minutes. Update timeout-minutes with any changes.
       prIters: 1
     strategy:
       fail-fast: false
@@ -114,14 +114,12 @@ jobs:
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: ${{ env.prRuntime }}
+      timeout-minutes: 15
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      # currently getting a weird error:
-      #  .github/workflows/ci.yml (Line: 107, Col: 24): Unexpected value '60'
-      timeout-minutes: ${{ env.fullRuntime }}
+      timeout-minutes: 120
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
@@ -146,11 +144,9 @@ jobs:
       successThresholdPercent: 1
       xdpmpPollProvider: 'FNDIS'
       # For 'main' commits
-      fullRuntime: 60 # minutes
-      fullTimeout: 65 # minutes
+      fullRuntime: 60 # minutes. Update timeout-minutes with any changes.
       # For PRs
-      prRuntime: 10 # minutes
-      prTimeout: 15 # minutes
+      prRuntime: 10 # minutes. Update timeout-minutes with any changes.
     strategy:
       fail-fast: false
       matrix:
@@ -179,12 +175,12 @@ jobs:
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: ${{ env.prTimeout }}
+      timeout-minutes: 15
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: ${{ env.fullTimeout }}
+      timeout-minutes: 65
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
