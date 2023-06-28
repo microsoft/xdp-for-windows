@@ -89,6 +89,9 @@ param (
     [int]$YieldCount = 0,
 
     [Parameter(Mandatory=$false)]
+    [switch]$Pacing = $false,
+
+    [Parameter(Mandatory=$false)]
     [string]$OutFile = "",
 
     [Parameter(Mandatory=$false)]
@@ -164,6 +167,8 @@ Write-Verbose "Restarting XDP"
 Restart-Service xdp
 
 try {
+    $WsaRioProcess = $null
+
     #
     # Configure XDPMP.
     #
@@ -295,6 +300,10 @@ try {
         }
     }
 
+    $ThreadParams = @()
+    $QueueParams = @()
+    $GlobalParams = @()
+
     if ($Wait) {
         $ThreadParams += " -w"
     }
@@ -389,7 +398,7 @@ try {
             -EtlPath $XperfFile
     }
 
-    if ($WsaRioProcess -ne $null) {
+    if ($WsaRioProcess) {
         Stop-Process -InputObject $WsaRioProcess
     }
 
