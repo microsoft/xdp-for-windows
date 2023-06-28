@@ -71,7 +71,6 @@ if (!(Test-Path $CertPath)) { Write-Error "$CertPath does not exist!" }
 
 # All the file paths.
 $XdpDir = Join-Path $ArtifactsDir "xdp"
-$XdpMsiDir = Join-Path $ArtifactsDir "msi"
 $XdpSys = Join-Path $XdpDir "xdp.sys"
 $XdpInf = Join-Path $XdpDir "xdp.inf"
 $XdpCat = Join-Path $XdpDir "xdp.cat"
