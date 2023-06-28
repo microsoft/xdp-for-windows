@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "xdpworkqueue.tmh"
 
 #pragma warning(disable:4701) // OldIrql for XdpWorkQueueReleaseLock is initialized.
 
@@ -239,8 +240,9 @@ XdpIoWorkItemRoutine(
     XDP_WORK_QUEUE *WorkQueue = (XDP_WORK_QUEUE *)Context;
     KIRQL OldIrql;
 
+    TraceEnter(TRACE_RTL, "WorkQueue=%p IoObject=%p", WorkQueue, IoObject);
+
     UNREFERENCED_PARAMETER(IoWorkItem);
-    UNREFERENCED_PARAMETER(IoObject);
     ASSERT(WorkQueue);
 
     //
@@ -287,4 +289,6 @@ XdpIoWorkItemRoutine(
         KeSetEvent(WorkQueue->ShutdownEvent, 0, FALSE);
     }
     XdpDereferenceWorkQueue(WorkQueue);
+
+    TraceExitSuccess(TRACE_RTL);
 }

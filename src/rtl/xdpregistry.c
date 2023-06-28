@@ -63,7 +63,7 @@ XdpRegQueryDwordValue(
 Exit:
 
     TraceInfo(
-        TRACE_CORE,
+        TRACE_RTL,
         "KeyName=%S ValueName=%S Value=%u Status=%!STATUS!",
         KeyName, ValueName, NT_SUCCESS(Status) ? *ValueData : 0, Status);
 
