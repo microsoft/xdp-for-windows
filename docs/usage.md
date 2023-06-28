@@ -9,7 +9,8 @@
 XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
 
 If xdp.sys is not production-signed:
-```PowerShell
+
+```bat
 CertUtil.exe -addstore Root CoreNetSignRoot.cer
 CertUtil.exe -addstore TrustedPublisher CoreNetSignRoot.cer
 bcdedit.exe /set testsigning on
@@ -17,16 +18,20 @@ bcdedit.exe /set testsigning on
 ```
 
 Install:
-```PowerShell
-netcfg.exe -l .\xdp.inf -c s -i ms_xdp
+
+```bat
+msiexec /i xdp-for-windows.msi /qn
 ```
 
 Uninstall:
-```PowerShell
-netcfg.exe -u ms_xdp
-pnputil.exe /enum-drivers # Find the entry that has xdp.inf as the 'Original Name' and note down the corresponding 'Published Name'.
-pnputil.exe /delete-driver <Published Name>
+
+```bat
+msiexec /x xdp-for-windows.msi /qn
 ```
+
+### Version Upgrade
+
+To upgrade versions of XDP, uninstall the old version and install the new version. If processes have XDP handles open (e.g. sockets, programs) those handles need to be closed for uninstallation to complete.
 
 ## Logging
 
@@ -81,6 +86,10 @@ including in crash dumps, using the kernel debugger.
 ```
 !rcdrkd.rcdrlogdump xdp
 ```
+
+### Installer logging
+
+To collect XDP installer traces, append `/l*v filename.log` to the MSI command line.
 
 ## Configuration
 
