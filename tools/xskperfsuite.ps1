@@ -156,7 +156,7 @@ try {
     }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf:$EnableEbpf
+    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
     Write-Verbose "installed xdp."
 
     $Format = "{0,-73} {1,-14} {2,-14}"
