@@ -588,6 +588,10 @@ function Uninstall-Ebpf {
         if (!(Wait-Job -Job $Job -Timeout 60)) {
             Write-Error "eBPF failed to uninstall within 60 seconds" -ErrorAction Continue
             Uninstall-Failure
+
+            # Abandon (leak) the job since the MSI process may be impossible to
+            # terminate in certain hang scenarios.
+            $Job = $null
         }
 
         if (($Status = Receive-Job -Job $Job) -ne 0) {
@@ -599,7 +603,11 @@ function Uninstall-Ebpf {
             }
         }
     } finally {
-        Remove-Job -Job $Job -Force
+        if ($Job) {
+            Write-Verbose "Cleaning up MSI job..."
+            Remove-Job -Job $Job -Force
+            Write-Verbose "Cleaned up MSI job."
+        }
     }
 
     if (Test-Path $EbpfPath) {
