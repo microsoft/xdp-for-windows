@@ -699,6 +699,11 @@ XskFillTx(
             CompletionContext->Context = &Xsk->Tx.Xdp.DatapathClientEntry;
         }
 
+        //
+        // Oops, AF_XDP just got slower.
+        //
+        KeStallExecutionProcessor(10);
+
         EventWriteXskTxEnqueue(
             &MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Ring.Shared->ConsumerIndex + i,
             FrameRing->ProducerIndex);
@@ -4313,6 +4318,11 @@ XskReceiveSingleFrame(
     ASSERT(Xsk->Umem->Reg.headroom <= MAXUINT16);
     XskDescriptorSetOffset(&XskBuffer->address, (UINT16)Xsk->Umem->Reg.headroom);
     XskBuffer->length = UmemOffset - Xsk->Umem->Reg.headroom + CopyLength;
+
+    //
+    // Oops, AF_XDP just got slower.
+    //
+    KeStallExecutionProcessor(10);
 
     ++*CompletionOffset;
 }
