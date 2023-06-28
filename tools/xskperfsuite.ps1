@@ -68,6 +68,10 @@ param (
     [string]$CommitHash = ""
 )
 
+
+Set-StrictMode -Version 'Latest'
+$ErrorActionPreference = 'Stop'
+
 function ExtractKppsStat {
     param(
         $FileName

@@ -95,6 +95,9 @@ param (
     [string]$XperfFile = ""
 )
 
+Set-StrictMode -Version 'Latest'
+$ErrorActionPreference = 'Stop'
+
 function Wait-NetAdapterUpStatus {
     [CmdletBinding()]
     param(
