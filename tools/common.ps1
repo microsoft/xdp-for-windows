@@ -94,9 +94,14 @@ function Get-VsTestPath {
     return $null
 }
 
+# Returns the XDP installation path
+function Get-XdpInstallPath {
+    return "$($env:SystemDrive)\xdpmsi"
+}
+
 # Returns the eBPF installation path
 function Get-EbpfInstallPath {
-    return "C:\ebpf"
+    return "$($env:SystemDrive)\ebpf"
 }
 
 # Returns the eBPF MSI filename

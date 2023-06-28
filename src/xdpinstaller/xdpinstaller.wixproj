@@ -5,9 +5,9 @@
     <ProductVersion>3.10</ProductVersion>
     <ProjectGuid>93635a7b-565e-4b41-af67-5b375756b227</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>xdpinstaller</OutputName>
+    <OutputName>xdp-for-windows</OutputName>
     <OutputType>Package</OutputType>
-    <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\msi\</OutputPath>
+    <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\xdpinstaller\</OutputPath>
     <IntermediateOutputPath>$(SolutionDir)..\..\build\$(Platform)_$(Configuration)\obj\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DefineConstants>
