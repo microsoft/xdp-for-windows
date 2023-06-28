@@ -208,13 +208,16 @@ XdpLwfOidRequestWorker(
     XDP_LWF_FILTER *Filter = Context;
     NDIS_OID_REQUEST *Request;
 
-    UNREFERENCED_PARAMETER(IoObject);
+    TraceEnter(TRACE_LWF, "Filter=%p IoObject=%p", Filter, IoObject);
+
     UNREFERENCED_PARAMETER(IoWorkItem);
     ASSERT(Context != NULL);
 
     Request = InterlockedExchangePointer(&Filter->OidWorkerRequest, NULL);
     FRE_ASSERT(Request != NULL);
     FRE_ASSERT(XdpLwfOidRequest((NDIS_HANDLE)Filter, Request) == NDIS_STATUS_PENDING);
+
+    TraceExitSuccess(TRACE_LWF);
 }
 
 VOID

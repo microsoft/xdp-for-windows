@@ -63,7 +63,6 @@ $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
-$XdpSys = "$ArtifactsDir\xdp\xdp.sys"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.msi"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
@@ -81,6 +80,9 @@ $XdpFnMpServiceName = "XDPFNMP"
 $XdpFnLwfSys = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.sys"
 $XdpFnLwfInf = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.inf"
 $XdpFnLwfComponentId = "ms_xdpfnlwf"
+
+# Ensure the output path exists.
+New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 # Helper to capture failure diagnostics and trigger CI agent reboot
 function Uninstall-Failure {
