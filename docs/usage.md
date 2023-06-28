@@ -20,13 +20,13 @@ bcdedit.exe /set testsigning on
 Install:
 
 ```bat
-msiexec /i xdp-for-windows.msi /qn
+msiexec /i xdp-for-windows.msi /quiet
 ```
 
 Uninstall:
 
 ```bat
-msiexec /x xdp-for-windows.msi /qn
+msiexec /x xdp-for-windows.msi /quiet
 ```
 
 ### Version Upgrade
