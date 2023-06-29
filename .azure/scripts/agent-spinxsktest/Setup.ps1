@@ -51,5 +51,5 @@ if ($Depends -contains "tdx") {
     Set-ItemProperty -Path HKLM:System\CurrentControlSet\Services\dhcp -Name DependOnService -Value $Depends
 }
 
-Write-Host "Enable complete system crash dumps"
-reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
+#Write-Host "Enable complete system crash dumps"
+#reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
