@@ -5,6 +5,10 @@
 
 #include "precomp.h"
 
+EX_RUNDOWN_REF XdpRtlRundown = {
+    .Count = EX_RUNDOWN_ACTIVE
+};
+
 NTSTATUS
 RtlUInt32RoundUpToPowerOfTwo(
     _In_ UINT32 Value,
@@ -131,4 +135,22 @@ RtlRandomNumberInRange(
     Number += Min;
 
     return Number;
+}
+
+NTSTATUS
+XdpRtlStart(
+    VOID
+    )
+{
+    ExReInitializeRundownProtection(&XdpRtlRundown);
+
+    return STATUS_SUCCESS;
+}
+
+VOID
+XdpRtlStop(
+    VOID
+    )
+{
+    ExWaitForRundownProtectionRelease(&XdpRtlRundown);
 }

@@ -65,11 +65,16 @@ XdpCreateWorkQueue(
     ASSERT(DriverObject != NULL || DeviceObject != NULL);
     IoObject = (DriverObject != NULL) ? (VOID *)DriverObject : DeviceObject;
 
+    if (!ExAcquireRundownProtection(&XdpRtlRundown)) {
+        return NULL;
+    }
+
     WorkQueue =
         ExAllocatePoolZero(
             MaxIrql < DISPATCH_LEVEL ? PagedPool : NonPagedPoolNx, sizeof(*WorkQueue),
             XDP_POOLTAG_WORKQUEUE);
     if (WorkQueue == NULL) {
+        ExReleaseRundownProtection(&XdpRtlRundown);
         return NULL;
     }
 
@@ -88,6 +93,7 @@ XdpCreateWorkQueue(
             NonPagedPoolNx, IoSizeofWorkItem(), XDP_POOLTAG_WORKQUEUE);
     if (WorkQueue->IoWorkItem == NULL) {
         ExFreePoolWithTag(WorkQueue, XDP_POOLTAG_WORKQUEUE);
+        ExReleaseRundownProtection(&XdpRtlRundown);
         return NULL;
     }
 
@@ -116,6 +122,7 @@ XdpDereferenceWorkQueue(
         IoUninitializeWorkItem(WorkQueue->IoWorkItem);
         ExFreePoolWithTag(WorkQueue->IoWorkItem, XDP_POOLTAG_WORKQUEUE);
         ExFreePoolWithTag(WorkQueue, XDP_POOLTAG_WORKQUEUE);
+        ExReleaseRundownProtection(&XdpRtlRundown);
     }
 }
 
@@ -288,7 +295,8 @@ XdpIoWorkItemRoutine(
         XdpWorkQueueReleaseLock(WorkQueue, OldIrql);
         KeSetEvent(WorkQueue->ShutdownEvent, 0, FALSE);
     }
-    XdpDereferenceWorkQueue(WorkQueue);
 
     TraceExitSuccess(TRACE_RTL);
+
+    XdpDereferenceWorkQueue(WorkQueue);
 }
