@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<instrumentationManifest
+    xmlns="http://schemas.microsoft.com/win/2004/08/events"
+    xmlns:win="https://manifests.microsoft.com/win/2004/08/windows/events"
+    xmlns:xs="https://www.w3.org/2001/XMLSchema"
+    >
+  <instrumentation>
+    <counters
+      xmlns="http://schemas.microsoft.com/win/2005/12/counters"
+      schemaVersion="2.0">
+      <provider
+        applicationIdentity="xdp.sys"
+        providerGuid="{f0268542-135c-418e-8768-281d953df6ee}"
+        providerName="XDP"
+        providerType="kernelMode"
+        callback = "custom">
+
+        <counterSet
+          guid="{ad8f90db-36c3-454a-bb7c-e868d476b037}"
+          uri="Microsoft.Xdp.MyCounterSet1"
+          symbol="MyCounterSet1"
+          name="My Counter Set 1"
+          nameID="100"
+          description="This is a sample XDP counter set with multiple instances."
+          descriptionID="102"
+          instances="multipleAggregate">
+
+          <structs>
+            <struct name="MyCounterSet1Values" type="MY_COUNTER_SET1_VALUES" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.MyCounterSet1.MyCounter1"
+            name="My Counter 1"
+            nameID="104"
+            field="MyCounter1"
+            description="First sample XDP counter."
+            descriptionID="106"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+        </counterSet>
+      </provider>
+    </counters>
+  </instrumentation>
+</instrumentationManifest>

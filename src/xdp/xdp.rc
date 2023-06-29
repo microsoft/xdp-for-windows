@@ -51,3 +51,4 @@ BEGIN
 END
 
 #include <xdpetw.rc>
+#include <xdppcwcounters.rc>

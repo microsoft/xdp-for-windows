@@ -76,6 +76,7 @@
 #include "extensionset.h"
 #include "offload.h"
 #include "offloadqeo.h"
+#include "perfcounter.h"
 #include "program.h"
 #include "queue.h"
 #include "redirect.h"
