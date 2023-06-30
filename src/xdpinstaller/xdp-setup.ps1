@@ -130,8 +130,8 @@ if ($Install -eq "xdp") {
 # Uninstalls the xdp driver.
 if ($Uninstall -eq "xdp") {
 
-    Write-Verbose "unlodctr.exe /m:c:\xdp\xdppcw.man"
-    unlodctr.exe /m:c:\xdp\xdppcw.man | Write-Verbose
+    Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
+    unlodctr.exe /m:$XdpPcwMan | Write-Verbose
     if ($LastExitCode) {
         Write-Error "unlodctr.exe exit code: $LastExitCode"
     }
