@@ -17,21 +17,21 @@
 
         <counterSet
           guid="{ad8f90db-36c3-454a-bb7c-e868d476b037}"
-          uri="Microsoft.Xdp.MyCounterSet1"
-          symbol="MyCounterSet1"
-          name="My Counter Set 1"
+          uri="Microsoft.Xdp.PerProcessor"
+          symbol="PerProcessor"
+          name="XDP Per-CPU"
           nameID="100"
-          description="This is a sample XDP counter set with multiple instances."
+          description="Per-CPU XDP performance counters."
           descriptionID="102"
           instances="multipleAggregate">
 
           <structs>
-            <struct name="MyCounterSet1Values" type="MY_COUNTER_SET1_VALUES" />
+            <struct name="_XdpPcwPerProcessor" type="XDP_PCW_PER_PROCESSOR" />
           </structs>
 
           <counter
             id="1"
-            uri="Microsoft.Xdp.MyCounterSet1.MyCounter1"
+            uri="Microsoft.Xdp.PerProcessor.MyCounter1"
             name="My Counter 1"
             nameID="104"
             field="MyCounter1"

@@ -27,6 +27,7 @@
 #include <netiodef.h>
 #include <netioddk.h>
 #include <winerror.h>
+#include <ntstrsafe.h>
 #include <ebpf_extension.h>
 #include <ebpf_extension_uuids.h>
 #include <ebpf_nethooks.h>
@@ -77,7 +78,7 @@
 #include "extensionset.h"
 #include "offload.h"
 #include "offloadqeo.h"
-#include "perfcounter.h"
+#include "perfcounters.h"
 #include "program.h"
 #include "queue.h"
 #include "redirect.h"

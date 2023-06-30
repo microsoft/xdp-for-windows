@@ -5,8 +5,10 @@
 
 #pragma once
 
-typedef struct _MY_COUNTER_SET1_VALUES {
+typedef struct DECLSPEC_CACHEALIGN _XDP_PCW_PER_PROCESSOR {
     ULONG MyCounter1;
-} MY_COUNTER_SET1_VALUES;
+} XDP_PCW_PER_PROCESSOR;
+
+#define MAXUINT32_STR "4294967295"
 
 #include <xdppcwcounters.h>
