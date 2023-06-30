@@ -296,6 +296,10 @@ XdpIoWorkItemRoutine(
         KeSetEvent(WorkQueue->ShutdownEvent, 0, FALSE);
     }
 
+    //
+    // The work queue holds an indirect reference on the ETW tracing provider,
+    // so trace exit prematurely to ensure the log isn't dropped.
+    //
     TraceExitSuccess(TRACE_RTL);
 
     XdpDereferenceWorkQueue(WorkQueue);

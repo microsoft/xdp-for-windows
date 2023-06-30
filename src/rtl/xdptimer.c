@@ -372,6 +372,10 @@ XdpTimerWorker(
         Timer->TimerRoutine(Timer->TimerContext);
     }
 
+    //
+    // The work queue holds an indirect reference on the ETW tracing provider,
+    // so trace exit prematurely to ensure the log isn't dropped.
+    //
     TraceExitSuccess(TRACE_RTL);
 
     XdpTimerDereference(Timer);
