@@ -25,6 +25,7 @@
 #define XDP_POOLTAG_MAP                 'MpdX' // XdpM
 #define XDP_POOLTAG_NMR                 'NpdX' // XdpN
 #define XDP_POOLTAG_OFFLOAD_QEO         'QodX' // XdoQ
+#define XDP_POOLTAG_PCW                 'ppdX' // Xdpp
 #define XDP_POOLTAG_PROGRAM             'PpdX' // XdpP
 #define XDP_POOLTAG_PROGRAM_OBJECT      'OpdX' // XdpO
 #define XDP_POOLTAG_PROGRAM_BINDING     'bPdX' // XdPb

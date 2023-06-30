@@ -8,8 +8,9 @@
 //
 
 #include "precomp.h"
+#include "perfcounters.tmh"
 
-XDP_PCW_PER_PROCESSOR XdpPerProcessorCounters[4];
+XDP_PCW_PER_PROCESSOR *XdpPerProcessorCounters;
 
 static
 PAGED_ROUTINE
@@ -57,7 +58,7 @@ Return Value:
     case PcwCallbackEnumerateInstances:
     case PcwCallbackCollectData:
 
-        for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpPerProcessorCounters); i++) {
+        for (UINT32 i = 0; i < KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS); i++) {
             Status = RtlUnicodeStringPrintf(&Name, L"CPU %u", i);
             if (!NT_SUCCESS(Status)) {
                 return Status;
@@ -82,7 +83,36 @@ XdpPerfCountersStart(
     VOID
     )
 {
-    return XdpPcwRegisterPerProcessor(XdpPcwPerProcessorCallback, NULL);
+    NTSTATUS Status;
+    SIZE_T AllocSize;
+
+    TraceEnter(TRACE_CORE, "-");
+
+    Status =
+        RtlSizeTMult(
+            sizeof(*XdpPerProcessorCounters), KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS),
+            &AllocSize);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    XdpPerProcessorCounters =
+        ExAllocatePoolZero(NonPagedPoolNxCacheAligned, AllocSize, XDP_POOLTAG_PCW);
+    if (XdpPerProcessorCounters == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    Status = XdpPcwRegisterPerProcessor(XdpPcwPerProcessorCallback, NULL);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID
@@ -90,7 +120,16 @@ XdpPerfCountersStop(
     VOID
     )
 {
+    TraceEnter(TRACE_CORE, "-");
+
     if (XdpPcwPerProcessor != NULL) {
         PcwUnregister(XdpPcwPerProcessor);
     }
+
+    if (XdpPerProcessorCounters != NULL) {
+        ExFreePoolWithTag(XdpPerProcessorCounters, XDP_POOLTAG_PCW);
+        XdpPerProcessorCounters = NULL;
+    }
+
+    TraceExitSuccess(TRACE_CORE);
 }
