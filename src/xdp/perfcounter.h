@@ -14,9 +14,3 @@ VOID
 XdpPerfCountersStop(
     VOID
     );
-
-typedef struct _MY_COUNTER_SET1_VALUES {
-    ULONG MyCounter1;
-} MY_COUNTER_SET1_VALUES;
-
-#include <xdppcwcounters.h>

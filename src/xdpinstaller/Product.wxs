@@ -65,7 +65,7 @@ SPDX-License-Identifier: MIT
                 <File Id="xdp_setup_ps1" Source="xdp-setup.ps1" KeyPath="yes"/>
             </Component>
             <Component Id="xdppcw.man" Guid="{EDD336F3-5350-4046-AF01-C76B10A3B965}">
-                <File Id="xdppcw.man" Source=".$(var.TargetDir)..\xdppcw.man" KeyPath="yes"/>
+                <File Id="xdppcw.man" Source="$(var.TargetDir)..\xdppcw.man" KeyPath="yes"/>
             </Component>
             <Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
                 <File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)..\xdpapi.dll" KeyPath="yes" />

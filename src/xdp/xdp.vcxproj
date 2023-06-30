@@ -128,6 +128,7 @@
         $(SolutionDir)src\pollshim\inc;
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdplwf\inc;
+        $(SolutionDir)src\xdppcw\inc;
         $(SolutionDir)published\private;
         $(IntDir);
         $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdpetw\;

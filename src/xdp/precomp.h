@@ -56,6 +56,7 @@
 #include <xdpif.h>
 #include <xdpioctl.h>
 #include <xdplwf.h>
+#include <xdppcw.h>
 #include <xdpnmrprovider.h>
 #include <xdppollshim.h>
 #include <xdprefcount.h>
