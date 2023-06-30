@@ -537,6 +537,11 @@ DriverEntry(
         goto Exit;
     }
 
+    Status = XdpRtlStart();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     Status = XdpStart();
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -570,6 +575,7 @@ DriverUnload(
 
     XdpLwfStop();
     XdpStop();
+    XdpRtlStop();
 
     TraceExitStatus(TRACE_CORE);
 

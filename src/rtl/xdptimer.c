@@ -57,6 +57,8 @@ XdpTimerDereference(
         if (CleanupEvent != NULL) {
             KeSetEvent(CleanupEvent, 0, FALSE);
         }
+
+        ExReleaseRundownProtection(&XdpRtlRundown);
     }
 }
 
@@ -76,6 +78,10 @@ XdpTimerCreate(
 
     ASSERT((DriverObject != NULL) || (DeviceObject != NULL));
     IoObject = (DriverObject != NULL) ? (VOID *)DriverObject : DeviceObject;
+
+    if (!ExAcquireRundownProtection(&XdpRtlRundown)) {
+        return NULL;
+    }
 
     Timer =
         ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Timer) + IoSizeofWorkItem(), XDP_POOLTAG_TIMER);
@@ -106,6 +112,8 @@ Exit:
             XdpTimerDereference(Timer);
             Timer = NULL;
         }
+
+        ExReleaseRundownProtection(&XdpRtlRundown);
     }
 
     return Timer;
@@ -364,7 +372,11 @@ XdpTimerWorker(
         Timer->TimerRoutine(Timer->TimerContext);
     }
 
-    XdpTimerDereference(Timer);
-
+    //
+    // The work queue holds an indirect reference on the ETW tracing provider,
+    // so trace exit prematurely to ensure the log isn't dropped.
+    //
     TraceExitSuccess(TRACE_RTL);
+
+    XdpTimerDereference(Timer);
 }
