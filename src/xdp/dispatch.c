@@ -538,7 +538,7 @@ DriverEntry(
     }
 
     Status = XdpRtlStart();
-      if (!NT_SUCCESS(Status)) {
+    if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
