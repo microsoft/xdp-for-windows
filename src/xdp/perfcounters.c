@@ -10,7 +10,7 @@
 #include "precomp.h"
 #include "perfcounters.tmh"
 
-XDP_PCW_PER_PROCESSOR *XdpPerProcessorCounters;
+static XDP_PCW_PER_PROCESSOR *XdpPerProcessorCounters;
 
 static
 PAGED_ROUTINE
