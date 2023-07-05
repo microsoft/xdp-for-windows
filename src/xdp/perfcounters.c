@@ -48,7 +48,7 @@ Return Value:
 
 {
     NTSTATUS Status;
-    DECLARE_UNICODE_STRING_SIZE(Name, ARRAYSIZE("CPU " MAXUINT32_STR));
+    DECLARE_UNICODE_STRING_SIZE(Name, ARRAYSIZE("cpu_" MAXUINT32_STR));
 
     UNREFERENCED_PARAMETER(Context);
 
@@ -59,7 +59,7 @@ Return Value:
     case PcwCallbackCollectData:
 
         for (UINT32 i = 0; i < KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS); i++) {
-            Status = RtlUnicodeStringPrintf(&Name, L"CPU %u", i);
+            Status = RtlUnicodeStringPrintf(&Name, L"cpu_%u", i);
             if (!NT_SUCCESS(Status)) {
                 return Status;
             }

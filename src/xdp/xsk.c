@@ -4263,7 +4263,8 @@ XskReceiveSingleFrame(
         //
         // Invalid FILL descriptor.
         //
-        ++Xsk->Statistics.rxInvalidDescriptors;
+        Xsk->Statistics.rxInvalidDescriptors++;
+        XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue)->XskInvalidDescriptors++;
         return;
     }
 
@@ -4278,7 +4279,8 @@ XskReceiveSingleFrame(
         //
         // Not enough available space in Umem.
         //
-        ++Xsk->Statistics.rxTruncated;
+        Xsk->Statistics.rxTruncated++;
+        XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue)->XskFramesTruncated++;
     } else if (FragmentRing != NULL) {
         Fragment = XdpGetFragmentExtension(Frame, &Xsk->Rx.Xdp.FragmentExtension);
 
@@ -4298,7 +4300,8 @@ XskReceiveSingleFrame(
                 //
                 // Not enough available space in Umem.
                 //
-                ++Xsk->Statistics.rxTruncated;
+                Xsk->Statistics.rxTruncated++;
+                XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue)->XskFramesTruncated++;
                 break;
             }
         }
@@ -4330,7 +4333,9 @@ XskReceiveSubmitBatch(
         //
         // Dropped packets.
         //
-        Xsk->Statistics.rxDropped += BatchCount - RxProduced;
+        UINT32 Dropped = BatchCount - RxProduced;
+        Xsk->Statistics.rxDropped += Dropped;
+        XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue)->XskFramesDropped += Dropped;
     }
 
     XskRingConsRelease(&Xsk->Rx.FillRing, RxFillConsumed);
@@ -4343,6 +4348,7 @@ XskReceiveSubmitBatch(
         EventWriteXskRxPostBatch(
             &MICROSOFT_XDP_PROVIDER, Xsk,
             Xsk->Rx.Ring.Shared->ProducerIndex - RxProduced, RxProduced);
+        XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue)->XskFramesDelivered += RxProduced;
 
         //
         // N.B. See comment in XskNotify.
