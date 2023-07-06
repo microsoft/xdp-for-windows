@@ -34,6 +34,7 @@ typedef struct _XDP_TX_QUEUE {
     XDP_TX_QUEUE_STATE State;
     XDP_BINDING_CLIENT_ENTRY BindingClientEntry;
     LIST_ENTRY NotifyClients;
+    PCW_INSTANCE *PcwInstance;
 
     XDP_TX_CAPABILITIES InterfaceTxCapabilities;
     XDP_DMA_CAPABILITIES InterfaceDmaCapabilities;
@@ -62,6 +63,7 @@ typedef struct _XDP_TX_QUEUE {
     XDP_EXTENSION_SET *BufferExtensionSet;
     XDP_EXTENSION_SET *TxFrameCompletionExtensionSet;
     XDP_EXTENSION TxCompletionContextExtension;
+    XDP_PCW_TX_QUEUE PcwStats;
     LIST_ENTRY ClientList;
     LIST_ENTRY *FillEntry;
     XDP_TX_QUEUE_DISPATCH Dispatch;
@@ -147,13 +149,14 @@ XdpTxQueueDatapathFill(
 {
     LIST_ENTRY *FirstEntry = TxQueue->FillEntry;
     XDP_RING *FrameRing = TxQueue->FrameRing;
+    UINT32 TxLimit = FrameRing->Mask + 1;
     UINT32 TxAvailable;
 
     if (TxQueue->CompletionRing == NULL) {
-        TxAvailable =
-            FrameRing->Mask + 1 - (FrameRing->ProducerIndex - FrameRing->Reserved);
+        TxAvailable = TxLimit - (FrameRing->ProducerIndex - FrameRing->Reserved);
     } else {
-        TxAvailable = XdpRingFree(FrameRing);
+        ASSERT(TxQueue->CompletionRing->Mask == FrameRing->Mask);
+        TxAvailable = TxLimit - XdpRingCount(FrameRing);
     }
 
     while (TxAvailable > 0) {
@@ -179,6 +182,8 @@ NextEntry:
             break;
         }
     }
+
+    STAT_SET(XdpTxQueueGetStats(TxQueue), QueueDepth, TxLimit - TxAvailable);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -190,6 +195,7 @@ XdpFlushTransmit(
     XDP_TX_QUEUE *TxQueue = CONTAINING_RECORD(XdpTxQueue, XDP_TX_QUEUE, Dispatch);
 
     XdbgEnterQueueEc(TxQueue);
+    STAT_INC(XdpTxQueueGetStats(TxQueue), InjectionBatches);
 
     XdpTxQueueDatapathComplete(TxQueue);
     XdpTxQueueDatapathFill(TxQueue);
@@ -198,6 +204,14 @@ XdpFlushTransmit(
 
     XdbgFlushQueueEc(TxQueue);
     XdbgExitQueueEc(TxQueue);
+}
+
+XDP_PCW_TX_QUEUE *
+XdpTxQueueGetStats(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    return &TxQueue->PcwStats;
 }
 
 static CONST XDP_TX_QUEUE_DISPATCH XdpTxDispatch = {
@@ -228,7 +242,7 @@ XdpTxQueueInterlockedDereference(
     )
 {
     //
-    // Unlike XdpTxQueueInterlockedDereference, this reference count can be
+    // Unlike XdpTxQueueDereference, this reference count can be
     // called from any thread context and protects only the XDP_TX_QUEUE pool
     // allocation.
     //
@@ -736,6 +750,9 @@ XdpTxQueueCreate(
     UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
     UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
     XDP_EXTENSION_INFO ExtensionInfo;
+    DECLARE_UNICODE_STRING_SIZE(
+        Name, ARRAYSIZE("if_" MAXUINT32_STR "_queue_" MAXUINT32_STR "_rx"));
+    const WCHAR *DirectionString;
 
     *NewTxQueue = NULL;
 
@@ -750,6 +767,13 @@ XdpTxQueueCreate(
     if (!NT_VERIFY(XdpIfSupportsHookId(XdpIfGetCapabilities(Binding), HookId))) {
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
+    }
+
+    if (HookId->Direction == XDP_HOOK_RX) {
+        DirectionString = L"_rx";
+    } else {
+        ASSERT(HookId->Direction == XDP_HOOK_TX);
+        DirectionString = L"";
     }
 
     XdpTxQueueInitializeKey(&Key, HookId, QueueId);
@@ -785,6 +809,18 @@ XdpTxQueueCreate(
     Status =
         XdpIfRegisterClient(
             Binding, &TxQueueBindingClient, &TxQueue->Key, &TxQueue->BindingClientEntry);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        RtlUnicodeStringPrintf(
+            &Name, L"if_%u_queue_%u%s", XdpIfGetIfIndex(Binding), QueueId, DirectionString);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = XdpPcwCreateTxQueue(&TxQueue->PcwInstance, &Name, &TxQueue->PcwStats);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1253,6 +1289,11 @@ XdpTxQueueDelete(
         XdpExtensionSetCleanup(TxQueue->FrameExtensionSet);
     }
 
+    if (TxQueue->PcwInstance != NULL) {
+        PcwCloseInstance(TxQueue->PcwInstance);
+        TxQueue->PcwInstance = NULL;
+    }
+
     XdpIfDeregisterClient(TxQueue->Binding, &TxQueue->BindingClientEntry);
 
     XdpTxQueueInterlockedDereference(TxQueue);
@@ -1291,8 +1332,21 @@ XdpTxStart(
     VOID
     )
 {
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "-");
+
     XdpRegWatcherAddClient(XdpRegWatcher, XdpTxRegistryUpdate, &XdpTxRegWatcherEntry);
-    return STATUS_SUCCESS;
+
+    Status = XdpPcwRegisterTxQueue(NULL, NULL);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+    return Status;
 }
 
 VOID
@@ -1300,5 +1354,14 @@ XdpTxStop(
     VOID
     )
 {
+    TraceEnter(TRACE_CORE, "-");
+
+    if (XdpPcwTxQueue != NULL) {
+        PcwUnregister(XdpPcwTxQueue);
+        XdpPcwTxQueue = NULL;
+    }
+
     XdpRegWatcherRemoveClient(XdpRegWatcher, &XdpTxRegWatcherEntry);
+
+    TraceExitSuccess(TRACE_CORE);
 }

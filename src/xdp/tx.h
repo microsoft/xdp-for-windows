@@ -16,6 +16,11 @@ XdpTxQueueInvokeInterfaceNotify(
     _In_ XDP_NOTIFY_QUEUE_FLAGS Flags
     );
 
+XDP_PCW_TX_QUEUE *
+XdpTxQueueGetStats(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
 //
 // Control path routines.
 //

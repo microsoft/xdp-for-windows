@@ -227,7 +227,60 @@
             detailLevel="standard"
             defaultScale="1"
             />
+        </counterSet>
+        <counterSet
+          guid="{05947256-79cd-4393-b54c-a65be0963294}"
+          uri="Microsoft.Xdp.TxQueue"
+          symbol="TxQueue"
+          name="XDP Transmit Queue"
+          nameID="4000"
+          description="Per-transmit queue XDP performance counters."
+          descriptionID="4002"
+          instances="multipleAggregate">
 
+          <structs>
+            <struct name="_XdpPcwTxQueue" type="XDP_PCW_TX_QUEUE" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.TxQueue.XskInvalidDescriptors"
+            name="AF_XDP Invalid Descriptors"
+            nameID="4004"
+            field="XskInvalidDescriptors"
+            description="AF_XDP invalid descriptors."
+            descriptionID="4006"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="2"
+            uri="Microsoft.Xdp.TxQueue.InjectionBatches"
+            name="Injection Batches"
+            nameID="4008"
+            field="InjectionBatches"
+            description="Batches of frames injected by XDP."
+            descriptionID="4010"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="3"
+            uri="Microsoft.Xdp.TxQueue.QueueDepth"
+            name="Queue Depth"
+            nameID="4012"
+            field="QueueDepth"
+            description="The number of frames currently queued on the XDP interface."
+            descriptionID="4014"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
       </provider>
     </counters>

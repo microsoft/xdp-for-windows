@@ -31,7 +31,14 @@ typedef struct _XDP_PCW_LWF_RX_QUEUE {
     UINT64 ForwardingFailures;
 } XDP_PCW_LWF_RX_QUEUE;
 
+typedef struct _XDP_PCW_TX_QUEUE {
+    UINT64 XskInvalidDescriptors;
+    UINT64 InjectionBatches;
+    UINT64 QueueDepth;
+} XDP_PCW_TX_QUEUE;
+
 #define STAT_INC(_Stats, _Field) (((_Stats)->_Field)++)
 #define STAT_ADD(_Stats, _Field, _Bias) (((_Stats)->_Field) += (_Bias))
+#define STAT_SET(_Stats, _Field, _Value) (((_Stats)->_Field) = (_Value))
 
 #include <xdppcwcounters.h>

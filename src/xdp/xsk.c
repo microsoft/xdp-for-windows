@@ -662,17 +662,20 @@ XskFillTx(
         if (Result > Xsk->Umem->Reg.totalSize ||
             Buffer->DataLength == 0 ||
             Status != STATUS_SUCCESS) {
-            ++Xsk->Statistics.txInvalidDescriptors;
+            Xsk->Statistics.txInvalidDescriptors++;
+            STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
         }
 
         if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, Xsk->Tx.Xdp.MaxFrameLength)) {
-            ++Xsk->Statistics.txInvalidDescriptors;
+            Xsk->Statistics.txInvalidDescriptors++;
+            STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
         }
 
         if (!XskBounceBuffer(Xsk->Umem, &Xsk->Tx.Bounce, Buffer, RelativeAddress, &Mapping)) {
-            ++Xsk->Statistics.txInvalidDescriptors;
+            Xsk->Statistics.txInvalidDescriptors++;
+            STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
         }
 
