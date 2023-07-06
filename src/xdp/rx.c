@@ -121,7 +121,7 @@ XdpReceiveBatchStart(
     )
 {
     XdbgEnterQueueEc(RxQueue);
-    XdpRxQueueGetStats(RxQueue)->InspectBatches++;
+    STAT_INC(XdpRxQueueGetStats(RxQueue), InspectBatches);
 }
 
 static

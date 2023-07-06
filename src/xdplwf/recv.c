@@ -547,13 +547,13 @@ XdpGenericReceiveEnqueueTxNb(
             NdisAllocateNetBufferAndNetBufferList(
                 RxQueue->TxCloneNblPool, RX_TX_CONTEXT_SIZE, 0, NULL, 0, 0);
         if (TxNbl == NULL) {
-            RxQueue->PcwStats.ForwardingFailures++;
+            STAT_INC(&RxQueue->PcwStats, ForwardingFailures);
             goto Exit;
         }
 
         RxQueue->TxCloneCacheCount++;
     } else {
-        RxQueue->PcwStats.ForwardingFailures++;
+        STAT_INC(&RxQueue->PcwStats, ForwardingFailures);
         goto Exit;
     }
 
@@ -679,7 +679,7 @@ XdpGenericReceivePreInspectNbs(
         SystemVa->VirtualAddress =
             MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
         if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
-            RxQueue->PcwStats.MappingFailures++;
+            STAT_INC(&RxQueue->PcwStats, MappingFailures);
             goto Next;
         }
 
@@ -707,7 +707,7 @@ XdpGenericReceivePreInspectNbs(
                 }
 
                 if (!XdpGenericReceiveLinearizeNb(RxQueue, *Nb)) {
-                    RxQueue->PcwStats.LinearizationFailures++;
+                    STAT_INC(&RxQueue->PcwStats, LinearizationFailures);
                     goto Next;
                 }
 
@@ -741,7 +741,7 @@ XdpGenericReceivePreInspectNbs(
             SystemVa->VirtualAddress =
                 MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
             if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
-                RxQueue->PcwStats.MappingFailures++;
+                STAT_INC(&RxQueue->PcwStats, MappingFailures);
                 goto Next;
             }
         }

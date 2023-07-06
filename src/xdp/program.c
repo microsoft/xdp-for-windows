@@ -185,19 +185,19 @@ XdpInvokeEbpf(
     if (EbpfResult != EBPF_SUCCESS) {
         EventWriteEbpfProgramFailure(&MICROSOFT_XDP_PROVIDER, ClientBindingContext, EbpfResult);
         RxAction = XDP_RX_ACTION_DROP;
-        RxQueueStats->InspectFramesDropped++;
+        STAT_INC(RxQueueStats, InspectFramesDropped);
         goto Exit;
     }
 
     switch (Result) {
     case XDP_PASS:
         RxAction = XDP_RX_ACTION_PASS;
-        RxQueueStats->InspectFramesPassed++;
+        STAT_INC(RxQueueStats, InspectFramesPassed);
         break;
 
     case XDP_TX:
         RxAction = XDP_RX_ACTION_TX;
-        RxQueueStats->InspectFramesForwarded++;
+        STAT_INC(RxQueueStats, InspectFramesForwarded);
         break;
 
     default:
@@ -205,7 +205,7 @@ XdpInvokeEbpf(
         __fallthrough;
     case XDP_DROP:
         RxAction = XDP_RX_ACTION_DROP;
-        RxQueueStats->InspectFramesDropped++;
+        STAT_INC(RxQueueStats, InspectFramesDropped);
         break;
     }
 
@@ -989,7 +989,7 @@ XdpL2Fwd(
     }
 
     if (!Cache->EthValid) {
-        RxQueueStats->InspectFramesDropped++;
+        STAT_INC(RxQueueStats, InspectFramesDropped);
 
         return XDP_RX_ACTION_DROP;
     }
@@ -1006,7 +1006,7 @@ XdpL2Fwd(
             Cache->EthHdr, sizeof(*Cache->EthHdr));
     }
 
-    RxQueueStats->InspectFramesForwarded++;
+    STAT_INC(RxQueueStats, InspectFramesForwarded);
 
     return XDP_RX_ACTION_TX;
 }
@@ -1292,17 +1292,17 @@ XdpInspect(
                     Rule->Redirect.TargetType, Rule->Redirect.Target);
 
                 Action = XDP_RX_ACTION_DROP;
-                RxQueueStats->InspectFramesRedirected++;
+                STAT_INC(RxQueueStats, InspectFramesRedirected);
                 break;
 
             case XDP_PROGRAM_ACTION_DROP:
                 Action = XDP_RX_ACTION_DROP;
-                RxQueueStats->InspectFramesDropped++;
+                STAT_INC(RxQueueStats, InspectFramesDropped);
                 break;
 
             case XDP_PROGRAM_ACTION_PASS:
                 Action = XDP_RX_ACTION_PASS;
-                RxQueueStats->InspectFramesPassed++;
+                STAT_INC(RxQueueStats, InspectFramesPassed);
                 break;
 
             case XDP_PROGRAM_ACTION_L2FWD:
@@ -1332,7 +1332,7 @@ XdpInspect(
     // No match resulted in a terminating action; perform the default action.
     //
     ASSERT(Action == XDP_RX_ACTION_PASS);
-    RxQueueStats->InspectFramesPassed++;
+    STAT_INC(RxQueueStats, InspectFramesPassed);
 
 Done:
 
