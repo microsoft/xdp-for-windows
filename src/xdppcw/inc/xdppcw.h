@@ -18,10 +18,17 @@ typedef struct _XDP_PCW_RX_QUEUE {
     UINT64 XskFramesDropped;
     UINT64 XskFramesTruncated;
     UINT64 XskInvalidDescriptors;
+    UINT64 InspectBatches;
     UINT64 InspectFramesPassed;
     UINT64 InspectFramesDropped;
     UINT64 InspectFramesRedirected;
     UINT64 InspectFramesForwarded;
 } XDP_PCW_RX_QUEUE;
+
+typedef struct _XDP_PCW_LWF_RX_QUEUE {
+    UINT64 MappingFailures;
+    UINT64 LinearizationFailures;
+    UINT64 ForwardingFailures;
+} XDP_PCW_LWF_RX_QUEUE;
 
 #include <xdppcwcounters.h>

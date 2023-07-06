@@ -752,6 +752,7 @@ XdpGenericStart(
     )
 {
     XdpRegWatcherAddClient(XdpLwfRegWatcher, XdpGenericRegistryUpdate, &GenericRegWatcher);
+    XdpPcwRegisterLwfRxQueue(NULL, NULL);
 
     return STATUS_SUCCESS;
 }
@@ -761,5 +762,6 @@ XdpGenericStop(
     VOID
     )
 {
+    XdpPcwUnregisterLwfRxQueue();
     XdpRegWatcherRemoveClient(XdpLwfRegWatcher, &GenericRegWatcher);
 }

@@ -115,6 +115,25 @@ XdpRxQueueFromRedirectContext(
 }
 
 static
+VOID
+XdpReceiveBatchStart(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdbgEnterQueueEc(RxQueue);
+    XdpRxQueueGetStats(RxQueue)->InspectBatches++;
+}
+
+static
+VOID
+XdpReceiveBatchComplete(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdbgExitQueueEc(RxQueue);
+}
+
+static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdppFlushReceive(
@@ -216,12 +235,12 @@ XdpReceive(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue);
+    XdpReceiveBatchStart(RxQueue);
 
     XdppReceiveBatch(RxQueue, XdpInspect);
     XdppFlushReceive(RxQueue);
 
-    XdbgExitQueueEc(RxQueue);
+    XdpReceiveBatchComplete(RxQueue);
 }
 
 static
@@ -233,7 +252,7 @@ XdpReceiveEbpf(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue);
+    XdpReceiveBatchStart(RxQueue);
 
     if (XdpInspectEbpfStartBatch(RxQueue->Program, &RxQueue->InspectionContext)) {
         XdppReceiveBatch(RxQueue, XdpInspectEbpf);
@@ -244,7 +263,7 @@ XdpReceiveEbpf(
 
     XdppFlushReceive(RxQueue);
 
-    XdbgExitQueueEc(RxQueue);
+    XdpReceiveBatchComplete(RxQueue);
 }
 
 static
@@ -283,7 +302,7 @@ XdpReceiveXskExclusiveBatch(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue);
+    XdpReceiveBatchStart(RxQueue);
 
     //
     // Attempt to pass the entire batch to XSK.
@@ -298,7 +317,7 @@ XdpReceiveXskExclusiveBatch(
         XdppFlushReceive(RxQueue);
     }
 
-    XdbgExitQueueEc(RxQueue);
+    XdpReceiveBatchComplete(RxQueue);
 }
 
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
@@ -1274,7 +1293,7 @@ XdpRxQueueDereference(
         TraceInfo(TRACE_CORE, "Deleting RxQueue=%p", RxQueue);
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
         if (RxQueue->PcwInstance != NULL) {
-            XdpPcwCloseRxQueue(RxQueue->PcwInstance);
+            PcwCloseInstance(RxQueue->PcwInstance);
             RxQueue->PcwInstance = NULL;
         }
         ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
