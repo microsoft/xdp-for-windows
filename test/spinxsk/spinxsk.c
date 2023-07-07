@@ -715,13 +715,13 @@ FreeRingInitialize(
     }
     *FreeRingBase = (BYTE *)FreeRingLayout;
 
-    freeRingInfo.ring = (BYTE *)FreeRingLayout;
-    freeRingInfo.producerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Producer);
-    freeRingInfo.consumerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Consumer);
-    freeRingInfo.flagsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Flags);
-    freeRingInfo.descriptorsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Descriptors[0]);
-    freeRingInfo.size = DescriptorCount;
-    freeRingInfo.elementStride = sizeof(*FreeRingLayout->Descriptors);
+    freeRingInfo.Ring = (BYTE *)FreeRingLayout;
+    freeRingInfo.ProducerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Producer);
+    freeRingInfo.ConsumerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Consumer);
+    freeRingInfo.FlagsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Flags);
+    freeRingInfo.DescriptorsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Descriptors[0]);
+    freeRingInfo.Size = DescriptorCount;
+    freeRingInfo.ElementStride = sizeof(*FreeRingLayout->Descriptors);
     XskRingInitialize(FreeRing, &freeRingInfo);
 
     for (UINT32 i = 0; i < DescriptorCount; i++) {
@@ -770,8 +770,8 @@ CleanupQueue(
         free(Queue->fuzzers);
     }
 
-    if (Queue->umemReg.address != NULL) {
-        res = VirtualFree(Queue->umemReg.address, 0, MEM_RELEASE);
+    if (Queue->umemReg.Address != NULL) {
+        res = VirtualFree(Queue->umemReg.Address, 0, MEM_RELEASE);
         ASSERT_FRE(res);
     }
 
@@ -1243,24 +1243,24 @@ FuzzSocketUmemSetup(
         // driver verifier's fault injection provides coverage of mapping
         // failure paths.
         //
-        umemReg.totalSize = RandUlong() % 0x100000;
+        umemReg.TotalSize = RandUlong() % 0x100000;
 
         if (RandUlong() % 6) {
-            umemReg.chunkSize = RandUlong() % 4096;
+            umemReg.ChunkSize = RandUlong() % 4096;
         } else {
-            umemReg.chunkSize = RandUlong();
+            umemReg.ChunkSize = RandUlong();
         }
 
         if (RandUlong() % 6) {
-            umemReg.headroom = RandUlong() % ((umemReg.chunkSize / 4) + 1);
+            umemReg.Headroom = RandUlong() % ((umemReg.ChunkSize / 4) + 1);
         } else {
-            umemReg.headroom = RandUlong();
+            umemReg.Headroom = RandUlong();
         }
 
-        umemReg.address =
+        umemReg.Address =
             VirtualAlloc(
-                NULL, umemReg.totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-        if (umemReg.address == NULL) {
+                NULL, umemReg.TotalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (umemReg.Address == NULL) {
             return;
         }
 
@@ -1271,9 +1271,9 @@ FuzzSocketUmemSetup(
             Queue->umemReg = umemReg;
             WriteBooleanRelease(WasUmemRegistered, TRUE);
             TraceVerbose("q[%u]: umem totalSize:%llu chunkSize:%u headroom:%u",
-                Queue->queueId, umemReg.totalSize, umemReg.chunkSize, umemReg.headroom);
+                Queue->queueId, umemReg.TotalSize, umemReg.ChunkSize, umemReg.Headroom);
         } else {
-            BOOL success = VirtualFree(umemReg.address, 0, MEM_RELEASE);
+            BOOL success = VirtualFree(umemReg.Address, 0, MEM_RELEASE);
             ASSERT_FRE(success);
         }
     }
@@ -1295,7 +1295,7 @@ FuzzSocketSharedUmemSetup(
         if (SUCCEEDED(res)) {
             TraceVerbose(
                 "q[%u]: umem shared with SharedUmemSock=%p Buffer=%p",
-                Queue->queueId, SharedUmemSock, Queue->umemReg.address);
+                Queue->queueId, SharedUmemSock, Queue->umemReg.Address);
         }
     }
 }
@@ -1309,7 +1309,7 @@ FuzzRingSize(
     UINT32 numUmemDescriptors;
 
     if (ReadBooleanAcquire(&Queue->scenarioConfig.isUmemRegistered)) {
-        numUmemDescriptors = (UINT32)(Queue->umemReg.totalSize / Queue->umemReg.chunkSize);
+        numUmemDescriptors = (UINT32)(Queue->umemReg.TotalSize / Queue->umemReg.ChunkSize);
     } else {
         numUmemDescriptors = (RandUlong() % 16) + 1;
     }
@@ -1576,14 +1576,14 @@ InitializeDatapath(
     UINT32 ringInfoSize = sizeof(ringInfo);
     QUEUE_CONTEXT *queue = Datapath->shared->queue;
     UINT32 umemDescriptorCount =
-        (UINT32)(queue->umemReg.totalSize / queue->umemReg.chunkSize);
+        (UINT32)(queue->umemReg.TotalSize / queue->umemReg.ChunkSize);
     UINT32 descriptorCount = umemDescriptorCount / 2;
     UINT32 descriptorStart;
 
     Datapath->iobatchsize = DEFAULT_IO_BATCH;
     Datapath->pollMode = XSK_POLL_MODE_DEFAULT;
     Datapath->flags.wait = FALSE;
-    Datapath->txiosize = queue->umemReg.chunkSize - queue->umemReg.headroom;
+    Datapath->txiosize = queue->umemReg.ChunkSize - queue->umemReg.Headroom;
 
     res =
         queue->xdpApi->XskGetSockopt(
@@ -1600,17 +1600,17 @@ InitializeDatapath(
 
     if (Datapath->flags.rx) {
         TraceVerbose("q[%u]d[0x%p]: rx_size:%u fill_size:%u",
-            queue->queueId, Datapath->threadHandle, ringInfo.rx.size, ringInfo.fill.size);
-        XskRingInitialize(&Datapath->rxRing, &ringInfo.rx);
-        XskRingInitialize(&Datapath->fillRing, &ringInfo.fill);
+            queue->queueId, Datapath->threadHandle, ringInfo.Rx.Size, ringInfo.Fill.Size);
+        XskRingInitialize(&Datapath->rxRing, &ringInfo.Rx);
+        XskRingInitialize(&Datapath->fillRing, &ringInfo.Fill);
 
-        ASSERT_FRE(Datapath->rxRing.size > 0 && Datapath->fillRing.size > 0);
+        ASSERT_FRE(Datapath->rxRing.Size > 0 && Datapath->fillRing.Size > 0);
 
         descriptorStart = 0;
         res =
             FreeRingInitialize(
                 &Datapath->rxFreeRing, &Datapath->rxFreeRingBase, descriptorStart,
-                queue->umemReg.chunkSize, descriptorCount);
+                queue->umemReg.ChunkSize, descriptorCount);
         if (FAILED(res)) {
             goto Exit;
         }
@@ -1618,17 +1618,17 @@ InitializeDatapath(
     }
     if (Datapath->flags.tx) {
         TraceVerbose("q[%u]d[0x%p]: tx_size:%u comp_size:%u",
-            queue->queueId, Datapath->threadHandle, ringInfo.tx.size, ringInfo.completion.size);
-        XskRingInitialize(&Datapath->txRing, &ringInfo.tx);
-        XskRingInitialize(&Datapath->compRing, &ringInfo.completion);
+            queue->queueId, Datapath->threadHandle, ringInfo.Tx.Size, ringInfo.Completion.Size);
+        XskRingInitialize(&Datapath->txRing, &ringInfo.Tx);
+        XskRingInitialize(&Datapath->compRing, &ringInfo.Completion);
 
-        ASSERT_FRE(Datapath->txRing.size > 0 && Datapath->compRing.size > 0);
+        ASSERT_FRE(Datapath->txRing.Size > 0 && Datapath->compRing.Size > 0);
 
-        descriptorStart = (umemDescriptorCount / 2) * queue->umemReg.chunkSize;
+        descriptorStart = (umemDescriptorCount / 2) * queue->umemReg.ChunkSize;
         res =
             FreeRingInitialize(
                 &Datapath->txFreeRing, &Datapath->txFreeRingBase, descriptorStart,
-                queue->umemReg.chunkSize, descriptorCount);
+                queue->umemReg.ChunkSize, descriptorCount);
         if (FAILED(res)) {
             goto Exit;
         }
@@ -1700,7 +1700,7 @@ ProcessPkts(
                 XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Datapath->rxRing, consumerIndex++);
                 UINT64 *freeDesc = XskRingGetElement(&Datapath->rxFreeRing, producerIndex++);
 
-                *freeDesc = XskDescriptorGetAddress(rxDesc->address);
+                *freeDesc = XskDescriptorGetAddress(rxDesc->Address);
             }
 
             XskRingConsumerRelease(&Datapath->rxRing, available);
@@ -1765,7 +1765,7 @@ ProcessPkts(
             Datapath->txPacketCount += available;
 
             if (XskRingProducerReserve(&Datapath->txRing, MAXUINT32, &producerIndex) !=
-                    Datapath->txRing.size) {
+                    Datapath->txRing.Size) {
                 notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
             }
 
@@ -1783,8 +1783,8 @@ ProcessPkts(
                 UINT64 *freeDesc = XskRingGetElement(&Datapath->txFreeRing, consumerIndex++);
                 XSK_BUFFER_DESCRIPTOR *txDesc = XskRingGetElement(&Datapath->txRing, producerIndex++);
 
-                txDesc->address = *freeDesc;
-                txDesc->length = Datapath->txiosize;
+                txDesc->Address = *freeDesc;
+                txDesc->Length = Datapath->txiosize;
             }
 
             XskRingConsumerRelease(&Datapath->txFreeRing, available);
@@ -1852,8 +1852,8 @@ PrintDatapathStats(
         "q[%u]d[0x%p]: rx:%s tx:%s rxDrop:%llu rxTrunc:%llu "
         "rxInvalidDesc:%llu txInvalidDesc:%llu xdpMode:%s\n",
         Datapath->shared->queue->queueId, Datapath->threadHandle,
-        rxPacketCount, txPacketCount, stats.rxDropped, stats.rxTruncated,
-        stats.rxInvalidDescriptors, stats.txInvalidDescriptors,
+        rxPacketCount, txPacketCount, stats.RxDropped, stats.RxTruncated,
+        stats.RxInvalidDescriptors, stats.TxInvalidDescriptors,
         XdpModeToString[Datapath->shared->queue->xdpMode]);
 }
 

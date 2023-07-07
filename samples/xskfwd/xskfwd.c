@@ -104,9 +104,9 @@ main(
     // available mapped into AF_XDP's address space, and elements of descriptor
     // rings refer to relative offets from the start of the UMEM.
     //
-    UmemReg.totalSize = sizeof(Frame);
-    UmemReg.chunkSize = sizeof(Frame);
-    UmemReg.address = Frame;
+    UmemReg.TotalSize = sizeof(Frame);
+    UmemReg.ChunkSize = sizeof(Frame);
+    UmemReg.Address = Frame;
 
     Result = XdpApi->XskSetSockopt(Socket, XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg));
     if (FAILED(Result)) {
@@ -179,10 +179,10 @@ main(
     // Initialize the optional AF_XDP helper library with the socket ring info.
     // These helpers simplify manipulation of the shared rings.
     //
-    XskRingInitialize(&RxRing, &RingInfo.rx);
-    XskRingInitialize(&RxFillRing, &RingInfo.fill);
-    XskRingInitialize(&TxRing, &RingInfo.tx);
-    XskRingInitialize(&TxCompRing, &RingInfo.completion);
+    XskRingInitialize(&RxRing, &RingInfo.Rx);
+    XskRingInitialize(&RxFillRing, &RingInfo.Fill);
+    XskRingInitialize(&TxRing, &RingInfo.Tx);
+    XskRingInitialize(&TxCompRing, &RingInfo.Completion);
 
     //
     // Place an empty frame descriptor into the RX fill ring. When the AF_XDP
@@ -248,9 +248,9 @@ main(
             // Swap source and destination fields within the frame payload.
             //
             TranslateRxToTx(
-                &Frame[XskDescriptorGetAddress(RxBuffer->address) +
-                       XskDescriptorGetOffset(RxBuffer->address)],
-                RxBuffer->length);
+                &Frame[XskDescriptorGetAddress(RxBuffer->Address) +
+                       XskDescriptorGetOffset(RxBuffer->Address)],
+                RxBuffer->Length);
 
             //
             // Since the RX and TX buffer descriptor formats are identical,

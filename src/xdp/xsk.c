@@ -424,7 +424,7 @@ XskReleaseBounceBuffer(
         return;
     }
 
-    ChunkIndex = RelativeAddress / Umem->Reg.chunkSize;
+    ChunkIndex = RelativeAddress / Umem->Reg.ChunkSize;
     Bounce->Tracker[ChunkIndex]--;
 }
 
@@ -449,8 +449,8 @@ XskBounceBuffer(
         return TRUE;
     }
 
-    ChunkIndex = RelativeAddress / Umem->Reg.chunkSize;
-    if (ChunkIndex != (RelativeAddress + Buffer->BufferLength - 1) / Umem->Reg.chunkSize) {
+    ChunkIndex = RelativeAddress / Umem->Reg.ChunkSize;
+    if (ChunkIndex != (RelativeAddress + Buffer->BufferLength - 1) / Umem->Reg.ChunkSize) {
         //
         // The entire buffer must fit within a chunk.
         //
@@ -496,7 +496,7 @@ XskAllocateTxBounceBuffer(
         //
         ASSERT(Bounce->AllocationSource == NotAllocated);
         Bounce->Mapping.SystemAddress =
-            ExAllocatePoolUninitialized(NonPagedPoolNx, Xsk->Umem->Reg.totalSize, POOLTAG_BOUNCE);
+            ExAllocatePoolUninitialized(NonPagedPoolNx, Xsk->Umem->Reg.TotalSize, POOLTAG_BOUNCE);
         if (Bounce->Mapping.SystemAddress == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
@@ -510,10 +510,10 @@ XskAllocateTxBounceBuffer(
         goto Exit;
     }
 
-    ASSERT(Xsk->Umem->Reg.totalSize <= ULONG_MAX);
+    ASSERT(Xsk->Umem->Reg.TotalSize <= ULONG_MAX);
     Bounce->Mapping.Mdl =
         IoAllocateMdl(
-            Bounce->Mapping.SystemAddress, (ULONG)Xsk->Umem->Reg.totalSize, FALSE, FALSE, NULL);
+            Bounce->Mapping.SystemAddress, (ULONG)Xsk->Umem->Reg.TotalSize, FALSE, FALSE, NULL);
     if (Bounce->Mapping.Mdl == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -522,7 +522,7 @@ XskAllocateTxBounceBuffer(
 
     Status =
         RtlSizeTMult(
-            Xsk->Umem->Reg.totalSize / Xsk->Umem->Reg.chunkSize, sizeof(SIZE_T),
+            Xsk->Umem->Reg.TotalSize / Xsk->Umem->Reg.ChunkSize, sizeof(SIZE_T),
             &BounceTrackerSize);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -646,33 +646,33 @@ XskFillTx(
         TxIndex =
             (ReadUInt32NoFence(&Xsk->Tx.Ring.Shared->ConsumerIndex) + i) & (Xsk->Tx.Ring.Mask);
         XskFrame = XskKernelRingGetElement(&Xsk->Tx.Ring, TxIndex);
-        XskBuffer = &XskFrame->buffer;
+        XskBuffer = &XskFrame->Buffer;
 
         Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
         Buffer = &Frame->Buffer;
 
-        AddressDescriptor = ReadUInt64NoFence(&XskBuffer->address);
+        AddressDescriptor = ReadUInt64NoFence(&XskBuffer->Address);
         RelativeAddress = XskDescriptorGetAddress(AddressDescriptor);
         Buffer->DataOffset = XskDescriptorGetOffset(AddressDescriptor);
-        Buffer->DataLength = ReadUInt32NoFence(&XskBuffer->length);
+        Buffer->DataLength = ReadUInt32NoFence(&XskBuffer->Length);
         Buffer->BufferLength = Buffer->DataLength + Buffer->DataOffset;
 
         Status = RtlUInt64Add(RelativeAddress, Buffer->DataLength, &Result);
         Status |= RtlUInt64Add(Buffer->DataOffset, Result, &Result);
-        if (Result > Xsk->Umem->Reg.totalSize ||
+        if (Result > Xsk->Umem->Reg.TotalSize ||
             Buffer->DataLength == 0 ||
             Status != STATUS_SUCCESS) {
-            ++Xsk->Statistics.txInvalidDescriptors;
+            ++Xsk->Statistics.TxInvalidDescriptors;
             continue;
         }
 
         if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, Xsk->Tx.Xdp.MaxFrameLength)) {
-            ++Xsk->Statistics.txInvalidDescriptors;
+            ++Xsk->Statistics.TxInvalidDescriptors;
             continue;
         }
 
         if (!XskBounceBuffer(Xsk->Umem, &Xsk->Tx.Bounce, Buffer, RelativeAddress, &Mapping)) {
-            ++Xsk->Statistics.txInvalidDescriptors;
+            ++Xsk->Statistics.TxInvalidDescriptors;
             continue;
         }
 
@@ -1840,7 +1840,7 @@ XskSetupDma(
     Mapping = &Xsk->Tx.Bounce.Mapping;
     Mapping->SystemAddress =
         DmaOperations->AllocateCommonBuffer(
-            Xsk->Tx.DmaAdapter, (ULONG)Xsk->Umem->Reg.totalSize, &Mapping->DmaAddress, TRUE);
+            Xsk->Tx.DmaAdapter, (ULONG)Xsk->Umem->Reg.TotalSize, &Mapping->DmaAddress, TRUE);
     if (Mapping->SystemAddress == NULL) {
         TraceWarn(TRACE_XSK, "Xsk=%p Failed to allocate common buffer", Xsk);
         return STATUS_NO_MEMORY;
@@ -2816,13 +2816,13 @@ XskFillRingInfo(
     ASSERT(Ring->Size != 0);
     ASSERT(Ring->UserVa != NULL);
 
-    Info->ring = Ring->UserVa;
-    Info->descriptorsOffset = sizeof(XSK_SHARED_RING);
-    Info->producerIndexOffset = FIELD_OFFSET(XSK_SHARED_RING, ProducerIndex);
-    Info->consumerIndexOffset = FIELD_OFFSET(XSK_SHARED_RING, ConsumerIndex);
-    Info->flagsOffset = FIELD_OFFSET(XSK_SHARED_RING, Flags);
-    Info->size = Ring->Size;
-    Info->elementStride = Ring->ElementStride;
+    Info->Ring = Ring->UserVa;
+    Info->DescriptorsOffset = sizeof(XSK_SHARED_RING);
+    Info->ProducerIndexOffset = FIELD_OFFSET(XSK_SHARED_RING, ProducerIndex);
+    Info->ConsumerIndexOffset = FIELD_OFFSET(XSK_SHARED_RING, ConsumerIndex);
+    Info->FlagsOffset = FIELD_OFFSET(XSK_SHARED_RING, Flags);
+    Info->Size = Ring->Size;
+    Info->ElementStride = Ring->ElementStride;
 }
 
 static
@@ -2856,16 +2856,16 @@ XskSockoptGetRingInfo(
     }
 
     if (Xsk->Rx.Ring.Size != 0) {
-        XskFillRingInfo(&Xsk->Rx.Ring, &InfoSet->rx);
+        XskFillRingInfo(&Xsk->Rx.Ring, &InfoSet->Rx);
     }
     if (Xsk->Rx.FillRing.Size != 0) {
-        XskFillRingInfo(&Xsk->Rx.FillRing, &InfoSet->fill);
+        XskFillRingInfo(&Xsk->Rx.FillRing, &InfoSet->Fill);
     }
     if (Xsk->Tx.Ring.Size != 0) {
-        XskFillRingInfo(&Xsk->Tx.Ring, &InfoSet->tx);
+        XskFillRingInfo(&Xsk->Tx.Ring, &InfoSet->Tx);
     }
     if (Xsk->Tx.CompletionRing.Size != 0) {
-        XskFillRingInfo(&Xsk->Tx.CompletionRing, &InfoSet->completion);
+        XskFillRingInfo(&Xsk->Tx.CompletionRing, &InfoSet->Completion);
     }
 
     Status = STATUS_SUCCESS;
@@ -2930,15 +2930,15 @@ XskSockoptSetUmem(
         goto Exit;
     }
 
-    if (Umem->Reg.totalSize == 0 || Umem->Reg.totalSize > MAXULONG) {
+    if (Umem->Reg.TotalSize == 0 || Umem->Reg.TotalSize > MAXULONG) {
         // TODO: support up to MAXUINT64?
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
-    if (Umem->Reg.headroom > MAXUINT16 ||
-        Umem->Reg.headroom > Umem->Reg.chunkSize ||
-        Umem->Reg.chunkSize > Umem->Reg.totalSize ||
-        Umem->Reg.chunkSize == 0) {
+    if (Umem->Reg.Headroom > MAXUINT16 ||
+        Umem->Reg.Headroom > Umem->Reg.ChunkSize ||
+        Umem->Reg.ChunkSize > Umem->Reg.TotalSize ||
+        Umem->Reg.ChunkSize == 0) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -2951,8 +2951,8 @@ XskSockoptSetUmem(
 
     Umem->Mapping.Mdl =
         IoAllocateMdl(
-            Umem->Reg.address,
-            (ULONG)Umem->Reg.totalSize,
+            Umem->Reg.Address,
+            (ULONG)Umem->Reg.TotalSize,
             FALSE, // SecondaryBuffer
             FALSE, // ChargeQuota
             NULL); // Irp
@@ -2977,7 +2977,7 @@ XskSockoptSetUmem(
     //
     Umem->ReservedMapping =
         MmAllocateMappingAddress(
-            BYTE_OFFSET(Umem->Reg.address) + Umem->Reg.totalSize, POOLTAG_UMEM);
+            BYTE_OFFSET(Umem->Reg.Address) + Umem->Reg.TotalSize, POOLTAG_UMEM);
     if (Umem->ReservedMapping == NULL) {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
@@ -2991,13 +2991,13 @@ XskSockoptSetUmem(
         goto Exit;
     }
 
-    if (Umem->Reg.totalSize % Umem->Reg.chunkSize != 0) {
+    if (Umem->Reg.TotalSize % Umem->Reg.ChunkSize != 0) {
         //
         // The final chunk is truncated, which might be required for alignment
         // reasons. Ignore the final chunk.
         //
-        ASSERT(Umem->Reg.totalSize > Umem->Reg.chunkSize);
-        Umem->Reg.totalSize -= (Umem->Reg.totalSize % Umem->Reg.chunkSize);
+        ASSERT(Umem->Reg.TotalSize > Umem->Reg.ChunkSize);
+        Umem->Reg.TotalSize -= (Umem->Reg.TotalSize % Umem->Reg.ChunkSize);
     }
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
@@ -3014,7 +3014,7 @@ XskSockoptSetUmem(
 
     TraceInfo(
         TRACE_XSK, "Xsk=%p Set Umem=%p TotalSize=%llu ChunkSize=%llu Headroom=%u",
-        Xsk, Umem, Umem->Reg.totalSize, Umem->Reg.chunkSize, Umem->Reg.headroom);
+        Xsk, Umem, Umem->Reg.TotalSize, Umem->Reg.ChunkSize, Umem->Reg.Headroom);
 
     Status = STATUS_SUCCESS;
     Xsk->Umem = Umem;
@@ -4259,17 +4259,17 @@ XskReceiveSingleFrame(
             Xsk->Rx.FillRing.Mask;
     UmemAddress = *(UINT64 *)XskKernelRingGetElement(&Xsk->Rx.FillRing, RingIndex);
 
-    if (UmemAddress > Xsk->Umem->Reg.totalSize - Xsk->Umem->Reg.chunkSize) {
+    if (UmemAddress > Xsk->Umem->Reg.TotalSize - Xsk->Umem->Reg.ChunkSize) {
         //
         // Invalid FILL descriptor.
         //
-        ++Xsk->Statistics.rxInvalidDescriptors;
+        ++Xsk->Statistics.RxInvalidDescriptors;
         return;
     }
 
     UmemChunk = Xsk->Umem->Mapping.SystemAddress + UmemAddress;
-    UmemOffset = Xsk->Umem->Reg.headroom;
-    CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.chunkSize - UmemOffset);
+    UmemOffset = Xsk->Umem->Reg.Headroom;
+    CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.ChunkSize - UmemOffset);
 
     if (!XskGlobals.RxZeroCopy) {
         RtlCopyMemory(UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
@@ -4278,7 +4278,7 @@ XskReceiveSingleFrame(
         //
         // Not enough available space in Umem.
         //
-        ++Xsk->Statistics.rxTruncated;
+        ++Xsk->Statistics.RxTruncated;
     } else if (FragmentRing != NULL) {
         Fragment = XdpGetFragmentExtension(Frame, &Xsk->Rx.Xdp.FragmentExtension);
 
@@ -4287,7 +4287,7 @@ XskReceiveSingleFrame(
             Va = XdpGetVirtualAddressExtension(Buffer, &Xsk->Rx.Xdp.VaExtension);
 
             UmemOffset += CopyLength;
-            CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.chunkSize - UmemOffset);
+            CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.ChunkSize - UmemOffset);
 
             if (!XskGlobals.RxZeroCopy) {
                 RtlCopyMemory(
@@ -4298,7 +4298,7 @@ XskReceiveSingleFrame(
                 //
                 // Not enough available space in Umem.
                 //
-                ++Xsk->Statistics.rxTruncated;
+                ++Xsk->Statistics.RxTruncated;
                 break;
             }
         }
@@ -4308,11 +4308,11 @@ XskReceiveSingleFrame(
         (ReadUInt32NoFence(&Xsk->Rx.Ring.Shared->ProducerIndex) + *CompletionOffset) &
             Xsk->Rx.Ring.Mask;
     XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
-    XskBuffer = &XskFrame->buffer;
-    XskBuffer->address = UmemAddress;
-    ASSERT(Xsk->Umem->Reg.headroom <= MAXUINT16);
-    XskDescriptorSetOffset(&XskBuffer->address, (UINT16)Xsk->Umem->Reg.headroom);
-    XskBuffer->length = UmemOffset - Xsk->Umem->Reg.headroom + CopyLength;
+    XskBuffer = &XskFrame->Buffer;
+    XskBuffer->Address = UmemAddress;
+    ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
+    XskDescriptorSetOffset(&XskBuffer->Address, (UINT16)Xsk->Umem->Reg.Headroom);
+    XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
 
     ++*CompletionOffset;
 }
@@ -4330,7 +4330,7 @@ XskReceiveSubmitBatch(
         //
         // Dropped packets.
         //
-        Xsk->Statistics.rxDropped += BatchCount - RxProduced;
+        Xsk->Statistics.RxDropped += BatchCount - RxProduced;
     }
 
     XskRingConsRelease(&Xsk->Rx.FillRing, RxFillConsumed);
