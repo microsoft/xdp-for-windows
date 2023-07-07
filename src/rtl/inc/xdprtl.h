@@ -92,6 +92,16 @@ RtlReleasePushLockShared(
     _Inout_ EX_PUSH_LOCK *Lock
     );
 
+NTSTATUS
+XdpRtlStart(
+    VOID
+    );
+
+VOID
+XdpRtlStop(
+    VOID
+    );
+
 __forceinline
 VOID
 RtlCopyVolatileMemory(

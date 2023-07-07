@@ -14,154 +14,154 @@ extern "C" {
 #endif
 
 typedef struct _XSK_RING {
-    UINT32 *sharedProducer;
-    UINT32 *sharedConsumer;
-    UINT32 *sharedFlags;
-    VOID *sharedElements;
-    UINT32 mask;
-    UINT32 size;
-    UINT32 elementStride;
+    UINT32 *SharedProducer;
+    UINT32 *SharedConsumer;
+    UINT32 *SharedFlags;
+    VOID *SharedElements;
+    UINT32 Mask;
+    UINT32 Size;
+    UINT32 ElementStride;
 } XSK_RING;
 
 inline
 VOID
 XskRingInitialize(
-    _Out_ XSK_RING *ring,
-    _In_ CONST XSK_RING_INFO *ringInfo
+    _Out_ XSK_RING *Ring,
+    _In_ CONST XSK_RING_INFO *RingInfo
     )
 {
-    RtlZeroMemory(ring, sizeof(*ring));
+    RtlZeroMemory(Ring, sizeof(*Ring));
 
-    ring->sharedProducer = (UINT32 *)(ringInfo->ring + ringInfo->producerIndexOffset);
-    ring->sharedConsumer = (UINT32 *)(ringInfo->ring + ringInfo->consumerIndexOffset);
-    ring->sharedFlags = (UINT32 *)(ringInfo->ring + ringInfo->flagsOffset);
-    ring->sharedElements = ringInfo->ring + ringInfo->descriptorsOffset;
+    Ring->SharedProducer = (UINT32 *)(RingInfo->Ring + RingInfo->ProducerIndexOffset);
+    Ring->SharedConsumer = (UINT32 *)(RingInfo->Ring + RingInfo->ConsumerIndexOffset);
+    Ring->SharedFlags = (UINT32 *)(RingInfo->Ring + RingInfo->FlagsOffset);
+    Ring->SharedElements = RingInfo->Ring + RingInfo->DescriptorsOffset;
 
-    ring->mask = ringInfo->size - 1;
-    ring->size = ringInfo->size;
-    ring->elementStride = ringInfo->elementStride;
+    Ring->Mask = RingInfo->Size - 1;
+    Ring->Size = RingInfo->Size;
+    Ring->ElementStride = RingInfo->ElementStride;
 }
 
 inline
 VOID *
 XskRingGetElement(
-    _In_ CONST XSK_RING *ring,
-    _In_ UINT32 index
+    _In_ CONST XSK_RING *Ring,
+    _In_ UINT32 Index
     )
 {
-    return (UCHAR *)ring->sharedElements + (index & ring->mask) * (SIZE_T)ring->elementStride;
+    return (UCHAR *)Ring->SharedElements + (Index & Ring->Mask) * (SIZE_T)Ring->ElementStride;
 }
 
 inline
 UINT32
 XskRingGetFlags(
-    _In_ CONST XSK_RING *ring
+    _In_ CONST XSK_RING *Ring
     )
 {
-    return ReadUInt32Acquire(ring->sharedFlags);
+    return ReadUInt32Acquire(Ring->SharedFlags);
 }
 
 inline
 UINT32
 XskRingConsumerReserve(
-    _In_ XSK_RING *ring,
-    _In_ UINT32 maxCount,
-    _Out_ UINT32 *index
+    _In_ XSK_RING *Ring,
+    _In_ UINT32 MaxCount,
+    _Out_ UINT32 *Index
     )
 {
-    UINT32 consumer = *ring->sharedConsumer;
-    UINT32 available = ReadUInt32Acquire(ring->sharedProducer) - consumer;
-    *index = consumer;
-    return available < maxCount ? available : maxCount;
+    UINT32 Consumer = *Ring->SharedConsumer;
+    UINT32 Available = ReadUInt32Acquire(Ring->SharedProducer) - Consumer;
+    *Index = Consumer;
+    return Available < MaxCount ? Available : MaxCount;
 }
 
 inline
 VOID
 XskRingConsumerRelease(
-    _Inout_ XSK_RING *ring,
-    _In_ UINT32 count
+    _Inout_ XSK_RING *Ring,
+    _In_ UINT32 Count
     )
 {
-    *ring->sharedConsumer += count;
+    *Ring->SharedConsumer += Count;
 }
 
 inline
 UINT32
 XskRingProducerReserve(
-    _In_ XSK_RING *ring,
-    _In_ UINT32 maxCount,
-    _Out_ UINT32 *index
+    _In_ XSK_RING *Ring,
+    _In_ UINT32 MaxCount,
+    _Out_ UINT32 *Index
     )
 {
-    UINT32 producer = *ring->sharedProducer;
-    UINT32 available = ring->size - (producer - ReadUInt32Acquire(ring->sharedConsumer));
-    *index = producer;
-    return available < maxCount ? available : maxCount;
+    UINT32 Producer = *Ring->SharedProducer;
+    UINT32 Available = Ring->Size - (Producer - ReadUInt32Acquire(Ring->SharedConsumer));
+    *Index = Producer;
+    return Available < MaxCount ? Available : MaxCount;
 }
 
 inline
 VOID
 XskRingProducerSubmit(
-    _Inout_ XSK_RING *ring,
-    _In_ UINT32 count
+    _Inout_ XSK_RING *Ring,
+    _In_ UINT32 Count
     )
 {
-    WriteUInt32Release(ring->sharedProducer, *ring->sharedProducer + count);
+    WriteUInt32Release(Ring->SharedProducer, *Ring->SharedProducer + Count);
 }
 
 inline
 BOOLEAN
 XskRingError(
-    _In_ CONST XSK_RING *ring
+    _In_ CONST XSK_RING *Ring
     )
 {
-    return !!(XskRingGetFlags(ring) & XSK_RING_FLAG_ERROR);
+    return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_ERROR);
 }
 
 inline
 BOOLEAN
 XskRingProducerNeedPoke(
-    _In_ CONST XSK_RING *ring
+    _In_ CONST XSK_RING *Ring
     )
 {
-    return !!(XskRingGetFlags(ring) & XSK_RING_FLAG_NEED_POKE);
+    return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_NEED_POKE);
 }
 
 inline
 BOOLEAN
 XskRingAffinityChanged(
-    _In_ CONST XSK_RING *ring
+    _In_ CONST XSK_RING *Ring
     )
 {
-    return !!(XskRingGetFlags(ring) & XSK_RING_FLAG_AFFINITY_CHANGED);
+    return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_AFFINITY_CHANGED);
 }
 
 inline
 VOID
 XskDescriptorSetOffset(
-    _Inout_ UINT64 *descriptor,
-    _In_ UINT16 offset
+    _Inout_ UINT64 *Descriptor,
+    _In_ UINT16 Offset
     )
 {
-    *descriptor |= ((UINT64)offset << XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT);
+    *Descriptor |= ((UINT64)Offset << XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT);
 }
 
 inline
 UINT64
 XskDescriptorGetAddress(
-    _In_ UINT64 descriptor
+    _In_ UINT64 Descriptor
     )
 {
-    return descriptor & ~XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MASK;
+    return Descriptor & ~XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MASK;
 }
 
 inline
 UINT16
 XskDescriptorGetOffset(
-    _In_ UINT64 descriptor
+    _In_ UINT64 Descriptor
     )
 {
-    return (UINT16)(descriptor >> XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT);
+    return (UINT16)(Descriptor >> XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT);
 }
 
 #ifdef __cplusplus

@@ -29,10 +29,7 @@ copy docs\usage.md $DstPath
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\CoreNetSignRoot.cer" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.inf" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.sys" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdp.cat" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdp\xdpapi.dll" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdpinstaller\xdp-for-windows.msi" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.exe" $DstPath\bin

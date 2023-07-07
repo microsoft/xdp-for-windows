@@ -8,23 +8,23 @@
 
 HRESULT
 XskCreate(
-    _Out_ HANDLE* socket
+    _Out_ HANDLE* Socket
     )
 {
-    BOOL res;
+    BOOL Res;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH];
 
     XdpInitializeEa(XDP_OBJECT_TYPE_XSK, EaBuffer, sizeof(EaBuffer));
 
-    *socket = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (*socket == NULL) {
+    *Socket = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    if (*Socket == NULL) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
-    res =
+    Res =
         SetFileCompletionNotificationModes(
-            *socket, FILE_SKIP_SET_EVENT_ON_HANDLE);
-    if (res == 0) {
+            *Socket, FILE_SKIP_SET_EVENT_ON_HANDLE);
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
@@ -33,31 +33,31 @@ XskCreate(
 
 HRESULT
 XskBind(
-    _In_ HANDLE socket,
-    _In_ UINT32 ifIndex,
-    _In_ UINT32 queueId,
-    _In_ XSK_BIND_FLAGS flags
+    _In_ HANDLE Socket,
+    _In_ UINT32 IfIndex,
+    _In_ UINT32 QueueId,
+    _In_ XSK_BIND_FLAGS Flags
     )
 {
-    BOOL res;
-    XSK_BIND_IN bind = {0};
+    BOOL Res;
+    XSK_BIND_IN Bind = {0};
 
-    bind.IfIndex = ifIndex;
-    bind.QueueId = queueId;
-    bind.Flags = flags;
+    Bind.IfIndex = IfIndex;
+    Bind.QueueId = QueueId;
+    Bind.Flags = Flags;
 
-    res =
+    Res =
         XdpIoctl(
-            socket,
+            Socket,
             IOCTL_XSK_BIND,
-            &bind,
-            sizeof(bind),
+            &Bind,
+            sizeof(Bind),
             NULL,
             0,
             NULL,
             NULL,
             TRUE);
-    if (res == 0) {
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
@@ -66,27 +66,27 @@ XskBind(
 
 HRESULT
 XskActivate(
-    _In_ HANDLE socket,
-    _In_ XSK_ACTIVATE_FLAGS flags
+    _In_ HANDLE Socket,
+    _In_ XSK_ACTIVATE_FLAGS Flags
     )
 {
-    BOOL res;
-    XSK_ACTIVATE_IN activate = {0};
+    BOOL Res;
+    XSK_ACTIVATE_IN Activate = {0};
 
-    activate.Flags = flags;
+    Activate.Flags = Flags;
 
-    res =
+    Res =
         XdpIoctl(
-            socket,
+            Socket,
             IOCTL_XSK_ACTIVATE,
-            &activate,
-            sizeof(activate),
+            &Activate,
+            sizeof(Activate),
             NULL,
             0,
             NULL,
             NULL,
             TRUE);
-    if (res == 0) {
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
@@ -95,31 +95,31 @@ XskActivate(
 
 HRESULT
 XskSetSockopt(
-    _In_ HANDLE socket,
-    _In_ UINT32 optionName,
-    _In_reads_bytes_opt_(optionLength) const VOID *optionValue,
-    _In_ UINT32 optionLength
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
+    _In_ UINT32 OptionLength
     )
 {
-    BOOL res;
-    XSK_SET_SOCKOPT_IN sockopt = {0};
+    BOOL Res;
+    XSK_SET_SOCKOPT_IN Sockopt = {0};
 
-    sockopt.Option = optionName;
-    sockopt.InputBuffer = optionValue;
-    sockopt.InputBufferLength = optionLength;
+    Sockopt.Option = OptionName;
+    Sockopt.InputBuffer = OptionValue;
+    Sockopt.InputBufferLength = OptionLength;
 
-    res =
+    Res =
         XdpIoctl(
-            socket,
+            Socket,
             IOCTL_XSK_SET_SOCKOPT,
-            &sockopt,
-            sizeof(sockopt),
+            &Sockopt,
+            sizeof(Sockopt),
             NULL,
             0,
             NULL,
             NULL,
             FALSE);
-    if (res == 0) {
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
@@ -128,116 +128,116 @@ XskSetSockopt(
 
 HRESULT
 XskGetSockopt(
-    _In_ HANDLE socket,
-    _In_ UINT32 optionName,
-    _Out_writes_bytes_(*optionLength) VOID *optionValue,
-    _Inout_ UINT32 *optionLength
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
+    _Inout_ UINT32 *OptionLength
     )
 {
-    BOOL res;
-    DWORD bytesReturned;
+    BOOL Res;
+    DWORD BytesReturned;
 
-    res =
+    Res =
         XdpIoctl(
-            socket,
+            Socket,
             IOCTL_XSK_GET_SOCKOPT,
-            &optionName,
-            sizeof(optionName),
-            optionValue,
-            *optionLength,
-            &bytesReturned,
+            &OptionName,
+            sizeof(OptionName),
+            OptionValue,
+            *OptionLength,
+            &BytesReturned,
             NULL,
             FALSE);
-    if (res == 0) {
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
-    *optionLength = bytesReturned;
+    *OptionLength = BytesReturned;
 
     return S_OK;
 }
 
 HRESULT
 XskIoctl(
-    _In_ HANDLE socket,
-    _In_ UINT32 optionName,
-    _In_reads_bytes_opt_(inputLength) const VOID *inputValue,
-    _In_ UINT32 inputLength,
-    _Out_writes_bytes_(*outputLength) VOID *outputValue,
-    _Inout_ UINT32 *outputLength
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
+    _In_ UINT32 InputLength,
+    _Out_writes_bytes_(*OutputLength) VOID *OutputValue,
+    _Inout_ UINT32 *OutputLength
     )
 {
-    UNREFERENCED_PARAMETER(socket);
-    UNREFERENCED_PARAMETER(optionName);
-    UNREFERENCED_PARAMETER(inputValue);
-    UNREFERENCED_PARAMETER(inputLength);
-    UNREFERENCED_PARAMETER(outputValue);
-    UNREFERENCED_PARAMETER(outputLength);
+    UNREFERENCED_PARAMETER(Socket);
+    UNREFERENCED_PARAMETER(OptionName);
+    UNREFERENCED_PARAMETER(InputValue);
+    UNREFERENCED_PARAMETER(InputLength);
+    UNREFERENCED_PARAMETER(OutputValue);
+    UNREFERENCED_PARAMETER(OutputLength);
 
     return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
 }
 
 HRESULT
 XskNotifySocket(
-    _In_ HANDLE socket,
-    _In_ XSK_NOTIFY_FLAGS flags,
-    _In_ UINT32 waitTimeoutMilliseconds,
-    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _In_ UINT32 WaitTimeoutMilliseconds,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    BOOL res;
-    DWORD bytesReturned;
-    XSK_NOTIFY_IN notify = {0};
+    BOOL Res;
+    DWORD BytesReturned;
+    XSK_NOTIFY_IN Notify = {0};
 
-    notify.Flags = flags;
-    notify.WaitTimeoutMilliseconds = waitTimeoutMilliseconds;
+    Notify.Flags = Flags;
+    Notify.WaitTimeoutMilliseconds = WaitTimeoutMilliseconds;
 
-    res =
+    Res =
         XdpIoctl(
-            socket,
+            Socket,
             IOCTL_XSK_NOTIFY,
-            &notify,
-            sizeof(notify),
+            &Notify,
+            sizeof(Notify),
             NULL,
             0,
-            &bytesReturned,
+            &BytesReturned,
             NULL,
             FALSE);
-    if (res == 0) {
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
-    *result = bytesReturned;
+    *Result = BytesReturned;
 
     return S_OK;
 }
 
 HRESULT
 XskNotifyAsync(
-    _In_ HANDLE socket,
-    _In_ XSK_NOTIFY_FLAGS flags,
-    _Inout_ OVERLAPPED *overlapped
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _Inout_ OVERLAPPED *Overlapped
     )
 {
-    BOOL res;
-    DWORD bytesReturned;
-    XSK_NOTIFY_IN notify = {0};
+    BOOL Res;
+    DWORD BytesReturned;
+    XSK_NOTIFY_IN Notify = {0};
 
-    notify.Flags = flags;
-    notify.WaitTimeoutMilliseconds = INFINITE;
+    Notify.Flags = Flags;
+    Notify.WaitTimeoutMilliseconds = INFINITE;
 
-    res =
+    Res =
         XdpIoctl(
-            socket,
+            Socket,
             IOCTL_XSK_NOTIFY_ASYNC,
-            &notify,
-            sizeof(notify),
+            &Notify,
+            sizeof(Notify),
             NULL,
             0,
-            &bytesReturned,
-            overlapped,
+            &BytesReturned,
+            Overlapped,
             TRUE);
-    if (res == 0) {
+    if (Res == 0) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
@@ -246,17 +246,17 @@ XskNotifyAsync(
 
 HRESULT
 XskGetNotifyAsyncResult(
-    _In_ OVERLAPPED *overlapped,
-    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
+    _In_ OVERLAPPED *Overlapped,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    IO_STATUS_BLOCK *Iosb = (IO_STATUS_BLOCK *)&overlapped->Internal;
+    IO_STATUS_BLOCK *Iosb = (IO_STATUS_BLOCK *)&Overlapped->Internal;
 
     if (!NT_SUCCESS(Iosb->Status)) {
         return HRESULT_FROM_WIN32(RtlNtStatusToDosError(Iosb->Status));
     }
 
-    *result = (XSK_NOTIFY_RESULT_FLAGS)Iosb->Information;
+    *Result = (XSK_NOTIFY_RESULT_FLAGS)Iosb->Information;
 
     return S_OK;
 }

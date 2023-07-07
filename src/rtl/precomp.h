@@ -48,3 +48,5 @@ ZwNotifyChangeKey(
 #define XDP_POOLTAG_REGISTRY    'RcdX' // XdcR
 #define XDP_POOLTAG_TIMER       'TcdX' // XdcT
 #define XDP_POOLTAG_WORKQUEUE   'WcdX' // XdcW
+
+extern EX_RUNDOWN_REF XdpRtlRundown;
