@@ -753,6 +753,7 @@ XdpGenericStart(
 {
     XdpRegWatcherAddClient(XdpLwfRegWatcher, XdpGenericRegistryUpdate, &GenericRegWatcher);
     XdpPcwRegisterLwfRxQueue(NULL, NULL);
+    XdpPcwRegisterLwfTxQueue(NULL, NULL);
 
     return STATUS_SUCCESS;
 }
@@ -762,6 +763,13 @@ XdpGenericStop(
     VOID
     )
 {
-    XdpPcwUnregisterLwfRxQueue();
+    if (XdpPcwLwfTxQueue != NULL) {
+        PcwUnregister(XdpPcwLwfTxQueue);
+        XdpPcwLwfTxQueue = NULL;
+    }
+    if (XdpPcwLwfRxQueue != NULL) {
+        PcwUnregister(XdpPcwLwfRxQueue);
+        XdpPcwLwfRxQueue = NULL;
+    }
     XdpRegWatcherRemoveClient(XdpLwfRegWatcher, &GenericRegWatcher);
 }

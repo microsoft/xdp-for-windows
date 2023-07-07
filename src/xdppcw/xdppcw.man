@@ -15,34 +15,6 @@
         providerType="kernelMode"
         callback = "custom">
         <counterSet
-          guid="{ad8f90db-36c3-454a-bb7c-e868d476b037}"
-          uri="Microsoft.Xdp.PerProcessor"
-          symbol="PerProcessor"
-          name="XDP Per-CPU"
-          nameID="1000"
-          description="Per-CPU XDP performance counters."
-          descriptionID="1002"
-          instances="multipleAggregate">
-
-          <structs>
-            <struct name="_XdpPcwPerProcessor" type="XDP_PCW_PER_PROCESSOR" />
-          </structs>
-
-          <counter
-            id="1"
-            uri="Microsoft.Xdp.PerProcessor.MyCounter1"
-            name="My Counter 1"
-            nameID="1004"
-            field="MyCounter1"
-            description="First sample XDP counter."
-            descriptionID="1006"
-            type="perf_counter_rawcount"
-            aggregate="sum"
-            detailLevel="standard"
-            defaultScale="1"
-            />
-        </counterSet>
-        <counterSet
           guid="{a79a2e4c-c5f6-4311-bb7b-67109984651f}"
           uri="Microsoft.Xdp.RxQueue"
           symbol="RxQueue"
@@ -276,6 +248,47 @@
             field="QueueDepth"
             description="The number of frames currently queued on the XDP interface."
             descriptionID="4014"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+        </counterSet>
+        <counterSet
+          guid="{48b1dee9-6603-4a83-b20d-435fa421a5d7}"
+          uri="Microsoft.Xdp.LwfTxQueue"
+          symbol="LwfTxQueue"
+          name="XDP LWF Transmit Queue"
+          nameID="5000"
+          description="Per-transmit queue XDP LWF performance counters."
+          descriptionID="5002"
+          instances="multipleAggregate">
+
+          <structs>
+            <struct name="_XdpPcwLwfTxQueue" type="XDP_PCW_LWF_TX_QUEUE" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.LwfTxQueue.FramesDroppedPause"
+            name="Frames Dropped (NDIS Pause)"
+            nameID="5004"
+            field="FramesDroppedPause"
+            description="Frames dropped due to paused NDIS data path."
+            descriptionID="5006"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="2"
+            uri="Microsoft.Xdp.LwfTxQueue.FramesDroppedNic"
+            name="Frames Dropped (NIC Failure)"
+            nameID="5008"
+            field="FramesDroppedNic"
+            description="Frames returned by the NIC with a failure status code and presumed dropped."
+            descriptionID="5010"
             type="perf_counter_rawcount"
             aggregate="sum"
             detailLevel="standard"

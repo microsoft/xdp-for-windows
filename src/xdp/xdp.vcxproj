@@ -14,7 +14,6 @@
     <ClCompile Include="extensionset.c" />
     <ClCompile Include="offload.c" />
     <ClCompile Include="offloadqeo.c" />
-    <ClCompile Include="perfcounters.c" />
     <ClCompile Include="program.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="redirect.c" />

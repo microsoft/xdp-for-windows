@@ -9,10 +9,6 @@
 
 typedef struct _PCW_INSTANCE PCW_INSTANCE;
 
-typedef struct DECLSPEC_CACHEALIGN _XDP_PCW_PER_PROCESSOR {
-    ULONG MyCounter1;
-} XDP_PCW_PER_PROCESSOR;
-
 typedef struct _XDP_PCW_RX_QUEUE {
     UINT64 XskFramesDelivered;
     UINT64 XskFramesDropped;
@@ -36,6 +32,11 @@ typedef struct _XDP_PCW_TX_QUEUE {
     UINT64 InjectionBatches;
     UINT64 QueueDepth;
 } XDP_PCW_TX_QUEUE;
+
+typedef struct _XDP_PCW_LWF_TX_QUEUE {
+    UINT64 FramesDroppedPause;
+    UINT64 FramesDroppedNic;
+} XDP_PCW_LWF_TX_QUEUE;
 
 #define STAT_INC(_Stats, _Field) (((_Stats)->_Field)++)
 #define STAT_ADD(_Stats, _Field, _Bias) (((_Stats)->_Field) += (_Bias))
