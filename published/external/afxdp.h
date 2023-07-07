@@ -37,11 +37,11 @@ extern "C" {
 typedef struct _XSK_BUFFER_DESCRIPTOR {
     // Bits 0:47 encode the address of the chunk, relative to UMEM start address.
     // Bits 48:63 encode the packet offset within the chunk.
-    UINT64 address;
+    UINT64 Address;
     // Length of the packet.
-    UINT32 length;
+    UINT32 Length;
     // Must be 0.
-    UINT32 reserved;
+    UINT32 Reserved;
 } XSK_BUFFER_DESCRIPTOR;
 
 //
@@ -53,7 +53,7 @@ typedef struct _XSK_FRAME_DESCRIPTOR {
     //
     // The first buffer in the frame.
     //
-    XSK_BUFFER_DESCRIPTOR buffer;
+    XSK_BUFFER_DESCRIPTOR Buffer;
 
     //
     // Followed by various descriptor extensions, e.g:
@@ -68,7 +68,7 @@ typedef struct _XSK_FRAME_DESCRIPTOR {
 //
 // Ensure frame-unaware apps can treat the frame ring as a buffer ring.
 //
-C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, buffer) == 0);
+C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0);
 
 typedef enum _XSK_RING_FLAGS {
     XSK_RING_FLAG_NONE = 0x0,
@@ -114,7 +114,7 @@ C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 typedef
 HRESULT
 XSK_CREATE_FN(
-    _Out_ HANDLE* socket
+    _Out_ HANDLE* Socket
     );
 
 typedef enum _XSK_BIND_FLAGS {
@@ -156,10 +156,10 @@ C_ASSERT(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32));
 typedef
 HRESULT
 XSK_BIND_FN(
-    _In_ HANDLE socket,
-    _In_ UINT32 ifIndex,
-    _In_ UINT32 queueId,
-    _In_ XSK_BIND_FLAGS flags
+    _In_ HANDLE Socket,
+    _In_ UINT32 IfIndex,
+    _In_ UINT32 QueueId,
+    _In_ XSK_BIND_FLAGS Flags
     );
 
 typedef enum _XSK_ACTIVATE_FLAGS {
@@ -185,8 +185,8 @@ C_ASSERT(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32));
 typedef
 HRESULT
 XSK_ACTIVATE_FN(
-    _In_ HANDLE socket,
-    _In_ XSK_ACTIVATE_FLAGS flags
+    _In_ HANDLE Socket,
+    _In_ XSK_ACTIVATE_FLAGS Flags
     );
 
 //
@@ -257,10 +257,10 @@ C_ASSERT(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32));
 typedef
 HRESULT
 XSK_NOTIFY_SOCKET_FN(
-    _In_ HANDLE socket,
-    _In_ XSK_NOTIFY_FLAGS flags,
-    _In_ UINT32 waitTimeoutMilliseconds,
-    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _In_ UINT32 WaitTimeoutMilliseconds,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     );
 
 typedef struct _OVERLAPPED OVERLAPPED;
@@ -289,9 +289,9 @@ typedef struct _OVERLAPPED OVERLAPPED;
 typedef
 HRESULT
 XSK_NOTIFY_ASYNC_FN(
-    _In_ HANDLE socket,
-    _In_ XSK_NOTIFY_FLAGS flags,
-    _Inout_ OVERLAPPED *overlapped
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _Inout_ OVERLAPPED *Overlapped
     );
 
 //
@@ -301,8 +301,8 @@ XSK_NOTIFY_ASYNC_FN(
 typedef
 HRESULT
 XSK_GET_NOTIFY_ASYNC_RESULT_FN(
-    _In_ OVERLAPPED *overlapped,
-    _Out_ XSK_NOTIFY_RESULT_FLAGS *result
+    _In_ OVERLAPPED *Overlapped,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     );
 
 //
@@ -313,10 +313,10 @@ XSK_GET_NOTIFY_ASYNC_RESULT_FN(
 typedef
 HRESULT
 XSK_SET_SOCKOPT_FN(
-    _In_ HANDLE socket,
-    _In_ UINT32 optionName,
-    _In_reads_bytes_opt_(optionLength) const VOID *optionValue,
-    _In_ UINT32 optionLength
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
+    _In_ UINT32 OptionLength
     );
 
 //
@@ -327,10 +327,10 @@ XSK_SET_SOCKOPT_FN(
 typedef
 HRESULT
 XSK_GET_SOCKOPT_FN(
-    _In_ HANDLE socket,
-    _In_ UINT32 optionName,
-    _Out_writes_bytes_(*optionLength) VOID *optionValue,
-    _Inout_ UINT32 *optionLength
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
+    _Inout_ UINT32 *OptionLength
     );
 
 //
@@ -341,12 +341,12 @@ XSK_GET_SOCKOPT_FN(
 typedef
 HRESULT
 XSK_IOCTL_FN(
-    _In_ HANDLE socket,
-    _In_ UINT32 optionName,
-    _In_reads_bytes_opt_(inputLength) const VOID *inputValue,
-    _In_ UINT32 inputLength,
-    _Out_writes_bytes_(*outputLength) VOID *outputValue,
-    _Inout_ UINT32 *outputLength
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
+    _In_ UINT32 InputLength,
+    _Out_writes_bytes_(*OutputLength) VOID *OutputValue,
+    _Inout_ UINT32 *OutputLength
     );
 
 //
@@ -365,10 +365,10 @@ XSK_IOCTL_FN(
 #define XSK_SOCKOPT_UMEM_REG 1
 
 typedef struct _XSK_UMEM_REG {
-    UINT64 totalSize;
-    UINT32 chunkSize;
-    UINT32 headroom;
-    VOID *address;
+    UINT64 TotalSize;
+    UINT32 ChunkSize;
+    UINT32 Headroom;
+    VOID *Address;
 } XSK_UMEM_REG;
 
 //
@@ -400,21 +400,21 @@ typedef struct _XSK_UMEM_REG {
 #define XSK_SOCKOPT_RING_INFO 6
 
 typedef struct _XSK_RING_INFO {
-    BYTE *ring;
-    UINT32 descriptorsOffset;   // XSK_FRAME_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
-    UINT32 producerIndexOffset; // UINT32
-    UINT32 consumerIndexOffset; // UINT32
-    UINT32 flagsOffset;         // UINT32
-    UINT32 size;
-    UINT32 elementStride;
-    UINT32 reserved;
+    BYTE *Ring;
+    UINT32 DescriptorsOffset;   // XSK_FRAME_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
+    UINT32 ProducerIndexOffset; // UINT32
+    UINT32 ConsumerIndexOffset; // UINT32
+    UINT32 FlagsOffset;         // UINT32
+    UINT32 Size;
+    UINT32 ElementStride;
+    UINT32 Reserved;
 } XSK_RING_INFO;
 
 typedef struct _XSK_RING_INFO_SET {
-    XSK_RING_INFO fill;
-    XSK_RING_INFO completion;
-    XSK_RING_INFO rx;
-    XSK_RING_INFO tx;
+    XSK_RING_INFO Fill;
+    XSK_RING_INFO Completion;
+    XSK_RING_INFO Rx;
+    XSK_RING_INFO Tx;
 } XSK_RING_INFO_SET;
 
 //
@@ -428,10 +428,10 @@ typedef struct _XSK_RING_INFO_SET {
 #define XSK_SOCKOPT_STATISTICS 7
 
 typedef struct _XSK_STATISTICS {
-    UINT64 rxDropped;
-    UINT64 rxTruncated;
-    UINT64 rxInvalidDescriptors;
-    UINT64 txInvalidDescriptors;
+    UINT64 RxDropped;
+    UINT64 RxTruncated;
+    UINT64 RxInvalidDescriptors;
+    UINT64 TxInvalidDescriptors;
 } XSK_STATISTICS;
 
 //
