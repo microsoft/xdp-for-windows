@@ -308,5 +308,6 @@ jobs:
   Complete:
     name: Complete
     needs: [build, functional_tests, stress_tests, perf_tests, devkit, etw]
+    runs-on: windows-latest
     steps:
     - run: echo "CI succeeded"
