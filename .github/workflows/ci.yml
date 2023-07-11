@@ -304,3 +304,7 @@ jobs:
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
+
+  etw:
+    name: Complete
+    needs: [build, functional_tests, stress_tests, perf_tests, devkit, etw]
