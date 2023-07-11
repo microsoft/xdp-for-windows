@@ -662,17 +662,20 @@ XskFillTx(
         if (Result > Xsk->Umem->Reg.TotalSize ||
             Buffer->DataLength == 0 ||
             Status != STATUS_SUCCESS) {
-            ++Xsk->Statistics.TxInvalidDescriptors;
+            Xsk->Statistics.TxInvalidDescriptors++;
+            STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
         }
 
         if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, Xsk->Tx.Xdp.MaxFrameLength)) {
-            ++Xsk->Statistics.TxInvalidDescriptors;
+            Xsk->Statistics.TxInvalidDescriptors++;
+            STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
         }
 
         if (!XskBounceBuffer(Xsk->Umem, &Xsk->Tx.Bounce, Buffer, RelativeAddress, &Mapping)) {
-            ++Xsk->Statistics.TxInvalidDescriptors;
+            Xsk->Statistics.TxInvalidDescriptors++;
+            STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
         }
 
@@ -4263,7 +4266,8 @@ XskReceiveSingleFrame(
         //
         // Invalid FILL descriptor.
         //
-        ++Xsk->Statistics.RxInvalidDescriptors;
+        Xsk->Statistics.RxInvalidDescriptors++;
+        STAT_INC(XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue), XskInvalidDescriptors);
         return;
     }
 
@@ -4278,7 +4282,8 @@ XskReceiveSingleFrame(
         //
         // Not enough available space in Umem.
         //
-        ++Xsk->Statistics.RxTruncated;
+        Xsk->Statistics.RxTruncated++;
+        STAT_INC(XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue), XskFramesTruncated);
     } else if (FragmentRing != NULL) {
         Fragment = XdpGetFragmentExtension(Frame, &Xsk->Rx.Xdp.FragmentExtension);
 
@@ -4298,7 +4303,8 @@ XskReceiveSingleFrame(
                 //
                 // Not enough available space in Umem.
                 //
-                ++Xsk->Statistics.RxTruncated;
+                Xsk->Statistics.RxTruncated++;
+                STAT_INC(XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue), XskFramesTruncated);
                 break;
             }
         }
@@ -4330,7 +4336,9 @@ XskReceiveSubmitBatch(
         //
         // Dropped packets.
         //
-        Xsk->Statistics.RxDropped += BatchCount - RxProduced;
+        UINT32 Dropped = BatchCount - RxProduced;
+        Xsk->Statistics.RxDropped += Dropped;
+        STAT_ADD(XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue), XskFramesDropped, Dropped);
     }
 
     XskRingConsRelease(&Xsk->Rx.FillRing, RxFillConsumed);
@@ -4343,6 +4351,7 @@ XskReceiveSubmitBatch(
         EventWriteXskRxPostBatch(
             &MICROSOFT_XDP_PROVIDER, Xsk,
             Xsk->Rx.Ring.Shared->ProducerIndex - RxProduced, RxProduced);
+        STAT_ADD(XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue), XskFramesDelivered, RxProduced);
 
         //
         // N.B. See comment in XskNotify.

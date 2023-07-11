@@ -367,3 +367,6 @@ FodyWeavers.xsd
 
 # PGO Local Test Copy
 artifacts_server/
+
+# Intermediate output
+*.tlog

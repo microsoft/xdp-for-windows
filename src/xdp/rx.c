@@ -56,6 +56,11 @@ typedef struct _XDP_RX_QUEUE {
     XDP_INSPECTION_CONTEXT InspectionContext;
 
     //
+    // Perf counters.
+    //
+    XDP_PCW_RX_QUEUE PcwStats;
+
+    //
     // The pending data path / control path serialization callback.
     //
     XDP_QUEUE_SYNC Sync;
@@ -82,6 +87,7 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
+    PCW_INSTANCE *PcwInstance;
 
     LIST_ENTRY NotifyClients;
 } XDP_RX_QUEUE;
@@ -106,6 +112,25 @@ XdpRxQueueFromRedirectContext(
     )
 {
     return CONTAINING_RECORD(RedirectContext, XDP_RX_QUEUE, InspectionContext.RedirectContext);
+}
+
+static
+VOID
+XdpReceiveBatchStart(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdbgEnterQueueEc(RxQueue);
+    STAT_INC(XdpRxQueueGetStats(RxQueue), InspectBatches);
+}
+
+static
+VOID
+XdpReceiveBatchComplete(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdbgExitQueueEc(RxQueue);
 }
 
 static
@@ -210,12 +235,12 @@ XdpReceive(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue);
+    XdpReceiveBatchStart(RxQueue);
 
     XdppReceiveBatch(RxQueue, XdpInspect);
     XdppFlushReceive(RxQueue);
 
-    XdbgExitQueueEc(RxQueue);
+    XdpReceiveBatchComplete(RxQueue);
 }
 
 static
@@ -227,7 +252,7 @@ XdpReceiveEbpf(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue);
+    XdpReceiveBatchStart(RxQueue);
 
     if (XdpInspectEbpfStartBatch(RxQueue->Program, &RxQueue->InspectionContext)) {
         XdppReceiveBatch(RxQueue, XdpInspectEbpf);
@@ -238,7 +263,7 @@ XdpReceiveEbpf(
 
     XdppFlushReceive(RxQueue);
 
-    XdbgExitQueueEc(RxQueue);
+    XdpReceiveBatchComplete(RxQueue);
 }
 
 static
@@ -277,7 +302,7 @@ XdpReceiveXskExclusiveBatch(
 {
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromHandle(XdpRxQueue);
 
-    XdbgEnterQueueEc(RxQueue);
+    XdpReceiveBatchStart(RxQueue);
 
     //
     // Attempt to pass the entire batch to XSK.
@@ -292,7 +317,7 @@ XdpReceiveXskExclusiveBatch(
         XdppFlushReceive(RxQueue);
     }
 
-    XdbgExitQueueEc(RxQueue);
+    XdpReceiveBatchComplete(RxQueue);
 }
 
 static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
@@ -938,6 +963,9 @@ XdpRxQueueCreate(
     XDP_RX_QUEUE_KEY Key;
     XDP_RX_QUEUE *RxQueue = NULL;
     NTSTATUS Status;
+    DECLARE_UNICODE_STRING_SIZE(
+        Name, ARRAYSIZE("if_" MAXUINT32_STR "_queue_" MAXUINT32_STR "_tx"));
+    const WCHAR *DirectionString;
 
     *NewRxQueue = NULL;
 
@@ -952,6 +980,13 @@ XdpRxQueueCreate(
     if (!NT_VERIFY(XdpIfSupportsHookId(XdpIfGetCapabilities(Binding), HookId))) {
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
+    }
+
+    if (HookId->Direction == XDP_HOOK_TX) {
+        DirectionString = L"_tx";
+    } else {
+        ASSERT(HookId->Direction == XDP_HOOK_RX);
+        DirectionString = L"";
     }
 
     XdpRxQueueInitializeKey(&Key, HookId, QueueId);
@@ -976,6 +1011,18 @@ XdpRxQueueCreate(
     RxQueue->Key = Key;
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
+
+    Status =
+        RtlUnicodeStringPrintf(
+            &Name, L"if_%u_queue_%u%s", XdpIfGetIfIndex(Binding), QueueId, DirectionString);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = XdpPcwCreateRxQueue(&RxQueue->PcwInstance, &Name, &RxQueue->PcwStats);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
 
     Status =
         XdpIfRegisterClient(
@@ -1220,6 +1267,23 @@ XdpRxQueueGetConfig(
     return (XDP_RX_QUEUE_CONFIG_ACTIVATE)&RxQueue->ConfigActivate;
 }
 
+XDP_PCW_RX_QUEUE *
+XdpRxQueueGetStats(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    return &RxQueue->PcwStats;
+}
+
+XDP_PCW_RX_QUEUE *
+XdpRxQueueGetStatsFromInspectionContext(
+    _In_ const XDP_INSPECTION_CONTEXT *Context
+    )
+{
+    XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Context, XDP_RX_QUEUE, InspectionContext);
+    return XdpRxQueueGetStats(RxQueue);
+}
+
 VOID
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue
@@ -1228,6 +1292,10 @@ XdpRxQueueDereference(
     if (XdpDecrementReferenceCount(&RxQueue->ReferenceCount)) {
         TraceInfo(TRACE_CORE, "Deleting RxQueue=%p", RxQueue);
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
+        if (RxQueue->PcwInstance != NULL) {
+            PcwCloseInstance(RxQueue->PcwInstance);
+            RxQueue->PcwInstance = NULL;
+        }
         ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
     }
 }
@@ -1254,8 +1322,22 @@ XdpRxStart(
     VOID
     )
 {
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "-");
+
     XdpRegWatcherAddClient(XdpRegWatcher, XdpRxRegistryUpdate, &XdpRxRegWatcherEntry);
-    return STATUS_SUCCESS;
+
+    Status = XdpPcwRegisterRxQueue(NULL, NULL);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID
@@ -1263,5 +1345,10 @@ XdpRxStop(
     VOID
     )
 {
+    if (XdpPcwRxQueue != NULL) {
+        PcwUnregister(XdpPcwRxQueue);
+        XdpPcwRxQueue = NULL;
+    }
+
     XdpRegWatcherRemoveClient(XdpRegWatcher, &XdpRxRegWatcherEntry);
 }

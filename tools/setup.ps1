@@ -64,6 +64,7 @@ $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
+$XdpPcwMan = "$ArtifactsDir\xdppcw.man"
 $XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.msi"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
@@ -243,6 +244,12 @@ function Install-Xdp {
         if ($LastExitCode) {
             Write-Error "netcfg.exe exit code: $LastExitCode"
         }
+
+        Write-Verbose "lodctr.exe /m:$XdpPcwMan $env:WINDIR\system32\drivers\"
+        lodctr.exe /m:$XdpPcwMan $env:WINDIR\system32\drivers\ | Write-Verbose
+        if ($LastExitCode) {
+            Write-Error "lodctr.exe exit code: $LastExitCode"
+        }
     }
 
     if ($EnableEbpf) {
@@ -283,6 +290,12 @@ function Uninstall-Xdp {
             Uninstall-Failure
         }
     } elseif ($XdpInstaller -eq "INF") {
+        Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
+        unlodctr.exe /m:$XdpPcwMan | Write-Verbose
+        if ($LastExitCode) {
+            Write-Error "unlodctr.exe exit code: $LastExitCode"
+        }
+
         Write-Verbose "netcfg.exe -u ms_xdp"
         cmd.exe /c "netcfg.exe -u ms_xdp 2>&1" | Write-Verbose
         if (!$?) {

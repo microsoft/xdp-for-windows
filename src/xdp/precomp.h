@@ -27,6 +27,7 @@
 #include <netiodef.h>
 #include <netioddk.h>
 #include <winerror.h>
+#include <ntstrsafe.h>
 #include <ebpf_extension.h>
 #include <ebpf_extension_uuids.h>
 #include <ebpf_nethooks.h>
@@ -56,6 +57,7 @@
 #include <xdpif.h>
 #include <xdpioctl.h>
 #include <xdplwf.h>
+#include <xdppcw.h>
 #include <xdpnmrprovider.h>
 #include <xdppollshim.h>
 #include <xdprefcount.h>

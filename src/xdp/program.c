@@ -137,7 +137,8 @@ XdpInvokeEbpf(
     _In_opt_ XDP_RING *FragmentRing,
     _In_opt_ XDP_EXTENSION *FragmentExtension,
     _In_ UINT32 FragmentIndex,
-    _In_ XDP_EXTENSION *VirtualAddressExtension
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _Inout_ XDP_PCW_RX_QUEUE *RxQueueStats
     )
 {
     const EBPF_EXTENSION_CLIENT *Client = (const EBPF_EXTENSION_CLIENT *)EbpfTarget;
@@ -184,16 +185,19 @@ XdpInvokeEbpf(
     if (EbpfResult != EBPF_SUCCESS) {
         EventWriteEbpfProgramFailure(&MICROSOFT_XDP_PROVIDER, ClientBindingContext, EbpfResult);
         RxAction = XDP_RX_ACTION_DROP;
+        STAT_INC(RxQueueStats, InspectFramesDropped);
         goto Exit;
     }
 
     switch (Result) {
     case XDP_PASS:
         RxAction = XDP_RX_ACTION_PASS;
+        STAT_INC(RxQueueStats, InspectFramesPassed);
         break;
 
     case XDP_TX:
         RxAction = XDP_RX_ACTION_TX;
+        STAT_INC(RxQueueStats, InspectFramesForwarded);
         break;
 
     default:
@@ -201,6 +205,7 @@ XdpInvokeEbpf(
         __fallthrough;
     case XDP_DROP:
         RxAction = XDP_RX_ACTION_DROP;
+        STAT_INC(RxQueueStats, InspectFramesDropped);
         break;
     }
 
@@ -235,7 +240,8 @@ XdpInspectEbpf(
     return
         XdpInvokeEbpf(
             Program->Rules[0].Ebpf.Target, &InspectionContext->EbpfContext, Frame, FragmentRing,
-            FragmentExtension, FragmentIndex, VirtualAddressExtension);
+            FragmentExtension, FragmentIndex, VirtualAddressExtension,
+            XdpRxQueueGetStatsFromInspectionContext(InspectionContext));
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -970,7 +976,8 @@ XdpL2Fwd(
     _In_ UINT32 FragmentIndex,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
     _Inout_ XDP_PROGRAM_FRAME_CACHE *Cache,
-    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage,
+    _Inout_ XDP_PCW_RX_QUEUE *RxQueueStats
     )
 {
     DL_EUI48 TempDlAddress;
@@ -982,6 +989,8 @@ XdpL2Fwd(
     }
 
     if (!Cache->EthValid) {
+        STAT_INC(RxQueueStats, InspectFramesDropped);
+
         return XDP_RX_ACTION_DROP;
     }
 
@@ -996,6 +1005,8 @@ XdpL2Fwd(
             Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension, 0,
             Cache->EthHdr, sizeof(*Cache->EthHdr));
     }
+
+    STAT_INC(RxQueueStats, InspectFramesForwarded);
 
     return XDP_RX_ACTION_TX;
 }
@@ -1017,6 +1028,7 @@ XdpInspect(
     XDP_PROGRAM_FRAME_CACHE FrameCache;
     XDP_FRAME *Frame;
     BOOLEAN Matched = FALSE;
+    XDP_PCW_RX_QUEUE *RxQueueStats = XdpRxQueueGetStatsFromInspectionContext(InspectionContext);
 
     ASSERT(FrameIndex <= FrameRing->Mask);
     ASSERT(
@@ -1280,28 +1292,31 @@ XdpInspect(
                     Rule->Redirect.TargetType, Rule->Redirect.Target);
 
                 Action = XDP_RX_ACTION_DROP;
+                STAT_INC(RxQueueStats, InspectFramesRedirected);
                 break;
 
             case XDP_PROGRAM_ACTION_DROP:
                 Action = XDP_RX_ACTION_DROP;
+                STAT_INC(RxQueueStats, InspectFramesDropped);
                 break;
 
             case XDP_PROGRAM_ACTION_PASS:
                 Action = XDP_RX_ACTION_PASS;
+                STAT_INC(RxQueueStats, InspectFramesPassed);
                 break;
 
             case XDP_PROGRAM_ACTION_L2FWD:
                 Action =
                     XdpL2Fwd(
                         Frame, FragmentRing, FragmentExtension, FragmentIndex,
-                        VirtualAddressExtension, &FrameCache, &Program->FrameStorage);
+                        VirtualAddressExtension, &FrameCache, &Program->FrameStorage, RxQueueStats);
                 break;
 
             case XDP_PROGRAM_ACTION_EBPF:
                 Action =
                     XdpInvokeEbpf(
                         Rule->Ebpf.Target, NULL, Frame, FragmentRing, FragmentExtension,
-                        FragmentIndex, VirtualAddressExtension);
+                        FragmentIndex, VirtualAddressExtension, RxQueueStats);
                 break;
 
             default:
@@ -1309,9 +1324,17 @@ XdpInspect(
                 break;
             }
 
-            break;
+            goto Done;
         }
     }
+
+    //
+    // No match resulted in a terminating action; perform the default action.
+    //
+    ASSERT(Action == XDP_RX_ACTION_PASS);
+    STAT_INC(RxQueueStats, InspectFramesPassed);
+
+Done:
 
     return Action;
 }

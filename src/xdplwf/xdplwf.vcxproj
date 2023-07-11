@@ -27,6 +27,9 @@
     <ProjectReference Include="$(SolutionDir)src\xdpetw\xdpetw.vcxproj">
       <Project>{a87d995b-384f-4853-abdb-3ec024be18e3}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdppcw\xdppcw.vcxproj">
+      <Project>{ed611744-b780-41a2-a995-2c100d86b3a6}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{63591dcb-0bbc-441c-a8a2-f882ee6a7d5c}</ProjectGuid>
@@ -62,8 +65,10 @@
         $(SolutionDir)published\private;
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdp\inc;
+        $(SolutionDir)src\xdppcw\inc;
         $(IntDir);
         $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdpetw\;
+        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdppcw\;
         %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         NDIS_WDM=1;

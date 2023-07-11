@@ -2236,6 +2236,18 @@ AdminFn(
                 (BYTE *)&delayDetachTimeout, sizeof(delayDetachTimeout));
             TraceVerbose("admin: set delayDetachTimeout regStatus=%d", regStatus);
         }
+
+        if (!(RandUlong() % 10)) {
+            INT exitCode;
+            TraceVerbose("admin: query counters");
+            RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
+            sprintf_s(
+                cmdBuff, sizeof(cmdBuff),
+                "%s -Command \"Get-Counter -Counter (Get-Counter -ListSet XDP*).Paths -ErrorAction Ignore | Out-Null\"",
+                powershellPrefix);
+            exitCode = system(cmdBuff);
+            TraceVerbose("admin: query counters exitCode=%d", exitCode);
+        }
     }
 
     //

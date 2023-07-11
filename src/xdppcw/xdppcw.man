@@ -1,0 +1,301 @@
+<?xml version="1.0"?>
+<instrumentationManifest
+    xmlns="http://schemas.microsoft.com/win/2004/08/events"
+    xmlns:win="https://manifests.microsoft.com/win/2004/08/windows/events"
+    xmlns:xs="https://www.w3.org/2001/XMLSchema"
+    >
+  <instrumentation>
+    <counters
+      xmlns="http://schemas.microsoft.com/win/2005/12/counters"
+      schemaVersion="2.0">
+      <provider
+        applicationIdentity="xdp.sys"
+        providerGuid="{f0268542-135c-418e-8768-281d953df6ee}"
+        providerName="XDP"
+        providerType="kernelMode"
+        callback = "custom">
+        <counterSet
+          guid="{a79a2e4c-c5f6-4311-bb7b-67109984651f}"
+          uri="Microsoft.Xdp.RxQueue"
+          symbol="RxQueue"
+          name="XDP Receive Queue"
+          nameID="2000"
+          description="Per-receive queue XDP performance counters."
+          descriptionID="2002"
+          instances="multipleAggregate">
+
+          <structs>
+            <struct name="_XdpPcwRxQueue" type="XDP_PCW_RX_QUEUE" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.RxQueue.XskFramesDelivered"
+            name="AF_XDP Frames Delivered"
+            nameID="2004"
+            field="XskFramesDelivered"
+            description="AF_XDP frames delivered to user mode sockets."
+            descriptionID="2006"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="2"
+            uri="Microsoft.Xdp.RxQueue.XskFramesDropped"
+            name="AF_XDP Frames Dropped"
+            nameID="2008"
+            field="XskFramesDropped"
+            description="AF_XDP frames dropped at socket layer."
+            descriptionID="2010"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="3"
+            uri="Microsoft.Xdp.RxQueue.XskInvalidDescriptors"
+            name="AF_XDP Invalid Descriptors"
+            nameID="2012"
+            field="XskInvalidDescriptors"
+            description="AF_XDP invalid descriptors."
+            descriptionID="2014"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="4"
+            uri="Microsoft.Xdp.RxQueue.XskFramesTruncated"
+            name="AF_XDP Frames Truncated"
+            nameID="2016"
+            field="XskFramesTruncated"
+            description="AF_XDP frames delivered to user mode with truncated data."
+            descriptionID="2018"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="5"
+            uri="Microsoft.Xdp.RxQueue.InspectFramesPassed"
+            name="Inspection Frames Passed"
+            nameID="2020"
+            field="InspectFramesPassed"
+            description="Frames inspected by XDP and passed back to the OS networking stack."
+            descriptionID="2022"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="6"
+            uri="Microsoft.Xdp.RxQueue.InspectFramesDropped"
+            name="Inspection Frames Dropped"
+            nameID="2024"
+            field="InspectFramesDropped"
+            description="Frames inspected by XDP and dropped."
+            descriptionID="2026"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="7"
+            uri="Microsoft.Xdp.RxQueue.InspectFramesRedirected"
+            name="Inspection Frames Redirected"
+            nameID="2028"
+            field="InspectFramesRedirected"
+            description="Frames inspected by XDP and redirected."
+            descriptionID="2030"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="8"
+            uri="Microsoft.Xdp.RxQueue.InspectFramesForwarded"
+            name="Inspection Frames Forwarded"
+            nameID="2032"
+            field="InspectFramesForwarded"
+            description="Frames inspected by XDP and forwarded."
+            descriptionID="2034"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="9"
+            uri="Microsoft.Xdp.RxQueue.InspectBatches"
+            name="Inspection Batches"
+            nameID="2036"
+            field="InspectBatches"
+            description="Batches of frames inspected by XDP."
+            descriptionID="2038"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+        </counterSet>
+        <counterSet
+          guid="{10672701-093b-4b91-8b76-8f53afd07cd0}"
+          uri="Microsoft.Xdp.LwfRxQueue"
+          symbol="LwfRxQueue"
+          name="XDP LWF Receive Queue"
+          nameID="3000"
+          description="Per-receive queue XDP LWF performance counters."
+          descriptionID="3002"
+          instances="multipleAggregate">
+
+          <structs>
+            <struct name="_XdpPcwLwfRxQueue" type="XDP_PCW_LWF_RX_QUEUE" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.LwfRxQueue.MappingFailures"
+            name="Mapping Failures"
+            nameID="3004"
+            field="MappingFailures"
+            description="Frames with MDL mapping failures."
+            descriptionID="3006"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="2"
+            uri="Microsoft.Xdp.LwfRxQueue.LinearizationFailures"
+            name="Linearization Failures"
+            nameID="3008"
+            field="LinearizationFailures"
+            description="Frames that failed to linearize discontiguous data fragments."
+            descriptionID="3010"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="3"
+            uri="Microsoft.Xdp.LwfRxQueue.ForwardingFailures"
+            name="Forwarding Failures"
+            nameID="3012"
+            field="ForwardingFailures"
+            description="Frames that failed to be forwarded after XDP inspection."
+            descriptionID="3014"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+        </counterSet>
+        <counterSet
+          guid="{05947256-79cd-4393-b54c-a65be0963294}"
+          uri="Microsoft.Xdp.TxQueue"
+          symbol="TxQueue"
+          name="XDP Transmit Queue"
+          nameID="4000"
+          description="Per-transmit queue XDP performance counters."
+          descriptionID="4002"
+          instances="multipleAggregate">
+
+          <structs>
+            <struct name="_XdpPcwTxQueue" type="XDP_PCW_TX_QUEUE" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.TxQueue.XskInvalidDescriptors"
+            name="AF_XDP Invalid Descriptors"
+            nameID="4004"
+            field="XskInvalidDescriptors"
+            description="AF_XDP invalid descriptors."
+            descriptionID="4006"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="2"
+            uri="Microsoft.Xdp.TxQueue.InjectionBatches"
+            name="Injection Batches"
+            nameID="4008"
+            field="InjectionBatches"
+            description="Batches of frames injected by XDP."
+            descriptionID="4010"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="3"
+            uri="Microsoft.Xdp.TxQueue.QueueDepth"
+            name="Queue Depth"
+            nameID="4012"
+            field="QueueDepth"
+            description="The number of frames currently queued on the XDP interface."
+            descriptionID="4014"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+        </counterSet>
+        <counterSet
+          guid="{48b1dee9-6603-4a83-b20d-435fa421a5d7}"
+          uri="Microsoft.Xdp.LwfTxQueue"
+          symbol="LwfTxQueue"
+          name="XDP LWF Transmit Queue"
+          nameID="5000"
+          description="Per-transmit queue XDP LWF performance counters."
+          descriptionID="5002"
+          instances="multipleAggregate">
+
+          <structs>
+            <struct name="_XdpPcwLwfTxQueue" type="XDP_PCW_LWF_TX_QUEUE" />
+          </structs>
+
+          <counter
+            id="1"
+            uri="Microsoft.Xdp.LwfTxQueue.FramesDroppedPause"
+            name="Frames Dropped (NDIS Pause)"
+            nameID="5004"
+            field="FramesDroppedPause"
+            description="Frames dropped due to paused NDIS data path."
+            descriptionID="5006"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="2"
+            uri="Microsoft.Xdp.LwfTxQueue.FramesDroppedNic"
+            name="Frames Dropped (NIC Failure)"
+            nameID="5008"
+            field="FramesDroppedNic"
+            description="Frames returned by the NIC with a failure status code and presumed dropped."
+            descriptionID="5010"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+        </counterSet>
+      </provider>
+    </counters>
+  </instrumentation>
+</instrumentationManifest>

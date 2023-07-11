@@ -131,10 +131,10 @@ XdpDbgNotifyQueueEc(
 
 #else
 
-#define XdbgInitializeQueueEc(T)
-#define XdbgEnterQueueEc(T)
-#define XdbgFlushQueueEc(T)
-#define XdbgExitQueueEc(T)
-#define XdbgNotifyQueueEc(T, NotifyFlags)
+#define XdbgInitializeQueueEc(T) UNREFERENCED_PARAMETER(T)
+#define XdbgEnterQueueEc(T) UNREFERENCED_PARAMETER(T)
+#define XdbgFlushQueueEc(T) UNREFERENCED_PARAMETER(T)
+#define XdbgExitQueueEc(T) UNREFERENCED_PARAMETER(T)
+#define XdbgNotifyQueueEc(T, NotifyFlags) UNREFERENCED_PARAMETER(T), UNREFERENCED_PARAMETER(NotifyFlags)
 
 #endif

@@ -11,6 +11,7 @@
 #include <ntstatus.h>
 #include <ntifs.h>
 #include <ntintsafe.h>
+#include <ntstrsafe.h>
 #include <ndis.h>
 #include <ndis/ndl/nblqueue.h>
 #include <ndis/ndl/nblclassify.h>
@@ -38,6 +39,7 @@
 #include <xdpif.h>
 #include <xdplifetime.h>
 #include <xdplwf.h>
+#include <xdppcw.h>
 #include <xdpregistry.h>
 #include <xdprtl.h>
 #include <xdprxqueue_internal.h>

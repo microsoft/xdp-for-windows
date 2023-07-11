@@ -15,6 +15,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     XDP_EXTENSION RxActionExtension;
     XDP_EXTENSION FragmentExtension;
     XDP_EXTENSION FrameInterfaceContextExtension;
+    XDP_PCW_LWF_RX_QUEUE PcwStats;
     NDIS_HANDLE TxCloneNblPool;
     UINT32 TxCloneCacheLimit;
     UINT32 TxCloneCacheCount;
@@ -68,6 +69,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     } Flags;
     UINT32 QueueId;
     LIST_ENTRY Link;
+    PCW_INSTANCE *PcwInstance;
     XDP_LIFETIME_ENTRY DeleteEntry;
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_RX_QUEUE;
