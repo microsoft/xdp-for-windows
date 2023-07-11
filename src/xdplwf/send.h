@@ -30,6 +30,8 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
     XDP_EC Ec;
 
+    XDP_PCW_LWF_TX_QUEUE PcwStats;
+
     struct {
         BOOLEAN Pause : 1;
         BOOLEAN RxInject : 1;
@@ -45,6 +47,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     SLIST_HEADER NblComplete;
     NET_BUFFER_LIST *FreeNbls;
     NDIS_HANDLE NblPool;
+    PCW_INSTANCE *PcwInstance;
     XDP_LIFETIME_ENTRY DeleteEntry;
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_TX_QUEUE;

@@ -71,6 +71,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpcfg", "src\xdpcfg\xdpcfg
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwd", "samples\xskfwd\xskfwd.vcxproj", "{238CD65B-59D5-4EC5-BA23-630F567395FA}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdppcw", "src\xdppcw\xdppcw.vcxproj", "{ED611744-B780-41A2-A995-2C100D86B3A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -435,6 +437,18 @@ Global
 		{238CD65B-59D5-4EC5-BA23-630F567395FA}.Release|x64.ActiveCfg = Release|x64
 		{238CD65B-59D5-4EC5-BA23-630F567395FA}.Release|x64.Build.0 = Release|x64
 		{238CD65B-59D5-4EC5-BA23-630F567395FA}.Release|x64.Deploy.0 = Release|x64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Debug|ARM64.Build.0 = Debug|ARM64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Debug|ARM64.Deploy.0 = Debug|ARM64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Debug|x64.ActiveCfg = Debug|x64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Debug|x64.Build.0 = Debug|x64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Debug|x64.Deploy.0 = Debug|x64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Release|ARM64.ActiveCfg = Release|ARM64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Release|ARM64.Build.0 = Release|ARM64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Release|ARM64.Deploy.0 = Release|ARM64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Release|x64.ActiveCfg = Release|x64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Release|x64.Build.0 = Release|x64
+		{ED611744-B780-41A2-A995-2C100D86B3A6}.Release|x64.Deploy.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

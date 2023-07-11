@@ -123,6 +123,16 @@ XdpRxQueueIsTxActionSupported(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
 
+XDP_PCW_RX_QUEUE *
+XdpRxQueueGetStats(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
+XDP_PCW_RX_QUEUE *
+XdpRxQueueGetStatsFromInspectionContext(
+    _In_ const XDP_INSPECTION_CONTEXT *Context
+    );
+
 NTSTATUS
 XdpRxStart(
     VOID
