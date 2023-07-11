@@ -182,7 +182,7 @@ function Setup-VcRuntime {
 
         # Download and install.
         Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
-        Invoke-Expression -Command "$ArtifactsDir\vc_redist.x64.exe /install /passive"
+        & $ArtifactsDir\vc_redist.x64.exe /install /passive | Write-Verbose
     }
 }
 
@@ -267,9 +267,6 @@ if ($Cleanup) {
             reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
             $Reboot = $true
         }
-
-        Setup-VcRuntime
-        Setup-VsTest
     }
 
     if ($ForSpinxskTest) {
@@ -312,6 +309,8 @@ if ($Cleanup) {
     }
 
     if ($ForTest) {
+        Setup-VcRuntime
+        Setup-VsTest
         Download-CoreNet-Deps
         Download-Ebpf-Msi
         Setup-TestSigning

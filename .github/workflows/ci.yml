@@ -90,7 +90,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022]
+        windows: [2019, 2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64]
     runs-on:
@@ -204,7 +204,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022]
+        windows: [2019, 2022, Prerelease]
         configuration: [Release]
         platform: [x64]
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
