@@ -309,4 +309,4 @@ jobs:
     name: Complete
     needs: [build, functional_tests, stress_tests, perf_tests, devkit, etw]
     steps:
-      run: echo "CI succeeded"
+    - run: echo "CI succeeded"
