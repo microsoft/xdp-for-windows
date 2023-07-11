@@ -158,6 +158,7 @@ static RX_TX_TESTCASE RxTxTestCases[] = {
 };
 
 static CONST CHAR *PowershellPrefix;
+static RTL_OSVERSIONINFOW OsVersionInfo;
 
 //
 // Helper functions.
@@ -194,7 +195,7 @@ InvokeSystem(
 
 typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
 
-RTL_OSVERSIONINFOW
+VOID
 GetOSVersion(
     )
 {
@@ -204,22 +205,30 @@ GetOSVersion(
     RTL_GET_VERSION_FN RtlGetVersion = (RTL_GET_VERSION_FN)GetProcAddress(Module, "RtlGetVersion");
     TEST_TRUE(RtlGetVersion != NULL);
 
-    RTL_OSVERSIONINFOW OsVersion = { 0 };
-    OsVersion.dwOSVersionInfoSize = sizeof(OsVersion);
-    TEST_EQUAL(STATUS_SUCCESS, RtlGetVersion(&OsVersion));
-
-    return OsVersion;
+    OsVersionInfo.dwOSVersionInfoSize = sizeof(OsVersionInfo);
+    TEST_EQUAL(STATUS_SUCCESS, RtlGetVersion(&OsVersionInfo));
 }
 
 BOOLEAN
-OsVersionIsFeOrLater(
-    _In_ const RTL_OSVERSIONINFOW *OsVersion
-    )
+OsVersionIsFeOrLater()
 {
     return
-        (OsVersion->dwMajorVersion > 10 || (OsVersion->dwMajorVersion == 10 &&
-        (OsVersion->dwMinorVersion > 0 || (OsVersion->dwMinorVersion == 0 &&
-        (OsVersion->dwBuildNumber >= 20100)))));
+        (OsVersionInfo.dwMajorVersion > 10 || (OsVersionInfo.dwMajorVersion == 10 &&
+        (OsVersionInfo.dwMinorVersion > 0 || (OsVersionInfo.dwMinorVersion == 0 &&
+        (OsVersionInfo.dwBuildNumber >= 20100)))));
+}
+
+BOOLEAN
+OsVersionIsGaOrLater()
+{
+    //
+    // N.B. The version number here is an estimate. The actual version number
+    // should be set once [Ga] releases.
+    //
+    return
+        (OsVersionInfo.dwMajorVersion > 10 || (OsVersionInfo.dwMajorVersion == 10 &&
+        (OsVersionInfo.dwMinorVersion > 0 || (OsVersionInfo.dwMinorVersion == 0 &&
+        (OsVersionInfo.dwBuildNumber >= 25892)))));
 }
 
 UINT32
@@ -2276,8 +2285,9 @@ TestSetup()
 {
     WSADATA WsaData;
     WPP_INIT_TRACING(NULL);
-    XdpApi = OpenApi();
+    GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
+    XdpApi = OpenApi();
     TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     WaitForWfpQuarantine(FnMpIf);
@@ -6965,6 +6975,15 @@ static const struct {
     },
 };
 
+static
+NDIS_OID
+OffloadQeoGetExpectedOid()
+{
+    return
+        OsVersionIsGaOrLater() ?
+            OID_QUIC_CONNECTION_ENCRYPTION : OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE;
+}
+
 VOID
 OffloadQeoConnection()
 {
@@ -7006,7 +7025,7 @@ OffloadQeoConnection()
             //
             OID_KEY Key;
             InitializeOidKey(
-                &Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+                &Key, OffloadQeoGetExpectedOid(), NdisRequestMethod,
                 OID_REQUEST_INTERFACE_DIRECT);
             MpOidFilter(AdapterMp, &Key, 1);
 
@@ -7170,7 +7189,7 @@ OffloadQeoRevert(
     //
     OID_KEY Key;
     InitializeOidKey(
-        &Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        &Key, OffloadQeoGetExpectedOid(), NdisRequestMethod,
         OID_REQUEST_INTERFACE_DIRECT);
     MpOidFilter(AdapterMp, &Key, 1);
 
@@ -7305,7 +7324,7 @@ OffloadQeoOidFailure(
     //
     OID_KEY Key;
     InitializeOidKey(
-        &Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        &Key, OffloadQeoGetExpectedOid(), NdisRequestMethod,
         OID_REQUEST_INTERFACE_DIRECT);
     MpOidFilter(AdapterMp, &Key, 1);
 
