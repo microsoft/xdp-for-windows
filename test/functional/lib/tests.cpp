@@ -360,7 +360,7 @@ class TestInterface {
 private:
     CONST CHAR *_IfDesc;
     mutable UINT32 _IfIndex;
-    mutable UCHAR _HwAddress[ETHERNET_MAC_SIZE]{ 0 };
+    mutable UCHAR _HwAddress[sizeof(ETHERNET_ADDRESS)]{ 0 };
     IN_ADDR _Ipv4Address;
     IN6_ADDR _Ipv6Address;
 
@@ -3606,7 +3606,7 @@ GenericRxUdpFragmentQuicShortHeader(
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    const UCHAR QuicShortHdrUdpPayload[QUIC_MAX_CID_LENGTH + 10] = { // 21 bytes is a full CID
+    const UCHAR QuicShortHdrUdpPayload[XDP_QUIC_MAX_CID_LENGTH + 10] = { // 21 bytes is a full CID
         0x00, // IsLongHeader
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // DestCid
         0x00 // The rest
