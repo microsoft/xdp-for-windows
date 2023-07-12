@@ -11,6 +11,9 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Config = "Debug",
 
+    [Parameter(Mandatory=$false)]
+    [string]$Project = "",
+
     [Parameter(Mandatory = $false)]
     [switch]$NoClean = $false,
 
@@ -35,9 +38,21 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 
-$Tasks = @("Build")
-if (!$NoClean) {
-    $Tasks = @("Clean") + $Tasks
+$Tasks = @()
+if ([string]::IsNullOrEmpty($Project)) {
+    $Tasks += "Build"
+
+    if (!$NoClean) {
+        $Tasks = @("Clean") + $Tasks
+    }
+} else {
+    $Clean = ""
+    if (!$NoClean) {
+        $Clean = ":Rebuild"
+    }
+    $Tasks += "$Project$Clean"
+    $NoSign = $true
+    $NoInstaller = $true
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
