@@ -748,7 +748,7 @@ XdpRxQueueUpdateDispatch(
     // scenarios, otherwise falls back to the common code path.
     //
 
-    if (XdpProgramIsEbpf(RxQueue->Program) && !XdpFaultInject()) {
+    if (XdpProgramIsEbpf(RxQueue->Program)) {
         RxQueue->Dispatch = XdpRxEbpfDispatch;
     } else if (XdpProgramCanXskBypass(RxQueue->Program, RxQueue) && !XdpFaultInject()) {
         RxQueue->Dispatch = XdpRxExclusiveXskDispatch;
