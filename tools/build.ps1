@@ -11,6 +11,9 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Config = "Debug",
 
+    [Parameter(Mandatory=$false)]
+    [string]$Project = "",
+
     [Parameter(Mandatory = $false)]
     [switch]$NoClean = $false,
 
@@ -35,7 +38,16 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 
-$Tasks = @("Build")
+$Tasks = @()
+if ([string]::IsNullOrEmpty($Project)) {
+    $Tasks += "Build"
+} else {
+    $Tasks += "$($Project):Rebuild"
+    $NoClean = $true
+    $NoSign = $true
+    $NoInstaller = $true
+}
+
 if (!$NoClean) {
     $Tasks = @("Clean") + $Tasks
 }
