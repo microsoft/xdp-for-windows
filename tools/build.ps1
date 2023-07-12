@@ -41,15 +41,18 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 $Tasks = @()
 if ([string]::IsNullOrEmpty($Project)) {
     $Tasks += "Build"
+
+    if (!$NoClean) {
+        $Tasks = @("Clean") + $Tasks
+    }
 } else {
-    $Tasks += "$($Project):Rebuild"
-    $NoClean = $true
+    $Clean = ""
+    if (!$NoClean) {
+        $Clean = ":Rebuild"
+    }
+    $Tasks += "$Project$Clean"
     $NoSign = $true
     $NoInstaller = $true
-}
-
-if (!$NoClean) {
-    $Tasks = @("Clean") + $Tasks
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
