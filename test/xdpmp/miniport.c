@@ -82,7 +82,6 @@ NDIS_OID MpSupportedOidArray[] =
     OID_GEN_VENDOR_DESCRIPTION,
     OID_GEN_CURRENT_PACKET_FILTER,
     OID_GEN_CURRENT_LOOKAHEAD,
-    OID_GEN_DRIVER_VERSION,
     OID_GEN_MAXIMUM_TOTAL_SIZE,
     OID_GEN_MAC_OPTIONS,
     OID_GEN_MEDIA_CONNECT_STATUS,
@@ -1196,11 +1195,6 @@ MpQueryInformationHandler(
 
         case OID_GEN_CURRENT_PACKET_FILTER:
             DataPointer = &Adapter->CurrentPacketFilter;
-            break;
-
-        case OID_GEN_DRIVER_VERSION:
-            DataLength = sizeof(USHORT);
-            Data = 0x650;
             break;
 
         case OID_GEN_MAC_OPTIONS:
