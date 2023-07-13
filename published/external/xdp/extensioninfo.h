@@ -6,6 +6,8 @@
 #ifndef XDP_EXTENSION_INFO_H
 #define XDP_EXTENSION_INFO_H
 
+#include <xdp/objectheader.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

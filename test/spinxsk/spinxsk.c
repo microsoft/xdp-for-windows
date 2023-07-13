@@ -28,11 +28,6 @@
 #define SHALLOW_STR_OF(x) #x
 #define STR_OF(x) SHALLOW_STR_OF(x)
 
-#define ALIGN_DOWN_BY(length, alignment) \
-    ((ULONG_PTR)(length)& ~(alignment - 1))
-#define ALIGN_UP_BY(length, alignment) \
-    (ALIGN_DOWN_BY(((ULONG_PTR)(length)+alignment - 1), alignment))
-
 #define STRUCT_FIELD_OFFSET(structPtr, field) \
     ((UCHAR *)&(structPtr)->field - (UCHAR *)(structPtr))
 
