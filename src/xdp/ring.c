@@ -7,8 +7,8 @@
 // This module handles XDP ring allocation and configuration.
 //
 
-#include "precomp.h"
-#include "ring.tmh"
+#include <precomp.h>
+#include <ring.tmh>
 
 NTSTATUS
 XdpRingAllocate(
@@ -69,5 +69,5 @@ XdpRingFreeRing(
     _In_ XDP_RING *Ring
     )
 {
-    ExFreePool(Ring);
+    ExFreePoolWithTag(Ring, XDP_POOLTAG_RING);
 }

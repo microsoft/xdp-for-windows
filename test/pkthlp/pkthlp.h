@@ -12,13 +12,14 @@
 
 EXTERN_C_START
 
-#define ETHERNET_MAC_SIZE 6
 #define ETHERNET_TYPE_IPV4 0x0800
 #define ETHERNET_TYPE_IPV6 0x86dd
 
-typedef struct _ETHERNET_ADDRESS {
-    UCHAR Bytes[ETHERNET_MAC_SIZE];
-} ETHERNET_ADDRESS;
+typedef union _DL_EUI48 {
+    UINT8 Bytes[6];
+} DL_EUI48;
+
+typedef DL_EUI48 ETHERNET_ADDRESS;
 
 typedef struct _ETHERNET_HEADER {
     ETHERNET_ADDRESS Destination;

@@ -126,13 +126,13 @@ typedef struct _XDP_TUPLE {
     UINT16 DestinationPort;
 } XDP_TUPLE;
 
-#define QUIC_MAX_CID_LENGTH 20
+#define XDP_QUIC_MAX_CID_LENGTH 20
 
 typedef struct _XDP_QUIC_FLOW {
     UINT16 UdpPort;
     UCHAR CidLength;
     UCHAR CidOffset;
-    UCHAR CidData[QUIC_MAX_CID_LENGTH]; // Max allowed per QUIC v1 RFC
+    UCHAR CidData[XDP_QUIC_MAX_CID_LENGTH]; // Max allowed per QUIC v1 RFC
 } XDP_QUIC_FLOW;
 
 #define XDP_PORT_SET_BUFFER_SIZE ((MAXUINT16 + 1) / 8)

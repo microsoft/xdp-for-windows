@@ -32,6 +32,16 @@
     ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Value)))
 #endif
 
+#ifndef ALIGN_DOWN_BY
+#define ALIGN_DOWN_BY(Length, Alignment) \
+    ((ULONG_PTR)(Length)& ~(Alignment - 1))
+#endif
+
+#ifndef ALIGN_UP_BY
+#define ALIGN_UP_BY(Length, Alignment) \
+    (ALIGN_DOWN_BY(((ULONG_PTR)(Length) + Alignment - 1), Alignment))
+#endif
+
 #define RTL_MILLISEC_TO_100NANOSEC(m) ((m) * 10000ui64)
 #define RTL_SEC_TO_100NANOSEC(s) ((s) * 10000000ui64)
 #define RTL_SEC_TO_MILLISEC(s) ((s) * 1000ui64)
@@ -57,12 +67,6 @@
 #endif
 
 #ifdef KERNEL_MODE
-
-NTSTATUS
-RtlUInt32RoundUpToPowerOfTwo(
-    _In_ UINT32 Value,
-    _Out_ UINT32 *Result
-    );
 
 _IRQL_requires_max_(APC_LEVEL)
 _Acquires_exclusive_lock_(Lock)
@@ -138,6 +142,46 @@ RtlFindMostSignificantBit(
     } else {
         return -1;
     }
+}
+
+inline
+INT8
+RtlFindLeastSignificantBit(
+    _In_ UINT64 Value
+    )
+{
+    DWORD BitOffset;
+
+    if (BitScanForward64(&BitOffset, Value)) {
+        return (CCHAR)BitOffset;
+
+    } else {
+        return -1;
+    }
+}
+
+#endif
+
+#if defined(STATUS_SUCCESS) && defined(STATUS_INTEGER_OVERFLOW)
+
+inline
+NTSTATUS
+RtlUInt32RoundUpToPowerOfTwo(
+    _In_ UINT32 Value,
+    _Out_ UINT32 *Result
+    )
+{
+    if (Value > (1ui32 << 31)) {
+        return STATUS_INTEGER_OVERFLOW;
+    }
+
+    if (!RTL_IS_POWER_OF_TWO(Value)) {
+        *Result = 1ui32 << (RtlFindMostSignificantBit(Value) + 1);
+    } else {
+        *Result = Value;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 #endif

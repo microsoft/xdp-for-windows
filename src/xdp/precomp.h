@@ -65,6 +65,7 @@
 #include <xdprtl.h>
 #include <xdprxqueue_internal.h>
 #include <xdptrace.h>
+#include <xdptransport.h>
 #include <xdptxqueue_internal.h>
 #include <xdpversion.h>
 #include <xdpworkqueue.h>

@@ -10,13 +10,18 @@
     <ClCompile>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <PreprocessorDefinitions>
-        USER_MODE=1;
-        %(PreprocessorDefinitions)
-      </PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+      <ClCompile>
+        <PreprocessorDefinitions>
+        USER_MODE=1;
+        WIN32_LEAN_AND_MEAN;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+    </ClCompile>
   </ItemDefinitionGroup>
 </Project>
