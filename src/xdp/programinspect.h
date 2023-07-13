@@ -104,3 +104,30 @@ typedef struct _XDP_PROGRAM {
     UINT32 RuleCount;
     XDP_RULE Rules[0];
 } XDP_PROGRAM;
+
+VOID
+XdpProgramDeleteRule(
+    _Inout_ XDP_RULE *Rule
+    );
+
+_Success_(TRUE)
+NTSTATUS
+XdpProgramValidateRule(
+    _Out_ XDP_RULE *ValidatedRule,
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ const XDP_RULE *UserRule,
+    _In_ UINT32 RuleCount,
+    _In_ UINT32 RuleIndex
+    );
+
+VOID
+XdpProgramReleasePortSet(
+    _Inout_ XDP_PORT_SET *PortSet
+    );
+
+NTSTATUS
+XdpProgramCapturePortSet(
+    _In_ CONST XDP_PORT_SET *UserPortSet,
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _Inout_ XDP_PORT_SET *KernelPortSet
+    );

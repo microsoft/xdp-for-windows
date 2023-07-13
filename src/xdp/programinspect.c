@@ -4,13 +4,17 @@
 //
 
 //
-// This module configures XDP programs on interfaces.
+// This module handles XDP rule parsing and configuration.
 //
 
-#include <precomp.h>
+#include "precomp.h"
 #include "programinspect.h"
 
 #define TCP_HDR_LEN_TO_BYTES(x) (((UINT64)(x)) * 4)
+
+//
+// Data path routines.
+//
 
 static
 VOID
@@ -1064,4 +1068,173 @@ XdpInspect(
 Done:
 
     return Action;
+}
+
+//
+// Control path routines.
+//
+
+VOID
+XdpProgramDeleteRule(
+    _Inout_ XDP_RULE *Rule
+    )
+{
+    if (Rule->Match == XDP_MATCH_IPV4_UDP_PORT_SET ||
+        Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET ||
+        Rule->Match == XDP_MATCH_IPV4_TCP_PORT_SET ||
+        Rule->Match == XDP_MATCH_IPV6_TCP_PORT_SET) {
+        XdpProgramReleasePortSet(&Rule->Pattern.IpPortSet.PortSet);
+    }
+
+    if (Rule->Match == XDP_MATCH_UDP_PORT_SET) {
+        XdpProgramReleasePortSet(&Rule->Pattern.PortSet);
+    }
+
+    if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
+
+        switch (Rule->Redirect.TargetType) {
+
+        case XDP_REDIRECT_TARGET_TYPE_XSK:
+            if (Rule->Redirect.Target != NULL) {
+                XskDereferenceDatapathHandle(Rule->Redirect.Target);
+                Rule->Redirect.Target = NULL;
+            }
+            break;
+
+        default:
+            ASSERT(FALSE);
+        }
+    }
+}
+
+_Success_(TRUE)
+NTSTATUS
+XdpProgramValidateRule(
+    _Out_ XDP_RULE *ValidatedRule,
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ const XDP_RULE *UserRule,
+    _In_ UINT32 RuleCount,
+    _In_ UINT32 RuleIndex
+    )
+{
+    NTSTATUS Status;
+
+    //
+    // Initialize the trusted kernel rule buffer and increment the count of
+    // validated rules. The error path will not attempt to clean up
+    // unvalidated rules.
+    //
+    RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
+
+    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_TCP_CONTROL_DST) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    ValidatedRule->Match = UserRule->Match;
+
+    //
+    // Validate each match condition. Many match conditions support all
+    // possible input pattern values.
+    //
+    switch (ValidatedRule->Match) {
+    case XDP_MATCH_QUIC_FLOW_SRC_CID:
+    case XDP_MATCH_QUIC_FLOW_DST_CID:
+    case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
+    case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
+        if (UserRule->Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+        ValidatedRule->Pattern.QuicFlow = UserRule->Pattern.QuicFlow;
+        break;
+    case XDP_MATCH_UDP_PORT_SET:
+        Status =
+            XdpProgramCapturePortSet(
+                &UserRule->Pattern.PortSet, RequestorMode, &ValidatedRule->Pattern.PortSet);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        break;
+    case XDP_MATCH_IPV4_UDP_PORT_SET:
+    case XDP_MATCH_IPV6_UDP_PORT_SET:
+    case XDP_MATCH_IPV4_TCP_PORT_SET:
+    case XDP_MATCH_IPV6_TCP_PORT_SET:
+        Status =
+            XdpProgramCapturePortSet(
+                &UserRule->Pattern.IpPortSet.PortSet, RequestorMode,
+                &ValidatedRule->Pattern.IpPortSet.PortSet);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        ValidatedRule->Pattern.IpPortSet.Address = UserRule->Pattern.IpPortSet.Address;
+        break;
+    default:
+        ValidatedRule->Pattern = UserRule->Pattern;
+        break;
+    }
+
+    if (UserRule->Action < XDP_PROGRAM_ACTION_DROP ||
+        UserRule->Action > XDP_PROGRAM_ACTION_EBPF) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    ValidatedRule->Action = UserRule->Action;
+
+    //
+    // Capture object handle references in the context of the calling thread.
+    // The handle will be validated further on the control path.
+    //
+    switch (UserRule->Action) {
+    case XDP_PROGRAM_ACTION_REDIRECT:
+        switch (UserRule->Redirect.TargetType) {
+
+        case XDP_REDIRECT_TARGET_TYPE_XSK:
+            Status =
+                XskReferenceDatapathHandle(
+                    RequestorMode, &UserRule->Redirect.Target, TRUE,
+                    &ValidatedRule->Redirect.Target);
+            break;
+
+        default:
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        break;
+
+    case XDP_PROGRAM_ACTION_EBPF:
+        if (RequestorMode != KernelMode) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        //
+        // eBPF programs must be the sole, unconditional action.
+        //
+        if (RuleCount != 1 || ValidatedRule->Match != XDP_MATCH_ALL) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        ASSERT(RuleIndex == 0);
+        ValidatedRule->Ebpf.Target = UserRule->Ebpf.Target;
+
+        break;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        XdpProgramDeleteRule(ValidatedRule);
+    }
+
+    return Status;
 }

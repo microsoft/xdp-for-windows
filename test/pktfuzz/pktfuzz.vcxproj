@@ -7,10 +7,9 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <ItemGroup>
-    <ClCompile Include="$(SolutionDir)src\xdp\extensionset.c" />
     <ClCompile Include="$(SolutionDir)src\xdp\programinspect.c" />
-    <ClCompile Include="$(SolutionDir)src\xdp\ring.c" />
     <ClCompile Include="pktfuzz.c" />
+    <ClCompile Include="stubs/program.c" />
     <ClCompile Include="stubs/redirect.c" />
     <ClCompile Include="stubs/rx.c" />
   </ItemGroup>
@@ -30,6 +29,8 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>$(XdpPlatformToolset)</PlatformToolset>
+    <EnableASAN>true</EnableASAN>
+    <EnableFuzzer>true</EnableFuzzer>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
