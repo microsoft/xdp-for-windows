@@ -201,7 +201,6 @@ jobs:
   pktfuzz:
     name: Fuzz Packet Parsing
     needs: build
-    env:
     strategy:
       fail-fast: false
       matrix:
