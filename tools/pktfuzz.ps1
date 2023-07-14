@@ -22,6 +22,9 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 $LogsDir = "$RootDir\artifacts\logs"
 
+# Ensure the output path exists.
+New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
+
 $Options = @()
 
 if ($Minutes -gt 0) {
