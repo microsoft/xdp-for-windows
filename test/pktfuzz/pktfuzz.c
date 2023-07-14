@@ -6,10 +6,13 @@
 #include "precomp.h"
 #include <programinspect.h>
 
+#define MAX_BUFFER_DATA 2048
+
 typedef struct _XDP_FRAME_WITH_EXTENSIONS {
     XDP_FRAME Frame;
     XDP_BUFFER_VIRTUAL_ADDRESS BufferVirtualAddress;
     XDP_FRAME_FRAGMENT Fragment;
+    UCHAR Data[MAX_BUFFER_DATA];
 } XDP_FRAME_WITH_EXTENSIONS;
 
 C_ASSERT(
@@ -28,6 +31,7 @@ C_ASSERT(
 typedef struct _XDP_BUFFER_WITH_EXTENSIONS {
     XDP_BUFFER Buffer;
     XDP_BUFFER_VIRTUAL_ADDRESS BufferVirtualAddress;
+    UCHAR Data[MAX_BUFFER_DATA];
 } XDP_BUFFER_WITH_EXTENSIONS;
 
 C_ASSERT(
@@ -43,6 +47,12 @@ C_ASSERT(
     FIELD_OFFSET(XDP_FRAGMENT_RING, Buffers) ==
     RTL_SIZEOF_THROUGH_FIELD(XDP_FRAGMENT_RING, Ring));
 
+typedef struct _PKTFUZZ_BUFFER_METADATA {
+    UINT8 DataOffset;
+    UINT8 Trailer;
+    UINT16 DataLength;
+} PKTFUZZ_BUFFER_METADATA;
+
 typedef struct _PKTFUZZ_METADATA {
     UINT32 FragmentRingEnabled : 1;
     UINT32 FrameRingIndex;
@@ -52,6 +62,8 @@ typedef struct _PKTFUZZ_METADATA {
     UINT32 FragmentRingProducerIndex;
     UINT32 FragmentRingConsumerIndex;
     XDP_RULE Rules[4];
+    PKTFUZZ_BUFFER_METADATA FrameBuffer;
+    PKTFUZZ_BUFFER_METADATA FragmentBuffers[RTL_NUMBER_OF_FIELD(XDP_FRAGMENT_RING, Buffers)];
 } PKTFUZZ_METADATA;
 
 XDP_EXTENSION FragmentExtension = {
@@ -62,6 +74,7 @@ XDP_EXTENSION VirtualAddressExtension = {
     .Reserved = FIELD_OFFSET(XDP_BUFFER_WITH_EXTENSIONS, BufferVirtualAddress)
 };
 
+#pragma warning(suppress:6262) // Using a LOT of stack space
 int
 LLVMFuzzerTestOneInput(
     _In_ const UINT8 *Data,
@@ -83,25 +96,72 @@ LLVMFuzzerTestOneInput(
     XDP_PROGRAM *Program = (XDP_PROGRAM *)ProgramBuffer;
     XDP_INSPECTION_CONTEXT InspectionContext = {0};
     UINT32 FrameRingIndex;
-    UINT32 FragmentRingIndex;
+    UINT32 FragmentRingIndex = 0;
+    UINT16 BufferDataLength;
+    XDP_FRAME_WITH_EXTENSIONS *FrameExt;
+    XDP_BUFFER *Buffer;
 
     if (Size < sizeof(*Metadata)) {
         return -1;
     }
 
+    Data += sizeof(*Metadata);
+    Size -= sizeof(*Metadata);
+
+    FrameRingIndex = Metadata->FrameRingIndex & FrameRing.Ring.Mask;
     FrameRing.Ring.ProducerIndex = Metadata->FrameRingProducerIndex & FrameRing.Ring.Mask;
     FrameRing.Ring.ConsumerIndex = Metadata->FrameRingConsumerIndex & FrameRing.Ring.Mask;
 
-    if (Metadata->FragmentRingEnabled) {
-        FragmentRing.Ring.ProducerIndex = Metadata->FragmentRingProducerIndex & FragmentRing.Ring.Mask;
-        FragmentRing.Ring.ConsumerIndex = Metadata->FragmentRingConsumerIndex & FragmentRing.Ring.Mask;
-        FragmentRingOption = &FragmentRing.Ring;
+    if (Size < Metadata->FrameBuffer.DataLength) {
+        return -1;
     }
 
-    FrameRingIndex = Metadata->FrameRingIndex & FrameRing.Ring.Mask;
-    FragmentRingIndex = Metadata->FragmentRingIndex & FragmentRing.Ring.Mask;
+    FrameExt = &FrameRing.Frames[FrameRingIndex];
+    Buffer = &FrameExt->Frame.Buffer;
 
-    FrameRing.Frames[FrameRingIndex].Frame.Buffer.DataLength = 200;
+    Buffer->DataLength = min(MAX_BUFFER_DATA, Metadata->FrameBuffer.DataLength);
+    Buffer->DataOffset = Metadata->FrameBuffer.DataOffset;
+    Buffer->BufferLength = Buffer->DataOffset + Buffer->DataLength + Metadata->FrameBuffer.Trailer;
+
+    RtlCopyMemory(FrameExt->Data, Data, Buffer->DataLength);
+    FrameExt->BufferVirtualAddress.VirtualAddress = FrameExt->Data;
+
+    Data += Buffer->DataLength;
+    Size -= Buffer->DataLength;
+
+
+    if (Metadata->FragmentRingEnabled) {
+        FragmentRingIndex = Metadata->FragmentRingIndex & FragmentRing.Ring.Mask;
+
+        FragmentRing.Ring.ProducerIndex =
+            Metadata->FragmentRingProducerIndex & FragmentRing.Ring.Mask;
+        FragmentRing.Ring.ConsumerIndex =
+            Metadata->FragmentRingConsumerIndex & FragmentRing.Ring.Mask;
+        FragmentRingOption = &FragmentRing.Ring;
+
+        for (UINT32 i = 0; i < RTL_NUMBER_OF(Metadata->FragmentBuffers); i++) {
+            XDP_BUFFER_WITH_EXTENSIONS *BufferExt = &FragmentRing.Buffers[FragmentRingIndex];
+
+            if (Size < Metadata->FragmentBuffers[i].DataLength) {
+                return -1;
+            }
+
+            Buffer = &BufferExt->Buffer;
+
+            Buffer->DataLength = min(MAX_BUFFER_DATA, Metadata->FragmentBuffers[i].DataLength);
+            Buffer->DataOffset = Metadata->FragmentBuffers[i].DataOffset;
+            Buffer->BufferLength =
+                Buffer->DataOffset + Buffer->DataLength + Metadata->FragmentBuffers[i].Trailer;
+
+            RtlCopyMemory(BufferExt->Data, Data, Buffer->DataLength);
+            BufferExt->BufferVirtualAddress.VirtualAddress = BufferExt->Data;
+
+            Data += Buffer->DataLength;
+            Size -= Buffer->DataLength;
+
+            FragmentRingIndex = (FragmentRingIndex + 1) & FragmentRing.Ring.Mask;
+        }
+    }
 
     Program->RuleCount = RTL_NUMBER_OF(Metadata->Rules);
 
@@ -116,7 +176,7 @@ LLVMFuzzerTestOneInput(
     }
 
     XdpInspect(
-        Program, &InspectionContext, &FrameRing.Ring, Metadata->FrameRingIndex, FragmentRingOption,
+        Program, &InspectionContext, &FrameRing.Ring, FrameRingIndex, FragmentRingOption,
         &FragmentExtension, FragmentRingIndex, &VirtualAddressExtension);
 
     return 0;
