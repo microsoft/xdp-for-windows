@@ -97,9 +97,9 @@ function Uninstall-Failure {
 function Start-Service-With-Retry($Name) {
     Write-Verbose "Start-Service $Name"
     $StartSuccess = $false
-    for ($i=0; $i -lt 10; $i++) {
+    for ($i=0; $i -lt 100; $i++) {
         try {
-            Start-Sleep -Milliseconds 100
+            Start-Sleep -Milliseconds 10
             Start-Service $Name
             $StartSuccess = $true
             break
