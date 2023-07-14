@@ -198,6 +198,34 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
+  pktfuzz:
+    name: Fuzz Packet Parsing
+    needs: build
+    env:
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+        platform: [x64]
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+    - name: Download Artifacts
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run pktfuzz
+      shell: PowerShell
+      run: tools/pktfuzz.ps1 -Minutes 10 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
+    - name: Upload Logs
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: ${{ always() }}
+      with:
+        name: logs_pktfuzz_winlatest_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+
   perf_tests:
     name: Perf Tests
     needs: build

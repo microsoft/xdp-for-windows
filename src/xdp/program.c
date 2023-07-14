@@ -745,7 +745,8 @@ XdpProgramCapturePortSet(
         }
 
         KernelPortSet->Reserved =
-            IoAllocateMdl(UserPortSet->PortSet, XDP_PORT_SET_BUFFER_SIZE, FALSE, FALSE, NULL);
+            IoAllocateMdl(
+                (VOID *)UserPortSet->PortSet, XDP_PORT_SET_BUFFER_SIZE, FALSE, FALSE, NULL);
         if (KernelPortSet->Reserved == NULL) {
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
