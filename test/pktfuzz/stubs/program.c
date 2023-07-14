@@ -5,7 +5,7 @@
 
 #include "precomp.h"
 
-static const UINT8 DummyPortSet[UINT16_MAX / RTL_BITS_OF(UINT8)] = "Bogus values";
+static const UINT8 DummyPortSet[(UINT16_MAX + 1) / RTL_BITS_OF(UINT8)] = "Bogus values";
 
 VOID
 XdpProgramReleasePortSet(
