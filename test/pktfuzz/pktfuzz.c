@@ -215,3 +215,16 @@ Exit:
 
     return Result;
 }
+
+#ifndef __SANITIZE_ADDRESS__
+int
+__cdecl
+main()
+{
+    //
+    // Provide a dummy main() function for the VS2019 compiler; it does not
+    // support LibFuzzer.
+    //
+    return 1;
+}
+#endif

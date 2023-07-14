@@ -1253,6 +1253,7 @@ XdpProgramValidateRule(
             goto Exit;
         }
 
+        DBG_UNREFERENCED_PARAMETER(RuleIndex);
         ASSERT(RuleIndex == 0);
         ValidatedRule->Ebpf.Target = UserRule->Ebpf.Target;
 
