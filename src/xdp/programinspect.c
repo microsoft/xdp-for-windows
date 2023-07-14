@@ -1109,6 +1109,36 @@ XdpProgramDeleteRule(
 
 _Success_(TRUE)
 NTSTATUS
+XdpProgramValidateQuicFlow(
+    _Out_ XDP_QUIC_FLOW *ValidatedFlow,
+    _In_ const XDP_QUIC_FLOW *UserFlow
+    )
+{
+    NTSTATUS Status;
+    UINT32 TotalSize;
+
+    RtlZeroMemory(ValidatedFlow, sizeof(*ValidatedFlow));
+
+    Status = RtlUInt32Add(UserFlow->CidOffset, UserFlow->CidLength, &TotalSize);
+    if (!NT_SUCCESS(Status)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (TotalSize > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    *ValidatedFlow = *UserFlow;
+
+Exit:
+
+    return Status;
+}
+
+_Success_(TRUE)
+NTSTATUS
 XdpProgramValidateRule(
     _Out_ XDP_RULE *ValidatedRule,
     _In_ KPROCESSOR_MODE RequestorMode,
@@ -1142,11 +1172,12 @@ XdpProgramValidateRule(
     case XDP_MATCH_QUIC_FLOW_DST_CID:
     case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
     case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
-        if (UserRule->Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
-            Status = STATUS_INVALID_PARAMETER;
+        Status =
+            XdpProgramValidateQuicFlow(
+                &ValidatedRule->Pattern.QuicFlow, &UserRule->Pattern.QuicFlow);
+        if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
-        ValidatedRule->Pattern.QuicFlow = UserRule->Pattern.QuicFlow;
         break;
     case XDP_MATCH_UDP_PORT_SET:
         Status =
