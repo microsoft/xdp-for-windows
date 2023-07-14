@@ -6,13 +6,10 @@
 #include "precomp.h"
 #include <programinspect.h>
 
-#define MAX_BUFFER_DATA 2048
-
 typedef struct _XDP_FRAME_WITH_EXTENSIONS {
     XDP_FRAME Frame;
     XDP_BUFFER_VIRTUAL_ADDRESS BufferVirtualAddress;
     XDP_FRAME_FRAGMENT Fragment;
-    UCHAR Data[MAX_BUFFER_DATA];
 } XDP_FRAME_WITH_EXTENSIONS;
 
 C_ASSERT(
@@ -31,7 +28,6 @@ C_ASSERT(
 typedef struct _XDP_BUFFER_WITH_EXTENSIONS {
     XDP_BUFFER Buffer;
     XDP_BUFFER_VIRTUAL_ADDRESS BufferVirtualAddress;
-    UCHAR Data[MAX_BUFFER_DATA];
 } XDP_BUFFER_WITH_EXTENSIONS;
 
 C_ASSERT(
@@ -82,6 +78,7 @@ LLVMFuzzerTestOneInput(
     )
 {
     NTSTATUS Status;
+    int Result;
     const PKTFUZZ_METADATA *Metadata = (const PKTFUZZ_METADATA *)Data;
     XDP_FRAME_RING FrameRing = {
         .Ring.ElementStride = sizeof(FrameRing.Frames[0]),
@@ -98,7 +95,7 @@ LLVMFuzzerTestOneInput(
     UINT32 FrameRingIndex;
     UINT32 FragmentRingIndex = 0;
     UINT16 BufferDataLength;
-    XDP_FRAME_WITH_EXTENSIONS *FrameExt;
+    XDP_FRAME_WITH_EXTENSIONS *FrameExt = NULL;
     XDP_BUFFER *Buffer;
 
     if (Size < sizeof(*Metadata)) {
@@ -119,16 +116,27 @@ LLVMFuzzerTestOneInput(
     FrameExt = &FrameRing.Frames[FrameRingIndex];
     Buffer = &FrameExt->Frame.Buffer;
 
-    Buffer->DataLength = min(MAX_BUFFER_DATA, Metadata->FrameBuffer.DataLength);
+    Buffer->DataLength = Metadata->FrameBuffer.DataLength;
     Buffer->DataOffset = Metadata->FrameBuffer.DataOffset;
     Buffer->BufferLength = Buffer->DataOffset + Buffer->DataLength + Metadata->FrameBuffer.Trailer;
 
-    RtlCopyMemory(FrameExt->Data, Data, Buffer->DataLength);
-    FrameExt->BufferVirtualAddress.VirtualAddress = FrameExt->Data;
+    //
+    // Violate the XDP spec in order to catch data under- and over-reads as
+    // reliably as possible: the entire buffer should be treated as readable,
+    // but since XDP currently does not adjust buffer lengths, treat the
+    // backfill and trailer as invalid.
+    //
+    FrameExt->BufferVirtualAddress.VirtualAddress = malloc(Buffer->DataLength);
+    if (FrameExt->BufferVirtualAddress.VirtualAddress == NULL) {
+        Result = 0;
+        goto Exit;
+    }
+
+    RtlCopyMemory(FrameExt->BufferVirtualAddress.VirtualAddress, Data, Buffer->DataLength);
+    FrameExt->BufferVirtualAddress.VirtualAddress -= Buffer->DataOffset;
 
     Data += Buffer->DataLength;
     Size -= Buffer->DataLength;
-
 
     if (Metadata->FragmentRingEnabled) {
         FragmentRingIndex = Metadata->FragmentRingIndex & FragmentRing.Ring.Mask;
@@ -143,18 +151,25 @@ LLVMFuzzerTestOneInput(
             XDP_BUFFER_WITH_EXTENSIONS *BufferExt = &FragmentRing.Buffers[FragmentRingIndex];
 
             if (Size < Metadata->FragmentBuffers[i].DataLength) {
-                return -1;
+                Result = -1;
+                goto Exit;
             }
 
             Buffer = &BufferExt->Buffer;
 
-            Buffer->DataLength = min(MAX_BUFFER_DATA, Metadata->FragmentBuffers[i].DataLength);
+            Buffer->DataLength = Metadata->FragmentBuffers[i].DataLength;
             Buffer->DataOffset = Metadata->FragmentBuffers[i].DataOffset;
             Buffer->BufferLength =
                 Buffer->DataOffset + Buffer->DataLength + Metadata->FragmentBuffers[i].Trailer;
 
-            RtlCopyMemory(BufferExt->Data, Data, Buffer->DataLength);
-            BufferExt->BufferVirtualAddress.VirtualAddress = BufferExt->Data;
+            BufferExt->BufferVirtualAddress.VirtualAddress = malloc(Buffer->DataLength);
+            if (BufferExt->BufferVirtualAddress.VirtualAddress == NULL) {
+                Result = 0;
+                goto Exit;
+            }
+
+            RtlCopyMemory(BufferExt->BufferVirtualAddress.VirtualAddress, Data, Buffer->DataLength);
+            BufferExt->BufferVirtualAddress.VirtualAddress -= Buffer->DataOffset;
 
             Data += Buffer->DataLength;
             Size -= Buffer->DataLength;
@@ -171,7 +186,8 @@ LLVMFuzzerTestOneInput(
                 &Program->Rules[i], UserMode, &Metadata->Rules[i], Program->RuleCount, i);
 
         if (!NT_SUCCESS(Status)) {
-            return -1;
+            Result = -1;
+            goto Exit;
         }
     }
 
@@ -179,5 +195,23 @@ LLVMFuzzerTestOneInput(
         Program, &InspectionContext, &FrameRing.Ring, FrameRingIndex, FragmentRingOption,
         &FragmentExtension, FragmentRingIndex, &VirtualAddressExtension);
 
-    return 0;
+    Result = 0;
+
+Exit:
+
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(FragmentRing.Buffers); i++) {
+        XDP_BUFFER_WITH_EXTENSIONS *BufferExt = &FragmentRing.Buffers[i];
+
+        if (BufferExt->BufferVirtualAddress.VirtualAddress != NULL) {
+            free(BufferExt->BufferVirtualAddress.VirtualAddress + BufferExt->Buffer.DataOffset);
+        }
+    }
+
+    if (FrameExt != NULL) {
+        if (FrameExt->BufferVirtualAddress.VirtualAddress != NULL) {
+            free(FrameExt->BufferVirtualAddress.VirtualAddress + FrameExt->Frame.Buffer.DataOffset);
+        }
+    }
+
+    return Result;
 }
