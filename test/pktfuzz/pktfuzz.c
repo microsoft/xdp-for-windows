@@ -106,8 +106,8 @@ LLVMFuzzerTestOneInput(
     Size -= sizeof(*Metadata);
 
     FrameRingIndex = Metadata->FrameRingIndex & FrameRing.Ring.Mask;
-    FrameRing.Ring.ProducerIndex = Metadata->FrameRingProducerIndex & FrameRing.Ring.Mask;
-    FrameRing.Ring.ConsumerIndex = Metadata->FrameRingConsumerIndex & FrameRing.Ring.Mask;
+    FrameRing.Ring.ProducerIndex = Metadata->FrameRingProducerIndex;
+    FrameRing.Ring.ConsumerIndex = Metadata->FrameRingConsumerIndex;
 
     if (Size < Metadata->FrameBuffer.DataLength) {
         return -1;
@@ -141,10 +141,8 @@ LLVMFuzzerTestOneInput(
     if (Metadata->FragmentRingEnabled) {
         FragmentRingIndex = Metadata->FragmentRingIndex & FragmentRing.Ring.Mask;
 
-        FragmentRing.Ring.ProducerIndex =
-            Metadata->FragmentRingProducerIndex & FragmentRing.Ring.Mask;
-        FragmentRing.Ring.ConsumerIndex =
-            Metadata->FragmentRingConsumerIndex & FragmentRing.Ring.Mask;
+        FragmentRing.Ring.ProducerIndex = Metadata->FragmentRingProducerIndex;
+        FragmentRing.Ring.ConsumerIndex = Metadata->FragmentRingConsumerIndex;
         FragmentRingOption = &FragmentRing.Ring;
 
         for (UINT32 i = 0; i < RTL_NUMBER_OF(Metadata->FragmentBuffers); i++) {
@@ -216,7 +214,7 @@ Exit:
     return Result;
 }
 
-#ifndef __SANITIZE_ADDRESS__
+#if _MSC_VER < 1930
 int
 __cdecl
 main()
