@@ -1107,7 +1107,6 @@ XdpProgramDeleteRule(
     }
 }
 
-_Success_(TRUE)
 NTSTATUS
 XdpProgramValidateQuicFlow(
     _Out_ XDP_QUIC_FLOW *ValidatedFlow,
@@ -1137,7 +1136,6 @@ Exit:
     return Status;
 }
 
-_Success_(TRUE)
 NTSTATUS
 XdpProgramValidateRule(
     _Out_ XDP_RULE *ValidatedRule,

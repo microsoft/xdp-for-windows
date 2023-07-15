@@ -110,7 +110,6 @@ XdpProgramDeleteRule(
     _Inout_ XDP_RULE *Rule
     );
 
-_Success_(TRUE)
 NTSTATUS
 XdpProgramValidateRule(
     _Out_ XDP_RULE *ValidatedRule,
