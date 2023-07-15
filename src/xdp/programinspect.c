@@ -229,7 +229,7 @@ XdpParseFragmentedUdp(
     Cache->UdpValid =
         XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
-            VirtualAddressExtension, &Storage->UdpHdr, sizeof(Storage->UdpHdr), &Cache->UdpHdr);
+            VirtualAddressExtension, &Storage->UdpHdr, sizeof(Storage->UdpHdr) - 1, &Cache->UdpHdr);
 }
 
 static
