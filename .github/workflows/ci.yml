@@ -198,6 +198,37 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Verbose
 
+  pktfuzz_tests:
+    name: Fuzz Packet Parsing
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [Prerelease]
+        configuration: [Release, Debug]
+        platform: [x64]
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-fuzz-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+    - name: Download Artifacts
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run pktfuzz
+      shell: PowerShell
+      run: tools/pktfuzz.ps1 -Minutes 10 -Workers 8 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
+    - name: Upload Logs
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: ${{ always() }}
+      with:
+        name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+
   perf_tests:
     name: Perf Tests
     needs: build
@@ -307,7 +338,7 @@ jobs:
 
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, perf_tests, devkit, etw]
+    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, devkit, etw]
     runs-on: windows-latest
     steps:
     - run: echo "CI succeeded"

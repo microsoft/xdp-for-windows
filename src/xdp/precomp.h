@@ -5,6 +5,10 @@
 
 #pragma once
 
+#if USER_MODE
+#include <precomp.h>
+#else
+
 #pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
 
 #include <ntdef.h>
@@ -86,3 +90,5 @@
 #include "rx.h"
 #include "tx.h"
 #include "xsk.h"
+
+#endif // USER_MODE

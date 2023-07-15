@@ -143,7 +143,7 @@ typedef struct _XDP_PORT_SET {
     // buffer must be 8-byte aligned. The buffer size (in bytes) must be
     // XDP_PORT_SET_BUFFER_SIZE. The port is represented in network order.
     //
-    UINT8 *PortSet;
+    const UINT8 *PortSet;
     VOID *Reserved;
 } XDP_PORT_SET;
 

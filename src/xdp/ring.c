@@ -7,8 +7,8 @@
 // This module handles XDP ring allocation and configuration.
 //
 
-#include <precomp.h>
-#include <ring.tmh>
+#include "precomp.h"
+#include "ring.tmh"
 
 NTSTATUS
 XdpRingAllocate(

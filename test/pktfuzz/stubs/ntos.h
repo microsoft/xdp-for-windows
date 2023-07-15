@@ -39,6 +39,14 @@ ExFreePoolWithTag(
     free(P);
 }
 
+typedef CCHAR KPROCESSOR_MODE;
+
+typedef enum _MODE {
+    KernelMode,
+    UserMode,
+    MaximumMode
+} MODE;
+
 #include <intsafe.h>
 
 inline

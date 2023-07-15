@@ -633,7 +633,7 @@ XdpProgramCompileNewProgram(
         goto Exit;
     }
 
-    Status = RtlSizeTAdd(sizeof(*NewProgram), AllocationSize, &AllocationSize);
+    Status = RtlSizeTAdd(FIELD_OFFSET(XDP_PROGRAM, Rules), AllocationSize, &AllocationSize);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -712,7 +712,6 @@ XdpProgramDetachRxQueue(
     TraceExitSuccess(TRACE_CORE);
 }
 
-static
 VOID
 XdpProgramReleasePortSet(
     _Inout_ XDP_PORT_SET *PortSet
@@ -730,7 +729,6 @@ XdpProgramReleasePortSet(
     }
 }
 
-static
 NTSTATUS
 XdpProgramCapturePortSet(
     _In_ CONST XDP_PORT_SET *UserPortSet,
@@ -747,7 +745,8 @@ XdpProgramCapturePortSet(
         }
 
         KernelPortSet->Reserved =
-            IoAllocateMdl(UserPortSet->PortSet, XDP_PORT_SET_BUFFER_SIZE, FALSE, FALSE, NULL);
+            IoAllocateMdl(
+                (VOID *)UserPortSet->PortSet, XDP_PORT_SET_BUFFER_SIZE, FALSE, FALSE, NULL);
         if (KernelPortSet->Reserved == NULL) {
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
@@ -815,31 +814,7 @@ XdpProgramDelete(
     for (ULONG Index = 0; Index < ProgramObject->Program.RuleCount; Index++) {
         XDP_RULE *Rule = &ProgramObject->Program.Rules[Index];
 
-        if (Rule->Match == XDP_MATCH_IPV4_UDP_PORT_SET ||
-            Rule->Match == XDP_MATCH_IPV6_UDP_PORT_SET ||
-            Rule->Match == XDP_MATCH_IPV4_TCP_PORT_SET ||
-            Rule->Match == XDP_MATCH_IPV6_TCP_PORT_SET) {
-            XdpProgramReleasePortSet(&Rule->Pattern.IpPortSet.PortSet);
-        }
-
-        if (Rule->Match == XDP_MATCH_UDP_PORT_SET) {
-            XdpProgramReleasePortSet(&Rule->Pattern.PortSet);
-        }
-
-        if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
-
-            switch (Rule->Redirect.TargetType) {
-
-            case XDP_REDIRECT_TARGET_TYPE_XSK:
-                if (Rule->Redirect.Target != NULL) {
-                    XskDereferenceDatapathHandle(Rule->Redirect.Target);
-                }
-                break;
-
-            default:
-                ASSERT(FALSE);
-            }
-        }
+        XdpProgramDeleteRule(Rule);
     }
 
     TraceVerbose(TRACE_CORE, "Deleted ProgramObject=%p", ProgramObject);
@@ -961,116 +936,19 @@ XdpCaptureProgram(
 
     for (ULONG Index = 0; Index < RuleCount; Index++) {
         XDP_RULE UserRule = Program->Rules[Index];
-        XDP_RULE *ValidatedRule = &Program->Rules[Index];
+
+        Status =
+            XdpProgramValidateRule(
+                &Program->Rules[Index], RequestorMode, &UserRule, RuleCount, Index);
 
         //
-        // Initialize the trusted kernel rule buffer and increment the count of
-        // validated rules. The error path will not attempt to clean up
-        // unvalidated rules.
+        // Whether or not the validation returns success, the program's rule
+        // fields have been sanitized.
         //
-        RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
         Program->RuleCount++;
 
-        if (UserRule.Match < XDP_MATCH_ALL || UserRule.Match > XDP_MATCH_TCP_CONTROL_DST) {
-            Status = STATUS_INVALID_PARAMETER;
+        if (!NT_SUCCESS(Status)) {
             goto Exit;
-        }
-
-        ValidatedRule->Match = UserRule.Match;
-
-        //
-        // Validate each match condition. Many match conditions support all
-        // possible input pattern values.
-        //
-        switch (ValidatedRule->Match) {
-        case XDP_MATCH_QUIC_FLOW_SRC_CID:
-        case XDP_MATCH_QUIC_FLOW_DST_CID:
-        case XDP_MATCH_TCP_QUIC_FLOW_SRC_CID:
-        case XDP_MATCH_TCP_QUIC_FLOW_DST_CID:
-            if (UserRule.Pattern.QuicFlow.CidLength > RTL_FIELD_SIZE(XDP_QUIC_FLOW, CidData)) {
-                Status = STATUS_INVALID_PARAMETER;
-                goto Exit;
-            }
-            ValidatedRule->Pattern.QuicFlow = UserRule.Pattern.QuicFlow;
-            break;
-        case XDP_MATCH_UDP_PORT_SET:
-            Status =
-                XdpProgramCapturePortSet(
-                    &UserRule.Pattern.PortSet, RequestorMode, &ValidatedRule->Pattern.PortSet);
-            if (!NT_SUCCESS(Status)) {
-                goto Exit;
-            }
-            break;
-        case XDP_MATCH_IPV4_UDP_PORT_SET:
-        case XDP_MATCH_IPV6_UDP_PORT_SET:
-        case XDP_MATCH_IPV4_TCP_PORT_SET:
-        case XDP_MATCH_IPV6_TCP_PORT_SET:
-            Status =
-                XdpProgramCapturePortSet(
-                    &UserRule.Pattern.IpPortSet.PortSet, RequestorMode,
-                    &ValidatedRule->Pattern.IpPortSet.PortSet);
-            if (!NT_SUCCESS(Status)) {
-                goto Exit;
-            }
-            ValidatedRule->Pattern.IpPortSet.Address = UserRule.Pattern.IpPortSet.Address;
-            break;
-        default:
-            ValidatedRule->Pattern = UserRule.Pattern;
-            break;
-        }
-
-        if (UserRule.Action < XDP_PROGRAM_ACTION_DROP ||
-            UserRule.Action > XDP_PROGRAM_ACTION_EBPF) {
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
-
-        ValidatedRule->Action = UserRule.Action;
-
-        //
-        // Capture object handle references in the context of the calling thread.
-        // The handle will be validated further on the control path.
-        //
-        switch (UserRule.Action) {
-        case XDP_PROGRAM_ACTION_REDIRECT:
-            switch (UserRule.Redirect.TargetType) {
-
-            case XDP_REDIRECT_TARGET_TYPE_XSK:
-                Status =
-                    XskReferenceDatapathHandle(
-                        RequestorMode, &UserRule.Redirect.Target, TRUE,
-                        &ValidatedRule->Redirect.Target);
-                break;
-
-            default:
-                Status = STATUS_INVALID_PARAMETER;
-                break;
-            }
-
-            if (!NT_SUCCESS(Status)) {
-                goto Exit;
-            }
-
-            break;
-
-        case XDP_PROGRAM_ACTION_EBPF:
-            if (RequestorMode != KernelMode) {
-                Status = STATUS_INVALID_PARAMETER;
-                goto Exit;
-            }
-
-            //
-            // eBPF programs must be the sole, unconditional action.
-            //
-            if (RuleCount != 1 || ValidatedRule->Match != XDP_MATCH_ALL) {
-                Status = STATUS_INVALID_PARAMETER;
-                goto Exit;
-            }
-
-            ASSERT(Index == 0);
-            ValidatedRule->Ebpf.Target = UserRule.Ebpf.Target;
-
-            break;
         }
     }
 

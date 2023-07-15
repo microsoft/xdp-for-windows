@@ -9,6 +9,7 @@
 #include <winternl.h>
 #include <ws2def.h>
 #include <mstcpip.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include <pkthlp.h>
@@ -21,12 +22,15 @@
 #include <xdp/rtl.h>
 
 #include <stubs/ntos.h>
+#include <stubs/ebpf.h>
 
 #include <xdpassert.h>
 #include <xdppcw.h>
 #include <xdprtl.h>
 
+#include <stubs/dispatch.h>
 #include <extensionset.h>
-#include <stubs/program.h>
+#include <program.h>
 #include <stubs/rx.h>
+#include <stubs/xsk.h>
 #include <xdpp.h>
