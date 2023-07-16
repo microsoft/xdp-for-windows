@@ -188,7 +188,7 @@ XdpParseFragmentedIp4(
     Cache->Ip4Valid =
         XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
-            VirtualAddressExtension, &Storage->Ip4Hdr, sizeof(Storage->Ip4Hdr), &Cache->Ip4Hdr) &&
+            VirtualAddressExtension, &Storage->Ip4Hdr, sizeof(Storage->Ip4Hdr) - 1, &Cache->Ip4Hdr) &&
         (((UINT64)Cache->Ip4Hdr->HeaderLength) << 2) == sizeof(*Cache->Ip4Hdr);
 }
 
@@ -229,7 +229,7 @@ XdpParseFragmentedUdp(
     Cache->UdpValid =
         XdpGetContiguousHeader(
             Frame, Buffer, BufferDataOffset, FragmentIndex, FragmentsRemaining, FragmentRing,
-            VirtualAddressExtension, &Storage->UdpHdr, sizeof(Storage->UdpHdr) - 1, &Cache->UdpHdr);
+            VirtualAddressExtension, &Storage->UdpHdr, sizeof(Storage->UdpHdr), &Cache->UdpHdr);
 }
 
 static
