@@ -596,7 +596,9 @@ function Uninstall-Ebpf {
     $Process = Start-Process -FilePath msiexec.exe -NoNewWindow -PassThru -ArgumentList `
         @("/x", $EbpfMsiFullPath, "/qn", "/l*v", "$LogsDir\ebpfuninstall.txt")
 
-    if (!(Wait-Process -InputObject $Process -Timeout $Timeout -ErrorAction Ignore)) {
+    $Process | Wait-Process -Timeout $Timeout -ErrorAction Ignore
+
+    if (!$Process.HasExited) {
         Write-Error "eBPF failed to uninstall within $Timeout seconds" -ErrorAction Continue
         Collect-ProcessDump -ProcessName "ebpfsvc.exe" -OutFile "$LogsDir\ebpf_uninstall_ebpfsvc.dmp"
         Collect-ProcessDump -ProcessName "msiexec.exe" -ProcessId $Process.Id -OutFile "$LogsDir\ebpf_uninstall_msiexec.dmp"
