@@ -175,16 +175,27 @@ function Collect-ProcessDump {
         [string]$ProcessName,
 
         [Parameter()]
-        [string]$OutFile
+        [string]$OutFile,
+
+        [Parameter()]
+        [int]$ProcessId = 0
     )
 
     $ProcDump = Get-CoreNetCiArtifactPath -Name "procdump64.exe"
 
-    Write-Host "Capturing process dump of $ProcessName to $OutFile"
 
     New-Item -ItemType Directory -Force -Path (Split-Path $OutFile) | Out-Null
-    Write-Verbose "$ProcDump -accepteula -ma $ProcessName $OutFile"
-    & $ProcDump -accepteula -ma $ProcessName $OutFile
+
+    if ($ProcessId -ne 0) {
+        $ProcessArg = $ProcessId
+    } else {
+        $ProcessArg = $ProcessName
+    }
+
+    Write-Host "Capturing process dump of $ProcessName to $OutFile"
+
+    Write-Verbose "$ProcDump -accepteula -ma $ProcessArg $OutFile"
+    & $ProcDump -accepteula -ma $ProcessArg $OutFile
 }
 
 function Initiate-Bugcheck {
