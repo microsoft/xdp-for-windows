@@ -6,6 +6,14 @@ This checks for the presence of any XDP drivers currently loaded.
 #>
 
 [cmdletbinding()]Param(
+    [ValidateSet("Debug", "Release")]
+    [Parameter(Mandatory=$false)]
+    [string]$Config = "Debug",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("x64", "arm64")]
+    [string]$Arch = "x64",
+
     [Parameter(Mandatory = $false)]
     [switch]$IgnoreEbpf = $false
 )
@@ -32,7 +40,7 @@ function Check-Driver($Driver) {
 function Check-And-Remove-Driver($Driver, $Component) {
     if (Check-Driver $Driver) {
         Write-Host "Detected $Driver is loaded. Uninstalling $Component..."
-        & $RootDir\tools\setup.ps1 -Uninstall $Component
+        & $RootDir\tools\setup.ps1 -Uninstall $Component -Config $Config -Arch $Arch
 
         # Update cached driverquery output.
         $AllDrivers = driverquery /v /fo list
