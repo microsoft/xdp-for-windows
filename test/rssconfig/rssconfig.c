@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 #include <xdpapi.h>
+#include <xdpapi_experimental.h>
 #include <xdp/rtl.h>
 
 typedef struct _INTERFACE_CONFIG_ENTRY {
@@ -27,6 +28,8 @@ typedef struct _INTERFACE_CONFIG_ENTRY {
 INTERFACE_CONFIG_ENTRY *InterfaceConfigList = NULL;
 
 CONST XDP_API_TABLE *XdpApi;
+XDP_RSS_SET_FN *XdpRssSet;
+XDP_RSS_GET_FN *XdpRssGet;
 
 CONST CHAR *UsageText =
 "Usage:"
@@ -195,7 +198,7 @@ ProcessCommandGet(
     }
 
     RssConfigSize = 0;
-    Result = XdpApi->XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
+    Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
     if (SUCCEEDED(Result) || RssConfigSize < sizeof(RssConfig)) {
         printf(
             "Error: Failed to get RSS configuration size on IfIndex=%u Result=%d RssConfigSize=%d\n",
@@ -210,7 +213,7 @@ ProcessCommandGet(
     }
 
     _Analysis_assume_(RssConfigSize >= sizeof(*RssConfig));
-    Result = XdpApi->XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
+    Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
     if (FAILED(Result)) {
         printf("Error: Failed to get RSS configuration on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -296,7 +299,7 @@ ProcessCommandSet(
     RssConfig->IndirectionTableSize = (USHORT)(ProcessorArraySize * sizeof(PROCESSOR_NUMBER));
     RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
 
-    Result = XdpApi->XdpRssSet(InterfaceConfig->InterfaceHandle, RssConfig, RssConfigSize);
+    Result = XdpRssSet(InterfaceConfig->InterfaceHandle, RssConfig, RssConfigSize);
     if (FAILED(Result)) {
         printf("Error: Failed to set RSS configuration on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -352,6 +355,18 @@ main()
         goto Exit;
     }
 
+    XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine("XdpRssSet");
+    if (XdpRssSet == NULL) {
+        printf("Error: Failed to load XdpRssSet Result=%d\n", Result);
+        goto Exit;
+    }
+
+    XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine("XdpRssGet");
+    if (XdpRssSet == NULL) {
+        printf("Error: Failed to load XdpRssGet Result=%d\n", Result);
+        goto Exit;
+    }
+
     while (TRUE) {
         printf(">> ");
         if (fgets(Buffer, sizeof(Buffer), stdin) == NULL) {
@@ -374,6 +389,8 @@ main()
 Exit:
 
     if (XdpApi != NULL) {
+        XdpRssGet = NULL;
+        XdpRssSet = NULL;
         XdpCloseApi(XdpApi);
     }
 
