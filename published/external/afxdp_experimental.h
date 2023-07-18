@@ -58,7 +58,7 @@ typedef enum _XSK_POLL_MODE {
 //              set, and at least one socket option has enabled the frame layout
 //              extension.
 //
-#define XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION 16
+#define XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION 1001
 
 //
 // XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION
@@ -70,7 +70,7 @@ typedef enum _XSK_POLL_MODE {
 //              is set, and at least one socket option has enabled the frame
 //              layout extension.
 //
-#define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 17
+#define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 1002
 
 //
 // XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX
@@ -82,7 +82,7 @@ typedef enum _XSK_POLL_MODE {
 //              is not set. This option enables the XDP_FRAME_LAYOUT and
 //              XDP_FRAME_CHECKSUM extensions on the TX frame ring.
 //
-#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX 18
+#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX 1003
 
 //
 // XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES
@@ -92,7 +92,7 @@ typedef enum _XSK_POLL_MODE {
 // Description: Returns the UDP checksum transmit offload capabilities. This
 //              option requires the socket is bound.
 //
-#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES 19
+#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES 1004
 
 typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
     BOOLEAN Supported;
