@@ -86,8 +86,8 @@ $XdpFnLwfComponentId = "ms_xdpfnlwf"
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 # Helper to capture failure diagnostics and trigger CI agent reboot
-function Uninstall-Failure {
-    Collect-LiveKD -OutFile $LogsDir\xdpuninstall.dmp
+function Uninstall-Failure($FileName) {
+    Collect-LiveKD -OutFile $LogsDir\$FileName
 
     Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
     Write-Error "Uninstall failed"
@@ -166,7 +166,7 @@ function Cleanup-Service($Name) {
         }
         if (!$DeleteSuccess) {
             Write-Verbose "Failed to clean up $Name!"
-            Uninstall-Failure
+            Uninstall-Failure "cleanup_service_$Name.dmp"
         }
     }
 }
@@ -287,7 +287,7 @@ function Uninstall-Xdp {
 
         if ($LastExitCode -ne 0) {
             Write-Error "XDP MSI uninstall failed with status $LastExitCode" -ErrorAction Continue
-            Uninstall-Failure
+            Uninstall-Failure "xdp_uninstall.dmp"
         }
     } elseif ($XdpInstaller -eq "INF") {
         Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
@@ -565,8 +565,8 @@ function Install-Ebpf {
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
     for ($i = 0; $i -lt 100; $i++) {
-        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn | Write-Verbose
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
         if ($?) {
             break;
         }
@@ -583,6 +583,7 @@ function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
+    $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {
         Write-Verbose "$EbpfPath does not exist. Assuming eBPF is not installed."
@@ -591,35 +592,25 @@ function Uninstall-Ebpf {
 
     Write-Verbose "Uninstalling eBPF for Windows"
 
-    try {
-        Write-Verbose "msiexec.exe /x $EbpfMsiFullPath /qn"
-        $Job = Start-Job -ScriptBlock {
-            msiexec.exe /x $Using:EbpfMsiFullPath /qn | Out-Null
-            return $LastExitCode
-        }
+    Write-Verbose "msiexec.exe /x $EbpfMsiFullPath /qn /l*v $LogsDir\ebpfuninstall.txt"
+    $Process = Start-Process -FilePath msiexec.exe -NoNewWindow -PassThru -ArgumentList `
+        @("/x", $EbpfMsiFullPath, "/qn", "/l*v", "$LogsDir\ebpfuninstall.txt")
 
-        if (!(Wait-Job -Job $Job -Timeout 60)) {
-            Write-Error "eBPF failed to uninstall within 60 seconds" -ErrorAction Continue
-            Uninstall-Failure
+    $Process | Wait-Process -Timeout $Timeout -ErrorAction Ignore
 
-            # Abandon (leak) the job since the MSI process may be impossible to
-            # terminate in certain hang scenarios.
-            $Job = $null
-        }
+    if (!$Process.HasExited) {
+        Write-Error "eBPF failed to uninstall within $Timeout seconds" -ErrorAction Continue
+        Collect-ProcessDump -ProcessName "ebpfsvc.exe" -OutFile "$LogsDir\ebpf_uninstall_ebpfsvc.dmp"
+        Collect-ProcessDump -ProcessName "msiexec.exe" -ProcessId $Process.Id -OutFile "$LogsDir\ebpf_uninstall_msiexec.dmp"
+        Uninstall-Failure "ebpf_uninstall_timeout.dmp"
+    }
 
-        if (($Status = Receive-Job -Job $Job) -ne 0) {
-            if ($Status -eq 0x666) {
-                Write-Error "An unexpected version of eBPF could not be uninstalled"
-            } else {
-                Write-Error "MSI uninstall failed with status $Status" -ErrorAction Continue
-                Uninstall-Failure
-            }
-        }
-    } finally {
-        if ($Job) {
-            Write-Verbose "Cleaning up MSI job..."
-            Remove-Job -Job $Job -Force
-            Write-Verbose "Cleaned up MSI job."
+    if ($Process.ExitCode -ne 0) {
+        if (Process.ExitCode -eq 0x666) {
+            Write-Error "An unexpected version of eBPF could not be uninstalled"
+        } else {
+            Write-Error "MSI uninstall failed with status $($Process.ExitCode)" -ErrorAction Continue
+            Uninstall-Failure "ebpf_uninstall.dmp"
         }
     }
 
