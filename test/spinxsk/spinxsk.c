@@ -1127,10 +1127,11 @@ InitializeQueue(
     }
 
     queue->XdpRssGetCapabilities =
-        (XDP_RSS_GET_CAPABILITIES_FN *)queue->xdpApi->XdpGetRoutine("XdpRssGetCapabilities");
-    queue->XdpRssSet = (XDP_RSS_SET_FN *)queue->xdpApi->XdpGetRoutine("XdpRssSet");
-    queue->XdpRssGet = (XDP_RSS_GET_FN *)queue->xdpApi->XdpGetRoutine("XdpRssGet");
-    queue->XdpQeoSet = (XDP_QEO_SET_FN *)queue->xdpApi->XdpGetRoutine("XdpQeoSet");
+        (XDP_RSS_GET_CAPABILITIES_FN *)queue->xdpApi->XdpGetRoutine(
+            XDP_RSS_GET_CAPABILITIES_FN_NAME);
+    queue->XdpRssSet = (XDP_RSS_SET_FN *)queue->xdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
+    queue->XdpRssGet = (XDP_RSS_GET_FN *)queue->xdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
+    queue->XdpQeoSet = (XDP_QEO_SET_FN *)queue->xdpApi->XdpGetRoutine(XDP_QEO_SET_FN_NAME);
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {

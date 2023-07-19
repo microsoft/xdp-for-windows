@@ -950,7 +950,7 @@ TryRssGetCapabilities(
     )
 {
     XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities =
-        (XDP_RSS_GET_CAPABILITIES_FN *)XdpApi->XdpGetRoutine("XdpRssGetCapabilities");
+        (XDP_RSS_GET_CAPABILITIES_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_CAPABILITIES_FN_NAME);
 
     if (XdpRssGetCapabilities == NULL) {
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
@@ -978,7 +978,7 @@ TryRssSet(
     _In_ UINT32 RssConfigurationSize
     )
 {
-    XDP_RSS_SET_FN *XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine("XdpRssSet");
+    XDP_RSS_SET_FN *XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
 
     if (XdpRssSet == NULL) {
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
@@ -1006,7 +1006,7 @@ TryRssGet(
     _Inout_ UINT32 *RssConfigurationSize
     )
 {
-    XDP_RSS_GET_FN *XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine("XdpRssGet");
+    XDP_RSS_GET_FN *XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
 
     if (XdpRssGet == NULL) {
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
@@ -1034,7 +1034,7 @@ TryQeoSet(
     _In_ UINT32 QuicConnectionsSize
     )
 {
-    XDP_QEO_SET_FN *XdpQeoSet = (XDP_QEO_SET_FN *)XdpApi->XdpGetRoutine("XdpQeoSet");
+    XDP_QEO_SET_FN *XdpQeoSet = (XDP_QEO_SET_FN *)XdpApi->XdpGetRoutine(XDP_QEO_SET_FN_NAME);
 
     if (XdpQeoSet == NULL) {
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);

@@ -355,13 +355,13 @@ main()
         goto Exit;
     }
 
-    XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine("XdpRssSet");
+    XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
     if (XdpRssSet == NULL) {
         printf("Error: Failed to load XdpRssSet Result=%d\n", Result);
         goto Exit;
     }
 
-    XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine("XdpRssGet");
+    XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
     if (XdpRssSet == NULL) {
         printf("Error: Failed to load XdpRssGet Result=%d\n", Result);
         goto Exit;

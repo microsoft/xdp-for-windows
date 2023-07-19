@@ -36,7 +36,8 @@ typedef struct _XDP_API_ROUTINE {
     VOID *Routine;
 } XDP_API_ROUTINE;
 
-#define DECLARE_XDP_API_ROUTINE(x) #x, (VOID *)x
+#define DECLARE_XDP_API_ROUTINE(_routine) #_routine, (VOID *)_routine
+#define DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(_routine, _name) _name, (VOID *)_routine
 
 static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XdpOpenApi) },
@@ -53,10 +54,10 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XskSetSockopt) },
     { DECLARE_XDP_API_ROUTINE(XskGetSockopt) },
     { DECLARE_XDP_API_ROUTINE(XskIoctl) },
-    { DECLARE_XDP_API_ROUTINE(XdpRssGetCapabilities) },
-    { DECLARE_XDP_API_ROUTINE(XdpRssSet) },
-    { DECLARE_XDP_API_ROUTINE(XdpRssGet) },
-    { DECLARE_XDP_API_ROUTINE(XdpQeoSet) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGetCapabilities, XDP_RSS_GET_CAPABILITIES_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssSet, XDP_RSS_SET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGet, XDP_RSS_GET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
 };
 
 static CONST XDP_API_TABLE XdpApiTablePrerelease = {

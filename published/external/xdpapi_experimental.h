@@ -105,6 +105,8 @@ XDP_RSS_GET_CAPABILITIES_FN(
     _Inout_ UINT32 *RssCapabilitiesSize
     );
 
+#define XDP_RSS_GET_CAPABILITIES_FN_NAME "XdpRssGetCapabilitiesExperimental"
+
 //
 // Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
 //
@@ -200,6 +202,8 @@ XDP_RSS_SET_FN(
     _In_ UINT32 RssConfigurationSize
     );
 
+#define XDP_RSS_SET_FN_NAME "XdpRssSetExperimental"
+
 //
 // Query RSS settings on an interface. If the input RssConfigurationSize is too
 // small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned. Call
@@ -212,6 +216,8 @@ XDP_RSS_GET_FN(
     _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
     );
+
+#define XDP_RSS_GET_FN_NAME "XdpRssGetExperimental"
 
 typedef enum _XDP_QUIC_OPERATION {
     XDP_QUIC_OPERATION_ADD,     // Add (or modify) a QUIC connection offload
@@ -291,6 +297,8 @@ XDP_QEO_SET_FN(
     _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
     _In_ UINT32 QuicConnectionsSize
     );
+
+#define XDP_QEO_SET_FN_NAME "XdpQeoSetExperimental"
 
 #ifdef __cplusplus
 } // extern "C"
