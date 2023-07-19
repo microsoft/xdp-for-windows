@@ -5,14 +5,14 @@
 
 #include "precomp.h"
 
+//
+// API routines.
+//
 XDP_OPEN_API_FN XdpOpenApi;
 XDP_CLOSE_API_FN XdpCloseApi;
+XDP_GET_ROUTINE_FN XdpGetRoutine;
 XDP_CREATE_PROGRAM_FN XdpCreateProgram;
 XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
-XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
-XDP_RSS_SET_FN XdpRssSet;
-XDP_RSS_GET_FN XdpRssGet;
-XDP_QEO_SET_FN XdpQeoSet;
 XSK_CREATE_FN XskCreate;
 XSK_BIND_FN XskBind;
 XSK_ACTIVATE_FN XskActivate;
@@ -23,15 +23,49 @@ XSK_SET_SOCKOPT_FN XskSetSockopt;
 XSK_GET_SOCKOPT_FN XskGetSockopt;
 XSK_IOCTL_FN XskIoctl;
 
+//
+// Experimental APIs, subject to removal in a minor release.
+//
+XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
+XDP_RSS_SET_FN XdpRssSet;
+XDP_RSS_GET_FN XdpRssGet;
+XDP_QEO_SET_FN XdpQeoSet;
+
+typedef struct _XDP_API_ROUTINE {
+    _Null_terminated_ const CHAR *RoutineName;
+    VOID *Routine;
+} XDP_API_ROUTINE;
+
+#define DECLARE_XDP_API_ROUTINE(_routine) #_routine, (VOID *)_routine
+#define DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(_routine, _name) _name, (VOID *)_routine
+
+static const XDP_API_ROUTINE XdpApiRoutines[] = {
+    { DECLARE_XDP_API_ROUTINE(XdpOpenApi) },
+    { DECLARE_XDP_API_ROUTINE(XdpCloseApi) },
+    { DECLARE_XDP_API_ROUTINE(XdpGetRoutine) },
+    { DECLARE_XDP_API_ROUTINE(XdpCreateProgram) },
+    { DECLARE_XDP_API_ROUTINE(XdpInterfaceOpen) },
+    { DECLARE_XDP_API_ROUTINE(XskCreate) },
+    { DECLARE_XDP_API_ROUTINE(XskBind) },
+    { DECLARE_XDP_API_ROUTINE(XskActivate) },
+    { DECLARE_XDP_API_ROUTINE(XskNotifySocket) },
+    { DECLARE_XDP_API_ROUTINE(XskNotifyAsync) },
+    { DECLARE_XDP_API_ROUTINE(XskGetNotifyAsyncResult) },
+    { DECLARE_XDP_API_ROUTINE(XskSetSockopt) },
+    { DECLARE_XDP_API_ROUTINE(XskGetSockopt) },
+    { DECLARE_XDP_API_ROUTINE(XskIoctl) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGetCapabilities, XDP_RSS_GET_CAPABILITIES_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssSet, XDP_RSS_SET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGet, XDP_RSS_GET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
+};
+
 static CONST XDP_API_TABLE XdpApiTablePrerelease = {
     .XdpOpenApi = XdpOpenApi,
     .XdpCloseApi = XdpCloseApi,
+    .XdpGetRoutine = XdpGetRoutine,
     .XdpCreateProgram = XdpCreateProgram,
     .XdpInterfaceOpen = XdpInterfaceOpen,
-    .XdpRssGetCapabilities = XdpRssGetCapabilities,
-    .XdpRssSet = XdpRssSet,
-    .XdpRssGet = XdpRssGet,
-    .XdpQeoSet = XdpQeoSet,
     .XskCreate = XskCreate,
     .XskBind = XskBind,
     .XskActivate = XskActivate,
@@ -68,6 +102,20 @@ XdpCloseApi(
     )
 {
     FRE_ASSERT(XdpApiTable == &XdpApiTablePrerelease);
+}
+
+VOID *
+XdpGetRoutine(
+    _In_z_ const CHAR *RoutineName
+    )
+{
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpApiRoutines); i++) {
+        if (strcmp(XdpApiRoutines[i].RoutineName, RoutineName) == 0) {
+            return XdpApiRoutines[i].Routine;
+        }
+    }
+
+    return NULL;
 }
 
 HRESULT

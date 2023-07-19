@@ -47,6 +47,7 @@
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
+#include <xdpapi_experimental.h>
 #include <pkthlp.h>
 #include <xdpfnmpapi.h>
 #include <xdpfnlwfapi.h>
@@ -948,7 +949,14 @@ TryRssGetCapabilities(
     _Inout_ UINT32 *RssCapabilitiesSize
     )
 {
-    return XdpApi->XdpRssGetCapabilities(InterfaceHandle, RssCapabilities, RssCapabilitiesSize);
+    XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities =
+        (XDP_RSS_GET_CAPABILITIES_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_CAPABILITIES_FN_NAME);
+
+    if (XdpRssGetCapabilities == NULL) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    return XdpRssGetCapabilities(InterfaceHandle, RssCapabilities, RssCapabilitiesSize);
 }
 
 static
@@ -970,7 +978,13 @@ TryRssSet(
     _In_ UINT32 RssConfigurationSize
     )
 {
-    return XdpApi->XdpRssSet(InterfaceHandle, RssConfiguration, RssConfigurationSize);
+    XDP_RSS_SET_FN *XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
+
+    if (XdpRssSet == NULL) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    return XdpRssSet(InterfaceHandle, RssConfiguration, RssConfigurationSize);
 }
 
 static
@@ -992,7 +1006,13 @@ TryRssGet(
     _Inout_ UINT32 *RssConfigurationSize
     )
 {
-    return XdpApi->XdpRssGet(InterfaceHandle, RssConfiguration, RssConfigurationSize);
+    XDP_RSS_GET_FN *XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
+
+    if (XdpRssGet == NULL) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    return XdpRssGet(InterfaceHandle, RssConfiguration, RssConfigurationSize);
 }
 
 static
@@ -1014,7 +1034,13 @@ TryQeoSet(
     _In_ UINT32 QuicConnectionsSize
     )
 {
-    return XdpApi->XdpQeoSet(InterfaceHandle, QuicConnections, QuicConnectionsSize);
+    XDP_QEO_SET_FN *XdpQeoSet = (XDP_QEO_SET_FN *)XdpApi->XdpGetRoutine(XDP_QEO_SET_FN_NAME);
+
+    if (XdpQeoSet == NULL) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    return XdpQeoSet(InterfaceHandle, QuicConnections, QuicConnectionsSize);
 }
 
 static

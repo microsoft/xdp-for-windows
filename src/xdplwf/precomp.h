@@ -22,6 +22,7 @@
 #define XDPEXPORT(RoutineName) RoutineName##Thunk
 
 #include <xdpapi.h>
+#include <xdpapi_experimental.h>
 
 #include <xdp/buffermdl.h>
 #include <xdp/buffervirtualaddress.h>

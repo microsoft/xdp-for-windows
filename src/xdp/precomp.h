@@ -56,6 +56,7 @@
 #include <xdp/txframecompletioncontext.h>
 
 #include <xdpapi.h>
+#include <xdpapi_experimental.h>
 #include <xdpassert.h>
 #include <xdpetw.h>
 #include <xdpif.h>

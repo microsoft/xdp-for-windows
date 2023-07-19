@@ -16,6 +16,7 @@
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
+#include <xdpapi_experimental.h>
 #include <xdpapi_internal.h>
 #include <xdprtl.h>
 #include <bpf/bpf.h>
@@ -203,6 +204,10 @@ struct QUEUE_CONTEXT {
     UINT32 queueId;
 
     CONST XDP_API_TABLE *xdpApi;
+    XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities;
+    XDP_RSS_SET_FN *XdpRssSet;
+    XDP_RSS_GET_FN *XdpRssGet;
+    XDP_QEO_SET_FN *XdpQeoSet;
     HANDLE sock;
     HANDLE sharedUmemSock;
     HANDLE rss;
@@ -789,6 +794,10 @@ FuzzRssSet(
     XDP_RSS_CONFIGURATION* RssConfiguration = NULL;
     UINT8 *ProcessorGroups = NULL;
 
+    if (queue->XdpRssSet == NULL) {
+        goto Exit;
+    }
+
     WORD ActiveProcGroups = GetActiveProcessorGroupCount();
     if (ActiveProcGroups == 0) {
         goto Exit;
@@ -850,11 +859,11 @@ FuzzRssSet(
     //
 
     if (fuzzer->fuzzerInterface != NULL) {
-        (void)queue->xdpApi->XdpRssSet(fuzzer->fuzzerInterface, RssConfiguration, RssConfigSize);
+        (void)queue->XdpRssSet(fuzzer->fuzzerInterface, RssConfiguration, RssConfigSize);
     } else {
         AcquireSRWLockShared(&queue->rssLock);
         if (queue->rss != NULL) {
-            (void)queue->xdpApi->XdpRssSet(queue->rss, RssConfiguration, RssConfigSize);
+            (void)queue->XdpRssSet(queue->rss, RssConfiguration, RssConfigSize);
         }
         ReleaseSRWLockShared(&queue->rssLock);
     }
@@ -879,12 +888,16 @@ FuzzRssGet(
     HRESULT res;
     UINT32 size = 0;
 
+    if (Queue->XdpRssGet == NULL) {
+        goto Exit;
+    }
+
     if (Fuzzer->fuzzerInterface != NULL) {
-        res = Queue->xdpApi->XdpRssGet(Fuzzer->fuzzerInterface, NULL, &size);
+        res = Queue->XdpRssGet(Fuzzer->fuzzerInterface, NULL, &size);
     } else {
         AcquireSRWLockShared(&Queue->rssLock);
         if (Queue->rss != NULL) {
-            res = Queue->xdpApi->XdpRssGet(Queue->rss, NULL, &size);
+            res = Queue->XdpRssGet(Queue->rss, NULL, &size);
         } else {
             res = E_INVALIDARG;
         }
@@ -904,12 +917,12 @@ FuzzRssGet(
 
     if (Fuzzer->fuzzerInterface != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-        Queue->xdpApi->XdpRssGet(Fuzzer->fuzzerInterface, rssConfiguration, &size);
+        Queue->XdpRssGet(Fuzzer->fuzzerInterface, rssConfiguration, &size);
     } else {
         AcquireSRWLockShared(&Queue->rssLock);
         if (Queue->rss != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-            Queue->xdpApi->XdpRssGet(Queue->rss, rssConfiguration, &size);
+            Queue->XdpRssGet(Queue->rss, rssConfiguration, &size);
         }
         ReleaseSRWLockShared(&Queue->rssLock);
     }
@@ -927,16 +940,20 @@ FuzzRssGetCapabilities(
     _In_ QUEUE_CONTEXT *Queue
     )
 {
-    XDP_RSS_CAPABILITIES* rssCapabilities = NULL;
+    XDP_RSS_CAPABILITIES *rssCapabilities = NULL;
     HRESULT res;
     UINT32 size = 0;
 
+    if (Queue->XdpRssGetCapabilities == NULL) {
+        goto Exit;
+    }
+
     if (Fuzzer->fuzzerInterface != NULL) {
-        res = Queue->xdpApi->XdpRssGetCapabilities(Fuzzer->fuzzerInterface, NULL, &size);
+        res = Queue->XdpRssGetCapabilities(Fuzzer->fuzzerInterface, NULL, &size);
     } else {
         AcquireSRWLockShared(&Queue->rssLock);
         if (Queue->rss != NULL) {
-            res = Queue->xdpApi->XdpRssGetCapabilities(Queue->rss, NULL, &size);
+            res = Queue->XdpRssGetCapabilities(Queue->rss, NULL, &size);
         } else {
             res = E_INVALIDARG;
         }
@@ -956,12 +973,12 @@ FuzzRssGetCapabilities(
 
     if (Fuzzer->fuzzerInterface != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-        Queue->xdpApi->XdpRssGetCapabilities(Fuzzer->fuzzerInterface, rssCapabilities, &size);
+        Queue->XdpRssGetCapabilities(Fuzzer->fuzzerInterface, rssCapabilities, &size);
     } else {
         AcquireSRWLockShared(&Queue->rssLock);
         if (Queue->rss != NULL) {
 #pragma prefast(suppress : 6386, "SAL does not understand the mod operator")
-            Queue->xdpApi->XdpRssGetCapabilities(Queue->rss, rssCapabilities, &size);
+            Queue->XdpRssGetCapabilities(Queue->rss, rssCapabilities, &size);
         }
         ReleaseSRWLockShared(&Queue->rssLock);
     }
@@ -982,6 +999,10 @@ FuzzQeoSet(
     XDP_QUIC_CONNECTION *Connections = NULL;
     UINT32 ConnectionCount = RandUlong() % 16;
     UINT32 ConnectionsSize = ConnectionCount * sizeof(*Connections);
+
+    if (queue->XdpQeoSet == NULL) {
+        goto Exit;
+    }
 
     Connections = calloc(1, ConnectionsSize);
     if (Connections == NULL) {
@@ -1004,7 +1025,7 @@ FuzzQeoSet(
     }
 
     if (fuzzer->fuzzerInterface != NULL) {
-        (void)queue->xdpApi->XdpQeoSet(fuzzer->fuzzerInterface, Connections, ConnectionsSize);
+        (void)queue->XdpQeoSet(fuzzer->fuzzerInterface, Connections, ConnectionsSize);
     }
 
 Exit:
@@ -1104,6 +1125,13 @@ InitializeQueue(
     if (FAILED(res)) {
         goto Exit;
     }
+
+    queue->XdpRssGetCapabilities =
+        (XDP_RSS_GET_CAPABILITIES_FN *)queue->xdpApi->XdpGetRoutine(
+            XDP_RSS_GET_CAPABILITIES_FN_NAME);
+    queue->XdpRssSet = (XDP_RSS_SET_FN *)queue->xdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
+    queue->XdpRssGet = (XDP_RSS_GET_FN *)queue->xdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
+    queue->XdpQeoSet = (XDP_QEO_SET_FN *)queue->xdpApi->XdpGetRoutine(XDP_QEO_SET_FN_NAME);
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
