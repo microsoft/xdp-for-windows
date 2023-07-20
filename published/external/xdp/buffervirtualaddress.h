@@ -10,13 +10,7 @@ EXTERN_C_START
 #pragma warning(push)
 #pragma warning(default:4820) // warn if the compiler inserted padding
 
-//
-// XDP buffer extension containing the virtual address of the buffer data.
-//
 typedef struct XDP_BUFFER_VIRTUAL_ADDRESS {
-    //
-    // Contains the virtual address of a buffer.
-    //
     UCHAR *VirtualAddress;
 } XDP_BUFFER_VIRTUAL_ADDRESS;
 
@@ -30,9 +24,6 @@ C_ASSERT(sizeof(XDP_BUFFER_VIRTUAL_ADDRESS) == sizeof(VOID *));
 #include <xdp/datapath.h>
 #include <xdp/extension.h>
 
-//
-// Returns the virtual address extension for the given XDP buffer.
-//
 inline
 XDP_BUFFER_VIRTUAL_ADDRESS *
 XdpGetVirtualAddressExtension(

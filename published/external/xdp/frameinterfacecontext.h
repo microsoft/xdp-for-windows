@@ -7,10 +7,6 @@
 
 EXTERN_C_START
 
-//
-// Opaque, variable-sized context reserved for use by the XDP interface in each
-// XDP frame; the XDP platform will not read/write this extension.
-//
 typedef VOID XDP_FRAME_INTERFACE_CONTEXT;
 
 #define XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_NAME L"ms_frame_interface_context"
@@ -19,9 +15,6 @@ typedef VOID XDP_FRAME_INTERFACE_CONTEXT;
 #include <xdp/datapath.h>
 #include <xdp/extension.h>
 
-//
-// Returns the interface context extension for the given XDP frame.
-//
 inline
 XDP_FRAME_INTERFACE_CONTEXT *
 XdpGetFrameInterfaceContextExtension(

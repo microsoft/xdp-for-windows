@@ -14,6 +14,8 @@ EXTERN_C_START
 
 #if NDIS_SUPPORT_NDIS685
 
+#include <ndis/poll.h>
+
 typedef struct _XDP_POLL_TRANSMIT_DATA {
     //
     // The number of TX frames completed to the XDP platform.

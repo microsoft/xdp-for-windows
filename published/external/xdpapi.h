@@ -18,31 +18,10 @@ extern "C" {
 #define XDPAPI __declspec(dllimport)
 #endif
 
-//
-// Create and attach an XDP program to an interface. The caller may optionally
-// specify generic or native XDP binding mode. See xdp/program.h for placeholder
-// program definitions.
-//
-// N.B. The current implementation supports only L2 RX inspect programs.
-//
-
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {
     XDP_CREATE_PROGRAM_FLAG_NONE = 0x0,
-
-    //
-    // Attach to the interface using the generic XDP provider.
-    //
     XDP_CREATE_PROGRAM_FLAG_GENERIC = 0x1,
-
-    //
-    // Attach to the interface using the native XDP provider. If the interface does
-    // not support native XDP, the attach will fail.
-    //
     XDP_CREATE_PROGRAM_FLAG_NATIVE = 0x2,
-
-    //
-    // Attach to all XDP queues on the interface.
-    //
     XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES = 0x4,
 } XDP_CREATE_PROGRAM_FLAGS;
 

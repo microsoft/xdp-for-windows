@@ -10,18 +10,8 @@ EXTERN_C_START
 #pragma warning(push)
 #pragma warning(default:4820) // warn if the compiler inserted padding
 
-//
-// XDP buffer extension containing an MDL mapping of the buffer.
-//
 typedef struct _XDP_BUFFER_MDL {
-    //
-    // An MDL mapped to the buffer's physical pages.
-    //
     MDL *Mdl;
-
-    //
-    // The offset from the start of the MDL to the start of the buffer.
-    //
     SIZE_T MdlOffset;
 } XDP_BUFFER_MDL;
 
@@ -35,9 +25,6 @@ C_ASSERT(sizeof(XDP_BUFFER_MDL) == 2 * sizeof(VOID *));
 #include <xdp/datapath.h>
 #include <xdp/extension.h>
 
-//
-// Returns the MDL extension for the given XDP buffer.
-//
 inline
 XDP_BUFFER_MDL *
 XdpGetMdlExtension(
