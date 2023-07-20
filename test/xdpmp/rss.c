@@ -11,8 +11,7 @@ VOID
 POLL_COMPLETE_HELPER(
     _In_ NDIS_HANDLE PollHandle,
     _In_ NDIS_POLL_DATA *Poll,
-    _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
-    _In_ XDP_POLL_RECEIVE_DATA *Receive,
+    _In_ XDP_POLL_DATA *XdpData,
     _In_ XDP_NDIS_REQUEST_POLL *RequestPoll
     );
 
@@ -49,8 +48,7 @@ MpPoll(
     }
 
     PollComplete(
-        RssQueue->NdisPollHandle, Poll, &XdpPoll.Transmit, &XdpPoll.Receive,
-        RssQueue->Adapter->PollDispatch.RequestPoll);
+        RssQueue->NdisPollHandle, Poll, &XdpPoll, RssQueue->Adapter->PollDispatch.RequestPoll);
 }
 
 static

@@ -57,8 +57,7 @@ VOID
 XdpCompleteNdisPoll(
     _In_ NDIS_POLL_HANDLE PollHandle,
     _In_ NDIS_POLL_DATA *Poll,
-    _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
-    _In_ XDP_POLL_RECEIVE_DATA *Receive,
+    _In_ XDP_POLL_DATA *XdpPoll,
     _In_ XDP_NDIS_REQUEST_POLL *RequestPoll
     )
 {
@@ -69,8 +68,8 @@ XdpCompleteNdisPoll(
         return;
     }
 
-    if (Transmit->FramesCompleted > 0 || Transmit->FramesTransmitted > 0 ||
-        Receive->FramesAbsorbed > 0) {
+    if (XdpPoll->Transmit.FramesCompleted > 0 || XdpPoll->Transmit.FramesTransmitted > 0 ||
+        XdpPoll->Receive.FramesAbsorbed > 0) {
         //
         // XDP made forward progress, and this was not observable to NDIS.
         // Explicitly request another poll.
