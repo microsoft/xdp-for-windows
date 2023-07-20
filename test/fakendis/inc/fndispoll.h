@@ -58,15 +58,14 @@ void
 FNdisCompletePoll(
     _In_ NDIS_HANDLE PollHandle,
     _In_ NDIS_POLL_DATA *Poll,
-    _In_ XDP_POLL_TRANSMIT_DATA *Transmit,
-    _In_ XDP_POLL_RECEIVE_DATA *Receive,
+    _In_ XDP_POLL_DATA *XdpPoll,
     _In_ XDP_NDIS_REQUEST_POLL *RequestPoll
     )
 {
     UNREFERENCED_PARAMETER(PollHandle);
     UNREFERENCED_PARAMETER(RequestPoll);
 
-    Poll->Transmit.Reserved1[TxXdpFramesCompleted] = Transmit->FramesCompleted;
-    Poll->Transmit.Reserved1[TxXdpFramesTransmitted] = Transmit->FramesTransmitted;
-    Poll->Receive.Reserved1[RxXdpFramesAbsorbed] = Receive->FramesAbsorbed;
+    Poll->Transmit.Reserved1[TxXdpFramesCompleted] = XdpPoll->Transmit.FramesCompleted;
+    Poll->Transmit.Reserved1[TxXdpFramesTransmitted] = XdpPoll->Transmit.FramesTransmitted;
+    Poll->Receive.Reserved1[RxXdpFramesAbsorbed] = XdpPoll->Receive.FramesAbsorbed;
 }
