@@ -40,13 +40,6 @@ XDP_CREATE_PROGRAM_FN(
     _Out_ HANDLE *Program
     );
 
-//
-// Interface API.
-//
-
-//
-// Open a handle to get/set offloads/configurations/properties on an interface.
-//
 typedef
 HRESULT
 XDP_INTERFACE_OPEN_FN(
@@ -64,11 +57,6 @@ typedef struct _XDP_API_TABLE XDP_API_TABLE;
 //
 #define XDP_VERSION_PRERELEASE 100007
 
-//
-// Opens the API and returns an API function table with the rest of the API's
-// functions. Each open must invoke a corresponding XdpCloseApi when the API
-// will no longer be used.
-//
 typedef
 HRESULT
 XDP_OPEN_API_FN(
@@ -78,9 +66,6 @@ XDP_OPEN_API_FN(
 
 XDPAPI XDP_OPEN_API_FN XdpOpenApi;
 
-//
-// Releases the reference to the API returned by XdpOpenApi.
-//
 typedef
 VOID
 XDP_CLOSE_API_FN(
@@ -116,13 +101,6 @@ typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
 
 #if !defined(_KERNEL_MODE)
 
-//
-// Dynamically loads XDP, then opens the API and returns an API function table
-// with the rest of the API's functions. Each open must invoke a corresponding
-// XdpCloseApi when the API will no longer be used.
-//
-// This routine cannot be called from DllMain.
-//
 inline
 HRESULT
 XdpLoadApi(
@@ -165,12 +143,6 @@ Exit:
     return Result;
 }
 
-//
-// Releases the reference to the API returned by XdpOpenApi, then dynamically
-// unloads XDP.
-//
-// This routine cannot be called from DllMain.
-//
 inline
 VOID
 XdpUnloadApi(
