@@ -5,7 +5,6 @@ A structure to uniquely identify an interface queue.
 ## Syntax
 
 ```C
-typedef struct _XDP_POLL_INFO {
 //
 // Enumeration of XDP queue types.
 //

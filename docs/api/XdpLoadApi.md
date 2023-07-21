@@ -32,4 +32,4 @@ A double pointer to an [`XDP_API_TABLE`](XDP_API_TABLE.md) structure containing 
 
 This routine cannot be called from `DllMain`.
 
-Each `XdpLoadApi` must invoke a corresponding [`XdpUnloadApi`](XdpUnloadApi.md) when the API will no longer be used
+Each `XdpLoadApi` must invoke a corresponding [`XdpUnloadApi`](XdpUnloadApi.md) when the API will no longer be used.

@@ -28,4 +28,4 @@ A pointer to an [`XDP_API_TABLE`](XDP_API_TABLE.md) structure containing a set o
 
 This routine cannot be called from `DllMain`.
 
-Each [`XdpLoadApi`](XdpLoadApi.md) must invoke a corresponding `XdpUnloadApi` when the API will no longer be used
+Each [`XdpLoadApi`](XdpLoadApi.md) must invoke a corresponding `XdpUnloadApi` when the API will no longer be used.

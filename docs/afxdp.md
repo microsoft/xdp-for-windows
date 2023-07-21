@@ -1,6 +1,6 @@
 # AF_XDP interface
 
-This header declares the AF_XDP sockets interface. AF_XDP sockets are used by user mode applications to receive/inspect/drop/send network traffic via XDP hook points. To receive traffic, packets must be steered to a socket by configuring XDP rules/programs using an interface declared elsewhere. Traffic is passed as flat buffer, L2 frames across this interface using single producer, single consumer shared memory rings.
+The [`afxdp.h`](../published/external/afxdp.h) header declares the AF_XDP sockets interface. AF_XDP sockets are used by user mode applications to receive/inspect/drop/send network traffic via XDP hook points. To receive traffic, packets must be steered to a socket by configuring XDP rules/programs using an interface declared elsewhere. Traffic is passed as flat buffer, L2 frames across this interface using single producer, single consumer shared memory rings.
 
 > **TODO** Complete AF_XDP documentation.
 

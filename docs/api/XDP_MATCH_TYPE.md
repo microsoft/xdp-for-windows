@@ -5,6 +5,7 @@ Specifies an XDP inspection program rule match type.
 
 ## Syntax
 
+```C
 typedef enum _XDP_MATCH_TYPE {
     //
     // Match all frames.
@@ -97,6 +98,7 @@ typedef enum _XDP_MATCH_TYPE {
     //
     XDP_MATCH_TCP_CONTROL_DST,
 } XDP_MATCH_TYPE;
+```
 
 ## Members
 
