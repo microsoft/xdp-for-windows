@@ -13,9 +13,6 @@ extern "C" {
 #pragma warning(push)
 #pragma warning(default:4820) // warn if the compiler inserted padding
 
-//
-// Structure defining an XDP data path extension.
-//
 typedef struct _XDP_EXTENSION {
     //
     // This field is reserved for XDP platform use.

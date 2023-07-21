@@ -18,31 +18,10 @@ extern "C" {
 #define XDPAPI __declspec(dllimport)
 #endif
 
-//
-// Create and attach an XDP program to an interface. The caller may optionally
-// specify generic or native XDP binding mode. See xdp/program.h for placeholder
-// program definitions.
-//
-// N.B. The current implementation supports only L2 RX inspect programs.
-//
-
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {
     XDP_CREATE_PROGRAM_FLAG_NONE = 0x0,
-
-    //
-    // Attach to the interface using the generic XDP provider.
-    //
     XDP_CREATE_PROGRAM_FLAG_GENERIC = 0x1,
-
-    //
-    // Attach to the interface using the native XDP provider. If the interface does
-    // not support native XDP, the attach will fail.
-    //
     XDP_CREATE_PROGRAM_FLAG_NATIVE = 0x2,
-
-    //
-    // Attach to all XDP queues on the interface.
-    //
     XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES = 0x4,
 } XDP_CREATE_PROGRAM_FLAGS;
 
@@ -61,13 +40,6 @@ XDP_CREATE_PROGRAM_FN(
     _Out_ HANDLE *Program
     );
 
-//
-// Interface API.
-//
-
-//
-// Open a handle to get/set offloads/configurations/properties on an interface.
-//
 typedef
 HRESULT
 XDP_INTERFACE_OPEN_FN(
@@ -85,11 +57,6 @@ typedef struct _XDP_API_TABLE XDP_API_TABLE;
 //
 #define XDP_VERSION_PRERELEASE 100007
 
-//
-// Opens the API and returns an API function table with the rest of the API's
-// functions. Each open must invoke a corresponding XdpCloseApi when the API
-// will no longer be used.
-//
 typedef
 HRESULT
 XDP_OPEN_API_FN(
@@ -99,9 +66,6 @@ XDP_OPEN_API_FN(
 
 XDPAPI XDP_OPEN_API_FN XdpOpenApi;
 
-//
-// Releases the reference to the API returned by XdpOpenApi.
-//
 typedef
 VOID
 XDP_CLOSE_API_FN(
@@ -137,13 +101,6 @@ typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
 
 #if !defined(_KERNEL_MODE)
 
-//
-// Dynamically loads XDP, then opens the API and returns an API function table
-// with the rest of the API's functions. Each open must invoke a corresponding
-// XdpCloseApi when the API will no longer be used.
-//
-// This routine cannot be called from DllMain.
-//
 inline
 HRESULT
 XdpLoadApi(
@@ -186,12 +143,6 @@ Exit:
     return Result;
 }
 
-//
-// Releases the reference to the API returned by XdpOpenApi, then dynamically
-// unloads XDP.
-//
-// This routine cannot be called from DllMain.
-//
 inline
 VOID
 XdpUnloadApi(
