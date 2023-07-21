@@ -657,7 +657,7 @@ XskFillTx(
         Buffer->DataLength = ReadUInt32NoFence(&XskBuffer->Length);
         Buffer->BufferLength = Buffer->DataLength + Buffer->DataOffset;
 
-        Status = RtlUInt64Add(AddressDescriptor.Offset, Buffer->DataLength, &Result);
+        Status = RtlUInt64Add(AddressDescriptor.BaseAddress, Buffer->DataLength, &Result);
         Status |= RtlUInt64Add(Buffer->DataOffset, Result, &Result);
         if (Result > Xsk->Umem->Reg.TotalSize ||
             Buffer->DataLength == 0 ||
@@ -674,7 +674,7 @@ XskFillTx(
         }
 
         if (!XskBounceBuffer(
-                Xsk->Umem, &Xsk->Tx.Bounce, Buffer, AddressDescriptor.Offset, &Mapping)) {
+                Xsk->Umem, &Xsk->Tx.Bounce, Buffer, AddressDescriptor.BaseAddress, &Mapping)) {
             Xsk->Statistics.TxInvalidDescriptors++;
             STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
@@ -683,18 +683,18 @@ XskFillTx(
         if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
             XDP_BUFFER_VIRTUAL_ADDRESS *Va;
             Va = XdpGetVirtualAddressExtension(Buffer, &Xsk->Tx.Xdp.VaExtension);
-            Va->VirtualAddress = &Mapping->SystemAddress[AddressDescriptor.Offset];
+            Va->VirtualAddress = &Mapping->SystemAddress[AddressDescriptor.BaseAddress];
         }
         if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
             XDP_BUFFER_LOGICAL_ADDRESS *La;
             La = XdpGetLogicalAddressExtension(Buffer, &Xsk->Tx.Xdp.LaExtension);
-            La->LogicalAddress = Mapping->DmaAddress.QuadPart + AddressDescriptor.Offset;
+            La->LogicalAddress = Mapping->DmaAddress.QuadPart + AddressDescriptor.BaseAddress;
         }
         if (Xsk->Tx.Xdp.Flags.MdlExt) {
             XDP_BUFFER_MDL *Mdl;
             Mdl = XdpGetMdlExtension(Buffer, &Xsk->Tx.Xdp.MdlExtension);
             Mdl->Mdl = Mapping->Mdl;
-            Mdl->MdlOffset = AddressDescriptor.Offset;
+            Mdl->MdlOffset = AddressDescriptor.BaseAddress;
         }
         if (Xsk->Tx.Xdp.Flags.CompletionContext) {
             CompletionContext =
