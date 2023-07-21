@@ -136,34 +136,6 @@ XskRingAffinityChanged(
     return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_AFFINITY_CHANGED);
 }
 
-inline
-VOID
-XskDescriptorSetOffset(
-    _Inout_ UINT64 *Descriptor,
-    _In_ UINT16 Offset
-    )
-{
-    *Descriptor |= ((UINT64)Offset << XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT);
-}
-
-inline
-UINT64
-XskDescriptorGetAddress(
-    _In_ UINT64 Descriptor
-    )
-{
-    return Descriptor & ~XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MASK;
-}
-
-inline
-UINT16
-XskDescriptorGetOffset(
-    _In_ UINT64 Descriptor
-    )
-{
-    return (UINT16)(Descriptor >> XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT);
-}
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

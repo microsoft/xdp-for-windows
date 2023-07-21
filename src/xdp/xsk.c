@@ -639,7 +639,7 @@ XskFillTx(
     for (ULONG i = 0; i < Count; i++) {
         XDP_FRAME *Frame;
         XDP_BUFFER *Buffer;
-        UINT64 AddressDescriptor, RelativeAddress;
+        XSK_BUFFER_ADDRESS AddressDescriptor;
         UMEM_MAPPING *Mapping;
         XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
 
@@ -651,13 +651,13 @@ XskFillTx(
         Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
         Buffer = &Frame->Buffer;
 
-        AddressDescriptor = ReadUInt64NoFence(&XskBuffer->Address);
-        RelativeAddress = XskDescriptorGetAddress(AddressDescriptor);
-        Buffer->DataOffset = XskDescriptorGetOffset(AddressDescriptor);
+        AddressDescriptor.AddressAndOffset =
+            ReadUInt64NoFence(&XskBuffer->Address.AddressAndOffset);
+        Buffer->DataOffset = (UINT32)AddressDescriptor.Offset;
         Buffer->DataLength = ReadUInt32NoFence(&XskBuffer->Length);
         Buffer->BufferLength = Buffer->DataLength + Buffer->DataOffset;
 
-        Status = RtlUInt64Add(RelativeAddress, Buffer->DataLength, &Result);
+        Status = RtlUInt64Add(AddressDescriptor.Offset, Buffer->DataLength, &Result);
         Status |= RtlUInt64Add(Buffer->DataOffset, Result, &Result);
         if (Result > Xsk->Umem->Reg.TotalSize ||
             Buffer->DataLength == 0 ||
@@ -673,7 +673,8 @@ XskFillTx(
             continue;
         }
 
-        if (!XskBounceBuffer(Xsk->Umem, &Xsk->Tx.Bounce, Buffer, RelativeAddress, &Mapping)) {
+        if (!XskBounceBuffer(
+                Xsk->Umem, &Xsk->Tx.Bounce, Buffer, AddressDescriptor.Offset, &Mapping)) {
             Xsk->Statistics.TxInvalidDescriptors++;
             STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
@@ -682,18 +683,18 @@ XskFillTx(
         if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
             XDP_BUFFER_VIRTUAL_ADDRESS *Va;
             Va = XdpGetVirtualAddressExtension(Buffer, &Xsk->Tx.Xdp.VaExtension);
-            Va->VirtualAddress = &Mapping->SystemAddress[RelativeAddress];
+            Va->VirtualAddress = &Mapping->SystemAddress[AddressDescriptor.Offset];
         }
         if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
             XDP_BUFFER_LOGICAL_ADDRESS *La;
             La = XdpGetLogicalAddressExtension(Buffer, &Xsk->Tx.Xdp.LaExtension);
-            La->LogicalAddress = Mapping->DmaAddress.QuadPart + RelativeAddress;
+            La->LogicalAddress = Mapping->DmaAddress.QuadPart + AddressDescriptor.Offset;
         }
         if (Xsk->Tx.Xdp.Flags.MdlExt) {
             XDP_BUFFER_MDL *Mdl;
             Mdl = XdpGetMdlExtension(Buffer, &Xsk->Tx.Xdp.MdlExtension);
             Mdl->Mdl = Mapping->Mdl;
-            Mdl->MdlOffset = RelativeAddress;
+            Mdl->MdlOffset = AddressDescriptor.Offset;
         }
         if (Xsk->Tx.Xdp.Flags.CompletionContext) {
             CompletionContext =
@@ -4315,9 +4316,9 @@ XskReceiveSingleFrame(
             Xsk->Rx.Ring.Mask;
     XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
     XskBuffer = &XskFrame->Buffer;
-    XskBuffer->Address = UmemAddress;
+    XskBuffer->Address.BaseAddress = UmemAddress;
     ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
-    XskDescriptorSetOffset(&XskBuffer->Address, (UINT16)Xsk->Umem->Reg.Headroom);
+    XskBuffer->Address.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
     XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
 
     ++*CompletionOffset;
