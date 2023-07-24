@@ -282,8 +282,8 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
 
-  devkit:
-    name: Dev Kit
+  create_artifacts:
+    name: Create Release Artifacts
     needs: build
     strategy:
       fail-fast: false
@@ -305,11 +305,16 @@ jobs:
     - name: Create Runtime Kit
       shell: PowerShell
       run: tools/create-runtime-kit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
-    - name: Upload Kit
+    - name: Create Test Archive
+      shell: PowerShell
+      run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Release Artifacts
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
-        name: devkit_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/kit
+        name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: |
+          artifacts/kits/**/*.zip
+          artifacts/tests/**/*.zip
 
   etw:
     name: ETW Plugin
@@ -338,7 +343,7 @@ jobs:
 
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, devkit, etw]
+    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, create_artifacts, etw]
     runs-on: windows-latest
     steps:
     - run: echo "CI succeeded"

@@ -39,7 +39,10 @@ param (
     [switch]$EbpfPreinstalled = $false,
 
     [Parameter(Mandatory = $false)]
-    [int]$Timeout = 0
+    [int]$Timeout = 0,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TestBinaryPath = ""
 )
 
 Set-StrictMode -Version 'Latest'
@@ -99,15 +102,20 @@ for ($i = 1; $i -le $Iterations; $i++) {
             Write-Verbose "installed ebpf."
         }
 
-        $Args = @("$ArtifactsDir\xdpfunctionaltests.dll")
+        $TestArgs = @()
+        if (![string]::IsNullOrEmpty($TestBinaryPath)) {
+            $TestArgs += $TestBinaryPath
+        } else {
+            $TestArgs += "$ArtifactsDir\xdpfunctionaltests.dll"
+        }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
-            $Args += "/TestCaseFilter:$TestCaseFilter"
+            $TestArgs += "/TestCaseFilter:$TestCaseFilter"
         }
         if ($ListTestCases) {
-            $Args += "/lt"
+            $TestArgs += "/lt"
         }
-        $Args += "/logger:trx"
-        $Args += "/ResultsDirectory:$LogsDir"
+        $TestArgs += "/logger:trx"
+        $TestArgs += "/ResultsDirectory:$LogsDir"
 
         if ($IterationTimeout -gt 0) {
             $Watchdog = Start-Job -ScriptBlock {
@@ -120,8 +128,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
             }
         }
 
-        Write-Verbose "$VsTestPath\vstest.console.exe $Args"
-        & $VsTestPath\vstest.console.exe $Args
+        Write-Verbose "$VsTestPath\vstest.console.exe $TestArgs"
+        & $VsTestPath\vstest.console.exe $TestArgs
 
         if ($LastExitCode -ne 0) {
             Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction Continue
