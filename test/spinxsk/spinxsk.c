@@ -1723,7 +1723,7 @@ ProcessPkts(
                 XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Datapath->rxRing, consumerIndex++);
                 UINT64 *freeDesc = XskRingGetElement(&Datapath->rxFreeRing, producerIndex++);
 
-                *freeDesc = XskDescriptorGetAddress(rxDesc->Address);
+                *freeDesc = rxDesc->Address.BaseAddress;
             }
 
             XskRingConsumerRelease(&Datapath->rxRing, available);
@@ -1806,7 +1806,7 @@ ProcessPkts(
                 UINT64 *freeDesc = XskRingGetElement(&Datapath->txFreeRing, consumerIndex++);
                 XSK_BUFFER_DESCRIPTOR *txDesc = XskRingGetElement(&Datapath->txRing, producerIndex++);
 
-                txDesc->Address = *freeDesc;
+                txDesc->Address.AddressAndOffset = *freeDesc;
                 txDesc->Length = Datapath->txiosize;
             }
 

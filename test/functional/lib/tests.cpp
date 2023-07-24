@@ -1295,7 +1295,7 @@ SocketGetAndFreeRxDesc(
     )
 {
     XSK_BUFFER_DESCRIPTOR * RxDesc = SocketGetRxDesc(Socket, Index);
-    Socket->FreeDescriptors.push(XskDescriptorGetAddress(RxDesc->Address));
+    Socket->FreeDescriptors.push(RxDesc->Address.BaseAddress);
     return RxDesc;
 }
 
@@ -2124,8 +2124,7 @@ CreateTcpSocket(
         auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex++);
 
         TEST_TRUE(PktParseTcpFrame(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             RxDesc->Length, &TcpHeaderParsed, NULL, 0));
 
         if (*LocalPort == TcpHeaderParsed->th_sport) {
@@ -2510,8 +2509,7 @@ GenericRxSingleFrame()
     TEST_EQUAL(Buffer.DataLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Socket.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Socket.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             Buffer.VirtualAddress + Buffer.DataOffset,
             Buffer.DataLength));
 }
@@ -2553,8 +2551,7 @@ GenericRxBackfillAndTrailer()
     TEST_EQUAL(Buffer.DataLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Socket.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Socket.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             Buffer.VirtualAddress + Buffer.DataOffset,
             Buffer.DataLength));
 }
@@ -2641,8 +2638,7 @@ GenericRxAllQueueRedirect(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
 }
@@ -2728,8 +2724,7 @@ GenericRxTcpControl(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
@@ -2751,8 +2746,7 @@ GenericRxTcpControl(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
@@ -2774,8 +2768,7 @@ GenericRxTcpControl(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
@@ -2797,8 +2790,7 @@ GenericRxTcpControl(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
@@ -2820,8 +2812,7 @@ GenericRxTcpControl(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
@@ -2843,8 +2834,7 @@ GenericRxTcpControl(
     TEST_EQUAL(PacketBufferLength, RxDesc->Length);
     TEST_TRUE(
         RtlEqualMemory(
-            Xsk.Umem.Buffer.get() +
-                XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
             PacketBuffer,
             PacketBufferLength));
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
@@ -3415,8 +3405,7 @@ GenericRxLowResources()
         TEST_EQUAL(UdpMatchFrameLength, RxDesc->Length);
         TEST_TRUE(
             RtlEqualMemory(
-                Xsk.Umem.Buffer.get() + XskDescriptorGetAddress(RxDesc->Address) +
-                    XskDescriptorGetOffset(RxDesc->Address),
+                Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
                 UdpMatchFrame,
                 UdpMatchFrameLength));
     }
@@ -3506,8 +3495,7 @@ GenericRxMultiSocket()
         TEST_EQUAL(Buffer.DataLength, RxDesc->Length);
         TEST_TRUE(
             RtlEqualMemory(
-                Socket.Umem.Buffer.get() +
-                    XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+                Socket.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
                 Buffer.VirtualAddress + Buffer.DataOffset,
                 Buffer.DataLength));
     }
@@ -3598,8 +3586,7 @@ GenericRxMultiProgram()
             TEST_EQUAL(Buffer.DataLength, RxDesc->Length);
             TEST_TRUE(
                 RtlEqualMemory(
-                    Socket.Umem.Buffer.get() +
-                        XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+                    Socket.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
                     Buffer.VirtualAddress + Buffer.DataOffset,
                     Buffer.DataLength));
         }
@@ -4023,8 +4010,7 @@ GenericRxFragmentBuffer(
         TEST_EQUAL(ActualPacketLength, RxDesc->Length);
         TEST_TRUE(
             RtlEqualMemory(
-                Xsk.Umem.Buffer.get() +
-                    XskDescriptorGetAddress(RxDesc->Address) + XskDescriptorGetOffset(RxDesc->Address),
+                Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
                 &PacketBuffer[0] + Params->Backfill,
                 ActualPacketLength));
     } else if (Params->Action == XDP_PROGRAM_ACTION_L2FWD) {
@@ -4266,8 +4252,7 @@ GenericRxFromTxInspect(
         TEST_TRUE(
             RtlEqualMemory(
                 Xsk.Umem.Buffer.get() + UDP_HEADER_BACKFILL(Af) +
-                    XskDescriptorGetAddress(RxDesc->Address) +
-                        XskDescriptorGetOffset(RxDesc->Address),
+                    RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
@@ -4747,8 +4732,8 @@ GenericTxToRxInject()
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc->Address = TxBuffer;
-    XskDescriptorSetOffset(&TxDesc->Address, FrameOffset);
+    TxDesc->Address.BaseAddress = TxBuffer;
+    TxDesc->Address.Offset = FrameOffset;
     TxDesc->Length = UdpFrameLength;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
@@ -4786,8 +4771,8 @@ GenericTxSingleFrame()
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc->Address = TxBuffer;
-    XskDescriptorSetOffset(&TxDesc->Address, FrameOffset);
+    TxDesc->Address.BaseAddress = TxBuffer;
+    TxDesc->Address.Offset = FrameOffset;
     TxDesc->Length = TxFrameLength;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
@@ -4845,12 +4830,12 @@ GenericTxOutOfOrder()
     TEST_EQUAL(2, XskRingProducerReserve(&Xsk.Rings.Tx, 2, &ProducerIndex));
 
     XSK_BUFFER_DESCRIPTOR *TxDesc0 = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc0->Address = TxBuffer0;
-    XskDescriptorSetOffset(&TxDesc0->Address, FrameOffset);
+    TxDesc0->Address.BaseAddress = TxBuffer0;
+    TxDesc0->Address.Offset = FrameOffset;
     TxDesc0->Length = TxFrameLength;
     XSK_BUFFER_DESCRIPTOR *TxDesc1 = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc1->Address = TxBuffer1;
-    XskDescriptorSetOffset(&TxDesc1->Address, FrameOffset);
+    TxDesc1->Address.BaseAddress = TxBuffer1;
+    TxDesc1->Address.Offset = FrameOffset;
     TxDesc1->Length = TxFrameLength;
 
     XskRingProducerSubmit(&Xsk.Rings.Tx, 2);
@@ -4906,8 +4891,8 @@ GenericTxSharing()
         TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
         XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-        TxDesc->Address = TxBuffer;
-        XskDescriptorSetOffset(&TxDesc->Address, FrameOffset);
+        TxDesc->Address.BaseAddress = TxBuffer;
+        TxDesc->Address.Offset = FrameOffset;
         TxDesc->Length = TxFrameLength;
         XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
@@ -4962,8 +4947,8 @@ GenericTxPoke()
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc->Address = TxBuffer;
-    XskDescriptorSetOffset(&TxDesc->Address, FrameOffset);
+    TxDesc->Address.BaseAddress = TxBuffer;
+    TxDesc->Address.Offset = FrameOffset;
     TxDesc->Length = TxFrameLength;
 
     TEST_TRUE(XskRingProducerNeedPoke(&Xsk.Rings.Tx));
@@ -5042,7 +5027,7 @@ GenericTxMtu()
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc->Address = TxBuffer;
+    TxDesc->Address.AddressAndOffset = TxBuffer;
     TxDesc->Length = TestMtu;
 
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
@@ -5067,7 +5052,7 @@ GenericTxMtu()
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc->Address = TxBuffer;
+    TxDesc->Address.AddressAndOffset = TxBuffer;
     TxDesc->Length = TestMtu + 1;
 
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
@@ -5124,7 +5109,7 @@ GenericXskWait(
         TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
         XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-        TxDesc->Address = TxBuffer;
+        TxDesc->Address.AddressAndOffset = TxBuffer;
         TxDesc->Length = TxFrameLength;
         XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
@@ -5256,7 +5241,7 @@ GenericXskWaitAsync(
         TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
         XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-        TxDesc->Address = TxBuffer;
+        TxDesc->Address.AddressAndOffset = TxBuffer;
         TxDesc->Length = TxFrameLength;
         XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
@@ -5579,7 +5564,7 @@ GenericLoopback(
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-    TxDesc->Address = TxBuffer;
+    TxDesc->Address.AddressAndOffset = TxBuffer;
     TxDesc->Length = UdpFrameLength;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
 
@@ -6899,7 +6884,7 @@ GenericXskQueryAffinity()
                 UINT32 ProducerIndex;
                 TEST_EQUAL(1, XskRingProducerReserve(&Socket.Rings.Tx, 1, &ProducerIndex));
                 XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Socket, ProducerIndex++);
-                TxDesc->Address = TxBuffer;
+                TxDesc->Address.AddressAndOffset = TxBuffer;
                 TxDesc->Length = sizeof(BufferVa);
                 XskRingProducerSubmit(&Socket.Rings.Tx, 1);
                 XSK_NOTIFY_RESULT_FLAGS NotifyResult;

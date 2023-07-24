@@ -837,10 +837,9 @@ ReadRxPackets(
         XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
         UINT64 *freeDesc = XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
 
-        *freeDesc = XskDescriptorGetAddress(rxDesc->Address);
-        printf_verbose("Consuming RX entry   {address:%llu, offset:%u, length:%d}\n",
-            XskDescriptorGetAddress(rxDesc->Address), XskDescriptorGetOffset(rxDesc->Address),
-            rxDesc->Length);
+        *freeDesc = rxDesc->Address.BaseAddress;
+        printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+            rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
     }
 }
 
@@ -943,16 +942,15 @@ WriteTxPackets(
         UINT64 *freeDesc = XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
         XSK_BUFFER_DESCRIPTOR *txDesc = XskRingGetElement(&Queue->txRing, TxProducerIndex++);
 
-        txDesc->Address = *freeDesc;
+        txDesc->Address.BaseAddress = *freeDesc;
         assert(Queue->umemReg.Headroom <= MAXUINT16);
-        XskDescriptorSetOffset(&txDesc->Address, (UINT16)Queue->umemReg.Headroom);
+        txDesc->Address.Offset = (UINT16)Queue->umemReg.Headroom;
         txDesc->Length = Queue->txiosize;
         //
         // This benchmark does not write data into the TX packet.
         //
-        printf_verbose("Producing TX entry {address:%llu, offset:%u, length:%d}\n",
-            XskDescriptorGetAddress(txDesc->Address), XskDescriptorGetOffset(txDesc->Address),
-            txDesc->Length);
+        printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+            txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
     }
 }
 
@@ -1089,8 +1087,8 @@ ProcessFwd(
             XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Queue->rxRing, consumerIndex++);
             XSK_BUFFER_DESCRIPTOR *txDesc = XskRingGetElement(&Queue->txRing, producerIndex++);
 
-            printf_verbose("Consuming RX entry   {address:%llu, offset:%u, length:%d}\n",
-                XskDescriptorGetAddress(rxDesc->Address), XskDescriptorGetOffset(rxDesc->Address), rxDesc->Length);
+            printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+                rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
 
             txDesc->Address = rxDesc->Address;
             txDesc->Length = rxDesc->Length;
@@ -1100,17 +1098,16 @@ ProcessFwd(
                 // Swap MAC addresses.
                 //
                 CHAR *ethHdr =
-                    (CHAR*)Queue->umemReg.Address +
-                    XskDescriptorGetAddress(txDesc->Address) +
-                    XskDescriptorGetOffset(txDesc->Address);
+                    (CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress +
+                        txDesc->Address.Offset;
                 CHAR tmp[6];
                 memcpy(tmp, ethHdr, sizeof(tmp));
                 memcpy(ethHdr, ethHdr + 6, sizeof(tmp));
                 memcpy(ethHdr + 6, tmp, sizeof(tmp));
             }
 
-            printf_verbose("Producing TX entry {address:%llu, offset:%u, length:%d}\n",
-                XskDescriptorGetAddress(txDesc->Address), XskDescriptorGetOffset(txDesc->Address), txDesc->Length);
+            printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+                txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
         }
 
         XskRingConsumerRelease(&Queue->rxRing, available);
@@ -1253,13 +1250,13 @@ ProcessLat(
             UINT64 *fillDesc = XskRingGetElement(&Queue->fillRing, producerIndex++);
 
             printf_verbose(
-                "Consuming RX entry   {address:%llu, offset:%u, length:%d}\n",
-                XskDescriptorGetAddress(rxDesc->Address), XskDescriptorGetOffset(rxDesc->Address),
+                "Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+                rxDesc->Address.BaseAddress, rxDesc->Address.Offset,
                 rxDesc->Length);
 
             INT64 UNALIGNED *Timestamp = (INT64 UNALIGNED *)
-                ((CHAR*)Queue->umemReg.Address + XskDescriptorGetAddress(rxDesc->Address) +
-                    XskDescriptorGetOffset(rxDesc->Address) + Queue->txPatternLength);
+                ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress +
+                    rxDesc->Address.Offset + Queue->txPatternLength);
 
             printf_verbose("latency: %lld\n", NowQpc.QuadPart - *Timestamp);
 
@@ -1267,7 +1264,7 @@ ProcessLat(
                 Queue->latSamples[Queue->latIndex++] = NowQpc.QuadPart - *Timestamp;
             }
 
-            *fillDesc = XskDescriptorGetAddress(rxDesc->Address);
+            *fillDesc = rxDesc->Address.BaseAddress;
 
             printf_verbose("Producing FILL entry {address:%llu}\n", *fillDesc);
         }
@@ -1314,15 +1311,14 @@ ProcessLat(
                     Queue->umemReg.Headroom + Queue->txPatternLength);
             *Timestamp = NowQpc.QuadPart;
 
-            txDesc->Address = *freeDesc;
+            txDesc->Address.BaseAddress = *freeDesc;
             assert(Queue->umemReg.Headroom <= MAXUINT16);
-            XskDescriptorSetOffset(&txDesc->Address, (UINT16)Queue->umemReg.Headroom);
+            txDesc->Address.Offset = Queue->umemReg.Headroom;
             txDesc->Length = Queue->txiosize;
 
             printf_verbose(
-                "Producing TX entry {address:%llu, offset:%u, length:%d}\n",
-                XskDescriptorGetAddress(txDesc->Address), XskDescriptorGetOffset(txDesc->Address),
-                txDesc->Length);
+                "Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+                txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
         }
 
         XskRingConsumerRelease(&Queue->freeRing, available);

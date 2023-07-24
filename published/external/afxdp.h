@@ -16,13 +16,19 @@
 extern "C" {
 #endif
 
-#define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MAX 65535ull
-#define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT 48
-#define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MASK \
-    (XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MAX << XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT)
+typedef union _XSK_BUFFER_ADDRESS {
+    struct {
+        UINT64 BaseAddress : 48;
+        UINT64 Offset : 16;
+#pragma warning(suppress:4201) // nonstandard extension used: nameless struct/union
+    } DUMMYUNIONNAME;
+    UINT64 AddressAndOffset;
+} XSK_BUFFER_ADDRESS;
+
+C_ASSERT(sizeof(XSK_BUFFER_ADDRESS) == sizeof(UINT64));
 
 typedef struct _XSK_BUFFER_DESCRIPTOR {
-    UINT64 Address;
+    XSK_BUFFER_ADDRESS Address;
     UINT32 Length;
     UINT32 Reserved;
 } XSK_BUFFER_DESCRIPTOR;

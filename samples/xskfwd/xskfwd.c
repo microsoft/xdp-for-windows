@@ -248,8 +248,7 @@ main(
             // Swap source and destination fields within the frame payload.
             //
             TranslateRxToTx(
-                &Frame[XskDescriptorGetAddress(RxBuffer->Address) +
-                       XskDescriptorGetOffset(RxBuffer->Address)],
+                &Frame[RxBuffer->Address.BaseAddress + RxBuffer->Address.Offset],
                 RxBuffer->Length);
 
             //

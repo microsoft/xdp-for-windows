@@ -5,21 +5,26 @@ A structure for an AF_XDP data buffer.
 ## Syntax
 
 ```C
-#define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MAX 65535ull
-#define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT 48
-#define XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MASK \
-    (XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_MAX << XSK_BUFFER_DESCRIPTOR_ADDR_OFFSET_SHIFT)
-
 typedef struct _XSK_BUFFER_DESCRIPTOR {
-    // Bits 0:47 encode the address of the chunk, relative to UMEM start address.
-    // Bits 48:63 encode the packet offset within the chunk.
-    UINT64 Address;
-    // Length of the packet.
+    XSK_BUFFER_ADDRESS Address;
     UINT32 Length;
-    // Must be 0.
     UINT32 Reserved;
 } XSK_BUFFER_DESCRIPTOR;
 ```
+
+## Members
+
+`Address`
+
+A [`XSK_BUFFER_ADDRESS`](XSK_BUFFER_ADDRESS.md) structure specifying the XSK buffer and data offset within the buffer.
+
+`Length`
+
+The length of data within the buffer.
+
+`Reserved`
+
+Reserved, should be set to zero.
 
 ## See Also
 
