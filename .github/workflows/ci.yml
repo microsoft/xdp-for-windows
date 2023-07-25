@@ -313,7 +313,7 @@ jobs:
       with:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
-          artifacts/kits/**/*.zip
+          artifacts/kit/**/*.zip
           artifacts/tests/**/*.zip
 
   etw:
