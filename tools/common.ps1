@@ -77,6 +77,10 @@ function Get-BuildBranch {
     }
 }
 
+function Is-ReleaseBuild {
+    return ((Get-BuildBranch) -match '^release/|^tags/')
+}
+
 function Get-VsTestPath {
     # Unfortunately CI doesn't add vstest to PATH. Test existence of vstest
     # install paths instead.

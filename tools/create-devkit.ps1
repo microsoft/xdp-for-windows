@@ -13,6 +13,9 @@ param (
     [string]$Config = "Debug"
 )
 
+Set-StrictMode -Version 'Latest'
+$ErrorActionPreference = 'Stop'
+
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
@@ -62,7 +65,7 @@ $Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
 
 $VersionString = "$Major.$Minor.$Patch"
 
-if (!((Get-BuildBranch) -match '^release/|^tags/')) {
+if (!(Is-ReleaseBuild)) {
     $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
 }
 
