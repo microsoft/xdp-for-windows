@@ -30,6 +30,9 @@ param (
     [switch]$RuntimeKit = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$TestArchive = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$UpdateDeps = $false
 )
 
@@ -92,4 +95,8 @@ if ($DevKit) {
 
 if ($RuntimeKit) {
     & $RootDir\tools\create-runtime-kit.ps1 -Config $Config
+}
+
+if ($TestArchive) {
+    & $RootDir\tools\create-test-archive.ps1 -Config $Config
 }
