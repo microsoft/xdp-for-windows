@@ -47,7 +47,7 @@ $Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
 
 $VersionString = "$Major.$Minor.$Patch"
 
-if (!((Get-BuildBranch).StartsWith("release/"))) {
+if (!((Get-BuildBranch) -match '^release/|^tags/')) {
     $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
 }
 
