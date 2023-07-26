@@ -59,9 +59,9 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.lib" $DstPath\lib
 copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.pdb" $DstPath\lib
 
 [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion[0]
-$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion[0]
-$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion[0]
+$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
+$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
+$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
 
 $VersionString = "$Major.$Minor.$Patch"
 
