@@ -58,12 +58,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.lib" $DstPath\lib
 # throw build exceptions if symbols are missing for statically linked code.
 copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.pdb" $DstPath\lib
 
-[xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
-
-$VersionString = "$Major.$Minor.$Patch"
+$VersionString = Get-XdpBuildVersionString
 
 if (!(Is-ReleaseBuild)) {
     $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)

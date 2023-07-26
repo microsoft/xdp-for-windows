@@ -65,7 +65,7 @@ $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 # File paths.
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
-$XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.msi"
+$XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.$(Get-XdpBuildVersionString).msi"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"

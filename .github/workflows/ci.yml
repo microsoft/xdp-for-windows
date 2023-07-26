@@ -302,9 +302,6 @@ jobs:
     - name: Create Dev Kit
       shell: PowerShell
       run: tools/create-devkit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
-    - name: Create Runtime Kit
-      shell: PowerShell
-      run: tools/create-runtime-kit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Create Test Archive
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}

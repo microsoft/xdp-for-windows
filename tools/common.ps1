@@ -123,7 +123,7 @@ function Get-EbpfMsiFullPath {
 # Returns the eBPF MSI download URL
 function Get-EbpfMsiUrl {
     $EbpfMsiFilename = Get-EbpfMsiFilename
-    return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/v0.9.1/$EbpfMsiFilename"
 }
 
 function Get-CoreNetCiCommit {
@@ -140,6 +140,21 @@ function Get-CoreNetCiArtifactPath {
     $Commit = Get-CoreNetCiCommit
 
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
+}
+
+function Get-XdpBuildVersion {
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $XdpBuildVersion = @{}
+    [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
+    $XdpBuildVersion.Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
+    $XdpBuildVersion.Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
+    $XdpBuildVersion.Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+    return $XdpBuildVersion;
+}
+
+function Get-XdpBuildVersionString {
+    $XdpVersion = Get-XdpBuildVersion
+    return "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
 }
 
 # Returns whether the script is running as a built-in administrator.
