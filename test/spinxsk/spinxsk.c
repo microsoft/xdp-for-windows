@@ -420,13 +420,13 @@ AttachXdpEbpfProgram(
 
     switch (RandUlong() % 3) {
     case 0:
-        ProgramRelativePath = "\\bpf\\drop.o";
+        ProgramRelativePath = "\\bpf\\drop.sys";
         break;
     case 1:
         ProgramRelativePath = "\\bpf\\pass.sys";
         break;
     case 2:
-        ProgramRelativePath = "\\bpf\\l1fwd.o";
+        ProgramRelativePath = "\\bpf\\l1fwd.sys";
         break;
     default:
         ASSERT_FRE(FALSE);
