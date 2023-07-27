@@ -4,6 +4,10 @@ The [`afxdp.h`](../published/external/afxdp.h) header declares the AF_XDP socket
 
 > **TODO** Complete AF_XDP documentation.
 
+## Samples
+
+The [`xskfwd`](../samples/xskfwd/) sample provides a simple echo server using `AF_XDP` sockets.
+
 ## See Also
 
 [`XSK_BUFFER_ADDRESS`](api/XSK_BUFFER_ADDRESS.md)  
