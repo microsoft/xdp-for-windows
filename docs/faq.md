@@ -13,7 +13,7 @@ possible to build a thin shim layer to abstract any differences.
 
 > Is XDP-for-Windows source compatible with Linux XDP?
 
-We are not source compatible with Linux, partly due to differences in the underlying OS platforms. We intend to provide a helper library similar to the `xdp-tools` header [xsk.h] or contribute Windows support upstream.
+We are not source compatible with Linux, partly due to differences in the underlying OS platforms. We intend to provide a helper library similar to the `xdp-tools` header [xsk.h](https://github.com/xdp-project/xdp-tools/blob/master/headers/xdp/xsk.h) or contribute Windows support upstream.
 
 > Do you support eBPF programs?
 
