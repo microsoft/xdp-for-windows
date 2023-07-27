@@ -27,9 +27,6 @@ param (
     [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$RuntimeKit = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
 
     [Parameter(Mandatory = $false)]
@@ -91,10 +88,6 @@ if (!$NoInstaller) {
 
 if ($DevKit) {
     & $RootDir\tools\create-devkit.ps1 -Config $Config
-}
-
-if ($RuntimeKit) {
-    & $RootDir\tools\create-runtime-kit.ps1 -Config $Config
 }
 
 if ($TestArchive) {

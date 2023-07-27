@@ -32,7 +32,7 @@ copy docs\usage.md $DstPath
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\CoreNetSignRoot.cer" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdpinstaller\xdp-for-windows.msi" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdpinstaller\xdp-for-windows.$(Get-XdpBuildVersionString).msi" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.exe" $DstPath\bin
@@ -58,12 +58,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.lib" $DstPath\lib
 # throw build exceptions if symbols are missing for statically linked code.
 copy "artifacts\bin\$($Platform)_$($Config)\xdpnmr.pdb" $DstPath\lib
 
-[xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
-
-$VersionString = "$Major.$Minor.$Patch"
+$VersionString = Get-XdpBuildVersionString
 
 if (!(Is-ReleaseBuild)) {
     $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)

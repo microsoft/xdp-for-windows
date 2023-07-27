@@ -142,6 +142,21 @@ function Get-CoreNetCiArtifactPath {
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
 }
 
+function Get-XdpBuildVersion {
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $XdpBuildVersion = @{}
+    [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
+    $XdpBuildVersion.Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
+    $XdpBuildVersion.Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
+    $XdpBuildVersion.Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+    return $XdpBuildVersion;
+}
+
+function Get-XdpBuildVersionString {
+    $XdpVersion = Get-XdpBuildVersion
+    return "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+}
+
 # Returns whether the script is running as a built-in administrator.
 function Test-Admin {
     return ([Security.Principal.WindowsPrincipal] `

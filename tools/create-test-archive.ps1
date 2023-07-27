@@ -38,12 +38,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll" $DstPath\bin
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.pdb"   $DstPath\symbols
 
-[xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-$Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-$Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-$Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
-
-$VersionString = "$Major.$Minor.$Patch"
+$VersionString = Get-XdpBuildVersionString
 
 if (!(Is-ReleaseBuild)) {
     $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
