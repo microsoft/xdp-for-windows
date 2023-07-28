@@ -5,6 +5,9 @@
 
 #pragma once
 
+#pragma warning(push)
+#pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
+
 #pragma pack(push)
 #pragma pack(1)
 typedef struct QUIC_HEADER_INVARIANT {
@@ -94,6 +97,9 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
 } XDP_PROGRAM_FRAME_CACHE;
 
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
+
 typedef struct _XDP_PROGRAM {
     //
     // Storage for discontiguous headers.
@@ -104,6 +110,10 @@ typedef struct _XDP_PROGRAM {
     UINT32 RuleCount;
     XDP_RULE Rules[0];
 } XDP_PROGRAM;
+
+#pragma warning(pop)
+
+#pragma warning(pop)
 
 VOID
 XdpProgramDeleteRule(

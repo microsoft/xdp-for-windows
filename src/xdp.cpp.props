@@ -33,6 +33,8 @@
         POOL_ZERO_DOWN_LEVEL_SUPPORT=1;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
       <!-- Disable C26812: The enum type '' is unscoped. Prefer 'enum class' over 'enum' -->
       <DisableSpecificWarnings>26812;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>

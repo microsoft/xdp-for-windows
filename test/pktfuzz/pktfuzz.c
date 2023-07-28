@@ -94,7 +94,6 @@ LLVMFuzzerTestOneInput(
     XDP_INSPECTION_CONTEXT InspectionContext = {0};
     UINT32 FrameRingIndex;
     UINT32 FragmentRingIndex = 0;
-    UINT16 BufferDataLength;
     XDP_FRAME_WITH_EXTENSIONS *FrameExt = NULL;
     XDP_BUFFER *Buffer;
 
