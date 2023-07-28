@@ -37,4 +37,5 @@
       <DisableSpecificWarnings>26812;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
   </ItemDefinitionGroup>
+  <UseInternalMSUniCrtPackage>true</UseInternalMSUniCrtPackage>
 </Project>
