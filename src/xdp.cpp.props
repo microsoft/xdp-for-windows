@@ -15,6 +15,10 @@
   <PropertyGroup>
     <IntDir>$(SolutionDir)build\$(Platform)_$(Configuration)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
+  <!-- OneBranch goop -->
+  <PropertyGroup>
+    <UseInternalMSUniCrtPackage>true</UseInternalMSUniCrtPackage>
+  </PropertyGroup>
   <!-- Define DBG in Debug configurations -->
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
