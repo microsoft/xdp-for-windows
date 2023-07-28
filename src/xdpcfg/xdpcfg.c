@@ -70,6 +70,4 @@ wmain(
     } else {
         Usage();
     }
-
-    return EXIT_SUCCESS;
 }
