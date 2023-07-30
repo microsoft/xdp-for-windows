@@ -22,6 +22,7 @@ XdpProgramCapturePortSet(
     _Inout_ XDP_PORT_SET *KernelPortSet
     )
 {
+    UNREFERENCED_PARAMETER(UserPortSet);
     UNREFERENCED_PARAMETER(RequestorMode);
 
     KernelPortSet->PortSet = DummyPortSet;

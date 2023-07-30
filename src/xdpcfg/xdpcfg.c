@@ -32,14 +32,21 @@ SetDeviceSddl(
     _In_ WCHAR **ArgV
     )
 {
+    SIZE_T StringLength;
 
     if (ArgC < 3) {
         Usage();
     }
 
+    StringLength = wcslen(ArgV[2]) * sizeof(WCHAR) + sizeof(UNICODE_NULL);
+    if (StringLength > MAXDWORD) {
+        fprintf(stderr, "Integer overflow\n");
+        return EXIT_FAILURE;
+    }
+
     if (!SetupDiSetClassRegistryPropertyW(
-        &XDP_DEVICE_CLASS_GUID, SPCRP_SECURITY_SDS, (BYTE *)ArgV[2],
-        wcslen(ArgV[2]) * sizeof(WCHAR) + sizeof(UNICODE_NULL), NULL, NULL)) {
+            &XDP_DEVICE_CLASS_GUID, SPCRP_SECURITY_SDS, (BYTE *)ArgV[2], (DWORD)StringLength,
+            NULL, NULL)) {
         fprintf(stderr, "SetupDiSetClassRegistryPropertyW failed: 0x%x\n", GetLastError());
         return EXIT_FAILURE;
     }
@@ -63,6 +70,4 @@ wmain(
     } else {
         Usage();
     }
-
-    return EXIT_SUCCESS;
 }

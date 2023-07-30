@@ -11,6 +11,9 @@ DECLARE_HANDLE(XDP_RX_QUEUE_HANDLE);
 DECLARE_HANDLE(XDP_TX_QUEUE_HANDLE);
 DECLARE_HANDLE(XDP_INTERFACE_HANDLE);
 
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
+
 typedef struct DECLSPEC_CACHEALIGN _XDP_RING {
     UINT32 ProducerIndex;
     UINT32 ConsumerIndex;
@@ -22,6 +25,8 @@ typedef struct DECLSPEC_CACHEALIGN _XDP_RING {
     // Followed by power-of-two array of ring elements.
     //
 } XDP_RING;
+
+#pragma warning(pop)
 
 C_ASSERT(sizeof(XDP_RING) == SYSTEM_CACHE_ALIGNMENT_SIZE);
 
