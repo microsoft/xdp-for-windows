@@ -83,7 +83,7 @@ main(
     //
     // Retrieve the XDP API dispatch table.
     //
-    Result = XdpOpenApi(XDP_VERSION_PRERELEASE, &XdpApi);
+    Result = XdpOpenApi(XDP_API_VERSION_1, &XdpApi);
     if (FAILED(Result)) {
         LOGERR("XdpOpenApi failed: %x", Result);
         return EXIT_FAILURE;

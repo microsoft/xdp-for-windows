@@ -349,7 +349,7 @@ main()
     CHAR *Str;
     CHAR *StrTokContext = NULL;
 
-    Result = XdpOpenApi(XDP_VERSION_PRERELEASE, &XdpApi);
+    Result = XdpOpenApi(XDP_API_VERSION_1, &XdpApi);
     if (FAILED(Result)) {
         printf("Error: Failed to load XDP API Result=%d\n", Result);
         goto Exit;

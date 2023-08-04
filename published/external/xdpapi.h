@@ -55,7 +55,7 @@ typedef struct _XDP_API_TABLE XDP_API_TABLE;
 // The only API version currently supported. Any change to the API is considered
 // a breaking change and support for previous versions will be removed.
 //
-#define XDP_VERSION_PRERELEASE 100007
+#define XDP_API_VERSION_1 1
 
 typedef
 HRESULT

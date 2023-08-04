@@ -1121,7 +1121,7 @@ InitializeQueue(
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
 
-    res = XdpOpenApi(XDP_VERSION_PRERELEASE, &queue->xdpApi);
+    res = XdpOpenApi(XDP_API_VERSION_1, &queue->xdpApi);
     if (FAILED(res)) {
         goto Exit;
     }
