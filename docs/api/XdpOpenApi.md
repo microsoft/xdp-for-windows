@@ -20,7 +20,7 @@ XDPAPI XDP_OPEN_API_FN XdpOpenApi;
 
 `XdpApiVersion`
 
-The XDP API version required by the caller.
+The XDP API version required by the caller. Currently only `XDP_API_VERSION_1` is supported.
 
 `XdpApiTable`
 

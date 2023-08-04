@@ -60,7 +60,7 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
 };
 
-static CONST XDP_API_TABLE XdpApiTablePrerelease = {
+static CONST XDP_API_TABLE XdpApiTableV1 = {
     .XdpOpenApi = XdpOpenApi,
     .XdpCloseApi = XdpCloseApi,
     .XdpGetRoutine = XdpGetRoutine,
@@ -86,11 +86,11 @@ XdpOpenApi(
 {
     *XdpApiTable = NULL;
 
-    if (XdpApiVersion != XDP_VERSION_PRERELEASE) {
+    if (XdpApiVersion != XDP_API_VERSION_1) {
         return E_NOINTERFACE;
     }
 
-    *XdpApiTable = &XdpApiTablePrerelease;
+    *XdpApiTable = &XdpApiTableV1;
 
     return S_OK;
 }
@@ -101,7 +101,7 @@ XdpCloseApi(
     _In_ CONST XDP_API_TABLE *XdpApiTable
     )
 {
-    FRE_ASSERT(XdpApiTable == &XdpApiTablePrerelease);
+    FRE_ASSERT(XdpApiTable == &XdpApiTableV1);
 }
 
 VOID *
