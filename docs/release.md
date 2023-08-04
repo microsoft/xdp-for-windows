@@ -60,6 +60,8 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 
 > **Note** - TODO
 
+* Authorize the new branch in the OneBranch.Official internal pipeline ([Manage Build Pipeline Authorized Branches](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2407)) under OneBranch Resources.
+
 ## Servicing a new Release Branch
 
 > **Note** - TODO
