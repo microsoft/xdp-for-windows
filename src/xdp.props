@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
-    <XdpMinorVersion>0</XdpMinorVersion>
+    <XdpMinorVersion>1</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
     <!-- Project-wide properties -->
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.9.0\</EbpfPackagePath>
