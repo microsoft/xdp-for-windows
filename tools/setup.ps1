@@ -66,6 +66,8 @@ $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
 $XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
+# Determine the XDP build version string from xdp.sys. The Windows file version
+# format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
