@@ -8,6 +8,15 @@
 
 XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
 
+### Install the Latest Official
+
+```PowerShell
+iwr https://aka.ms/xdp-v1.msi -OutFile xdp.msi
+msiexec /i xdp.msi /quiet
+```
+
+### Install a Test Version
+
 If xdp.sys is not production-signed:
 
 ```bat
