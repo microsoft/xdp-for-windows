@@ -50,7 +50,8 @@ The following are the official releases of XDP-for-Windows.
 
 | Version | Fork Date | Release Date | End of Support |
 |   --    |     --    |       --     |       --       |
-| v1.0.0 | TBD | TBD | TBD |
+| [v1.0.0](https://github.com/microsoft/xdp-for-windows/releases/tag/v1.0.0) | Jul 26, 2023 | Aug 7, 2023 | Feb 7, 2025 |
+|   TBD    |     TBD    |       TBD     |       TBD       |
 
 # Release Process
 
