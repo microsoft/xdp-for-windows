@@ -31,8 +31,6 @@ New-Item -Path $DstPath -ItemType Directory > $null
 copy docs\usage.md $DstPath
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\CoreNetSignRoot.cer" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdpinstaller\xdp-for-windows.$(Get-XdpBuildVersionString).msi" $DstPath\bin\xdp-for-windows.msi
 copy "artifacts\bin\$($Platform)_$($Config)\pktcmd.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.exe" $DstPath\bin
@@ -62,6 +60,8 @@ $VersionString = Get-XdpBuildVersionString
 
 if (!(Is-ReleaseBuild)) {
     $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+
+    copy "artifacts\bin\$($Platform)_$($Config)\CoreNetSignRoot.cer" $DstPath\bin
 }
 
 Compress-Archive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*
