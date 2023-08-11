@@ -28,6 +28,7 @@
 #include <xdp/ndis6.h>
 #include <xdp/ndis6poll.h>
 #include <xdp/objectheader.h>
+#include <xdp/offload.h>
 #include <xdp/pollinfo.h>
 #include <xdp/queueinfo.h>
 #include <xdp/rtl.h>
