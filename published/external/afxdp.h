@@ -7,6 +7,7 @@
 #define AFXDP_H
 
 #include <xdp/hookid.h>
+#include <xdp/offload.h>
 
 #ifndef XDPAPI
 #define XDPAPI __declspec(dllimport)
@@ -38,6 +39,13 @@ typedef struct _XSK_FRAME_DESCRIPTOR {
     //
     // Followed by various descriptor extensions.
     //
+    XDP_FRAME_LAYOUT Layout;
+    XDP_FRAME_CHECKSUM Checksum;
+    union {
+        XDP_FRAME_GSO Gso;
+        XDP_FRAME_GRO Gro;
+#pragma warning(suppress:4201) // nonstandard extension used: nameless struct/union
+    } DUMMYUNIONNAME;
 } XSK_FRAME_DESCRIPTOR;
 
 //
