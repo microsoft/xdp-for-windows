@@ -164,6 +164,9 @@ XdpGenericBuildTxNbl(
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
         (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
             &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
+    NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO *UsoInfo =
+        (NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO *)
+            &NET_BUFFER_LIST_INFO(Nbl, UdpSegmentationOffloadInfo);
     IoBuildPartialMdl(
         BufferMdl->Mdl, Mdl,
         (UCHAR *)MmGetMdlVirtualAddress(BufferMdl->Mdl)
@@ -217,10 +220,6 @@ XdpGenericBuildTxNbl(
     }
 
     if (Frame->Gso.UDP.Mss > 0) {
-        NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO *UsoInfo =
-            (NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO *)
-                &NET_BUFFER_LIST_INFO(Nbl, UdpSegmentationOffloadInfo);
-
         UsoInfo->Transmit.MSS = Frame->Gso.UDP.Mss;
 
         //
@@ -243,6 +242,8 @@ XdpGenericBuildTxNbl(
             UsoInfo->Transmit.IPVersion = NDIS_UDP_SEGMENTATION_OFFLOAD_IPV6;
             break;
         }
+    } else {
+        UsoInfo->Value = 0;
     }
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
