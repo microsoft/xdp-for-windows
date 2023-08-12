@@ -669,6 +669,13 @@ XskFillTx(
         }
 
         //
+        // TODO: use proper volatile memcopies.
+        //
+        Frame->Layout = XskFrame->Layout;
+        Frame->Checksum = XskFrame->Checksum;
+        Frame->Gso = XskFrame->Gso;
+
+        //
         // TODO: enforce hardware LSO/USO limit.
         //
         MaxFrameLength = Frame->Gso.UDP.Mss > 0 ? MAXUINT16 : Xsk->Tx.Xdp.MaxFrameLength;
@@ -708,9 +715,6 @@ XskFillTx(
             CompletionContext->Context = &Xsk->Tx.Xdp.DatapathClientEntry;
         }
 
-        Frame->Layout = XskFrame->Layout;
-        Frame->Checksum = XskFrame->Checksum;
-        Frame->Gso = XskFrame->Gso;
 
         EventWriteXskTxEnqueue(
             &MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Ring.Shared->ConsumerIndex + i,
