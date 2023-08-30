@@ -328,7 +328,7 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.arch }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
         Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.arch }}
-        Copy-Item -Path artifacts/downlevel-test/${{ matrix.arch }}/bin/* -DestinationPath artifacts/downlevel-test/${{ matrix.arch }}_${{matrix.configuration}}
+        Copy-Item -Path artifacts/downlevel-test/${{ matrix.arch }}/bin/* -DestinationPath artifacts/bin/${{ matrix.arch }}_${{ matrix.configuration }}
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 15
