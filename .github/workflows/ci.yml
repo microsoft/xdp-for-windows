@@ -290,6 +290,65 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
 
+  downlevel_functional_tests:
+    name: Downlevel Functional Tests
+    needs: build
+    env:
+      Runtime: 15 # minutes. Update timeout-minutes with any changes.
+      Iters: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        downlevel_release: [1.0.0]
+        windows: [2019, 2022, Prerelease]
+        configuration: [Release]
+        platform: [x64]
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      with:
+        sparse-checkout: tools
+    - name: Check Drivers
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Download Downlevel Tests
+      shell: PowerShell
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.platform }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
+        Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
+        Copy-Item -Path artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Destination artifacts/bin/${{ matrix.platform }}_${{ matrix.configuration }}
+    - name: Run Tests
+      shell: PowerShell
+      timeout-minutes: 15
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -Timeout ${{ env.Runtime }}
+    - name: Convert Logs
+      if: ${{ always() }}
+      timeout-minutes: 5
+      shell: PowerShell
+      run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: ${{ always() }}
+      with:
+        name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
+
   create_artifacts:
     name: Create Release Artifacts
     needs: build
@@ -348,7 +407,7 @@ jobs:
 
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, create_artifacts, etw]
+    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
     runs-on: windows-latest
     steps:
     - run: echo "CI succeeded"
