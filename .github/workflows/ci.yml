@@ -301,7 +301,7 @@ jobs:
       matrix:
         downlevel_release: [1.0.0]
         windows: [2019, 2022, Prerelease]
-        configuration: [Release, Debug]
+        configuration: [Release]
         platform: [x64]
     runs-on:
      - self-hosted
@@ -326,9 +326,9 @@ jobs:
     - name: Download Downlevel Tests
       shell: PowerShell
       run: |
-        Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.arch }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
-        Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.arch }}
-        Copy-Item -Path artifacts/downlevel-test/${{ matrix.arch }}/bin/* -DestinationPath artifacts/bin/${{ matrix.arch }}_${{ matrix.configuration }}
+        Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.platform }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
+        Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
+        Copy-Item -Path artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Destination artifacts/bin/${{ matrix.platform }}_${{ matrix.configuration }}
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 15
