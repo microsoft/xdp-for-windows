@@ -35,7 +35,7 @@ jobs:
     runs-on: windows-${{ matrix.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
       with:
         submodules: recursive
     - name: Setup MSBuild.exe
@@ -99,7 +99,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -162,7 +162,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -217,7 +217,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
       with:
         sparse-checkout: tools
     - name: Download Artifacts
@@ -251,7 +251,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -309,7 +309,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -360,7 +360,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
     - name: Download Artifacts
       uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a
       with:
@@ -390,7 +390,7 @@ jobs:
         configuration: [Release, Debug]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+      uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
     - name: Setup .NET
       uses: actions/setup-dotnet@3447fd6a9f9e57506b15f895c5b76d3b197dc7c2
       with:
