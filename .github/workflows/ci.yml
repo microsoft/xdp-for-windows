@@ -405,9 +405,19 @@ jobs:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
 
+  netperf:
+    name: Run Perf
+    runs-on: windows-latest
+    steps:
+    - name: Run NetPerf Workflow
+      shell: pwsh
+      run: |
+        $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
+        iex "& { $(irm $url) } xdp xdp ${{ github.ref }} ${{ github.sha }} ${{ secrets.NET_PERF_TRIGGER }}"
+
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw, netperf]
     runs-on: windows-latest
     steps:
     - run: echo "CI succeeded"
