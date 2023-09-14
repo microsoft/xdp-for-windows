@@ -26,6 +26,8 @@ git submodule update --init --recursive
 - [LLVM 11.0.1](https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/LLVM-11.0.1-win64.exe)
   - This is required to build eBPF programs. XDP drivers do not require LLVM.
   - The eBPF project is currently [incompatible](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#prerequisites) with newer LLVM versions.
+- [WiX](https://github.com/wixtoolset/wix3/releases)
+  - This is required to build the installer.
 
 ### Building
 
