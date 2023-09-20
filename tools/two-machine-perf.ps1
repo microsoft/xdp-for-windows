@@ -5,15 +5,21 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64")]
-    [string]$Arch = "x64"
+    [string]$Arch = "x64",
+
+    [Parameter(Mandatory = $false)]
+    [string]$PeerName = "netperf-peer",
+
+    [Parameter(Mandatory = $false)]
+    [string]$RemotePSConfiguration = "PowerShell.7"
 )
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
 # Set up the connection to the peer over remote powershell.
-Write-Output "Connecting to netperf-peer..."
-$Session = New-PSSession -ComputerName "netperf-peer" -ConfigurationName PowerShell.7
+Write-Output "Connecting to $PeerName..."
+$Session = New-PSSession -ComputerName $PeerName -ConfigurationName $RemotePSConfiguration
 if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
     exit
@@ -38,24 +44,28 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 # Prepare the machines for the testing.
 Write-Output "Preparing machines for testing..."
-.\tools\prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
+.\tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
 Invoke-Command -Session $Session -ScriptBlock {
-    C:\_work\tools\prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
+    C:\_work\tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
 }
 
 try {
 # Install XDP on the machines.
-Write-Output "Installing XDP on the machines..."
+Write-Output "Installing XDP locally..."
 tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch)
     C:\_work\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
-}
+} -ArgumentList $Config, $Arch
 
 # Run xskbench on the server.
 # TODO
 
 } finally {
+    Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    Write-Output "Removing XDP on peer..."
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch)
         C:\_work\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
