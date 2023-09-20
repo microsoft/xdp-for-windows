@@ -74,7 +74,7 @@ function Get-LocalAddress {
 
         $ToMaskLocalAddress = Convert-HostToNetworkOrder -Address $LocalIpAddr
 
-        $Mask = (1 -shl $_.PrefixLength) - 1
+        $Mask = (1uL -shl $_.PrefixLength) - 1
         $Mask = $Mask -shl (32 - $_.PrefixLength)
         $LocalSubnet = $ToMaskLocalAddress -band $Mask
 
