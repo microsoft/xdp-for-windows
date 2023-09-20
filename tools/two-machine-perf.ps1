@@ -26,8 +26,8 @@ if ($null -eq $Session) {
 }
 
 # Find all the local and remote IP and MAC addresses.
-$RemoteAddress = $Session.ComputerName
-Write-Output "Successfully conencted to peer: $RemoteAddress"
+$RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)
+Write-Output "Successfully connected to peer: $RemoteAddress"
 
 $LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress).IPAddress
 Write-Output "Local address: $LocalAddress"
