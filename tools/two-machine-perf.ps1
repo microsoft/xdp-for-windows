@@ -15,7 +15,8 @@ param (
 )
 
 Set-StrictMode -Version 'Latest'
-$ErrorActionPreference = 'Stop'
+$PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
 # Set up the connection to the peer over remote powershell.
 Write-Output "Connecting to $PeerName..."
@@ -26,7 +27,7 @@ if ($null -eq $Session) {
 }
 
 # Find all the local and remote IP and MAC addresses.
-$RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)
+$RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
 Write-Output "Successfully connected to peer: $RemoteAddress"
 
 $LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress).IPAddress
