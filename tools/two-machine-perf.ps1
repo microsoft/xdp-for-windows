@@ -24,8 +24,22 @@ if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
     exit
 }
+
+# Find all the local and remote IP and MAC addresses.
 $RemoteAddress = $Session.ComputerName
 Write-Output "Successfully conencted to peer: $RemoteAddress"
+
+$LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress).IPAddress
+Write-Output "Local address: $LocalAddress"
+
+$LocalMacAddress = (Get-NetAdapter | Where-Object { (Get-NetIPAddress -InterfaceIndex $_.ifIndex).IPAddress -contains $LocalAddress }).MacAddress
+Write-Output "Local MAC address: $LocalMacAddress"
+
+$RemoteMacAddress = Invoke-Command -Session $Session -ScriptBlock {
+    param ($LocalAddress)
+    return (Get-NetAdapter | Where-Object { (Get-NetIPAddress -InterfaceIndex $_.ifIndex).IPAddress -contains $LocalAddress }).MacAddress
+} -ArgumentList $RemoteAddress
+Write-Output "Remote MAC address: $RemoteMacAddress"
 
 # Copy the artifacts to the peer.
 Write-Output "Copying files to peer..."
