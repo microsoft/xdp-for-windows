@@ -33,7 +33,7 @@ Copy-Item -ToSession $Session .\tools -Destination C:\_work\tools -Recurse
 tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch)
-    C:\_work\quic\tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
+    C:\_work\tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
 } -ArgumentList $Config, $Arch
 run: tools/prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
 
@@ -41,7 +41,7 @@ run: tools/prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
 Write-Output "Preparing machines for testing..."
 .\tools\prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
 Invoke-Command -Session $Session -ScriptBlock {
-    C:\_work\quic\tools\prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
+    C:\_work\tools\prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
 }
 
 try {
@@ -50,7 +50,7 @@ Write-Output "Installing XDP on the machines..."
 Write-Verbose "installing xdp..."
 .tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 Invoke-Command -Session $Session -ScriptBlock {
-    C:\_work\quic\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+    C:\_work\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 }
 
 # Run xskbench on the server.
@@ -61,6 +61,6 @@ Write-Output "Starting xskbench server..."
     .tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch)
-        C:\_work\quic\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        C:\_work\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
     } -ArgumentList $Config, $Arch
 }
