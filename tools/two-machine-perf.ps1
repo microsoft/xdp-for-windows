@@ -46,18 +46,16 @@ Invoke-Command -Session $Session -ScriptBlock {
 try {
 # Install XDP on the machines.
 Write-Output "Installing XDP on the machines..."
-Write-Verbose "installing xdp..."
-.tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 Invoke-Command -Session $Session -ScriptBlock {
     C:\_work\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 }
 
 # Run xskbench on the server.
-Write-Output "Starting xskbench server..."
 # TODO
 
 } finally {
-    .tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch)
         C:\_work\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
