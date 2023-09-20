@@ -35,7 +35,6 @@ Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch)
     C:\_work\tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
 } -ArgumentList $Config, $Arch
-run: tools/prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
 
 # Prepare the machines for the testing.
 Write-Output "Preparing machines for testing..."
