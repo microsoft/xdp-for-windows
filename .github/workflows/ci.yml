@@ -407,6 +407,7 @@ jobs:
 
   netperf:
     name: Run Perf
+    needs: []
     runs-on: windows-latest
     steps:
     - name: Run NetPerf Workflow
