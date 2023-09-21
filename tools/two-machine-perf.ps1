@@ -85,17 +85,36 @@ Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $Config, $Arch
 
 # Start logging.
-mkdir logs | Out-Null
 tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
+Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch)
+    C:\_work\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
+} -ArgumentList $Config, $Arch
 
-# Run xskbench. TODO - Start peer.
+# Run xskbench.
+Write-Output "Starting xskbench on the peer..."
+$Job = Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $LocalInterface)
+    $XskBench = "C:\_work\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench rx -i $LocalInterface -d 15 -t -q -id 0
+} -ArgumentList $Config, $Arch, $RemoteInterface -AsJob
+
 Write-Output "Running xskbench locally..."
 $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
 & $XskBench tx -i $LocalInterface -d 10 -t -q -id 0
 
+Write-Output "Waiting for remote xskbench..."
+Stop-Job -Job $Job | Out-Null
+Receive-Job -Job $Job -ErrorAction $ErrorAction
+
 } finally {
     if (Test-Path logs) {
+        Invoke-Command -Session $Session -ScriptBlock {
+            param ($Config, $Arch)
+            C:\_work\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath C:\_work\artifacts\logs\xskbench-peer.etl
+        } -ArgumentList $Config, $Arch
         tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl
+        Copy-Item -FromSession $Session C:\_work\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs
     }
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
