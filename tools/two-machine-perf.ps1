@@ -33,7 +33,6 @@ $Route = Find-NetRoute -RemoteIPAddress $RemoteAddress -ErrorAction SilentlyCont
 if ($null -eq $Route) {
     Write-Error "Failed to find route to $RemoteAddress"
 }
-Write-Output "Route to peer:`n$Route"
 $LocalAddress = $Route[0].IPAddress
 Write-Output "Local address: $LocalAddress"
 
@@ -66,10 +65,11 @@ Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $Config, $Arch
 
 # Prepare the machines for the testing.
-Write-Output "Preparing machines for testing..."
-tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
+Write-Output "Preparing local machine for testing..."
+tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot -Verbose
+Write-Output "Preparing remote machine for testing..."
 Invoke-Command -Session $Session -ScriptBlock {
-    C:\_work\tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
+    C:\_work\tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot -Verbose
 }
 
 try {
@@ -82,10 +82,19 @@ Invoke-Command -Session $Session -ScriptBlock {
     C:\_work\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 } -ArgumentList $Config, $Arch
 
-# Run xskbench on the server.
-# TODO
+# Start logging.
+mkdir logs
+tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
+
+# Run xskbench. TODO - Start peer.
+Write-Output "Running xskbench locally..."
+$XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+& $XskBench tx -i $LocalInterface -t -q -id 0 -q -id 1
 
 } finally {
+    if (Test-Path logs) {
+        tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath logs\local.etl
+    }
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
     Write-Output "Removing XDP on peer..."
