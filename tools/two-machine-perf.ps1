@@ -38,7 +38,7 @@ Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
 $LocalMacAddress = (Get-NetAdapter -InterfaceIndex $LocalInterface).MacAddress
-Write-Output "Local MAC interface: $LocalInterface, $LocalMacAddress"
+Write-Output "Local interface: $LocalInterface, $LocalMacAddress"
 
 $out = Invoke-Command -Session $Session -ScriptBlock {
     param ($LocalAddress)
@@ -47,7 +47,7 @@ $out = Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $RemoteAddress
 $RemoteInterface = $out[0]
 $RemoteMacAddress = $out[1]
-Write-Output "Remote MAC interface: $RemoteInterface, $RemoteMacAddress"
+Write-Output "Remote interface: $RemoteInterface, $RemoteMacAddress"
 
 # Copy the artifacts to the peer.
 Write-Output "Copying files to peer..."
