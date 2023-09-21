@@ -105,15 +105,20 @@ $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
 
 Write-Output "Waiting for remote xskbench..."
 Stop-Job -Job $Job | Out-Null
-Receive-Job -Job $Job -ErrorAction $ErrorAction
+Receive-Job -Job $Job -ErrorAction 'Stop'
+
+Write-Output "Test Complete"
 
 } finally {
     if (Test-Path logs) {
+        Write-Output "Stopping remote logs..."
         Invoke-Command -Session $Session -ScriptBlock {
             param ($Config, $Arch)
             C:\_work\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath C:\_work\artifacts\logs\xskbench-peer.etl
         } -ArgumentList $Config, $Arch
+        Write-Output "Stopping local logs..."
         tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl
+        Write-Output "Copying remote logs..."
         Copy-Item -FromSession $Session C:\_work\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs
     }
     Write-Output "Removing XDP locally..."
