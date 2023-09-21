@@ -57,8 +57,10 @@ Invoke-Command -Session $Session -ScriptBlock {
 Copy-Item -ToSession $Session .\artifacts -Destination C:\_work\artifacts -Recurse
 Copy-Item -ToSession $Session .\tools -Destination C:\_work\tools -Recurse
 
-# Check the drivers.
+# Check for any previously drivers.
+Write-Output "Checking local machine state..."
 tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
+Write-Output "Checking remote machine state..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch)
     C:\_work\tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
@@ -89,7 +91,7 @@ tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Ar
 # Run xskbench. TODO - Start peer.
 Write-Output "Running xskbench locally..."
 $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-& $XskBench tx -i $LocalInterface -t -q -id 0 -d 10
+& $XskBench tx -i $LocalInterface -d 10 -t -q -id 0
 
 } finally {
     if (Test-Path logs) {
