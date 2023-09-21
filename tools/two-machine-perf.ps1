@@ -30,7 +30,13 @@ if ($null -eq $Session) {
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
 Write-Output "Successfully connected to peer: $RemoteAddress"
 
-$LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress).IPAddress
+Write-Output "`nDEBUG STATE:"
+Find-NetRoute -RemoteIPAddress $RemoteAddress
+Get-NetIPAddress
+Get-NetAdapter
+Write-Output "============================================"
+
+$LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress -ErrorAction SilentlyContinue).IPAddress
 Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
