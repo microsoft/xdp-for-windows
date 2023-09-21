@@ -14,9 +14,9 @@ param (
     [string]$RemotePSConfiguration = "PowerShell.7"
 )
 
-Set-StrictMode -Version 'Latest'
+#Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
+#$ProgressPreference = 'SilentlyContinue'
 
 # Set up the connection to the peer over remote powershell.
 Write-Output "Connecting to $PeerName..."
@@ -34,7 +34,7 @@ if ($null -eq $Route) {
     Write-Error "Failed to find route to $RemoteAddress"
 }
 Write-Output "Route to peer:`n$Route"
-$LocalAddress = $Route.IPAddress
+$LocalAddress = $Route[0].IPAddress
 Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
