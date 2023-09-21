@@ -89,7 +89,7 @@ tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Ar
 # Run xskbench. TODO - Start peer.
 Write-Output "Running xskbench locally..."
 $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-& $XskBench tx -i $LocalInterface -t -q -id 0
+& $XskBench tx -i $LocalInterface -t -q -id 0 -d 10
 
 } finally {
     if (Test-Path logs) {
