@@ -119,7 +119,7 @@ $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
 
 Write-Output "Waiting for remote xskbench..."
 Stop-Job -Job $Job | Out-Null
-Receive-Job -Job $Job -ErrorAction 'Stop'
+Receive-Job -Job $Job -ErrorAction 'Continue'
 
 Write-Output "Test Complete"
 
