@@ -30,7 +30,13 @@ if ($null -eq $Session) {
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
 Write-Output "Successfully connected to peer: $RemoteAddress"
 
-$LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress).IPAddress
+Write-Output "`nDEBUG STATE:"
+Find-NetRoute -RemoteIPAddress $RemoteAddress
+Get-NetIPAddress
+Get-NetAdapter
+Write-Output "============================================"
+
+$LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress -ErrorAction SilentlyContinue).IPAddress
 Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
@@ -61,7 +67,7 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 # Prepare the machines for the testing.
 Write-Output "Preparing machines for testing..."
-.\tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
+tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
 Invoke-Command -Session $Session -ScriptBlock {
     C:\_work\tools\prepare-machine.ps1 -ForTest -NoReboot -Verbose
 }
