@@ -52,6 +52,10 @@ $RemoteInterface = $out[0]
 $RemoteMacAddress = $out[1]
 Write-Output "Remote interface: $RemoteInterface, $RemoteMacAddress"
 
+# Generate payload to send to the peer.
+$TxBytes = tools/pktcmd.exe udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 1280
+Write-Output "TX Payload:`n$TxBytes"
+
 # Copy the artifacts to the peer.
 Write-Output "Copying files to peer..."
 Invoke-Command -Session $Session -ScriptBlock {
@@ -101,16 +105,16 @@ Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $Config, $Arch, $RemoteDir
 
 # Run xskbench.
-Write-Output "Starting xskbench on the peer..."
+Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $LocalInterface)
     $XskBench = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 15 -t -q -id 0
+    & $XskBench rx -i $LocalInterface -d 15 -p 9999 -t -q -id 0
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
-Write-Output "Running xskbench locally..."
+Write-Output "Running xskbench locally (sending to UDP 9999)..."
 $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-& $XskBench tx -i $LocalInterface -d 10 -t -q -id 0
+& $XskBench tx -i $LocalInterface -d 10 -t -q -id 0 -tx_pattern $TxBytes
 
 Write-Output "Waiting for remote xskbench..."
 Stop-Job -Job $Job | Out-Null
@@ -119,17 +123,17 @@ Receive-Job -Job $Job -ErrorAction 'Stop'
 Write-Output "Test Complete"
 
 } finally {
-    if (Test-Path logs) {
-        Write-Output "Stopping remote logs..."
-        Invoke-Command -Session $Session -ScriptBlock {
-            param ($Config, $Arch, $RemoteDir)
-            & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl
-        } -ArgumentList $Config, $Arch, $RemoteDir
-        Write-Output "Stopping local logs..."
-        tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl
-        Write-Output "Copying remote logs..."
-        Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs
-    }
+    # Grab the logs.
+    Write-Output "Stopping remote logs..."
+    Invoke-Command -Session $Session -ScriptBlock {
+        param ($Config, $Arch, $RemoteDir)
+        & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue'
+    } -ArgumentList $Config, $Arch, $RemoteDir
+    Write-Output "Stopping local logs..."
+    tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue'
+    Write-Output "Copying remote logs..."
+    Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs -ErrorAction 'Continue'
+    # Clean up XDP driver state.
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
     Write-Output "Removing XDP on peer..."
