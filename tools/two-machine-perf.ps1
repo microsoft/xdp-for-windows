@@ -23,20 +23,18 @@ Write-Output "Connecting to $PeerName..."
 $Session = New-PSSession -ComputerName $PeerName -ConfigurationName $RemotePSConfiguration
 if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
-    exit
 }
 
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
 Write-Output "Successfully connected to peer: $RemoteAddress"
 
-Write-Output "`nDEBUG STATE:"
-Find-NetRoute -RemoteIPAddress $RemoteAddress
-Get-NetIPAddress
-Get-NetAdapter
-Write-Output "============================================"
-
-$LocalAddress = (Find-NetRoute -RemoteIPAddress $RemoteAddress -ErrorAction SilentlyContinue).IPAddress
+$Route = Find-NetRoute -RemoteIPAddress $RemoteAddress -ErrorAction SilentlyContinue
+if ($null -eq $Route) {
+    Write-Error "Failed to find route to $RemoteAddress"
+}
+Write-Output "Route to peer:`n$Route"
+$LocalAddress = $Route.IPAddress
 Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
