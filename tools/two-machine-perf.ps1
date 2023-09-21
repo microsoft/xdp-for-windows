@@ -93,7 +93,7 @@ $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
 
 } finally {
     if (Test-Path logs) {
-        tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath logs\local.etl
+        tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl
     }
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
