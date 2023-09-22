@@ -70,20 +70,20 @@ Copy-Item -ToSession $Session .\tools -Destination $RemoteDir\tools -Recurse
 
 # Check for any previously drivers.
 Write-Output "Checking local machine state..."
-tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
+tools\check-drivers.ps1 -Config $Config -Arch $Arch
 Write-Output "Checking remote machine state..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Arch $Arch -Verbose
+    & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Arch $Arch
 } -ArgumentList $Config, $Arch, $RemoteDir
 
 # Prepare the machines for the testing.
 Write-Output "Preparing local machine for testing..."
-tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot -Verbose
+tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
 Write-Output "Preparing remote machine for testing..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($RemoteDir)
-    & $RemoteDir\tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot -Verbose
+    & $RemoteDir\tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
 } -ArgumentList $RemoteDir
 
 try {
@@ -133,10 +133,10 @@ Write-Output "Test Complete!"
     Write-Output "Stopping remote logs..."
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
-        & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue'
+        & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue' | Out-Null
     } -ArgumentList $Config, $Arch, $RemoteDir
     Write-Output "Stopping local logs..."
-    tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue'
+    tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
     Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs -ErrorAction 'Continue'
     # Clean up XDP driver state.
