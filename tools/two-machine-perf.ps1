@@ -114,12 +114,15 @@ Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $LocalInterface)
     $XskBench = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 15 -p 9999 -t -q -id 0
+    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -ci 0 -q -id 0
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
-Write-Output "Running xskbench locally (sending to UDP 9999)..."
-$XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-& $XskBench tx -i $LocalInterface -d 10 -t -q -id 0 -tx_pattern $TxBytes -b 8
+for ($i = 0; $i -lt 5; $i++) {
+    Write-Output "Run $($i+1): Running xskbench locally (sending to UDP 9999)..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench tx -i $LocalInterface -d 10 -t -ci 0 -q -id 0 -tx_pattern $TxBytes -b 8
+    Start-Sleep -Seconds 1
+}
 
 Write-Output "Waiting for remote xskbench..."
 Wait-Job -Job $Job | Out-Null
