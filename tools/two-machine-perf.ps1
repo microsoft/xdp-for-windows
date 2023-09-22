@@ -57,6 +57,8 @@ $PktCmd = "artifacts\bin\$($Arch)_$($Config)\pktcmd.exe"
 $TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 1280
 Write-Output "TX Payload:`n$TxBytes"
 
+Write-Output "`n====================SET UP====================`n"
+
 # Copy the artifacts to the peer.
 Write-Output "Copying files to peer..."
 Invoke-Command -Session $Session -ScriptBlock {
@@ -96,14 +98,16 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 # Start logging.
 Write-Output "Starting local logs..."
-try { wpr.exe -cancel -instancename xskcpu 2>&1 } catch { }
+try { wpr.exe -cancel -instancename xskcpu 2>&1 | Out-Null } catch { }
 tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
 Write-Output "Starting remote logs..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
-    try { wpr.exe -cancel -instancename xskcpu 2>&1 } catch { }
+    try { wpr.exe -cancel -instancename xskcpu 2>&1 | Out-Null } catch { }
     & $RemoteDir\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
 } -ArgumentList $Config, $Arch, $RemoteDir
+
+Write-Output "`n====================EXECUTION====================`n"
 
 # Run xskbench.
 Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
@@ -115,15 +119,16 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
 
 Write-Output "Running xskbench locally (sending to UDP 9999)..."
 $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-& $XskBench tx -i $LocalInterface -d 10 -t -q -id 0 -tx_pattern $TxBytes
+& $XskBench tx -i $LocalInterface -d 10 -t -q -id 0 -tx_pattern $TxBytes -b 8
 
 Write-Output "Waiting for remote xskbench..."
-Stop-Job -Job $Job | Out-Null
+Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
-Write-Output "Test Complete"
+Write-Output "Test Complete!"
 
 } finally {
+    Write-Output "`n====================CLEAN UP====================`n"
     # Grab the logs.
     Write-Output "Stopping remote logs..."
     Invoke-Command -Session $Session -ScriptBlock {
