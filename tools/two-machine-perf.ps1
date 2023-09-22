@@ -55,7 +55,7 @@ Write-Output "Remote interface: $RemoteInterface, $RemoteMacAddress"
 # Generate payload to send to the peer.
 $PktCmd = "artifacts\bin\$($Arch)_$($Config)\pktcmd.exe"
 $TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 1280
-Write-Output "TX Payload:`n$TxBytes"
+Write-Debug "TX Payload:`n$TxBytes"
 
 Write-Output "`n====================SET UP====================`n"
 
