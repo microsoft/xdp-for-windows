@@ -55,6 +55,11 @@ if ([string]::IsNullOrEmpty($Project)) {
     $NoInstaller = $true
 }
 
+if ($Platform -eq "arm64" -and !$NoInstaller) {
+    Write-Warning "$Platform does not support building MSI installer. Skipping."
+    $NoInstaller = $true
+}
+
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
 msbuild.exe $RootDir\xdp.sln `
