@@ -8,7 +8,7 @@ param (
     [string]$Config = "Release",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("x64")]
+    [ValidateSet("x64", "arm64")]
     [string]$Arch = "x64",
 
     [Parameter(Mandatory=$false)]
