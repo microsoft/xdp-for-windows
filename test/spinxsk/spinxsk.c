@@ -378,6 +378,8 @@ FuzzHookId(
     }
 }
 
+#ifdef USE_EBPF
+
 HRESULT
 AttachXdpEbpfProgram(
     _In_ QUEUE_CONTEXT *Queue,
@@ -522,6 +524,8 @@ Exit:
     return Result;
 }
 
+#endif
+
 HRESULT
 AttachXdpProgram(
     _In_ QUEUE_CONTEXT *Queue,
@@ -564,7 +568,11 @@ AttachXdpProgram(
             break;
 
         case 3:
+#ifdef USE_EBPF
             return AttachXdpEbpfProgram(Queue, Sock, RxProgramSet);
+#else
+            break;
+#endif
         }
     }
 
@@ -672,6 +680,8 @@ DetachXdpProgram(
         ASSERT_FRE(CloseHandle(Handle));
     }
 
+#ifdef USE_EBPF
+
     if (BpfObject != NULL) {
         int OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
         ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
@@ -687,6 +697,8 @@ DetachXdpProgram(
 
         ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
     }
+
+#endif
 }
 
 HRESULT

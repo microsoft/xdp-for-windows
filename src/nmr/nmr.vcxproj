@@ -30,6 +30,12 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <DriverTargetPlatform>Universal</DriverTargetPlatform>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <Driver_SpectreMitigation>Spectre</Driver_SpectreMitigation>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <Driver_SpectreMitigation>Spectre</Driver_SpectreMitigation>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.kernel.props" />
@@ -58,6 +64,8 @@
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <!-- EWDK builds do not binplace the PDB for this library, so force it here. -->
       <ProgramDataBaseFileName>$(OutDir)xdpnmr.pdb</ProgramDataBaseFileName>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Sync</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Sync</ExceptionHandling>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

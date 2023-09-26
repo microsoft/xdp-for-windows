@@ -4402,6 +4402,8 @@ SecurityAdjustDeviceAcl()
     }
 }
 
+#ifdef USE_EBPF
+
 static
 HRESULT
 TryAttachEbpfXdpProgram(
@@ -4691,6 +4693,8 @@ GenericRxEbpfUnload()
     TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
 }
+
+#endif USE_EBPF
 
 VOID
 GenericTxToRxInject()

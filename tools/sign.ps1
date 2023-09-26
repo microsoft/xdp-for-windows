@@ -54,9 +54,9 @@ function Get-WindowsKitTool {
 }
 
 # Tool paths.
-$SignToolPath = Get-WindowsKitTool -Tool "signtool.exe"
+$SignToolPath = Get-WindowsKitTool -Tool "signtool.exe" -Arch "x86"
 if (!(Test-Path $SignToolPath)) { Write-Error "$SignToolPath does not exist!" }
-$Inf2CatToolPath = Get-WindowsKitTool -Tool "inf2cat.exe"
+$Inf2CatToolPath = Get-WindowsKitTool -Tool "inf2cat.exe" -Arch "x86"
 if (!(Test-Path $Inf2CatToolPath)) { Write-Error "$Inf2CatToolPath does not exist!" }
 
 # Artifact paths.
@@ -112,13 +112,13 @@ if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Build up the catalogs.
-& $Inf2CatToolPath /driver:$XdpDir /os:10_x64
+& $Inf2CatToolPath /driver:$XdpDir /os:ServerFE_$Arch
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
-& $Inf2CatToolPath /driver:$XdpMpDir /os:10_x64
+& $Inf2CatToolPath /driver:$XdpMpDir /os:ServerFE_$Arch
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
-& $Inf2CatToolPath /driver:$XdpFnMpDir /os:10_x64
+& $Inf2CatToolPath /driver:$XdpFnMpDir /os:ServerFE_$Arch
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
-& $Inf2CatToolPath /driver:$XdpFnLwfDir /os:10_x64
+& $Inf2CatToolPath /driver:$XdpFnLwfDir /os:ServerFE_$Arch
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
 
 # Sign the catalogs.
