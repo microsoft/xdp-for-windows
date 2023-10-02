@@ -199,6 +199,11 @@ FnIoGetFilteredFrame(
     for (UINT32 BufferIndex = 0; BufferIndex < BufferCount; BufferIndex++) {
         UCHAR *MdlBuffer;
 
+        if (Mdl == NULL) {
+            Status = STATUS_UNSUCCESSFUL;
+            goto Exit;
+        }
+
         MdlBuffer = MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority);
         if (MdlBuffer == NULL) {
             Status = STATUS_INSUFFICIENT_RESOURCES;
