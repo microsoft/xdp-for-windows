@@ -160,16 +160,12 @@ FnIoGetFilteredFrame(
     }
 
     NetBuffer = NET_BUFFER_LIST_FIRST_NB(Nbl);
-    DataBytes = NET_BUFFER_DATA_LENGTH(NetBuffer);
     BufferCount = 0;
-
     OutputSize = sizeof(*Frame);
-    OutputSize += NET_BUFFER_CURRENT_MDL_OFFSET(NetBuffer);
-    OutputSize += DataBytes;
 
-    for (Mdl = NET_BUFFER_CURRENT_MDL(NetBuffer); DataBytes > 0; Mdl = Mdl->Next) {
+    for (Mdl = NET_BUFFER_CURRENT_MDL(NetBuffer); Mdl != NULL; Mdl = Mdl->Next) {
         OutputSize += sizeof(*Buffer);
-        DataBytes -= min(Mdl->ByteCount, DataBytes);
+        OutputSize += Mdl->ByteCount;
 
         if (!NT_SUCCESS(RtlUInt8Add(BufferCount, 1, &BufferCount))) {
             Status = STATUS_INTEGER_OVERFLOW;
