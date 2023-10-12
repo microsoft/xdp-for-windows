@@ -3,7 +3,8 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <ntddk.h>
+#include <intsafe.h>
 #include <afxdp.h>
 #include <afxdp_experimental.h>
 #include <afxdp_helper.h>

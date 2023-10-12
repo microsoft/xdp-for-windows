@@ -22,6 +22,7 @@
 #define XDP_POOLTAG_IF_OFFLOAD          'opdX' // Xdpo
 #define XDP_POOLTAG_IFSET               'ipdX' // Xdpi
 #define XDP_POOLTAG_INTERFACE           'fIdX' // XdIf
+#define XDP_POOLTAG_KERNEL_API_NMR      'KpdX' // XdpK
 #define XDP_POOLTAG_MAP                 'MpdX' // XdpM
 #define XDP_POOLTAG_NMR                 'NpdX' // XdpN
 #define XDP_POOLTAG_OFFLOAD_QEO         'QodX' // XdoQ

@@ -79,6 +79,8 @@ $XdpMpDir = Join-Path $ArtifactsDir "xdpmp"
 $XdpMpSys = Join-Path $XdpMpDir "xdpmp.sys"
 $XdpMpInf = Join-Path $XdpMpDir "xdpmp.inf"
 $XdpMpCat = Join-Path $XdpMpDir "xdpmp.cat"
+$XskBenchDrvDir = Join-Path $ArtifactsDir "xskbenchdrv"
+$XskBenchDrvSys = Join-Path $XskBenchDrvDir "xskbenchdrv.sys"
 
 # Verify all the files are present.
 if (!(Test-Path $XdpSys)) { Write-Error "$XdpSys does not exist!" }
@@ -86,6 +88,7 @@ if (!(Test-Path $XdpInf)) { Write-Error "$XdpInf does not exist!" }
 if (!(Test-Path $FndisSys)) { Write-Error "$FndisSys does not exist!" }
 if (!(Test-Path $XdpMpSys)) { Write-Error "$XdpMpSys does not exist!" }
 if (!(Test-Path $XdpMpInf)) { Write-Error "$XdpMpInf does not exist!" }
+if (!(Test-Path $XskBenchDrvSys)) { Write-Error "$XskBenchDrvSys does not exist!" }
 
 # Sign the driver files.
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpSys
@@ -93,6 +96,8 @@ if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $FndisSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpMpSys
+if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
+& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XskBenchDrvSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Build up the catalogs.

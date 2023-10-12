@@ -5,6 +5,8 @@
 
 #pragma once
 
+typedef struct _XSK XSK;
+
 VOID
 XskReceive(
     _In_ XDP_REDIRECT_BATCH *Batch
@@ -50,6 +52,70 @@ XskCanBypass(
 VOID
 XskDereferenceDatapathHandle(
     _In_ HANDLE XskHandle
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
+XskCreate(
+    _Out_ XSK **Xsk,
+    _In_opt_ XSK_NOTIFY_CALLBACK *NotifyCallback,
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XskCleanup(
+    _In_ XSK *Xsk
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XskClose(
+    _In_ XSK *Xsk
+    );
+
+NTSTATUS
+XskSetSockopt(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    );
+
+NTSTATUS
+XskGetSockopt(
+    _In_ XSK *Xsk,
+    _In_ UINT32 Option,
+    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
+    _Inout_ UINT32 *OptionLength
+    );
+
+NTSTATUS
+XskBindSocket(
+    _In_ XSK *Xsk,
+    _In_ XSK_BIND_IN Bind
+    );
+
+NTSTATUS
+XskActivateSocket(
+    _In_ XSK *Xsk,
+    _In_ XSK_ACTIVATE_IN Activate
+    );
+
+_Success_(return == STATUS_SUCCESS)
+NTSTATUS
+XskNotify(
+    _In_ XSK *Xsk,
+    _In_opt_ VOID *InputBuffer,
+    _In_ ULONG InputBufferLength,
+    _Out_ ULONG_PTR *Information,
+    _Inout_opt_ IRP *Irp,
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ BOOLEAN UseCallback
     );
 
 XDP_FILE_CREATE_ROUTINE XskIrpCreateSocket;

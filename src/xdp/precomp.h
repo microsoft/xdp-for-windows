@@ -32,6 +32,7 @@
 #include <netioddk.h>
 #include <winerror.h>
 #include <ntstrsafe.h>
+#include <initguid.h>
 #include <ebpf_extension.h>
 #include <ebpf_extension_uuids.h>
 #include <ebpf_nethooks.h>
@@ -78,6 +79,7 @@
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #include "xdpp.h"
+#include "apikernel.h"
 #include "bind.h"
 #include "dispatch.h"
 #include "ebpfextension.h"

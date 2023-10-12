@@ -17,20 +17,17 @@ static XDP_FILE_DISPATCH XdpInterfaceFileDispatch = {
     .Close = XdpIrpInterfaceClose,
 };
 
-static
 NTSTATUS
-XdpIrpInterfaceOffloadRssGetCapabilities(
+XdpInterfaceOffloadRssGetCapabilities(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
-    _In_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp
+    _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
+    _In_ SIZE_T OutputBufferLength,
+    _Out_ UINT32 *BytesReturned
     )
 {
     NTSTATUS Status;
     XDP_RSS_CAPABILITIES RssCapabilities;
     UINT32 RssCapabilitiesSize = sizeof(RssCapabilities);
-    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
-    SIZE_T OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
-    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
 
     TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
@@ -53,7 +50,7 @@ XdpIrpInterfaceOffloadRssGetCapabilities(
         goto Exit;
     }
 
-    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+    if (OutputBufferLength == 0) {
         *BytesReturned = RssCapabilitiesSize;
         Status = STATUS_BUFFER_OVERFLOW;
         goto Exit;
@@ -84,10 +81,42 @@ Exit:
 
 static
 NTSTATUS
-XdpIrpInterfaceOffloadRssGet(
+XdpIrpInterfaceOffloadRssGetCapabilities(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _In_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    UINT32 BytesReturned;
+
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    Status =
+        XdpInterfaceOffloadRssGetCapabilities(
+            InterfaceObject,
+            Irp->AssociatedIrp.SystemBuffer,
+            IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
+            &BytesReturned);
+
+    if (Status == STATUS_BUFFER_OVERFLOW && (Irp->Flags & IRP_INPUT_OPERATION) != 0) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        BytesReturned = 0;
+    }
+
+    Irp->IoStatus.Information = BytesReturned;
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+NTSTATUS
+XdpInterfaceOffloadRssGet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
+    _In_ SIZE_T OutputBufferLength,
+    _Out_ UINT32 *BytesReturned
     )
 {
     NTSTATUS Status;
@@ -95,9 +124,6 @@ XdpIrpInterfaceOffloadRssGet(
     XDP_OFFLOAD_PARAMS_RSS RssParams;
     UINT32 RssParamsSize = sizeof(RssParams);
     UINT32 RequiredSize;
-    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
-    SIZE_T OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
-    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
 
     TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
@@ -130,7 +156,7 @@ XdpIrpInterfaceOffloadRssGet(
         sizeof(*RssConfiguration) + RssParams.HashSecretKeySize +
         RssParams.IndirectionTableSize;
 
-    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+    if (OutputBufferLength == 0) {
         *BytesReturned = RequiredSize;
         Status = STATUS_BUFFER_OVERFLOW;
         goto Exit;
@@ -179,14 +205,45 @@ Exit:
 
 static
 NTSTATUS
-XdpIrpInterfaceOffloadRssSet(
+XdpIrpInterfaceOffloadRssGet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
-    _In_ VOID *InputBuffer,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    UINT32 BytesReturned;
+
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    Status =
+        XdpInterfaceOffloadRssGet(
+            InterfaceObject,
+            Irp->AssociatedIrp.SystemBuffer,
+            IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
+            &BytesReturned);
+
+    if (Status == STATUS_BUFFER_OVERFLOW && (Irp->Flags & IRP_INPUT_OPERATION) != 0) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        BytesReturned = 0;
+    }
+
+    Irp->IoStatus.Information = BytesReturned;
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+NTSTATUS
+XdpInterfaceOffloadRssSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _In_ const VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
 {
     NTSTATUS Status;
-    XDP_RSS_CONFIGURATION *RssConfiguration;
+    const XDP_RSS_CONFIGURATION *RssConfiguration;
     XDP_OFFLOAD_PARAMS_RSS RssParams = {0};
     UCHAR *HashSecretKey = NULL;
     PROCESSOR_NUMBER *IndirectionTable = NULL;
@@ -348,12 +405,101 @@ Exit:
     return Status;
 }
 
+static
+NTSTATUS
+XdpIrpInterfaceOffloadRssSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    return XdpInterfaceOffloadRssSet(InterfaceObject, Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.DeviceIoControl.InputBufferLength);
+}
+
 VOID
 XdpOffloadInitializeIfSettings(
     _Out_ XDP_OFFLOAD_IF_SETTINGS *OffloadIfSettings
     )
 {
     XdpOffloadQeoInitializeSettings(&OffloadIfSettings->Qeo);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
+XdpInterfaceCreate(
+    _Out_ XDP_INTERFACE_OBJECT **InterfaceObject,
+    _In_ const XDP_INTERFACE_OPEN *Params
+    )
+{
+    NTSTATUS Status;
+    XDP_IFSET_HANDLE IfSetHandle = NULL;
+    XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle = NULL;
+    const XDP_HOOK_ID HookId = {
+        .Layer = XDP_HOOK_L2,
+        .Direction = XDP_HOOK_RX,
+        .SubLayer = XDP_HOOK_INSPECT,
+    };
+
+    TraceEnter(TRACE_CORE, "IfIndex=%u", Params->IfIndex);
+
+    *InterfaceObject = NULL;
+
+    IfSetHandle = XdpIfFindAndReferenceIfSet(Params->IfIndex, &HookId, 1, NULL);
+    if (IfSetHandle == NULL) {
+        TraceError(
+            TRACE_CORE, "IfIndex=%u Failed to find interface set", Params->IfIndex);
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
+
+    Status = XdpIfOpenInterfaceOffloadHandle(IfSetHandle, &HookId, &InterfaceOffloadHandle);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    *InterfaceObject =
+        ExAllocatePoolZero(NonPagedPoolNx, sizeof(**InterfaceObject), XDP_POOLTAG_INTERFACE);
+    if (*InterfaceObject == NULL) {
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Failed to allocate interface object", Params->IfIndex);
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    (*InterfaceObject)->Header.ObjectType = XDP_OBJECT_TYPE_INTERFACE;
+    (*InterfaceObject)->Header.Dispatch = &XdpInterfaceFileDispatch;
+    (*InterfaceObject)->IfSetHandle = IfSetHandle;
+    (*InterfaceObject)->InterfaceOffloadHandle = InterfaceOffloadHandle;
+    IfSetHandle = NULL;
+    InterfaceOffloadHandle = NULL;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (*InterfaceObject != NULL) {
+            ExFreePoolWithTag(*InterfaceObject, XDP_POOLTAG_INTERFACE);
+        }
+        if (InterfaceOffloadHandle != NULL) {
+            XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
+        }
+        if (IfSetHandle != NULL) {
+            XdpIfDereferenceIfSet(IfSetHandle);
+        }
+    }
+
+    if (Params != NULL) {
+        TraceInfo(
+            TRACE_CORE,
+            "Interface=%p create IfIndex=%u Status=%!STATUS!",
+            *InterfaceObject, Params->IfIndex, Status);
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -369,14 +515,7 @@ XdpIrpCreateInterface(
 {
     NTSTATUS Status;
     const XDP_INTERFACE_OPEN *Params = NULL;
-    XDP_IFSET_HANDLE IfSetHandle = NULL;
-    XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle = NULL;
     XDP_INTERFACE_OBJECT *InterfaceObject = NULL;
-    const XDP_HOOK_ID HookId = {
-        .Layer = XDP_HOOK_L2,
-        .Direction = XDP_HOOK_RX,
-        .SubLayer = XDP_HOOK_INSPECT,
-    };
 
     UNREFERENCED_PARAMETER(Irp);
 
@@ -388,50 +527,14 @@ XdpIrpCreateInterface(
 
     TraceEnter(TRACE_CORE, "IfIndex=%u", Params->IfIndex);
 
-    IfSetHandle = XdpIfFindAndReferenceIfSet(Params->IfIndex, &HookId, 1, NULL);
-    if (IfSetHandle == NULL) {
-        TraceError(
-            TRACE_CORE, "IfIndex=%u Failed to find interface set", Params->IfIndex);
-        Status = STATUS_NOT_FOUND;
-        goto Exit;
-    }
-
-    Status = XdpIfOpenInterfaceOffloadHandle(IfSetHandle, &HookId, &InterfaceOffloadHandle);
+    Status = XdpInterfaceCreate(&InterfaceObject, Params);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    InterfaceObject =
-        ExAllocatePoolZero(NonPagedPoolNx, sizeof(*InterfaceObject), XDP_POOLTAG_INTERFACE);
-    if (InterfaceObject == NULL) {
-        TraceError(
-            TRACE_CORE,
-            "IfIndex=%u Failed to allocate interface object", Params->IfIndex);
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
-
-    InterfaceObject->Header.ObjectType = XDP_OBJECT_TYPE_INTERFACE;
-    InterfaceObject->Header.Dispatch = &XdpInterfaceFileDispatch;
-    InterfaceObject->IfSetHandle = IfSetHandle;
-    InterfaceObject->InterfaceOffloadHandle = InterfaceOffloadHandle;
     IrpSp->FileObject->FsContext = InterfaceObject;
-    IfSetHandle = NULL;
-    InterfaceOffloadHandle = NULL;
-    InterfaceObject = NULL;
-    Status = STATUS_SUCCESS;
 
 Exit:
-
-    if (InterfaceObject != NULL) {
-        ExFreePoolWithTag(InterfaceObject, XDP_POOLTAG_INTERFACE);
-    }
-    if (InterfaceOffloadHandle != NULL) {
-        XdpIfCloseInterfaceOffloadHandle(IfSetHandle, InterfaceOffloadHandle);
-    }
-    if (IfSetHandle != NULL) {
-        XdpIfDereferenceIfSet(IfSetHandle);
-    }
 
     if (Params != NULL) {
         TraceInfo(
@@ -454,6 +557,29 @@ XdpOffloadRevertSettings(
     XdpOffloadQeoRevertSettings(IfSetHandle, InterfaceOffloadHandle);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XdpInterfaceDelete(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject
+    )
+{
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    ASSERT(InterfaceObject->IfSetHandle != NULL);
+    ASSERT(InterfaceObject->InterfaceOffloadHandle != NULL);
+
+    XdpIfCloseInterfaceOffloadHandle(
+        InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle);
+    XdpIfDereferenceIfSet(InterfaceObject->IfSetHandle);
+
+    TraceInfo(TRACE_CORE, "Interface=%p delete", InterfaceObject);
+
+    ExFreePoolWithTag(InterfaceObject, XDP_POOLTAG_INTERFACE);
+
+    TraceExitSuccess(TRACE_CORE);
+}
+
 static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
@@ -469,16 +595,7 @@ XdpIrpInterfaceClose(
 
     UNREFERENCED_PARAMETER(Irp);
 
-    ASSERT(InterfaceObject->IfSetHandle != NULL);
-    ASSERT(InterfaceObject->InterfaceOffloadHandle != NULL);
-
-    XdpIfCloseInterfaceOffloadHandle(
-        InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle);
-    XdpIfDereferenceIfSet(InterfaceObject->IfSetHandle);
-
-    TraceInfo(TRACE_CORE, "Interface=%p delete", InterfaceObject);
-
-    ExFreePoolWithTag(InterfaceObject, XDP_POOLTAG_INTERFACE);
+    XdpInterfaceDelete(InterfaceObject);
 
     TraceExitSuccess(TRACE_CORE);
 
@@ -508,10 +625,7 @@ XdpIrpInterfaceDeviceIoControl(
         Status = XdpIrpInterfaceOffloadRssGet(InterfaceObject, Irp, IrpSp);
         break;
     case IOCTL_INTERFACE_OFFLOAD_RSS_SET:
-        Status =
-            XdpIrpInterfaceOffloadRssSet(
-                InterfaceObject, Irp->AssociatedIrp.SystemBuffer,
-                IrpSp->Parameters.DeviceIoControl.InputBufferLength);
+        Status = XdpIrpInterfaceOffloadRssSet(InterfaceObject, Irp, IrpSp);
         break;
     case IOCTL_INTERFACE_OFFLOAD_QEO_SET:
         Status = XdpIrpInterfaceOffloadQeoSet(InterfaceObject, Irp, IrpSp);

@@ -7,7 +7,8 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <ItemGroup>
-    <ClCompile Include="xskbench.c" />
+    <ClCompile Include="main.c" />
+    <ClCompile Include="..\xskbench.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
@@ -15,6 +16,9 @@
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
       <Project>{bdd99a80-0936-47b0-918d-04cf3b472fb0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\platform_user\platform_user.vcxproj">
+      <Project>{ee3dd8a1-9903-4f13-bdfb-fa8121861efb}</Project>
     </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -44,7 +48,12 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+        .;
+        ..;
+        $(SolutionDir)test\common\inc;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

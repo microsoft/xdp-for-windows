@@ -19,6 +19,14 @@ XdpOffloadQeoRevertSettings(
     );
 
 NTSTATUS
+XdpInterfaceOffloadQeoSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _In_ const XDP_QUIC_CONNECTION *ConnectionsIn,
+    _In_ UINT32 InputBufferLength,
+    _Inout_ UINT32 *OutputBufferLength
+    );
+
+NTSTATUS
 XdpIrpInterfaceOffloadQeoSet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _Inout_ IRP *Irp,
