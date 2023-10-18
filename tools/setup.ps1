@@ -33,11 +33,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf", "xskbenchdrv")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf", "xskbenchdrv")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -77,6 +77,7 @@ $XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
+$XskBenchDrvSys = "$ArtifactsDir\xskbenchdrv\xskbenchdrv.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
 $XdpMpComponentId = "ms_xdpmp"
@@ -634,6 +635,33 @@ function Uninstall-Ebpf {
     Refresh-Path
 }
 
+# Installs the xskbenchdrv driver.
+function Install-XskBenchDrv {
+    if (!(Test-Path $XskBenchDrvSys)) {
+        Write-Error "$XskBenchDrvSys does not exist!"
+    }
+
+    Write-Verbose "sc.exe create xskbenchdrv type= kernel start= demand binpath= $XskBenchDrvSys"
+    sc.exe create xskbenchdrv type= kernel start= demand binpath= $XskBenchDrvSys | Write-Verbose
+    if ($LastExitCode) {
+        Write-Error "sc.exe exit code: $LastExitCode"
+    }
+
+    Start-Service-With-Retry xskbenchdrv
+
+    Write-Verbose "xskbenchdrv.sys install complete!"
+}
+
+# Uninstalls the xskbenchdrv driver.
+function Uninstall-XskBenchDrv {
+    Write-Verbose "Stop-Service xskbenchdrv"
+    try { Stop-Service xskbenchdrv -NoWait } catch { }
+
+    Cleanup-Service xskbenchdrv
+
+    Write-Verbose "xskbenchdrv.sys uninstall complete!"
+}
+
 try {
     if ($Install -eq "fndis") {
         Install-FakeNdis
@@ -653,6 +681,9 @@ try {
     if ($Install -eq "ebpf") {
         Install-Ebpf
     }
+    if ($Install -eq "xskbenchdrv") {
+        Install-XskBenchDrv
+    }
 
     if ($Uninstall -eq "fndis") {
         Uninstall-FakeNdis
@@ -671,6 +702,9 @@ try {
     }
     if ($Uninstall -eq "ebpf") {
         Uninstall-Ebpf
+    }
+    if ($Uninstall -eq "xskbenchdrv") {
+        Uninstall-XskBenchDrv
     }
 } catch {
     Write-Error $_ -ErrorAction $OriginalErrorActionPreference
