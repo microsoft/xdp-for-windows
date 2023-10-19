@@ -70,6 +70,15 @@ XdpApiKernelXskCreate(
 }
 
 static
+VOID
+XdpApiKernelXskDelete(
+    _In_ HANDLE Socket
+    )
+{
+    UNREFERENCED_PARAMETER(Socket);
+}
+
+static
 XDP_STATUS
 XdpApiKernelXskBind(
     _In_ HANDLE Socket,
@@ -196,6 +205,7 @@ static CONST XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatch = {
     XdpApiKernelXdpCreateProgram,
     XdpApiKernelXdpInterfaceOpen,
     XdpApiKernelXskCreate,
+    XdpApiKernelXskDelete,
     XdpApiKernelXskBind,
     XdpApiKernelXskActivate,
     XdpApiKernelXskNotifySocket,

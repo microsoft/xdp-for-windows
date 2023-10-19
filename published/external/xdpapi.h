@@ -78,6 +78,7 @@ typedef struct _XDP_API_PROVIDER_DISPATCH {
     XDP_CREATE_PROGRAM_FN* XdpCreateProgram;
     XDP_INTERFACE_OPEN_FN* XdpInterfaceOpen;
     XSK_CREATE_FN* XskCreate;
+    XSK_DELETE_FN* XskDelete;
     XSK_BIND_FN* XskBind;
     XSK_ACTIVATE_FN* XskActivate;
     XSK_NOTIFY_SOCKET_FN* XskNotifySocket;
