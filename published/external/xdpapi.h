@@ -63,6 +63,12 @@ XDP_GET_ROUTINE_FN(
 
 #if defined(_KERNEL_MODE)
 
+typedef
+VOID
+XDP_DELETE_PROGRAM_FN(
+    _In_ HANDLE Program
+    );
+
 DEFINE_GUID(
     NPI_XDPAPI_INTERFACE_ID,
     0x1683b7b0, 0xcf44, 0x4757, 0x91, 0xf6, 0xc6, 0x19, 0x9b, 0x9d, 0x00, 0xfe);
@@ -76,6 +82,7 @@ DEFINE_GUID(
 typedef struct _XDP_API_PROVIDER_DISPATCH {
     XDP_GET_ROUTINE_FN* XdpGetRoutine;
     XDP_CREATE_PROGRAM_FN* XdpCreateProgram;
+    XDP_DELETE_PROGRAM_FN* XdpDeleteProgram;
     XDP_INTERFACE_OPEN_FN* XdpInterfaceOpen;
     XSK_CREATE_FN* XskCreate;
     XSK_DELETE_FN* XskDelete;
