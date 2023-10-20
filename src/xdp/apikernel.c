@@ -37,14 +37,25 @@ XdpApiKernelXdpCreateProgram(
     _Out_ HANDLE *Program
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceIndex);
-    UNREFERENCED_PARAMETER(HookId);
-    UNREFERENCED_PARAMETER(QueueId);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(Rules);
-    UNREFERENCED_PARAMETER(RuleCount);
-    UNREFERENCED_PARAMETER(Program);
-    return STATUS_NOT_SUPPORTED;
+    XDP_PROGRAM_OPEN ProgramOpen;
+
+    ProgramOpen.IfIndex = InterfaceIndex;
+    ProgramOpen.HookId = *HookId;
+    ProgramOpen.QueueId = QueueId;
+    ProgramOpen.Flags = Flags;
+    ProgramOpen.RuleCount = RuleCount;
+    ProgramOpen.Rules = Rules;
+
+    return XdpProgramCreate((XDP_PROGRAM_OBJECT **)Program, &ProgramOpen, KernelMode);
+}
+
+static
+VOID
+XdpApiKernelXdpDeleteProgram(
+    _In_ HANDLE Program
+    )
+{
+    XdpProgramClose((XDP_PROGRAM_OBJECT *)Program);
 }
 
 static
@@ -65,8 +76,7 @@ XdpApiKernelXskCreate(
     _Out_ HANDLE* Socket
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    return STATUS_NOT_SUPPORTED;
+    return XskCreate((XSK **)Socket);
 }
 
 static
@@ -75,7 +85,8 @@ XdpApiKernelXskDelete(
     _In_ HANDLE Socket
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
+    XskCleanup((XSK *)Socket);
+    XskClose((XSK *)Socket);
 }
 
 static
@@ -87,11 +98,13 @@ XdpApiKernelXskBind(
     _In_ XSK_BIND_FLAGS Flags
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(IfIndex);
-    UNREFERENCED_PARAMETER(QueueId);
-    UNREFERENCED_PARAMETER(Flags);
-    return STATUS_NOT_SUPPORTED;
+    XSK_BIND_IN Bind = {0};
+
+    Bind.IfIndex = IfIndex;
+    Bind.QueueId = QueueId;
+    Bind.Flags = Flags;
+
+    return XskBindSocket((XSK *)Socket, Bind);
 }
 
 static
@@ -101,9 +114,11 @@ XdpApiKernelXskActivate(
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(Flags);
-    return STATUS_NOT_SUPPORTED;
+    XSK_ACTIVATE_IN Activate = {0};
+
+    Activate.Flags = Flags;
+
+    return XskActivateSocket((XSK *)Socket, Activate);
 }
 
 static
@@ -115,11 +130,17 @@ XdpApiKernelXskNotifySocket(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(WaitTimeoutMilliseconds);
-    UNREFERENCED_PARAMETER(Result);
-    return STATUS_NOT_SUPPORTED;
+    NTSTATUS Status;
+    ULONG_PTR Information;
+    XSK_NOTIFY_IN Notify = {0};
+
+    Notify.Flags = Flags;
+    Notify.WaitTimeoutMilliseconds = WaitTimeoutMilliseconds;
+
+    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify), &Information, NULL, KernelMode);
+    *Result = (XSK_NOTIFY_RESULT_FLAGS)Information;
+
+    return Status;
 }
 
 static
@@ -147,11 +168,13 @@ XdpApiKernelXskSetSockopt(
     _In_ UINT32 OptionLength
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(OptionName);
-    UNREFERENCED_PARAMETER(OptionValue);
-    UNREFERENCED_PARAMETER(OptionLength);
-    return STATUS_NOT_SUPPORTED;
+    XSK_SET_SOCKOPT_IN Sockopt = {0};
+
+    Sockopt.Option = OptionName;
+    Sockopt.InputBuffer = OptionValue;
+    Sockopt.InputBufferLength = OptionLength;
+
+    return XskSetSockopt((XSK *)Socket, &Sockopt, KernelMode);
 }
 
 static
@@ -163,11 +186,7 @@ XdpApiKernelXskGetSockopt(
     _Inout_ UINT32 *OptionLength
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(OptionName);
-    UNREFERENCED_PARAMETER(OptionValue);
-    UNREFERENCED_PARAMETER(OptionLength);
-    return STATUS_NOT_SUPPORTED;
+    return XskGetSockopt((XSK *)Socket, OptionName, OptionValue, OptionLength);
 }
 
 static
@@ -203,6 +222,7 @@ XdpApiKernelXdpGetRoutine(
 static CONST XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatch = {
     XdpApiKernelXdpGetRoutine,
     XdpApiKernelXdpCreateProgram,
+    XdpApiKernelXdpDeleteProgram,
     XdpApiKernelXdpInterfaceOpen,
     XdpApiKernelXskCreate,
     XdpApiKernelXskDelete,
