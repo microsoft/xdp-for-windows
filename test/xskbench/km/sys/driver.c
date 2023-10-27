@@ -9,6 +9,7 @@
 #include <netioddk.h>
 #include <initguid.h>
 #include <xdpapi.h>
+#include <xdpapi_experimental.h>
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
@@ -20,6 +21,7 @@ typedef struct _XBDRV_NMR_CLIENT_BINDING_CONTEXT {
 } XBDRV_NMR_CLIENT_BINDING_CONTEXT;
 
 XDP_API_PROVIDER_DISPATCH *XdpApi;
+VOID *XdpApiProviderBindingContext;
 
 static DEVICE_OBJECT *XskBenchDrvDeviceObject;
 static BOOLEAN IsDeviceOpened;
@@ -115,6 +117,7 @@ XbDrvNmrAttachXdpApiProvider(
     // The client can now make calls into the provider.
     //
     XdpApi = (XDP_API_PROVIDER_DISPATCH *)BindingContext->Npi.Dispatch;
+    XdpApiProviderBindingContext = BindingContext->Npi.Handle;
     KeSetEvent(&BoundToProvider, 0, FALSE);
 
 Exit:
@@ -144,6 +147,7 @@ XbDrvNmrDetachXdpApiProvider(
 
     // return STATUS_PENDING;
 
+    XdpApiProviderBindingContext = NULL;
     XdpApi = NULL;
     KeResetEvent(&BoundToProvider);
 
@@ -196,6 +200,14 @@ const NPI_CLIENT_CHARACTERISTICS XbDrvNmrXdpApiClientCharacteristics = {
         NULL // NpiSpecificCharacteristics
     } // ClientRegistrationInstance
 };
+
+VOID *
+PlatGetXdpApiProviderBindingContext(
+    VOID
+    )
+{
+    return XdpApiProviderBindingContext;
+}
 
 VOID
 PlatInitializeXdpApi(

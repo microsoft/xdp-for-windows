@@ -184,6 +184,11 @@ PlatSetThreadGroupAffinity(
     return TRUE;
 }
 
+VOID *
+PlatGetXdpApiProviderBindingContext(
+    VOID
+    );
+
 VOID
 PlatInitializeXdpApi(
     VOID

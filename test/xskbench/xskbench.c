@@ -306,6 +306,9 @@ AttachXdpProgram(
 
     res =
         XdpApi->XdpCreateProgram(
+#if defined(_KERNEL_MODE)
+            PlatGetXdpApiProviderBindingContext(),
+#endif
             ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
     if (FAILED(res)) {
         ABORT("XdpCreateProgram failed: %d\n", res);
@@ -397,7 +400,12 @@ SetupSock(
     UINT32 bindFlags = 0;
 
     printf_verbose("creating sock\n");
-    res = XdpApi->XskCreate(&Queue->sock);
+    res =
+        XdpApi->XskCreate(
+#if defined(_KERNEL_MODE)
+            PlatGetXdpApiProviderBindingContext(),
+#endif
+            &Queue->sock);
     if (res != S_OK) {
         ABORT("err: XskCreate returned %d\n", res);
     }
