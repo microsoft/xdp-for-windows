@@ -18,11 +18,80 @@ typedef struct _XDPAPI_CLIENT {
     const VOID *ClientBindingContext;
 } XDPAPI_CLIENT;
 
+typedef struct _XDP_API_ROUTINE {
+    _Null_terminated_ const CHAR *RoutineName;
+    VOID *Routine;
+} XDP_API_ROUTINE;
+
 static XDPAPI_PROVIDER XdpApiProvider;
 static CONST NPI_MODULEID NPI_XDP_MODULEID = {
     sizeof(NPI_MODULEID),
     MIT_GUID,
     { 0x521421C2, 0x539B, 0x46DF, { 0xA1, 0x43, 0x8D, 0xAC, 0x88, 0xD0, 0xC1, 0x55 } }
+};
+
+//
+// API routines.
+//
+static XDP_GET_ROUTINE_FN XdpApiKernelXdpGetRoutine;
+static XDP_CREATE_PROGRAM_FN XdpApiKernelXdpCreateProgram;
+static XDP_DELETE_PROGRAM_FN XdpApiKernelXdpDeleteProgram;
+static XDP_INTERFACE_OPEN_FN XdpApiKernelXdpInterfaceOpen;
+static XSK_CREATE_FN XdpApiKernelXskCreate;
+static XSK_DELETE_FN XdpApiKernelXskDelete;
+static XSK_BIND_FN XdpApiKernelXskBind;
+static XSK_ACTIVATE_FN XdpApiKernelXskActivate;
+static XSK_NOTIFY_SOCKET_FN XdpApiKernelXskNotifySocket;
+static XSK_NOTIFY_ASYNC2_FN XdpApiKernelXskNotifyAsync2;
+static XSK_SET_SOCKOPT_FN XdpApiKernelXskSetSockopt;
+static XSK_GET_SOCKOPT_FN XdpApiKernelXskGetSockopt;
+static XSK_IOCTL_FN XdpApiKernelXskIoctl;
+
+//
+// Experimental APIs, subject to removal in a minor release.
+//
+static XDP_RSS_GET_CAPABILITIES_FN XdpApiKernelXdpRssGetCapabilities;
+static XDP_RSS_SET_FN XdpApiKernelXdpRssSet;
+static XDP_RSS_GET_FN XdpApiKernelXdpRssGet;
+static XDP_QEO_SET_FN XdpApiKernelXdpQeoSet;
+
+#define DECLARE_XDP_API_ROUTINE(_routine) #_routine, (VOID *)XdpApiKernel##_routine
+#define DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(_routine, _name) _name, (VOID *)XdpApiKernel##_routine
+
+static const XDP_API_ROUTINE XdpApiRoutines[] = {
+    { DECLARE_XDP_API_ROUTINE(XdpGetRoutine) },
+    { DECLARE_XDP_API_ROUTINE(XdpCreateProgram) },
+    { DECLARE_XDP_API_ROUTINE(XdpDeleteProgram) },
+    { DECLARE_XDP_API_ROUTINE(XdpInterfaceOpen) },
+    { DECLARE_XDP_API_ROUTINE(XskCreate) },
+    { DECLARE_XDP_API_ROUTINE(XskDelete) },
+    { DECLARE_XDP_API_ROUTINE(XskBind) },
+    { DECLARE_XDP_API_ROUTINE(XskActivate) },
+    { DECLARE_XDP_API_ROUTINE(XskNotifySocket) },
+    { DECLARE_XDP_API_ROUTINE(XskNotifyAsync2) },
+    { DECLARE_XDP_API_ROUTINE(XskSetSockopt) },
+    { DECLARE_XDP_API_ROUTINE(XskGetSockopt) },
+    { DECLARE_XDP_API_ROUTINE(XskIoctl) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGetCapabilities, XDP_RSS_GET_CAPABILITIES_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssSet, XDP_RSS_SET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGet, XDP_RSS_GET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
+};
+
+static CONST XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
+    .XdpGetRoutine = XdpApiKernelXdpGetRoutine,
+    .XdpCreateProgram = XdpApiKernelXdpCreateProgram,
+    .XdpDeleteProgram = XdpApiKernelXdpDeleteProgram,
+    .XdpInterfaceOpen = XdpApiKernelXdpInterfaceOpen,
+    .XskCreate = XdpApiKernelXskCreate,
+    .XskDelete = XdpApiKernelXskDelete,
+    .XskBind = XdpApiKernelXskBind,
+    .XskActivate = XdpApiKernelXskActivate,
+    .XskNotifySocket = XdpApiKernelXskNotifySocket,
+    .XskNotifyAsync2 = XdpApiKernelXskNotifyAsync2,
+    .XskSetSockopt = XdpApiKernelXskSetSockopt,
+    .XskGetSockopt = XdpApiKernelXskGetSockopt,
+    .XskIoctl = XdpApiKernelXskIoctl
 };
 
 static
@@ -227,25 +296,70 @@ XdpApiKernelXdpGetRoutine(
     _In_z_ const CHAR *RoutineName
     )
 {
-    UNREFERENCED_PARAMETER(RoutineName);
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpApiRoutines); i++) {
+        if (strcmp(XdpApiRoutines[i].RoutineName, RoutineName) == 0) {
+            return XdpApiRoutines[i].Routine;
+        }
+    }
+
     return NULL;
 }
 
-static CONST XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatch = {
-    XdpApiKernelXdpGetRoutine,
-    XdpApiKernelXdpCreateProgram,
-    XdpApiKernelXdpDeleteProgram,
-    XdpApiKernelXdpInterfaceOpen,
-    XdpApiKernelXskCreate,
-    XdpApiKernelXskDelete,
-    XdpApiKernelXskBind,
-    XdpApiKernelXskActivate,
-    XdpApiKernelXskNotifySocket,
-    XdpApiKernelXskNotifyAsync2,
-    XdpApiKernelXskSetSockopt,
-    XdpApiKernelXskGetSockopt,
-    XdpApiKernelXskIoctl
-};
+static
+XDP_STATUS
+XdpApiKernelXdpRssGetCapabilities(
+    _In_ HANDLE InterfaceHandle,
+    _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Inout_ UINT32 *RssCapabilitiesSize
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceHandle);
+    UNREFERENCED_PARAMETER(RssCapabilities);
+    UNREFERENCED_PARAMETER(RssCapabilitiesSize);
+    return STATUS_NOT_SUPPORTED;
+}
+
+static
+XDP_STATUS
+XdpApiKernelXdpRssSet(
+    _In_ HANDLE InterfaceHandle,
+    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ UINT32 RssConfigurationSize
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceHandle);
+    UNREFERENCED_PARAMETER(RssConfiguration);
+    UNREFERENCED_PARAMETER(RssConfigurationSize);
+    return STATUS_NOT_SUPPORTED;
+}
+
+static
+XDP_STATUS
+XdpApiKernelXdpRssGet(
+    _In_ HANDLE InterfaceHandle,
+    _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
+    _Inout_ UINT32 *RssConfigurationSize
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceHandle);
+    UNREFERENCED_PARAMETER(RssConfiguration);
+    UNREFERENCED_PARAMETER(RssConfigurationSize);
+    return STATUS_NOT_SUPPORTED;
+}
+
+static
+XDP_STATUS
+XdpApiKernelXdpQeoSet(
+    _In_ HANDLE InterfaceHandle,
+    _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
+    _In_ UINT32 QuicConnectionsSize
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceHandle);
+    UNREFERENCED_PARAMETER(QuicConnections);
+    UNREFERENCED_PARAMETER(QuicConnectionsSize);
+    return STATUS_NOT_SUPPORTED;
+}
 
 static
 NTSTATUS
@@ -292,7 +406,7 @@ Exit:
     if (NT_SUCCESS(Status)) {
         *ProviderBindingContext = Client;
         Client = NULL;
-        *ProviderDispatch = &XdpApiProviderDispatch;
+        *ProviderDispatch = &XdpApiProviderDispatchV1;
     } else {
         if (Client != NULL) {
             ExFreePoolWithTag(Client, XDP_POOLTAG_KERNEL_API_NMR);
