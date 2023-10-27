@@ -58,7 +58,8 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
 XskCreate(
-    _Out_ XSK **Xsk
+    _Out_ XSK **Xsk,
+    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -110,7 +111,8 @@ XskNotify(
     _In_ ULONG InputBufferLength,
     _Out_ ULONG_PTR *Information,
     _Inout_opt_ IRP *Irp,
-    _In_ KPROCESSOR_MODE RequestorMode
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ BOOLEAN UseCallback
     );
 
 XDP_FILE_CREATE_ROUTINE XskIrpCreateSocket;

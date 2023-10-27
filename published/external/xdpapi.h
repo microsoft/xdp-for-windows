@@ -34,6 +34,23 @@ typedef enum _XDP_CREATE_PROGRAM_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XDP_CREATE_PROGRAM_FLAGS);
 C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
+#if defined(_KERNEL_MODE)
+
+typedef
+XDP_STATUS
+XDP_CREATE_PROGRAM_FN(
+    _In_ VOID *ProviderBindingContext,
+    _In_ UINT32 InterfaceIndex,
+    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ UINT32 QueueId,
+    _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
+    _In_reads_(RuleCount) CONST XDP_RULE *Rules,
+    _In_ UINT32 RuleCount,
+    _Out_ HANDLE *Program
+    );
+
+#else
+
 typedef
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
@@ -45,6 +62,8 @@ XDP_CREATE_PROGRAM_FN(
     _In_ UINT32 RuleCount,
     _Out_ HANDLE *Program
     );
+
+#endif
 
 typedef
 XDP_STATUS

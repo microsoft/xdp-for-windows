@@ -61,11 +61,24 @@ typedef enum _XSK_RING_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XSK_RING_FLAGS);
 C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 
+#if defined(_KERNEL_MODE)
+
 typedef
 XDP_STATUS
 XSK_CREATE_FN(
-    _Out_ HANDLE* Socket
+    _In_ VOID *ProviderBindingContext,
+    _Out_ HANDLE *Socket
     );
+
+#else
+
+typedef
+XDP_STATUS
+XSK_CREATE_FN(
+    _Out_ HANDLE *Socket
+    );
+
+#endif // defined(_KERNEL_MODE)
 
 typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NONE = 0x0,

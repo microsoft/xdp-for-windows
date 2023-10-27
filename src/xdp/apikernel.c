@@ -28,6 +28,7 @@ static CONST NPI_MODULEID NPI_XDP_MODULEID = {
 static
 XDP_STATUS
 XdpApiKernelXdpCreateProgram(
+    _In_ VOID *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
     _In_ CONST XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -38,6 +39,8 @@ XdpApiKernelXdpCreateProgram(
     )
 {
     XDP_PROGRAM_OPEN ProgramOpen;
+
+    UNREFERENCED_PARAMETER(ProviderBindingContext);
 
     ProgramOpen.IfIndex = InterfaceIndex;
     ProgramOpen.HookId = *HookId;
@@ -73,10 +76,13 @@ XdpApiKernelXdpInterfaceOpen(
 static
 XDP_STATUS
 XdpApiKernelXskCreate(
+    _In_ VOID *ProviderBindingContext,
     _Out_ HANDLE* Socket
     )
 {
-    return XskCreate((XSK **)Socket);
+    XDPAPI_CLIENT *Client = ProviderBindingContext;
+
+    return XskCreate((XSK **)Socket, Client->ClientDispatch->XskNotifyCallback);
 }
 
 static
@@ -137,7 +143,7 @@ XdpApiKernelXskNotifySocket(
     Notify.Flags = Flags;
     Notify.WaitTimeoutMilliseconds = WaitTimeoutMilliseconds;
 
-    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify), &Information, NULL, KernelMode);
+    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify), &Information, NULL, KernelMode, FALSE);
     *Result = (XSK_NOTIFY_RESULT_FLAGS)Information;
 
     return Status;
@@ -152,11 +158,17 @@ XdpApiKernelXskNotifyAsync2(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(CompletionContext);
-    UNREFERENCED_PARAMETER(Result);
-    return STATUS_NOT_SUPPORTED;
+    NTSTATUS Status;
+    ULONG_PTR Information;
+    XSK_NOTIFY_IN Notify = {0};
+
+    Notify.Flags = Flags;
+    Notify.CompletionContext = CompletionContext;
+
+    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify), &Information, NULL, KernelMode, TRUE);
+    *Result = (XSK_NOTIFY_RESULT_FLAGS)Information;
+
+    return Status;
 }
 
 static

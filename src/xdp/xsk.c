@@ -156,6 +156,9 @@ typedef struct _XSK {
     XSK_IO_WAIT_FLAGS IoWaitInternalFlags;
     KEVENT IoWaitEvent;
     IRP *IoWaitIrp;
+    PXSK_NOTIFY_CALLBACK NotifyCallback;
+    VOID *NotifyCallbackCompletionContext;
+    CHAR NotifyCallbackArmed;
     XSK_STATISTICS Statistics;
     EX_PUSH_LOCK PollLock;
     XSK_POLL_MODE PollMode;
@@ -248,14 +251,19 @@ XskWaitInFlagsToOutFlags(
 }
 
 static
-VOID
+BOOLEAN
 XskSignalReadyIo(
     _In_ XSK *Xsk,
-    _In_ UINT32 ReadyFlags
+    _In_ UINT32 ReadyFlags,
+    _In_ BOOLEAN SkipCallback
     )
 {
     KIRQL OldIrql;
+    BOOLEAN CompletedWait = FALSE;
     IRP *Irp = NULL;
+    VOID *NotifyCallbackCompletionContext = NULL;
+    BOOLEAN DoCallback = FALSE;
+    XSK_NOTIFY_RESULT_FLAGS OutFlags = 0;
 
     ASSERT((ReadyFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) == ReadyFlags);
 
@@ -275,9 +283,20 @@ XskSignalReadyIo(
             if (IoSetCancelRoutine(Irp, NULL) == NULL) {
                 Irp = NULL;
             }
+        } else if (Xsk->NotifyCallbackArmed) {
+            OutFlags = XskWaitInFlagsToOutFlags(Xsk->IoWaitFlags & ReadyFlags);
+            NotifyCallbackCompletionContext = Xsk->NotifyCallbackCompletionContext;
+
+            Xsk->NotifyCallbackCompletionContext = NULL;
+            Xsk->NotifyCallbackArmed = FALSE;
+            Xsk->IoWaitFlags = 0;
+
+            DoCallback = TRUE;
         } else {
             (VOID)KeSetEvent(&Xsk->IoWaitEvent, IO_NETWORK_INCREMENT, FALSE);
         }
+
+        CompletedWait = TRUE;
     }
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
@@ -285,6 +304,12 @@ XskSignalReadyIo(
         EventWriteXskNotifyAsyncComplete(&MICROSOFT_XDP_PROVIDER, Xsk, Irp, Irp->IoStatus.Status);
         IoCompleteRequest(Irp, IO_NETWORK_INCREMENT);
     }
+
+    if (DoCallback && !SkipCallback) {
+        Xsk->NotifyCallback(NotifyCallbackCompletionContext, OutFlags);
+    }
+
+    return CompletedWait;
 }
 
 static
@@ -892,8 +917,8 @@ XskFillTxCompletion(
         KeMemoryBarrier();
 
         if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_TX) &&
-            (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL)) {
-            XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_TX);
+            (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL || Xsk->NotifyCallbackArmed)) {
+            XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_TX, FALSE);
         }
 
         XskTxCompleteRundown(Xsk);
@@ -969,7 +994,8 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
 XskCreate(
-    _Out_ XSK **Xsk
+    _Out_ XSK **Xsk,
+    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;
@@ -996,6 +1022,7 @@ XskCreate(
     KeInitializeEvent(&(*Xsk)->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&(*Xsk)->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&(*Xsk)->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
+    (*Xsk)->NotifyCallback = NotifyCallback;
 
     EventWriteXskCreateSocket(
         &MICROSOFT_XDP_PROVIDER, *Xsk, PsGetCurrentProcessId());
@@ -1029,7 +1056,7 @@ XskIrpCreateSocket(
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
-    Status = XskCreate(&Xsk);
+    Status = XskCreate(&Xsk, NULL);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1282,7 +1309,7 @@ XskAcquirePollModeSocket(
     Xsk->IoWaitInternalFlags |= XSK_IO_WAIT_FLAG_POLL_MODE_SOCKET;
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
-    XskSignalReadyIo(Xsk, NotifyFlags);
+    XskSignalReadyIo(Xsk, NotifyFlags, FALSE);
 
     Status = STATUS_SUCCESS;
 
@@ -1763,7 +1790,7 @@ XskCleanup(
     XskReleasePollLock(Xsk);
 
     if (IoWaitFlags != 0) {
-        XskSignalReadyIo(Xsk, IoWaitFlags);
+        XskSignalReadyIo(Xsk, IoWaitFlags, FALSE);
     }
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
@@ -4012,8 +4039,10 @@ XskNotifyValidateParams(
     _In_ KPROCESSOR_MODE RequestorMode,
     _In_opt_ VOID *InputBuffer,
     _In_ ULONG InputBufferLength,
+    _In_ BOOLEAN UseCallback,
     _Out_ PUINT32 TimeoutMilliseconds,
-    _Out_ PUINT32 InFlags
+    _Out_ PUINT32 InFlags,
+    _Out_ PVOID *CompletionContext
     )
 {
     if (Xsk->State != XskActive){
@@ -4034,6 +4063,7 @@ XskNotifyValidateParams(
         *InFlags = ReadUInt32NoFence((UINT32 *)&((XSK_NOTIFY_IN *)InputBuffer)->Flags);
         *TimeoutMilliseconds =
             ReadUInt32NoFence(&((XSK_NOTIFY_IN *)InputBuffer)->WaitTimeoutMilliseconds);
+        *CompletionContext = ReadPointerNoFence(&((XSK_NOTIFY_IN *)InputBuffer)->CompletionContext);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return GetExceptionCode();
     }
@@ -4047,6 +4077,16 @@ XskNotifyValidateParams(
         (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && Xsk->Tx.Ring.Size == 0)) {
         return STATUS_INVALID_DEVICE_STATE;
     }
+
+    if (RequestorMode != KernelMode && *CompletionContext != NULL) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (UseCallback && *TimeoutMilliseconds > 0) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    ASSERT(!UseCallback || RequestorMode == KernelMode);
 
     return STATUS_SUCCESS;
 }
@@ -4157,13 +4197,15 @@ XskNotify(
     _In_ ULONG InputBufferLength,
     _Out_ ULONG_PTR *Information,
     _Inout_opt_ IRP *Irp,
-    _In_ KPROCESSOR_MODE RequestorMode
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ BOOLEAN UseCallback
     )
 {
     UINT32 TimeoutMilliseconds;
     UINT32 ReadyFlags;
     UINT32 InFlags;
     UINT32 OutFlags = 0;
+    VOID *CompletionContext;
     KIRQL OldIrql;
     LARGE_INTEGER Timeout;
     NTSTATUS Status;
@@ -4172,7 +4214,7 @@ XskNotify(
 
     Status =
         XskNotifyValidateParams(
-            Xsk, RequestorMode, InputBuffer, InputBufferLength, &TimeoutMilliseconds, &InFlags);
+            Xsk, RequestorMode, InputBuffer, InputBufferLength, UseCallback, &TimeoutMilliseconds, &InFlags, &CompletionContext);
     if (Status != STATUS_SUCCESS) {
         TraceError(TRACE_XSK, "Xsk=%p Notify failed: Invalid params", Xsk);
         goto Exit;
@@ -4269,6 +4311,10 @@ XskNotify(
 
             goto Exit;
         }
+    } else if (UseCallback) {
+        ASSERT(!Xsk->NotifyCallbackArmed);
+        Xsk->NotifyCallbackCompletionContext = CompletionContext;
+        WriteRelease8(&Xsk->NotifyCallbackArmed, TRUE);
     } else {
         KeClearEvent(&Xsk->IoWaitEvent);
     }
@@ -4288,8 +4334,21 @@ XskNotify(
     // Check for ready IO.
     //
     ReadyFlags = XskQueryReadyIo(Xsk, InFlags);
+    if (UseCallback) {
+        //
+        // For clients with a registered callback, always return immediately.
+        //
+        if (ReadyFlags != 0) {
+            if (XskSignalReadyIo(Xsk, ReadyFlags, TRUE)) {
+                OutFlags |= XskWaitInFlagsToOutFlags(ReadyFlags);
+            }
+        }
+
+        ASSERT(Status == STATUS_SUCCESS);
+        goto Exit;
+    }
     if (ReadyFlags != 0) {
-        XskSignalReadyIo(Xsk, ReadyFlags);
+        XskSignalReadyIo(Xsk, ReadyFlags, FALSE);
     }
 
     //
@@ -4297,7 +4356,7 @@ XskNotify(
     // the wait and allow the application to re-examine the shared ring flags.
     //
     if (InternalFlags != Xsk->IoWaitInternalFlags) {
-        XskSignalReadyIo(Xsk, InFlags & WaitMask);
+        XskSignalReadyIo(Xsk, InFlags & WaitMask, FALSE);
     }
 
     if (Irp == NULL) {
@@ -4362,7 +4421,7 @@ XskFastIo(
     switch (IoControlCode) {
     case IOCTL_XSK_NOTIFY:
         IoStatus->Status =
-            XskNotify(Xsk, InputBuffer, InputBufferLength, &IoStatus->Information, NULL, ExGetPreviousMode());
+            XskNotify(Xsk, InputBuffer, InputBufferLength, &IoStatus->Information, NULL, ExGetPreviousMode(), FALSE);
         return TRUE;
 
     case IOCTL_XSK_GET_SOCKOPT:
@@ -4503,8 +4562,8 @@ XskReceiveSubmitBatch(
         KeMemoryBarrier();
 
         if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_RX) &&
-            (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL)) {
-            XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_RX);
+            (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL || Xsk->NotifyCallbackArmed)) {
+            XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_RX, FALSE);
         }
     }
 }
@@ -4620,7 +4679,7 @@ XskIrpDeviceIoControl(
             XskNotify(
                 IrpSp->FileObject->FsContext, IrpSp->Parameters.DeviceIoControl.Type3InputBuffer,
                 IrpSp->Parameters.DeviceIoControl.InputBufferLength,
-                &Irp->IoStatus.Information, Irp, Irp->RequestorMode);
+                &Irp->IoStatus.Information, Irp, Irp->RequestorMode, FALSE);
         break;
     default:
         Status = STATUS_NOT_SUPPORTED;
