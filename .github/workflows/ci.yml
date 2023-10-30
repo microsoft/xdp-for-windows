@@ -11,6 +11,8 @@ on:
     - main
     - release/*
     - prerelease/*
+  schedule:
+    - cron: '37 12 * * 2'
 
 concurrency:
   # Cancel any workflow currently in progress for the same PR.
@@ -33,11 +35,20 @@ jobs:
         configuration: [Release, Debug]
         platform: [x64]
     runs-on: windows-${{ matrix.os }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write  # For CodeQL
     steps:
     - name: Checkout repository
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       with:
         submodules: recursive
+    - name: Initialize CodeQL
+      if: ${{ github.event_name == 'schedule' }}
+      uses: github/codeql-action/init@v2
+      with:
+        languages: c-cpp
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
     - name: Prepare Machine
@@ -76,6 +87,11 @@ jobs:
         accountName: mscodehub
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
         personalAccessToken: ${{ secrets.AZDO_PAT }}
+    - name: Perform CodeQL Analysis
+      if: ${{ github.event_name == 'schedule' }}
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:c-cpp"
 
   functional_tests:
     name: Functional Tests
@@ -391,6 +407,11 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+    - name: Initialize CodeQL
+      if: ${{ github.event_name == 'schedule' }}
+      uses: github/codeql-action/init@v2
+      with:
+        languages: csharp
     - name: Setup .NET
       uses: actions/setup-dotnet@3447fd6a9f9e57506b15f895c5b76d3b197dc7c2
       with:
@@ -404,6 +425,11 @@ jobs:
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
+    - name: Perform CodeQL Analysis
+      if: ${{ github.event_name == 'schedule' }}
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:csharp"
 
   netperf:
     name: Run Perf
