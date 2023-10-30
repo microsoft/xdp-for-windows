@@ -199,7 +199,7 @@ ProcessCommandGet(
 
     RssConfigSize = 0;
     Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
-    if (SUCCEEDED(Result) || RssConfigSize < sizeof(RssConfig)) {
+    if (SUCCEEDED(Result) || RssConfigSize < sizeof(*RssConfig)) {
         printf(
             "Error: Failed to get RSS configuration size on IfIndex=%u Result=%d RssConfigSize=%d\n",
             IfIndex, Result, RssConfigSize);
@@ -276,7 +276,7 @@ ProcessCommandSet(
         }
     }
 
-    RssConfigSize = sizeof(RssConfig) + XDP_RSS_INDIRECTION_TABLE_SIZE * sizeof(PROCESSOR_NUMBER);
+    RssConfigSize = sizeof(*RssConfig) + XDP_RSS_INDIRECTION_TABLE_SIZE * sizeof(PROCESSOR_NUMBER);
     RssConfig = malloc(RssConfigSize);
     if (RssConfig == NULL) {
         printf("Error: Failed to allocate RSS configuration for IfIndex=%u\n", IfIndex);
