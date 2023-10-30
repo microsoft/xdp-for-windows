@@ -88,6 +88,12 @@ XDP_DELETE_PROGRAM_FN(
     _In_ HANDLE Program
     );
 
+typedef
+VOID
+XDP_INTERFACE_CLOSE_FN(
+    _In_ HANDLE InterfaceHandle
+    );
+
 DEFINE_GUID(
     NPI_XDPAPI_INTERFACE_ID,
     0x1683b7b0, 0xcf44, 0x4757, 0x91, 0xf6, 0xc6, 0x19, 0x9b, 0x9d, 0x00, 0xfe);
@@ -103,6 +109,7 @@ typedef struct _XDP_API_PROVIDER_DISPATCH {
     XDP_CREATE_PROGRAM_FN* XdpCreateProgram;
     XDP_DELETE_PROGRAM_FN* XdpDeleteProgram;
     XDP_INTERFACE_OPEN_FN* XdpInterfaceOpen;
+    XDP_INTERFACE_CLOSE_FN* XdpInterfaceClose;
     XSK_CREATE_FN* XskCreate;
     XSK_DELETE_FN* XskDelete;
     XSK_BIND_FN* XskBind;

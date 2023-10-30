@@ -37,6 +37,7 @@ static XDP_GET_ROUTINE_FN XdpApiKernelXdpGetRoutine;
 static XDP_CREATE_PROGRAM_FN XdpApiKernelXdpCreateProgram;
 static XDP_DELETE_PROGRAM_FN XdpApiKernelXdpDeleteProgram;
 static XDP_INTERFACE_OPEN_FN XdpApiKernelXdpInterfaceOpen;
+static XDP_INTERFACE_CLOSE_FN XdpApiKernelXdpInterfaceClose;
 static XSK_CREATE_FN XdpApiKernelXskCreate;
 static XSK_DELETE_FN XdpApiKernelXskDelete;
 static XSK_BIND_FN XdpApiKernelXskBind;
@@ -63,6 +64,7 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XdpCreateProgram) },
     { DECLARE_XDP_API_ROUTINE(XdpDeleteProgram) },
     { DECLARE_XDP_API_ROUTINE(XdpInterfaceOpen) },
+    { DECLARE_XDP_API_ROUTINE(XdpInterfaceClose) },
     { DECLARE_XDP_API_ROUTINE(XskCreate) },
     { DECLARE_XDP_API_ROUTINE(XskDelete) },
     { DECLARE_XDP_API_ROUTINE(XskBind) },
@@ -83,6 +85,7 @@ static CONST XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
     .XdpCreateProgram = XdpApiKernelXdpCreateProgram,
     .XdpDeleteProgram = XdpApiKernelXdpDeleteProgram,
     .XdpInterfaceOpen = XdpApiKernelXdpInterfaceOpen,
+    .XdpInterfaceClose = XdpApiKernelXdpInterfaceClose,
     .XskCreate = XdpApiKernelXskCreate,
     .XskDelete = XdpApiKernelXskDelete,
     .XskBind = XdpApiKernelXskBind,
@@ -137,9 +140,20 @@ XdpApiKernelXdpInterfaceOpen(
     _Out_ HANDLE *InterfaceHandle
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceIndex);
-    UNREFERENCED_PARAMETER(InterfaceHandle);
-    return STATUS_NOT_SUPPORTED;
+    XDP_INTERFACE_OPEN InterfaceOpen;
+
+    InterfaceOpen.IfIndex = InterfaceIndex;
+
+    return XdpInterfaceCreate((XDP_INTERFACE_OBJECT **)InterfaceHandle, &InterfaceOpen);
+}
+
+static
+VOID
+XdpApiKernelXdpInterfaceClose(
+    _In_ HANDLE InterfaceHandle
+    )
+{
+    XdpInterfaceDelete((XDP_INTERFACE_OBJECT *)InterfaceHandle);
 }
 
 static
@@ -309,14 +323,11 @@ static
 XDP_STATUS
 XdpApiKernelXdpRssGetCapabilities(
     _In_ HANDLE InterfaceHandle,
-    _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Out_writes_bytes_opt_(*RssCapabilitiesSize) XDP_RSS_CAPABILITIES *RssCapabilities,
     _Inout_ UINT32 *RssCapabilitiesSize
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceHandle);
-    UNREFERENCED_PARAMETER(RssCapabilities);
-    UNREFERENCED_PARAMETER(RssCapabilitiesSize);
-    return STATUS_NOT_SUPPORTED;
+    return XdpInterfaceOffloadRssGetCapabilities((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssCapabilities, *RssCapabilitiesSize, RssCapabilities == NULL, RssCapabilitiesSize);
 }
 
 static
@@ -327,24 +338,18 @@ XdpApiKernelXdpRssSet(
     _In_ UINT32 RssConfigurationSize
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceHandle);
-    UNREFERENCED_PARAMETER(RssConfiguration);
-    UNREFERENCED_PARAMETER(RssConfigurationSize);
-    return STATUS_NOT_SUPPORTED;
+    return XdpInterfaceOffloadRssSet((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration, RssConfigurationSize);
 }
 
 static
 XDP_STATUS
 XdpApiKernelXdpRssGet(
     _In_ HANDLE InterfaceHandle,
-    _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
+    _Out_writes_bytes_opt_(*RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceHandle);
-    UNREFERENCED_PARAMETER(RssConfiguration);
-    UNREFERENCED_PARAMETER(RssConfigurationSize);
-    return STATUS_NOT_SUPPORTED;
+    return XdpInterfaceOffloadRssGet((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration, *RssConfigurationSize, RssConfiguration == NULL, RssConfigurationSize);
 }
 
 static
@@ -355,10 +360,9 @@ XdpApiKernelXdpQeoSet(
     _In_ UINT32 QuicConnectionsSize
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceHandle);
-    UNREFERENCED_PARAMETER(QuicConnections);
-    UNREFERENCED_PARAMETER(QuicConnectionsSize);
-    return STATUS_NOT_SUPPORTED;
+    UINT32 OutputBufferLength = QuicConnectionsSize;
+
+    return XdpInterfaceOffloadQeoSet((XDP_INTERFACE_OBJECT *)InterfaceHandle, QuicConnections, QuicConnectionsSize, &OutputBufferLength);
 }
 
 static
