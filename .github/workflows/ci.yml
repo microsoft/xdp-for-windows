@@ -45,7 +45,7 @@ jobs:
       with:
         submodules: recursive
     - name: Initialize CodeQL
-      #if: ${{ github.event_name == 'schedule' }}
+      if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v2
       with:
         languages: c-cpp
@@ -88,7 +88,7 @@ jobs:
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
         personalAccessToken: ${{ secrets.AZDO_PAT }}
     - name: Perform CodeQL Analysis
-      #if: ${{ github.event_name == 'schedule' }}
+      if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:c-cpp"
@@ -408,7 +408,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
     - name: Initialize CodeQL
-      #if: ${{ github.event_name == 'schedule' }}
+      if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v2
       with:
         languages: csharp
@@ -426,7 +426,7 @@ jobs:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
     - name: Perform CodeQL Analysis
-      #if: ${{ github.event_name == 'schedule' }}
+      if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:csharp"
