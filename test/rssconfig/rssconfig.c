@@ -30,6 +30,7 @@ INTERFACE_CONFIG_ENTRY *InterfaceConfigList = NULL;
 CONST XDP_API_TABLE *XdpApi;
 XDP_RSS_SET_FN *XdpRssSet;
 XDP_RSS_GET_FN *XdpRssGet;
+XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities;
 
 CONST CHAR *UsageText =
 "Usage:"
@@ -40,6 +41,8 @@ CONST CHAR *UsageText =
 "\n        list indicates the indirection table processor assignments."
 "\n    clear <ifIndex>"
 "\n        Clears the currently configured RSS settings for an interface, if any."
+"\n    cap <ifIndex>"
+"\n        Gets the current RSS capabilities for a given interface."
 "\n";
 
 VOID
@@ -340,6 +343,49 @@ Exit:
     return;
 }
 
+VOID
+ProcessCommandCap(
+    _In_ CHAR **StrTokContext
+    )
+{
+    HRESULT Result;
+    UINT32 IfIndex;
+    HANDLE InterfaceHandle = NULL;
+    XDP_RSS_CAPABILITIES RssCapabilities;
+    UINT32 RssCapabilitiesSize = sizeof(RssCapabilities);
+
+    if (!GetIfIndexParam(StrTokContext, &IfIndex)) {
+        goto Exit;
+    }
+
+    Result = XdpApi->XdpInterfaceOpen(IfIndex, &InterfaceHandle);
+    if (FAILED(Result)) {
+        printf("Error: Failed to open RSS handle on IfIndex=%u Result=%d\n", IfIndex, Result);
+        goto Exit;
+    }
+
+    Result = XdpRssGetCapabilities(InterfaceHandle, &RssCapabilities, &RssCapabilitiesSize);
+    if (FAILED(Result)) {
+        printf("Error: Failed to get RSS capabilities on IfIndex=%u Result=%d\n", IfIndex, Result);
+        goto Exit;
+    }
+
+    printf("RSS capabilities for IfIndex=%u\n", IfIndex);
+    printf("Flags:\n\t%d\n", RssCapabilities.Flags);
+    printf("HashTypes:\n\t%d\n", RssCapabilities.HashTypes);
+    printf("HashSecretKeySize:\n\t%d\n", RssCapabilities.HashSecretKeySize);
+    printf("NumberOfReceiveQueues:\n\t%d\n", RssCapabilities.NumberOfReceiveQueues);
+    printf(
+        "NumberOfIndirectionTableEntries:\n\t%d\n",
+        RssCapabilities.NumberOfIndirectionTableEntries);
+
+Exit:
+
+    if (InterfaceHandle != NULL) {
+        CloseHandle(InterfaceHandle);
+    }
+}
+
 INT
 __cdecl
 main()
@@ -362,8 +408,15 @@ main()
     }
 
     XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
-    if (XdpRssSet == NULL) {
+    if (XdpRssGet == NULL) {
         printf("Error: Failed to load XdpRssGet Result=%d\n", Result);
+        goto Exit;
+    }
+
+    XdpRssGetCapabilities =
+        (XDP_RSS_GET_CAPABILITIES_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_CAPABILITIES_FN_NAME);
+    if (XdpRssGetCapabilities == NULL) {
+        printf("Error: Failed to load XdpRssGetCapabilities Result=%d\n", Result);
         goto Exit;
     }
 
@@ -381,6 +434,8 @@ main()
             ProcessCommandSet(&StrTokContext);
         } else if (!strcmp(Str, "clear")) {
             ProcessCommandClear(&StrTokContext);
+        } else if (!strcmp(Str, "cap")) {
+            ProcessCommandCap(&StrTokContext);
         } else {
             Usage("invalid command");
         }
