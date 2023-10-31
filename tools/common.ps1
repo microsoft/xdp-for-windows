@@ -108,9 +108,15 @@ function Get-EbpfInstallPath {
     return "$($env:SystemDrive)\ebpf"
 }
 
+# Return the eBPF MSI version
+function Get-EbpfMsiVersion {
+    return "0.12.0"
+}
+
 # Returns the eBPF MSI filename
 function Get-EbpfMsiFilename {
-    return "ebpf-for-windows.0.12.0+5122375852.msi"
+    $EbpfFileVersion = Get-EbpfMsiVersion
+    return "ebpf-for-windows.$EbpfFileVersion.msi"
 }
 
 # Returns the eBPF MSI full path
@@ -122,8 +128,9 @@ function Get-EbpfMsiFullPath {
 
 # Returns the eBPF MSI download URL
 function Get-EbpfMsiUrl {
+    $EbpfFileVersion = Get-EbpfMsiVersion
     $EbpfMsiFilename = Get-EbpfMsiFilename
-    return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/v$EbpfFileVersion/$EbpfMsiFilename"
 }
 
 function Get-CoreNetCiCommit {
