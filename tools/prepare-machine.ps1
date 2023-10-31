@@ -85,7 +85,7 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
 $EbpfNugetVersion = "0.12.0"
 $EbpfNuget = "eBPF-for-Windows.$EbpfNugetVersion.nupkg"
 $EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/download/v$EbpfNugetVersion/$EbpfNuget"
-$EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
+$EbpfNugetRestoreDir = "$RootDir/packages/eBPF-for-Windows.$EbpfNugetVersion"
 
 # Flag that indicates something required a reboot.
 $Reboot = $false
