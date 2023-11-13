@@ -208,7 +208,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [Prerelease]
+        windows: [2019, 2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64]
     runs-on:
