@@ -63,6 +63,12 @@
       <AdditionalDependencies>onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <!-- The ASAN runtime cannot be statically linked into the executable, so provide it along with the binary. -->
+  <ItemGroup>
+    <Content Include="$(VCToolsInstallDir)\bin\Hostx64\x64\clang_rt.asan_dynamic-x86_64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
