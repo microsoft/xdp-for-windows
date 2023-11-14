@@ -224,7 +224,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [Prerelease]
+        windows: [2019, 2022] # ASAN is currently buggy on Prerelease
         configuration: [Release, Debug]
         platform: [x64]
     runs-on:
