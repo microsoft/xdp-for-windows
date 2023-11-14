@@ -610,7 +610,7 @@ function Uninstall-Ebpf {
     }
 
     if ($Process.ExitCode -ne 0) {
-        if (Process.ExitCode -eq 0x666) {
+        if ($Process.ExitCode -eq 0x666) {
             Write-Error "An unexpected version of eBPF could not be uninstalled"
         } else {
             Write-Error "MSI uninstall failed with status $($Process.ExitCode)" -ErrorAction Continue
