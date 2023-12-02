@@ -172,7 +172,7 @@ XdpInterfaceOpen(
 HRESULT
 XdpRssGetCapabilities(
     _In_ HANDLE InterfaceHandle,
-    _Out_opt_ XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Out_writes_bytes_opt_(*RssCapabilitiesSize) XDP_RSS_CAPABILITIES *RssCapabilities,
     _Inout_ UINT32 *RssCapabilitiesSize
     )
 {
@@ -210,7 +210,7 @@ XdpRssSet(
 HRESULT
 XdpRssGet(
     _In_ HANDLE InterfaceHandle,
-    _Out_opt_ XDP_RSS_CONFIGURATION *RssConfiguration,
+    _Out_writes_bytes_opt_(*RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
     )
 {

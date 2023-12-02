@@ -202,7 +202,7 @@ ProcessCommandGet(
 
     RssConfigSize = 0;
     Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
-    if (SUCCEEDED(Result) || RssConfigSize < sizeof(*RssConfig)) {
+    if (SUCCEEDED(Result)) {
         printf(
             "Error: Failed to get RSS configuration size on IfIndex=%u Result=%d RssConfigSize=%d\n",
             IfIndex, Result, RssConfigSize);
@@ -215,7 +215,6 @@ ProcessCommandGet(
         goto Exit;
     }
 
-    _Analysis_assume_(RssConfigSize >= sizeof(*RssConfig));
     Result = XdpRssGet(InterfaceHandle, RssConfig, &RssConfigSize);
     if (FAILED(Result)) {
         printf("Error: Failed to get RSS configuration on IfIndex=%u Result=%d\n", IfIndex, Result);
