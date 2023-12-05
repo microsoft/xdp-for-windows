@@ -197,7 +197,7 @@ main(
     // from the start of the UMEM to the start of the frame. Since this sample
     // is using a single buffer, the offset is always zero.
     //
-    *(UINT32 *)XskRingGetElement(&RxFillRing, RingIndex) = 0;
+    *(UINT64 *)XskRingGetElement(&RxFillRing, RingIndex) = 0;
 
     XskRingProducerSubmit(&RxFillRing, 1);
 
@@ -278,8 +278,8 @@ main(
         }
 
         if (XskRingConsumerReserve(&TxCompRing, 1, &RingIndex) == 1) {
-            UINT32 *Tx;
-            UINT32 *Rx;
+            UINT64 *Tx;
+            UINT64 *Rx;
 
             //
             // A TX frame address appeared on the TX completion ring. Recycle
