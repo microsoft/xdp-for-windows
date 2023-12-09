@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\packages\eBPF-for-Windows.0.13.0\build\native\ebpf-for-windows.props" Condition="Exists('..\..\packages\eBPF-for-Windows.0.13.0\build\native\ebpf-for-windows.props')" />
   <Import Project="$(SolutionDir)src\xdp.props" />
   <!--The following lines configure the properties needed for sourcelink support -->
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props')" />
@@ -30,12 +31,8 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <Target Name="SetSourceRevisionId" BeforeTargets="ClCompile;ResourceCompile">
-    <Exec
-      Command="git describe --long --always --dirty --exclude=* --abbrev=8"
-      ConsoleToMSBuild="True"
-      IgnoreExitCode="False"
-      >
-      <Output PropertyName="SourceRevisionId" TaskParameter="ConsoleOutput"/>
+    <Exec Command="git describe --long --always --dirty --exclude=* --abbrev=8" ConsoleToMSBuild="True" IgnoreExitCode="False">
+      <Output PropertyName="SourceRevisionId" TaskParameter="ConsoleOutput" />
     </Exec>
     <ItemGroup>
       <ResourceCompile>
@@ -194,5 +191,6 @@
     <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props'))" />
     <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets'))" />
     <Error Condition="!Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" Text="$([System.String]::Format('$(ErrorText)', '$(EbpfPackagePath)build\native\ebpf-for-windows.props'))" />
+    <Error Condition="!Exists('..\..\packages\eBPF-for-Windows.0.13.0\build\native\ebpf-for-windows.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\eBPF-for-Windows.0.13.0\build\native\ebpf-for-windows.props'))" />
   </Target>
 </Project>

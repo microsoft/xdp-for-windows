@@ -235,7 +235,7 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
-        Download-eBpf-Nuget
+        # Download-eBpf-Nuget
     }
 
     if ($ForEbpfBuild) {
