@@ -107,26 +107,26 @@ function Download-CoreNet-Deps {
     }
 }
 
-function Download-eBpf-Nuget {
-    # Download and extract private eBPF Nuget package.
-    $NugetDir = "$ArtifactsDir/nuget"
-    if ($Force -and (Test-Path $NugetDir)) {
-        Remove-Item -Recurse -Force $NugetDir
-    }
-    if (!(Test-Path $NugetDir)) {
-        mkdir $NugetDir | Write-Verbose
-    }
+# function Download-eBpf-Nuget {
+#     # Download and extract private eBPF Nuget package.
+#     $NugetDir = "$ArtifactsDir/nuget"
+#     if ($Force -and (Test-Path $NugetDir)) {
+#         Remove-Item -Recurse -Force $NugetDir
+#     }
+#     if (!(Test-Path $NugetDir)) {
+#         mkdir $NugetDir | Write-Verbose
+#     }
 
-    if (!(Test-Path $NugetDir/$EbpfNuget)) {
-        # Remove any old builds of the package.
-        if (Test-Path $EbpfNugetRestoreDir) {
-            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
-        }
-        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
+#     if (!(Test-Path $NugetDir/$EbpfNuget)) {
+#         # Remove any old builds of the package.
+#         if (Test-Path $EbpfNugetRestoreDir) {
+#             Remove-Item -Recurse -Force $EbpfNugetRestoreDir
+#         }
+#         Remove-Item -Force $NugetDir/$EbpfNugetVersion*
 
-        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
-    }
-}
+#         Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
+#     }
+# }
 
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
@@ -235,6 +235,7 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
+        nuget restore .\xdp.sln
         # Download-eBpf-Nuget
     }
 
