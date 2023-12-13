@@ -248,5 +248,9 @@ function Download-Ebpf-Msi {
         }
 
         Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
+
+        Write-Verbose "ANUSA: Downloaded eBPF MSI package"
+        Write-Verbose "ANUSA: dir $EbpfMsiFullPath"
+        dir $EbpfMsiFullPath
     }
 }
