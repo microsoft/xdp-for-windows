@@ -237,6 +237,7 @@ function Initiate-Bugcheck {
 
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
+    Write-Verbose "ANUSA: Downloading eBPF MSI package"
     $EbpfMsiUrl = Get-EbpfMsiUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
 

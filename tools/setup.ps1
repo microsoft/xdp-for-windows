@@ -563,6 +563,8 @@ function Install-Ebpf {
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
 
+    Write-Verbose "Installing eBPF for Windows"
+
     if (Test-Path $EbpfPath) {
         Write-Error "$EbpfPath is already installed!"
     }
@@ -571,13 +573,20 @@ function Install-Ebpf {
     # may occasionally prevent the eBPF driver from loading.
     for ($i = 0; $i -lt 100; $i++) {
         Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        # msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Start-Process msiexec.exe -Wait -ArgumentList "/i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose"
         if ($?) {
+            Write-Verbose "ANUSA: eBPF installed successfully"
             break;
+        } else {
+            Write-Verbose "ANUSA: eBPF install failed, retrying..."
         }
     }
     if (!$? -or !(Test-Path $EbpfPath)) {
         Write-Error "eBPF could not be installed"
+    } else {
+        Write-Verbose "ANUSA: eBPF installed successfully."
+        dir $EbpfPath
     }
     # Stop eBPF's XDP hook since it conflicts with our XDP implementation.
     Stop-Service netebpfext
