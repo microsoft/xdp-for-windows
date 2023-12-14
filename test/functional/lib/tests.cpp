@@ -4486,8 +4486,9 @@ AttachEbpfXdpProgram(
     UINT32 RetryCount = 20;
     HRESULT Result;
 
-    // Try a few times to load and attach the program. This is to work around
-    // the fact that a previous instance of the driver may still be loaded.
+    // TODO: https://github.com/microsoft/ebpf-for-windows/issues/2133
+    // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
+    // Try a few times to load and attach the program with a sleep in between.
     for (UINT32 i = 0; i < RetryCount; i++) {
         Result = TryAttachEbpfXdpProgram(
             BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);

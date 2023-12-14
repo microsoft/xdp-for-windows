@@ -558,7 +558,7 @@ function Uninstall-XdpFnLwf {
 }
 
 function Install-Ebpf {
-    Download-Ebpf-Msi
+    # Download-Ebpf-Msi
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
