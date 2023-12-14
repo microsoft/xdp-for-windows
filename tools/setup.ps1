@@ -558,7 +558,6 @@ function Uninstall-XdpFnLwf {
 }
 
 function Install-Ebpf {
-    # Download-Ebpf-Msi
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
@@ -574,19 +573,12 @@ function Install-Ebpf {
     for ($i = 0; $i -lt 100; $i++) {
         Write-Verbose "anusa: msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
         msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
-        # Start-Process msiexec.exe -Wait -ArgumentList "/i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt"
         if ($?) {
-            Write-Verbose "ANUSA: eBPF installed successfully"
             break;
-        } else {
-            Write-Verbose "ANUSA: eBPF install failed, retrying..."
         }
     }
     if (!$? -or !(Test-Path $EbpfPath)) {
         Write-Error "eBPF could not be installed"
-    } else {
-        Write-Verbose "ANUSA: eBPF installed successfully."
-        dir $EbpfPath
     }
     # Stop eBPF's XDP hook since it conflicts with our XDP implementation.
     Stop-Service netebpfext
