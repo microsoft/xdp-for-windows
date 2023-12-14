@@ -147,7 +147,9 @@ function Download-Ebpf-Msi {
         pushd $ArtifactsDir
         Expand-Archive -Path $EbpfPackageFullPath -Force
         Expand-Archive -Path "$ArtifactsDir\ebpf\build-Debug.zip" -Force
-        xcopy "$ArtifactsDir\ebpf\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiFullPath
+        # type nul > $EbpfMsiFullPath
+        # xcopy "$ArtifactsDir\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiFullPath
+        xcopy "$ArtifactsDir\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
         popd
     }
 }
