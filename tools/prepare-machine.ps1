@@ -130,8 +130,10 @@ function Download-eBpf-Nuget {
 
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfMsiUrl = Get-EbpfMsiUrl
+    # $EbpfMsiUrl = Get-EbpfMsiUrl
+    $EbpfPackageUrl = Get-EbpfPackageUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
@@ -139,7 +141,14 @@ function Download-Ebpf-Msi {
             mkdir $EbpfMsiDir | Write-Verbose
         }
 
-        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
+        Invoke-WebRequest-WithRetry -Uri $EbpfPackageUrl -OutFile $EbpfPackageFullPath
+
+        # Now extract the MSI from the package.
+        pushd $ArtifactsDir
+        Expand-Archive -Path $EbpfPackageFullPath -Force
+        Expand-Archive -Path "$ArtifactsDir\ebpf\build-Debug.zip" -Force
+        xcopy "$ArtifactsDir\ebpf\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiFullPath
+        popd
     }
 }
 
