@@ -120,7 +120,7 @@ function Get-EbpfMsiVersion {
 
 # Return the eBPF package name.
 function Get-EbpfPackageName {
-    return "Build-x64-Debug.zip"
+    return "Build-x64-Release.zip"
 }
 
 # Returns the eBPF MSI full path
