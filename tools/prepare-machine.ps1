@@ -128,6 +128,21 @@ function Download-eBpf-Nuget {
     }
 }
 
+function Download-Ebpf-Msi {
+    # Download and extract private eBPF installer MSI package.
+    $EbpfMsiUrl = Get-EbpfMsiUrl
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+
+    if (!(Test-Path $EbpfMsiFullPath)) {
+        $EbpfMsiDir = Split-Path $EbpfMsiFullPath
+        if (!(Test-Path $EbpfMsiDir)) {
+            mkdir $EbpfMsiDir | Write-Verbose
+        }
+
+        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
+    }
+}
+
 function Setup-TestSigning {
     # Check to see if test signing is enabled.
     $HasTestSigning = $false
