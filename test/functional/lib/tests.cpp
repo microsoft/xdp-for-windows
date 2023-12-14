@@ -4483,9 +4483,21 @@ AttachEbpfXdpProgram(
     )
 {
     unique_bpf_object BpfObject;
+    UINT32 RetryCount = 20;
+    HRESULT Result;
 
-    TEST_HRESULT(TryAttachEbpfXdpProgram(
-        BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags));
+    // Try a few times to load and attach the program. This is to work around
+    // the fact that a previous instance of the driver may still be loaded.
+    for (UINT32 i = 0; i < RetryCount; i++) {
+        Result = TryAttachEbpfXdpProgram(
+            BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
+        if (Result == S_OK) {
+            break;
+        }
+        // Sleep for 100ms between retries.
+        Sleep(100);
+    }
+    TEST_HRESULT(Result);
 
     return BpfObject;
 }
