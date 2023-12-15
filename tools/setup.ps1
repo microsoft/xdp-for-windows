@@ -18,6 +18,9 @@ This script installs or uninstalls various XDP components.
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver.
 
+.PARAMETER UseJitEbpf
+    If true, install JIT mode for eBPF.
+
 #>
 
 param (
@@ -46,7 +49,10 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false
+    [switch]$EnableEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$UseJitEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -561,16 +567,25 @@ function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
+    $EbpfOptions = ""
+
+    Write-Verbose "Installing eBPF for Windows"
 
     if (Test-Path $EbpfPath) {
         Write-Error "$EbpfPath is already installed!"
     }
 
+    if ($UseJitEbpf) {
+        $EbpfOptions = "eBPF_Runtime_Components,eBPF_Runtime_Components_JIT"
+    } else {
+        $EbpfOptions = "eBPF_Runtime_Components"
+    }
+
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
     for ($i = 0; $i -lt 100; $i++) {
-        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components_JIT /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
         if ($?) {
             break;
         }

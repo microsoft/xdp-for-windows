@@ -108,22 +108,39 @@ function Get-EbpfInstallPath {
     return "$($env:SystemDrive)\ebpf"
 }
 
-# Returns the eBPF MSI filename
-function Get-EbpfMsiFilename {
-    return "ebpf-for-windows.0.9.0+5122375852.msi"
+function Get-EbpfMsiVersion {
+    return "0.13.0"
+}
+
+# Returns the eBPF package type.
+function Get-EbpfPackageType {
+    if ($UseJitEbpf) {
+        return "Release"
+    }
+
+    return "NativeOnlyRelease"
+}
+
+# Return the eBPF package name.
+function Get-EbpfPackageName {
+    if ($UseJitEbpf) {
+        return "Build-x64-Release.zip"
+    }
+
+    return "Build-x64-native-only-NativeOnlyRelease.zip"
 }
 
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfMsiFilename = Get-EbpfMsiFilename
-    return "$RootDir/artifacts/ebpfmsi/$EbpfMsiFilename"
+    $EbpfMsiLocation = "$RootDir\artifacts\ebpfmsi"
+    return "$EbpfMsiLocation\ebpf-for-windows.msi"
 }
 
-# Returns the eBPF MSI download URL
-function Get-EbpfMsiUrl {
-    $EbpfMsiFilename = Get-EbpfMsiFilename
-    return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfMsiFilename"
+function Get-EbpfPackageUrl {
+    $EbpfVersion = Get-EbpfMsiVersion
+    $EbpfPackageName = Get-EbpfPackageName
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfPackageName
 }
 
 function Get-CoreNetCiCommit {

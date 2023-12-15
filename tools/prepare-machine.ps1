@@ -30,6 +30,9 @@ This prepares a machine for running XDP.
 .PARAMETER NoReboot
     Does not reboot the machine.
 
+.PARAMETER UseJitEbpf
+    Installs eBPF with JIT mode. Needed for backward compatibility tests.
+
 .PARAMETER Force
     Forces the installation of the latest dependencies.
 
@@ -67,7 +70,10 @@ param (
     [switch]$Force = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Cleanup = $false
+    [switch]$Cleanup = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$UseJitEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -82,7 +88,7 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, -ForNetPerfTest, or -ForLogging'
 }
 
-$EbpfNugetVersion = "eBPF-for-Windows.0.9.0"
+$EbpfNugetVersion = "eBPF-for-Windows.0.13.0"
 $EbpfNugetBuild = "+5122375852"
 $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
 $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
@@ -128,10 +134,30 @@ function Download-eBpf-Nuget {
     }
 }
 
+function Extract-Ebpf-Msi {
+    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiDir = Split-Path $EbpfMsiFullPath
+    $EbpfPackageType = Get-EbpfPackageType
+
+    Write-Debug "Extracting eBPF MSI from Release package"
+
+    # Extract the MSI from the package.
+    pushd $ArtifactsDir
+    Expand-Archive -Path $EbpfPackageFullPath -Force
+    Expand-Archive -Path "$ArtifactsDir\ebpf\build-$EbpfPackageType.zip" -Force
+    xcopy "$ArtifactsDir\build-$EbpfPackageType\$EbpfPackageType\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
+    popd
+}
+
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfMsiUrl = Get-EbpfMsiUrl
+    $EbpfPackageUrl = Get-EbpfPackageUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
+    $EbpfPackageType = Get-EbpfPackageType
+
+    Write-Debug "Downloading eBPF $EbpfPackageType package"
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
@@ -139,7 +165,10 @@ function Download-Ebpf-Msi {
             mkdir $EbpfMsiDir | Write-Verbose
         }
 
-        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
+        Invoke-WebRequest-WithRetry -Uri $EbpfPackageUrl -OutFile $EbpfPackageFullPath
+
+        # Extract the MSI from the package.
+        Extract-Ebpf-Msi
     }
 }
 
@@ -235,7 +264,6 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
-        Download-eBpf-Nuget
     }
 
     if ($ForEbpfBuild) {

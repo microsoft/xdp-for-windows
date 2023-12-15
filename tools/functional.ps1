@@ -15,6 +15,9 @@ This script runs the XDP functional tests.
 .PARAMETER Iterations
     The number of times to run the test suite.
 
+.PARAMETER UseJitEbpf
+    If true, install JIT mode for eBPF.
+
 #>
 
 param (
@@ -42,7 +45,10 @@ param (
     [int]$Timeout = 0,
 
     [Parameter(Mandatory = $false)]
-    [string]$TestBinaryPath = ""
+    [string]$TestBinaryPath = "",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$UseJitEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -98,7 +104,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
             Write-Verbose "installed ebpf."
         }
 
