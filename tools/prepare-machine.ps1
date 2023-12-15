@@ -264,7 +264,6 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
-        nuget restore .\xdp.sln
     }
 
     if ($ForEbpfBuild) {

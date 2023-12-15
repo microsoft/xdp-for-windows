@@ -141,10 +141,6 @@ function Get-EbpfPackageUrl {
     $EbpfVersion = Get-EbpfMsiVersion
     $EbpfPackageName = Get-EbpfPackageName
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfPackageName
-
-
-    # https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v0.13.0/Build-x64-Release.zip
-    # https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v0.13.0/Build-x64-native-only-NativeOnlyRelease.zip
 }
 
 function Get-CoreNetCiCommit {

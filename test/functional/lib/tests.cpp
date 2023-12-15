@@ -4483,21 +4483,20 @@ AttachEbpfXdpProgram(
     )
 {
     unique_bpf_object BpfObject;
-    UINT32 RetryCount = 20;
     HRESULT Result;
 
     // TODO: https://github.com/microsoft/ebpf-for-windows/issues/2133
     // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
     // Try a few times to load and attach the program with a sleep in between.
-    for (UINT32 i = 0; i < RetryCount; i++) {
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
         Result = TryAttachEbpfXdpProgram(
             BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
         if (Result == S_OK) {
             break;
         }
-        // Sleep for 100ms between retries.
-        Sleep(100);
-    }
+    } while (Sleep(2 * POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
     TEST_HRESULT(Result);
 
     return BpfObject;
