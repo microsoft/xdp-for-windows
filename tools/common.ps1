@@ -112,37 +112,17 @@ function Get-EbpfMsiVersion {
     return "0.13.0"
 }
 
-# # Returns the eBPF MSI filename
-# function Get-EbpfMsiFilename {
-#     $EbpfVersion = Get-EbpfMsiVersion
-#     return "ebpf-for-windows." + $EbpfVersion + ".msi"
-# }
-
 # Return the eBPF package name.
 function Get-EbpfPackageName {
     return "Build-x64-Release.zip"
 }
 
 # Returns the eBPF MSI full path
-function Get-EbpfMsiLocation {
-    $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir\artifacts\ebpfmsi"
-}
-
-# Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
-    # $RootDir = Split-Path $PSScriptRoot -Parent
-    # $EbpfMsiFilename = Get-EbpfMsiFilename
-    $EbpfMsiLocation = Get-EbpfMsiLocation
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $EbpfMsiLocation = "$RootDir\artifacts\ebpfmsi"
     return "$EbpfMsiLocation\ebpf-for-windows.msi"
 }
-
-# Returns the eBPF MSI download URL
-# function Get-EbpfMsiUrl {
-#     $EbpfVersion = Get-EbpfMsiVersion
-#     $EbpfMsiFilename = Get-EbpfMsiFilename
-#     return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfMsiFilename
-# }
 
 function Get-EbpfPackageUrl {
     $EbpfVersion = Get-EbpfMsiVersion

@@ -133,14 +133,12 @@ function Extract-Ebpf-Msi {
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiDir = Split-Path $EbpfMsiFullPath
 
-    Write-Debug "ANUSA: Extracting eBPF MSI from release package"
+    Write-Debug "Extracting eBPF MSI from Release package"
 
     # Extract the MSI from the package.
     pushd $ArtifactsDir
     Expand-Archive -Path $EbpfPackageFullPath -Force
     Expand-Archive -Path "$ArtifactsDir\ebpf\build-Release.zip" -Force
-    # type nul > $EbpfMsiFullPath
-    # xcopy "$ArtifactsDir\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiFullPath
     xcopy "$ArtifactsDir\build-Release\Release\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
     popd
 }
@@ -152,7 +150,7 @@ function Download-Ebpf-Msi {
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
 
-    Write-Debug "ANUSA: Downloading eBPF release package"
+    Write-Debug "Downloading eBPF Release package"
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
@@ -162,15 +160,8 @@ function Download-Ebpf-Msi {
 
         Invoke-WebRequest-WithRetry -Uri $EbpfPackageUrl -OutFile $EbpfPackageFullPath
 
-        # Now extract the MSI from the package.
+        # Extract the MSI from the package.
         Extract-Ebpf-Msi
-        # pushd $ArtifactsDir
-        # Expand-Archive -Path $EbpfPackageFullPath -Force
-        # Expand-Archive -Path "$ArtifactsDir\ebpf\build-Debug.zip" -Force
-        # # type nul > $EbpfMsiFullPath
-        # # xcopy "$ArtifactsDir\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiFullPath
-        # xcopy "$ArtifactsDir\build-Debug\Debug\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
-        # popd
     }
 }
 
