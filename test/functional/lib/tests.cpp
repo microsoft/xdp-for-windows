@@ -4483,9 +4483,23 @@ AttachEbpfXdpProgram(
     )
 {
     unique_bpf_object BpfObject;
+    HRESULT Result;
 
-    TEST_HRESULT(TryAttachEbpfXdpProgram(
-        BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags));
+    //
+    // TODO: https://github.com/microsoft/ebpf-for-windows/issues/2133
+    // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
+    // Try a few times to load and attach the program with a sleep in between.
+    //
+    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    do {
+        Result = TryAttachEbpfXdpProgram(
+            BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
+        if (Result == S_OK) {
+            break;
+        }
+    } while (Sleep(2 * POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
+    TEST_HRESULT(Result);
 
     return BpfObject;
 }
@@ -4495,7 +4509,7 @@ GenericRxEbpfAttach()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
     unique_bpf_object BpfObjectReplacement;
     TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
@@ -4518,7 +4532,7 @@ GenericRxEbpfDrop()
     wil::unique_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfDrop";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -4547,7 +4561,7 @@ GenericRxEbpfPass()
     wil::unique_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfPass";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -4572,7 +4586,7 @@ GenericRxEbpfTx()
     wil::unique_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfTx";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.o", "l1fwd");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -4602,7 +4616,7 @@ GenericRxEbpfPayload()
     const UINT32 Trailer = 17;
     const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.o", "allow_ipv6");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -4686,7 +4700,7 @@ GenericRxEbpfUnload()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
