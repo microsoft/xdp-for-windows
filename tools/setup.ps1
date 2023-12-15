@@ -576,9 +576,9 @@ function Install-Ebpf {
     }
 
     if ($UseJitEbpf) {
-        $EbpfOptions = "ADDLOCAL=eBPF_Runtime_Components,eBPF_Runtime_Components_JIT"
+        $EbpfOptions = "eBPF_Runtime_Components,eBPF_Runtime_Components_JIT"
     } else {
-        $EbpfOptions = "ADDLOCAL=eBPF_Runtime_Components"
+        $EbpfOptions = "eBPF_Runtime_Components"
     }
 
     # Try to install eBPF several times, since driver verifier's fault injection
@@ -586,7 +586,6 @@ function Install-Ebpf {
     for ($i = 0; $i -lt 100; $i++) {
         Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt"
         msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
-        
         if ($?) {
             break;
         }
