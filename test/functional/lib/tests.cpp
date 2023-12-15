@@ -4485,9 +4485,11 @@ AttachEbpfXdpProgram(
     unique_bpf_object BpfObject;
     HRESULT Result;
 
+    //
     // TODO: https://github.com/microsoft/ebpf-for-windows/issues/2133
     // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
     // Try a few times to load and attach the program with a sleep in between.
+    //
     Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
     do {
         Result = TryAttachEbpfXdpProgram(
