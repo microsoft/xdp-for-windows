@@ -46,7 +46,7 @@ jobs:
         submodules: recursive
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: c-cpp
     - name: Setup MSBuild.exe
@@ -89,7 +89,7 @@ jobs:
         personalAccessToken: ${{ secrets.AZDO_PAT }}
     - name: Perform CodeQL Analysis
       if: ${{ github.event_name == 'schedule' }}
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
       with:
         category: "/language:c-cpp"
 
@@ -411,7 +411,7 @@ jobs:
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: csharp
     - name: Setup .NET
@@ -429,7 +429,7 @@ jobs:
         path: artifacts/bin
     - name: Perform CodeQL Analysis
       if: ${{ github.event_name == 'schedule' }}
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
       with:
         category: "/language:csharp"
 
