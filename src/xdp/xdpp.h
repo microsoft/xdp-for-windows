@@ -31,3 +31,4 @@
 #define XDP_POOLTAG_RING                'rpdX' // Xdpr
 #define XDP_POOLTAG_RXQUEUE             'RpdX' // XdpR
 #define XDP_POOLTAG_TXQUEUE             'TpdX' // XdpT
+#define XDP_POOLTAG_PROGRAM_CONTEXT     'cpdX' // Xdpc

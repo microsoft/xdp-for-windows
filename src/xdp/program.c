@@ -21,9 +21,35 @@ typedef struct _EBPF_XDP_MD {
     EBPF_PROG_TEST_RUN_CONTEXT* ProgTestRunContext;
 } EBPF_XDP_MD;
 
+static __forceinline NTSTATUS EbpfResultToNtStatus(ebpf_result_t Result)
+{
+    switch (Result) {
+    case EBPF_SUCCESS:
+        return STATUS_SUCCESS;
+    case EBPF_INVALID_ARGUMENT:
+        return STATUS_INVALID_PARAMETER;
+    case EBPF_NO_MEMORY:
+        return STATUS_NO_MEMORY;
+    default:
+        return STATUS_UNSUCCESSFUL;
+    }
+}
+
 //
 // Routines for BPF_PROG_TEST_RUN.
 //
+
+static void EbpfProgramTestRunContextFree(_In_opt_ _Post_invalid_ EBPF_PROG_TEST_RUN_CONTEXT* Context)
+{
+    if (Context == NULL) {
+        return;
+    }
+
+    if (Context->Data != NULL) {
+        ExFreePool(Context->Data);
+    }
+    ExFreePool(Context);
+}
 
 /**
  * @brief Build a EBPF_XDP_MD Context for the eBPF program. This includes copying the packet data and
@@ -46,8 +72,11 @@ XdpCreateContext(
     size_t ContextSizeIn,
     _Outptr_ void** Context)
 {
+    NTSTATUS Status;
     ebpf_result_t EbpfResult;
     EBPF_XDP_MD* XdpMd = NULL;
+
+    TraceEnter(TRACE_CORE, "Create program context, DataIn=%p, DataSizeIn=%llu", DataIn, DataSizeIn);
 
     *Context = NULL;
 
@@ -58,7 +87,7 @@ XdpCreateContext(
     }
 
     // Allocate XdpMd struct.
-    XdpMd = (EBPF_XDP_MD*)ExAllocatePoolZero(NonPagedPoolNx, sizeof(EBPF_XDP_MD), XDP_POOLTAG_PROGRAM);
+    XdpMd = (EBPF_XDP_MD*)ExAllocatePoolZero(NonPagedPoolNx, sizeof(EBPF_XDP_MD), XDP_POOLTAG_PROGRAM_CONTEXT);
     if (XdpMd == NULL) {
         EbpfResult = EBPF_NO_MEMORY;
         goto Exit;
@@ -66,14 +95,14 @@ XdpCreateContext(
 
     // Allocate memory for ProgTestRunContext
     XdpMd->ProgTestRunContext = (EBPF_PROG_TEST_RUN_CONTEXT*)ExAllocatePoolZero(
-        NonPagedPoolNx, sizeof(EBPF_PROG_TEST_RUN_CONTEXT), XDP_POOLTAG_PROGRAM);
+        NonPagedPoolNx, sizeof(EBPF_PROG_TEST_RUN_CONTEXT), XDP_POOLTAG_PROGRAM_CONTEXT);
     if (XdpMd->ProgTestRunContext == NULL) {
         EbpfResult = EBPF_NO_MEMORY;
         goto Exit;
     }
 
     // Allocate buffer for data.
-    XdpMd->ProgTestRunContext->Data = (char*)ExAllocatePoolZero(NonPagedPoolNx, DataSizeIn, XDP_POOLTAG_PROGRAM);
+    XdpMd->ProgTestRunContext->Data = (char*)ExAllocatePoolZero(NonPagedPoolNx, DataSizeIn, XDP_POOLTAG_PROGRAM_CONTEXT);
     if (XdpMd->ProgTestRunContext->Data == NULL) {
         EbpfResult = EBPF_NO_MEMORY;
         goto Exit;
@@ -97,14 +126,13 @@ XdpCreateContext(
 
 Exit:
     if (XdpMd != NULL) {
-        if (XdpMd->ProgTestRunContext != NULL) {
-            if (XdpMd->ProgTestRunContext->Data != NULL) {
-                ExFreePool(XdpMd->ProgTestRunContext->Data);
-            }
-            ExFreePool(XdpMd->ProgTestRunContext);
-        }
+        EbpfProgramTestRunContextFree(XdpMd->ProgTestRunContext);
         ExFreePool(XdpMd);
     }
+
+    Status = EbpfResultToNtStatus(EbpfResult);
+
+    TraceExitStatus(TRACE_CORE);
 
     return EbpfResult;
 }
@@ -119,7 +147,7 @@ XdpDeleteContext(
 {
     EBPF_XDP_MD* XdpMd = NULL;
 
-    if (!Context) {
+    if (Context == NULL) {
         goto Exit;
     }
 
@@ -153,15 +181,7 @@ XdpDeleteContext(
         *ContextSizeOut = 0;
     }
 
-    if (XdpMd->ProgTestRunContext != NULL) {
-        if (XdpMd->ProgTestRunContext->Data != NULL) {
-            ExFreePool(XdpMd->ProgTestRunContext->Data);
-            XdpMd->ProgTestRunContext->Data = NULL;
-        }
-        ExFreePool(XdpMd->ProgTestRunContext);
-        XdpMd->ProgTestRunContext = NULL;
-    }
-
+    EbpfProgramTestRunContextFree(XdpMd->ProgTestRunContext);
     ExFreePool(XdpMd);
 
 Exit:
