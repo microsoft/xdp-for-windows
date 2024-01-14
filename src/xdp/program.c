@@ -147,6 +147,8 @@ XdpDeleteContext(
 {
     EBPF_XDP_MD* XdpMd = NULL;
 
+    TraceEnter(TRACE_CORE, "Delete program context, Context=%p", Context);
+
     if (Context == NULL) {
         goto Exit;
     }
@@ -185,7 +187,7 @@ XdpDeleteContext(
     ExFreePool(XdpMd);
 
 Exit:
-    return;
+    TraceExitSuccess(TRACE_CORE);
 }
 
 //
