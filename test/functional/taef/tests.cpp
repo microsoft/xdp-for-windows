@@ -420,6 +420,10 @@ public:
         ::GenericRxEbpfPayload();
     }
 
+    TEST_METHOD(ProgTestRunRxEbpfPayload) {
+        ::ProgTestRunRxEbpfPayload();
+    }
+
     TEST_METHOD(GenericRxEbpfFragments) {
         ::GenericRxEbpfFragments();
     }

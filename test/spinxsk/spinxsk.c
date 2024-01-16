@@ -379,6 +379,149 @@ FuzzHookId(
 }
 
 HRESULT
+FuzzProgTestRunXdpEbpfProgram()
+{
+    HRESULT Result;
+    CHAR Path[MAX_PATH];
+    const CHAR *ProgramRelativePath = NULL;
+    struct bpf_object *BpfObject = NULL;
+    struct bpf_program *BpfProgram = NULL;
+    int ProgramFd;
+    int OriginalThreadPriority;
+    int PacketInSize = 100;
+    UCHAR* PacketIn = NULL;
+    int PacketOutSize = 100;
+    UCHAR* PacketOut = NULL;
+    struct bpf_test_run_opts Opts = {0};
+
+    if (!enableEbpf) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+
+    Result = GetCurrentBinaryPath(Path, sizeof(Path));
+    if (FAILED(Result)) {
+        goto Exit;
+    }
+
+    ProgramRelativePath = "\\bpf\\allow_ipv6.sys";
+
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
+
+    //
+    // To work around control path delays caused by eBPF's epoch implementation,
+    // boost this thread's priority when invoking eBPF APIs.
+    //
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
+    TraceVerbose("bpf_object__open(%s)", Path);
+    BpfObject = bpf_object__open(Path);
+    if (BpfObject == NULL) {
+        TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_object__next_program(%p, %p)", BpfObject, NULL);
+    BpfProgram = bpf_object__next_program(BpfObject, NULL);
+    if (BpfProgram == NULL) {
+        TraceVerbose("bpf_object__next_program failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_object__load(%p)", BpfObject);
+    if (bpf_object__load(BpfObject) < 0) {
+        TraceVerbose("bpf_object__load failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    TraceVerbose("bpf_program__fd(%p)", BpfProgram);
+    ProgramFd = bpf_program__fd(BpfProgram);
+    if (ProgramFd < 0) {
+        TraceVerbose("bpf_program__fd failed: %d", errno);
+        Result = E_FAIL;
+        goto Exit;
+    }
+
+    switch (RandUlong() % 3) {
+    case 0:
+        PacketInSize = 0;
+        break;
+    case 1:
+        PacketInSize /= 2;
+        break;
+    case 2:
+        PacketInSize *= 2;
+        break;
+    }
+
+    if (PacketInSize > 0) {
+        PacketIn = malloc(PacketInSize);
+        if (PacketIn == NULL) {
+            Result = E_OUTOFMEMORY;
+            goto Exit;
+        }
+        memset(PacketIn, 0, PacketInSize);
+    }
+
+    switch (RandUlong() % 3) {
+    case 0:
+        PacketOutSize = 0;
+        break;
+    case 1:
+        PacketOutSize /= 2;
+        break;
+    case 2:
+        PacketOutSize *= 2;
+        break;
+    }
+
+    if (PacketOutSize > 0) {
+        PacketOut = malloc(PacketOutSize);
+        if (PacketOut == NULL) {
+            Result = E_OUTOFMEMORY;
+            goto Exit;
+        }
+        memset(PacketOut, 0, PacketOutSize);
+    }
+
+    Opts.data_in = PacketIn;
+    Opts.data_size_in = PacketInSize;
+    Opts.data_out = PacketOut;
+    Opts.data_size_out = PacketOutSize;
+    Opts.ctx_in = NULL;
+    Opts.ctx_size_in = 0;
+    Opts.ctx_out = NULL;
+    Opts.ctx_size_out = 0;
+
+    // Don't care about the return value here.
+    bpf_prog_test_run_opts(ProgramFd, &Opts);
+
+Exit:
+
+    // There is no other use of the loaded program. Unload before exiting.
+    if (BpfObject != NULL) {
+        TraceVerbose("bpf_object__close(%p)", BpfObject);
+        bpf_object__close(BpfObject);
+    }
+
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+
+    if (PacketIn != NULL) {
+        free(PacketIn);
+    }
+    if (PacketOut != NULL) {
+        free(PacketOut);
+    }
+
+    return Result;
+}
+
+HRESULT
 AttachXdpEbpfProgram(
     _In_ QUEUE_CONTEXT *Queue,
     _In_ HANDLE Sock,
@@ -420,13 +563,13 @@ AttachXdpEbpfProgram(
 
     switch (RandUlong() % 3) {
     case 0:
-        ProgramRelativePath = "\\bpf\\drop.o";
+        ProgramRelativePath = "\\bpf\\drop.sys";
         break;
     case 1:
         ProgramRelativePath = "\\bpf\\pass.sys";
         break;
     case 2:
-        ProgramRelativePath = "\\bpf\\l1fwd.o";
+        ProgramRelativePath = "\\bpf\\l1fwd.sys";
         break;
     default:
         ASSERT_FRE(FALSE);
@@ -1939,6 +2082,9 @@ XskFuzzerWorkerFn(
             FuzzSocketSharedUmemSetup(
                 queue, queue->sharedUmemSock, queue->sock);
         }
+
+        // Fuzz prog_test_run.
+        FuzzProgTestRunXdpEbpfProgram();
 
         FuzzInterface(fuzzer, queue);
 

@@ -58,6 +58,7 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
+#include "ebpf_nethooks.h"
 #include "xdptest.h"
 #include "tests.h"
 #include "util.h"
@@ -4645,6 +4646,66 @@ GenericRxEbpfPayload()
     LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
     LwfRxDequeueFrame(FnLwf, If.GetQueueId());
     LwfRxFlush(FnLwf);
+}
+
+VOID
+ProgTestRunRxEbpfPayload()
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort = 0, RemotePort = 0;
+    ETHERNET_ADDRESS LocalHw = {}, RemoteHw = {};
+    INET_ADDR LocalIp = {}, RemoteIp = {};
+    const UCHAR UdpPayload[] = "ProgTestRunRxEbpfPayload";
+    bpf_test_run_opts Opts = {};
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfObject.get(), "allow_ipv6"));
+
+    // Build a v6 packet and verify it is allowed.
+    UCHAR UdpFrameV6[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UCHAR UdpFrameOutV6[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrameV6);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrameV6, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    Opts.data_in = UdpFrameV6;
+    Opts.data_size_in = sizeof(UdpFrameV6);
+    Opts.data_out = UdpFrameOutV6;
+    Opts.data_size_out = sizeof(UdpFrameOutV6);
+    Opts.ctx_in = nullptr;
+    Opts.ctx_size_in = 0;
+    Opts.ctx_out = nullptr;
+    Opts.ctx_size_out = 0;
+
+    TEST_EQUAL(0, bpf_prog_test_run_opts(ProgFd, &Opts));
+    TEST_EQUAL(Opts.retval, XDP_PASS);
+
+    TEST_EQUAL(memcmp(UdpFrameV6, UdpFrameOutV6, sizeof(UdpFrameV6)), 0);
+
+    // Build a v4 packet and verify it is dropped.
+    UCHAR UdpFrameV4[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UCHAR UdpFrameOutV4[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UdpFrameLength = sizeof(UdpFrameV4);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrameV4, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    Opts.data_in = UdpFrameV4;
+    Opts.data_size_in = sizeof(UdpFrameV4);
+    Opts.data_out = UdpFrameOutV4;
+    Opts.data_size_out = sizeof(UdpFrameOutV4);
+    Opts.ctx_in = nullptr;
+    Opts.ctx_size_in = 0;
+    Opts.ctx_out = nullptr;
+    Opts.ctx_size_out = 0;
+
+    TEST_EQUAL(0, bpf_prog_test_run_opts(ProgFd, &Opts));
+    TEST_EQUAL(Opts.retval, XDP_DROP);
+
+    TEST_EQUAL(memcmp(UdpFrameV4, UdpFrameOutV4, sizeof(UdpFrameV4)), 0);
 }
 
 VOID

@@ -119,6 +119,9 @@ VOID
 GenericRxEbpfPayload();
 
 VOID
+ProgTestRunRxEbpfPayload();
+
+VOID
 GenericRxEbpfFragments();
 
 VOID

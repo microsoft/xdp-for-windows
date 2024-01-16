@@ -11,9 +11,184 @@
 #include "programinspect.h"
 #include "program.tmh"
 
+typedef struct _EBPF_PROG_TEST_RUN_CONTEXT {
+    char* Data;
+    SIZE_T DataSize;
+} EBPF_PROG_TEST_RUN_CONTEXT;
+
 typedef struct _EBPF_XDP_MD {
     xdp_md_t Base;
+    EBPF_PROG_TEST_RUN_CONTEXT* ProgTestRunContext;
 } EBPF_XDP_MD;
+
+static __forceinline NTSTATUS EbpfResultToNtStatus(ebpf_result_t Result)
+{
+    switch (Result) {
+    case EBPF_SUCCESS:
+        return STATUS_SUCCESS;
+    case EBPF_INVALID_ARGUMENT:
+        return STATUS_INVALID_PARAMETER;
+    case EBPF_NO_MEMORY:
+        return STATUS_NO_MEMORY;
+    default:
+        return STATUS_UNSUCCESSFUL;
+    }
+}
+
+//
+// Routines for BPF_PROG_TEST_RUN.
+//
+
+static void EbpfProgramTestRunContextFree(_In_opt_ _Post_invalid_ EBPF_PROG_TEST_RUN_CONTEXT* Context)
+{
+    if (Context == NULL) {
+        return;
+    }
+
+    if (Context->Data != NULL) {
+        ExFreePool(Context->Data);
+    }
+    ExFreePool(Context);
+}
+
+/**
+ * @brief Build a EBPF_XDP_MD Context for the eBPF program. This includes copying the packet data and
+ * metadata into a contiguous buffer and building an MDL chain for the same.
+ *
+ * @param[in] DataIn The packet data.
+ * @param[in] DataSizeIn The size of the packet data.
+ * @param[in] context_in The Context.
+ * @param[in] ContextSizeIn The size of the Context.
+ * @param[out] Context The Context to be passed to the eBPF program.
+ * @retval STATUS_SUCCESS The operation was successful.
+ * @retval STATUS_INVALID_PARAMETER One or more parameters are incorrect.
+ * @retval STATUS_NO_MEMORY Failed to allocate resources for this operation.
+ */
+static ebpf_result_t
+XdpCreateContext(
+    _In_reads_bytes_opt_(DataSizeIn) const uint8_t* DataIn,
+    size_t DataSizeIn,
+    _In_reads_bytes_opt_(ContextSizeIn) const uint8_t* context_in,
+    size_t ContextSizeIn,
+    _Outptr_ void** Context)
+{
+    NTSTATUS Status;
+    ebpf_result_t EbpfResult;
+    EBPF_XDP_MD* XdpMd = NULL;
+
+    TraceEnter(TRACE_CORE, "Create program context, DataIn=%p, DataSizeIn=%llu", DataIn, DataSizeIn);
+
+    *Context = NULL;
+
+    // Data is mandatory. Context is optional.
+    if (DataIn == NULL || DataSizeIn == 0) {
+        EbpfResult = EBPF_INVALID_ARGUMENT;
+        goto Exit;
+    }
+
+    // Allocate XdpMd struct.
+    XdpMd = (EBPF_XDP_MD*)ExAllocatePoolZero(NonPagedPoolNx, sizeof(EBPF_XDP_MD), XDP_POOLTAG_PROGRAM_CONTEXT);
+    if (XdpMd == NULL) {
+        EbpfResult = EBPF_NO_MEMORY;
+        goto Exit;
+    }
+
+    // Allocate memory for ProgTestRunContext
+    XdpMd->ProgTestRunContext = (EBPF_PROG_TEST_RUN_CONTEXT*)ExAllocatePoolZero(
+        NonPagedPoolNx, sizeof(EBPF_PROG_TEST_RUN_CONTEXT), XDP_POOLTAG_PROGRAM_CONTEXT);
+    if (XdpMd->ProgTestRunContext == NULL) {
+        EbpfResult = EBPF_NO_MEMORY;
+        goto Exit;
+    }
+
+    // Allocate buffer for data.
+    XdpMd->ProgTestRunContext->Data = (char*)ExAllocatePoolZero(NonPagedPoolNx, DataSizeIn, XDP_POOLTAG_PROGRAM_CONTEXT);
+    if (XdpMd->ProgTestRunContext->Data == NULL) {
+        EbpfResult = EBPF_NO_MEMORY;
+        goto Exit;
+    }
+    memcpy(XdpMd->ProgTestRunContext->Data, DataIn, DataSizeIn);
+    XdpMd->ProgTestRunContext->DataSize = DataSizeIn;
+
+    XdpMd->Base.data = (void*)XdpMd->ProgTestRunContext->Data;
+    XdpMd->Base.data_end = (void*)(XdpMd->ProgTestRunContext->Data + XdpMd->ProgTestRunContext->DataSize);
+
+    if (context_in != NULL && ContextSizeIn >= sizeof(xdp_md_t)) {
+        xdp_md_t* xdp_context = (xdp_md_t*)context_in;
+        XdpMd->Base.data_meta = xdp_context->data_meta;
+        XdpMd->Base.ingress_ifindex = xdp_context->ingress_ifindex;
+    }
+
+    *Context = XdpMd;
+    XdpMd = NULL;
+
+    EbpfResult = EBPF_SUCCESS;
+
+Exit:
+    if (XdpMd != NULL) {
+        EbpfProgramTestRunContextFree(XdpMd->ProgTestRunContext);
+        ExFreePool(XdpMd);
+    }
+
+    Status = EbpfResultToNtStatus(EbpfResult);
+
+    TraceExitStatus(TRACE_CORE);
+
+    return EbpfResult;
+}
+
+static void
+XdpDeleteContext(
+    _In_opt_ void* Context,
+    _Out_writes_bytes_to_(*DataSizeOut, *DataSizeOut) uint8_t* DataOut,
+    _Inout_ size_t* DataSizeOut,
+    _Out_writes_bytes_to_(*ContextSizeOut, *ContextSizeOut) uint8_t* ContextOut,
+    _Inout_ size_t* ContextSizeOut)
+{
+    EBPF_XDP_MD* XdpMd = NULL;
+
+    TraceEnter(TRACE_CORE, "Delete program context, Context=%p", Context);
+
+    if (Context == NULL) {
+        goto Exit;
+    }
+
+    XdpMd = (EBPF_XDP_MD*)Context;
+
+    // Copy the packet data to the output buffer.
+    if (DataOut != NULL && DataSizeOut != NULL && XdpMd->Base.data != NULL) {
+        size_t DataSize = *DataSizeOut;
+        size_t XdpDataSize = (char*)(XdpMd->Base.data_end) - (char*)(XdpMd->Base.data);
+        if (DataSize > XdpDataSize) {
+            DataSize = XdpDataSize;
+        }
+        memcpy(DataOut, XdpMd->Base.data, DataSize);
+        *DataSizeOut = DataSize;
+    } else {
+        *DataSizeOut = 0;
+    }
+
+    // Copy some fields from the Context to the output buffer.
+    if (ContextOut != NULL && ContextSizeOut != NULL) {
+        size_t context_size = *ContextSizeOut;
+        if (context_size > sizeof(xdp_md_t)) {
+            context_size = sizeof(xdp_md_t);
+        }
+
+        xdp_md_t* XdpContextOut = (xdp_md_t*)ContextOut;
+        XdpContextOut->data_meta = XdpMd->Base.data_meta;
+        XdpContextOut->ingress_ifindex = XdpMd->Base.ingress_ifindex;
+        *ContextSizeOut = context_size;
+    } else {
+        *ContextSizeOut = 0;
+    }
+
+    EbpfProgramTestRunContextFree(XdpMd->ProgTestRunContext);
+    ExFreePool(XdpMd);
+
+Exit:
+    TraceExitSuccess(TRACE_CORE);
+}
 
 //
 // Data path routines.
@@ -509,6 +684,8 @@ static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
 static const ebpf_program_data_t EbpfXdpProgramData = {
     .program_info = &EbpfXdpProgramInfo,
     .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
+    .context_create = XdpCreateContext,
+    .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
 };
 
