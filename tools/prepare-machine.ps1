@@ -98,6 +98,7 @@ $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 $Reboot = $false
 
 function Download-CoreNet-Deps {
+    Write-Host "Downloading CoreNet dependencies"
     $CoreNetCiCommit = Get-CoreNetCiCommit
 
     # Download and extract https://github.com/microsoft/corenet-ci.
@@ -114,6 +115,7 @@ function Download-CoreNet-Deps {
 }
 
 function Download-eBpf-Nuget {
+    Write-Host "Downloading eBPF Nuget package"
     # Download and extract private eBPF Nuget package.
     $NugetDir = "$ArtifactsDir/nuget"
     if ($Force -and (Test-Path $NugetDir)) {
@@ -151,6 +153,7 @@ function Extract-Ebpf-Msi {
 }
 
 function Download-Ebpf-Msi {
+    Write-Host "Downloading eBPF installer"
     # Download and extract private eBPF installer MSI package.
     $EbpfPackageUrl = Get-EbpfPackageUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
@@ -173,6 +176,7 @@ function Download-Ebpf-Msi {
 }
 
 function Setup-TestSigning {
+    Write-Host "Checking for test signing"
     # Check to see if test signing is enabled.
     $HasTestSigning = $false
     try { $HasTestSigning = ("$(bcdedit)" | Select-String -Pattern "testsigning\s+Yes").Matches.Success } catch { }
@@ -196,7 +200,9 @@ function Install-Certs {
     if (!(Test-Path $CodeSignCertPath)) {
         Write-Error "$CodeSignCertPath does not exist!"
     }
+    Write-Host "Installing Root certificate"
     CertUtil.exe -f -addstore Root $CodeSignCertPath | Write-Verbose
+    Write-Host "Installing TrustedPublisher certificate"
     CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath | Write-Verbose
 }
 
@@ -207,6 +213,7 @@ function Uninstall-Certs {
 }
 
 function Setup-VcRuntime {
+    Write-Host "Checking for VC++ runtime"
     $Installed = $false
     try { $Installed = Get-ChildItem -Path Registry::HKEY_CLASSES_ROOT\Installer\Dependencies | Where-Object { $_.Name -like "*VC,redist*" } } catch {}
 
