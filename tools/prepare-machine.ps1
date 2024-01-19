@@ -197,9 +197,9 @@ function Install-Certs {
         Write-Error "$CodeSignCertPath does not exist!"
     }
     Write-Host "CertUtil.exe -f -addstore Root $CodeSignCertPath"
-    CertUtil.exe -f -addstore Root $CodeSignCertPath | Write-Verbose
+    CertUtil.exe -f -addstore Root $CodeSignCertPath 2>&1 | Write-Verbose
     Write-Host "CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath"
-    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath | Write-Host
+    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath 2>&1 | Write-Verbose
 }
 
 # Uninstalls the XDP certificates.
