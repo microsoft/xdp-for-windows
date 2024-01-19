@@ -196,8 +196,9 @@ function Install-Certs {
     if (!(Test-Path $CodeSignCertPath)) {
         Write-Error "$CodeSignCertPath does not exist!"
     }
+    Write-Host "CertUtil.exe -f -addstore Root $CodeSignCertPath"
     CertUtil.exe -f -addstore Root $CodeSignCertPath | Write-Verbose
-    Write-Host "Installing Code Signing Certificate"
+    Write-Host "CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath"
     CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath | Write-Host
 }
 
@@ -345,11 +346,17 @@ if ($Cleanup) {
     }
 
     if ($ForNetPerfTest) {
+        Write-Host "Setup-VcRuntime"
         Setup-VcRuntime
+        Write-Host "Download-CoreNet-Deps"
         Download-CoreNet-Deps
+        Write-Host "Download-Ebpf-Msi"
         Download-Ebpf-Msi
+        Write-Host "Setup-TestSigning"
         Setup-TestSigning
+        Write-Host "Install-Certs"
         Install-Certs
+        Write-Host "Done"
     }
 
     if ($ForTest) {
