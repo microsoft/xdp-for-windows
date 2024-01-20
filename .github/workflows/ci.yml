@@ -358,7 +358,7 @@ jobs:
       uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6
       if: ${{ always() }}
       with:
-        name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        name: logs_dnlvl_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
