@@ -593,8 +593,6 @@ function Install-Ebpf {
     if (!$? -or !(Test-Path $EbpfPath)) {
         Write-Error "eBPF could not be installed"
     }
-    # Stop eBPF's XDP hook since it conflicts with our XDP implementation.
-    Stop-Service netebpfext
     Refresh-Path
 }
 
