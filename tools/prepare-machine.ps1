@@ -274,15 +274,6 @@ if ($Cleanup) {
         if (!(cmd /c "clang --version 2>&1" | Select-String "clang version 11.")) {
             Write-Error "Compiling eBPF programs on Windows requires clang version 11"
         }
-
-        $EbpfExportProgram = "$EbpfNugetRestoreDir/build/native/bin/export_program_info.exe"
-
-        if (!(Test-Path $EbpfExportProgram)) {
-            Write-Error "Missing eBPF helper export_program_info.exe. Is the NuGet package installed?"
-        }
-
-        Write-Verbose $EbpfExportProgram
-        & $EbpfExportProgram | Write-Verbose
     }
 
     if ($ForFunctionalTest) {

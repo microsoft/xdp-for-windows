@@ -36,6 +36,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xskbench.exe" $DstPath\bin
 copy "artifacts\bin\$($Platform)_$($Config)\xskfwd.exe" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdp_bpfexport.exe" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\xdp.pdb"   $DstPath\symbols
@@ -45,6 +46,7 @@ copy "artifacts\bin\$($Platform)_$($Config)\rxfilter.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xskbench.pdb" $DstPath\symbols
 copy "artifacts\bin\$($Platform)_$($Config)\xskfwd.pdb" $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Config)\xdp_bpfexport.pdb" $DstPath\symbols
 
 New-Item -Path $DstPath\include -ItemType Directory > $null
 copy -Recurse published\external\* $DstPath\include
