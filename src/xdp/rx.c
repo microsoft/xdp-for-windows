@@ -90,6 +90,8 @@ typedef struct _XDP_RX_QUEUE {
     PCW_INSTANCE *PcwInstance;
 
     LIST_ENTRY NotifyClients;
+
+    // XDP_NET_DEVICE DeviceInfo;
 } XDP_RX_QUEUE;
 
 typedef struct _XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS {
@@ -1009,6 +1011,7 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
+    RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
 

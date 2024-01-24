@@ -238,7 +238,7 @@ XdpInvokeEbpf(
     XdpMd.Base.data = Va;
     XdpMd.Base.data_end = Va + Buffer->DataLength;
     XdpMd.Base.data_meta = 0;
-    XdpMd.Base.ingress_ifindex = IFI_UNSPECIFIED;
+    XdpMd.Base.ingress_ifindex = InspectionContext->IfIndex;
 
     ebpf_program_batch_invoke_function_t EbpfInvokeProgram =
         EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_invoke_function;
