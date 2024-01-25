@@ -43,6 +43,7 @@
       <Command>
         $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe --clear
         $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
+        del $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\ebpfapi.dll /F
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
