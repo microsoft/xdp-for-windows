@@ -26,7 +26,7 @@ struct
 
 SEC("xdp/selective_drop")
 int
-drop(xdp_md_t *ctx)
+selective_drop(xdp_md_t *ctx)
 {
     int action = XDP_PASS;
     int zero = 0;
