@@ -12,15 +12,10 @@ typedef struct _XDP_RX_QUEUE XDP_RX_QUEUE;
 
 typedef ebpf_execution_context_state_t XDP_INSPECTION_EBPF_CONTEXT;
 
-// typedef struct _XDP_NET_DEVICE {
-//     NET_IFINDEX IfIndex;
-// } XDP_NET_DEVICE;
-
 typedef struct _XDP_INSPECTION_CONTEXT {
     XDP_INSPECTION_EBPF_CONTEXT EbpfContext;
     XDP_REDIRECT_CONTEXT RedirectContext;
     ULONG IfIndex;
-    // XDP_NET_DEVICE NetDevice;
 } XDP_INSPECTION_CONTEXT;
 
 //

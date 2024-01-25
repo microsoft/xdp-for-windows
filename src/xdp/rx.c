@@ -90,8 +90,6 @@ typedef struct _XDP_RX_QUEUE {
     PCW_INSTANCE *PcwInstance;
 
     LIST_ENTRY NotifyClients;
-
-    // XDP_NET_DEVICE DeviceInfo;
 } XDP_RX_QUEUE;
 
 typedef struct _XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS {
