@@ -4717,7 +4717,7 @@ GenericRxEbpfIfIndex()
     const UCHAR Payload[] = "GenericRxEbpfIfIndex";
     UINT32 Zero = 0;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -4728,6 +4728,8 @@ GenericRxEbpfIfIndex()
 
     // Update the interface_map with the interface index of the test interface.
     UINT32 IfIndex = If.GetIfIndex();
+    TEST_NOT_EQUAL(IfIndex, IFI_UNSPECIFIED);
+
     TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &IfIndex, BPF_ANY));
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
@@ -4751,7 +4753,7 @@ GenericRxEbpfIfIndex()
     TEST_NOT_EQUAL(dropped_packet_map_fd, ebpf_fd_invalid);
 
     UINT64 DroppedPacketCount = 0;
-    TEST_EQUAL(0, bpf_map_lookup_elem(dropped_packet_map_fd, &IfIndex, &DroppedPacketCount));
+    TEST_EQUAL(0, bpf_map_lookup_elem(dropped_packet_map_fd, &Zero, &DroppedPacketCount));
     TEST_EQUAL(DroppedPacketCount, 1);
 
     // Now set the ifIndex to some other value and verify that the packet is not dropped.

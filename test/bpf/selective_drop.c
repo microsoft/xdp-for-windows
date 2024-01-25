@@ -6,18 +6,19 @@
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
 
-// Map configured by user mode to dictate if packets from a specific interface should be dropped.
+// Map configured by user mode to drop packets from a specific interface.
 struct
 {
-    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(type, BPF_MAP_TYPE_ARRAY);
     __type(key, uint32_t);
     __type(value, uint32_t);
     __uint(max_entries, 1);
 } interface_map SEC(".maps");
 
+// Map to track the number of dropped packets.
 struct
 {
-    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(type, BPF_MAP_TYPE_ARRAY);
     __type(key, uint32_t);
     __type(value, uint64_t);
     __uint(max_entries, 1);
@@ -28,18 +29,29 @@ int
 drop(xdp_md_t *ctx)
 {
     int action = XDP_PASS;
-    uint32_t interface_index = ctx->ingress_ifindex;
-    uint32_t *interface_value = bpf_map_lookup_elem(&interface_map, &interface_index);
-    if (interface_value) {
+    int zero = 0;
+
+    uint32_t *interface_index = bpf_map_lookup_elem(&interface_map, &zero);
+    if (!interface_index) {
+        bpf_printk("selective_drop: interface_map lookup failed.");
+        goto Exit;
+    }
+
+    if (*interface_index == ctx->ingress_ifindex) {
         action = XDP_DROP;
-        uint64_t *dropped_packet_count = bpf_map_lookup_elem(&dropped_packet_map, &interface_index);
+        bpf_printk("selective_drop: interface_map lookup found matching interface %d", *interface_index);
+
+        uint64_t *dropped_packet_count = bpf_map_lookup_elem(&dropped_packet_map, &zero);
         if (dropped_packet_count) {
             *dropped_packet_count += 1;
         } else {
             uint64_t dropped_packet_count = 1;
-            bpf_map_update_elem(&dropped_packet_map, &interface_index, &dropped_packet_count, BPF_ANY);
+            bpf_map_update_elem(&dropped_packet_map, &zero, &dropped_packet_count, BPF_ANY);
         }
+    } else {
+        bpf_printk("selective_drop: interface_map lookup found non-matching interface %d, expected %d", *interface_index, ctx->ingress_ifindex);
     }
 
+Exit:
     return action;
 }
