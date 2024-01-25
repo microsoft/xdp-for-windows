@@ -34,14 +34,15 @@
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>
-       set PATH=%PATH%;$(EbpfPackagePath)build\native\bin
+        xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration) /Y
+        $(EbpfPackagePath)build\native\bin\export_program_info.exe
         $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
-        set PATH=%PATH%;$(EbpfPackagePath)build\native\bin
         $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe --clear
+        $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
