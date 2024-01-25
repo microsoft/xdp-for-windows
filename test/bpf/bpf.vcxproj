@@ -66,6 +66,16 @@
         rmdir /s /q $(OutDir)\drop_km
         popd</Command>
     </CustomBuild>
+    <CustomBuild Include="selective_drop.c">
+      <FileType>CppCode</FileType>
+      <Outputs>$(OutDir)selective_drop.sys</Outputs>
+      <Command>
+        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
+        pushd $(OutDir)
+        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
+        rmdir /s /q $(OutDir)\selective_drop_km
+        popd</Command>
+    </CustomBuild>
     <CustomBuild Include="l1fwd.c">
       <FileType>CppCode</FileType>
       <Outputs>$(OutDir)l1fwd.sys</Outputs>

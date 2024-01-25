@@ -4709,6 +4709,67 @@ ProgTestRunRxEbpfPayload()
 }
 
 VOID
+GenericRxEbpfIfIndex()
+{
+    auto If = FnMpIf;
+    wil::unique_handle GenericMp;
+    wil::unique_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfIfIndex";
+    UINT32 Zero = 0;
+
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    // Get the interface_map fd.
+    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "interface_map");
+    TEST_NOT_EQUAL(interface_map_fd, ebpf_fd_invalid);
+
+    // Update the interface_map with the interface index of the test interface.
+    UINT32 IfIndex = If.GetIfIndex();
+    TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &IfIndex, BPF_ANY));
+
+    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    // Packet should be dropped.
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+
+    // Validate that the dropped_packet_map contains a non-0 entry for the IfIndex.
+    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "dropped_packet_map");
+    TEST_NOT_EQUAL(dropped_packet_map_fd, ebpf_fd_invalid);
+
+    UINT64 DroppedPacketCount = 0;
+    TEST_EQUAL(0, bpf_map_lookup_elem(dropped_packet_map_fd, &IfIndex, &DroppedPacketCount));
+    TEST_EQUAL(DroppedPacketCount, 1);
+
+    // Now set the ifIndex to some other value and verify that the packet is not dropped.
+    UINT32 OtherIfIndex = If.GetIfIndex() + 1;
+    TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &OtherIfIndex, BPF_ANY));
+
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    Sleep(TEST_TIMEOUT_ASYNC_MS);
+
+    // Packet should not be dropped.
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
 GenericRxEbpfFragments()
 {
     auto If = FnMpIf;
