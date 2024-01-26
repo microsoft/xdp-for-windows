@@ -424,6 +424,10 @@ public:
         ::ProgTestRunRxEbpfPayload();
     }
 
+    TEST_METHOD(GenericRxEbpfIfIndex) {
+        ::GenericRxEbpfIfIndex();
+    }
+
     TEST_METHOD(GenericRxEbpfFragments) {
         ::GenericRxEbpfFragments();
     }
