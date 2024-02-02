@@ -45,6 +45,7 @@ typedef struct _UMEM_MAPPING {
     MDL *Mdl;
     UCHAR *SystemAddress;
     DMA_LOGICAL_ADDRESS DmaAddress;
+    BOOLEAN DoNotUnlockMdlPages;
 } UMEM_MAPPING;
 
 typedef struct _UMEM {
@@ -223,6 +224,15 @@ XskDereference(
     if (XdpDecrementReferenceCount(&Xsk->ReferenceCount)) {
         ExFreePoolWithTag(Xsk, POOLTAG_XSK);
     }
+}
+
+static
+BOOLEAN
+XskIsClientKernel(
+    _In_ const XSK *Xsk
+    )
+{
+    return Xsk->NotifyCallback != NULL;
 }
 
 static
@@ -426,10 +436,12 @@ XskRequiresTxBounceBuffer(
     //
     // Only the NDIS6 data path requires immutable buffers.
     // In the future, TX inspection programs may have similar requirements.
+    // Buffers from kernel mode clients are assumed to be immutable.
     //
     return
         !XskGlobals.DisableTxBounce &&
-        (XdpIfGetCapabilities(Xsk->Tx.Xdp.IfHandle)->Mode == XDP_INTERFACE_MODE_GENERIC);
+        (XdpIfGetCapabilities(Xsk->Tx.Xdp.IfHandle)->Mode == XDP_INTERFACE_MODE_GENERIC &&
+            !XskIsClientKernel(Xsk));
 }
 
 static
@@ -2429,7 +2441,8 @@ XskDereferenceUmem(
                 }
                 MmFreeMappingAddress(Umem->ReservedMapping, POOLTAG_UMEM);
             }
-            if (Umem->Mapping.Mdl->MdlFlags & MDL_PAGES_LOCKED) {
+            if (Umem->Mapping.Mdl->MdlFlags & MDL_PAGES_LOCKED &&
+                !Umem->Mapping.DoNotUnlockMdlPages) {
                 MmUnlockPages(Umem->Mapping.Mdl);
             }
             IoFreeMdl(Umem->Mapping.Mdl);
@@ -3082,19 +3095,19 @@ XskSockoptSetUmem(
         goto Exit;
     }
 
-    if (RequestorMode != KernelMode) {
-        Umem->Mapping.Mdl =
-            IoAllocateMdl(
-                Umem->Reg.Address,
-                (ULONG)Umem->Reg.TotalSize,
-                FALSE, // SecondaryBuffer
-                FALSE, // ChargeQuota
-                NULL); // Irp
-        if (Umem->Mapping.Mdl == NULL) {
-            Status = STATUS_INSUFFICIENT_RESOURCES;
-            goto Exit;
-        }
+    Umem->Mapping.Mdl =
+        IoAllocateMdl(
+            Umem->Reg.Address,
+            (ULONG)Umem->Reg.TotalSize,
+            FALSE, // SecondaryBuffer
+            FALSE, // ChargeQuota
+            NULL); // Irp
+    if (Umem->Mapping.Mdl == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
 
+    if (RequestorMode != KernelMode) {
         __try {
             MmProbeAndLockPages(Umem->Mapping.Mdl, RequestorMode, IoWriteAccess);
         } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -3125,7 +3138,13 @@ XskSockoptSetUmem(
             goto Exit;
         }
     } else {
+        MmBuildMdlForNonPagedPool(Umem->Mapping.Mdl);
         Umem->Mapping.SystemAddress = Umem->Reg.Address;
+        //
+        // Kernel mode clients already provide memory that is nonpageable and
+        // mapped to system address space.
+        //
+        Umem->Mapping.DoNotUnlockMdlPages = TRUE;
     }
 
     if (Umem->Reg.TotalSize % Umem->Reg.ChunkSize != 0) {
