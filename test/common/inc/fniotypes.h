@@ -18,7 +18,7 @@ EXTERN_C_START
 #endif
 
 typedef struct _DATA_BUFFER {
-    CONST UCHAR *VirtualAddress;
+    const UCHAR *VirtualAddress;
     UINT32 DataOffset;
     UINT32 DataLength;
     UINT32 BufferLength;

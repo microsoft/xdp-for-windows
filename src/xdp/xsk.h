@@ -31,7 +31,7 @@ XskFillTx(
 NTSTATUS
 XskReferenceDatapathHandle(
     _In_ KPROCESSOR_MODE RequestorMode,
-    _In_ CONST VOID *HandleBuffer,
+    _In_ const VOID *HandleBuffer,
     _In_ BOOLEAN HandleBounced,
     _Out_ HANDLE *XskHandle
     );

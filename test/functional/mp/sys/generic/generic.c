@@ -91,7 +91,7 @@ GenericIrpSetMtu(
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
-    CONST MINIPORT_SET_MTU_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    const MINIPORT_SET_MTU_IN *In = Irp->AssociatedIrp.SystemBuffer;
     UINT32 NewMtu;
     NDIS_STATUS_INDICATION Indication = {0};
     NTSTATUS Status;
@@ -288,7 +288,7 @@ GenericIrpClose(
     return STATUS_SUCCESS;
 }
 
-static CONST FILE_DISPATCH GenericFileDispatch = {
+static const FILE_DISPATCH GenericFileDispatch = {
     .IoControl = GenericIrpDeviceIoControl,
     .Close = GenericIrpClose,
 };

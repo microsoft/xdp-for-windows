@@ -25,7 +25,7 @@ typedef struct _XDP_INTERFACE {
     NET_IFINDEX IfIndex;
     XDP_INTERFACE_SET *IfSet;
     XDP_REFERENCE_COUNT ReferenceCount;
-    CONST XDP_CAPABILITIES_INTERNAL Capabilities;
+    const XDP_CAPABILITIES_INTERNAL Capabilities;
     XDP_WORK_QUEUE *WorkQueue;
     XDP_BINDING_WORKITEM RemoveWorkItem;   // Guaranteed item for remove.
 
@@ -45,7 +45,7 @@ typedef struct _XDP_INTERFACE {
 
     struct {
         XDP_VERSION Version;
-        CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
+        const XDP_INTERFACE_DISPATCH *InterfaceDispatch;
         VOID *InterfaceContext;
         ULONG ProviderReference;
         XDP_INTERFACE_CONFIG_DETAILS OpenConfig;
@@ -89,7 +89,7 @@ typedef struct _XDP_INTERFACE_SET {
     //
     KEVENT *OffloadDowncallsComplete;
     LIST_ENTRY OffloadObjects;
-    CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch;
+    const XDP_OFFLOAD_DISPATCH *OffloadDispatch;
     VOID *XdpIfInterfaceSetContext;
     XDP_INTERFACE *Interfaces[2];   // One interface for both generic and native.
 } XDP_INTERFACE_SET;
@@ -104,7 +104,7 @@ typedef struct _XDP_IF_OFFLOAD_OBJECT {
 //
 // Latest version of the XDP driver API.
 //
-static CONST XDP_VERSION XdpDriverApiCurrentVersion = {
+static const XDP_VERSION XdpDriverApiCurrentVersion = {
     .Major = XDP_DRIVER_API_MAJOR_VER,
     .Minor = XDP_DRIVER_API_MINOR_VER,
     .Patch = XDP_DRIVER_API_PATCH_VER
@@ -126,7 +126,7 @@ XdpInterfaceFromConfig(
 static
 BOOLEAN
 XdpValidateCapabilitiesEx(
-    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ const XDP_CAPABILITIES_EX *CapabilitiesEx,
     _In_ UINT32 TotalSize
     )
 {
@@ -164,7 +164,7 @@ XdpGetDriverApiVersion(
     return &Interface->XdpDriverApi.Version;
 }
 
-static CONST XDP_INTERFACE_CONFIG_DISPATCH XdpOpenDispatch = {
+static const XDP_INTERFACE_CONFIG_DISPATCH XdpOpenDispatch = {
     .Header         = {
         .Revision   = XDP_INTERFACE_CONFIG_DISPATCH_REVISION_1,
         .Size       = XDP_SIZEOF_INTERFACE_CONFIG_DISPATCH_REVISION_1
@@ -361,7 +361,7 @@ NTSTATUS
 XdpIfpInvokeDriverOpenInterface(
     _In_ XDP_INTERFACE *Interface,
     _In_opt_ VOID *InterfaceContext,
-    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch
+    _In_ const XDP_INTERFACE_DISPATCH *InterfaceDispatch
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;
@@ -385,8 +385,8 @@ XdpIfpInvokeDriverOpenInterface(
 static
 BOOLEAN
 XdpVersionIsSupported(
-    _In_ CONST XDP_VERSION *Version,
-    _In_ CONST XDP_VERSION *MinimumSupportedVersion
+    _In_ const XDP_VERSION *Version,
+    _In_ const XDP_VERSION *MinimumSupportedVersion
     )
 {
     return
@@ -399,12 +399,12 @@ static
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpRequestClientDispatch(
-    _In_ CONST XDP_CAPABILITIES_EX *ClientCapabilitiesEx,
+    _In_ const XDP_CAPABILITIES_EX *ClientCapabilitiesEx,
     _In_ VOID *GetInterfaceContext,
     _In_ XDP_GET_INTERFACE_DISPATCH  *GetInterfaceDispatch,
     _Inout_ XDP_INTERFACE *Interface,
     _Out_ VOID **InterfaceContext,
-    _Out_ CONST XDP_INTERFACE_DISPATCH  **InterfaceDispatch
+    _Out_ const XDP_INTERFACE_DISPATCH  **InterfaceDispatch
     )
 {
     NTSTATUS Status = STATUS_NOT_SUPPORTED;
@@ -413,7 +413,7 @@ XdpRequestClientDispatch(
             ClientCapabilitiesEx, ClientCapabilitiesEx->DriverApiVersionsOffset);
 
     for (UINT32 i = 0; i < ClientCapabilitiesEx->DriverApiVersionCount; i++) {
-        CONST XDP_VERSION *ClientVersion = &DriverApiVersions[i];
+        const XDP_VERSION *ClientVersion = &DriverApiVersions[i];
 
         if (XdpVersionIsSupported(&XdpDriverApiCurrentVersion, ClientVersion)) {
             Status =
@@ -454,11 +454,11 @@ XdpIfpOpenInterface(
     _Inout_ XDP_INTERFACE *Interface
     )
 {
-    CONST XDP_CAPABILITIES_EX *CapabilitiesEx = Interface->Capabilities.CapabilitiesEx;
+    const XDP_CAPABILITIES_EX *CapabilitiesEx = Interface->Capabilities.CapabilitiesEx;
     VOID *GetInterfaceContext;
     XDP_GET_INTERFACE_DISPATCH  *GetInterfaceDispatch;
     VOID *InterfaceContext;
-    CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
+    const XDP_INTERFACE_DISPATCH *InterfaceDispatch;
     NTSTATUS Status;
 
     TraceEnter(
@@ -575,12 +575,12 @@ XdpIfpFindIfSet(
 _IRQL_requires_(PASSIVE_LEVEL)
 BOOLEAN
 XdpIfSupportsHookId(
-    _In_ CONST XDP_CAPABILITIES_INTERNAL *Capabilities,
-    _In_ CONST XDP_HOOK_ID *Target
+    _In_ const XDP_CAPABILITIES_INTERNAL *Capabilities,
+    _In_ const XDP_HOOK_ID *Target
     )
 {
     for (UINT32 Index = 0; Index < Capabilities->HookCount; Index++) {
-        CONST XDP_HOOK_ID *Candidate = &Capabilities->Hooks[Index];
+        const XDP_HOOK_ID *Candidate = &Capabilities->Hooks[Index];
 
         if (Target->Layer == Candidate->Layer &&
             Target->Direction == Candidate->Direction &&
@@ -595,8 +595,8 @@ XdpIfSupportsHookId(
 static
 BOOLEAN
 XdpIfpSupportsHookIds(
-    _In_ CONST XDP_CAPABILITIES_INTERNAL *Capabilities,
-    _In_ CONST XDP_HOOK_ID *TargetIds,
+    _In_ const XDP_CAPABILITIES_INTERNAL *Capabilities,
+    _In_ const XDP_HOOK_ID *TargetIds,
     _In_ UINT32 TargetCount
     )
 {
@@ -615,7 +615,7 @@ _Requires_lock_held_(&XdpInterfaceSetsLock)
 XDP_INTERFACE *
 XdpIfpFindInterface(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ const XDP_HOOK_ID *HookIds,
     _In_ UINT32 HookCount,
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     )
@@ -660,7 +660,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_BINDING_HANDLE
 XdpIfFindAndReferenceBinding(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ const XDP_HOOK_ID *HookIds,
     _In_ UINT32 HookCount,
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     )
@@ -681,7 +681,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_IFSET_HANDLE
 XdpIfFindAndReferenceIfSet(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ const XDP_HOOK_ID *HookIds,
     _In_ UINT32 HookCount,
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     )
@@ -824,7 +824,7 @@ XdpIfpCleanupInterfaceOffloadObject(
 NTSTATUS
 XdpIfOpenInterfaceOffloadHandle(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _Out_ XDP_IF_OFFLOAD_HANDLE *InterfaceOffloadHandle
     )
 {
@@ -1202,7 +1202,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
+    _In_ const XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     )
@@ -1478,8 +1478,8 @@ _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfRegisterClient(
     _In_ XDP_BINDING_HANDLE BindingHandle,
-    _In_ CONST XDP_BINDING_CLIENT *Client,
-    _In_ CONST VOID *Key,
+    _In_ const XDP_BINDING_CLIENT *Client,
+    _In_ const VOID *Key,
     _In_ XDP_BINDING_CLIENT_ENTRY *ClientEntry
     )
 {
@@ -1550,8 +1550,8 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_BINDING_CLIENT_ENTRY *
 XdpIfFindClientEntry(
     _In_ XDP_BINDING_HANDLE BindingHandle,
-    _In_ CONST XDP_BINDING_CLIENT *Client,
-    _In_ CONST VOID *Key
+    _In_ const XDP_BINDING_CLIENT *Client,
+    _In_ const VOID *Key
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
@@ -1638,7 +1638,7 @@ XdpIfpInvokeDriverCreateRxQueue(
     _In_ XDP_INTERFACE *Interface,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     )
 {
     NTSTATUS Status;
@@ -1684,7 +1684,7 @@ XdpIfCreateRxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
@@ -1792,7 +1792,7 @@ XdpIfpInvokeDriverCreateTxQueue(
     _In_ XDP_INTERFACE *Interface,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     )
 {
     NTSTATUS Status;
@@ -1838,7 +1838,7 @@ XdpIfCreateTxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;

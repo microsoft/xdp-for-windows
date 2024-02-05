@@ -69,7 +69,7 @@ EXTERN_C
 _Success_(return == 0)
 DWORD
 ConvertInterfaceAliasToIndex(
-    _In_ CONST WCHAR *Alias,
+    _In_ const WCHAR *Alias,
     _Out_ ULONG *IfIndex
     )
 {
@@ -88,7 +88,7 @@ static
 HRESULT
 OpenServiceHandle(
     _Out_ SC_HANDLE *Handle,
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     )
 {
     HRESULT Result = S_OK;
@@ -111,7 +111,7 @@ OpenServiceHandle(
 EXTERN_C
 BOOLEAN
 IsServiceInstalled(
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     )
 {
     HRESULT Result;
@@ -131,7 +131,7 @@ EXTERN_C
 HRESULT
 GetServiceState(
     _Out_ UINT32 *ServiceState,
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     )
 {
     HRESULT Result;
@@ -154,7 +154,7 @@ GetServiceState(
 EXTERN_C
 HRESULT
 StartServiceAsync(
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     )
 {
     HRESULT Result;
@@ -177,7 +177,7 @@ StartServiceAsync(
 EXTERN_C
 HRESULT
 StopServiceAsync(
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     )
 {
     HRESULT Result;

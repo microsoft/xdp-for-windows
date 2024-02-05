@@ -296,7 +296,7 @@ NDIS_STATUS
 FNdisRegisterPoll(
     _In_ NDIS_HANDLE NdisHandle,
     _In_opt_ VOID *Context,
-    _In_ NDIS_POLL_CHARACTERISTICS CONST *Characteristics,
+    _In_ NDIS_POLL_CHARACTERISTICS const *Characteristics,
     _Out_ NDIS_POLL_HANDLE *PollHandle
     )
 {
@@ -367,7 +367,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 FNdisSetPollAffinity(
     _In_ NDIS_POLL_HANDLE PollHandle,
-    _In_ PROCESSOR_NUMBER CONST *PollAffinity
+    _In_ PROCESSOR_NUMBER const *PollAffinity
     )
 {
     PNDIS_POLL_QUEUE Q = (PNDIS_POLL_QUEUE)PollHandle;

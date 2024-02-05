@@ -38,7 +38,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_BINDING_HANDLE
 XdpIfFindAndReferenceBinding(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ const XDP_HOOK_ID *HookIds,
     _In_ UINT32 HookCount,
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     );
@@ -47,7 +47,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_IFSET_HANDLE
 XdpIfFindAndReferenceIfSet(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookIds,
+    _In_ const XDP_HOOK_ID *HookIds,
     _In_ UINT32 HookCount,
     _In_opt_ XDP_INTERFACE_MODE *RequiredMode
     );
@@ -80,8 +80,8 @@ XdpIfGetCapabilities(
 _IRQL_requires_(PASSIVE_LEVEL)
 BOOLEAN
 XdpIfSupportsHookId(
-    _In_ CONST XDP_CAPABILITIES_INTERNAL *Capabilities,
-    _In_ CONST XDP_HOOK_ID *Target
+    _In_ const XDP_CAPABILITIES_INTERNAL *Capabilities,
+    _In_ const XDP_HOOK_ID *Target
     );
 
 BOOLEAN
@@ -103,7 +103,7 @@ XdpIfGetOffloadIfSettings(
 NTSTATUS
 XdpIfOpenInterfaceOffloadHandle(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _Out_ XDP_IF_OFFLOAD_HANDLE *InterfaceOffloadHandle
     );
 
@@ -176,8 +176,8 @@ typedef struct _XDP_BINDING_CLIENT {
 
 typedef struct _XDP_BINDING_CLIENT_ENTRY {
     LIST_ENTRY Link;
-    CONST XDP_BINDING_CLIENT *Client;
-    CONST VOID *Key;
+    const XDP_BINDING_CLIENT *Client;
+    const VOID *Key;
 } XDP_BINDING_CLIENT_ENTRY;
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -190,8 +190,8 @@ _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfRegisterClient(
     _In_ XDP_BINDING_HANDLE BindingHandle,
-    _In_ CONST XDP_BINDING_CLIENT *Client,
-    _In_ CONST VOID *Key,
+    _In_ const XDP_BINDING_CLIENT *Client,
+    _In_ const VOID *Key,
     _In_ XDP_BINDING_CLIENT_ENTRY *ClientEntry
     );
 
@@ -206,8 +206,8 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_BINDING_CLIENT_ENTRY *
 XdpIfFindClientEntry(
     _In_ XDP_BINDING_HANDLE BindingHandle,
-    _In_ CONST XDP_BINDING_CLIENT *Client,
-    _In_ CONST VOID *Key
+    _In_ const XDP_BINDING_CLIENT *Client,
+    _In_ const VOID *Key
     );
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -222,7 +222,7 @@ XdpIfCreateRxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     );
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -247,7 +247,7 @@ XdpIfCreateTxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     );
 
 _IRQL_requires_(PASSIVE_LEVEL)

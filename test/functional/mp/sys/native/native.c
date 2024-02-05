@@ -14,7 +14,7 @@ CONST XDP_VERSION XdpDriverApiVersion = {
 
 static EX_PUSH_LOCK NativeContextListLock;
 static LIST_ENTRY NativeContextList;
-static CONST XDP_INTERFACE_DISPATCH MpXdpDispatch = {
+static const XDP_INTERFACE_DISPATCH MpXdpDispatch = {
     .Header             = {
         .Revision       = XDP_INTERFACE_DISPATCH_REVISION_1,
         .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
@@ -108,7 +108,7 @@ NativeHandleXdpOid(
     )
 {
     NDIS_STATUS Status;
-    CONST UINT32 CapabilitiesSize = sizeof(AdapterNative->Capabilities);
+    const UINT32 CapabilitiesSize = sizeof(AdapterNative->Capabilities);
 
     *BytesNeeded = 0;
     *BytesWritten = 0;
@@ -293,7 +293,7 @@ NativeIrpClose(
     return STATUS_SUCCESS;
 }
 
-static CONST FILE_DISPATCH NativeFileDispatch = {
+static const FILE_DISPATCH NativeFileDispatch = {
     .IoControl = NativeIrpDeviceIoControl,
     .Close = NativeIrpClose,
 };

@@ -368,7 +368,7 @@ VOID
 GetDescriptorPattern(
     _Inout_ UCHAR *Buffer,
     _In_ UINT32 BufferSize,
-    _In_opt_z_ CONST CHAR *Hex
+    _In_opt_z_ const CHAR *Hex
     )
 {
     while (Hex != NULL && *Hex != '\0') {
@@ -639,12 +639,12 @@ ProcessPeriodicStats(
 
 INT
 LatCmp(
-    CONST VOID *A,
-    CONST VOID *B
+    const VOID *A,
+    const VOID *B
     )
 {
-    CONST UINT64 *a = A;
-    CONST UINT64 *b = B;
+    const UINT64 *a = A;
+    const UINT64 *b = B;
     return (*a > *b) - (*a < *b);
 }
 

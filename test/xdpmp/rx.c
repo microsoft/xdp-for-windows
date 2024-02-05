@@ -57,7 +57,7 @@ MpReceiveRecycleFlush(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 MpReceiveCompleteRxTx(
-    _In_ CONST ADAPTER_RX_QUEUE *Rq,
+    _In_ const ADAPTER_RX_QUEUE *Rq,
     _In_ UINT64 LogicalAddress
     )
 {
@@ -74,7 +74,7 @@ MpReceiveCompleteRxTx(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 MpReceiveFlushRxTx(
-    _In_ CONST ADAPTER_RX_QUEUE *Rq
+    _In_ const ADAPTER_RX_QUEUE *Rq
     )
 {
     MpReceiveRecycleFlush((ADAPTER_RX_QUEUE *)Rq);
@@ -436,11 +436,11 @@ MpCleanupReceiveQueue(
 NDIS_STATUS
 MpInitializeReceiveQueue(
     _Inout_ ADAPTER_RX_QUEUE *Rq,
-    _In_ CONST ADAPTER_QUEUE *RssQueue
+    _In_ const ADAPTER_QUEUE *RssQueue
     )
 {
     NDIS_STATUS Status;
-    CONST ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
+    const ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
     const UINT32 PatternLength = min(Adapter->RxDataLength, Adapter->RxPatternLength);
 
     TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
@@ -560,7 +560,7 @@ Exit:
     return Status;
 }
 
-static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH MpXdpRxDispatch = {
+static const XDP_INTERFACE_RX_QUEUE_DISPATCH MpXdpRxDispatch = {
     MpXdpNotify,
 };
 
@@ -570,11 +570,11 @@ MpXdpCreateRxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)InterfaceContext;
-    CONST XDP_QUEUE_INFO *QueueInfo;
+    const XDP_QUEUE_INFO *QueueInfo;
     ADAPTER_QUEUE *AdapterQueue;
     ADAPTER_RX_QUEUE *Rq;
     XDP_RX_CAPABILITIES RxCapabilities;

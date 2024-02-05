@@ -34,5 +34,5 @@ typedef struct FILE_DISPATCH {
 
 typedef struct FILE_OBJECT_HEADER {
     XDPFNLWF_FILE_TYPE ObjectType;
-    CONST FILE_DISPATCH *Dispatch;
+    const FILE_DISPATCH *Dispatch;
 } FILE_OBJECT_HEADER;

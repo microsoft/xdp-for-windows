@@ -89,14 +89,14 @@
     WPP_LOGPAIR((x).Length, (x).Buffer)
 
 typedef struct _WPP_HEXDUMP {
-    CONST VOID *Buffer;
+    const VOID *Buffer;
     UINT16 Length;
 } WPP_HEXDUMP;
 
 FORCEINLINE
 WPP_HEXDUMP
 WppHexDump(
-    _In_ CONST VOID *Buffer,
+    _In_ const VOID *Buffer,
     _In_ SIZE_T Length
     )
 {

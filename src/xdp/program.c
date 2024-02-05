@@ -412,11 +412,11 @@ static XDP_FILE_DISPATCH XdpProgramFileDispatch = {
 static
 VOID
 XdpProgramTrace(
-    _In_ CONST XDP_PROGRAM *Program
+    _In_ const XDP_PROGRAM *Program
     )
 {
     for (UINT32 i = 0; i < Program->RuleCount; i++) {
-        CONST XDP_RULE *Rule = &Program->Rules[i];
+        const XDP_RULE *Rule = &Program->Rules[i];
 
         switch (Rule->Match) {
         case XDP_MATCH_ALL:
@@ -612,7 +612,7 @@ XdpProgramTrace(
 static
 VOID
 XdpProgramTraceObject(
-    _In_ CONST XDP_PROGRAM_OBJECT *ProgramObject
+    _In_ const XDP_PROGRAM_OBJECT *ProgramObject
     )
 {
     TraceInfo(
@@ -707,7 +707,7 @@ XdpProgramUpdateCompiledProgram(
     while (Entry != BindingListHead) {
         XDP_PROGRAM_BINDING *ProgramBinding =
             CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
-        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
+        const XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
 
         TraceInfo(
             TRACE_CORE, "Compiling ProgramObject=%p into Program=%p",
@@ -791,7 +791,7 @@ XdpProgramCompileNewProgram(
     while (Entry != BindingListHead) {
         XDP_PROGRAM_BINDING *ProgramBinding =
             CONTAINING_RECORD(Entry, XDP_PROGRAM_BINDING, RxQueueEntry);
-        CONST XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
+        const XDP_PROGRAM_OBJECT *BoundProgramObject = ProgramBinding->OwningProgram;
 
         TraceInfo(
             TRACE_CORE, "Compiling ProgramObject=%p into Program=%p",
@@ -874,7 +874,7 @@ XdpProgramReleasePortSet(
 
 NTSTATUS
 XdpProgramCapturePortSet(
-    _In_ CONST XDP_PORT_SET *UserPortSet,
+    _In_ const XDP_PORT_SET *UserPortSet,
     _In_ KPROCESSOR_MODE RequestorMode,
     _Inout_ XDP_PORT_SET *KernelPortSet
     )
@@ -1046,7 +1046,7 @@ static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpCaptureProgram(
-    _In_ CONST XDP_RULE *Rules,
+    _In_ const XDP_RULE *Rules,
     _In_ ULONG RuleCount,
     _In_ KPROCESSOR_MODE RequestorMode,
     _Out_ XDP_PROGRAM_OBJECT **NewProgramObject
@@ -1201,7 +1201,7 @@ static
 NTSTATUS
 XdpProgramBindingAttach(
     _In_ XDP_BINDING_HANDLE IfHandle,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _Inout_ XDP_PROGRAM_OBJECT *ProgramObject,
     _In_ UINT32 QueueId
     )
@@ -1434,7 +1434,7 @@ XdpProgramCreate(
     XDP_PROGRAM_WORKITEM WorkItem = {0};
     XDP_PROGRAM_OBJECT *ProgramObject = NULL;
     NTSTATUS Status;
-    CONST UINT32 ValidFlags =
+    const UINT32 ValidFlags =
         XDP_CREATE_PROGRAM_FLAG_GENERIC |
         XDP_CREATE_PROGRAM_FLAG_NATIVE |
         XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
@@ -1549,7 +1549,7 @@ XdpIrpCreateProgram(
     _In_ SIZE_T InputBufferLength
     )
 {
-    CONST XDP_PROGRAM_OPEN *Params = NULL;
+    const XDP_PROGRAM_OPEN *Params = NULL;
     XDP_PROGRAM_OBJECT *ProgramObject = NULL;
     NTSTATUS Status;
 

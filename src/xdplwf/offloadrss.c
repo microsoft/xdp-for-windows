@@ -11,7 +11,7 @@
 static
 BOOLEAN
 XdpLwfOffloadIsNdisRssEnabled(
-    _In_ CONST NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams
+    _In_ const NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams
     )
 {
     return
@@ -181,7 +181,7 @@ static
 VOID
 InheritXdpRssParams(
     _Inout_ XDP_OFFLOAD_PARAMS_RSS *XdpRssParams,
-    _In_opt_ CONST XDP_OFFLOAD_PARAMS_RSS *InheritedXdpRssParams
+    _In_opt_ const XDP_OFFLOAD_PARAMS_RSS *InheritedXdpRssParams
     )
 {
     if (InheritedXdpRssParams != NULL) {
@@ -217,7 +217,7 @@ InheritXdpRssParams(
 static
 NTSTATUS
 CreateNdisRssParamsFromXdpRssParams(
-    _In_ CONST XDP_OFFLOAD_PARAMS_RSS *XdpRssParams,
+    _In_ const XDP_OFFLOAD_PARAMS_RSS *XdpRssParams,
     _Out_ NDIS_RECEIVE_SCALE_PARAMETERS **NdisRssParamsOut,
     _Out_ UINT32 *NdisRssParamsLengthOut
     )
@@ -293,7 +293,7 @@ Exit:
 static
 NTSTATUS
 InitializeXdpRssParamsFromNdisRssParams(
-    _In_ CONST NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams,
+    _In_ const NDIS_RECEIVE_SCALE_PARAMETERS *NdisRssParams,
     _In_ UINT32 NdisRssParamsLength,
     _Out_ XDP_OFFLOAD_PARAMS_RSS *XdpRssParams
     )
@@ -797,7 +797,7 @@ XdpLwfOffloadRssSetWorker(
 
     if (RssParams->Flags & XDP_RSS_FLAG_SET_INDIRECTION_TABLE) {
         UINT32 ProcessorCount = 0;
-        CONST UINT32 NumEntries =
+        const UINT32 NumEntries =
             RssParams->IndirectionTableSize / sizeof(RssParams->IndirectionTable[0]);
         ULONG BufferSize =
             ALIGN_UP_BY(

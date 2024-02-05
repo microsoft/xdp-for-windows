@@ -38,7 +38,7 @@ XdpTxQueueGetHookId(
     )
 {
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS *Details = (XDP_TX_QUEUE_CONFIG_CREATE_DETAILS *)TxQueueConfig;
-    CONST XDP_TX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
+    const XDP_TX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
         Reserved->Header.Revision < XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
@@ -57,7 +57,7 @@ XdpTxQueueGetNotifyHandle(
     )
 {
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS *Details = (XDP_TX_QUEUE_CONFIG_CREATE_DETAILS *)TxQueueConfig;
-    CONST XDP_TX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
+    const XDP_TX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
         Reserved->Header.Revision < XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1 ||
@@ -83,7 +83,7 @@ VOID
 XDP_TX_QUEUE_NOTIFY(
     _In_ XDP_TX_QUEUE_NOTIFY_HANDLE TxQueueNotifyHandle,
     _In_ XDP_TX_QUEUE_NOTIFY_CODE NotifyCode,
-    _In_opt_ CONST VOID *NotifyBuffer,
+    _In_opt_ const VOID *NotifyBuffer,
     _In_ SIZE_T NotifyBufferSize
     );
 
@@ -100,7 +100,7 @@ typedef struct _XDP_TX_QUEUE_NOTIFY_DISPATCH {
     RTL_SIZEOF_THROUGH_FIELD(XDP_TX_QUEUE_NOTIFY_DISPATCH, Notify)
 
 typedef struct _XDP_TX_QUEUE_NOTIFY_DETAILS {
-    CONST XDP_TX_QUEUE_NOTIFY_DISPATCH *Dispatch;
+    const XDP_TX_QUEUE_NOTIFY_DISPATCH *Dispatch;
 } XDP_TX_QUEUE_NOTIFY_DETAILS;
 
 inline
@@ -109,12 +109,12 @@ VOID
 XDPEXPORT(XdpTxQueueNotify)(
     _In_ XDP_TX_QUEUE_NOTIFY_HANDLE TxQueueNotifyHandle,
     _In_ XDP_TX_QUEUE_NOTIFY_CODE NotifyCode,
-    _In_opt_ CONST VOID *NotifyBuffer,
+    _In_opt_ const VOID *NotifyBuffer,
     _In_ SIZE_T NotifyBufferSize
     )
 {
-    CONST XDP_TX_QUEUE_NOTIFY_DETAILS *Details = (CONST XDP_TX_QUEUE_NOTIFY_DETAILS *)TxQueueNotifyHandle;
-    CONST XDP_TX_QUEUE_NOTIFY_DISPATCH *Dispatch = Details->Dispatch;
+    const XDP_TX_QUEUE_NOTIFY_DETAILS *Details = (CONST XDP_TX_QUEUE_NOTIFY_DETAILS *)TxQueueNotifyHandle;
+    const XDP_TX_QUEUE_NOTIFY_DISPATCH *Dispatch = Details->Dispatch;
 
     ASSERT(Dispatch != NULL);
     ASSERT(Dispatch->Header.Revision >= XDP_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1);

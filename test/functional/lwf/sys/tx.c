@@ -134,7 +134,7 @@ TxIrpFlush(
 {
     KIRQL OldIrql;
     LWF_FILTER *Filter = Tx->Default->Filter;
-    CONST DATA_FLUSH_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    const DATA_FLUSH_IN *In = Irp->AssociatedIrp.SystemBuffer;
     NBL_COUNTED_QUEUE Nbls;
     UINT32 NdisFlags = 0;
     NTSTATUS Status;

@@ -16,10 +16,10 @@ XDP_PROVIDER_DETACH_HANDLER(
 typedef
 NTSTATUS
 XDP_GET_INTERFACE_DISPATCH(
-    _In_ CONST XDP_VERSION *Version,
+    _In_ const XDP_VERSION *Version,
     _In_ VOID *GetInterfaceContext,
     _Out_ VOID **InterfaceContext,
-    _Out_ CONST VOID **InterfaceDispatch
+    _Out_ const VOID **InterfaceDispatch
     );
 
 VOID
@@ -35,7 +35,7 @@ XdpCleanupProvider(
 NTSTATUS
 XdpOpenProvider(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST GUID *ClientGuid,
+    _In_ const GUID *ClientGuid,
     _In_ VOID *ProviderContext,
     _In_ XDP_PROVIDER_DETACH_HANDLER *DetachHandler,
     _Out_ VOID **InterfaceContext,

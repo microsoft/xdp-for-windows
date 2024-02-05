@@ -48,7 +48,7 @@ XdpReferenceObjectByHandle(
 
 extern DRIVER_OBJECT *XdpDriverObject;
 extern DEVICE_OBJECT *XdpDeviceObject;
-extern CONST WCHAR *XDP_PARAMETERS_KEY;
+extern const WCHAR *XDP_PARAMETERS_KEY;
 extern XDP_REG_WATCHER *XdpRegWatcher;
 
 BOOLEAN

@@ -32,10 +32,10 @@ typedef
 HRESULT
 XDP_CREATE_PROGRAM_FN(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
-    _In_reads_(RuleCount) CONST XDP_RULE *Rules,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
     _Out_ HANDLE *Program
     );
@@ -61,7 +61,7 @@ typedef
 HRESULT
 XDP_OPEN_API_FN(
     _In_ UINT32 XdpApiVersion,
-    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    _Out_ const XDP_API_TABLE **XdpApiTable
     );
 
 XDPAPI XDP_OPEN_API_FN XdpOpenApi;
@@ -69,7 +69,7 @@ XDPAPI XDP_OPEN_API_FN XdpOpenApi;
 typedef
 VOID
 XDP_CLOSE_API_FN(
-    _In_ CONST XDP_API_TABLE *XdpApiTable
+    _In_ const XDP_API_TABLE *XdpApiTable
     );
 
 XDPAPI XDP_CLOSE_API_FN XdpCloseApi;
@@ -106,7 +106,7 @@ HRESULT
 XdpLoadApi(
     _In_ UINT32 XdpApiVersion,
     _Out_ XDP_LOAD_API_CONTEXT *XdpLoadApiContext,
-    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    _Out_ const XDP_API_TABLE **XdpApiTable
     )
 {
     HRESULT Result;
@@ -147,7 +147,7 @@ inline
 VOID
 XdpUnloadApi(
     _In_ XDP_LOAD_API_CONTEXT XdpLoadApiContext,
-    _In_ CONST XDP_API_TABLE *XdpApiTable
+    _In_ const XDP_API_TABLE *XdpApiTable
     )
 {
     HMODULE XdpHandle = (HMODULE)XdpLoadApiContext;

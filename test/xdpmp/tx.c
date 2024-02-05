@@ -179,7 +179,7 @@ MpTransmitProcessCompletions(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 MpTransmitRxTx(
-    _In_ CONST ADAPTER_TX_QUEUE *Tq,
+    _In_ const ADAPTER_TX_QUEUE *Tq,
     _In_ UINT32 HwIndex,
     _In_ UINT64 LogicalAddress,
     _In_ UINT32 DataLength
@@ -458,11 +458,11 @@ MpCleanupTransmitQueue(
 NDIS_STATUS
 MpInitializeTransmitQueue(
     _Inout_ ADAPTER_TX_QUEUE *Tq,
-    _In_ CONST ADAPTER_QUEUE *RssQueue
+    _In_ const ADAPTER_QUEUE *RssQueue
     )
 {
     NDIS_STATUS Status;
-    CONST ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
+    const ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
 
     Tq->NbQueueCount = 0;
     Tq->NbQueueHead = NULL;
@@ -500,7 +500,7 @@ Exit:
     return Status;
 }
 
-static CONST XDP_INTERFACE_TX_QUEUE_DISPATCH MpXdpTxDispatch = {
+static const XDP_INTERFACE_TX_QUEUE_DISPATCH MpXdpTxDispatch = {
     MpXdpNotify,
 };
 
@@ -510,11 +510,11 @@ MpXdpCreateTxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     )
 {
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)InterfaceContext;
-    CONST XDP_QUEUE_INFO *QueueInfo;
+    const XDP_QUEUE_INFO *QueueInfo;
     ADAPTER_QUEUE *AdapterQueue;
     ADAPTER_TX_QUEUE *Tq;
     XDP_TX_CAPABILITIES TxCapabilities;

@@ -17,7 +17,7 @@ XdpProgramReleasePortSet(
 
 NTSTATUS
 XdpProgramCapturePortSet(
-    _In_ CONST XDP_PORT_SET *UserPortSet,
+    _In_ const XDP_PORT_SET *UserPortSet,
     _In_ KPROCESSOR_MODE RequestorMode,
     _Inout_ XDP_PORT_SET *KernelPortSet
     )

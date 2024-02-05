@@ -60,7 +60,7 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
 };
 
-static CONST XDP_API_TABLE XdpApiTableV1 = {
+static const XDP_API_TABLE XdpApiTableV1 = {
     .XdpOpenApi = XdpOpenApi,
     .XdpCloseApi = XdpCloseApi,
     .XdpGetRoutine = XdpGetRoutine,
@@ -81,7 +81,7 @@ HRESULT
 XDPAPI
 XdpOpenApi(
     _In_ UINT32 XdpApiVersion,
-    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    _Out_ const XDP_API_TABLE **XdpApiTable
     )
 {
     *XdpApiTable = NULL;
@@ -98,7 +98,7 @@ XdpOpenApi(
 VOID
 XDPAPI
 XdpCloseApi(
-    _In_ CONST XDP_API_TABLE *XdpApiTable
+    _In_ const XDP_API_TABLE *XdpApiTable
     )
 {
     FRE_ASSERT(XdpApiTable == &XdpApiTableV1);
@@ -121,10 +121,10 @@ XdpGetRoutine(
 HRESULT
 XdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
-    _In_reads_(RuleCount) CONST XDP_RULE *Rules,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
     _Out_ HANDLE *Program
     )
@@ -191,7 +191,7 @@ XdpRssGetCapabilities(
 HRESULT
 XdpRssSet(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     )
 {

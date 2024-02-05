@@ -36,7 +36,7 @@ XDPEXPORT(XdpReceive)(
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
     )
 {
-    CONST XDP_RX_QUEUE_DISPATCH *Dispatch = (CONST XDP_RX_QUEUE_DISPATCH *)XdpRxQueue;
+    const XDP_RX_QUEUE_DISPATCH *Dispatch = (CONST XDP_RX_QUEUE_DISPATCH *)XdpRxQueue;
     Dispatch->Receive(XdpRxQueue);
 }
 
@@ -47,7 +47,7 @@ XDPEXPORT(XdpFlushReceive)(
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue
     )
 {
-    CONST XDP_RX_QUEUE_DISPATCH *Dispatch = (CONST XDP_RX_QUEUE_DISPATCH *)XdpRxQueue;
+    const XDP_RX_QUEUE_DISPATCH *Dispatch = (CONST XDP_RX_QUEUE_DISPATCH *)XdpRxQueue;
     Dispatch->FlushReceive(XdpRxQueue);
 }
 
@@ -69,7 +69,7 @@ XDPEXPORT(XdpFlushTransmit)(
     _In_ XDP_TX_QUEUE_HANDLE XdpTxQueue
     )
 {
-    CONST XDP_TX_QUEUE_DISPATCH *Dispatch = (CONST XDP_TX_QUEUE_DISPATCH *)XdpTxQueue;
+    const XDP_TX_QUEUE_DISPATCH *Dispatch = (CONST XDP_TX_QUEUE_DISPATCH *)XdpTxQueue;
     Dispatch->FlushTransmit(XdpTxQueue);
 }
 

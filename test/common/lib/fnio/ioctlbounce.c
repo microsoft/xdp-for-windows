@@ -23,14 +23,14 @@ FnIoIoctlCleanupEnqueue(
 
 NTSTATUS
 FnIoIoctlBounceEnqueue(
-    _In_ CONST VOID *InputBuffer,
+    _In_ const VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
     _Out_ DATA_ENQUEUE_IN *EnqueueIn
     )
 {
     NTSTATUS Status;
     BOUNCE_BUFFER Buffers, Buffer;
-    CONST DATA_ENQUEUE_IN *IoBuffer = InputBuffer;
+    const DATA_ENQUEUE_IN *IoBuffer = InputBuffer;
     UINT32 BufferCount;
     SIZE_T BufferArraySize;
 
@@ -72,8 +72,8 @@ FnIoIoctlBounceEnqueue(
     EnqueueIn->Frame.Buffers = BounceRelease(&Buffers);
 
     while (EnqueueIn->Frame.BufferCount < BufferCount) {
-        CONST UINT32 BufferIndex = EnqueueIn->Frame.BufferCount;
-        CONST DATA_BUFFER *RxBuffer = &EnqueueIn->Frame.Buffers[BufferIndex];
+        const UINT32 BufferIndex = EnqueueIn->Frame.BufferCount;
+        const DATA_BUFFER *RxBuffer = &EnqueueIn->Frame.Buffers[BufferIndex];
         UINT32 TotalLength;
 
         if (RxBuffer->BufferLength == 0) {
@@ -137,14 +137,14 @@ FnIoIoctlCleanupFilter(
 
 NTSTATUS
 FnIoIoctlBounceFilter(
-    _In_ CONST VOID *InputBuffer,
+    _In_ const VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength,
     _Out_ DATA_FILTER_IN *FilterIn
     )
 {
     NTSTATUS Status;
     BOUNCE_BUFFER Pattern, Mask;
-    CONST DATA_FILTER_IN *IoBuffer = InputBuffer;
+    const DATA_FILTER_IN *IoBuffer = InputBuffer;
 
     RtlZeroMemory(FilterIn, sizeof(*FilterIn));
     BounceInitialize(&Pattern);

@@ -5,7 +5,7 @@
 
 #include "precomp.h"
 
-static CONST XDP_INTERFACE_TX_QUEUE_DISPATCH MpXdpTxDispatch = {
+static const XDP_INTERFACE_TX_QUEUE_DISPATCH MpXdpTxDispatch = {
     MpXdpNotify,
 };
 
@@ -15,7 +15,7 @@ MpXdpCreateTxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     )
 {
     UNREFERENCED_PARAMETER(InterfaceContext);

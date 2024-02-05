@@ -35,4 +35,4 @@ GenericIrpRxFlush(
     _In_ IO_STACK_LOCATION *IrpSp
     );
 
-extern CONST UINT16 GenericRxNblContextSize;
+extern const UINT16 GenericRxNblContextSize;

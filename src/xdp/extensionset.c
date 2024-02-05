@@ -27,7 +27,7 @@ static
 XDP_EXTENSION_ENTRY *
 XdpExtensionSetFindEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     )
 {
     XDP_EXTENSION_ENTRY *Entry = NULL;
@@ -48,7 +48,7 @@ static
 VOID
 XdpExtensionSetValidate(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_ CONST XDP_EXTENSION_INFO *Info
+    _In_ const XDP_EXTENSION_INFO *Info
     )
 {
 
@@ -75,8 +75,8 @@ XdpExtensionSetCompare(
     const void *Key2
     )
 {
-    CONST XDP_EXTENSION_ENTRY *Entry1 = Key1;
-    CONST XDP_EXTENSION_ENTRY *Entry2 = Key2;
+    const XDP_EXTENSION_ENTRY *Entry1 = Key1;
+    const XDP_EXTENSION_ENTRY *Entry2 = Key2;
 
     return (int)Entry2->Alignment - (int)Entry1->Alignment;
 }
@@ -183,7 +183,7 @@ XdpExtensionSetRegisterEntry(
 VOID
 XdpExtensionSetEnableEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     )
 {
     XDP_EXTENSION_ENTRY *Entry;
@@ -197,7 +197,7 @@ XdpExtensionSetEnableEntry(
 VOID
 XdpExtensionSetSetInternalEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     )
 {
     XDP_EXTENSION_ENTRY *Entry;
@@ -219,7 +219,7 @@ XdpExtensionSetSetInternalEntry(
 VOID
 XdpExtensionSetResizeEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName,
+    _In_z_ const WCHAR *ExtensionName,
     _In_ UINT8 Size,
     _In_ UINT8 Alignment
     )
@@ -258,7 +258,7 @@ XdpExtensionSetGetExtension(
 BOOLEAN
 XdpExtensionSetIsExtensionEnabled(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     )
 {
     XDP_EXTENSION_ENTRY *Entry;
@@ -272,7 +272,7 @@ XdpExtensionSetIsExtensionEnabled(
 NTSTATUS
 XdpExtensionSetCreate(
     _In_ XDP_EXTENSION_TYPE Type,
-    _In_opt_count_(ReservedExtensionCount) CONST XDP_EXTENSION_REGISTRATION *ReservedExtensions,
+    _In_opt_count_(ReservedExtensionCount) const XDP_EXTENSION_REGISTRATION *ReservedExtensions,
     _In_ UINT16 ReservedExtensionCount,
     _Out_ XDP_EXTENSION_SET **ExtensionSet
     )
@@ -295,7 +295,7 @@ XdpExtensionSetCreate(
     for (UINT16 Index = 0; Index < Set->Count; Index++) {
         XDP_EXTENSION_ENTRY *Entry = &Set->Entries[Index];
         ASSERT(ReservedExtensions);
-        CONST XDP_EXTENSION_REGISTRATION *Reg = &ReservedExtensions[Index];
+        const XDP_EXTENSION_REGISTRATION *Reg = &ReservedExtensions[Index];
 
         XdpExtensionSetValidate(Set, &Reg->Info);
         XdpExtensionSetValidateAlignment(Reg->Alignment);

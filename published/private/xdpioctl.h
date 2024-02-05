@@ -53,7 +53,7 @@ typedef struct _XDP_PROGRAM_OPEN {
     UINT32 QueueId;
     XDP_CREATE_PROGRAM_FLAGS Flags;
     UINT32 RuleCount;
-    CONST XDP_RULE *Rules;
+    const XDP_RULE *Rules;
 } XDP_PROGRAM_OPEN;
 
 //

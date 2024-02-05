@@ -20,7 +20,7 @@ typedef enum _XDP_EXTENSION_TYPE {
 
 typedef struct _XDP_EXTENSION_INFO {
     XDP_OBJECT_HEADER Header;
-    _Null_terminated_ CONST WCHAR *ExtensionName;
+    _Null_terminated_ const WCHAR *ExtensionName;
     UINT32 ExtensionVersion;
     XDP_EXTENSION_TYPE ExtensionType;
 } XDP_EXTENSION_INFO;
@@ -34,7 +34,7 @@ inline
 VOID
 XdpInitializeExtensionInfo(
     _Out_ XDP_EXTENSION_INFO *ExtensionInfo,
-    _In_z_ CONST WCHAR *ExtensionName,
+    _In_z_ const WCHAR *ExtensionName,
     _In_ UINT32 ExtensionVersion,
     _In_ XDP_EXTENSION_TYPE ExtensionType
     )

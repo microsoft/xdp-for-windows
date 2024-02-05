@@ -5,7 +5,7 @@
 
 #include "precomp.h"
 
-static CONST NDIS_POLL_BACKCHANNEL_DISPATCH *XdpPollDispatch;
+static const NDIS_POLL_BACKCHANNEL_DISPATCH *XdpPollDispatch;
 static FNDIS_NPI_CLIENT FndisClient;
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

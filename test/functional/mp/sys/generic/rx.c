@@ -156,7 +156,7 @@ GenericIrpRxFlush(
 {
     KIRQL OldIrql;
     ADAPTER_CONTEXT *Adapter = Rx->Generic->Adapter;
-    CONST DATA_FLUSH_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    const DATA_FLUSH_IN *In = Irp->AssociatedIrp.SystemBuffer;
     NBL_COUNTED_QUEUE Nbls;
     UINT32 NdisFlags = 0;
     BOOLEAN SetAffinity = FALSE;

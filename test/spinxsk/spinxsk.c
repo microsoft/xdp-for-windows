@@ -203,7 +203,7 @@ typedef struct {
 struct QUEUE_CONTEXT {
     UINT32 queueId;
 
-    CONST XDP_API_TABLE *xdpApi;
+    const XDP_API_TABLE *xdpApi;
     XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities;
     XDP_RSS_SET_FN *XdpRssSet;
     XDP_RSS_GET_FN *XdpRssGet;
@@ -297,7 +297,7 @@ Pct(
 
 BOOLEAN
 ScenarioConfigActivateReady(
-    _In_ CONST SCENARIO_CONFIG *ScenarioConfig
+    _In_ const SCENARIO_CONFIG *ScenarioConfig
     )
 {
     if (ScenarioConfig->sockRx &&
@@ -322,7 +322,7 @@ ScenarioConfigActivateReady(
 
 BOOLEAN
 ScenarioConfigComplete(
-    _In_ CONST SCENARIO_CONFIG *ScenarioConfig
+    _In_ const SCENARIO_CONFIG *ScenarioConfig
     )
 {
     if (!ReadBooleanAcquire(&ScenarioConfig->isUmemRegistered)) {
@@ -1985,7 +1985,7 @@ ProcessPkts(
 
 VOID
 PrintDatapathStats(
-    _In_ CONST XSK_DATAPATH_WORKER *Datapath
+    _In_ const XSK_DATAPATH_WORKER *Datapath
     )
 {
     XSK_STATISTICS stats;
@@ -2363,7 +2363,7 @@ AdminFn(
     DWORD res;
     CHAR cmdBuff[256];
     HKEY xdpParametersKey;
-    CONST CHAR *delayDetachTimeoutRegName = "GenericDelayDetachTimeoutSec";
+    const CHAR *delayDetachTimeoutRegName = "GenericDelayDetachTimeoutSec";
 
     UNREFERENCED_PARAMETER(ThreadParameter);
 

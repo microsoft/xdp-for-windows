@@ -27,7 +27,7 @@ inline
 VOID
 XskRingInitialize(
     _Out_ XSK_RING *Ring,
-    _In_ CONST XSK_RING_INFO *RingInfo
+    _In_ const XSK_RING_INFO *RingInfo
     )
 {
     RtlZeroMemory(Ring, sizeof(*Ring));
@@ -45,7 +45,7 @@ XskRingInitialize(
 inline
 VOID *
 XskRingGetElement(
-    _In_ CONST XSK_RING *Ring,
+    _In_ const XSK_RING *Ring,
     _In_ UINT32 Index
     )
 {
@@ -55,7 +55,7 @@ XskRingGetElement(
 inline
 UINT32
 XskRingGetFlags(
-    _In_ CONST XSK_RING *Ring
+    _In_ const XSK_RING *Ring
     )
 {
     return ReadUInt32Acquire(Ring->SharedFlags);
@@ -112,7 +112,7 @@ XskRingProducerSubmit(
 inline
 BOOLEAN
 XskRingError(
-    _In_ CONST XSK_RING *Ring
+    _In_ const XSK_RING *Ring
     )
 {
     return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_ERROR);
@@ -121,7 +121,7 @@ XskRingError(
 inline
 BOOLEAN
 XskRingProducerNeedPoke(
-    _In_ CONST XSK_RING *Ring
+    _In_ const XSK_RING *Ring
     )
 {
     return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_NEED_POKE);
@@ -130,7 +130,7 @@ XskRingProducerNeedPoke(
 inline
 BOOLEAN
 XskRingAffinityChanged(
-    _In_ CONST XSK_RING *Ring
+    _In_ const XSK_RING *Ring
     )
 {
     return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_AFFINITY_CHANGED);

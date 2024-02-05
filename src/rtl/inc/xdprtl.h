@@ -121,7 +121,7 @@ RtlCopyVolatileMemory(
 __forceinline
 HANDLE
 ReadHandleNoFence(
-    _In_reads_bytes_(sizeof(HANDLE)) volatile CONST HANDLE *Address
+    _In_reads_bytes_(sizeof(HANDLE)) volatile const HANDLE *Address
     )
 {
     return (HANDLE)ReadPointerNoFence((PVOID *)Address);

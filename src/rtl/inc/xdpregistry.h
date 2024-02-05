@@ -8,16 +8,16 @@
 __declspec(code_seg("PAGE"))
 NTSTATUS
 XdpRegQueryDwordValue(
-    _In_z_ CONST WCHAR *KeyName,
-    _In_z_ CONST WCHAR *ValueName,
+    _In_z_ const WCHAR *KeyName,
+    _In_z_ const WCHAR *ValueName,
     _Out_ ULONG *ValueData
     );
 
 __declspec(code_seg("PAGE"))
 NTSTATUS
 XdpRegQueryBoolean(
-    _In_z_ CONST WCHAR *KeyName,
-    _In_z_ CONST WCHAR *ValueName,
+    _In_z_ const WCHAR *KeyName,
+    _In_z_ const WCHAR *ValueName,
     _Out_ BOOLEAN *ValueData
     );
 
@@ -60,7 +60,7 @@ XdpRegWatcherRemoveClient(
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_REG_WATCHER *
 XdpRegWatcherCreate(
-    _In_z_ CONST WCHAR *KeyName,
+    _In_z_ const WCHAR *KeyName,
     _In_opt_ DRIVER_OBJECT *DriverObject,
     _In_opt_ DEVICE_OBJECT *DeviceObject
     );

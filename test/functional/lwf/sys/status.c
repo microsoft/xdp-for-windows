@@ -122,7 +122,7 @@ StatusIrpFilter(
     _In_ IO_STACK_LOCATION *IrpSp
     )
 {
-    CONST STATUS_FILTER_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    const STATUS_FILTER_IN *In = Irp->AssociatedIrp.SystemBuffer;
     LWF_FILTER *Filter = StatusFile->Default->Filter;
     NTSTATUS Status;
     KIRQL OldIrql;

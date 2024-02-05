@@ -30,7 +30,7 @@ XdpRxQueueGetHookId(
     )
 {
     XDP_RX_QUEUE_CONFIG_CREATE_DETAILS *Details = (XDP_RX_QUEUE_CONFIG_CREATE_DETAILS *)RxQueueConfig;
-    CONST XDP_RX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
+    const XDP_RX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
         Reserved->Header.Revision < XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1 ||

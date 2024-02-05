@@ -122,4 +122,4 @@ XdpLwfOffloadUnInitialize(
     _In_ XDP_LWF_FILTER *Filter
     );
 
-extern CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch;
+extern const XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch;

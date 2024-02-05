@@ -183,7 +183,7 @@ XdpGenericReceiveNotify(
     }
 }
 
-static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH RxDispatch = {
+static const XDP_INTERFACE_RX_QUEUE_DISPATCH RxDispatch = {
     .InterfaceNotifyQueue = XdpGenericReceiveNotify,
 };
 
@@ -1274,15 +1274,15 @@ XdpGenericRxCreateQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     )
 {
     NTSTATUS Status;
     XDP_LWF_GENERIC *Generic = (XDP_LWF_GENERIC *)InterfaceContext;
     XDP_LWF_GENERIC_RX_QUEUE *RxQueue = NULL;
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
-    CONST XDP_QUEUE_INFO *QueueInfo;
-    CONST XDP_HOOK_ID *QueueHookId;
+    const XDP_QUEUE_INFO *QueueInfo;
+    const XDP_HOOK_ID *QueueHookId;
     NET_BUFFER_LIST_POOL_PARAMETERS PoolParams = {0};
     XDP_EXTENSION_INFO ExtensionInfo;
     XDP_RX_CAPABILITIES RxCapabilities;

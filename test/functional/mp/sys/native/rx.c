@@ -5,7 +5,7 @@
 
 #include "precomp.h"
 
-static CONST XDP_INTERFACE_RX_QUEUE_DISPATCH MpXdpRxDispatch = {
+static const XDP_INTERFACE_RX_QUEUE_DISPATCH MpXdpRxDispatch = {
     MpXdpNotify,
 };
 
@@ -15,7 +15,7 @@ MpXdpCreateRxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     )
 {
     UNREFERENCED_PARAMETER(InterfaceContext);

@@ -31,19 +31,19 @@ XdpExtensionSetRegisterEntry(
 VOID
 XdpExtensionSetEnableEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     );
 
 VOID
 XdpExtensionSetSetInternalEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     );
 
 VOID
 XdpExtensionSetResizeEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName,
+    _In_z_ const WCHAR *ExtensionName,
     _In_ UINT8 Size,
     _In_ UINT8 Alignment
     );
@@ -58,13 +58,13 @@ XdpExtensionSetGetExtension(
 BOOLEAN
 XdpExtensionSetIsExtensionEnabled(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
-    _In_z_ CONST WCHAR *ExtensionName
+    _In_z_ const WCHAR *ExtensionName
     );
 
 NTSTATUS
 XdpExtensionSetCreate(
     _In_ XDP_EXTENSION_TYPE Type,
-    _In_opt_count_(ReservedExtensionCount) CONST XDP_EXTENSION_REGISTRATION *ReservedExtensions,
+    _In_opt_count_(ReservedExtensionCount) const XDP_EXTENSION_REGISTRATION *ReservedExtensions,
     _In_ UINT16 ReservedExtensionCount,
     _Out_ XDP_EXTENSION_SET **ExtensionSet
     );
