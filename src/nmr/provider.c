@@ -15,7 +15,7 @@ typedef struct _XDP_PROVIDER {
     EX_PUSH_LOCK Lock;
     BOOLEAN Closed;
     HANDLE BindingHandle;
-    CONST XDP_NPI_CLIENT *NpiClient;
+    const XDP_NPI_CLIENT *NpiClient;
 } XDP_PROVIDER;
 
 static
@@ -42,17 +42,17 @@ NTSTATUS
 XdpNmrProviderAttachClient(
     _In_ HANDLE NmrBindingHandle,
     _In_ VOID *ProviderContext,
-    _In_ CONST NPI_REGISTRATION_INSTANCE *ClientRegistrationInstance,
+    _In_ const NPI_REGISTRATION_INSTANCE *ClientRegistrationInstance,
     _In_ VOID *ClientBindingContext,
-    _In_ CONST VOID *ClientDispatch,
+    _In_ const VOID *ClientDispatch,
     _Out_ VOID **ProviderBindingContext,
-    _Out_ CONST VOID **ProviderDispatch
+    _Out_ const VOID **ProviderDispatch
     )
 {
     XDP_PROVIDER *Provider = ProviderContext;
-    CONST NPI_REGISTRATION_INSTANCE *ProviderRegistrationInstance =
+    const NPI_REGISTRATION_INSTANCE *ProviderRegistrationInstance =
         &Provider->NpiProviderCharacteristics.ProviderRegistrationInstance;
-    CONST XDP_NPI_CLIENT *NpiClient = ClientDispatch;
+    const XDP_NPI_CLIENT *NpiClient = ClientDispatch;
     NTSTATUS Status;
 
     UNREFERENCED_PARAMETER(ClientBindingContext);
@@ -181,7 +181,7 @@ XdpCleanupProvider(
 NTSTATUS
 XdpOpenProvider(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST GUID *ClientGuid,
+    _In_ const GUID *ClientGuid,
     _In_ VOID *ProviderContext,
     _In_ XDP_PROVIDER_DETACH_HANDLER *DetachHandler,
     _Out_ VOID **NpiGetInterfaceContext,

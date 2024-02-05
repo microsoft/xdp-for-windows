@@ -10,14 +10,14 @@ typedef struct _XDP_RX_QUEUE XDP_RX_QUEUE;
 XDP_RX_QUEUE *
 XdpRxQueueFind(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId
     );
 
 NTSTATUS
 XdpRxQueueFindOrCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _Out_ XDP_RX_QUEUE **RxQueue
     );

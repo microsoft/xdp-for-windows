@@ -903,7 +903,7 @@ XskFillTxCompletion(
 NTSTATUS
 XskReferenceDatapathHandle(
     _In_ KPROCESSOR_MODE RequestorMode,
-    _In_ CONST VOID *HandleBuffer,
+    _In_ const VOID *HandleBuffer,
     _In_ BOOLEAN HandleBounced,
     _Out_ HANDLE *XskHandle
     )
@@ -1799,9 +1799,9 @@ XskSetupDma(
     DEVICE_DESCRIPTION DeviceDescription = {0};
     ULONG NumberOfMapRegisters = 0;
     UMEM_MAPPING *Mapping;
-    CONST XDP_DMA_CAPABILITIES *DmaCapabilities =
+    const XDP_DMA_CAPABILITIES *DmaCapabilities =
         XdpTxQueueGetDmaCapabilities(Xsk->Tx.Xdp.Queue);
-    CONST DMA_OPERATIONS *DmaOperations;
+    const DMA_OPERATIONS *DmaOperations;
 
     ASSERT(DmaCapabilities->PhysicalDeviceObject != NULL);
 
@@ -2153,7 +2153,7 @@ XskBindTxIf(
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
     XDP_TX_QUEUE_CONFIG_ACTIVATE Config;
-    CONST XDP_TX_CAPABILITIES *InterfaceCapabilities;
+    const XDP_TX_CAPABILITIES *InterfaceCapabilities;
     XDP_EXTENSION_INFO ExtensionInfo;
     NTSTATUS Status;
 
@@ -2457,7 +2457,7 @@ XskIrpBindSocket(
     XDP_INTERFACE_MODE *ModeFilter = NULL;
     XDP_INTERFACE_MODE RequiredMode;
     BOOLEAN BindIfInitiated = FALSE;
-    CONST UINT32 ValidFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC | XSK_BIND_FLAG_NATIVE;
+    const UINT32 ValidFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC | XSK_BIND_FLAG_NATIVE;
 
     if (IrpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof(XSK_BIND_IN)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -2895,7 +2895,7 @@ XskSockoptSetUmem(
     )
 {
     NTSTATUS Status;
-    CONST VOID *SockoptInputBuffer;
+    const VOID *SockoptInputBuffer;
     UINT32 SockoptInputBufferLength;
     UMEM *Umem = NULL;
     KIRQL OldIrql = {0};
@@ -3047,7 +3047,7 @@ XskSockoptSetRingSize(
     )
 {
     NTSTATUS Status;
-    CONST VOID *SockoptInputBuffer;
+    const VOID *SockoptInputBuffer;
     UINT32 SockoptInputBufferLength;
     XSK_SHARED_RING *Shared = NULL;
     MDL *Mdl = NULL;
@@ -3296,7 +3296,7 @@ XskSockoptSetHookId(
     )
 {
     NTSTATUS Status;
-    CONST VOID *SockoptIn;
+    const VOID *SockoptIn;
     UINT32 SockoptInSize;
     XDP_HOOK_ID HookId;
     KIRQL OldIrql = {0};
@@ -3607,7 +3607,7 @@ XskSockoptSetPollMode(
     )
 {
     NTSTATUS Status;
-    CONST VOID *SockoptInputBuffer;
+    const VOID *SockoptInputBuffer;
     UINT32 SockoptInputBufferLength;
     XSK_POLL_MODE PollMode;
 
@@ -3763,7 +3763,7 @@ XskFastGetSockopt(
     )
 {
     XSK *Xsk = (XSK *)FileObjectHeader;
-    CONST KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
+    const KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
     UINT32 Option = 0;
 
     __try {
@@ -4025,7 +4025,7 @@ XskNotify(
     LARGE_INTEGER Timeout;
     NTSTATUS Status;
     XSK_IO_WAIT_FLAGS InternalFlags;
-    CONST UINT32 WaitMask = (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
+    const UINT32 WaitMask = (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
 
     Status =
         XskNotifyValidateParams(

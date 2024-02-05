@@ -29,29 +29,29 @@ GetCurrentBinaryPath(
 _Success_(return==0)
 DWORD
 ConvertInterfaceAliasToIndex(
-    _In_ CONST WCHAR *Alias,
+    _In_ const WCHAR *Alias,
     _Out_ ULONG *IfIndex
     );
 
 BOOLEAN
 IsServiceInstalled(
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     );
 
 HRESULT
 GetServiceState(
     _Out_ UINT32 *ServiceState,
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     );
 
 HRESULT
 StartServiceAsync(
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     );
 
 HRESULT
 StopServiceAsync(
-    _In_z_ CONST CHAR *ServiceName
+    _In_z_ const CHAR *ServiceName
     );
 
 BOOLEAN

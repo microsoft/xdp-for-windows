@@ -214,7 +214,7 @@ XdpTxQueueGetStats(
     return &TxQueue->PcwStats;
 }
 
-static CONST XDP_TX_QUEUE_DISPATCH XdpTxDispatch = {
+static const XDP_TX_QUEUE_DISPATCH XdpTxDispatch = {
     .FlushTransmit = XdpFlushTransmit,
 };
 
@@ -251,7 +251,7 @@ XdpTxQueueInterlockedDereference(
     }
 }
 
-static CONST XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
+static const XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
     {
         .Info.ExtensionName     = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
         .Info.ExtensionVersion  = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
@@ -268,7 +268,7 @@ static CONST XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
     },
 };
 
-static CONST XDP_EXTENSION_REGISTRATION XdpTxBufferExtensions[] = {
+static const XDP_EXTENSION_REGISTRATION XdpTxBufferExtensions[] = {
     {
         .Info.ExtensionName     = XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
         .Info.ExtensionVersion  = XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1,
@@ -299,7 +299,7 @@ static CONST XDP_EXTENSION_REGISTRATION XdpTxBufferExtensions[] = {
     },
 };
 
-static CONST XDP_EXTENSION_REGISTRATION XdpTxFrameCompletionExtensions[] = {
+static const XDP_EXTENSION_REGISTRATION XdpTxFrameCompletionExtensions[] = {
     {
         .Info.ExtensionName     = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
         .Info.ExtensionVersion  = XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
@@ -622,7 +622,7 @@ VOID
 XdpTxQueueNotify(
     _In_ XDP_TX_QUEUE_NOTIFY_HANDLE TxQueueNotifyHandle,
     _In_ XDP_TX_QUEUE_NOTIFY_CODE NotifyCode,
-    _In_opt_ CONST VOID *NotifyBuffer,
+    _In_opt_ const VOID *NotifyBuffer,
     _In_ SIZE_T NotifyBufferSize
     )
 {
@@ -650,7 +650,7 @@ XdpTxQueueNotify(
     }
 }
 
-static CONST XDP_TX_QUEUE_CONFIG_RESERVED XdpTxConfigReservedDispatch = {
+static const XDP_TX_QUEUE_CONFIG_RESERVED XdpTxConfigReservedDispatch = {
     .Header                         = {
         .Revision                   = XDP_TX_QUEUE_CONFIG_RESERVED_REVISION_1,
         .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_RESERVED_REVISION_1
@@ -659,7 +659,7 @@ static CONST XDP_TX_QUEUE_CONFIG_RESERVED XdpTxConfigReservedDispatch = {
     .GetNotifyHandle                = XdppTxQueueGetNotifyHandle,
 };
 
-static CONST XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
+static const XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
     .Header                         = {
         .Revision                   = XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1,
         .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1
@@ -672,7 +672,7 @@ static CONST XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
     .SetPollInfo                    = XdpTxQueueSetPollInfo,
 };
 
-static CONST XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch = {
+static const XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch = {
     .Header                         = {
         .Revision                   = XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1,
         .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1
@@ -686,7 +686,7 @@ static CONST XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch =
     .IsOutOfOrderCompletionEnabled  = XdpTxQueueIsOutOfOrderCompletionEnabled,
 };
 
-static CONST XDP_TX_QUEUE_NOTIFY_DISPATCH XdpTxNotifyDispatch = {
+static const XDP_TX_QUEUE_NOTIFY_DISPATCH XdpTxNotifyDispatch = {
     .Header                         = {
         .Revision                   = XDP_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1,
         .Size                       = XDP_SIZEOF_TX_QUEUE_NOTIFY_DISPATCH_REVISION_1
@@ -726,7 +726,7 @@ static
 VOID
 XdpTxQueueInitializeKey(
     _Out_ XDP_TX_QUEUE_KEY *Key,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId
     )
 {
@@ -739,7 +739,7 @@ static
 NTSTATUS
 XdpTxQueueCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _Out_ XDP_TX_QUEUE **NewTxQueue
     )
@@ -988,7 +988,7 @@ static
 XDP_TX_QUEUE *
 XdpTxQueueFind(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId
     )
 {
@@ -1011,7 +1011,7 @@ XdpTxQueueFind(
 NTSTATUS
 XdpTxQueueFindOrCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _Out_ XDP_TX_QUEUE **TxQueue
     )

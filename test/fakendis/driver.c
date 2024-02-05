@@ -103,7 +103,7 @@ IrpIoDeviceControl(
 
     case IOCTL_FNDIS_POLL_GET_ROUTINE_ADDRESS:
     {
-        CONST FNDIS_POLL_GET_ROUTINE_ADDRESS_IN *In;
+        const FNDIS_POLL_GET_ROUTINE_ADDRESS_IN *In;
         FNDIS_POLL_GET_ROUTINE_ADDRESS_OUT *Out;
 
         if (Irp->RequestorMode != KernelMode) {

@@ -93,7 +93,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     };
     UINT8 *TcpHdrOptions;
     UINT8 QuicCidLength;
-    CONST UINT8 *QuicCid; // Src CID for long header, Dest CID for short header
+    const UINT8 *QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
 } XDP_PROGRAM_FRAME_CACHE;
 
@@ -136,7 +136,7 @@ XdpProgramReleasePortSet(
 
 NTSTATUS
 XdpProgramCapturePortSet(
-    _In_ CONST XDP_PORT_SET *UserPortSet,
+    _In_ const XDP_PORT_SET *UserPortSet,
     _In_ KPROCESSOR_MODE RequestorMode,
     _Inout_ XDP_PORT_SET *KernelPortSet
     );

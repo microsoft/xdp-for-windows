@@ -62,13 +62,13 @@ typedef struct _ADAPTER_RX_QUEUE {
     UCHAR *BufferArray;
     UINT32 *RecycleArray;
     UINT32 *RxTxArray;
-    CONST ADAPTER_TX_QUEUE *Tq;
+    const ADAPTER_TX_QUEUE *Tq;
     UINT32 NumBuffers;
     UINT32 BufferLength;
     UINT32 BufferMask;
     UINT32 DataLength;
     UINT32 PatternLength;
-    CONST UCHAR *PatternBuffer;
+    const UCHAR *PatternBuffer;
     UINT32 RecycleIndex;
     UINT32 RxTxIndex;
 
@@ -98,7 +98,7 @@ typedef struct _ADAPTER_TX_QUEUE {
 
     HW_RING *HwRing;
     TX_SHADOW_DESCRIPTOR *ShadowRing;
-    CONST ADAPTER_RX_QUEUE *Rq;
+    const ADAPTER_RX_QUEUE *Rq;
 
     UINT32 RateSimFramesAvailable;
 

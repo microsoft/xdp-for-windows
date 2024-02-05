@@ -28,7 +28,7 @@ XdpTxQueueGetStats(
 NTSTATUS
 XdpTxQueueFindOrCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _Out_ XDP_TX_QUEUE **TxQueue
     );

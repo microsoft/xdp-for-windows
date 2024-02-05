@@ -9,7 +9,7 @@ typedef struct _XDP_CLIENT {
     NPI_CLIENT_CHARACTERISTICS NpiClientCharacteristics;
     NPI_MODULEID ModuleId;
     HANDLE NmrClientHandle;
-    CONST XDP_CAPABILITIES_EX *CapabilitiesEx;
+    const XDP_CAPABILITIES_EX *CapabilitiesEx;
     XDP_NPI_CLIENT NpiClient;
 
     ERESOURCE Resource;
@@ -18,9 +18,9 @@ typedef struct _XDP_CLIENT {
 
 typedef struct _XDP_CLIENT_SINGLE_VERSION {
     XDP_CLIENT Client;
-    CONST XDP_VERSION *ClientVersion;
+    const XDP_VERSION *ClientVersion;
     VOID *InterfaceContext;
-    CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch;
+    const XDP_INTERFACE_DISPATCH *InterfaceDispatch;
 } XDP_CLIENT_SINGLE_VERSION;
 
 static
@@ -50,13 +50,13 @@ NTSTATUS
 XdpNmrClientAttachProvider(
     _In_ HANDLE NmrBindingHandle,
     _In_ VOID *ClientContext,
-    _In_ CONST NPI_REGISTRATION_INSTANCE *ProviderRegistrationInstance
+    _In_ const NPI_REGISTRATION_INSTANCE *ProviderRegistrationInstance
     )
 {
     XDP_CLIENT *Client = ClientContext;
     NTSTATUS Status;
     VOID *ProviderBindingContext;
-    CONST VOID *ProviderBindingDispatch;
+    const VOID *ProviderBindingDispatch;
 
     UNREFERENCED_PARAMETER(ProviderRegistrationInstance);
 
@@ -106,7 +106,7 @@ static
 NTSTATUS
 XdpRegisterInterfaceInternal(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ const XDP_CAPABILITIES_EX *CapabilitiesEx,
     _In_ VOID *GetInterfaceContext,
     _In_ XDP_GET_INTERFACE_DISPATCH *GetInterfaceDispatch,
     _Out_ XDP_CLIENT *Client,
@@ -183,10 +183,10 @@ XdpDeregisterInterfaceInternal(
 static
 NTSTATUS
 XdpNmrClientGetInterfaceDispatch(
-    _In_ CONST XDP_VERSION *Version,
+    _In_ const XDP_VERSION *Version,
     _In_ VOID *GetInterfaceContext,
     _Out_ VOID **InterfaceContext,
-    _Out_ CONST VOID **InterfaceDispatch
+    _Out_ const VOID **InterfaceDispatch
     )
 {
     XDP_CLIENT_SINGLE_VERSION *ClientSingleVersion = GetInterfaceContext;
@@ -204,9 +204,9 @@ XdpNmrClientGetInterfaceDispatch(
 NTSTATUS
 XdpRegisterInterfaceEx(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ const XDP_CAPABILITIES_EX *CapabilitiesEx,
     _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
+    _In_ const XDP_INTERFACE_DISPATCH *InterfaceDispatch,
     _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
     )
 {

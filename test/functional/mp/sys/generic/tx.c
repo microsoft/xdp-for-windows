@@ -186,7 +186,7 @@ GenericIrpTxFilter(
 {
     NTSTATUS Status;
     ADAPTER_GENERIC *AdapterGeneric = Tx->Generic->Adapter->Generic;
-    CONST DATA_FILTER_IN *In = Irp->AssociatedIrp.SystemBuffer;
+    const DATA_FILTER_IN *In = Irp->AssociatedIrp.SystemBuffer;
     DATA_FILTER *DataFilter = NULL;
     KIRQL OldIrql;
     BOOLEAN ClearOnly = FALSE;

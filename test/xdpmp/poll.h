@@ -13,7 +13,7 @@ NDIS_STATUS
 REGISTER_POLL(
     _In_ NDIS_HANDLE NdisHandle,
     _In_opt_ VOID *Context,
-    _In_ CONST NDIS_POLL_CHARACTERISTICS *Characteristics,
+    _In_ const NDIS_POLL_CHARACTERISTICS *Characteristics,
     _Out_ NDIS_POLL_HANDLE *PollHandle
     );
 
@@ -29,7 +29,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 SET_POLL_AFFINITY(
     _In_ NDIS_POLL_HANDLE PollHandle,
-    _In_ CONST PROCESSOR_NUMBER *PollAffinity
+    _In_ const PROCESSOR_NUMBER *PollAffinity
     );
 
 typedef

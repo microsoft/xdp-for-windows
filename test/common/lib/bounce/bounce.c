@@ -28,7 +28,7 @@ BounceCleanup(
 
 VOID
 BounceFree(
-    _In_opt_ CONST VOID *Buffer
+    _In_opt_ const VOID *Buffer
     )
 {
     if (Buffer != NULL) {
@@ -50,7 +50,7 @@ __declspec(code_seg("PAGE"))
 NTSTATUS
 BounceBuffer(
     _Inout_ BOUNCE_BUFFER *Bounce,
-    _In_ CONST VOID *Buffer,
+    _In_ const VOID *Buffer,
     _In_ SIZE_T BufferSize,
     _In_ UINT32 Alignment
     )

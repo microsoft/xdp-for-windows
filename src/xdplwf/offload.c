@@ -59,7 +59,7 @@ XdpLwfOffloadQueueWorkItem(
 static
 XDP_LWF_OFFLOAD_EDGE
 XdpLwfConvertHookIdToOffloadEdge(
-    _In_ CONST XDP_HOOK_ID *HookId
+    _In_ const XDP_HOOK_ID *HookId
     )
 {
     ASSERT(HookId->Layer == XDP_HOOK_L2);
@@ -79,7 +79,7 @@ static
 NTSTATUS
 XdpLwfOpenInterfaceOffloadHandle(
     _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _Out_ VOID **InterfaceOffloadHandle
     )
 {

@@ -121,14 +121,14 @@ typedef union {
 UINT16
 PktChecksum(
     _In_ UINT16 InitialChecksum,
-    _In_ CONST VOID *Buffer,
+    _In_ const VOID *Buffer,
     _In_ UINT16 BufferLength
     );
 
 UINT16
 PktPseudoHeaderChecksum(
-    _In_ CONST VOID *SourceAddress,
-    _In_ CONST VOID *DestinationAddress,
+    _In_ const VOID *SourceAddress,
+    _In_ const VOID *DestinationAddress,
     _In_ UINT8 AddressLength,
     _In_ UINT16 DataLength,
     _In_ UINT8 NextHeader
@@ -139,13 +139,13 @@ BOOLEAN
 PktBuildUdpFrame(
     _Out_ VOID *Buffer,
     _Inout_ UINT32 *BufferSize,
-    _In_ CONST UCHAR *Payload,
+    _In_ const UCHAR *Payload,
     _In_ UINT16 PayloadLength,
-    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
-    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ const ETHERNET_ADDRESS *EthernetDestination,
+    _In_ const ETHERNET_ADDRESS *EthernetSource,
     _In_ ADDRESS_FAMILY AddressFamily,
-    _In_ CONST VOID *IpDestination,
-    _In_ CONST VOID *IpSource,
+    _In_ const VOID *IpDestination,
+    _In_ const VOID *IpSource,
     _In_ UINT16 PortDestination,
     _In_ UINT16 PortSource
     );
@@ -155,7 +155,7 @@ BOOLEAN
 PktBuildTcpFrame(
     _Out_ VOID *Buffer,
     _Inout_ UINT32 *BufferSize,
-    _In_opt_ CONST UCHAR *Payload,
+    _In_opt_ const UCHAR *Payload,
     _In_ UINT16 PayloadLength,
     _In_opt_ UINT8 *TcpOptions,
     _In_ UINT16 TcpOptionsLength,
@@ -163,11 +163,11 @@ PktBuildTcpFrame(
     _In_ UINT32 ThAck,
     _In_ UINT8 ThFlags,
     _In_ UINT16 ThWin,
-    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
-    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ const ETHERNET_ADDRESS *EthernetDestination,
+    _In_ const ETHERNET_ADDRESS *EthernetSource,
     _In_ ADDRESS_FAMILY AddressFamily,
-    _In_ CONST VOID *IpDestination,
-    _In_ CONST VOID *IpSource,
+    _In_ const VOID *IpDestination,
+    _In_ const VOID *IpSource,
     _In_ UINT16 PortDestination,
     _In_ UINT16 PortSource
     );
@@ -198,7 +198,7 @@ BOOLEAN
 PktStringToInetAddressA(
     _Out_ INET_ADDR *InetAddr,
     _Out_ ADDRESS_FAMILY *AddressFamily,
-    _In_ CONST CHAR *String
+    _In_ const CHAR *String
     );
 
 EXTERN_C_END

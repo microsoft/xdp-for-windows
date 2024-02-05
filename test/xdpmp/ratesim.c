@@ -151,7 +151,7 @@ MpRateSimEnableInterrupt(
 NDIS_STATUS
 MpUpdateRateSim(
     _In_ ADAPTER_CONTEXT *Adapter,
-    _In_ CONST XDPMP_RATE_SIM_WMI *RateSimWmi
+    _In_ const XDPMP_RATE_SIM_WMI *RateSimWmi
     )
 {
 

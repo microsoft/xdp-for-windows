@@ -108,7 +108,7 @@ DefaultIrpClose(
     return STATUS_SUCCESS;
 }
 
-static CONST FILE_DISPATCH DefaultFileDispatch = {
+static const FILE_DISPATCH DefaultFileDispatch = {
     .IoControl = DefaultIrpDeviceIoControl,
     .Close = DefaultIrpClose,
 };

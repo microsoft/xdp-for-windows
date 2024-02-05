@@ -368,11 +368,11 @@ XdpIrpCreateInterface(
     )
 {
     NTSTATUS Status;
-    CONST XDP_INTERFACE_OPEN *Params = NULL;
+    const XDP_INTERFACE_OPEN *Params = NULL;
     XDP_IFSET_HANDLE IfSetHandle = NULL;
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle = NULL;
     XDP_INTERFACE_OBJECT *InterfaceObject = NULL;
-    CONST XDP_HOOK_ID HookId = {
+    const XDP_HOOK_ID HookId = {
         .Layer = XDP_HOOK_L2,
         .Direction = XDP_HOOK_RX,
         .SubLayer = XDP_HOOK_INSPECT,

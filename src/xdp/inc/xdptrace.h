@@ -72,7 +72,7 @@
 // CUSTOM_TYPE(OID_ACTION, ItemEnum(_XDP_OID_ACTION));
 //
 // DEFINE_CPLX_TYPE(HEXDUMP, WPP_LOGHEXDUMP, WPP_HEXDUMP, ItemHEXDump, "s", _HEX_, 0, 2);
-// DEFINE_CPLX_TYPE(IPV6ADDR, WPP_LOGIPV6, CONST UCHAR *, ItemIPV6Addr, "s", _IPV6_, 0);
+// DEFINE_CPLX_TYPE(IPV6ADDR, WPP_LOGIPV6, const UCHAR *, ItemIPV6Addr, "s", _IPV6_, 0);
 // end_wpp
 //
 
@@ -100,14 +100,14 @@
 #define WPP_LOGIPV6(x) WPP_LOGPAIR(16, (x))
 
 typedef struct _WPP_HEXDUMP {
-    CONST VOID *Buffer;
+    const VOID *Buffer;
     UINT16 Length;
 } WPP_HEXDUMP;
 
 FORCEINLINE
 WPP_HEXDUMP
 WppHexDump(
-    _In_ CONST VOID *Buffer,
+    _In_ const VOID *Buffer,
     _In_ SIZE_T Length
     )
 {

@@ -242,8 +242,8 @@ XdpGenericRestart(
 static
 VOID *
 XdpGenericPackContext(
-    _In_ CONST XDP_LWF_GENERIC *Generic,
-    _In_ CONST XDP_LWF_DATAPATH_BYPASS *Datapath
+    _In_ const XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_DATAPATH_BYPASS *Datapath
     )
 {
     ASSERT(((ULONG_PTR)Generic & DELAY_DETACH_RX) == 0);
@@ -256,8 +256,8 @@ static
 VOID
 XdpGenericUnpackContext(
     _In_ VOID * PackedContext,
-    _Out_ CONST XDP_LWF_GENERIC **Generic,
-    _Out_ CONST XDP_LWF_DATAPATH_BYPASS **Datapath
+    _Out_ const XDP_LWF_GENERIC **Generic,
+    _Out_ const XDP_LWF_DATAPATH_BYPASS **Datapath
     )
 {
     *Generic = (XDP_LWF_GENERIC *)((ULONG_PTR)PackedContext & ~DELAY_DETACH_RX);
@@ -555,7 +555,7 @@ XdpGenericCloseInterface(
     XdpGenericRssCleanup(Generic);
 }
 
-static CONST XDP_INTERFACE_DISPATCH XdpGenericDispatch = {
+static const XDP_INTERFACE_DISPATCH XdpGenericDispatch = {
     .Header             = {
         .Revision       = XDP_INTERFACE_DISPATCH_REVISION_1,
         .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
@@ -635,7 +635,7 @@ XdpGenericAttachInterface(
     )
 {
     NTSTATUS Status;
-    CONST XDP_VERSION DriverApiVersion = {
+    const XDP_VERSION DriverApiVersion = {
         .Major = XDP_DRIVER_API_MAJOR_VER,
         .Minor = XDP_DRIVER_API_MINOR_VER,
         .Patch = XDP_DRIVER_API_PATCH_VER

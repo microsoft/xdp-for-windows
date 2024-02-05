@@ -225,10 +225,10 @@ static
 VOID
 MpFillOffload(
     _Out_ NDIS_OFFLOAD *Offload,
-    _In_ CONST ADAPTER_OFFLOAD *AdapterOffload
+    _In_ const ADAPTER_OFFLOAD *AdapterOffload
     )
 {
-    CONST UINT32 Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+    const UINT32 Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
 
     RtlZeroMemory(Offload, sizeof(*Offload));
 
@@ -303,7 +303,7 @@ MpUpdateChecksumParameter(
 
 static
 MpIndicateStatus(
-    _In_ CONST ADAPTER_CONTEXT *Adapter,
+    _In_ const ADAPTER_CONTEXT *Adapter,
     _In_ VOID *Buffer,
     _In_ UINT32 BufferSize,
     _In_ UINT32 StatusCode
@@ -327,9 +327,9 @@ MpIndicateStatus(
 
 NDIS_STATUS
 MpSetOffloadParameters(
-    _In_ CONST ADAPTER_CONTEXT *Adapter,
+    _In_ const ADAPTER_CONTEXT *Adapter,
     _Inout_ ADAPTER_OFFLOAD *AdapterOffload,
-    _In_ CONST NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
+    _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
     _In_ UINT32 OffloadParametersLength,
     _In_ UINT32 StatusCode
     )

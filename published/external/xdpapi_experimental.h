@@ -198,7 +198,7 @@ typedef
 HRESULT
 XDP_RSS_SET_FN(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     );
 

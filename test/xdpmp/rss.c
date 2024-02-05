@@ -76,7 +76,7 @@ MpXdpNotify(
 {
     ADAPTER_QUEUE *RssQueue = (ADAPTER_QUEUE *)InterfaceQueue;
 
-    static CONST PollMask =
+    static const PollMask =
         XDP_NOTIFY_QUEUE_FLAG_TX |
         XDP_NOTIFY_QUEUE_FLAG_RX_FLUSH |
         XDP_NOTIFY_QUEUE_FLAG_TX_FLUSH;

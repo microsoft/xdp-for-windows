@@ -37,7 +37,7 @@ main(
     UCHAR *PacketBuffer;
     UINT32 PacketLength;
     UINT16 PayloadLength;
-    CONST CHAR *Terminator;
+    const CHAR *Terminator;
     BOOLEAN IsUdp;
 
     if (ArgC < 9) {

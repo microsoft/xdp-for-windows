@@ -72,7 +72,7 @@ XDP_TX_QUEUE_ACTIVATE_IS_ENABLED(
 
 typedef struct _XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH {
     XDP_OBJECT_HEADER                       Header;
-    CONST VOID                              *Reserved;
+    const VOID                              *Reserved;
     XDP_TX_QUEUE_GET_TARGET_QUEUE_INFO      *GetTargetQueueInfo;
     XDP_TX_QUEUE_REGISTER_EXTENSION_VERSION *RegisterExtensionVersion;
     XDP_TX_QUEUE_SET_CAPABILITIES           *SetTxQueueCapabilities;
@@ -86,12 +86,12 @@ typedef struct _XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH {
     RTL_SIZEOF_THROUGH_FIELD(XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH, SetPollInfo)
 
 typedef struct _XDP_TX_QUEUE_CONFIG_CREATE_DETAILS {
-    CONST XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH *Dispatch;
+    const XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH *Dispatch;
 } XDP_TX_QUEUE_CONFIG_CREATE_DETAILS;
 
 typedef struct _XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH {
     XDP_OBJECT_HEADER                       Header;
-    CONST VOID                              *Reserved;
+    const VOID                              *Reserved;
     XDP_TX_QUEUE_GET_RING                   *GetFrameRing;
     XDP_TX_QUEUE_GET_RING                   *GetFragmentRing;
     XDP_TX_QUEUE_GET_RING                   *GetCompletionRing;
@@ -107,7 +107,7 @@ typedef struct _XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH {
     RTL_SIZEOF_THROUGH_FIELD(XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH, IsOutOfOrderCompletionEnabled)
 
 typedef struct _XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS {
-    CONST XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH *Dispatch;
+    const XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH *Dispatch;
 } XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS;
 
 inline

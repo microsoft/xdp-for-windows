@@ -52,13 +52,13 @@ typedef struct _XDP_CAPABILITIES_INTERNAL {
     //
     // The supported hook points.
     //
-    CONST XDP_HOOK_ID *Hooks;
+    const XDP_HOOK_ID *Hooks;
     UINT32 HookCount;
 
     //
     // The XDP capabilities reported by the XDP interface.
     //
-    CONST XDP_CAPABILITIES_EX *CapabilitiesEx;
+    const XDP_CAPABILITIES_EX *CapabilitiesEx;
 
     //
     // Size of the capabilities buffer, including the driver API version array.
@@ -155,8 +155,8 @@ typedef
 NTSTATUS
 XDP_OPEN_QUEUE_OFFLOAD_HANDLE(
     _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_HOOK_ID *HookId,
-    _In_ CONST XDP_QUEUE_INFO *QueueInfo,
+    _In_ const XDP_HOOK_ID *HookId,
+    _In_ const XDP_QUEUE_INFO *QueueInfo,
     _Out_ VOID **QueueOffloadHandle
     );
 
@@ -201,7 +201,7 @@ typedef
 NTSTATUS
 XDP_OPEN_INTERFACE_OFFLOAD_HANDLE(
     _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _Out_ VOID **InterfaceOffloadHandle
     );
 
@@ -269,7 +269,7 @@ typedef struct _XDP_OFFLOAD_DISPATCH {
 //
 typedef struct _XDP_ADD_INTERFACE {
     _In_ VOID *InterfaceContext;
-    _In_ CONST XDP_CAPABILITIES_INTERNAL *InterfaceCapabilities;
+    _In_ const XDP_CAPABILITIES_INTERNAL *InterfaceCapabilities;
     _In_ XDP_REMOVE_INTERFACE_COMPLETE *RemoveInterfaceComplete;
     _Out_ XDPIF_INTERFACE_HANDLE *InterfaceHandle;
 } XDP_ADD_INTERFACE;
@@ -302,7 +302,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateInterfaceSet(
     _In_ NET_IFINDEX IfIndex,
-    _In_ CONST XDP_OFFLOAD_DISPATCH *OffloadDispatch,
+    _In_ const XDP_OFFLOAD_DISPATCH *OffloadDispatch,
     _In_ VOID *InterfaceSetContext,
     _Out_ XDPIF_INTERFACE_SET_HANDLE *InterfaceSetHandle
     );

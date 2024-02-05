@@ -85,7 +85,7 @@ AdapterIrpClose(
     return STATUS_SUCCESS;
 }
 
-static CONST FILE_DISPATCH AdapterFileDispatch = {
+static const FILE_DISPATCH AdapterFileDispatch = {
     .IoControl = AdapterIrpDeviceIoControl,
     .Close = AdapterIrpClose,
 };

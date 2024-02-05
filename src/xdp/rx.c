@@ -76,7 +76,7 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_STATE State;
     XDP_RX_CAPABILITIES InterfaceRxCapabilities;
     XDP_INTERFACE_HANDLE InterfaceRxQueue;
-    CONST XDP_INTERFACE_RX_QUEUE_DISPATCH *InterfaceRxDispatch;
+    const XDP_INTERFACE_RX_QUEUE_DISPATCH *InterfaceRxDispatch;
     NDIS_HANDLE InterfaceRxPollHandle;
 
     XDP_EXTENSION_SET *FrameExtensionSet;
@@ -320,7 +320,7 @@ XdpReceiveXskExclusiveBatch(
     XdpReceiveBatchComplete(RxQueue);
 }
 
-static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
+static const XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
     .Receive = XdpReceive,
     .FlushReceive = XdpFlushReceive,
 };
@@ -329,7 +329,7 @@ static CONST XDP_RX_QUEUE_DISPATCH XdpRxDispatch = {
 // This dispatch table optimizes the case with a single XSK receiving all
 // traffic.
 //
-static CONST XDP_RX_QUEUE_DISPATCH XdpRxExclusiveXskDispatch = {
+static const XDP_RX_QUEUE_DISPATCH XdpRxExclusiveXskDispatch = {
     .Receive = XdpReceiveXskExclusiveBatch,
     .FlushReceive = XdpFlushReceive,
 };
@@ -338,7 +338,7 @@ static CONST XDP_RX_QUEUE_DISPATCH XdpRxExclusiveXskDispatch = {
 // This dispatch table optimizes the case with an eBPF program receiving all
 // traffic.
 //
-static CONST XDP_RX_QUEUE_DISPATCH XdpRxEbpfDispatch = {
+static const XDP_RX_QUEUE_DISPATCH XdpRxEbpfDispatch = {
     .Receive = XdpReceiveEbpf,
     .FlushReceive = XdpFlushReceive,
 };
@@ -356,7 +356,7 @@ XdpRxQueueReference(
     XdpIncrementReferenceCount(&RxQueue->ReferenceCount);
 }
 
-static CONST XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
+static const XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
     {
         .Info.ExtensionName     = XDP_FRAME_EXTENSION_FRAGMENT_NAME,
         .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1,
@@ -380,7 +380,7 @@ static CONST XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
     },
 };
 
-static CONST XDP_EXTENSION_REGISTRATION XdpRxBufferExtensions[] = {
+static const XDP_EXTENSION_REGISTRATION XdpRxBufferExtensions[] = {
     {
         .Info.ExtensionName     = XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
         .Info.ExtensionVersion  = XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1,
@@ -627,7 +627,7 @@ XdppRxQueueGetHookId(
     return &RxQueue->Key.HookId;
 }
 
-static CONST XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
+static const XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
     .Header                         = {
         .Revision                   = XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
         .Size                       = XDP_SIZEOF_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
@@ -635,7 +635,7 @@ static CONST XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
     .GetHookId                      = XdppRxQueueGetHookId,
 };
 
-static CONST XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
+static const XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
     .Header                     = {
         .Revision               = XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1,
         .Size                   = XDP_SIZEOF_RX_QUEUE_CONFIG_CREATE_DISPATCH_REVISION_1
@@ -648,7 +648,7 @@ static CONST XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
     .SetPollInfo                = XdpRxQueueSetPollInfo,
 };
 
-static CONST XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch = {
+static const XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch = {
     .Header                     = {
         .Revision               = XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1,
         .Size                   = XDP_SIZEOF_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1
@@ -942,7 +942,7 @@ static
 VOID
 XdpRxQueueInitializeKey(
     _Out_ XDP_RX_QUEUE_KEY *Key,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId
     )
 {
@@ -955,7 +955,7 @@ static
 NTSTATUS
 XdpRxQueueCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _Out_ XDP_RX_QUEUE **NewRxQueue
     )
@@ -1054,7 +1054,7 @@ Exit:
 XDP_RX_QUEUE *
 XdpRxQueueFind(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId
     )
 {
@@ -1077,7 +1077,7 @@ XdpRxQueueFind(
 NTSTATUS
 XdpRxQueueFindOrCreate(
     _In_ XDP_BINDING_HANDLE Binding,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _Out_ XDP_RX_QUEUE **RxQueue
     )

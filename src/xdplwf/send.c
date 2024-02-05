@@ -339,7 +339,7 @@ XdpGenericDropTx(
     XDP_RING *FrameRing;
     XDP_RING *CompletionRing;
     UINT32 Drops;
-    CONST UINT32 MaxDrops = 1024;
+    const UINT32 MaxDrops = 1024;
 
     if (ReadPointerAcquire(&TxQueue->XdpTxQueue) == NULL) {
         return FALSE;
@@ -592,7 +592,7 @@ XdpGenericTxNotifyQueue(
     XdpGenericTxNotify(TxQueue, Flags);
 }
 
-static CONST XDP_INTERFACE_TX_QUEUE_DISPATCH TxDispatch = {
+static const XDP_INTERFACE_TX_QUEUE_DISPATCH TxDispatch = {
     .InterfaceNotifyQueue = XdpGenericTxNotifyQueue,
 };
 
@@ -602,14 +602,14 @@ XdpGenericTxCreateQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     )
 {
     XDP_LWF_GENERIC *Generic = (XDP_LWF_GENERIC *)InterfaceContext;
     XDP_LWF_GENERIC_TX_QUEUE *TxQueue = NULL;
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
-    CONST XDP_QUEUE_INFO *QueueInfo;
-    CONST XDP_HOOK_ID *QueueHookId;
+    const XDP_QUEUE_INFO *QueueInfo;
+    const XDP_HOOK_ID *QueueHookId;
     NTSTATUS Status;
     NET_BUFFER_LIST_POOL_PARAMETERS PoolParams = {0};
     SIZE_T MdlSize;

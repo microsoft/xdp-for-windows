@@ -486,9 +486,9 @@ BufferTooSmall:
 static
 BOOLEAN
 Ipv4PrefixMatch(
-    _In_ CONST IN_ADDR *Ip,
-    _In_ CONST IN_ADDR *Prefix,
-    _In_ CONST IN_ADDR *Mask
+    _In_ const IN_ADDR *Ip,
+    _In_ const IN_ADDR *Prefix,
+    _In_ const IN_ADDR *Mask
     )
 {
     return (Ip->s_addr & Mask->s_addr) == Prefix->s_addr;
@@ -497,14 +497,14 @@ Ipv4PrefixMatch(
 static
 BOOLEAN
 Ipv6PrefixMatch(
-    _In_ CONST IN6_ADDR *Ip,
-    _In_ CONST IN6_ADDR *Prefix,
-    _In_ CONST IN6_ADDR *Mask
+    _In_ const IN6_ADDR *Ip,
+    _In_ const IN6_ADDR *Prefix,
+    _In_ const IN6_ADDR *Mask
     )
 {
-    CONST UINT64 *Ip64 = (CONST UINT64 *)Ip;
-    CONST UINT64 *Prefix64 = (CONST UINT64 *)Prefix;
-    CONST UINT64 *Mask64 = (CONST UINT64 *)Mask;
+    const UINT64 *Ip64 = (CONST UINT64 *)Ip;
+    const UINT64 *Prefix64 = (CONST UINT64 *)Prefix;
+    const UINT64 *Mask64 = (CONST UINT64 *)Mask;
 
     return
         ((Ip64[0] & Mask64[0]) == Prefix64[0]) &
@@ -515,8 +515,8 @@ static
 BOOLEAN
 UdpTupleMatch(
     _In_ XDP_MATCH_TYPE Type,
-    _In_ CONST XDP_PROGRAM_FRAME_CACHE *Cache,
-    _In_ CONST XDP_TUPLE *Tuple
+    _In_ const XDP_PROGRAM_FRAME_CACHE *Cache,
+    _In_ const XDP_TUPLE *Tuple
     )
 {
     if (Cache->EthHdr->Type == htons(ETHERNET_TYPE_IPV4)) {
@@ -540,8 +540,8 @@ static
 BOOLEAN
 QuicCidMatch(
     _In_ XDP_MATCH_TYPE Type,
-    _In_ CONST XDP_PROGRAM_FRAME_CACHE *QuicHeader,
-    _In_ CONST XDP_QUIC_FLOW *Flow
+    _In_ const XDP_PROGRAM_FRAME_CACHE *QuicHeader,
+    _In_ const XDP_QUIC_FLOW *Flow
     )
 {
     if ((Type == XDP_MATCH_QUIC_FLOW_SRC_CID ||
@@ -560,12 +560,12 @@ static
 _Success_(return != FALSE)
 BOOLEAN
 XdpParseQuicHeaderPayload(
-    _In_ CONST UINT8 *Payload,
+    _In_ const UINT8 *Payload,
     _In_ UINT32 DataLength,
     _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
     )
 {
-    CONST QUIC_HEADER_INVARIANT* QuicHdr = (CONST QUIC_HEADER_INVARIANT*)Payload;
+    const QUIC_HEADER_INVARIANT* QuicHdr = (CONST QUIC_HEADER_INVARIANT*)Payload;
 
     if (DataLength < RTL_SIZEOF_THROUGH_FIELD(QUIC_HEADER_INVARIANT, COMMON_HDR)) {
         return FALSE;
@@ -689,7 +689,7 @@ BufferTooSmall:
 static
 BOOLEAN
 XdpTestBit(
-    _In_ CONST UINT8 *BitMap,
+    _In_ const UINT8 *BitMap,
     _In_ UINT32 Index
     )
 {

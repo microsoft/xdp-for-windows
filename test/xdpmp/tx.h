@@ -18,7 +18,7 @@ MpTransmit(
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 MpTransmitRxTx(
-    _In_ CONST ADAPTER_TX_QUEUE *Tq,
+    _In_ const ADAPTER_TX_QUEUE *Tq,
     _In_ UINT32 HwIndex,
     _In_ UINT64 LogicalAddress,
     _In_ UINT32 DataLength
@@ -27,7 +27,7 @@ MpTransmitRxTx(
 NDIS_STATUS
 MpInitializeTransmitQueue(
     _Inout_ ADAPTER_TX_QUEUE *Tq,
-    _In_ CONST ADAPTER_QUEUE *RssQueue
+    _In_ const ADAPTER_QUEUE *RssQueue
     );
 
 VOID

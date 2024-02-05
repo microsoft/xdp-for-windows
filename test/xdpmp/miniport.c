@@ -111,7 +111,7 @@ NDIS_OID MpSupportedOidArray[] =
     OID_XDP_QUERY_CAPABILITIES,
 };
 
-static CONST NDIS_GUID MpCustomGuidArray[] = {
+static const NDIS_GUID MpCustomGuidArray[] = {
     {
         XdpMpRateSimGuid,
         OID_XDPMP_RATE_SIM,
@@ -122,7 +122,7 @@ static CONST NDIS_GUID MpCustomGuidArray[] = {
 
 MINIPORT_SUPPORTED_XDP_EXTENSIONS MpSupportedXdpExtensions = {0};
 
-static CONST XDP_INTERFACE_DISPATCH MpXdpDispatch = {
+static const XDP_INTERFACE_DISPATCH MpXdpDispatch = {
     .Header             = {
         .Revision       = XDP_INTERFACE_DISPATCH_REVISION_1,
         .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
@@ -881,7 +881,7 @@ MpHexToBin(
 NDIS_STATUS
 MpSetRxPattern(
     _Inout_ ADAPTER_CONTEXT *Adapter,
-    _In_ CONST WCHAR *Pattern,
+    _In_ const WCHAR *Pattern,
     _In_ UINT32 Length
     )
 {
@@ -1285,7 +1285,7 @@ MpQueryInformationHandler(
                             NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_XMIT;
 
             for (UINT32 Index = 0; Index < Adapter->NumRssQueues; Index++) {
-                CONST ADAPTER_QUEUE *Queue = &Adapter->RssQueues[Index];
+                const ADAPTER_QUEUE *Queue = &Adapter->RssQueues[Index];
 
                 StatisticsInfo.ifHCInUcastPkts += Queue->Rq.Stats.RxFrames;
                 StatisticsInfo.ifHCInOctets += Queue->Rq.Stats.RxBytes;

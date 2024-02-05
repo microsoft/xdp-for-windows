@@ -8,7 +8,7 @@
 NTSTATUS
 XdpLwfStart(
     _In_ DRIVER_OBJECT *DriverObject,
-    _In_z_ CONST WCHAR *RegistryPath
+    _In_z_ const WCHAR *RegistryPath
     );
 
 VOID

@@ -195,7 +195,7 @@ NdisPollBackchannelReleaseBusyReference(
     NdisPollReleaseBusyReference(Backchannel->Q);
 }
 
-static CONST NDIS_POLL_BACKCHANNEL_DISPATCH BackchannelDispatch = {
+static const NDIS_POLL_BACKCHANNEL_DISPATCH BackchannelDispatch = {
     .CreateBackchannel      = NdisPollBackchannelCreate,
     .DeleteBackchannel      = NdisPollBackchannelDelete,
     .AcquireExclusive       = NdisPollBackchannelAcquireExclusive,
@@ -209,7 +209,7 @@ static CONST NDIS_POLL_BACKCHANNEL_DISPATCH BackchannelDispatch = {
 NTSTATUS
 NdisPollGetBackchannel(
     _Inout_ IRP *Irp,
-    _Out_ CONST NDIS_POLL_BACKCHANNEL_DISPATCH **Dispatch
+    _Out_ const NDIS_POLL_BACKCHANNEL_DISPATCH **Dispatch
     )
 {
     ASSERT(Irp->RequestorMode == KernelMode);

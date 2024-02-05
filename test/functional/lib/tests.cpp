@@ -80,14 +80,14 @@
 
 #define DEFAULT_XDP_SDDL "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
 
-static CONST XDP_HOOK_ID XdpInspectRxL2 =
+static const XDP_HOOK_ID XdpInspectRxL2 =
 {
     XDP_HOOK_L2,
     XDP_HOOK_RX,
     XDP_HOOK_INSPECT,
 };
 
-static CONST XDP_HOOK_ID XdpInspectTxL2 =
+static const XDP_HOOK_ID XdpInspectTxL2 =
 {
     XDP_HOOK_L2,
     XDP_HOOK_TX,
@@ -159,7 +159,7 @@ static RX_TX_TESTCASE RxTxTestCases[] = {
     { TRUE, TRUE }
 };
 
-static CONST CHAR *PowershellPrefix;
+static const CHAR *PowershellPrefix;
 static RTL_OSVERSIONINFOW OsVersionInfo;
 
 //
@@ -360,7 +360,7 @@ public:
 
 class TestInterface {
 private:
-    CONST CHAR *_IfDesc;
+    const CHAR *_IfDesc;
     mutable UINT32 _IfIndex;
     mutable UCHAR _HwAddress[sizeof(ETHERNET_ADDRESS)]{ 0 };
     IN_ADDR _Ipv4Address;
@@ -405,20 +405,20 @@ private:
 public:
 
     TestInterface(
-        _In_z_ CONST CHAR *IfDesc,
-        _In_z_ CONST CHAR *Ipv4Address,
-        _In_z_ CONST CHAR *Ipv6Address
+        _In_z_ const CHAR *IfDesc,
+        _In_z_ const CHAR *Ipv4Address,
+        _In_z_ const CHAR *Ipv6Address
         )
         :
         _IfDesc(IfDesc),
         _IfIndex(NET_IFINDEX_UNSPECIFIED)
     {
-        CONST CHAR *Terminator;
+        const CHAR *Terminator;
         TEST_NTSTATUS(RtlIpv4StringToAddressA(Ipv4Address, FALSE, &Terminator, &_Ipv4Address));
         TEST_NTSTATUS(RtlIpv6StringToAddressA(Ipv6Address, &Terminator, &_Ipv6Address));
     }
 
-    CONST CHAR*
+    const CHAR*
     GetIfDesc() const
     {
         return _IfDesc;
@@ -850,7 +850,7 @@ static
 VOID
 SetRxHookId(
     _In_ HANDLE Socket,
-    _In_ CONST XDP_HOOK_ID *HookId
+    _In_ const XDP_HOOK_ID *HookId
     )
 {
     SetSockopt(Socket, XSK_SOCKOPT_RX_HOOK_ID, HookId, sizeof(*HookId));
@@ -860,7 +860,7 @@ static
 VOID
 SetTxHookId(
     _In_ HANDLE Socket,
-    _In_ CONST XDP_HOOK_ID *HookId
+    _In_ const XDP_HOOK_ID *HookId
     )
 {
     SetSockopt(Socket, XSK_SOCKOPT_TX_HOOK_ID, HookId, sizeof(*HookId));
@@ -975,7 +975,7 @@ static
 HRESULT
 TryRssSet(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     )
 {
@@ -992,7 +992,7 @@ static
 VOID
 RssSet(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     )
 {
@@ -1049,7 +1049,7 @@ HRESULT
 TryCreateXdpProg(
     _Out_ wil::unique_handle &ProgramHandle,
     _In_ UINT32 IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_MODE XdpMode,
     _In_ XDP_RULE *Rules,
@@ -1073,7 +1073,7 @@ static
 wil::unique_handle
 CreateXdpProg(
     _In_ UINT32 IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_MODE XdpMode,
     _In_ XDP_RULE *Rules,
@@ -1094,7 +1094,7 @@ static
 wil::unique_handle
 SocketAttachRxProgram(
     _In_ UINT32 IfIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_MODE XdpMode,
     _In_ HANDLE Socket
@@ -1116,8 +1116,8 @@ XskSetupPreBind(
     _Inout_ MY_SOCKET *Socket,
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx,
-    _In_opt_ CONST XDP_HOOK_ID *RxHookId = nullptr,
-    _In_opt_ CONST XDP_HOOK_ID *TxHookId = nullptr
+    _In_opt_ const XDP_HOOK_ID *RxHookId = nullptr,
+    _In_opt_ const XDP_HOOK_ID *TxHookId = nullptr
     )
 {
     Socket->Umem.Buffer = AllocUmemBuffer();
@@ -1182,8 +1182,8 @@ CreateAndBindSocket(
     BOOLEAN Tx,
     XDP_MODE XdpMode,
     XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_NONE,
-    CONST XDP_HOOK_ID *RxHookId = nullptr,
-    CONST XDP_HOOK_ID *TxHookId = nullptr
+    const XDP_HOOK_ID *RxHookId = nullptr,
+    const XDP_HOOK_ID *TxHookId = nullptr
     )
 {
     MY_SOCKET Socket;
@@ -2291,7 +2291,7 @@ static
 VOID
 ClearMaskedBits(
     _Inout_ XDP_INET_ADDR *Ip,
-    _In_ CONST XDP_INET_ADDR *Mask,
+    _In_ const XDP_INET_ADDR *Mask,
     _In_ ADDRESS_FAMILY Af
     )
 {
@@ -2299,7 +2299,7 @@ ClearMaskedBits(
         Ip->Ipv4.s_addr &= Mask->Ipv4.s_addr;
     } else {
         UINT64 *Ip64 = (UINT64 *)Ip;
-        CONST UINT64 *Mask64 = (CONST UINT64 *)Mask;
+        const UINT64 *Mask64 = (CONST UINT64 *)Mask;
 
         Ip64[0] &= Mask64[0];
         Ip64[1] &= Mask64[1];
@@ -2466,7 +2466,7 @@ GenericRxSingleFrame()
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 
     DATA_BUFFER Buffer = {0};
-    CONST UCHAR BufferVa[] = "GenericRxSingleFrame";
+    const UCHAR BufferVa[] = "GenericRxSingleFrame";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
@@ -2522,7 +2522,7 @@ GenericRxBackfillAndTrailer()
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
 
     DATA_BUFFER Buffer = {0};
-    CONST UCHAR BufferVa[] = "GenericRxBackfillAndTrailer";
+    const UCHAR BufferVa[] = "GenericRxBackfillAndTrailer";
 
     //
     // Build one NBL and enqueue it in the functional miniport.
@@ -3368,8 +3368,8 @@ GenericRxLowResources()
     // returning the original chain to the caller. The FNMP driver verifies the
     // NDIS contract, and this test verifies observable behavior.
     //
-    CONST UINT32 NumMatchFrames = 4;
-    CONST UINT32 NumNoMatchFrames = 4;
+    const UINT32 NumMatchFrames = 4;
+    const UINT32 NumNoMatchFrames = 4;
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpMatchFrame, UdpMatchFrameLength);
@@ -3877,7 +3877,7 @@ static
 VOID
 GenericRxFragmentBuffer(
     _In_ ADDRESS_FAMILY Af,
-    _In_ CONST GENERIC_RX_FRAGMENT_PARAMS *Params
+    _In_ const GENERIC_RX_FRAGMENT_PARAMS *Params
     )
 {
     UINT16 LocalPort, RemotePort;
@@ -4921,7 +4921,7 @@ GenericTxSingleFrame()
     auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
     TEST_EQUAL(1, MpTxFrame->BufferCount);
 
-    CONST DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
+    const DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
     TEST_EQUAL(TxFrameLength, MpTxBuffer->BufferLength);
 #pragma warning(push)
 #pragma warning(disable:6385)  // Reading invalid data from 'TxFrame':  the readable size is '_Old_10`8' bytes, but '29' bytes may be read.
@@ -5041,7 +5041,7 @@ GenericTxSharing()
         auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
         TEST_EQUAL(1, MpTxFrame->BufferCount);
 
-        CONST DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
+        const DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
         TEST_EQUAL(TxFrameLength, MpTxBuffer->BufferLength);
 #pragma warning(push)
 #pragma warning(disable:6385)  // Reading invalid data from 'TxFrame':  the readable size is '_Old_10`8' bytes, but '29' bytes may be read.
@@ -5490,7 +5490,7 @@ GenericLwfDelayDetach(
     _In_ BOOLEAN Tx
     )
 {
-    CONST CHAR *DelayDetachTimeoutRegName = "GenericDelayDetachTimeoutSec";
+    const CHAR *DelayDetachTimeoutRegName = "GenericDelayDetachTimeoutSec";
 
     //
     // Configure the LWF delay detach timeout.
@@ -5746,11 +5746,11 @@ FnLwfRx()
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
 
-    CONST UINT32 DataOffset = 3;
-    CONST UCHAR Payload[] = "FnLwfRx";
+    const UINT32 DataOffset = 3;
+    const UCHAR Payload[] = "FnLwfRx";
     UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
     UINT64 Mask = ~0ui64;
-    CONST UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
+    const UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
     UCHAR BufferVa[BufferVaSize];
 
     DATA_BUFFER Buffer = {0};
@@ -5772,7 +5772,7 @@ FnLwfRx()
     auto LwfRxFrame = LwfRxAllocateAndGetFrame(DefaultLwf, 0);
     TEST_EQUAL(LwfRxFrame->BufferCount, Frame.Frame.BufferCount);
 
-    CONST DATA_BUFFER *LwfRxBuffer = &LwfRxFrame->Buffers[0];
+    const DATA_BUFFER *LwfRxBuffer = &LwfRxFrame->Buffers[0];
     TEST_EQUAL(LwfRxBuffer->BufferLength, Buffer.BufferLength);
     TEST_EQUAL(LwfRxBuffer->DataOffset, Buffer.DataOffset);
     TEST_TRUE(
@@ -5791,11 +5791,11 @@ FnLwfTx()
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
 
-    CONST UINT32 DataOffset = 3;
-    CONST UCHAR Payload[] = "FnLwfTx";
+    const UINT32 DataOffset = 3;
+    const UCHAR Payload[] = "FnLwfTx";
     UINT64 Pattern = 0x39E8534AA85B4A98ui64;
     UINT64 Mask = ~0ui64;
-    CONST UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
+    const UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
     UCHAR BufferVa[BufferVaSize];
 
     DATA_FRAME Frame = {0};
@@ -5818,7 +5818,7 @@ FnLwfTx()
     auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
     TEST_EQUAL(MpTxFrame->BufferCount, Frame.BufferCount);
 
-    CONST DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
+    const DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
     TEST_EQUAL(MpTxBuffer->BufferLength, Buffer.BufferLength);
     TEST_EQUAL(MpTxBuffer->DataOffset, Buffer.DataOffset);
     TEST_TRUE(
@@ -6478,9 +6478,9 @@ OffloadRssUpperSet()
     UINT32 OriginalNdisRssParamsSize;
     UINT32 UpperNdisRssParamsSize;
     UINT32 LowerRssConfigSize;
-    CONST UINT32 LowerXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV4;
-    CONST UINT32 UpperXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV6;
-    CONST UINT32 UpperNdisRssHashType = NDIS_HASH_TCP_IPV6;
+    const UINT32 LowerXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV4;
+    const UINT32 UpperXdpRssHashType = XDP_RSS_HASH_TYPE_TCP_IPV6;
+    const UINT32 UpperNdisRssHashType = NDIS_HASH_TCP_IPV6;
     OID_KEY OidKey;
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
 
