@@ -52,8 +52,7 @@ XDP_INTERFACE_OPEN_FN(
 typedef struct _XDP_API_TABLE XDP_API_TABLE;
 
 //
-// The only API version currently supported. Any change to the API is considered
-// a breaking change and support for previous versions will be removed.
+// The only API version currently supported.
 //
 #define XDP_API_VERSION_1 1
 
