@@ -3161,6 +3161,7 @@ XskSockoptSetUmem(
         }
     } else {
         MmBuildMdlForNonPagedPool(Umem->Mapping.Mdl);
+        ASSERT(MmGetSystemAddressForMdlSafe(Umem->Mapping.Mdl, NormalPagePriority) == Umem->Reg.Address);
         Umem->Mapping.SystemAddress = Umem->Reg.Address;
         //
         // Kernel mode clients already provide memory that is nonpageable and
