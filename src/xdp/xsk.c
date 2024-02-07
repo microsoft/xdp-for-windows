@@ -209,7 +209,7 @@ static XDP_FILE_DISPATCH XskFileDispatch = {
 static
 VOID
 XskReference(
-    _In_ XSK* Xsk
+    _In_ XSK *Xsk
     )
 {
     XdpIncrementReferenceCount(&Xsk->ReferenceCount);
@@ -218,7 +218,7 @@ XskReference(
 static
 VOID
 XskDereference(
-    _In_ XSK* Xsk
+    _In_ XSK *Xsk
     )
 {
     if (XdpDecrementReferenceCount(&Xsk->ReferenceCount)) {
@@ -1802,7 +1802,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
 XskCleanup(
-    _In_ XSK* Xsk
+    _In_ XSK *Xsk
     )
 {
     KIRQL OldIrql;
@@ -1842,8 +1842,8 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
 XskIrpCleanup(
-    _Inout_ IRP* Irp,
-    _Inout_ IO_STACK_LOCATION* IrpSp
+    _Inout_ IRP *Irp,
+    _Inout_ IO_STACK_LOCATION *IrpSp
     )
 {
     XSK *Xsk;
@@ -1930,7 +1930,7 @@ XskSetupDma(
         return STATUS_NO_MEMORY;
     }
 
-    DmaOperations = (DMA_OPERATIONS*)Xsk->Tx.DmaAdapter->DmaOperations;
+    DmaOperations = (DMA_OPERATIONS *)Xsk->Tx.DmaAdapter->DmaOperations;
 
     //
     // Try to map the UMEM directly to hardware if policy allows and the DMA
@@ -2551,8 +2551,8 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
 XskIrpClose(
-    _Inout_ IRP* Irp,
-    _Inout_ IO_STACK_LOCATION* IrpSp
+    _Inout_ IRP *Irp,
+    _Inout_ IO_STACK_LOCATION *IrpSp
     )
 {
     XSK *Xsk = IrpSp->FileObject->FsContext;
@@ -2743,7 +2743,7 @@ XskIrpBindSocket(
         goto Exit;
     }
 
-    Bind = *(XSK_BIND_IN*)Irp->AssociatedIrp.SystemBuffer;
+    Bind = *(XSK_BIND_IN *)Irp->AssociatedIrp.SystemBuffer;
 
     TraceEnter(
         TRACE_XSK, "Xsk=%p IfIndex=%u QueueId=%u Flags=%x",
@@ -2966,7 +2966,7 @@ XskSockoptGetStatistics(
         goto Exit;
     }
 
-    Statistics = (XSK_STATISTICS*)OptionValue;
+    Statistics = (XSK_STATISTICS *)OptionValue;
     RtlZeroMemory(Statistics, sizeof(*Statistics));
 
     *Statistics = Xsk->Statistics;
@@ -3095,7 +3095,7 @@ XskSockoptSetUmem(
     __try {
         if (RequestorMode != KernelMode) {
             ProbeForRead(
-                (VOID*)SockoptInputBuffer, SockoptInputBufferLength,
+                (VOID *)SockoptInputBuffer, SockoptInputBufferLength,
                 PROBE_ALIGNMENT(XSK_UMEM_REG));
         }
         RtlCopyVolatileMemory(&Umem->Reg, SockoptInputBuffer, sizeof(XSK_UMEM_REG));
@@ -3248,7 +3248,7 @@ XskSockoptSetRingSize(
 
     __try {
         if (RequestorMode != KernelMode) {
-            ProbeForRead((VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(UINT32));
+            ProbeForRead((VOID *)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(UINT32));
         }
         NumDescriptors = ReadUInt32NoFence(SockoptInputBuffer);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -3493,7 +3493,7 @@ XskSockoptSetHookId(
 
     __try {
         if (RequestorMode != KernelMode) {
-            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(XDP_HOOK_ID));
+            ProbeForRead((VOID *)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(XDP_HOOK_ID));
         }
         RtlCopyVolatileMemory(&HookId, SockoptIn, sizeof(XDP_HOOK_ID));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -3803,7 +3803,7 @@ XskSockoptSetPollMode(
     __try {
         if (RequestorMode != KernelMode) {
             ProbeForRead(
-                (VOID*)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(XSK_POLL_MODE));
+                (VOID *)SockoptInputBuffer, SockoptInputBufferLength, PROBE_ALIGNMENT(XSK_POLL_MODE));
         }
         RtlCopyVolatileMemory(&PollMode, SockoptInputBuffer, sizeof(XSK_POLL_MODE));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -4096,7 +4096,7 @@ XskNotifyValidateParams(
         ASSERT(InputBuffer);
         if (RequestorMode != KernelMode) {
             ProbeForRead(
-                (VOID*)InputBuffer, InputBufferLength, PROBE_ALIGNMENT(XSK_NOTIFY_IN));
+                (VOID *)InputBuffer, InputBufferLength, PROBE_ALIGNMENT(XSK_NOTIFY_IN));
         }
 
         *InFlags = ReadUInt32NoFence((UINT32 *)&((XSK_NOTIFY_IN *)InputBuffer)->Flags);

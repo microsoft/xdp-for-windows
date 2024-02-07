@@ -160,7 +160,7 @@ static
 XDP_STATUS
 XdpApiKernelXskCreate(
     _In_ VOID *ProviderBindingContext,
-    _Out_ HANDLE* Socket
+    _Out_ HANDLE *Socket
     )
 {
     XDPAPI_CLIENT *Client = ProviderBindingContext;
@@ -370,7 +370,7 @@ NTSTATUS
 XdpApiKernelProviderAttachClient(
     _In_ HANDLE NmrBindingHandle,
     _In_ const VOID *ProviderContext,
-    _In_ const NPI_REGISTRATION_INSTANCE* ClientRegistrationInstance,
+    _In_ const NPI_REGISTRATION_INSTANCE *ClientRegistrationInstance,
     _In_ const VOID *ClientBindingContext,
     _In_ const VOID *ClientNpiDispatch,
     _Outptr_ VOID **ProviderBindingContext,

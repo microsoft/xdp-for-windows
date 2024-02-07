@@ -66,7 +66,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
 XskCleanup(
-    _In_ XSK* Xsk
+    _In_ XSK *Xsk
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

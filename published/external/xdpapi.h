@@ -104,20 +104,20 @@ DEFINE_GUID(
     0x1683b7b0, 0xcf44, 0x4757, 0x91, 0xf6, 0xc6, 0x19, 0x9b, 0x9d, 0x00, 0xfe);
 
 typedef struct _XDP_API_PROVIDER_DISPATCH {
-    XDP_GET_ROUTINE_FN* XdpGetRoutine;
-    XDP_CREATE_PROGRAM_FN* XdpCreateProgram;
-    XDP_DELETE_PROGRAM_FN* XdpDeleteProgram;
-    XDP_INTERFACE_OPEN_FN* XdpInterfaceOpen;
-    XDP_INTERFACE_CLOSE_FN* XdpInterfaceClose;
-    XSK_CREATE_FN* XskCreate;
-    XSK_DELETE_FN* XskDelete;
-    XSK_BIND_FN* XskBind;
-    XSK_ACTIVATE_FN* XskActivate;
-    XSK_NOTIFY_SOCKET_FN* XskNotifySocket;
-    XSK_NOTIFY_ASYNC2_FN* XskNotifyAsync2;
-    XSK_SET_SOCKOPT_FN* XskSetSockopt;
-    XSK_GET_SOCKOPT_FN* XskGetSockopt;
-    XSK_IOCTL_FN* XskIoctl;
+    XDP_GET_ROUTINE_FN *XdpGetRoutine;
+    XDP_CREATE_PROGRAM_FN *XdpCreateProgram;
+    XDP_DELETE_PROGRAM_FN *XdpDeleteProgram;
+    XDP_INTERFACE_OPEN_FN *XdpInterfaceOpen;
+    XDP_INTERFACE_CLOSE_FN *XdpInterfaceClose;
+    XSK_CREATE_FN *XskCreate;
+    XSK_DELETE_FN *XskDelete;
+    XSK_BIND_FN *XskBind;
+    XSK_ACTIVATE_FN *XskActivate;
+    XSK_NOTIFY_SOCKET_FN *XskNotifySocket;
+    XSK_NOTIFY_ASYNC2_FN *XskNotifyAsync2;
+    XSK_SET_SOCKOPT_FN *XskSetSockopt;
+    XSK_GET_SOCKOPT_FN *XskGetSockopt;
+    XSK_IOCTL_FN *XskIoctl;
 } XDP_API_PROVIDER_DISPATCH;
 
 typedef struct _XDP_API_CLIENT_DISPATCH {
