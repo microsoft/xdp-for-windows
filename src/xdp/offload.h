@@ -28,7 +28,7 @@ _IRQL_requires_same_
 NTSTATUS
 XdpInterfaceCreate(
     _Out_ XDP_INTERFACE_OBJECT **InterfaceObject,
-    _In_ CONST XDP_INTERFACE_OPEN *Params
+    _In_ const XDP_INTERFACE_OPEN *Params
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -81,6 +81,6 @@ XdpInterfaceOffloadRssGet(
 NTSTATUS
 XdpInterfaceOffloadRssSet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
-    _In_ CONST VOID *InputBuffer,
+    _In_ const VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
     );

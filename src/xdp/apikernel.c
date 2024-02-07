@@ -24,7 +24,7 @@ typedef struct _XDP_API_ROUTINE {
 } XDP_API_ROUTINE;
 
 static XDPAPI_PROVIDER XdpApiProvider;
-static CONST NPI_MODULEID NPI_XDP_MODULEID = {
+static const NPI_MODULEID NPI_XDP_MODULEID = {
     sizeof(NPI_MODULEID),
     MIT_GUID,
     { 0x521421C2, 0x539B, 0x46DF, { 0xA1, 0x43, 0x8D, 0xAC, 0x88, 0xD0, 0xC1, 0x55 } }
@@ -80,7 +80,7 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
 };
 
-static CONST XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
+static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
     .XdpGetRoutine = XdpApiKernelXdpGetRoutine,
     .XdpCreateProgram = XdpApiKernelXdpCreateProgram,
     .XdpDeleteProgram = XdpApiKernelXdpDeleteProgram,
@@ -102,10 +102,10 @@ XDP_STATUS
 XdpApiKernelXdpCreateProgram(
     _In_ VOID *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
-    _In_reads_(RuleCount) CONST XDP_RULE *Rules,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
     _Out_ HANDLE *Program
     )
@@ -334,7 +334,7 @@ static
 XDP_STATUS
 XdpApiKernelXdpRssSet(
     _In_ HANDLE InterfaceHandle,
-    _In_ CONST XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
     )
 {

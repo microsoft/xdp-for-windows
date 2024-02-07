@@ -232,12 +232,12 @@ XdpIrpInterfaceOffloadRssGet(
 NTSTATUS
 XdpInterfaceOffloadRssSet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
-    _In_ CONST VOID *InputBuffer,
+    _In_ const VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
 {
     NTSTATUS Status;
-    CONST XDP_RSS_CONFIGURATION *RssConfiguration;
+    const XDP_RSS_CONFIGURATION *RssConfiguration;
     XDP_OFFLOAD_PARAMS_RSS RssParams = {0};
     UCHAR *HashSecretKey = NULL;
     PROCESSOR_NUMBER *IndirectionTable = NULL;
@@ -423,13 +423,13 @@ _IRQL_requires_same_
 NTSTATUS
 XdpInterfaceCreate(
     _Out_ XDP_INTERFACE_OBJECT **InterfaceObject,
-    _In_ CONST XDP_INTERFACE_OPEN *Params
+    _In_ const XDP_INTERFACE_OPEN *Params
     )
 {
     NTSTATUS Status;
     XDP_IFSET_HANDLE IfSetHandle = NULL;
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle = NULL;
-    CONST XDP_HOOK_ID HookId = {
+    const XDP_HOOK_ID HookId = {
         .Layer = XDP_HOOK_L2,
         .Direction = XDP_HOOK_RX,
         .SubLayer = XDP_HOOK_INSPECT,
@@ -508,7 +508,7 @@ XdpIrpCreateInterface(
     )
 {
     NTSTATUS Status;
-    CONST XDP_INTERFACE_OPEN *Params = NULL;
+    const XDP_INTERFACE_OPEN *Params = NULL;
     XDP_INTERFACE_OBJECT *InterfaceObject = NULL;
 
     UNREFERENCED_PARAMETER(Irp);
