@@ -951,7 +951,7 @@ XskReferenceDatapathHandle(
     XSK *Xsk = NULL;
 
     if (RequestorMode != KernelMode) {
-        if (RequestorMode != KernelMode && !HandleBounced) {
+        if (!HandleBounced) {
             __try {
                 ProbeForRead((VOID *)HandleBuffer, sizeof(HANDLE), PROBE_ALIGNMENT(HANDLE));
                 TargetHandle = ReadHandleNoFence((volatile const HANDLE *)HandleBuffer);
