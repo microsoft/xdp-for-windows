@@ -9,10 +9,10 @@ typedef
 HRESULT
 XDP_CREATE_PROGRAM_FN(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_HOOK_ID *HookId,
+    _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
     _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
-    _In_reads_(RuleCount) CONST XDP_RULE *Rules,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
     _Out_ HANDLE *Program
     );

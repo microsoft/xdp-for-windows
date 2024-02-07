@@ -36,7 +36,7 @@ typedef struct _XDP_EXTENSION_INFO {
     //
     // The extension name. Only XDP-defined extensions are currently supported.
     //
-    _Null_terminated_ CONST WCHAR *ExtensionName;
+    _Null_terminated_ const WCHAR *ExtensionName;
 
     //
     // The extension version.

@@ -10,7 +10,7 @@ typedef
 HRESULT
 XDP_OPEN_API_FN(
     _In_ UINT32 XdpApiVersion,
-    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    _Out_ const XDP_API_TABLE **XdpApiTable
     );
 
 XDPAPI XDP_OPEN_API_FN XdpOpenApi;

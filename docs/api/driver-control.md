@@ -57,10 +57,10 @@ inline
 NTSTATUS
 XdpInitializeCapabilities(
     _Out_ XDP_CAPABILITIES *Capabilities,
-    _In_ CONST XDP_VERSION *DriverApiVersion
+    _In_ const XDP_VERSION *DriverApiVersion
     )
 {
-    CONST XDP_VERSION DdkDriverApiVersion = {
+    const XDP_VERSION DdkDriverApiVersion = {
         XDP_DRIVER_API_MAJOR_VER,
         XDP_DRIVER_API_MINOR_VER,
         XDP_DRIVER_API_PATCH_VER
@@ -83,9 +83,9 @@ XdpInitializeCapabilities(
 NTSTATUS
 XdpRegisterInterfaceEx(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_CAPABILITIES_EX *CapabilitiesEx,
+    _In_ const XDP_CAPABILITIES_EX *CapabilitiesEx,
     _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
+    _In_ const XDP_INTERFACE_DISPATCH *InterfaceDispatch,
     _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
     );
 
@@ -121,9 +121,9 @@ inline
 NTSTATUS
 XdpRegisterInterface(
     _In_ UINT32 InterfaceIndex,
-    _In_ CONST XDP_CAPABILITIES *Capabilities,
+    _In_ const XDP_CAPABILITIES *Capabilities,
     _In_ VOID *InterfaceContext,
-    _In_ CONST XDP_INTERFACE_DISPATCH *InterfaceDispatch,
+    _In_ const XDP_INTERFACE_DISPATCH *InterfaceDispatch,
     _Out_ XDP_REGISTRATION_HANDLE *RegistrationHandle
     )
 {
@@ -252,7 +252,7 @@ XDP_CREATE_RX_QUEUE(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue,
-    _Out_ CONST XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
+    _Out_ const XDP_INTERFACE_RX_QUEUE_DISPATCH **InterfaceRxQueueDispatch
     );
 
 //
@@ -357,7 +357,7 @@ XDP_CREATE_TX_QUEUE(
     _In_ XDP_INTERFACE_HANDLE InterfaceContext,
     _Inout_ XDP_TX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceTxQueue,
-    _Out_ CONST XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
+    _Out_ const XDP_INTERFACE_TX_QUEUE_DISPATCH **InterfaceTxQueueDispatch
     );
 
 //
