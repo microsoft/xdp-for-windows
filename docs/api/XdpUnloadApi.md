@@ -10,7 +10,7 @@ inline
 VOID
 XdpUnloadApi(
     _In_ XDP_LOAD_API_CONTEXT XdpLoadApiContext,
-    _In_ CONST XDP_API_TABLE *XdpApiTable
+    _In_ const XDP_API_TABLE *XdpApiTable
     );
 ```
 

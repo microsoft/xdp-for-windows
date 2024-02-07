@@ -8,7 +8,7 @@ Releases the reference to the API returned by [`XdpOpenApi`](XdpOpenApi.md). Thi
 typedef
 VOID
 XDP_CLOSE_API_FN(
-    _In_ CONST XDP_API_TABLE *XdpApiTable
+    _In_ const XDP_API_TABLE *XdpApiTable
     );
 
 XDPAPI XDP_CLOSE_API_FN XdpCloseApi;

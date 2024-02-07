@@ -183,7 +183,7 @@ main(
     const XDP_API_TABLE *XdpApi;
     HRESULT Result;
     HANDLE Program;
-    CONST XDP_HOOK_ID XdpInspectRxL2 = {
+    const XDP_HOOK_ID XdpInspectRxL2 = {
         XDP_HOOK_L2,
         XDP_HOOK_RX,
         XDP_HOOK_INSPECT,

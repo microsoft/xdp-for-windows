@@ -10,7 +10,7 @@ HRESULT
 XdpLoadApi(
     _In_ UINT32 XdpApiVersion,
     _Out_ XDP_LOAD_API_CONTEXT *XdpLoadApiContext,
-    _Out_ CONST XDP_API_TABLE **XdpApiTable
+    _Out_ const XDP_API_TABLE **XdpApiTable
     );
 ```
 
