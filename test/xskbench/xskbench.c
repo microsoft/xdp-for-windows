@@ -404,6 +404,7 @@ SetupSock(
         XdpApi->XskCreate(
 #if defined(_KERNEL_MODE)
             PlatGetXdpApiProviderBindingContext(),
+            NULL, NULL, NULL,
 #endif
             &Queue->sock);
     if (res != S_OK) {

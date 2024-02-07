@@ -163,10 +163,17 @@ static
 XDP_STATUS
 XdpApiKernelXskCreate(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
     _Out_ HANDLE *Socket
     )
 {
     XDPAPI_CLIENT *Client = ProviderBindingContext;
+
+    UNREFERENCED_PARAMETER(OwningProcess);
+    UNREFERENCED_PARAMETER(OwningThread);
+    UNREFERENCED_PARAMETER(SecurityDescriptor);
 
     return XskCreate((XSK **)Socket, Client->ClientDispatch->XskNotifyCallback);
 }
