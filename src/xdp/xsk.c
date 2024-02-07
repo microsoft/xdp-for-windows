@@ -323,6 +323,33 @@ XskSignalReadyIo(
 }
 
 static
+BOOLEAN
+XskRingIsSet(
+    _In_ const XSK_KERNEL_RING *Ring
+    )
+{
+    return Ring->Size != 0 && Ring->Shared != NULL && !((Ring->UserVa != NULL) ^ (Ring->Mdl != NULL));
+}
+
+static
+BOOLEAN
+XskRingIsNotSet(
+    _In_ const XSK_KERNEL_RING *Ring
+    )
+{
+    return Ring->Size == 0 && Ring->Shared == NULL && Ring->UserVa == NULL && Ring->Mdl == NULL;
+}
+
+static
+BOOLEAN
+XskRingIsValid(
+    _In_ const XSK_KERNEL_RING *Ring
+    )
+{
+    return XskRingIsSet(Ring) || XskRingIsNotSet(Ring);
+}
+
+static
 UINT32
 XskRingProdReserve(
     _Inout_ XSK_KERNEL_RING *Ring,
@@ -1841,9 +1868,7 @@ XskFreeRing(
     XSK_KERNEL_RING *Ring
     )
 {
-    // ASSERT(
-    //     (Ring->Size != 0 && Ring->Mdl != NULL && Ring->Shared != NULL) ||
-    //     (Ring->Size == 0 && Ring->Mdl == NULL && Ring->Shared == NULL));
+    ASSERT(XskRingIsValid(Ring));
 
     if (Ring->UserVa != NULL) {
         VOID *CurrentProcess = PsGetCurrentProcess();
@@ -2963,10 +2988,7 @@ XskFillRingInfo(
     _Out_ XSK_RING_INFO *Info
     )
 {
-    // ASSERT(Ring->Mdl != NULL);
-    ASSERT(Ring->Shared != NULL);
-    ASSERT(Ring->Size != 0);
-    // ASSERT(Ring->UserVa != NULL);
+    ASSERT(XskRingIsSet(Ring));
 
     Info->Ring = (Ring->UserVa != NULL) ? Ring->UserVa : Ring->Shared;
     Info->DescriptorsOffset = sizeof(XSK_SHARED_RING);
@@ -3340,9 +3362,7 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
-    ASSERT(
-        (Ring->Size != 0 && (Ring->Mdl != NULL || RequestorMode == KernelMode) && Ring->Shared != NULL) ||
-        (Ring->Size == 0 && (Ring->Mdl == NULL || RequestorMode == KernelMode) && Ring->Shared == NULL));
+    ASSERT(XskRingIsValid(Ring));
 
     if (Ring->Size != 0) {
         Status = STATUS_INVALID_DEVICE_STATE;
