@@ -80,6 +80,11 @@ XDP_GET_ROUTINE_FN(
     _In_z_ const CHAR *RoutineName
     );
 
+//
+// The only API version currently supported.
+//
+#define XDP_API_VERSION_1 1
+
 #if defined(_KERNEL_MODE)
 
 typedef
@@ -97,12 +102,6 @@ XDP_INTERFACE_CLOSE_FN(
 DEFINE_GUID(
     NPI_XDPAPI_INTERFACE_ID,
     0x1683b7b0, 0xcf44, 0x4757, 0x91, 0xf6, 0xc6, 0x19, 0x9b, 0x9d, 0x00, 0xfe);
-
-//
-// The only API version currently supported. Any change to the API is considered
-// a breaking change and support for previous versions will be removed.
-//
-#define XDP_API_VERSION_1 1
 
 typedef struct _XDP_API_PROVIDER_DISPATCH {
     XDP_GET_ROUTINE_FN* XdpGetRoutine;
@@ -128,11 +127,6 @@ typedef struct _XDP_API_CLIENT_DISPATCH {
 #else
 
 typedef struct _XDP_API_TABLE XDP_API_TABLE;
-
-//
-// The only API version currently supported.
-//
-#define XDP_API_VERSION_1 1
 
 typedef
 HRESULT
