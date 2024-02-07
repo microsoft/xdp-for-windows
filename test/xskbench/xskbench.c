@@ -1701,13 +1701,10 @@ ParseArgs(
         } else if (!strcmp(argv[i], "-v")) {
             verbose = TRUE;
         } else if (!_stricmp(argv[i], "-lp")) {
-#if defined(_KERNEL_MODE)
-            printf_error("Large pages not supported in kernel mode\n");
-            Usage();
-#else
             largePages = TRUE;
+#if !defined(_KERNEL_MODE)
             EnableLargePages();
-#endif // defined(_KERNEL_MODE)
+#endif // !defined(_KERNEL_MODE)
         } else if (threadCount == 0) {
             Usage();
         }
