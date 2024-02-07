@@ -100,7 +100,7 @@ static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
 static
 XDP_STATUS
 XdpApiKernelXdpCreateProgram(
-    _In_ VOID *ProviderBindingContext,
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -136,11 +136,14 @@ XdpApiKernelXdpDeleteProgram(
 static
 XDP_STATUS
 XdpApiKernelXdpInterfaceOpen(
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     )
 {
     XDP_INTERFACE_OPEN InterfaceOpen;
+
+    UNREFERENCED_PARAMETER(ProviderBindingContext);
 
     InterfaceOpen.IfIndex = InterfaceIndex;
 
@@ -159,7 +162,7 @@ XdpApiKernelXdpInterfaceClose(
 static
 XDP_STATUS
 XdpApiKernelXskCreate(
-    _In_ VOID *ProviderBindingContext,
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _Out_ HANDLE *Socket
     )
 {

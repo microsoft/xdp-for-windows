@@ -18,6 +18,7 @@ extern "C" {
 
 #if defined(_KERNEL_MODE)
 typedef NTSTATUS XDP_STATUS;
+typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
 #else
 typedef HRESULT XDP_STATUS;
 #endif // defined(_KERNEL_MODE)
@@ -66,7 +67,7 @@ C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 typedef
 XDP_STATUS
 XSK_CREATE_FN(
-    _In_ VOID *ProviderBindingContext,
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _Out_ HANDLE *Socket
     );
 

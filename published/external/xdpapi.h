@@ -20,6 +20,7 @@ extern "C" {
 
 #if defined(_KERNEL_MODE)
 typedef NTSTATUS XDP_STATUS;
+typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
 #else
 typedef HRESULT XDP_STATUS;
 #endif // defined(_KERNEL_MODE)
@@ -39,7 +40,7 @@ C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 typedef
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
-    _In_ VOID *ProviderBindingContext,
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -47,6 +48,14 @@ XDP_CREATE_PROGRAM_FN(
     _In_reads_(RuleCount) const XDP_RULE *Rules,
     _In_ UINT32 RuleCount,
     _Out_ HANDLE *Program
+    );
+
+typedef
+XDP_STATUS
+XDP_INTERFACE_OPEN_FN(
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ UINT32 InterfaceIndex,
+    _Out_ HANDLE *InterfaceHandle
     );
 
 #else
@@ -63,14 +72,14 @@ XDP_CREATE_PROGRAM_FN(
     _Out_ HANDLE *Program
     );
 
-#endif
-
 typedef
 XDP_STATUS
 XDP_INTERFACE_OPEN_FN(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );
+
+#endif
 
 #include "afxdp.h"
 
