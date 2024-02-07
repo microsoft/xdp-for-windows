@@ -337,7 +337,8 @@ XdpApiKernelXdpRssGetCapabilities(
     _Inout_ UINT32 *RssCapabilitiesSize
     )
 {
-    return XdpInterfaceOffloadRssGetCapabilities((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssCapabilities, *RssCapabilitiesSize, RssCapabilities == NULL, RssCapabilitiesSize);
+    ASSERT(!((RssCapabilities != NULL) ^ (*RssCapabilitiesSize > 0)));
+    return XdpInterfaceOffloadRssGetCapabilities((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssCapabilities, *RssCapabilitiesSize, RssCapabilitiesSize);
 }
 
 static
@@ -359,7 +360,8 @@ XdpApiKernelXdpRssGet(
     _Inout_ UINT32 *RssConfigurationSize
     )
 {
-    return XdpInterfaceOffloadRssGet((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration, *RssConfigurationSize, RssConfiguration == NULL, RssConfigurationSize);
+    ASSERT(!((RssConfiguration != NULL) ^ (*RssConfigurationSize > 0)));
+    return XdpInterfaceOffloadRssGet((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration, *RssConfigurationSize, RssConfigurationSize);
 }
 
 static

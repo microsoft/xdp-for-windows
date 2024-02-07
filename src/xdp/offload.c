@@ -22,7 +22,6 @@ XdpInterfaceOffloadRssGetCapabilities(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
     _In_ SIZE_T OutputBufferLength,
-    _In_ BOOLEAN QueryRequiredSize,
     _Out_ UINT32 *BytesReturned
     )
 {
@@ -51,7 +50,7 @@ XdpInterfaceOffloadRssGetCapabilities(
         goto Exit;
     }
 
-    if ((OutputBufferLength == 0) && QueryRequiredSize) {
+    if (OutputBufferLength == 0) {
         *BytesReturned = RssCapabilitiesSize;
         Status = STATUS_BUFFER_OVERFLOW;
         goto Exit;
@@ -98,8 +97,12 @@ XdpIrpInterfaceOffloadRssGetCapabilities(
             InterfaceObject,
             Irp->AssociatedIrp.SystemBuffer,
             IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
-            (Irp->Flags & IRP_INPUT_OPERATION) == 0,
             &BytesReturned);
+
+    if (Status == STATUS_BUFFER_OVERFLOW && (Irp->Flags & IRP_INPUT_OPERATION) != 0) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        BytesReturned = 0;
+    }
 
     Irp->IoStatus.Information = BytesReturned;
 
@@ -113,7 +116,6 @@ XdpInterfaceOffloadRssGet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
     _In_ SIZE_T OutputBufferLength,
-    _In_ BOOLEAN QueryRequiredSize,
     _Out_ UINT32 *BytesReturned
     )
 {
@@ -154,7 +156,7 @@ XdpInterfaceOffloadRssGet(
         sizeof(*RssConfiguration) + RssParams.HashSecretKeySize +
         RssParams.IndirectionTableSize;
 
-    if ((OutputBufferLength == 0) && QueryRequiredSize) {
+    if (OutputBufferLength == 0) {
         *BytesReturned = RequiredSize;
         Status = STATUS_BUFFER_OVERFLOW;
         goto Exit;
@@ -219,8 +221,12 @@ XdpIrpInterfaceOffloadRssGet(
             InterfaceObject,
             Irp->AssociatedIrp.SystemBuffer,
             IrpSp->Parameters.DeviceIoControl.OutputBufferLength,
-            (Irp->Flags & IRP_INPUT_OPERATION) == 0,
             &BytesReturned);
+
+    if (Status == STATUS_BUFFER_OVERFLOW && (Irp->Flags & IRP_INPUT_OPERATION) != 0) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        BytesReturned = 0;
+    }
 
     Irp->IoStatus.Information = BytesReturned;
 

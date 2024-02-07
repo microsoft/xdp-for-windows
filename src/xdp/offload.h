@@ -65,7 +65,6 @@ XdpInterfaceOffloadRssGetCapabilities(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
     _In_ SIZE_T OutputBufferLength,
-    _In_ BOOLEAN QueryRequiredSize,
     _Out_ UINT32 *BytesReturned
     );
 
@@ -74,7 +73,6 @@ XdpInterfaceOffloadRssGet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
     _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
     _In_ SIZE_T OutputBufferLength,
-    _In_ BOOLEAN QueryRequiredSize,
     _Out_ UINT32 *BytesReturned
     );
 
