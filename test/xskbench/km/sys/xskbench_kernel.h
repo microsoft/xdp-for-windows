@@ -207,5 +207,3 @@ PlatPrint(
     const char* format,
     ...
     );
-
-
