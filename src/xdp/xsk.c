@@ -4353,6 +4353,7 @@ XskNotify(
         }
     } else if (UseCallback) {
         ASSERT(!Xsk->NotifyCallbackArmed);
+        Status = STATUS_PENDING;
         Xsk->NotifyCallbackCompletionContext = CompletionContext;
         WriteRelease8(&Xsk->NotifyCallbackArmed, TRUE);
     } else {
@@ -4380,11 +4381,12 @@ XskNotify(
         //
         if (ReadyFlags != 0) {
             if (XskSignalReadyIo(Xsk, ReadyFlags, TRUE)) {
+                Status = STATUS_SUCCESS;
                 OutFlags |= XskWaitInFlagsToOutFlags(ReadyFlags);
             }
         }
 
-        ASSERT(Status == STATUS_SUCCESS);
+        ASSERT(Status == STATUS_SUCCESS || Status == STATUS_PENDING);
         goto Exit;
     }
     if (ReadyFlags != 0) {
@@ -4428,12 +4430,6 @@ XskNotify(
 
 Exit:
 
-    //
-    // This IOCTL is assumed to never pend for fast IO, and code elsewhere takes
-    // advantage of this assumption.
-    //
-    ASSERT(Irp != NULL || Status != STATUS_PENDING);
-
     if (Status != STATUS_PENDING) {
         *Information = OutFlags;
     }
@@ -4462,6 +4458,11 @@ XskFastIo(
     case IOCTL_XSK_NOTIFY:
         IoStatus->Status =
             XskNotify(Xsk, InputBuffer, InputBufferLength, &IoStatus->Information, NULL, ExGetPreviousMode(), FALSE);
+        //
+        // This IOCTL is assumed to never pend for fast IO, and code elsewhere takes
+        // advantage of this assumption.
+        //
+        ASSERT(IoStatus->Status != STATUS_PENDING);
         return TRUE;
 
     case IOCTL_XSK_GET_SOCKOPT:
