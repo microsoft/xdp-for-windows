@@ -13,16 +13,14 @@ extern "C" {
 #include <xdp/hookid.h>
 #include <xdp/objectheader.h>
 #include <xdp/program.h>
+#include <xdpapi_status.h>
 
 #ifndef XDPAPI
 #define XDPAPI __declspec(dllimport)
 #endif
 
 #if defined(_KERNEL_MODE)
-typedef NTSTATUS XDP_STATUS;
 typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
-#else
-typedef HRESULT XDP_STATUS;
 #endif // defined(_KERNEL_MODE)
 
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {

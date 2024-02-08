@@ -32,10 +32,8 @@
 
 #if defined (_KERNEL_MODE)
 extern XDP_API_PROVIDER_DISPATCH *XdpApi;
-#define XDP_STATUS_TIMEOUT STATUS_TIMEOUT
 #else
 extern XDP_API_TABLE *XdpApi;
-#define XDP_STATUS_TIMEOUT HRESULT_FROM_WIN32(ERROR_TIMEOUT)
 #endif // defined (_KERNEL_MODE)
 
 #define DEFAULT_UMEM_SIZE 65536
@@ -301,7 +299,7 @@ AttachXdpProgram(
     }
 
     res = XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);
-    ASSERT_FRE(SUCCEEDED(res));
+    ASSERT_FRE(XDP_SUCCEEDED(res));
     ASSERT_FRE(hookSize == sizeof(hookId));
 
     res =
@@ -310,7 +308,7 @@ AttachXdpProgram(
             PlatGetXdpApiProviderBindingContext(),
 #endif
             ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
-    if (FAILED(res)) {
+    if (XDP_FAILED(res)) {
         ABORT("XdpCreateProgram failed: %d\n", res);
     }
 }
@@ -407,7 +405,7 @@ SetupSock(
             NULL, NULL, NULL,
 #endif
             &Queue->sock);
-    if (res != S_OK) {
+    if (XDP_FAILED(res)) {
         ABORT("err: XskCreate returned %d\n", res);
     }
 
@@ -439,21 +437,21 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
         XdpApi->XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg,
             sizeof(Queue->umemReg));
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("configuring fill ring with size %d\n", Queue->ringsize);
     res =
         XdpApi->XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &Queue->ringsize,
             sizeof(Queue->ringsize));
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("configuring completion ring with size %d\n", Queue->ringsize);
     res =
         XdpApi->XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &Queue->ringsize,
             sizeof(Queue->ringsize));
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
 
     if (Queue->flags.rx) {
         printf_verbose("configuring rx ring with size %d\n", Queue->ringsize);
@@ -461,7 +459,7 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
             XdpApi->XskSetSockopt(
                 Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
-        ASSERT_FRE(res == S_OK);
+        ASSERT_FRE(XDP_SUCCEEDED(res));
         bindFlags |= XSK_BIND_FLAG_RX;
     }
     if (Queue->flags.tx) {
@@ -470,7 +468,7 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
             XdpApi->XskSetSockopt(
                 Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
-        ASSERT_FRE(res == S_OK);
+        ASSERT_FRE(XDP_SUCCEEDED(res));
         bindFlags |= XSK_BIND_FLAG_TX;
     }
 
@@ -488,7 +486,7 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
 
         printf_verbose("configuring tx inject to rx\n");
         res = XdpApi->XskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
-        ASSERT_FRE(res == S_OK);
+        ASSERT_FRE(XDP_SUCCEEDED(res));
     }
 
     if (Queue->flags.txInspect) {
@@ -499,23 +497,23 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
 
         printf_verbose("configuring rx from tx inspect\n");
         res = XdpApi->XskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
-        ASSERT_FRE(res == S_OK);
+        ASSERT_FRE(XDP_SUCCEEDED(res));
     }
 
     printf_verbose(
         "binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
     res = XdpApi->XskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags);
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("activating sock\n");
     res = XdpApi->XskActivate(Queue->sock, 0);
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("XSK_SOCKOPT_RING_INFO\n");
     XSK_RING_INFO_SET infoSet = { 0 };
     UINT32 ringInfoSize = sizeof(infoSet);
     res = XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_RING_INFO, &infoSet, &ringInfoSize);
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
     ASSERT_FRE(ringInfoSize == sizeof(infoSet));
     PrintRingInfo(infoSet);
 
@@ -532,7 +530,7 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
     res =
         XdpApi->XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_POLL_MODE, &Queue->pollMode, sizeof(Queue->pollMode));
-    ASSERT_FRE(res == S_OK);
+    ASSERT_FRE(XDP_SUCCEEDED(res));
 
     //
     // Free ring starts off with all UMEM descriptors.
@@ -632,7 +630,7 @@ ProcessPeriodicStats(
 
         XDP_STATUS res =
             XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
-        ASSERT_FRE(res == S_OK);
+        ASSERT_FRE(XDP_SUCCEEDED(res));
         ASSERT_FRE(optSize == sizeof(stats));
 
         rxDropDiff = stats.RxDropped - Queue->lastRxDropCount;
@@ -819,9 +817,9 @@ NotifyDriver(
                 Queue->sock, DirectionFlags, WAIT_DRIVER_TIMEOUT_MS, &notifyResult);
 
         if (DirectionFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
-            ASSERT_FRE(res == S_OK || res == XDP_STATUS_TIMEOUT);
+            ASSERT_FRE(res == XDP_STATUS_SUCCESS || res == XDP_STATUS_TIMEOUT);
         } else {
-            ASSERT_FRE(res == S_OK);
+            ASSERT_FRE(res == XDP_STATUS_SUCCESS);
             ASSERT_FRE(notifyResult == 0);
         }
     }
