@@ -23,7 +23,10 @@ $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
 # Set up the connection to the peer over remote powershell.
 Write-Output "Connecting to $PeerName..."
-$Session = New-PSSession -ComputerName $PeerName -ConfigurationName $RemotePSConfiguration
+$Username = (Get-ItemProperty 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon').DefaultUserName
+$Password = (Get-ItemProperty 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon').DefaultPassword | ConvertTo-SecureString -AsPlainText -Force
+$Creds = New-Object System.Management.Automation.PSCredential ($Username, $Password)
+$Session = New-PSSession -ComputerName $PeerName -Credential $Creds -ConfigurationName $RemotePSConfiguration
 if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
 }
