@@ -21,6 +21,9 @@
     <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\platform_kernel\platform_kernel.vcxproj">
+      <Project>{9d6c2600-08b5-4954-bb22-80db923f0d9a}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1c8f18d3-b7d2-47d0-8ce0-4ed969157eb8}</ProjectGuid>
@@ -54,6 +57,7 @@
         .;
         ..;
         ..\..;
+        $(SolutionDir)test\common\inc;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>

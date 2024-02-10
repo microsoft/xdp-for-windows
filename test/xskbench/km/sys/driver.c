@@ -10,6 +10,7 @@
 #include <initguid.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
+#include "platform.h"
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
@@ -21,7 +22,7 @@ typedef struct _XBDRV_NMR_CLIENT_BINDING_CONTEXT {
 } XBDRV_NMR_CLIENT_BINDING_CONTEXT;
 
 XDP_API_PROVIDER_DISPATCH *XdpApi;
-VOID *XdpApiProviderBindingContext;
+XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 
 static DEVICE_OBJECT *XskBenchDrvDeviceObject;
 static BOOLEAN IsDeviceOpened;
@@ -117,7 +118,7 @@ XbDrvNmrAttachXdpApiProvider(
     // The client can now make calls into the provider.
     //
     XdpApi = (XDP_API_PROVIDER_DISPATCH *)BindingContext->Npi.Dispatch;
-    XdpApiProviderBindingContext = BindingContext->Npi.Handle;
+    XdpApiProviderBindingContext = (XDP_API_PROVIDER_BINDING_CONTEXT *)BindingContext->Npi.Handle;
     KeSetEvent(&BoundToProvider, 0, FALSE);
 
 Exit:
@@ -201,8 +202,8 @@ const NPI_CLIENT_CHARACTERISTICS XbDrvNmrXdpApiClientCharacteristics = {
     } // ClientRegistrationInstance
 };
 
-VOID *
-PlatGetXdpApiProviderBindingContext(
+XDP_API_PROVIDER_BINDING_CONTEXT *
+CxPlatXdpApiGetProviderBindingContext(
     VOID
     )
 {
@@ -210,7 +211,7 @@ PlatGetXdpApiProviderBindingContext(
 }
 
 VOID
-PlatInitializeXdpApi(
+CxPlatXdpApiInitialize(
     VOID
     )
 {
@@ -237,7 +238,7 @@ Done:
 }
 
 VOID
-PlatUninitializeXdpApi(
+CxPlatXdpApiUninitialize(
     VOID
     )
 {
@@ -263,7 +264,7 @@ PlatUninitializeXdpApi(
 }
 
 VOID
-PlatPrint(
+KmPlatPrint(
     char* Function,
     int Line,
     char level,
@@ -510,6 +511,8 @@ XbDrvUnload(
         XskBenchDrvDeviceObject = NULL;
     }
 
+    CxPlatUninitialize();
+
     TraceExitSuccess(TRACE_CONTROL);
 
     WPP_CLEANUP(DriverObject);
@@ -534,6 +537,8 @@ DriverEntry(
     TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
 
     KeInitializeEvent(&BoundToProvider, NotificationEvent, FALSE);
+
+    CxPlatInitialize();
 
     XskBenchInitialize();
 

@@ -15,12 +15,12 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#define DEFINE_PLAT_THREAD_FUNCTION_WRAPPER
 #include "xskbench_user.h"
 #endif
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
+#include "platform.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
@@ -49,6 +49,13 @@ extern XDP_API_TABLE *XdpApi;
 #define DEFAULT_TX_IO_SIZE 64
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
+
+#define POOLTAG_TXPATTERN           'pTbX' // XbTp
+#define POOLTAG_LATSAMPLES          'sLbX' // XbLs
+#define POOLTAG_FREERING            'rFbX' // XbFr
+#define POOLTAG_QUEUES              'sQbX' // XbQs
+#define POOLTAG_THREADS             'sTbX' // XbTs
+#define POOLTAG_UMEM                'mUbX' // XbUm
 
 CHAR *HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -200,8 +207,8 @@ typedef struct {
 } MY_QUEUE;
 
 typedef struct {
-    PLAT_THREAD threadHandle;
-    PLAT_EVENT readyEvent;
+    CXPLAT_THREAD threadHandle;
+    CXPLAT_EVENT readyEvent;
     LONG nodeAffinity;
     LONG group;
     LONG idealCpu;
@@ -221,7 +228,7 @@ BOOLEAN done = FALSE;
 BOOLEAN largePages = FALSE;
 MODE mode;
 CHAR *modestr;
-PLAT_EVENT periodicStatsEvent;
+CXPLAT_EVENT periodicStatsEvent;
 int _fltused = 0;
 
 UINT32
@@ -305,7 +312,7 @@ AttachXdpProgram(
     res =
         XdpApi->XdpCreateProgram(
 #if defined(_KERNEL_MODE)
-            PlatGetXdpApiProviderBindingContext(),
+            CxPlatXdpApiGetProviderBindingContext(),
 #endif
             ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
@@ -401,7 +408,7 @@ SetupSock(
     res =
         XdpApi->XskCreate(
 #if defined(_KERNEL_MODE)
-            PlatGetXdpApiProviderBindingContext(),
+            CxPlatXdpApiGetProviderBindingContext(),
             NULL, NULL, NULL,
 #endif
             &Queue->sock);
@@ -415,23 +422,23 @@ SetupSock(
     Queue->umemReg.Headroom = Queue->umemheadroom;
     Queue->umemReg.TotalSize = Queue->umemsize;
 
-#if defined(_KERNEL_MODE)
-    Queue->umemReg.Address = ExAllocatePoolZero(NonPagedPoolNx, Queue->umemReg.TotalSize, 'rDbX');
-#else
     if (largePages) {
+#if !defined(_KERNEL_MODE)
         //
         // The memory subsystem requires allocations and mappings be aligned to
         // the large page size. XDP ignores the final chunk, if truncated.
         //
         Queue->umemReg.TotalSize = ALIGN_UP_BY(Queue->umemReg.TotalSize, GetLargePageMinimum());
+#endif // !defined(_KERNEL_MODE)
     }
 
     Queue->umemReg.Address =
-        VirtualAlloc(
-            NULL, Queue->umemReg.TotalSize,
-            (largePages ? MEM_LARGE_PAGES : 0) | MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-#endif
-ASSERT_FRE(Queue->umemReg.Address != NULL);
+        CXPLAT_VIRTUAL_ALLOC(
+            Queue->umemReg.TotalSize,
+            (largePages ? MEM_LARGE_PAGES : 0) | MEM_COMMIT | MEM_RESERVE,
+            PAGE_READWRITE,
+            POOLTAG_UMEM);
+    ASSERT_FRE(Queue->umemReg.Address != NULL);
 
     res =
         XdpApi->XskSetSockopt(
@@ -544,8 +551,13 @@ ASSERT_FRE(Queue->umemReg.Address != NULL);
     } *FreeRingLayout;
 
     FreeRingLayout =
-        calloc(1, sizeof(*FreeRingLayout) + numDescriptors * sizeof(*FreeRingLayout->Descriptors));
+        CXPLAT_ALLOC_NONPAGED(
+            sizeof(*FreeRingLayout) + numDescriptors * sizeof(*FreeRingLayout->Descriptors),
+            POOLTAG_FREERING);
     ASSERT_FRE(FreeRingLayout != NULL);
+    RtlZeroMemory(
+        FreeRingLayout,
+        sizeof(*FreeRingLayout) + numDescriptors * sizeof(*FreeRingLayout->Descriptors));
 
     XSK_RING_INFO freeRingInfo = {0};
     freeRingInfo.Ring = (BYTE *)FreeRingLayout;
@@ -583,7 +595,7 @@ ProcessPeriodicStats(
     MY_QUEUE *Queue
     )
 {
-    UINT64 currentTick = PlatGetElapsedMsSinceBoot();
+    UINT64 currentTick = CxPlatTimeEpochMs64();
     UINT64 tickDiff = currentTick - Queue->lastTick;
     UINT64 packetCount;
     UINT64 packetDiff;
@@ -691,13 +703,10 @@ PrintFinalLatStats(
     MY_QUEUE *Queue
     )
 {
-    LARGE_INTEGER FreqQpc;
-    VERIFY(PlatQueryPerformanceFrequency(&FreqQpc));
-
     qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
 
     for (UINT32 i = 0; i < Queue->latIndex; i++) {
-        Queue->latSamples[i] = QpcToUs64(Queue->latSamples[i], FreqQpc.QuadPart);
+        Queue->latSamples[i] = QuicTimePlatToUs64(Queue->latSamples[i]);
     }
 
     printf(
@@ -926,11 +935,11 @@ DoRxMode(
 
         queue->flags.rx = TRUE;
         SetupSock(ifindex, queue);
-        queue->lastTick = PlatGetElapsedMsSinceBoot();
+        queue->lastTick = CxPlatTimeEpochMs64();
     }
 
     printf("Receiving...\n");
-    PlatSetEvent(&Thread->readyEvent);
+    CxPlatEventSet(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         BOOLEAN Processed = FALSE;
@@ -1059,11 +1068,11 @@ DoTxMode(
 
         queue->flags.tx = TRUE;
         SetupSock(ifindex, queue);
-        queue->lastTick = PlatGetElapsedMsSinceBoot();
+        queue->lastTick = CxPlatTimeEpochMs64();
     }
 
     printf("Sending...\n");
-    PlatSetEvent(&Thread->readyEvent);
+    CxPlatEventSet(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         BOOLEAN Processed = FALSE;
@@ -1217,11 +1226,11 @@ DoFwdMode(
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
         SetupSock(ifindex, queue);
-        queue->lastTick = PlatGetElapsedMsSinceBoot();
+        queue->lastTick = CxPlatTimeEpochMs64();
     }
 
     printf("Forwarding...\n");
-    PlatSetEvent(&Thread->readyEvent);
+    CxPlatEventSet(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         BOOLEAN Processed = FALSE;
@@ -1259,8 +1268,7 @@ ProcessLat(
         RingPairReserve(
             &Queue->rxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
-        LARGE_INTEGER NowQpc;
-        VERIFY(PlatQueryPerformanceCounter(&NowQpc));
+        UINT64 NowQpc = QuicTimePlat();
 
         for (UINT32 i = 0; i < available; i++) {
             XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Queue->rxRing, consumerIndex++);
@@ -1275,10 +1283,10 @@ ProcessLat(
                 ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress +
                     rxDesc->Address.Offset + Queue->txPatternLength);
 
-            printf_verbose("latency: %lld\n", NowQpc.QuadPart - *Timestamp);
+            printf_verbose("latency: %lld\n", NowQpc - *Timestamp);
 
             if (Queue->latIndex < Queue->latSamplesCount) {
-                Queue->latSamples[Queue->latIndex++] = NowQpc.QuadPart - *Timestamp;
+                Queue->latSamples[Queue->latIndex++] = NowQpc - *Timestamp;
             }
 
             *fillDesc = rxDesc->Address.BaseAddress;
@@ -1316,8 +1324,7 @@ ProcessLat(
         RingPairReserve(
             &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
-        LARGE_INTEGER NowQpc;
-        VERIFY(PlatQueryPerformanceCounter(&NowQpc));
+        UINT64 NowQpc = QuicTimePlat();
 
         for (UINT32 i = 0; i < available; i++) {
             UINT64 *freeDesc = XskRingGetElement(&Queue->freeRing, consumerIndex++);
@@ -1326,7 +1333,7 @@ ProcessLat(
             INT64 UNALIGNED *Timestamp = (INT64 UNALIGNED *)
                 ((CHAR*)Queue->umemReg.Address + *freeDesc +
                     Queue->umemReg.Headroom + Queue->txPatternLength);
-            *Timestamp = NowQpc.QuadPart;
+            *Timestamp = NowQpc;
 
             txDesc->Address.BaseAddress = *freeDesc;
             ASSERT(Queue->umemReg.Headroom <= MAXUINT16);
@@ -1380,7 +1387,7 @@ DoLatMode(
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
         SetupSock(ifindex, queue);
-        queue->lastTick = PlatGetElapsedMsSinceBoot();
+        queue->lastTick = CxPlatTimeEpochMs64();
 
         //
         // Fill up the RX fill ring. Once this initial fill is performed, the
@@ -1396,7 +1403,7 @@ DoLatMode(
     }
 
     printf("Probing latency...\n");
-    PlatSetEvent(&Thread->readyEvent);
+    CxPlatEventSet(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
         BOOLEAN Processed = FALSE;
@@ -1517,8 +1524,9 @@ ParseQueueArgs(
             Queue->txPatternLength = (UINT32)strlen(argv[i]);
             ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
             Queue->txPatternLength /= 2;
-            Queue->txPattern = malloc(Queue->txPatternLength);
+            Queue->txPattern = CXPLAT_ALLOC_NONPAGED(Queue->txPatternLength, POOLTAG_TXPATTERN);
             ASSERT_FRE(Queue->txPattern != NULL);
+            RtlZeroMemory(Queue->txPattern, Queue->txPatternLength);
             GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
         } else if (!strcmp(argv[i], "-lat_count")) {
             if (++i >= argc) {
@@ -1546,7 +1554,9 @@ ParseQueueArgs(
         ASSERT_FRE(
             Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength + sizeof(UINT64));
 
-        Queue->latSamples = malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
+        Queue->latSamples =
+            CXPLAT_ALLOC_NONPAGED(
+                Queue->latSamplesCount * sizeof(*Queue->latSamples), POOLTAG_LATSAMPLES);
         ASSERT_FRE(Queue->latSamples != NULL);
         RtlZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
     }
@@ -1625,8 +1635,10 @@ ParseThreadArgs(
         Usage();
     }
 
-    Thread->queues = calloc(Thread->queueCount, sizeof(*Thread->queues));
+    Thread->queues =
+        CXPLAT_ALLOC_NONPAGED(Thread->queueCount * sizeof(*Thread->queues), POOLTAG_QUEUES);
     ASSERT_FRE(Thread->queues != NULL);
+    RtlZeroMemory(Thread->queues, Thread->queueCount * sizeof(*Thread->queues));
 
     INT qStart = -1;
     INT qIndex = 0;
@@ -1719,8 +1731,9 @@ ParseArgs(
         Usage();
     }
 
-    threads = calloc(threadCount, sizeof(*threads));
+    threads = CXPLAT_ALLOC_NONPAGED(threadCount * sizeof(*threads), POOLTAG_THREADS);
     ASSERT_FRE(threads != NULL);
+    RtlZeroMemory(threads, threadCount * sizeof(*threads));
 
     INT tStart = -1;
     INT tIndex = 0;
@@ -1753,7 +1766,7 @@ SetThreadAffinities(
 {
     if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
         printf_verbose("setting node affinity %d\n", Thread->nodeAffinity);
-        if (!PlatSetThreadNodeAffinity(Thread->nodeAffinity)) {
+        if (!CxPlatSetThreadNodeAffinity(Thread->nodeAffinity)) {
             return FALSE;
         }
     }
@@ -1762,28 +1775,15 @@ SetThreadAffinities(
 
         printf_verbose("setting CPU affinity mask 0x%llu\n", Thread->cpuAffinity);
         printf_verbose("setting group affinity %d\n", Thread->group);
-        if (!PlatSetThreadGroupAffinity(Thread->group, Thread->cpuAffinity)) {
+        if (!CxPlatSetThreadGroupAffinity(Thread->group, Thread->cpuAffinity)) {
             return FALSE;
         }
-    }
-
-    if (Thread->idealCpu != DEFAULT_IDEAL_CPU) {
-#if defined(_KERNEL_MODE)
-        printf_error("setting ideal CPU not supported in kernel mode\n");
-#else
-        if (!PlatSetThreadIdealProcessor(Thread->idealCpu)) {
-            return FALSE;
-        }
-#endif
     }
 
     return TRUE;
 }
 
-VOID
-DoThread(
-    VOID *Context
-    )
+CXPLAT_THREAD_CALLBACK(DoThread, Context)
 {
     MY_THREAD *thread = Context;
     BOOLEAN res;
@@ -1802,6 +1802,8 @@ DoThread(
     } else if (mode == ModeLat) {
         DoLatMode(thread);
     }
+
+    CXPLAT_THREAD_RETURN(0);
 }
 
 VOID
@@ -1809,7 +1811,7 @@ XskBenchInitialize(
     VOID
     )
 {
-    PlatInitializeEvent(&periodicStatsEvent);
+    CxPlatEventInitialize(&periodicStatsEvent, TRUE, FALSE);
 }
 
 VOID
@@ -1819,7 +1821,7 @@ XskBenchCtrlHandler(
 {
     // Force graceful exit.
     duration = 0;
-    PlatSetEvent(&periodicStatsEvent);
+    CxPlatEventSet(periodicStatsEvent);
 }
 
 INT
@@ -1836,16 +1838,32 @@ XskBenchStart(
         goto Exit;
     }
 
-    PlatInitializeXdpApi();
+    CxPlatXdpApiInitialize();
 
     for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-        PlatInitializeEvent(&threads[tIndex].readyEvent);
-        VERIFY(PlatCreateThread(&threads[tIndex].threadHandle, DoThread, &threads[tIndex]));
-        PlatWaitEvent(&threads[tIndex].readyEvent, INFINITE);
+        CxPlatEventInitialize(&threads[tIndex].readyEvent, TRUE, FALSE);
+
+        CXPLAT_THREAD_CONFIG ThreadConfig = {
+            0,
+            0,
+            "",
+            DoThread,
+            &threads[tIndex]
+        };
+
+        if (threads[tIndex].idealCpu != DEFAULT_IDEAL_CPU) {
+            ThreadConfig.IdealProcessor = (UINT16)threads[tIndex].idealCpu;
+            ThreadConfig.Flags |= CXPLAT_THREAD_FLAG_SET_IDEAL_PROC;
+        }
+
+        XDP_STATUS Status = CxPlatThreadCreate(&ThreadConfig, &threads[tIndex].threadHandle);
+        ASSERT_FRE(XDP_SUCCEEDED(Status));
+
+        CxPlatEventWaitForever(threads[tIndex].readyEvent);
     }
 
     while (duration-- > 0) {
-        PlatWaitEvent(&periodicStatsEvent, 1000);
+        CxPlatEventWaitWithTimeout(periodicStatsEvent, 1000);
         for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
             MY_THREAD *Thread = &threads[tIndex];
             for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -1866,7 +1884,8 @@ XskBenchStart(
 
     for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
         MY_THREAD *Thread = &threads[tIndex];
-        PlatWaitThread(&Thread->threadHandle, INFINITE);
+        CxPlatThreadWait(&Thread->threadHandle);
+        CxPlatThreadDelete(&Thread->threadHandle);
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             MY_QUEUE *Queue = &Thread->queues[qIndex];
 #if defined(_KERNEL_MODE)
@@ -1890,21 +1909,17 @@ XskBenchStart(
             }
 #endif
             if (Queue->umemReg.Address != NULL) {
-#if defined(_KERNEL_MODE)
-                free(Queue->umemReg.Address);
-#else
-                VirtualFree(Queue->umemReg.Address, 0, MEM_RELEASE);
-#endif
+                CXPLAT_VIRTUAL_FREE(Queue->umemReg.Address, 0, MEM_RELEASE, POOLTAG_UMEM);
                 Queue->umemReg.Address = NULL;
             }
             if (Queue->freeRingLayout != NULL) {
-                free(Queue->freeRingLayout);
+                CXPLAT_FREE(Queue->freeRingLayout, POOLTAG_FREERING);
                 Queue->freeRingLayout = NULL;
             }
         }
     }
 
-    PlatUninitializeXdpApi();
+    CxPlatXdpApiUninitialize();
 
 Exit:
 #pragma warning(disable:6001) // using uninitialized memory
@@ -1920,15 +1935,15 @@ Exit:
                     continue;
                 }
                 if (Queue->txPattern != NULL) {
-                    free(Queue->txPattern);
+                    CXPLAT_FREE(Queue->txPattern, POOLTAG_TXPATTERN);
                 }
                 if (Queue->latSamples != NULL) {
-                    free(Queue->latSamples);
+                    CXPLAT_FREE(Queue->latSamples, POOLTAG_LATSAMPLES);
                 }
-                free(Queue);
             }
-            free(Thread);
+            CXPLAT_FREE(Thread->queues, POOLTAG_QUEUES);
         }
+        CXPLAT_FREE(threads, POOLTAG_THREADS);
     }
 
     WriteBooleanNoFence(&done, FALSE);

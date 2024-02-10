@@ -8,13 +8,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <xdpapi.h>
+#include "platform.h"
 #include "xskbench_user.h"
 #include "xskbench.h"
 
 CONST XDP_API_TABLE *XdpApi;
 
 VOID
-PlatInitializeXdpApi(
+CxPlatXdpApiInitialize(
     VOID
     )
 {
@@ -22,7 +23,7 @@ PlatInitializeXdpApi(
 }
 
 VOID
-PlatUninitializeXdpApi(
+CxPlatXdpApiUninitialize(
     VOID
     )
 {
@@ -49,9 +50,15 @@ main(
     CHAR **argv
     )
 {
+    CxPlatInitialize();
+
     XskBenchInitialize();
 
     ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
 
-    return XskBenchStart(argc, argv);
+    INT Ret = XskBenchStart(argc, argv);
+
+    CxPlatUninitialize();
+
+    return Ret;
 }
