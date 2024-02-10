@@ -22,6 +22,7 @@
         WIN32_LEAN_AND_MEAN;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
+      <ExceptionHandling Condition="'$(Platform)'=='ARM64'">Sync</ExceptionHandling>
     </ClCompile>
   </ItemDefinitionGroup>
 </Project>

@@ -3,7 +3,7 @@
 #
 
 param (
-    [ValidateSet("x64")]
+    [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory=$false)]
     [string]$Platform = "x64",
 
@@ -52,6 +52,11 @@ if ([string]::IsNullOrEmpty($Project)) {
     }
     $Tasks += "$Project$Clean"
     $NoSign = $true
+    $NoInstaller = $true
+}
+
+if ($Platform -eq "arm64" -and !$NoInstaller) {
+    Write-Warning "$Platform does not support building MSI installer. Skipping."
     $NoInstaller = $true
 }
 

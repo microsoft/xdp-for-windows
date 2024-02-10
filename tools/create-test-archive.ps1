@@ -8,7 +8,7 @@
 #
 
 param (
-    [ValidateSet("x64")]
+    [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory=$false)]
     [string]$Platform = "x64",
 

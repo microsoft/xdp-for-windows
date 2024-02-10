@@ -400,6 +400,8 @@ public:
         ::SecurityAdjustDeviceAcl();
     }
 
+#ifdef USE_EBPF
+
     TEST_METHOD(GenericRxEbpfAttach) {
         ::GenericRxEbpfAttach();
     }
@@ -435,6 +437,8 @@ public:
     TEST_METHOD(GenericRxEbpfUnload) {
         ::GenericRxEbpfUnload();
     }
+
+#endif
 
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);

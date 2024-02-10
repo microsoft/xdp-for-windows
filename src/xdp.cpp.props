@@ -42,7 +42,13 @@
       <!-- Disable C26812: The enum type '' is unscoped. Prefer 'enum class' over 'enum' -->
       <DisableSpecificWarnings>26812;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
-    <Link>
+    <ClCompile Condition="'$(Platform)'=='x64'">
+      <PreprocessorDefinitions>
+        USE_EBPF=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+    </ClCompile>
+    <Link Condition="'$(Platform)'!='arm64'">
       <CETCompat>true</CETCompat>
     </Link>
   </ItemDefinitionGroup>

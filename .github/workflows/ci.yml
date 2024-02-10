@@ -33,7 +33,7 @@ jobs:
         # environment, in addition to the default WS 2022.
         os: [2019, 2022]
         configuration: [Release, Debug]
-        platform: [x64]
+        platform: [x64, arm64]
     runs-on: windows-${{ matrix.os }}
     permissions:
       actions: read
@@ -372,7 +372,7 @@ jobs:
       fail-fast: false
       matrix:
         configuration: [Release]
-        platform: [x64]
+        platform: [x64, arm64]
     runs-on: windows-2022
     steps:
     - name: Checkout repository

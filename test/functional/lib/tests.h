@@ -103,6 +103,8 @@ GenericRxFromTxInspect(
 VOID
 SecurityAdjustDeviceAcl();
 
+#ifdef USE_EBPF
+
 VOID
 GenericRxEbpfAttach();
 
@@ -129,6 +131,8 @@ GenericRxEbpfFragments();
 
 VOID
 GenericRxEbpfUnload();
+
+#endif
 
 VOID
 GenericTxToRxInject();
