@@ -60,6 +60,8 @@ jobs:
         echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Nuget Restore
       run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+    - name: Nuget Restore (Installer)
+      run: nuget.exe restore src\xdpinstaller\xdpinstaller.sln -ConfigFile src/nuget.config
     - name: Prepare for compiling eBPF programs
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
     - name: Build
