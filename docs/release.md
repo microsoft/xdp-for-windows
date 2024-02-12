@@ -61,6 +61,8 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 
 * Authorize the new branch in the [OneBranch.Official](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2407) and [OneBranch.PullRequest](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2404) internal pipelines under **OneBranch Resources** -> **Manage Authorized Branches**.
 * Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.0.x release.
+* Add the test artifacts of the new release to the downlevel tests for main and
+  any other active release branches.
 
 ## Servicing a new Release Branch
 
