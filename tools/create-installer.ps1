@@ -23,6 +23,19 @@ if (!$IsAdmin) {
     Write-Verbose "MSI validation requires admin privileges. Skipping."
 }
 
+# msbuild.exe $RootDir\src\xdpinstaller\xdpinstaller.sln `
+#     /t:restore `
+#     /p:RestorePackagesConfig=true `
+#     /p:RestoreConfigFile=src\nuget.config `
+#     /p:Configuration=$Config `
+#     /p:Platform=$Platform
+# if (!$?) {
+#     Write-Error "Restoring NuGet packages failed: $LastExitCode"
+# }
+
+nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
+    -ConfigFile $RootDir\src\nuget.config
+
 msbuild.exe $RootDir\src\xdpinstaller\xdpinstaller.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
