@@ -57,6 +57,7 @@ if ([string]::IsNullOrEmpty($Project)) {
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
+Write-Verbose "Restoring packages [xdp.sln]"
 msbuild.exe $RootDir\xdp.sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
@@ -66,6 +67,10 @@ msbuild.exe $RootDir\xdp.sln `
 if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
+
+Write-Verbose "Restoring packages [xdpinstaller.sln]"
+nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
+    -ConfigFile $RootDir\src\nuget.config
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 

@@ -6,6 +6,7 @@
     <XdpPatchVersion>0</XdpPatchVersion>
     <!-- Project-wide properties -->
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.9.0\</EbpfPackagePath>
+    <WiXPackagePath>$(SolutionDir)packages\wix.3.14.0\</WiXPackagePath>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
   <ItemGroup Label="ProjectConfigurations">
