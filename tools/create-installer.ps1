@@ -23,9 +23,6 @@ if (!$IsAdmin) {
     Write-Verbose "MSI validation requires admin privileges. Skipping."
 }
 
-nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
-    -ConfigFile $RootDir\src\nuget.config
-
 msbuild.exe $RootDir\src\xdpinstaller\xdpinstaller.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
