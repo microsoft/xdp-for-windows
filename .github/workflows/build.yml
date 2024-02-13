@@ -35,7 +35,7 @@ on:
         type: boolean
       upload_artifacts:
         required: false
-        default: false
+        default: true
         type: boolean
       publish_symbols:
         required: false
