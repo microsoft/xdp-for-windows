@@ -34,10 +34,6 @@ jobs:
         os: [2019, 2022]
         config: [Release, Debug]
         arch: [x64]
-    permissions:
-      actions: read
-      contents: read
-      security-events: write  # For CodeQL
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}

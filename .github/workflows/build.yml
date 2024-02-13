@@ -30,7 +30,10 @@ on:
         # options:
         #   - x64
 
-permissions: read-all
+permissions:
+  actions: read
+  contents: read
+  security-events: write  # For CodeQL
 
 jobs:
   build:
