@@ -1,0 +1,107 @@
+name: Build XDP
+
+# The caller is responsible for making sure all options passed to this workflow are valid and compatible with each other.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        default: ''
+        type: string
+      config:
+        required: false
+        default: 'Release'
+        type: string
+        # options:
+        #   - Debug
+        #   - Release
+      os:
+        required: false
+        type: string
+        default: '2022'
+        # options:
+        #   - 2019
+        #   - 2022
+      arch:
+        required: false
+        default: 'x64'
+        type: string
+        # options:
+        #   - x64
+      codeql:
+        required: false
+        default: false
+        type: boolean
+      upload_artifacts:
+        required: false
+        default: true
+        type: boolean
+      publish_symbols:
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      fail-fast: false
+    runs-on: windows-${{ inputs.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+        ref: ${{ inputs.ref }}
+    - name: Initialize CodeQL
+      if: inputs.codeql
+      uses: github/codeql-action/init@v3
+      with:
+        languages: c-cpp
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -ForBuild -Verbose
+    - name: Install LLVM 11.0
+      run: |
+        choco install -y llvm --version 11.0.1 --allow-downgrade
+        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Nuget Restore
+      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+    - name: Nuget Restore (Installer)
+      run: nuget.exe restore src\xdpinstaller\xdpinstaller.sln -ConfigFile src/nuget.config
+    - name: Prepare for compiling eBPF programs
+      run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
+    - name: Build
+      run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.arch }}
+    - name: Sign Binaries
+      shell: PowerShell
+      run: tools/sign.ps1 -Config ${{ inputs.config }} -Arch ${{ inputs.arch }}
+    - name: Build Installer
+      shell: PowerShell
+      run: tools/create-installer.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.arch }}
+    - name: Upload Artifacts
+      if: inputs.upload_artifacts
+      uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
+      with:
+        name: bin_${{ inputs.config }}_${{ inputs.arch }}
+        path: |
+          artifacts/bin
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
+    - name: Publish Symbols
+      uses: microsoft/action-publish-symbols@719c40b80e38bca806f3e01e1e3dd3a67554cd68
+      if: inputs.publish_symbols
+      with:
+        accountName: mscodehub
+        symbolServiceUrl: 'https://artifacts.dev.azure.com'
+        personalAccessToken: ${{ secrets.AZDO_PAT }}
+    - name: Perform CodeQL Analysis
+      if: inputs.codeql
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:c-cpp"
