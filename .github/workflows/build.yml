@@ -43,10 +43,10 @@ on:
         type: bool
 
 env:
-  if: inputs.codeql
+  # if: inputs.codeql
     security-events-permissions: write
-  if: "!${{ inputs.codeql }}"
-    security-events-permissions: none
+  # if: "!${{ inputs.codeql }}"
+  #   security-events-permissions: none
 
 jobs:
   build:
