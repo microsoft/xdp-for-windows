@@ -42,12 +42,6 @@ on:
         default: false
         type: boolean
 
-env:
-  # if: inputs.codeql
-    security-events-permissions: write
-  # if: "!${{ inputs.codeql }}"
-  #   security-events-permissions: none
-
 jobs:
   build:
     name: Build
@@ -57,7 +51,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: ${{ env.security-events-permissions }}
+      security-events: write # for CodeQL
     steps:
     - name: Checkout repository
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
