@@ -38,7 +38,7 @@ jobs:
       actions: read
       contents: read
       security-events: write  # For CodeQL
-    uses: ./.github/templates/build.yml
+    uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}
       os: ${{ matrix.os }}
