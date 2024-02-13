@@ -46,6 +46,10 @@ jobs:
       arch: ${{ matrix.arch }}
       if: ${{ github.event_name == 'schedule' }}
         codeql: true
+      if: matrix.os == 2022
+        upload_artifacts: true
+      if: github.event_name != 'pull_request' && matrix.os == 2022
+        publish_symbols: true
 
   functional_tests:
     name: Functional Tests
