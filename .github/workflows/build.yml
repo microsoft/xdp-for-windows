@@ -32,15 +32,15 @@ on:
       codeql:
         required: false
         default: false
-        type: bool
+        type: boolean
       upload_artifacts:
         required: false
         default: false
-        type: bool
+        type: boolean
       publish_symbols:
         required: false
         default: false
-        type: bool
+        type: boolean
 
 env:
   # if: inputs.codeql
