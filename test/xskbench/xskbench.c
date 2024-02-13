@@ -136,11 +136,7 @@ CHAR *HELP =
 "   xskbench.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
-#if defined(_KERNEL_MODE)
-#define Usage() { printf_error("Line:%d\n", __LINE__); goto Fail; }
-#else
-#define Usage() PrintUsage(__LINE__)
-#endif
+#define Usage() { PrintUsage(__LINE__); goto Fail; }
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
 #define STATS_ARRAY_SIZE 60
@@ -1426,7 +1422,7 @@ PrintUsage(
     )
 {
     printf_error("Line:%d\n", Line);
-    ABORT(HELP);
+    printf_error(HELP);
 }
 
 BOOLEAN
@@ -1562,10 +1558,8 @@ ParseQueueArgs(
     }
 
     return TRUE;
-#if defined(_KERNEL_MODE)
 Fail:
     return FALSE;
-#endif
 }
 
 BOOLEAN
