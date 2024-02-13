@@ -34,11 +34,18 @@ jobs:
         os: [2019, 2022]
         config: [Release, Debug]
         arch: [x64]
+    permissions:
+      actions: read
+      contents: read
+      if: ${{ github.event_name == 'schedule' }}
+        security-events: write  # For CodeQL
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}
       os: ${{ matrix.os }}
       arch: ${{ matrix.arch }}
+      if: ${{ github.event_name == 'schedule' }}
+        codeql: true
 
   functional_tests:
     name: Functional Tests

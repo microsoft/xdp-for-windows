@@ -29,11 +29,20 @@ on:
         type: string
         # options:
         #   - x64
+      codeql:
+        required: false
+        default: false
+        type: bool
+        # options:
+        #   - true
+        #   - false
+
 
 permissions:
   actions: read
   contents: read
-  security-events: write  # For CodeQL
+  if: inputs.codeql
+    security-events: write  # For CodeQL
 
 jobs:
   build:
@@ -96,7 +105,7 @@ jobs:
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
         personalAccessToken: ${{ secrets.AZDO_PAT }}
     - name: Perform CodeQL Analysis
-      if: ${{ github.event_name == 'schedule' }}
+      if: inputs.codeql
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:c-cpp"
