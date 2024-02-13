@@ -41,10 +41,9 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
       publish_symbols_pat:
         required: false
-        type: string
-        default: ''
 
 jobs:
   build:
@@ -103,7 +102,7 @@ jobs:
       with:
         accountName: mscodehub
         symbolServiceUrl: 'https://artifacts.dev.azure.com'
-        personalAccessToken: ${{ inputs.publish_symbols_pat }}
+        personalAccessToken: ${{ secrets.publish_symbols_pat }}
     - name: Perform CodeQL Analysis
       if: inputs.codeql
       uses: github/codeql-action/analyze@v3
