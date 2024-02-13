@@ -42,11 +42,11 @@ on:
         default: false
         type: bool
 
-permissions:
-  actions: read
-  contents: read
+env:
   if: inputs.codeql
-    security-events: write  # For CodeQL
+    security-events-permissions: write
+  if: "!${{ inputs.codeql }}"
+    security-events-permissions: none
 
 jobs:
   build:
@@ -57,7 +57,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write  # For CodeQL
+      security-events: ${{ vars.security-events-permissions }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -66,7 +66,7 @@ jobs:
         submodules: recursive
         ref: ${{ inputs.ref }}
     - name: Initialize CodeQL
-      if: ${{ github.event_name == 'schedule' }}
+      if: inputs.codeql
       uses: github/codeql-action/init@v3
       with:
         languages: c-cpp
