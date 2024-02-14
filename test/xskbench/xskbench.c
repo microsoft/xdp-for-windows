@@ -645,7 +645,7 @@ ProcessPeriodicStats(
         rxDropKpps = rxDropDiff ? rxDropDiff / tickDiff : 0;
         Queue->lastRxDropCount = stats.RxDropped;
 
-        printf("%s[%d]: %llu kpps %llu rxDropKpps rxDrop:%llu rxTrunc:%llu "
+        printf("%s[%d]: %9llu kpps %9llu rxDropKpps rxDrop:%llu rxTrunc:%llu "
             "rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%llu%%\n",
             modestr, Queue->queueId, kpps, rxDropKpps, stats.RxDropped, stats.RxTruncated,
             stats.RxInvalidDescriptors, stats.TxInvalidDescriptors,
@@ -782,7 +782,7 @@ PrintFinalStats(
 
     stdDev = sqrt(stdDev / (numEntries - 1));
 
-    printf("%-3s[%d]: avg=%llu stddev=%llu min=%llu max=%llu Kpps\n",
+    printf("%-3s[%d]: avg=%08llu stddev=%08llu min=%08llu max=%08llu Kpps\n",
         modestr, Queue->queueId, (UINT64)avg, (UINT64)stdDev, (UINT64)min, (UINT64)max);
 
     if (mode == ModeLat) {
