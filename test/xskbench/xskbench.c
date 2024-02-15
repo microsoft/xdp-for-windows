@@ -316,12 +316,12 @@ AttachXdpProgram(
     }
 }
 
-#if !defined(_KERNEL_MODE)
 VOID
 EnableLargePages(
     VOID
     )
 {
+#if !defined(_KERNEL_MODE)
     HANDLE Token = NULL;
     TOKEN_PRIVILEGES TokenPrivileges;
 
@@ -348,8 +348,8 @@ EnableLargePages(
 Failure:
 
     ABORT("Failed to acquire large page privileges. See \"Assigning Privileges to an Account\"\n");
-}
 #endif // !defined(_KERNEL_MODE)
+}
 
 UCHAR
 HexToBin(
@@ -1707,9 +1707,7 @@ ParseArgs(
             verbose = TRUE;
         } else if (!_stricmp(argv[i], "-lp")) {
             largePages = TRUE;
-#if !defined(_KERNEL_MODE)
             EnableLargePages();
-#endif // !defined(_KERNEL_MODE)
         } else if (threadCount == 0) {
             Usage();
         }
