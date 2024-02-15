@@ -59,7 +59,10 @@ _IRQL_requires_same_
 NTSTATUS
 XskCreate(
     _Out_ XSK **Xsk,
-    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback
+    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback,
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

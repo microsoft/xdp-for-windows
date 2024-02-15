@@ -1034,10 +1034,16 @@ _IRQL_requires_same_
 NTSTATUS
 XskCreate(
     _Out_ XSK **Xsk,
-    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback
+    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback,
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(OwningThread);
+    UNREFERENCED_PARAMETER(SecurityDescriptor);
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
@@ -1064,7 +1070,7 @@ XskCreate(
     (*Xsk)->NotifyCallback = NotifyCallback;
 
     EventWriteXskCreateSocket(
-        &MICROSOFT_XDP_PROVIDER, *Xsk, PsGetCurrentProcessId());
+        &MICROSOFT_XDP_PROVIDER, *Xsk, PsGetProcessId(OwningProcess));
 
 Exit:
 
@@ -1095,7 +1101,7 @@ XskIrpCreateSocket(
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
-    Status = XskCreate(&Xsk, NULL);
+    Status = XskCreate(&Xsk, NULL, NULL, NULL, NULL);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

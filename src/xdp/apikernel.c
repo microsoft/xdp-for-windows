@@ -171,11 +171,10 @@ XdpApiKernelXskCreate(
 {
     XDPAPI_CLIENT *Client = ProviderBindingContext;
 
-    UNREFERENCED_PARAMETER(OwningProcess);
-    UNREFERENCED_PARAMETER(OwningThread);
-    UNREFERENCED_PARAMETER(SecurityDescriptor);
-
-    return XskCreate((XSK **)Socket, Client->ClientDispatch->XskNotifyCallback);
+    return
+        XskCreate(
+            (XSK **)Socket, Client->ClientDispatch->XskNotifyCallback,
+            OwningProcess, OwningThread, SecurityDescriptor);
 }
 
 static
@@ -477,25 +476,36 @@ XdpApiKernelStart(
     )
 {
     NTSTATUS Status;
-    NPI_PROVIDER_CHARACTERISTICS *Characteristics;
+    DWORD EnableKmXdpApi;
 
     TraceEnter(TRACE_CORE, "-");
 
-    Characteristics = &XdpApiProvider.Characteristics;
-    Characteristics->Length = sizeof(NPI_PROVIDER_CHARACTERISTICS);
-    Characteristics->ProviderAttachClient = XdpApiKernelProviderAttachClient;
-    Characteristics->ProviderDetachClient = XdpApiKernelProviderDetachClient;
-    Characteristics->ProviderCleanupBindingContext = XdpApiKernelProviderCleanup;
-    Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
-    Characteristics->ProviderRegistrationInstance.NpiId = &NPI_XDPAPI_INTERFACE_ID;
-    Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
-    Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_1;
+    //
+    // Kernel-mode XDPAPI is disabled by default while considered experimental.
+    //
 
-    Status = NmrRegisterProvider(Characteristics, &XdpApiProvider, &XdpApiProvider.NmrProviderHandle);
-    if (!NT_SUCCESS(Status)) {
-        TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
-        goto Exit;
+    Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"EnableKmXdpApi", &EnableKmXdpApi);
+    if (NT_SUCCESS(Status) && EnableKmXdpApi) {
+        NPI_PROVIDER_CHARACTERISTICS *Characteristics;
+
+        Characteristics = &XdpApiProvider.Characteristics;
+        Characteristics->Length = sizeof(NPI_PROVIDER_CHARACTERISTICS);
+        Characteristics->ProviderAttachClient = XdpApiKernelProviderAttachClient;
+        Characteristics->ProviderDetachClient = XdpApiKernelProviderDetachClient;
+        Characteristics->ProviderCleanupBindingContext = XdpApiKernelProviderCleanup;
+        Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
+        Characteristics->ProviderRegistrationInstance.NpiId = &NPI_XDPAPI_INTERFACE_ID;
+        Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
+        Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_1;
+
+        Status = NmrRegisterProvider(Characteristics, &XdpApiProvider, &XdpApiProvider.NmrProviderHandle);
+        if (!NT_SUCCESS(Status)) {
+            TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
+            goto Exit;
+        }
     }
+
+    Status = STATUS_SUCCESS;
 
 Exit:
 
