@@ -159,7 +159,7 @@ try {
     }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -XdpInstaller INF -Config $Config -Arch $Arch
+    & "$RootDir\tools\setup.ps1" -Install xdp -XdpInstaller INF -Config $Config -Arch $Arch -EnableKmXdpApi:$KernelMode
     Write-Verbose "installed xdp."
 
     if ($KernelMode) {

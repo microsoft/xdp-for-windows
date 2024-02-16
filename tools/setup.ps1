@@ -21,6 +21,9 @@ This script installs or uninstalls various XDP components.
 .PARAMETER UseJitEbpf
     If true, install JIT mode for eBPF.
 
+.PARAMETER EnableKmXdpApi
+    Enable kernel-mode XDPAPI in the XDP driver.
+
 #>
 
 param (
@@ -52,7 +55,10 @@ param (
     [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$UseJitEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableKmXdpApi = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -266,6 +272,12 @@ function Install-Xdp {
     if ($EnableEbpf) {
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+        Stop-Service xdp
+    }
+
+    if ($EnableKmXdpApi) {
+        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v EnableKmXdpApi /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v EnableKmXdpApi /d 1 /t REG_DWORD /f | Write-Verbose
         Stop-Service xdp
     }
 
