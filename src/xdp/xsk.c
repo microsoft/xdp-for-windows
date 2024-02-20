@@ -157,7 +157,7 @@ typedef struct _XSK {
     XSK_IO_WAIT_FLAGS IoWaitInternalFlags;
     KEVENT IoWaitEvent;
     IRP *IoWaitIrp;
-    PXSK_NOTIFY_CALLBACK NotifyCallback;
+    XSK_NOTIFY_CALLBACK *NotifyCallback;
     VOID *NotifyCallbackCompletionContext;
     CHAR NotifyCallbackArmed;
     XSK_STATISTICS Statistics;
@@ -1034,7 +1034,7 @@ _IRQL_requires_same_
 NTSTATUS
 XskCreate(
     _Out_ XSK **Xsk,
-    _In_opt_ PXSK_NOTIFY_CALLBACK NotifyCallback,
+    _In_opt_ XSK_NOTIFY_CALLBACK *NotifyCallback,
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor

@@ -161,7 +161,7 @@ typedef VOID* XSK_COMPLETION_CONTEXT;
 typedef
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_STATUS
-(*PXSK_NOTIFY_CALLBACK) (
+XSK_NOTIFY_CALLBACK(
     _In_ VOID *ClientContext,
     _In_ XSK_NOTIFY_RESULT_FLAGS Result
     );

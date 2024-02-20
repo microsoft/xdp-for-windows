@@ -128,7 +128,7 @@ typedef struct _XDP_API_PROVIDER_DISPATCH {
 } XDP_API_PROVIDER_DISPATCH;
 
 typedef struct _XDP_API_CLIENT_DISPATCH {
-    PXSK_NOTIFY_CALLBACK XskNotifyCallback;
+    XSK_NOTIFY_CALLBACK *XskNotifyCallback;
 } XDP_API_CLIENT_DISPATCH;
 
 #else
