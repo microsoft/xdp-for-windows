@@ -566,7 +566,6 @@ function Uninstall-XdpFnLwf {
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
     $EbpfOptions = ""
 
     Write-Verbose "Installing eBPF for Windows"
@@ -599,7 +598,6 @@ function Install-Ebpf {
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfMsiFullPath = (Resolve-Path $EbpfMsiFullPath).Path
     $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {
