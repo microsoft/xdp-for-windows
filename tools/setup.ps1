@@ -623,16 +623,15 @@ function Uninstall-Ebpf {
     }
 
     if ($Process.ExitCode -ne 0) {
-        if ($Process.ExitCode -eq 0x666) {
-            Write-Error "An unexpected version of eBPF could not be uninstalled"
-        } else {
-            Write-Error "MSI uninstall failed with status $($Process.ExitCode)" -ErrorAction Continue
-            Uninstall-Failure "ebpf_uninstall.dmp"
-        }
+        Write-Warning "Uninstalling eBPF from $EbpfMsiFullPath failed: $($Process.ExitCode)"
+
+        Write-Verbose "Attempting generic uninstall using Uninstall-Package"
+        Get-Package | Where-Object -Property "Name" -eq "eBPF for Windows" | Uninstall-Package
     }
 
     if (Test-Path $EbpfPath) {
         Write-Error "eBPF could not be uninstalled"
+        Uninstall-Failure "ebpf_uninstall.dmp"
     }
     Refresh-Path
 }
