@@ -123,4 +123,5 @@ typedef struct _XSK_SET_SOCKOPT_IN {
 typedef struct _XSK_NOTIFY_IN {
     XSK_NOTIFY_FLAGS Flags;
     UINT32 WaitTimeoutMilliseconds;
+    XSK_COMPLETION_CONTEXT CompletionContext;
 } XSK_NOTIFY_IN;

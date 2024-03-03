@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include <pkthlp.h>
+#include <xdpioctl.h>
 #include <xdp/buffervirtualaddress.h>
 #include <xdp/datapath.h>
 #include <xdp/extensioninfo.h>

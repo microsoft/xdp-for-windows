@@ -8,6 +8,7 @@
 #include "redirect.h"
 
 typedef struct _XDP_PROGRAM XDP_PROGRAM;
+typedef struct _XDP_PROGRAM_OBJECT XDP_PROGRAM_OBJECT;
 typedef struct _XDP_RX_QUEUE XDP_RX_QUEUE;
 
 typedef ebpf_execution_context_state_t XDP_INSPECTION_EBPF_CONTEXT;
@@ -74,6 +75,18 @@ BOOLEAN
 XdpProgramCanXskBypass(
     _In_ XDP_PROGRAM *Program,
     _In_ XDP_RX_QUEUE *RxQueue
+    );
+
+NTSTATUS
+XdpProgramCreate(
+    _Out_ XDP_PROGRAM_OBJECT **NewProgramObject,
+    _In_ const XDP_PROGRAM_OPEN *Params,
+    _In_ KPROCESSOR_MODE RequestorMode
+    );
+
+VOID
+XdpProgramClose(
+    _In_ XDP_PROGRAM_OBJECT *ProgramObject
     );
 
 XDP_FILE_CREATE_ROUTINE XdpIrpCreateProgram;

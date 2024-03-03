@@ -59,6 +59,9 @@ param (
     [int]$SocketCount = 1,
 
     [Parameter(Mandatory=$false)]
+    [switch]$KernelMode = $false,
+
+    [Parameter(Mandatory=$false)]
     [string]$RawResultsFile = "",
 
     [Parameter(Mandatory=$false)]
@@ -156,8 +159,14 @@ try {
     }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+    & "$RootDir\tools\setup.ps1" -Install xdp -XdpInstaller INF -Config $Config -Arch $Arch -EnableKmXdpApi:$KernelMode
     Write-Verbose "installed xdp."
+
+    if ($KernelMode) {
+        Write-Verbose "installing xskbenchdrv..."
+        & "$RootDir\tools\setup.ps1" -Install xskbenchdrv -Config $Config -Arch $Arch
+        Write-Verbose "installed xskbenchdrv."
+    }
 
     $Format = "{0,-73} {1,-14} {2,-14}"
     Write-Host $($Format -f "Test Case", "Avg (Kpps)", "Std Dev (Kpps)")
@@ -181,6 +190,9 @@ try {
                         }
                         if ($Fndis) {
                             $Options += "-FNDIS"
+                        }
+                        if ($KernelMode) {
+                            $Options += "-KERNEL"
                         }
 
                         $ScenarioName = `
@@ -208,7 +220,7 @@ try {
                                     -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
                                     -RxInject:$RxInject -TxInspect:$TxInspect `
                                     -TxInspectContentionCount $TxInspectContentionCount `
-                                    -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
+                                    -SocketCount:$SocketCount -Fndis:$Fndis -KernelMode:$KernelMode -Config $Config `
                                     -Arch $Arch -XperfFile $XperfFile
 
                                 $kppsList += ExtractKppsStat $TmpFile
@@ -236,7 +248,10 @@ try {
         }
     }
 } finally {
-    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    if ($KernelMode) {
+        & "$RootDir\tools\setup.ps1" -Uninstall xskbenchdrv -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    }
+    & "$RootDir\tools\setup.ps1" -Uninstall xdp -XdpInstaller INF -Config $Config -Arch $Arch -ErrorAction 'Continue'
     if ($AdapterNames.Contains("XDPMP")) {
         & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         if ($Fndis) {

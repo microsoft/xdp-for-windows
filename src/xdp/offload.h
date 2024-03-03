@@ -26,6 +26,21 @@ typedef struct _XDP_INTERFACE_OBJECT {
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
+XdpInterfaceCreate(
+    _Out_ XDP_INTERFACE_OBJECT **InterfaceObject,
+    _In_ const XDP_INTERFACE_OPEN *Params
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XdpInterfaceDelete(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
 XdpIrpCreateInterface(
     _Inout_ IRP *Irp,
     _Inout_ IO_STACK_LOCATION *IrpSp,
@@ -43,4 +58,27 @@ VOID
 XdpOffloadRevertSettings(
     _In_ XDP_IFSET_HANDLE IfSetHandle,
     _In_ XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle
+    );
+
+NTSTATUS
+XdpInterfaceOffloadRssGetCapabilities(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
+    _In_ SIZE_T OutputBufferLength,
+    _Out_ UINT32 *BytesReturned
+    );
+
+NTSTATUS
+XdpInterfaceOffloadRssGet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _Out_writes_bytes_opt_(OutputBufferLength) VOID *OutputBuffer,
+    _In_ SIZE_T OutputBufferLength,
+    _Out_ UINT32 *BytesReturned
+    );
+
+NTSTATUS
+XdpInterfaceOffloadRssSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _In_ const VOID *InputBuffer,
+    _In_ SIZE_T InputBufferLength
     );

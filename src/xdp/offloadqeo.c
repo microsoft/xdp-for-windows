@@ -101,20 +101,19 @@ XdpOffloadQeoInvalidateConnection(
 }
 
 NTSTATUS
-XdpIrpInterfaceOffloadQeoSet(
+XdpInterfaceOffloadQeoSet(
     _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
-    _Inout_ IRP *Irp,
-    _In_ IO_STACK_LOCATION *IrpSp
+    _In_ const XDP_QUIC_CONNECTION *ConnectionsIn,
+    _In_ UINT32 InputBufferLength,
+    _Inout_ UINT32 *OutputBufferLength
     )
 {
     NTSTATUS Status;
     XDP_OFFLOAD_QEO_SETTINGS *QeoSettings;
     XDP_OFFLOAD_PARAMS_QEO QeoParams = {0};
-    const XDP_QUIC_CONNECTION *ConnectionsIn = Irp->AssociatedIrp.SystemBuffer;
-    UINT32 InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
-    UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
     BOOLEAN RundownAcquired = FALSE;
     BOOLEAN LockHeld = FALSE;
+    UINT32 OriginalInputBufferLength = InputBufferLength;
 
     TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
@@ -125,7 +124,7 @@ XdpIrpInterfaceOffloadQeoSet(
         &XdpIfGetOffloadIfSettings(
             InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle)->Qeo;
 
-    if (InputBufferLength == 0 || OutputBufferLength != InputBufferLength) {
+    if (InputBufferLength == 0 || *OutputBufferLength != InputBufferLength) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -245,7 +244,7 @@ XdpIrpInterfaceOffloadQeoSet(
     LockHeld = FALSE;
 
     ASSERT(InputBufferLength == 0);
-    InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    InputBufferLength = OriginalInputBufferLength;
 
     //
     // Issue the internal request to the interface.
@@ -313,6 +312,27 @@ Exit:
     if (RundownAcquired) {
         XdpIfReleaseOffloadRundown(InterfaceObject->IfSetHandle);
     }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+NTSTATUS
+XdpIrpInterfaceOffloadQeoSet(
+    _In_ XDP_INTERFACE_OBJECT *InterfaceObject,
+    _Inout_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    const XDP_QUIC_CONNECTION *ConnectionsIn = Irp->AssociatedIrp.SystemBuffer;
+    UINT32 InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+
+    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+
+    Status = XdpInterfaceOffloadQeoSet(InterfaceObject, ConnectionsIn, InputBufferLength, &OutputBufferLength);
 
     if (NT_SUCCESS(Status)) {
         Irp->IoStatus.Information = OutputBufferLength;
