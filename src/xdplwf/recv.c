@@ -655,6 +655,9 @@ XdpGenericReceivePreInspectNbs(
     FrameRingReservedCount = CanPend ? 0 : FrameRing->Mask;
 
     do {
+        NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+            (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+                &NET_BUFFER_LIST_INFO(*Nbl, TcpIpChecksumNetBufferListInfo);
         ASSERT(XdpRingFree(FrameRing) > FrameRingReservedCount);
         Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
 
@@ -748,6 +751,29 @@ XdpGenericReceivePreInspectNbs(
 
         FragmentExtension = XdpGetFragmentExtension(Frame, &RxQueue->FragmentExtension);
         FragmentExtension->FragmentBufferCount = FragmentCount;
+
+        Frame->Layout.Layer4Type = XdpFrameLayer4TypeUnspecified;
+
+        if (ChecksumInfo->Value != 0) {
+            Frame->Checksum.Layer3 = !!ChecksumInfo->Receive.IpChecksumSucceeded;
+            Frame->Checksum.Layer4 =
+                ChecksumInfo->Receive.TcpChecksumSucceeded ||
+                    ChecksumInfo->Receive.UdpChecksumSucceeded;
+
+            if (ChecksumInfo->Receive.TcpChecksumSucceeded) {
+                Frame->Layout.Layer4Type = XdpFrameLayer4TypeTcp;
+            }
+
+            if (ChecksumInfo->Receive.UdpChecksumSucceeded) {
+                Frame->Layout.Layer4Type = XdpFrameLayer4TypeUdp;
+            }
+        } else {
+            //
+            // TODO: does the compiler effectively optimize this to a single
+            // byte being cleared?
+            //
+            RtlZeroMemory(&Frame->Checksum, sizeof(Frame->Checksum));
+        }
 
         //
         // Store the original NB address so uninspected frames (e.g. those where
