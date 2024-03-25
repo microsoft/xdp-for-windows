@@ -7,6 +7,7 @@
     <!-- Project-wide properties -->
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.9.0\</EbpfPackagePath>
     <WiXPackagePath>$(SolutionDir)packages\wix.3.14.0\</WiXPackagePath>
+    <FnPackagePath>$(SolutionDir)artifacts\fn\devkit-0.4.1\</FnPackagePath>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
   <ItemGroup Label="ProjectConfigurations">

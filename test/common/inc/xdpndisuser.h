@@ -13,8 +13,6 @@ extern "C" {
 #define NDIS_STATUS_PENDING                     ((NDIS_STATUS)STATUS_PENDING)
 #define NDIS_STATUS_FAILURE                     ((NDIS_STATUS)STATUS_UNSUCCESSFUL)
 
-#include <xdpfnoid.h>
-
 //
 // offload specific status indication codes
 //

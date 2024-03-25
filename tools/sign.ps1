@@ -79,14 +79,6 @@ $XdpMpDir = Join-Path $ArtifactsDir "xdpmp"
 $XdpMpSys = Join-Path $XdpMpDir "xdpmp.sys"
 $XdpMpInf = Join-Path $XdpMpDir "xdpmp.inf"
 $XdpMpCat = Join-Path $XdpMpDir "xdpmp.cat"
-$XdpFnMpDir = Join-Path $ArtifactsDir "xdpfnmp"
-$XdpFnMpSys = Join-Path $XdpFnMpDir "xdpfnmp.sys"
-$XdpFnMpInf = Join-Path $XdpFnMpDir "xdpfnmp.inf"
-$XdpFnMpCat = Join-Path $XdpFnMpDir "xdpfnmp.cat"
-$XdpFnLwfDir = Join-Path $ArtifactsDir "xdpfnlwf"
-$XdpFnLwfSys = Join-Path $XdpFnLwfDir "xdpfnlwf.sys"
-$XdpFnLwfInf = Join-Path $XdpFnLwfDir "xdpfnlwf.inf"
-$XdpFnLwfCat = Join-Path $XdpFnLwfDir "xdpfnlwf.cat"
 
 # Verify all the files are present.
 if (!(Test-Path $XdpSys)) { Write-Error "$XdpSys does not exist!" }
@@ -94,10 +86,6 @@ if (!(Test-Path $XdpInf)) { Write-Error "$XdpInf does not exist!" }
 if (!(Test-Path $FndisSys)) { Write-Error "$FndisSys does not exist!" }
 if (!(Test-Path $XdpMpSys)) { Write-Error "$XdpMpSys does not exist!" }
 if (!(Test-Path $XdpMpInf)) { Write-Error "$XdpMpInf does not exist!" }
-if (!(Test-Path $XdpFnMpSys)) { Write-Error "$XdpFnMpSys does not exist!" }
-if (!(Test-Path $XdpFnMpInf)) { Write-Error "$XdpFnMpInf does not exist!" }
-if (!(Test-Path $XdpFnLwfSys)) { Write-Error "$XdpFnLwfSys does not exist!" }
-if (!(Test-Path $XdpFnLwfInf)) { Write-Error "$XdpFnLwfInf does not exist!" }
 
 # Sign the driver files.
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpSys
@@ -106,29 +94,17 @@ if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpMpSys
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnMpSys
-if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnLwfSys
-if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Build up the catalogs.
 & $Inf2CatToolPath /driver:$XdpDir /os:10_x64
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
 & $Inf2CatToolPath /driver:$XdpMpDir /os:10_x64
 if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
-& $Inf2CatToolPath /driver:$XdpFnMpDir /os:10_x64
-if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
-& $Inf2CatToolPath /driver:$XdpFnLwfDir /os:10_x64
-if ($LastExitCode) { Write-Error "inf2cat.exe exit code: $LastExitCode" }
 
 # Sign the catalogs.
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 & $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpMpCat
-if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnMpCat
-if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
-& $SignToolPath sign /f $CertPath -p "placeholder" /fd SHA256 $XdpFnLwfCat
 if ($LastExitCode) { Write-Error "signtool.exe exit code: $LastExitCode" }
 
 # Copy the cert to the artifacts dir.

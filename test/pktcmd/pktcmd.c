@@ -7,6 +7,7 @@
 #include <netiodef.h>
 #include <ws2ipdef.h>
 #include <mstcpip.h>
+#include <winternl.h>
 #include <pkthlp.h>
 #include <stdio.h>
 #include <stdlib.h>
