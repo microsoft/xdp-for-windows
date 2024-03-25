@@ -47,9 +47,9 @@
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)test\functional\lwf\inc;
         $(SolutionDir)test\functional\mp\inc;
-        $(SolutionDir)test\pkthlp;
         $(SolutionDir)submodules\net-offloads\include;
         $(SolutionDir)submodules\wil\include;
+        $(FnPackagePath)include;
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>

@@ -178,9 +178,7 @@ function Download-Fn-DevKit {
     $FnDevKitZip = "$FnDevKitDir/devkit.zip"
 
     if (!(Test-Path $FnDevKitDir)) {
-        if (!(Test-Path $FnDevKitDir)) {
-            mkdir $FnDevKitDir | Write-Verbose
-        }
+        mkdir $FnDevKitDir | Write-Verbose
 
         Invoke-WebRequest-WithRetry -Uri $FnDevKitUrl -OutFile $FnDevKitZip
         Expand-Archive -Path $FnDevKitZip -DestinationPath $FnDevKitDir -Force

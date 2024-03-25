@@ -94,13 +94,13 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf
         Write-Verbose "installed xdp."
 
-        Write-Verbose "installing xdpfnmp..."
-        & "$RootDir\tools\setup.ps1" -Install xdpfnmp -Config $Config -Arch $Arch
-        Write-Verbose "installed xdpfnmp."
+        Write-Verbose "installing fnmp..."
+        & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Arch $Arch
+        Write-Verbose "installed fnmp."
 
-        Write-Verbose "installing xdpfnlwf..."
-        & "$RootDir\tools\setup.ps1" -Install xdpfnlwf -Config $Config -Arch $Arch
-        Write-Verbose "installed xdpfnlwf."
+        Write-Verbose "installing fnlwf..."
+        & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
+        Write-Verbose "installed fnlwf."
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
@@ -148,8 +148,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }
-        & "$RootDir\tools\setup.ps1" -Uninstall xdpfnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdpfnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Arch $Arch -ErrorAction 'Continue'
     }

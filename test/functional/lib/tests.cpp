@@ -51,9 +51,8 @@
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 #include <pkthlp.h>
-#include <xdpfnmpapi.h>
-#include <xdpfnlwfapi.h>
-#include <xdpndisuser.h>
+#include <fnmpapi.h>
+#include <fnlwfapi.h>
 #include <fntrace.h>
 #include <qeo_ndis.h>
 
@@ -1387,7 +1386,7 @@ MpOpenGeneric(
     )
 {
     wil::unique_handle Handle;
-    TEST_HRESULT(FnMpOpenGeneric(IfIndex, &Handle));
+    TEST_HRESULT(FnMpOpenShared(IfIndex, &Handle));
     return Handle;
 }
 
@@ -5725,21 +5724,6 @@ GenericLoopback(
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
-}
-
-VOID
-FnMpNativeHandleTest()
-{
-    auto NativeMp = MpOpenNative(FnMpIf.GetIfIndex());
-
-    //
-    // Verify exclusivity.
-    //
-    wil::unique_handle Handle;
-    TEST_TRUE(FAILED(FnMpOpenNative(FnMpIf.GetIfIndex(), &Handle)));
-
-    MpXdpRegister(NativeMp);
-    MpXdpDeregister(NativeMp);
 }
 
 VOID
