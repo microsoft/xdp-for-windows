@@ -172,6 +172,38 @@ function Download-Ebpf-Msi {
     }
 }
 
+function Download-Fn-DevKit {
+    $FnDevKitUrl = Get-FnDevKitUrl
+    $FnDevKitDir = Get-FnDevKitDir
+    $FnDevKitZip = "$FnDevKitDir/devkit.zip"
+
+    if (!(Test-Path $FnDevKitDir)) {
+        if (!(Test-Path $FnDevKitDir)) {
+            mkdir $FnDevKitDir | Write-Verbose
+        }
+
+        Invoke-WebRequest-WithRetry -Uri $FnDevKitUrl -OutFile $FnDevKitZip
+        Expand-Archive -Path $FnDevKitZip -DestinationPath $FnDevKitDir -Force
+        Remove-Item -Path $FnDevKitZip
+    }
+}
+
+function Download-Fn-Runtime {
+    $FnRuntimeUrl = Get-FnRuntimeUrl
+    $FnRuntimeDir = Get-FnRuntimeDir
+    $FnRuntimeZip = "$FnRuntimeDir/runtime.zip"
+
+    if (!(Test-Path $FnRuntimeDir)) {
+        if (!(Test-Path $FnRuntimeDir)) {
+            mkdir $FnRuntimeDir | Write-Verbose
+        }
+
+        Invoke-WebRequest-WithRetry -Uri $FnRuntimeUrl -OutFile $FnRuntimeZip
+        Expand-Archive -Path $FnRuntimeZip -DestinationPath $FnRuntimeDir -Force
+        Remove-Item -Path $FnRuntimeZip
+    }
+}
+
 function Setup-TestSigning {
     # Check to see if test signing is enabled.
     $HasTestSigning = $false
@@ -264,6 +296,7 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
+        Download-Fn-DevKit
     }
 
     if ($ForEbpfBuild) {
@@ -281,8 +314,8 @@ if ($Cleanup) {
         # Verifier configuration: standard flags on all XDP components, and NDIS.
         # The NDIS verifier is required, otherwise allocations NDIS makes on
         # behalf of XDP components (e.g. NBLs) will not be verified.
-        Write-Verbose "verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys ebpfcore.sys"
-        verifier.exe /standard /driver xdp.sys xdpfnmp.sys xdpfnlwf.sys ndis.sys ebpfcore.sys | Write-Verbose
+        Write-Verbose "verifier.exe /standard /driver xdp.sys fnmp.sys fnlwf.sys ndis.sys ebpfcore.sys"
+        verifier.exe /standard /driver xdp.sys fnmp.sys fnlwf.sys ndis.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }
@@ -291,6 +324,13 @@ if ($Cleanup) {
             # Enable complete (kernel + user) system crash dumps
             Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
             reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
+            $Reboot = $true
+        }
+
+        Download-Fn-Runtime
+        Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
+        $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
+        if ($null -ne $FnResult -and $FnResult -contains "RebootRequired" -and $FnResult["RebootRequired"]) {
             $Reboot = $true
         }
     }

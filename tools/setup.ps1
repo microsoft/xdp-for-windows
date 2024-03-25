@@ -33,11 +33,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -531,36 +531,16 @@ function Uninstall-XdpFnMp {
     Write-Verbose "xdpfnmp.sys uninstall complete!"
 }
 
-# Installs the xdpfnlwf driver.
-function Install-XdpFnLwf {
-    if (!(Test-Path $XdpFnLwfSys)) {
-        Write-Error "$XdpFnLwfSys does not exist!"
-    }
-
-    Write-Verbose "netcfg.exe -v -l $XdpFnLwfInf -c s -i $XdpFnLwfComponentId"
-    netcfg.exe -v -l $XdpFnLwfInf -c s -i $XdpFnLwfComponentId | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "netcfg.exe exit code: $LastExitCode"
-    }
-
-    Start-Service-With-Retry xdpfnlwf
-
-    Write-Verbose "xdpfnlwf.sys install complete!"
+# Installs the fnlwf driver.
+function Install-FnLwf {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
-# Uninstalls the xdpfnlwf driver.
-function Uninstall-XdpFnLwf {
-    Write-Verbose "netcfg.exe -u $XdpFnLwfComponentId"
-    cmd.exe /c "netcfg.exe -u $XdpFnLwfComponentId 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "netcfg.exe failed: $LastExitCode"
-    }
-
-    Uninstall-Driver "xdpfnlwf.inf"
-
-    Cleanup-Service xdpfnlwf
-
-    Write-Verbose "xdpfnlwf.sys uninstall complete!"
+# Uninstalls the fnlwf driver.
+function Uninstall-FnLwf {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
 function Install-Ebpf {
