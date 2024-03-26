@@ -126,7 +126,7 @@ PktBuildUdpFrame(
     } else {
         IPV6_HEADER *IpHeader = Buffer;
         RtlZeroMemory(IpHeader, sizeof(*IpHeader));
-        IpHeader->Version = IPV6_VERSION;
+        IpHeader->VersionClassFlow = IPV6_VERSION;
         IpHeader->PayloadLength = htons(UdpLength);
         IpHeader->NextHeader = IPPROTO_UDP;
         IpHeader->HopLimit = 1;
@@ -221,7 +221,7 @@ PktBuildTcpFrame(
     } else {
         IPV6_HEADER *IpHeader = Buffer;
         RtlZeroMemory(IpHeader, sizeof(*IpHeader));
-        IpHeader->Version = IPV6_VERSION;
+        IpHeader->VersionClassFlow = IPV6_VERSION;
         IpHeader->PayloadLength = htons(TcpLength);
         IpHeader->NextHeader = IPPROTO_TCP;
         IpHeader->HopLimit = 1;

@@ -8,6 +8,7 @@
 #include <ntddk.h>
 #include <ndis.h>
 #include <ntintsafe.h>
+#include <netiodef.h>
 #include <pkthlp.h>
 #include <xdpddi.h>
 #include <xdpassert.h>

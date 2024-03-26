@@ -7,6 +7,7 @@
 
 #include <windows.h>
 #include <winternl.h>
+#include <netiodef.h>
 #include <ws2def.h>
 #include <mstcpip.h>
 #include <stdint.h>

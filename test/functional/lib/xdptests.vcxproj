@@ -53,6 +53,10 @@
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        UM_NDIS683=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatSpecificWarningsAsErrors>4834</TreatSpecificWarningsAsErrors>
     </ClCompile>

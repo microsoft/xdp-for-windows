@@ -4,6 +4,7 @@
 //
 
 #include <winsock2.h>
+#include <netiodef.h>
 #include <ws2ipdef.h>
 #include <mstcpip.h>
 #include <pkthlp.h>
