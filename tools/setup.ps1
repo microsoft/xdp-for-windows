@@ -421,8 +421,8 @@ function Uninstall-XdpMp {
 
 # Installs the fnmp driver.
 function Install-FnMp {
-    Write-Verbose "$(Get-FnMpRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnMpRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnMpRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnMpRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "Renaming adapters"
     Rename-NetAdapter-With-Retry FNMP XDPFNMP
@@ -471,8 +471,8 @@ function Uninstall-FnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
-    Write-Verbose "$(Get-FnMpRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnMpRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnMpRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnMpRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "fnmp.sys uninstall complete!"
 }

@@ -160,7 +160,7 @@ function Get-FnRuntimeUrl {
     "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-runtime-x64.zip"
 }
 
-function Get-FnMpRuntimeDir {
+function Get-FnRuntimeDir {
     $RootDir = Split-Path $PSScriptRoot -Parent
     return "$RootDir/artifacts/fn/runtime-$(Get-FnVersion)"
 }
