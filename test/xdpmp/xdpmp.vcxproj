@@ -70,9 +70,9 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;
         $(SolutionDir)src\rtl\inc;
-        $(SolutionDir)test\pkthlp;
         $(SolutionDir)test\fakendis\inc;
         $(IntDir);
+        $(FnPackagePath)include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>

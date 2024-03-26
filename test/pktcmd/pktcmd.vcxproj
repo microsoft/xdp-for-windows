@@ -9,11 +9,6 @@
   <ItemGroup>
     <ClCompile Include="pktcmd.c" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)test\pkthlp\um\pkthlp_um.vcxproj">
-      <Project>{e84ff937-7445-4b8e-ba40-dffacc09c060}</Project>
-    </ProjectReference>
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -42,7 +37,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
-        $(SolutionDir)test\pkthlp;
+        $(FnPackagePath)include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
     </ClCompile>
