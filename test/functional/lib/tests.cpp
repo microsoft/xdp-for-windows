@@ -53,6 +53,8 @@
 #include <pkthlp.h>
 #include <fnmpapi.h>
 #include <fnlwfapi.h>
+#include <fnoid.h>
+#include <xdpndisuser.h>
 #include <fntrace.h>
 #include <qeo_ndis.h>
 
@@ -119,8 +121,12 @@ template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
+using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
+using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 
 static unique_xdp_api XdpApi;
+static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
+static FNLWF_LOAD_API_CONTEXT FnLwfLoadApiContext;
 
 typedef enum _XDP_MODE {
     XDP_UNSPEC,
@@ -1380,45 +1386,34 @@ InitializeOidKey(
 }
 
 static
-wil::unique_handle
+unique_fnmp_handle
 MpOpenGeneric(
     _In_ UINT32 IfIndex
     )
 {
-    wil::unique_handle Handle;
+    unique_fnmp_handle Handle;
     TEST_HRESULT(FnMpOpenShared(IfIndex, &Handle));
     return Handle;
 }
 
 static
-wil::unique_handle
-MpOpenNative(
-    _In_ UINT32 IfIndex
-    )
-{
-    wil::unique_handle Handle;
-    TEST_HRESULT(FnMpOpenNative(IfIndex, &Handle));
-    return Handle;
-}
-
-static
-wil::unique_handle
+unique_fnmp_handle
 MpOpenAdapter(
     _In_ UINT32 IfIndex
     )
 {
-    wil::unique_handle Handle;
-    TEST_HRESULT(FnMpOpenAdapter(IfIndex, &Handle));
+    unique_fnmp_handle Handle;
+    TEST_HRESULT(FnMpOpenExclusive(IfIndex, &Handle));
     return Handle;
 }
 
 static
-wil::unique_handle
+unique_fnlwf_handle
 LwfOpenDefault(
     _In_ UINT32 IfIndex
     )
 {
-    wil::unique_handle Handle;
+    unique_fnlwf_handle Handle;
     HRESULT Result;
 
     //
@@ -1444,7 +1439,7 @@ LwfOpenDefault(
 static
 BOOLEAN
 LwfIsDatapathActive(
-    _In_ const wil::unique_handle& Handle
+    _In_ const unique_fnlwf_handle& Handle
     )
 {
     BOOLEAN IsDatapathActive;
@@ -1481,7 +1476,7 @@ struct RX_FRAME {
 static
 HRESULT
 MpRxEnqueueFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ RX_FRAME *RxFrame
     )
 {
@@ -1492,7 +1487,7 @@ MpRxEnqueueFrame(
 static
 HRESULT
 TryMpRxFlush(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1502,7 +1497,7 @@ TryMpRxFlush(
 static
 VOID
 MpRxFlush(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1526,7 +1521,7 @@ MpRxFlush(
 static
 HRESULT
 MpRxIndicateFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ RX_FRAME *RxFrame
     )
 {
@@ -1590,7 +1585,7 @@ RxInitializeFrame(
 static
 VOID
 MpTxFilter(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ const VOID *Pattern,
     _In_ const VOID *Mask,
     _In_ UINT32 Length
@@ -1602,19 +1597,19 @@ MpTxFilter(
 static
 HRESULT
 MpTxGetFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
     )
 {
-    return FnMpTxGetFrame(Handle.get(), Index, FrameBufferLength, Frame);
+    return FnMpTxGetFrame(Handle.get(), Index, 0, FrameBufferLength, Frame);
 }
 
 static
 unique_malloc_ptr<DATA_FRAME>
 MpTxAllocateAndGetFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ UINT32 Index
     )
 {
@@ -1646,7 +1641,7 @@ MpTxAllocateAndGetFrame(
 static
 VOID
 MpTxDequeueFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ UINT32 Index
     )
 {
@@ -1666,7 +1661,7 @@ MpTxDequeueFrame(
 static
 VOID
 MpTxFlush(
-    _In_ const wil::unique_handle& Handle
+    _In_ const unique_fnmp_handle& Handle
     )
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
@@ -1675,7 +1670,7 @@ MpTxFlush(
 static
 VOID
 LwfTxEnqueue(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ DATA_FRAME *Frame
     )
 {
@@ -1685,7 +1680,7 @@ LwfTxEnqueue(
 static
 VOID
 LwfTxFlush(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1708,7 +1703,7 @@ LwfTxFlush(
 static
 VOID
 LwfRxFilter(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ const VOID *Pattern,
     _In_ const VOID *Mask,
     _In_ UINT32 Length
@@ -1720,7 +1715,7 @@ LwfRxFilter(
 static
 HRESULT
 LwfRxGetFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
@@ -1732,7 +1727,7 @@ LwfRxGetFrame(
 static
 unique_malloc_ptr<DATA_FRAME>
 LwfRxAllocateAndGetFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ UINT32 Index
     )
 {
@@ -1764,7 +1759,7 @@ LwfRxAllocateAndGetFrame(
 static
 VOID
 LwfRxDequeueFrame(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ UINT32 Index
     )
 {
@@ -1784,7 +1779,7 @@ LwfRxDequeueFrame(
 static
 VOID
 LwfRxFlush(
-    _In_ const wil::unique_handle& Handle
+    _In_ const unique_fnlwf_handle& Handle
     )
 {
     TEST_HRESULT(FnLwfRxFlush(Handle.get()));
@@ -1793,7 +1788,7 @@ LwfRxFlush(
 static
 HRESULT
 LwfOidSubmitRequest(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
     _Inout_opt_ VOID *InformationBuffer
@@ -1808,7 +1803,7 @@ template <typename T>
 static
 unique_malloc_ptr<T>
 LwfOidAllocateAndSubmitRequest(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *BytesReturned
     )
@@ -1835,7 +1830,7 @@ LwfOidAllocateAndSubmitRequest(
 static
 VOID
 LwfStatusSetFilter(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _In_ NDIS_STATUS StatusCode,
     _In_ BOOLEAN BlockIndications,
     _In_ BOOLEAN QueueIndications
@@ -1848,7 +1843,7 @@ LwfStatusSetFilter(
 static
 HRESULT
 LwfStatusGetIndication(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _Inout_ UINT32 *StatusBufferLength,
     _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
     )
@@ -1860,7 +1855,7 @@ template <typename T>
 static
 unique_malloc_ptr<T>
 LwfStatusAllocateAndGetIndication(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnlwf_handle& Handle,
     _Out_ UINT32 *StatusBufferLength
     )
 {
@@ -1898,7 +1893,7 @@ LwfStatusAllocateAndGetIndication(
 static
 LARGE_INTEGER
 MpGetLastMiniportPauseTimestamp(
-    _In_ const wil::unique_handle& Handle
+    _In_ const unique_fnmp_handle& Handle
     )
 {
     LARGE_INTEGER Timestamp = {0};
@@ -1909,7 +1904,7 @@ MpGetLastMiniportPauseTimestamp(
 static
 VOID
 MpSetMtu(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ UINT32 Mtu
     )
 {
@@ -1919,7 +1914,7 @@ MpSetMtu(
 static
 VOID
 MpOidFilter(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ const OID_KEY *Keys,
     _In_ UINT32 KeyCount
     )
@@ -1930,7 +1925,7 @@ MpOidFilter(
 static
 HRESULT
 MpOidGetRequest(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
     _Out_opt_ VOID *InformationBuffer
@@ -1943,7 +1938,7 @@ template<typename T=decltype(TEST_TIMEOUT_ASYNC)>
 static
 unique_malloc_ptr<VOID>
 MpOidAllocateAndGetRequest(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *InformationBufferLength,
     _In_opt_ T Timeout = TEST_TIMEOUT_ASYNC
@@ -1978,7 +1973,7 @@ MpOidAllocateAndGetRequest(
 static
 HRESULT
 MpOidCompleteRequest(
-    _In_ const wil::unique_handle& Handle,
+    _In_ const unique_fnmp_handle& Handle,
     _In_ OID_KEY Key,
     _In_ NDIS_STATUS Status,
     _In_opt_ const VOID *InformationBuffer,
@@ -2262,7 +2257,7 @@ TryWaitForNdisDatapath(
             PowershellPrefix, If.GetIfDesc());
         AdapterUp = !!InvokeSystem(CmdBuff);
 
-        wil::unique_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
+        unique_fnlwf_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfUp = LwfIsDatapathActive(FnLwf);
     } while (Sleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
 
@@ -2332,23 +2327,6 @@ TestCleanup()
     XdpApi.reset();
     WPP_CLEANUP();
     return true;
-}
-
-VOID
-MpXdpRegister(
-    _In_ const wil::unique_handle& Handle
-    )
-{
-    TEST_HRESULT(FnMpXdpRegister(Handle.get()));
-}
-
-static
-VOID
-MpXdpDeregister(
-    _In_ const wil::unique_handle& Handle
-    )
-{
-    TEST_HRESULT(FnMpXdpDeregister(Handle.get()));
 }
 
 //
@@ -3887,8 +3865,8 @@ GenericRxFragmentBuffer(
     UINT32 PacketBufferOffset = 0;
     UINT32 TotalOffset = 0;
     MY_SOCKET Xsk;
-    wil::unique_handle GenericMp;
-    wil::unique_handle FnLwf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
     const XDP_HOOK_ID *RxHookId = Params->IsTxInspect ? &XdpInspectTxL2 : &XdpInspectRxL2;
 
     auto If = FnMpIf;
@@ -4530,8 +4508,8 @@ VOID
 GenericRxEbpfDrop()
 {
     auto If = FnMpIf;
-    wil::unique_handle GenericMp;
-    wil::unique_handle FnLwf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfDrop";
 
     unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
@@ -4559,8 +4537,8 @@ VOID
 GenericRxEbpfPass()
 {
     auto If = FnMpIf;
-    wil::unique_handle GenericMp;
-    wil::unique_handle FnLwf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfPass";
 
     unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
@@ -4585,7 +4563,7 @@ VOID
 GenericRxEbpfTx()
 {
     auto If = FnMpIf;
-    wil::unique_handle GenericMp;
+    unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfTx";
 
     unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
@@ -4609,8 +4587,8 @@ VOID
 GenericRxEbpfPayload()
 {
     auto If = FnMpIf;
-    wil::unique_handle GenericMp;
-    wil::unique_handle FnLwf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
     UINT16 LocalPort = 0, RemotePort = 0;
     ETHERNET_ADDRESS LocalHw = {}, RemoteHw = {};
     INET_ADDR LocalIp = {}, RemoteIp = {};
@@ -4713,8 +4691,8 @@ VOID
 GenericRxEbpfIfIndex()
 {
     auto If = FnMpIf;
-    wil::unique_handle GenericMp;
-    wil::unique_handle FnLwf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfIfIndex";
     UINT32 Zero = 0;
 
@@ -4776,8 +4754,8 @@ VOID
 GenericRxEbpfFragments()
 {
     auto If = FnMpIf;
-    wil::unique_handle GenericMp;
-    wil::unique_handle FnLwf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
     const UINT32 Backfill = 3;
     const UINT32 Trailer = 4;
     const UINT32 SplitAt = 4;

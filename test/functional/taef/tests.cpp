@@ -152,10 +152,6 @@ public:
         ::GenericTxMtu();
     }
 
-    TEST_METHOD(FnMpNativeHandleTest) {
-        ::FnMpNativeHandleTest();
-    }
-
     TEST_METHOD(GenericRxTcpControlV4) {
         GenericRxTcpControl(AF_INET);
     }

@@ -172,9 +172,6 @@ GenericLoopback(
     );
 
 VOID
-FnMpNativeHandleTest();
-
-VOID
 FnLwfRx();
 
 VOID
