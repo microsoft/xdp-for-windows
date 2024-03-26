@@ -13,10 +13,6 @@
 
 EXTERN_C_START
 
-#ifndef KERNEL_MODE
-#include <xdpndisuser.h>
-#endif
-
 typedef struct _DATA_BUFFER {
     const UCHAR *VirtualAddress;
     UINT32 DataOffset;
