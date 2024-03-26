@@ -68,11 +68,11 @@
 
 #include "tests.tmh"
 
-#define FNMP_IF_DESC "XDPFNMP"
+#define FNMP_IF_DESC "FNMP"
 #define FNMP_IPV4_ADDRESS "192.168.200.1"
 #define FNMP_IPV6_ADDRESS "fc00::200:1"
 
-#define FNMP1Q_IF_DESC "XDPFNMP #2"
+#define FNMP1Q_IF_DESC "FNMP #2"
 #define FNMP1Q_IPV4_ADDRESS "192.168.201.1"
 #define FNMP1Q_IPV6_ADDRESS "fc00::201:1"
 
@@ -2312,6 +2312,8 @@ TestSetup()
     XdpApi = OpenApi();
     TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
+    TEST_EQUAL(FnMpLoadApi(&FnMpLoadApiContext), FNMPAPI_STATUS_SUCCESS);
+    TEST_EQUAL(FnLwfLoadApi(&FnLwfLoadApiContext), FNLWFAPI_STATUS_SUCCESS);
     WaitForWfpQuarantine(FnMpIf);
     WaitForNdisDatapath(FnMpIf);
     WaitForWfpQuarantine(FnMp1QIf);
@@ -2322,6 +2324,8 @@ TestSetup()
 bool
 TestCleanup()
 {
+    FnLwfUnloadApi(FnLwfLoadApiContext);
+    FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
     TEST_EQUAL(0, WSACleanup());
     XdpApi.reset();
@@ -5702,154 +5706,6 @@ GenericLoopback(
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
-}
-
-VOID
-FnLwfRx()
-{
-    auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
-    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
-
-    const UINT32 DataOffset = 3;
-    const UCHAR Payload[] = "FnLwfRx";
-    UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
-    UINT64 Mask = ~0ui64;
-    const UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
-    UCHAR BufferVa[BufferVaSize];
-
-    DATA_BUFFER Buffer = {0};
-    Buffer.DataOffset = DataOffset;
-    Buffer.DataLength = sizeof(Pattern) + sizeof(Payload);
-    Buffer.BufferLength = BufferVaSize;
-    Buffer.VirtualAddress = BufferVa;
-
-    RtlCopyMemory(BufferVa + DataOffset, &Pattern, sizeof(Pattern));
-    RtlCopyMemory(BufferVa + DataOffset + sizeof(Pattern), Payload, sizeof(Payload));
-
-    LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
-
-    RX_FRAME Frame;
-    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
-    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
-    TEST_HRESULT(TryMpRxFlush(GenericMp));
-
-    auto LwfRxFrame = LwfRxAllocateAndGetFrame(DefaultLwf, 0);
-    TEST_EQUAL(LwfRxFrame->BufferCount, Frame.Frame.BufferCount);
-
-    const DATA_BUFFER *LwfRxBuffer = &LwfRxFrame->Buffers[0];
-    TEST_EQUAL(LwfRxBuffer->BufferLength, Buffer.BufferLength);
-    TEST_EQUAL(LwfRxBuffer->DataOffset, Buffer.DataOffset);
-    TEST_TRUE(
-        RtlEqualMemory(
-            Buffer.VirtualAddress + Buffer.DataOffset,
-            LwfRxBuffer->VirtualAddress + LwfRxBuffer->DataOffset,
-            Buffer.DataLength));
-
-    LwfRxDequeueFrame(DefaultLwf, 0);
-    LwfRxFlush(DefaultLwf);
-}
-
-VOID
-FnLwfTx()
-{
-    auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
-    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
-
-    const UINT32 DataOffset = 3;
-    const UCHAR Payload[] = "FnLwfTx";
-    UINT64 Pattern = 0x39E8534AA85B4A98ui64;
-    UINT64 Mask = ~0ui64;
-    const UINT32 BufferVaSize = DataOffset + sizeof(Pattern) + sizeof(Payload);
-    UCHAR BufferVa[BufferVaSize];
-
-    DATA_FRAME Frame = {0};
-    DATA_BUFFER Buffer = {0};
-    Frame.BufferCount = 1;
-    Buffer.DataOffset = DataOffset;
-    Buffer.DataLength = sizeof(Pattern) + sizeof(Payload);
-    Buffer.BufferLength = BufferVaSize;
-    Buffer.VirtualAddress = BufferVa;
-    Frame.Buffers = &Buffer;
-
-    RtlCopyMemory(BufferVa + DataOffset, &Pattern, sizeof(Pattern));
-    RtlCopyMemory(BufferVa + DataOffset + sizeof(Pattern), Payload, sizeof(Payload));
-
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
-
-    LwfTxEnqueue(DefaultLwf, &Frame);
-    LwfTxFlush(DefaultLwf);
-
-    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
-    TEST_EQUAL(MpTxFrame->BufferCount, Frame.BufferCount);
-
-    const DATA_BUFFER *MpTxBuffer = &MpTxFrame->Buffers[0];
-    TEST_EQUAL(MpTxBuffer->BufferLength, Buffer.BufferLength);
-    TEST_EQUAL(MpTxBuffer->DataOffset, Buffer.DataOffset);
-    TEST_TRUE(
-        RtlEqualMemory(
-            Buffer.VirtualAddress + Buffer.DataOffset,
-            MpTxBuffer->VirtualAddress + MpTxBuffer->DataOffset,
-            Buffer.DataLength));
-
-    MpTxDequeueFrame(GenericMp, 0);
-    MpTxFlush(GenericMp);
-}
-
-VOID
-FnLwfOid()
-{
-    OID_KEY OidKeys[2];
-    UINT32 MpInfoBufferLength;
-    unique_malloc_ptr<VOID> MpInfoBuffer;
-    UINT32 LwfInfoBufferLength;
-    ULONG LwfInfoBuffer;
-    ULONG OriginalPacketFilter = 0;
-    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
-
-    //
-    // Get the existing packet filter from NDIS so we can tweak it to make sure
-    // the set OID makes it to the miniport. N.B. this get OID is handled by
-    // NDIS, not the miniport.
-    //
-    InitializeOidKey(&OidKeys[0], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestQueryInformation);
-    LwfInfoBufferLength = sizeof(OriginalPacketFilter);
-    TEST_HRESULT(
-        LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &OriginalPacketFilter));
-
-    //
-    // Get.
-    //
-    InitializeOidKey(&OidKeys[0], OID_GEN_RECEIVE_BLOCK_SIZE, NdisRequestQueryInformation);
-
-    //
-    // Set.
-    //
-    InitializeOidKey(&OidKeys[1], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestSetInformation);
-
-    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
-        auto AdapterMp = MpOpenAdapter(FnMpIf.GetIfIndex());
-
-        MpOidFilter(AdapterMp, &OidKeys[Index], 1);
-
-        LwfInfoBuffer = OriginalPacketFilter ^ (0x00000001);
-        LwfInfoBufferLength = sizeof(LwfInfoBuffer);
-        auto AsyncThread = std::async(
-            std::launch::async,
-            [&] {
-                return
-                    LwfOidSubmitRequest(
-                        DefaultLwf, OidKeys[Index], &LwfInfoBufferLength, &LwfInfoBuffer);
-            }
-        );
-
-        MpInfoBuffer = MpOidAllocateAndGetRequest(AdapterMp, OidKeys[Index], &MpInfoBufferLength);
-        AdapterMp.reset();
-
-        TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
-        TEST_HRESULT(AsyncThread.get());
-
-        TEST_EQUAL(LwfInfoBufferLength, sizeof(ULONG));
-    }
 }
 
 static

@@ -472,18 +472,6 @@ public:
         ::OffloadRssReset();
     }
 
-    TEST_METHOD(FnLwfRx) {
-        ::FnLwfRx();
-    }
-
-    TEST_METHOD(FnLwfTx) {
-        ::FnLwfTx();
-    }
-
-    TEST_METHOD(FnLwfOid) {
-        ::FnLwfOid();
-    }
-
     TEST_METHOD(OffloadSetHardwareCapabilities) {
         ::OffloadSetHardwareCapabilities();
     }
