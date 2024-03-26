@@ -8,6 +8,7 @@
 #include <ntddk.h>
 #include <ws2def.h>
 #include <ws2ipdef.h>
+#include <netiodef.h>
 #include <mstcpip.h>
 #include <pkthlp.h>
 

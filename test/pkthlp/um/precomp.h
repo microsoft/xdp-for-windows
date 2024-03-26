@@ -7,7 +7,9 @@
 
 #include <winsock2.h>
 #include <windows.h>
+#include <ws2def.h>
 #include <ws2ipdef.h>
+#include <netiodef.h>
 #include <mstcpip.h>
 #include <pkthlp.h>
 #include <winternl.h>

@@ -23,6 +23,8 @@
 #define NOMINMAX
 #include <winsock2.h>
 #include <windows.h>
+#include <ntddndis.h>
+#include <netiodef.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
@@ -452,7 +454,7 @@ public:
         ) const
     {
         GetHwAddress(HwAddress);
-        HwAddress->Bytes[sizeof(_HwAddress) - 1]++;
+        HwAddress->Byte[sizeof(_HwAddress) - 1]++;
     }
 
     VOID
