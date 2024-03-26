@@ -9,8 +9,8 @@ This helps start and stop ETW logging.
 .PARAMETER Arch
     When using an artifacts directory, specifies the CPU architecture to use.
 
-.PARAMETER SymbolPath
-    Specifies a directory containing symbol files.
+.PARAMETER SymbolPaths
+    Specifies a list of directories containing symbol files.
 
 .PARAMETER Start
     Starts logging.
@@ -43,7 +43,7 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [string]$SymbolPath = $null,
+    [string[]]$SymbolPaths = $null,
 
     [Parameter(Mandatory = $false)]
     [switch]$Start = $false,
@@ -78,6 +78,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"
 $TracePdb = Get-CoreNetCiArtifactPath -Name "tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
@@ -127,11 +128,13 @@ try {
             Write-Error "$EtlPath does not exist!"
         }
 
-        if (!$SymbolPath) {
-            $SymbolPath = $ArtifactsDir
+        if (!$SymbolPaths) {
+            $SymbolPaths = @($ArtifactsDir, $FnSymbolsDir)
         }
 
-        & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
+        foreach ($Path in $SymbolPaths) {
+            & $TracePdb -f "$Path\*.pdb" -p $TmfPath
+        }
 
         foreach ($Etl in Get-ChildItem $EtlPath) {
             Invoke-Expression "netsh trace convert $Etl tmfpath=$TmfPath overwrite=yes report=no"
