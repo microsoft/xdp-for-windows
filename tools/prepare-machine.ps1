@@ -177,9 +177,13 @@ function Download-Fn-DevKit {
     $FnDevKitDir = Get-FnDevKitDir
     $FnDevKitZip = "$FnDevKitDir/devkit.zip"
 
+    if ($Force -and (Test-Path $FnDevKitDir)) {
+        Remove-Item -Recurse -Force $FnDevKitDir
+    }
     if (!(Test-Path $FnDevKitDir)) {
         mkdir $FnDevKitDir | Write-Verbose
 
+        Write-Verbose "Downloading Fn dev kit"
         Invoke-WebRequest-WithRetry -Uri $FnDevKitUrl -OutFile $FnDevKitZip
         Expand-Archive -Path $FnDevKitZip -DestinationPath $FnDevKitDir -Force
         Remove-Item -Path $FnDevKitZip
@@ -191,11 +195,13 @@ function Download-Fn-Runtime {
     $FnRuntimeDir = Get-FnRuntimeDir
     $FnRuntimeZip = "$FnRuntimeDir/runtime.zip"
 
+    if ($Force -and (Test-Path $FnRuntimeDir)) {
+        Remove-Item -Recurse -Force $FnRuntimeDir
+    }
     if (!(Test-Path $FnRuntimeDir)) {
-        if (!(Test-Path $FnRuntimeDir)) {
-            mkdir $FnRuntimeDir | Write-Verbose
-        }
+        mkdir $FnRuntimeDir | Write-Verbose
 
+        Write-Verbose "Downloading Fn runtime kit"
         Invoke-WebRequest-WithRetry -Uri $FnRuntimeUrl -OutFile $FnRuntimeZip
         Expand-Archive -Path $FnRuntimeZip -DestinationPath $FnRuntimeDir -Force
         Remove-Item -Path $FnRuntimeZip
