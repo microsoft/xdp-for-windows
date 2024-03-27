@@ -64,11 +64,13 @@
 
 #include "tests.tmh"
 
-#define FNMP_IF_DESC "XDPFNMP"
+#define FNMP_IF_DESC_OLD "XDPFNMP"
+#define FNMP_IF_DESC "FNMP"
 #define FNMP_IPV4_ADDRESS "192.168.200.1"
 #define FNMP_IPV6_ADDRESS "fc00::200:1"
 
-#define FNMP1Q_IF_DESC "XDPFNMP #2"
+#define FNMP1Q_IF_DESC_OLD "XDPFNMP #2"
+#define FNMP1Q_IF_DESC "FNMP #2"
 #define FNMP1Q_IPV4_ADDRESS "192.168.201.1"
 #define FNMP1Q_IPV6_ADDRESS "fc00::201:1"
 
@@ -360,13 +362,15 @@ public:
 class TestInterface {
 private:
     CONST CHAR *_IfDesc;
+    CONST CHAR *_IfDescAlt;
     mutable UINT32 _IfIndex;
     mutable UCHAR _HwAddress[sizeof(ETHERNET_ADDRESS)]{ 0 };
     IN_ADDR _Ipv4Address;
     IN6_ADDR _Ipv6Address;
+    bool UseIfDescAlt;
 
     VOID
-    Query() const
+    Query()
     {
         IP_ADAPTER_INFO *Adapter;
         ULONG OutBufLen;
@@ -389,11 +393,16 @@ private:
         //
         Adapter = AdapterInfoList.get();
         while (Adapter != NULL) {
-            if (!strcmp(Adapter->Description, _IfDesc)) {
+            if (!strcmp(Adapter->Description, _IfDesc) ||
+                !strcmp(Adapter->Description, _IfDescAlt)) {
                 TEST_EQUAL(sizeof(_HwAddress), Adapter->AddressLength);
                 RtlCopyMemory(_HwAddress, Adapter->Address, sizeof(_HwAddress));
 
                 WriteUInt32Release(&_IfIndex, Adapter->Index);
+
+                if (!strcmp(Adapter->Description, _IfDescAlt)) {
+                    UseIfDescAlt = true;
+                }
             }
             Adapter = Adapter->Next;
         }
@@ -405,28 +414,30 @@ public:
 
     TestInterface(
         _In_z_ CONST CHAR *IfDesc,
+        _In_z_ CONST CHAR *IfDescAlt,
         _In_z_ CONST CHAR *Ipv4Address,
         _In_z_ CONST CHAR *Ipv6Address
         )
         :
         _IfDesc(IfDesc),
+        _IfDescAlt(IfDescAlt),
         _IfIndex(NET_IFINDEX_UNSPECIFIED)
     {
         CONST CHAR *Terminator;
         TEST_NTSTATUS(RtlIpv4StringToAddressA(Ipv4Address, FALSE, &Terminator, &_Ipv4Address));
         TEST_NTSTATUS(RtlIpv6StringToAddressA(Ipv6Address, &Terminator, &_Ipv6Address));
+        Query();
     }
 
     CONST CHAR*
     GetIfDesc() const
     {
-        return _IfDesc;
+        return (UseIfDescAlt) ? _IfDescAlt : _IfDesc;
     }
 
     NET_IFINDEX
     GetIfIndex() const
     {
-        Query();
         return _IfIndex;
     }
 
@@ -441,7 +452,6 @@ public:
         _Out_ ETHERNET_ADDRESS *HwAddress
         ) const
     {
-        Query();
         RtlCopyMemory(HwAddress, _HwAddress, sizeof(_HwAddress));
     }
 
@@ -494,7 +504,7 @@ public:
         CHAR CmdBuff[256];
         INT ExitCode;
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
+        sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, GetIfDesc());
         ExitCode = InvokeSystem(CmdBuff);
 
         if (ExitCode != 0) {
@@ -521,7 +531,7 @@ public:
     {
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
+        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, GetIfDesc());
         TEST_EQUAL(0, InvokeSystem(CmdBuff));
         Restart();
     }
@@ -534,7 +544,7 @@ public:
         sprintf_s(
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Disable-NetAdapterBinding -ComponentID ms_xdp",
-            PowershellPrefix, _IfDesc);
+            PowershellPrefix, GetIfDesc());
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 
@@ -546,13 +556,13 @@ public:
         sprintf_s(
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
-            PowershellPrefix, _IfDesc);
+            PowershellPrefix, GetIfDesc());
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 };
 
-static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
-static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
+static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IF_DESC_OLD, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
+static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IF_DESC_OLD, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
 
 static
 HRESULT
