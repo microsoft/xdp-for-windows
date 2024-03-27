@@ -64,11 +64,11 @@
 
 #include "tests.tmh"
 
-#define FNMP_IF_DESC "XDPFNMP"
+#define FNMP_IF_NAME "XDPFNMP"
 #define FNMP_IPV4_ADDRESS "192.168.200.1"
 #define FNMP_IPV6_ADDRESS "fc00::200:1"
 
-#define FNMP1Q_IF_DESC "XDPFNMP #2"
+#define FNMP1Q_IF_NAME "XDPFNMP1Q"
 #define FNMP1Q_IPV4_ADDRESS "192.168.201.1"
 #define FNMP1Q_IPV6_ADDRESS "fc00::201:1"
 
@@ -359,7 +359,7 @@ public:
 
 class TestInterface {
 private:
-    CONST CHAR *_IfDesc;
+    CONST CHAR *_IfName;
     mutable UINT32 _IfIndex;
     mutable UCHAR _HwAddress[sizeof(ETHERNET_ADDRESS)]{ 0 };
     IN_ADDR _Ipv4Address;
@@ -368,8 +368,7 @@ private:
     VOID
     Query() const
     {
-        IP_ADAPTER_INFO *Adapter;
-        ULONG OutBufLen;
+        MIB_IF_TABLE2 *IfTable = NULL;
 
         if (ReadUInt32Acquire(&_IfIndex) != NET_IFINDEX_UNSPECIFIED) {
             return;
@@ -378,24 +377,30 @@ private:
         //
         // Get information on all adapters.
         //
-        OutBufLen = 0;
-        TEST_EQUAL(ERROR_BUFFER_OVERFLOW, GetAdaptersInfo(NULL, &OutBufLen));
-        unique_malloc_ptr<IP_ADAPTER_INFO> AdapterInfoList{ (IP_ADAPTER_INFO *)malloc(OutBufLen) };
-        TEST_NOT_NULL(AdapterInfoList);
-        TEST_EQUAL(NO_ERROR, GetAdaptersInfo(AdapterInfoList.get(), &OutBufLen));
+        TEST_EQUAL((ULONG)NO_ERROR, GetIfTable2Ex(MibIfTableNormal, &IfTable));
+        TEST_NOT_NULL(IfTable);
+
+        auto ScopeGuard = wil::scope_exit([&]
+        {
+            FreeMibTable(IfTable);
+        });
+
+        SIZE_T CharsConverted;
+        WCHAR IfNameW[IF_MAX_STRING_SIZE + 1];
+        TEST_EQUAL(0, mbstowcs_s(&CharsConverted, IfNameW, strlen(_IfName) + 1, _IfName, IF_MAX_STRING_SIZE));
 
         //
         // Search for the test adapter.
         //
-        Adapter = AdapterInfoList.get();
-        while (Adapter != NULL) {
-            if (!strcmp(Adapter->Description, _IfDesc)) {
-                TEST_EQUAL(sizeof(_HwAddress), Adapter->AddressLength);
-                RtlCopyMemory(_HwAddress, Adapter->Address, sizeof(_HwAddress));
+        for (ULONG i = 0; i < IfTable->NumEntries; i++) {
+            MIB_IF_ROW2 *Row = &IfTable->Table[i];
 
-                WriteUInt32Release(&_IfIndex, Adapter->Index);
+            if (!wcscmp(Row->Alias, IfNameW)) {
+                TEST_EQUAL(sizeof(_HwAddress), Row->PhysicalAddressLength);
+                RtlCopyMemory(_HwAddress, Row->PhysicalAddress, sizeof(_HwAddress));
+
+                WriteUInt32Release(&_IfIndex, Row->InterfaceIndex);
             }
-            Adapter = Adapter->Next;
         }
 
         TEST_NOT_EQUAL(NET_IFINDEX_UNSPECIFIED, _IfIndex);
@@ -404,12 +409,12 @@ private:
 public:
 
     TestInterface(
-        _In_z_ CONST CHAR *IfDesc,
+        _In_z_ CONST CHAR *IfName,
         _In_z_ CONST CHAR *Ipv4Address,
         _In_z_ CONST CHAR *Ipv6Address
         )
         :
-        _IfDesc(IfDesc),
+        _IfName(IfName),
         _IfIndex(NET_IFINDEX_UNSPECIFIED)
     {
         CONST CHAR *Terminator;
@@ -418,9 +423,9 @@ public:
     }
 
     CONST CHAR*
-    GetIfDesc() const
+    GetIfName() const
     {
-        return _IfDesc;
+        return _IfName;
     }
 
     NET_IFINDEX
@@ -494,7 +499,7 @@ public:
         CHAR CmdBuff[256];
         INT ExitCode;
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -ifDesc \"%s\"", PowershellPrefix, _IfDesc);
+        sprintf_s(CmdBuff, "%s /c Restart-NetAdapter -Name \"%s\"", PowershellPrefix, _IfName);
         ExitCode = InvokeSystem(CmdBuff);
 
         if (ExitCode != 0) {
@@ -521,7 +526,7 @@ public:
     {
         CHAR CmdBuff[256];
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfDesc);
+        sprintf_s(CmdBuff, "%s /c Reset-NetAdapterAdvancedProperty -Name \"%s\" -DisplayName * -NoRestart", PowershellPrefix, _IfName);
         TEST_EQUAL(0, InvokeSystem(CmdBuff));
         Restart();
     }
@@ -533,8 +538,8 @@ public:
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(
             CmdBuff,
-            "%s /c \"(Get-NetAdapter -ifDesc '%s') | Disable-NetAdapterBinding -ComponentID ms_xdp",
-            PowershellPrefix, _IfDesc);
+            "%s /c \"(Get-NetAdapter -Name '%s') | Disable-NetAdapterBinding -ComponentID ms_xdp",
+            PowershellPrefix, _IfName);
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 
@@ -545,14 +550,14 @@ public:
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(
             CmdBuff,
-            "%s /c \"(Get-NetAdapter -ifDesc '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
-            PowershellPrefix, _IfDesc);
+            "%s /c \"(Get-NetAdapter -Name '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
+            PowershellPrefix, _IfName);
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
 };
 
-static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
-static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
+static TestInterface FnMpIf(FNMP_IF_NAME, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
+static TestInterface FnMp1QIf(FNMP1Q_IF_NAME, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
 
 static
 HRESULT
@@ -2256,8 +2261,8 @@ TryWaitForNdisDatapath(
     do {
         sprintf_s(
             CmdBuff,
-            "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
-            PowershellPrefix, If.GetIfDesc());
+            "%s /c exit (Get-NetAdapter -Name \"%s\").Status -eq \"Up\"",
+            PowershellPrefix, If.GetIfName());
         AdapterUp = !!InvokeSystem(CmdBuff);
 
         wil::unique_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -6757,11 +6762,11 @@ OffloadSetHardwareCapabilities()
 
     CHAR CmdBuff[256];
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4Capability -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
+    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -Name \"%s\" -DisplayName UDPChecksumOffloadIPv4Capability -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfName());
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
-    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -ifDesc \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfDesc());
+    sprintf_s(CmdBuff, "%s /c Set-NetAdapterAdvancedProperty -Name \"%s\" -DisplayName UDPChecksumOffloadIPv4 -DisplayValue 'TX Enabled' -NoRestart", PowershellPrefix, If.GetIfName());
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 
     If.Restart();
