@@ -9,8 +9,8 @@ This helps start and stop ETW logging.
 .PARAMETER Arch
     When using an artifacts directory, specifies the CPU architecture to use.
 
-.PARAMETER SymbolPaths
-    Specifies a list of directories containing symbol files.
+.PARAMETER SymbolPath
+    Specifies a directory containing symbol files.
 
 .PARAMETER Start
     Starts logging.
@@ -43,7 +43,7 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [string[]]$SymbolPaths = $null,
+    [string]$SymbolPath = $null,
 
     [Parameter(Mandatory = $false)]
     [switch]$Start = $false,
@@ -78,7 +78,6 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
-$FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"
 $TracePdb = Get-CoreNetCiArtifactPath -Name "tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
@@ -128,12 +127,15 @@ try {
             Write-Error "$EtlPath does not exist!"
         }
 
-        if (!$SymbolPaths) {
-            $SymbolPaths = @($ArtifactsDir, $FnSymbolsDir)
+        if (!$SymbolPath) {
+            $SymbolPath = $ArtifactsDir
         }
 
-        foreach ($Path in $SymbolPaths) {
-            & $TracePdb -f "$Path\*.pdb" -p $TmfPath
+        & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
+
+        $FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"
+        if (Test-Path $FnSymbolsDir) {
+            & $TracePdb -f "$FnSymbolsDir\*.pdb" -p $TmfPath
         }
 
         foreach ($Etl in Get-ChildItem $EtlPath) {

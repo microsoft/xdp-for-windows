@@ -61,11 +61,11 @@ To start XDP logging:
 
 To stop logging and convert the trace to plain text, use the following command.
 This will create a binary ETL file and a plain text file under `artifacts\logs`.
-To successfully convert WPP traces to plain text, the `-SymbolPaths` to a directory
+To successfully convert WPP traces to plain text, the `-SymbolPath` to a directory
 containing XDP symbols (.pdb files) must be provided.
 
 ```PowerShell
-.\tools\log.ps1 -Stop -Convert -SymbolPaths @("Path\To\Symbols")
+.\tools\log.ps1 -Stop -Convert -SymbolPath Path\To\Symbols
 ```
 
 The above command can be split into separate `-Stop` and `-Convert` actions when
