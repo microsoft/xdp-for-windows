@@ -172,15 +172,6 @@ GenericLoopback(
     );
 
 VOID
-FnLwfRx();
-
-VOID
-FnLwfTx();
-
-VOID
-FnLwfOid();
-
-VOID
 OffloadRssError();
 
 VOID
