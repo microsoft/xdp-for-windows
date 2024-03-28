@@ -3,7 +3,7 @@
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
     <XdpMinorVersion>0</XdpMinorVersion>
-    <XdpPatchVersion>1</XdpPatchVersion>
+    <XdpPatchVersion>2</XdpPatchVersion>
     <!-- Project-wide properties -->
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.9.0\</EbpfPackagePath>
     <WiXPackagePath>$(SolutionDir)packages\wix.3.14.0\</WiXPackagePath>
