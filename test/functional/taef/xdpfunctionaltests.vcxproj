@@ -16,17 +16,8 @@
     <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
       <Project>{bdd99a80-0936-47b0-918d-04cf3b472fb0}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\pkthlp\um\pkthlp_um.vcxproj">
-      <Project>{e84ff937-7445-4b8e-ba40-dffacc09c060}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\functional\mp\lib\xdpfnmpapi.vcxproj">
-      <Project>{15de7d30-6a0b-47c7-8ddc-1cfc658e8a1e}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\functional\lwf\lib\xdpfnlwfapi.vcxproj">
-      <Project>{34a40976-2d2e-4a27-b9ff-390fc573a4de}</Project>
     </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -143,6 +143,28 @@ function Get-EbpfPackageUrl {
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfPackageName
 }
 
+function Get-FnVersion {
+    return "0.4.1"
+}
+
+function Get-FnDevKitUrl {
+    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-devkit-x64.zip"
+}
+
+function Get-FnDevKitDir {
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    return "$RootDir/artifacts/fn/devkit-$(Get-FnVersion)"
+}
+
+function Get-FnRuntimeUrl {
+    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-runtime-x64.zip"
+}
+
+function Get-FnRuntimeDir {
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    return "$RootDir/artifacts/fn/runtime-$(Get-FnVersion)"
+}
+
 function Get-CoreNetCiCommit {
     return "61af6f56ef187dcedb459bcc56f56e305f98a6e4"
 }

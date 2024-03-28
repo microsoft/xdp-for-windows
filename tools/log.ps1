@@ -133,6 +133,11 @@ try {
 
         & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
 
+        $FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"
+        if (Test-Path $FnSymbolsDir) {
+            & $TracePdb -f "$FnSymbolsDir\*.pdb" -p $TmfPath
+        }
+
         foreach ($Etl in Get-ChildItem $EtlPath) {
             Invoke-Expression "netsh trace convert $Etl tmfpath=$TmfPath overwrite=yes report=no"
         }
