@@ -6,7 +6,7 @@
     <XdpPatchVersion>0</XdpPatchVersion>
     <!-- Project-wide properties -->
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.13.0\</EbpfPackagePath>
-    <WiXPackagePath>$(SolutionDir)packages\wix.3.14.0\</WiXPackagePath>
+    <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
     <FnPackagePath>$(SolutionDir)artifacts\fn\devkit-0.4.1\</FnPackagePath>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
