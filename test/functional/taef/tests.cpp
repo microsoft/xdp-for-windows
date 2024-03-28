@@ -152,10 +152,6 @@ public:
         ::GenericTxMtu();
     }
 
-    TEST_METHOD(FnMpNativeHandleTest) {
-        ::FnMpNativeHandleTest();
-    }
-
     TEST_METHOD(GenericRxTcpControlV4) {
         GenericRxTcpControl(AF_INET);
     }
@@ -466,18 +462,6 @@ public:
 
     TEST_METHOD(OffloadRssReset) {
         ::OffloadRssReset();
-    }
-
-    TEST_METHOD(FnLwfRx) {
-        ::FnLwfRx();
-    }
-
-    TEST_METHOD(FnLwfTx) {
-        ::FnLwfTx();
-    }
-
-    TEST_METHOD(FnLwfOid) {
-        ::FnLwfOid();
     }
 
     TEST_METHOD(OffloadSetHardwareCapabilities) {

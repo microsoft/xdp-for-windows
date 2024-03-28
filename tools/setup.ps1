@@ -30,11 +30,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "xdpfnmp", "xdpfnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -72,15 +72,6 @@ $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
 $XdpMpComponentId = "ms_xdpmp"
 $XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
-$XdpFnMpSys = "$ArtifactsDir\xdpfnmp\xdpfnmp.sys"
-$XdpFnMpInf = "$ArtifactsDir\xdpfnmp\xdpfnmp.inf"
-$XdpFnMpComponentId = "ms_xdpfnmp"
-$XdpFnMpDeviceId0 = "xdpfnmp0"
-$XdpFnMpDeviceId1 = "xdpfnmp1"
-$XdpFnMpServiceName = "XDPFNMP"
-$XdpFnLwfSys = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.sys"
-$XdpFnLwfInf = "$ArtifactsDir\xdpfnlwf\xdpfnlwf.inf"
-$XdpFnLwfComponentId = "ms_xdpfnlwf"
 
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
@@ -418,34 +409,14 @@ function Uninstall-XdpMp {
     Write-Verbose "xdpmp.sys uninstall complete!"
 }
 
-# Installs the xdpfnmp driver.
-function Install-XdpFnMp {
-    if (!(Test-Path $XdpFnMpSys)) {
-        Write-Error "$XdpFnMpSys does not exist!"
-    }
-
-    Write-Verbose "pnputil.exe /install /add-driver $XdpFnMpInf"
-    pnputil.exe /install /add-driver $XdpFnMpInf | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "pnputil.exe exit code: $LastExitCode"
-    }
-
-    Write-Verbose "dswdevice.exe -i $XdpFnMpDeviceId0 $XdpFnMpComponentId"
-    & $DswDevice -i $XdpFnMpDeviceId0 $XdpFnMpComponentId | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "dswdevice.exe exit code: $LastExitCode"
-    }
-    Write-Verbose "dswdevice.exe -i $XdpFnMpDeviceId1 $XdpFnMpComponentId"
-    & $DswDevice -i $XdpFnMpDeviceId1 $XdpFnMpComponentId | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "dswdevice.exe exit code: $LastExitCode"
-    }
-
-    Wait-For-Adapters -IfDesc $XdpFnMpServiceName -Count 2
+# Installs the fnmp driver.
+function Install-FnMp {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "Renaming adapters"
-    Rename-NetAdapter-With-Retry XDPFNMP XDPFNMP
-    Rename-NetAdapter-With-Retry "XDPFNMP #2" XDPFNMP1Q
+    Rename-NetAdapter-With-Retry FNMP XDPFNMP
+    Rename-NetAdapter-With-Retry "FNMP #2" XDPFNMP1Q
 
     Write-Verbose "Get-NetAdapter XDPFNMP"
     Get-NetAdapter XDPFNMP | Format-Table | Out-String | Write-Verbose
@@ -475,11 +446,11 @@ function Install-XdpFnMp {
     netsh int ipv6 add address interface=xdpfnmp1q address=fc00::201:1/112 | Write-Verbose
     netsh int ipv6 add neighbor xdpfnmp1q address=fc00::201:2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
-    Write-Verbose "xdpfnmp.sys install complete!"
+    Write-Verbose "fnmp.sys install complete!"
 }
 
-# Uninstalls the xdpfnmp driver.
-function Uninstall-XdpFnMp {
+# Uninstalls the fnmp driver.
+function Uninstall-FnMp {
     netsh int ipv4 delete address xdpfnmp 192.168.200.1 | Out-Null
     netsh int ipv4 delete neighbors xdpfnmp | Out-Null
     netsh int ipv6 delete address xdpfnmp fc00::200:1 | Out-Null
@@ -490,67 +461,22 @@ function Uninstall-XdpFnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
-    Write-Verbose "$DswDevice -u $XdpFnMpDeviceId1"
-    cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId1 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "Deleting $XdpFnMpDeviceId1 device failed: $LastExitCode"
-    }
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
-    Write-Verbose "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1"
-    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId1\$XdpFnMpDeviceId1 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "Removing $XdpFnMpDeviceId1 device failed: $LastExitCode"
-    }
-
-    Write-Verbose "$DswDevice -u $XdpFnMpDeviceId0"
-    cmd.exe /c "$DswDevice -u $XdpFnMpDeviceId0 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "Deleting $XdpFnMpDeviceId0 device failed: $LastExitCode"
-    }
-
-    Write-Verbose "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0"
-    cmd.exe /c "$DevCon remove @SWD\$XdpFnMpDeviceId0\$XdpFnMpDeviceId0 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "Removing $XdpFnMpDeviceId0 device failed: $LastExitCode"
-    }
-
-    Cleanup-Service $XdpFnMpServiceName
-
-    Uninstall-Driver "xdpfnmp.inf"
-
-    Write-Verbose "xdpfnmp.sys uninstall complete!"
+    Write-Verbose "fnmp.sys uninstall complete!"
 }
 
-# Installs the xdpfnlwf driver.
-function Install-XdpFnLwf {
-    if (!(Test-Path $XdpFnLwfSys)) {
-        Write-Error "$XdpFnLwfSys does not exist!"
-    }
-
-    Write-Verbose "netcfg.exe -v -l $XdpFnLwfInf -c s -i $XdpFnLwfComponentId"
-    netcfg.exe -v -l $XdpFnLwfInf -c s -i $XdpFnLwfComponentId | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "netcfg.exe exit code: $LastExitCode"
-    }
-
-    Start-Service-With-Retry xdpfnlwf
-
-    Write-Verbose "xdpfnlwf.sys install complete!"
+# Installs the fnlwf driver.
+function Install-FnLwf {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
-# Uninstalls the xdpfnlwf driver.
-function Uninstall-XdpFnLwf {
-    Write-Verbose "netcfg.exe -u $XdpFnLwfComponentId"
-    cmd.exe /c "netcfg.exe -u $XdpFnLwfComponentId 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "netcfg.exe failed: $LastExitCode"
-    }
-
-    Uninstall-Driver "xdpfnlwf.inf"
-
-    Cleanup-Service xdpfnlwf
-
-    Write-Verbose "xdpfnlwf.sys uninstall complete!"
+# Uninstalls the fnlwf driver.
+function Uninstall-FnLwf {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
 function Install-Ebpf {
@@ -630,11 +556,11 @@ try {
     if ($Install -eq "xdpmp") {
         Install-XdpMp
     }
-    if ($Install -eq "xdpfnmp") {
-        Install-XdpFnMp
+    if ($Install -eq "fnmp") {
+        Install-FnMp
     }
-    if ($Install -eq "xdpfnlwf") {
-        Install-XdpFnLwf
+    if ($Install -eq "fnlwf") {
+        Install-FnLwf
     }
     if ($Install -eq "ebpf") {
         Install-Ebpf
@@ -649,11 +575,11 @@ try {
     if ($Uninstall -eq "xdpmp") {
         Uninstall-XdpMp
     }
-    if ($Uninstall -eq "xdpfnmp") {
-        Uninstall-XdpFnMp
+    if ($Uninstall -eq "fnmp") {
+        Uninstall-FnMp
     }
-    if ($Uninstall -eq "xdpfnlwf") {
-        Uninstall-XdpFnLwf
+    if ($Uninstall -eq "fnlwf") {
+        Uninstall-FnLwf
     }
     if ($Uninstall -eq "ebpf") {
         Uninstall-Ebpf

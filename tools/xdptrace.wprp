@@ -67,7 +67,7 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
-        <EventProvider Id="EP_XdpFnMpWpp" Name="D6143B5F-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
+        <EventProvider Id="EP_FnMpWpp" Name="3207D515-BB97-4C97-9B49-5EB25829C43F" Level="5" NonPagedMemory="true">
             <Keywords>
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
@@ -77,7 +77,7 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
-        <EventProvider Id="EP_XdpFnLwfWpp" Name="D6143B61-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
+        <EventProvider Id="EP_FnLwfWpp" Name="D6143B61-9FD6-44BA-BA02-FAD9EA0C263D" Level="5" NonPagedMemory="true">
             <Keywords>
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
@@ -111,8 +111,8 @@
                         <EventProviderId Value="EP_XdpEtwPerFrame" />
                         <EventProviderId Value="EP_XdpWpp" />
                         <EventProviderId Value="EP_EbpfEtw" />
-                        <EventProviderId Value="EP_XdpFnMpWpp" />
-                        <EventProviderId Value="EP_XdpFnLwfWpp" />
+                        <EventProviderId Value="EP_FnMpWpp" />
+                        <EventProviderId Value="EP_FnLwfWpp" />
                         <EventProviderId Value="EP_XdpFnTestWpp" />
 
                         <EventProviderId Value="EP_MicrosoftWindowsTcpipPerPacket" />
