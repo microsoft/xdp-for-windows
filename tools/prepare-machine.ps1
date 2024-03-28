@@ -201,7 +201,7 @@ function Download-Fn-Runtime {
     if (!(Test-Path $FnRuntimeDir)) {
         mkdir $FnRuntimeDir | Write-Verbose
 
-        Write-Verbose "Downloading Fn runtime kit"
+        Write-Verbose "Downloading Fn runtime"
         Invoke-WebRequest-WithRetry -Uri $FnRuntimeUrl -OutFile $FnRuntimeZip
         Expand-Archive -Path $FnRuntimeZip -DestinationPath $FnRuntimeDir -Force
         Remove-Item -Path $FnRuntimeZip
