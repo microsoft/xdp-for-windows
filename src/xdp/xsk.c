@@ -1069,6 +1069,10 @@ XskCreate(
     KeInitializeEvent(&(*Xsk)->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
     (*Xsk)->NotifyCallback = NotifyCallback;
 
+    if (OwningProcess == NULL) {
+        OwningProcess = PsGetCurrentProcess();
+    }
+
     EventWriteXskCreateSocket(
         &MICROSOFT_XDP_PROVIDER, *Xsk, PsGetProcessId(OwningProcess));
 
