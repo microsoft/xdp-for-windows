@@ -648,6 +648,10 @@ static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
 
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_data_t EbpfXdpProgramData = {
+    .header = {
+        .version = EBPF_PROGRAM_DATA_CURRENT_VERSION,
+        .size = EBPF_PROGRAM_DATA_CURRENT_VERSION_SIZE
+    },
     .program_info = &EbpfXdpProgramInfo,
     .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
     .context_create = XdpCreateContext,
