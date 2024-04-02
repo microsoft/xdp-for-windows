@@ -16,6 +16,9 @@
 #define EBPF_OFFSET_OF(s, m) (((size_t) & ((s*)0)->m))
 #define EBPF_FIELD_SIZE(s, m) (sizeof(((s*)0)->m))
 #define EBPF_SIZE_INCLUDING_FIELD(s, m) (EBPF_OFFSET_OF(s, m) + EBPF_FIELD_SIZE(s, m))
+#define EBPF_EXTENSION_DATA_CURRENT_VERSION 1
+#define EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE sizeof(ebpf_extension_data_t)
+#define EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION_SIZE sizeof(ebpf_attach_provider_data_t)
 
 static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .size = sizeof(xdp_md_t),

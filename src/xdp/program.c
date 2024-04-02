@@ -657,8 +657,12 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
 
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
-    .version = 0, // Review: versioning?
-    .size = sizeof(EbpfXdpProgramData),
+    .header = {
+        .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
+        .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
+    },
+    // .version = 0, // Review: versioning?
+    // .size = sizeof(EbpfXdpProgramData),
     .data = &EbpfXdpProgramData,
 };
 
@@ -669,6 +673,10 @@ static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
 };
 
 static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
+    .header = {
+        .version = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION ,
+        .size = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION_SIZE
+    },
     .supported_program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
     .bpf_attach_type = BPF_XDP,
     .link_type = BPF_LINK_TYPE_XDP,
@@ -676,8 +684,13 @@ static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
 
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_extension_data_t EbpfXdpHookProviderData = {
-    .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
-    .size = sizeof(EbpfXdpHookAttachProviderData),
+    // TODO - this one just looks wrong...
+    .header = {
+        .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
+        .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
+    },
+    // .version = 0, // Review: versioning?
+    // .size = sizeof(EbpfXdpHookAttachProviderData),
     .data = &EbpfXdpHookAttachProviderData,
 };
 
@@ -1646,7 +1659,8 @@ EbpfProgramOnClientAttach(
     TraceEnter(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
-    if (ClientData == NULL || ClientData->size != sizeof(IfIndex) || ClientData->data == NULL) {
+    // if (ClientData == NULL || ClientData->size != sizeof(IfIndex) || ClientData->data == NULL) {
+    if (ClientData == NULL || ClientData->header.size != sizeof(IfIndex) || ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
