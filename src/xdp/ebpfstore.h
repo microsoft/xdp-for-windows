@@ -11,6 +11,11 @@
 #include <ebpf_program_types.h>
 #include <ebpf_structs.h>
 #include <ebpf_private_extension.h>
+#include <ebpf_windows.h>
+
+#define EBPF_OFFSET_OF(s, m) (((size_t) & ((s*)0)->m))
+#define EBPF_FIELD_SIZE(s, m) (sizeof(((s*)0)->m))
+#define EBPF_SIZE_INCLUDING_FIELD(s, m) (EBPF_OFFSET_OF(s, m) + EBPF_FIELD_SIZE(s, m))
 
 static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .size = sizeof(xdp_md_t),
@@ -24,6 +29,10 @@ static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
 // XDP helper function prototype descriptors.
 static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] = {
     {
+        .header = {
+            .version = EBPF_HELPER_FUNCTION_PROTOTYPE_CURRENT_VERSION,
+            .size = EBPF_HELPER_FUNCTION_PROTOTYPE_CURRENT_VERSION_SIZE
+        },
         .helper_id = XDP_EXT_HELPER_FUNCTION_START + 1,
         .name = "bpf_xdp_adjust_head",
         .return_type = EBPF_RETURN_TYPE_INTEGER,
@@ -37,7 +46,15 @@ static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] =
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 const ebpf_program_info_t EbpfXdpProgramInfo = {
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
+    .header = {
+        .version = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION,
+        .size = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION_SIZE
+    },
     .program_type_descriptor = {
+        .header = {
+            .version = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION,
+            .size = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION
+        },
         .name = "xdp",
         .context_descriptor = &EbpfXdpContextDescriptor,
         .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
@@ -53,6 +70,10 @@ const ebpf_program_info_t EbpfXdpProgramInfo = {
 
 const ebpf_program_section_info_t DECLSPEC_SELECTANY EbpfXdpSectionInfo[] = {
     {
+        .header = {
+            .version = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION,
+            .size = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION 
+        },
         DECLARE_XDP_SECTION(L"xdp")
     }
 };
