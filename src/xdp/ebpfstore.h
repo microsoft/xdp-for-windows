@@ -43,6 +43,17 @@ static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] =
     },
 };
 
+static const ebpf_program_type_descriptor_t EbpfXdpProgramTypeDescriptor = {
+    .header = {
+        .version = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION,
+        .size = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION
+    },
+    .name = "xdp",
+    .context_descriptor = &EbpfXdpContextDescriptor,
+    .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
+    .bpf_prog_type = BPF_PROG_TYPE_XDP
+};
+
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 const ebpf_program_info_t EbpfXdpProgramInfo = {
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
@@ -50,16 +61,7 @@ const ebpf_program_info_t EbpfXdpProgramInfo = {
         .version = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION,
         .size = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION_SIZE
     },
-    .program_type_descriptor = {
-        .header = {
-            .version = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION,
-            .size = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION
-        },
-        .name = "xdp",
-        .context_descriptor = &EbpfXdpContextDescriptor,
-        .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
-        BPF_PROG_TYPE_XDP,
-    },
+    .program_type_descriptor = &EbpfXdpProgramTypeDescriptor,
     .count_of_program_type_specific_helpers = RTL_NUMBER_OF(EbpfXdpHelperFunctionPrototype),
     .program_type_specific_helper_prototype = EbpfXdpHelperFunctionPrototype,
 };
