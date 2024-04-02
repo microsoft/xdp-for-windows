@@ -49,7 +49,7 @@ static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] =
 static const ebpf_program_type_descriptor_t EbpfXdpProgramTypeDescriptor = {
     .header = {
         .version = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION,
-        .size = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION
+        .size = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION_SIZE
     },
     .name = "xdp",
     .context_descriptor = &EbpfXdpContextDescriptor,
@@ -77,7 +77,7 @@ const ebpf_program_section_info_t DECLSPEC_SELECTANY EbpfXdpSectionInfo[] = {
     {
         .header = {
             .version = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION,
-            .size = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION 
+            .size = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION_SIZE 
         },
         DECLARE_XDP_SECTION(L"xdp")
     }

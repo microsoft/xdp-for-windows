@@ -658,8 +658,10 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
     .header = {
-        .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
-        .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
+        // .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
+        // .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
+        .version = 0,
+        .size = sizeof(EbpfXdpProgramData)
     },
     // .version = 0, // Review: versioning?
     // .size = sizeof(EbpfXdpProgramData),
@@ -684,10 +686,11 @@ static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
 
 #pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_extension_data_t EbpfXdpHookProviderData = {
-    // TODO - this one just looks wrong...
     .header = {
-        .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
-        .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
+        // .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
+        // .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
+        .version = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION,
+        .size = sizeof(EbpfXdpHookAttachProviderData)
     },
     // .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
     // .size = sizeof(EbpfXdpHookAttachProviderData),
