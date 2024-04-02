@@ -689,7 +689,7 @@ static const ebpf_extension_data_t EbpfXdpHookProviderData = {
         .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
         .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
     },
-    // .version = 0, // Review: versioning?
+    // .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
     // .size = sizeof(EbpfXdpHookAttachProviderData),
     .data = &EbpfXdpHookAttachProviderData,
 };
