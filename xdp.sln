@@ -25,6 +25,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpmp", "test\xdpmp\xdpmp.v
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdptests", "test\functional\lib\xdptests.vcxproj", "{B7C007DA-B437-4CA5-896E-5CB5A5006D01}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdptests_km", "test\functional\lib\xdptests_km.vcxproj", "{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltests", "test\functional\taef\xdpfunctionaltests.vcxproj", "{02D631DF-E2E7-4A6E-9773-94A45B19C367}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\um\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
@@ -68,6 +70,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformkernel", "test\common\lib\platform_kernel\platform_kernel.vcxproj", "{9D6C2600-08B5-4954-BB22-80DB923F0D9A}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformuser", "test\common\lib\platform_user\platform_user.vcxproj", "{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltestdrv", "test\functional\km\xdpfunctionaltestdrv.vcxproj", "{BDF5EF66-403A-4D96-95D5-871689F76C4F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -193,6 +197,14 @@ Global
 		{B7C007DA-B437-4CA5-896E-5CB5A5006D01}.Release|ARM64.Build.0 = Release|ARM64
 		{B7C007DA-B437-4CA5-896E-5CB5A5006D01}.Release|x64.ActiveCfg = Release|x64
 		{B7C007DA-B437-4CA5-896E-5CB5A5006D01}.Release|x64.Build.0 = Release|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|ARM64.Build.0 = Debug|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|x64.ActiveCfg = Debug|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|x64.Build.0 = Debug|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|ARM64.ActiveCfg = Release|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|ARM64.Build.0 = Release|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|x64.ActiveCfg = Release|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|x64.Build.0 = Release|x64
 		{02D631DF-E2E7-4A6E-9773-94A45B19C367}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{02D631DF-E2E7-4A6E-9773-94A45B19C367}.Debug|ARM64.Build.0 = Debug|ARM64
 		{02D631DF-E2E7-4A6E-9773-94A45B19C367}.Debug|x64.ActiveCfg = Debug|x64
@@ -405,6 +417,14 @@ Global
 		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|ARM64.Build.0 = Release|ARM64
 		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|x64.ActiveCfg = Release|x64
 		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|x64.Build.0 = Release|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|ARM64.Build.0 = Debug|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|x64.ActiveCfg = Debug|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|x64.Build.0 = Debug|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|ARM64.ActiveCfg = Release|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|ARM64.Build.0 = Release|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|x64.ActiveCfg = Release|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

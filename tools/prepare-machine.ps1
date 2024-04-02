@@ -318,8 +318,8 @@ if ($Cleanup) {
         # Verifier configuration: standard flags on all XDP components, and NDIS.
         # The NDIS verifier is required, otherwise allocations NDIS makes on
         # behalf of XDP components (e.g. NBLs) will not be verified.
-        Write-Verbose "verifier.exe /standard /driver xdp.sys fnmp.sys fnlwf.sys ndis.sys ebpfcore.sys"
-        verifier.exe /standard /driver xdp.sys fnmp.sys fnlwf.sys ndis.sys ebpfcore.sys | Write-Verbose
+        Write-Verbose "verifier.exe /standard /driver xdp.sys xdpfunctionaltestdrv.sys fnmp.sys fnlwf.sys ndis.sys ebpfcore.sys"
+        verifier.exe /standard /driver xdp.sys xdpfunctionaltestdrv.sys fnmp.sys fnlwf.sys ndis.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }
