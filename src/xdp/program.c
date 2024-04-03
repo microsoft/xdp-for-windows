@@ -646,7 +646,6 @@ static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
     .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
 };
 
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_data_t EbpfXdpProgramData = {
     .header = {
         .version = EBPF_PROGRAM_DATA_CURRENT_VERSION,
@@ -657,19 +656,6 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
-};
-
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
-static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
-    .header = {
-        // .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
-        // .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
-        .version = 0,
-        .size = sizeof(EbpfXdpProgramData)
-    },
-    // .version = 0, // Review: versioning?
-    // .size = sizeof(EbpfXdpProgramData),
-    .data = &EbpfXdpProgramData,
 };
 
 static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
@@ -686,19 +672,6 @@ static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
     .supported_program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
     .bpf_attach_type = BPF_XDP,
     .link_type = BPF_LINK_TYPE_XDP,
-};
-
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
-static const ebpf_extension_data_t EbpfXdpHookProviderData = {
-    .header = {
-        // .version = EBPF_EXTENSION_DATA_CURRENT_VERSION,
-        // .size = EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE
-        .version = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION,
-        .size = sizeof(EbpfXdpHookAttachProviderData)
-    },
-    // .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
-    // .size = sizeof(EbpfXdpHookAttachProviderData),
-    .data = &EbpfXdpHookAttachProviderData,
 };
 
 static const NPI_MODULEID EbpfXdpHookProviderModuleId = {
@@ -1752,11 +1725,11 @@ XdpProgramStart(
 {
     const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfProgramInfoProviderParameters = {
         .ProviderModuleId = &EbpfXdpProgramInfoProviderModuleId,
-        .ProviderData = &EbpfXdpProgramInfoProviderData,
+        .ProviderData = &EbpfXdpProgramData,
     };
     const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfHookProviderParameters = {
         .ProviderModuleId = &EbpfXdpHookProviderModuleId,
-        .ProviderData = &EbpfXdpHookProviderData,
+        .ProviderData = &EbpfXdpHookAttachProviderData,
     };
     DWORD EbpfEnabled;
     NTSTATUS Status;

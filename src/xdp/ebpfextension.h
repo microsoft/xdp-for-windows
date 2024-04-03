@@ -23,7 +23,7 @@ EBPF_EXTENSION_ON_CLIENT_DETACH(
 
 typedef struct _EBPF_EXTENSION_PROVIDER_PARAMETERS {
     const NPI_MODULEID *ProviderModuleId;
-    const ebpf_extension_data_t *ProviderData;
+    const VOID *ProviderData;
 } EBPF_EXTENSION_PROVIDER_PARAMETERS;
 
 const ebpf_extension_data_t *
