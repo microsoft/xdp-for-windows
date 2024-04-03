@@ -642,6 +642,10 @@ static const VOID *EbpfXdpHelperFunctions[] = {
 };
 
 static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
+    .header = {
+        .version = EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION,
+        .size = EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION_SIZE
+    },
     .helper_function_count = RTL_NUMBER_OF(EbpfXdpHelperFunctions),
     .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
 };
@@ -1639,7 +1643,6 @@ EbpfProgramOnClientAttach(
     TraceEnter(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
-    // if (ClientData == NULL || ClientData->size != sizeof(IfIndex) || ClientData->data == NULL) {
     if (ClientData == NULL || ClientData->header.size != sizeof(IfIndex) || ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;

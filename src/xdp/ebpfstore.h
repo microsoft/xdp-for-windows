@@ -19,6 +19,7 @@
 #define EBPF_EXTENSION_DATA_CURRENT_VERSION 1
 #define EBPF_EXTENSION_DATA_CURRENT_VERSION_SIZE sizeof(ebpf_extension_data_t)
 #define EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION_SIZE sizeof(ebpf_attach_provider_data_t)
+#define EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION_SIZE sizeof(ebpf_helper_function_addresses_t)
 
 static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .size = sizeof(xdp_md_t),
@@ -57,9 +58,7 @@ static const ebpf_program_type_descriptor_t EbpfXdpProgramTypeDescriptor = {
     .bpf_prog_type = BPF_PROG_TYPE_XDP
 };
 
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 const ebpf_program_info_t EbpfXdpProgramInfo = {
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
     .header = {
         .version = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION,
         .size = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION_SIZE
@@ -70,15 +69,12 @@ const ebpf_program_info_t EbpfXdpProgramInfo = {
 };
 
 #define DECLARE_XDP_SECTION(_section_name) \
+    { EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION, EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION_SIZE }, \
     (const wchar_t*)_section_name, &EBPF_PROGRAM_TYPE_XDP, &EBPF_ATTACH_TYPE_XDP, \
     BPF_PROG_TYPE_XDP, BPF_XDP
 
 const ebpf_program_section_info_t DECLSPEC_SELECTANY EbpfXdpSectionInfo[] = {
     {
-        .header = {
-            .version = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION,
-            .size = EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION_SIZE 
-        },
         DECLARE_XDP_SECTION(L"xdp")
     }
 };
