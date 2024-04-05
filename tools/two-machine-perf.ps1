@@ -31,6 +31,8 @@ if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
 }
 
+Write-Output "Hello from perf test branch!"
+
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
 Write-Output "Successfully connected to peer: $RemoteAddress"
