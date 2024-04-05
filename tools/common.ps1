@@ -127,7 +127,6 @@ function Get-EbpfPackageName {
         return "Build-x64-Release.zip"
     }
 
-
     return "Build-x64-native-only-NativeOnlyRelease.zip"
 }
 
