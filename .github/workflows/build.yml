@@ -64,7 +64,7 @@ jobs:
       with:
         languages: c-cpp
     - name: Setup MSBuild.exe
-      uses: microsoft/setup-msbuild@ab534842b4bdf384b8aaf93765dc6f721d9f5fab
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
