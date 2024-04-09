@@ -12,7 +12,6 @@
 #include <ebpf_structs.h>
 #include <ebpf_private_extension.h>
 
-
 static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .size = sizeof(xdp_md_t),
     .data = FIELD_OFFSET(xdp_md_t, data),
