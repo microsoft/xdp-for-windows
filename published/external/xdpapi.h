@@ -230,6 +230,268 @@ XdpUnloadApi(
 
 #endif // defined(_KERNEL_MODE)
 
+#if defined(_KERNEL_MODE)
+
+#include <netioddk.h>
+#include <xdp/guid.h>
+
+#define POOLTAG_NMR_CLIENT      'cNdX'   // XdNc
+
+typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
+
+typedef
+VOID
+XDP_API_ATTACH_FN(
+    _In_ VOID *ClientContext
+    );
+
+typedef
+VOID
+XDP_API_DETACH_FN(
+    _In_ VOID *ClientContext
+    );
+
+typedef struct _XDP_API_CLIENT {
+    ERESOURCE Resource;
+
+    //
+    // NMR client registration.
+    //
+    NPI_CLIENT_CHARACTERISTICS NpiClientCharacteristics;
+    NPI_MODULEID ModuleId;
+    HANDLE NmrClientHandle;
+
+    //
+    // XDPAPI client.
+    //
+    VOID *Context;
+    XDP_API_ATTACH_FN *Attach;
+    XDP_API_DETACH_FN *Detach;
+    const XDP_API_CLIENT_DISPATCH *XdpApiClientDispatch;
+
+    //
+    // XDPAPI provider.
+    //
+    HANDLE BindingHandle;
+    XDP_API_PROVIDER_DISPATCH *XdpApiProviderDispatch;
+    XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
+} XDP_API_CLIENT;
+
+inline
+NTSTATUS
+XdpNmrClientAttachProvider(
+    _In_ HANDLE _NmrBindingHandle,
+    _In_ VOID *_ClientContext,
+    _In_ const NPI_REGISTRATION_INSTANCE *_ProviderRegistrationInstance
+    )
+{
+    XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_ClientContext;
+    NTSTATUS _Status;
+    VOID *_ProviderBindingContext;
+    const VOID *_ProviderBindingDispatch;
+
+    //
+    // The NMR client allows at most one active binding at a time, but defers
+    // all remaining binding logic to the NMR provider.
+    //
+
+    ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
+
+    if (_Client->BindingHandle != NULL) {
+        _Status = STATUS_DEVICE_NOT_READY;
+    } else if (_ProviderRegistrationInstance->Number != XDP_API_VERSION_1) {
+        _Status = STATUS_NOINTERFACE;
+    } else {
+        _Status =
+            NmrClientAttachProvider(
+                _NmrBindingHandle, _Client, &_Client->XdpApiClientDispatch,
+                &_ProviderBindingContext, &_ProviderBindingDispatch);
+
+        if (NT_SUCCESS(_Status)) {
+            _Client->BindingHandle = _NmrBindingHandle;
+            _Client->XdpApiProviderDispatch = (XDP_API_PROVIDER_DISPATCH *)_ProviderBindingDispatch;
+            _Client->XdpApiProviderContext = _ProviderBindingContext;
+        }
+    }
+
+    ExReleaseResourceAndLeaveCriticalRegion(&_Client->Resource);
+
+    if (NT_SUCCESS(_Status) && _Client->Attach != NULL) {
+        _Client->Attach(_Client->Context);
+    }
+
+    return _Status;
+}
+
+inline
+NTSTATUS
+XdpNmrClientDetachProvider(
+    _In_ VOID *_ClientBindingContext
+    )
+{
+    XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_ClientBindingContext;
+
+    if (_Client->Detach != NULL) {
+        _Client->Detach(_Client->Context);
+    }
+
+    ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
+
+    _Client->BindingHandle = NULL;
+
+    ExReleaseResourceAndLeaveCriticalRegion(&_Client->Resource);
+
+    return STATUS_SUCCESS;
+}
+
+inline
+VOID
+XdpCleanupClientRegistration(
+    _In_ XDP_API_CLIENT *_Client,
+    _In_ BOOLEAN _ResourceInitialized
+    )
+{
+    NTSTATUS _Status;
+
+    if (_Client->NmrClientHandle != NULL) {
+        _Status = NmrDeregisterClient(_Client->NmrClientHandle);
+        if (!NT_VERIFY(_Status == STATUS_PENDING)) {
+            RtlFailFast(FAST_FAIL_INVALID_ARG);
+        }
+
+        _Status = NmrWaitForClientDeregisterComplete(_Client->NmrClientHandle);
+        if (!NT_VERIFY(_Status == STATUS_SUCCESS)) {
+            RtlFailFast(FAST_FAIL_INVALID_ARG);
+        }
+    }
+
+    if (_ResourceInitialized) {
+        NT_VERIFY(NT_SUCCESS(ExDeleteResourceLite(&_Client->Resource)));
+    }
+}
+
+inline
+NTSTATUS
+XdpLoadApi(
+    _In_ UINT32 _XdpApiVersion,
+    _In_opt_ VOID *_ClientContext,
+    _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
+    _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
+    _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
+    _Out_ XDP_LOAD_API_CONTEXT *_XdpLoadApiContext
+    )
+{
+    XDP_API_CLIENT *_Client = NULL;
+    NTSTATUS _Status;
+    NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
+    NPI_REGISTRATION_INSTANCE *_NpiInstance;
+    BOOLEAN _ResourceInitialized = FALSE;
+
+    if (_XdpApiVersion != XDP_API_VERSION_1) {
+        _Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    _Client =
+        (XDP_API_CLIENT *)ExAllocatePoolZero(
+            NonPagedPoolNx, sizeof(*_Client), POOLTAG_NMR_CLIENT);
+    if (_Client == NULL) {
+        _Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+
+    //
+    // Use resources instead of push locks for downlevel compatibility.
+    //
+    _Status = ExInitializeResourceLite(&_Client->Resource);
+    if (!NT_SUCCESS(_Status)) {
+        goto Exit;
+    }
+    _ResourceInitialized = TRUE;
+
+    _Client->ModuleId.Length = sizeof(_Client->ModuleId);
+    _Client->ModuleId.Type = MIT_GUID;
+    XdpGuidCreate(&_Client->ModuleId.Guid);
+
+    _Client->Context = _ClientContext;
+    _Client->Attach = _ClientAttach;
+    _Client->Detach = _ClientDetach;
+    _Client->XdpApiClientDispatch = _XdpApiClientDispatch;
+
+    _NpiCharacteristics = &_Client->NpiClientCharacteristics;
+    _NpiCharacteristics->Length = sizeof(*_NpiCharacteristics);
+    _NpiCharacteristics->ClientAttachProvider = XdpNmrClientAttachProvider;
+    _NpiCharacteristics->ClientDetachProvider = XdpNmrClientDetachProvider;
+
+    _NpiInstance = &_NpiCharacteristics->ClientRegistrationInstance;
+    _NpiInstance->Size = sizeof(*_NpiInstance);
+    _NpiInstance->Version = 0;
+    _NpiInstance->NpiId = &NPI_XDPAPI_INTERFACE_ID;
+    _NpiInstance->ModuleId = &_Client->ModuleId;
+    _NpiInstance->Number = XDP_API_VERSION_1;
+
+    _Status =
+        NmrRegisterClient(
+            &_Client->NpiClientCharacteristics, _Client, &_Client->NmrClientHandle);
+    if (!NT_SUCCESS(_Status)) {
+        goto Exit;
+    }
+
+    *_XdpLoadApiContext = (XDP_LOAD_API_CONTEXT)_Client;
+    _Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (!NT_SUCCESS(_Status)) {
+        if (_Client != NULL) {
+            XdpCleanupClientRegistration(_Client, _ResourceInitialized);
+            ExFreePoolWithTag(_Client, POOLTAG_NMR_CLIENT);
+        }
+    }
+
+    return _Status;
+}
+
+inline
+VOID
+XdpUnloadApi(
+    _In_ XDP_LOAD_API_CONTEXT _XdpLoadApiContext
+    )
+{
+    XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_XdpLoadApiContext;
+
+    XdpCleanupClientRegistration(_Client, TRUE);
+    ExFreePoolWithTag(_Client, POOLTAG_NMR_CLIENT);
+}
+
+inline
+NTSTATUS
+XdpOpenApi(
+    _In_ XDP_LOAD_API_CONTEXT _XdpLoadApiContext,
+    _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
+    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
+    )
+{
+    XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_XdpLoadApiContext;
+    NTSTATUS _Status;
+
+    ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
+
+    if (_Client->BindingHandle == NULL) {
+        _Status = STATUS_DEVICE_NOT_READY;
+    } else {
+        *_XdpApiProviderDispatch = _Client->XdpApiProviderDispatch;
+        *_XdpApiProviderContext = _Client->XdpApiProviderContext;
+        _Status = STATUS_SUCCESS;
+    }
+
+    ExReleaseResourceAndLeaveCriticalRegion(&_Client->Resource);
+
+    return _Status;
+}
+
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
