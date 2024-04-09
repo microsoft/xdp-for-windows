@@ -88,12 +88,6 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, -ForNetPerfTest, or -ForLogging'
 }
 
-$EbpfNugetVersion = "eBPF-for-Windows.0.13.0"
-$EbpfNugetBuild = "+5122375852"
-$EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-$EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-$EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
-
 # Flag that indicates something required a reboot.
 $Reboot = $false
 
@@ -110,27 +104,6 @@ function Download-CoreNet-Deps {
         Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "$ArtifactsDir\corenet-ci.zip"
         Expand-Archive -Path "$ArtifactsDir\corenet-ci.zip" -DestinationPath $ArtifactsDir -Force
         Remove-Item -Path "$ArtifactsDir\corenet-ci.zip"
-    }
-}
-
-function Download-eBpf-Nuget {
-    # Download and extract private eBPF Nuget package.
-    $NugetDir = "$ArtifactsDir/nuget"
-    if ($Force -and (Test-Path $NugetDir)) {
-        Remove-Item -Recurse -Force $NugetDir
-    }
-    if (!(Test-Path $NugetDir)) {
-        mkdir $NugetDir | Write-Verbose
-    }
-
-    if (!(Test-Path $NugetDir/$EbpfNuget)) {
-        # Remove any old builds of the package.
-        if (Test-Path $EbpfNugetRestoreDir) {
-            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
-        }
-        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
-
-        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
     }
 }
 
