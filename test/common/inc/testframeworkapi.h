@@ -14,8 +14,12 @@
 #include <windows.h>
 #endif
 
+EXTERN_C_START
+
+#ifndef KERNEL_MODE
 VOID
 StopTest();
+#endif
 
 VOID
 LogTestFailure(
@@ -34,3 +38,5 @@ LogTestWarning(
     _Printf_format_string_ PCWSTR Format,
     ...
     );
+
+EXTERN_C_END

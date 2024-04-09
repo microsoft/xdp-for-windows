@@ -12,6 +12,7 @@ Abstract:
 #include <ntddk.h>
 #include <wdf.h>
 #include <ntstrsafe.h>
+#include <netioddk.h>
 
 // #include <ntddk.h>
 // #include <ntintsafe.h>
@@ -244,6 +245,9 @@ TestDrvCtlEvtFileCreate(
         // TestSetup requires TestDrvClient to be initialized.
         //
         if (!TestSetup()) {
+            TraceError(
+                "[ lib] ERROR, %s.",
+                "TestSetup failed");
             TestDrvClient = nullptr;
             Status = STATUS_UNSUCCESSFUL;
             break;
@@ -432,8 +436,8 @@ TestDrvCtlEvtIoDeviceControl(
         FunctionCode);
 
     switch (IoControlCode) {
-    case IOCTL_GENERIC_BINDING:
-        TestDrvCtlRun(GenericBinding());
+    case IOCTL_LOAD_API:
+        TestDrvCtlRun(LoadApiTest());
         break;
     default:
         Status = STATUS_INVALID_PARAMETER;

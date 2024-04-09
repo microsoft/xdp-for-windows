@@ -448,15 +448,15 @@ public:
     }
 
     TEST_METHOD(LoadApi) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_LOAD_API));
+        } else {
             ::LoadApiTest();
         }
     }
 
     TEST_METHOD(GenericBinding) {
-        if (TestingKernelMode) {
-            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_BINDING));
-        } else {
+        if (!TestingKernelMode) {
             ::GenericBinding();
         }
     }

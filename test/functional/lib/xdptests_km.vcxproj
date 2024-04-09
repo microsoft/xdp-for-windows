@@ -41,6 +41,7 @@
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\inc;
+        $(SolutionDir)submodules\wil\include;
         $(FnPackagePath)include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
@@ -48,6 +49,7 @@
         NDIS683=1;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>$(ProjectDir)..\km\trace.h</WppScanConfigurationData>
       <WppRecorderEnabled>true</WppRecorderEnabled>
