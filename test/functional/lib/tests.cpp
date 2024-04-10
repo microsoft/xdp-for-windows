@@ -2428,11 +2428,7 @@ ClearMaskedBits(
 bool
 TestSetup()
 {
-#ifdef KERNEL_MODE
-    // if (!NT_SUCCESS(InitializeApi(&XdpLoadApiContext, &XdpApi, &XdpApiProviderBindingContext, &XdpFuncXdpApiClientDispatch))) {
-    //     return false;
-    // }
-#else
+#ifndef KERNEL_MODE
     WSADATA WsaData;
     GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
@@ -2452,9 +2448,7 @@ TestSetup()
 bool
 TestCleanup()
 {
-#ifdef KERNEL_MODE
-    // UninitializeApi(XdpLoadApiContext);
-#else
+#ifndef KERNEL_MODE
     FnLwfUnloadApi(FnLwfLoadApiContext);
     FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));

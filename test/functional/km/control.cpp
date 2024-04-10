@@ -13,16 +13,7 @@ Abstract:
 #include <wdf.h>
 #include <ntstrsafe.h>
 #include <netioddk.h>
-
-// #include <ntddk.h>
-// #include <ntintsafe.h>
-// #include <ntstrsafe.h>
-// #include <ndis.h>
 #include <ws2def.h>
-// #include <ws2ipdef.h>
-// #include <netiodef.h>
-// #include <netioapi.h>
-// #include <mstcpip.h>
 
 #include <xdpapi.h>
 
