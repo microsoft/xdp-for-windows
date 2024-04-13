@@ -178,13 +178,13 @@ class TestInterface;
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     );
 
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     );
 
 static
@@ -1439,7 +1439,7 @@ LwfOpenDefault(
 static
 BOOLEAN
 LwfIsDatapathActive(
-    _In_ const unique_fnlwf_handle& Handle
+    _In_ const unique_fnlwf_handle &Handle
     )
 {
     BOOLEAN IsDatapathActive;
@@ -1476,7 +1476,7 @@ struct RX_FRAME {
 static
 HRESULT
 MpRxEnqueueFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ RX_FRAME *RxFrame
     )
 {
@@ -1487,7 +1487,7 @@ MpRxEnqueueFrame(
 static
 HRESULT
 TryMpRxFlush(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1497,7 +1497,7 @@ TryMpRxFlush(
 static
 VOID
 MpRxFlush(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1521,7 +1521,7 @@ MpRxFlush(
 static
 HRESULT
 MpRxIndicateFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ RX_FRAME *RxFrame
     )
 {
@@ -1585,7 +1585,7 @@ RxInitializeFrame(
 static
 VOID
 MpTxFilter(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ const VOID *Pattern,
     _In_ const VOID *Mask,
     _In_ UINT32 Length
@@ -1597,7 +1597,7 @@ MpTxFilter(
 static
 HRESULT
 MpTxGetFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
@@ -1609,7 +1609,7 @@ MpTxGetFrame(
 static
 unique_malloc_ptr<DATA_FRAME>
 MpTxAllocateAndGetFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1641,7 +1641,7 @@ MpTxAllocateAndGetFrame(
 static
 VOID
 MpTxDequeueFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1661,7 +1661,7 @@ MpTxDequeueFrame(
 static
 VOID
 MpTxFlush(
-    _In_ const unique_fnmp_handle& Handle
+    _In_ const unique_fnmp_handle &Handle
     )
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
@@ -1670,7 +1670,7 @@ MpTxFlush(
 static
 VOID
 LwfTxEnqueue(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ DATA_FRAME *Frame
     )
 {
@@ -1680,7 +1680,7 @@ LwfTxEnqueue(
 static
 VOID
 LwfTxFlush(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1703,7 +1703,7 @@ LwfTxFlush(
 static
 VOID
 LwfRxFilter(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ const VOID *Pattern,
     _In_ const VOID *Mask,
     _In_ UINT32 Length
@@ -1715,7 +1715,7 @@ LwfRxFilter(
 static
 HRESULT
 LwfRxGetFrame(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
@@ -1727,7 +1727,7 @@ LwfRxGetFrame(
 static
 unique_malloc_ptr<DATA_FRAME>
 LwfRxAllocateAndGetFrame(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1759,7 +1759,7 @@ LwfRxAllocateAndGetFrame(
 static
 VOID
 LwfRxDequeueFrame(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1779,7 +1779,7 @@ LwfRxDequeueFrame(
 static
 VOID
 LwfRxFlush(
-    _In_ const unique_fnlwf_handle& Handle
+    _In_ const unique_fnlwf_handle &Handle
     )
 {
     TEST_HRESULT(FnLwfRxFlush(Handle.get()));
@@ -1788,7 +1788,7 @@ LwfRxFlush(
 static
 HRESULT
 LwfOidSubmitRequest(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
     _Inout_opt_ VOID *InformationBuffer
@@ -1803,7 +1803,7 @@ template <typename T>
 static
 unique_malloc_ptr<T>
 LwfOidAllocateAndSubmitRequest(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *BytesReturned
     )
@@ -1830,7 +1830,7 @@ LwfOidAllocateAndSubmitRequest(
 static
 VOID
 LwfStatusSetFilter(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ NDIS_STATUS StatusCode,
     _In_ BOOLEAN BlockIndications,
     _In_ BOOLEAN QueueIndications
@@ -1843,7 +1843,7 @@ LwfStatusSetFilter(
 static
 HRESULT
 LwfStatusGetIndication(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _Inout_ UINT32 *StatusBufferLength,
     _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
     )
@@ -1855,7 +1855,7 @@ template <typename T>
 static
 unique_malloc_ptr<T>
 LwfStatusAllocateAndGetIndication(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _Out_ UINT32 *StatusBufferLength
     )
 {
@@ -1893,7 +1893,7 @@ LwfStatusAllocateAndGetIndication(
 static
 LARGE_INTEGER
 MpGetLastMiniportPauseTimestamp(
-    _In_ const unique_fnmp_handle& Handle
+    _In_ const unique_fnmp_handle &Handle
     )
 {
     LARGE_INTEGER Timestamp = {0};
@@ -1904,7 +1904,7 @@ MpGetLastMiniportPauseTimestamp(
 static
 VOID
 MpSetMtu(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Mtu
     )
 {
@@ -1914,7 +1914,7 @@ MpSetMtu(
 static
 VOID
 MpOidFilter(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ const OID_KEY *Keys,
     _In_ UINT32 KeyCount
     )
@@ -1925,7 +1925,7 @@ MpOidFilter(
 static
 HRESULT
 MpOidGetRequest(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
     _Out_opt_ VOID *InformationBuffer
@@ -1938,7 +1938,7 @@ template<typename T=decltype(TEST_TIMEOUT_ASYNC)>
 static
 unique_malloc_ptr<VOID>
 MpOidAllocateAndGetRequest(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *InformationBufferLength,
     _In_opt_ T Timeout = TEST_TIMEOUT_ASYNC
@@ -1973,7 +1973,7 @@ MpOidAllocateAndGetRequest(
 static
 HRESULT
 MpOidCompleteRequest(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _In_ NDIS_STATUS Status,
     _In_opt_ const VOID *InformationBuffer,
@@ -1988,7 +1988,7 @@ MpOidCompleteRequest(
 static
 VOID
 WaitForWfpQuarantine(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     );
 
 static
@@ -2176,7 +2176,7 @@ CreateTcpSocket(
 static
 VOID
 WaitForWfpQuarantine(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     )
 {
     //
@@ -2228,7 +2228,7 @@ WaitForWfpQuarantine(
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     )
 {
     CHAR CmdBuff[256];
@@ -2277,7 +2277,7 @@ TryWaitForNdisDatapath(
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     )
 {
     TEST_TRUE(TryWaitForNdisDatapath(If));
@@ -2362,7 +2362,7 @@ LoadApiTest()
 static
 VOID
 BindingTest(
-    _In_ const TestInterface& If,
+    _In_ const TestInterface &If,
     _In_ BOOLEAN RestartAdapter
     )
 {
