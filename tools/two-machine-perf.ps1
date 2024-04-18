@@ -31,7 +31,8 @@ if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
 }
 
-Write-Output "Hello from perf test branch!"
+$RootDir = $pwd
+. $RootDir\tools\common.ps1
 
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
@@ -130,6 +131,29 @@ for ($i = 0; $i -lt 5; $i++) {
 }
 
 Write-Output "Waiting for remote xskbench..."
+Wait-Job -Job $Job | Out-Null
+Receive-Job -Job $Job -ErrorAction 'Continue'
+
+# Run wsario.
+Write-Output "Starting wsario on the peer (listening on UDP 9999)..."
+$Job = Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir, $LocalInterface, $LocalAddress)
+    . $RemoteDir\tools\common.ps1
+    $ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Arch
+    $RxFilterJob = & $ArtifactBin\rxfilter.exe -IfIndex $LocalInterface -QueueId * -MatchType All -Action Pass &
+    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 60 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2
+    Stop-Job $RxFilterJob
+} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface, $RemoteAddress -AsJob
+
+for ($i = 0; $i -lt 5; $i++) {
+    Write-Output "Run $($i+1): Running wsario locally (sending to UDP 9999)..."
+    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2
+    Start-Sleep -Seconds 1
+}
+
+Write-Output "Waiting for remote wsario..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 

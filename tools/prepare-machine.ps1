@@ -379,11 +379,7 @@ if ($Cleanup) {
     }
 
     if ($ForNetPerfTest) {
-        Setup-VcRuntime
-        Download-CoreNet-Deps
-        Download-Ebpf-Msi
-        Setup-TestSigning
-        Install-Certs
+        $ForTest = $true
     }
 
     if ($ForTest) {

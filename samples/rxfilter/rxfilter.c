@@ -56,7 +56,7 @@ CONST CHAR *UsageText =
 "Examples:\n"
 "\n"
 "   rxfilter.exe -IfIndex 6 -QueueId 0 -MatchType All -Action Drop\n"
-"   rxfilter.exe -IfIndex 6 -QueueId 0 -MatchType UdpDstPort -UdpDstPort 53 -Action Drop\n"
+"   rxfilter.exe -IfIndex 6 -QueueId * -MatchType UdpDstPort -UdpDstPort 53 -Action Drop\n"
 ;
 
 #define LOGERR(...) \
@@ -65,7 +65,7 @@ CONST CHAR *UsageText =
 UINT32 IfIndex;
 UINT32 QueueId;
 XDP_RULE Rule;
-UINT32 ProgramFlags;
+XDP_CREATE_PROGRAM_FLAGS ProgramFlags;
 
 VOID
 ParseArgs(
@@ -95,7 +95,11 @@ ParseArgs(
                 LOGERR("Missing QueueId");
                 goto Usage;
             }
-            QueueId = atoi(ArgV[i]);
+            if (!_stricmp(ArgV[i], "*")) {
+                ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
+            } else {
+                QueueId = atoi(ArgV[i]);
+            }
         } else if (!_stricmp(ArgV[i], "-XdpMode")) {
             if (++i >= ArgC) {
                 LOGERR("Missing XdpMode");
