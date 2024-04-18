@@ -102,6 +102,16 @@ Invoke-Command -Session $Session -ScriptBlock {
     & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 } -ArgumentList $Config, $Arch, $RemoteDir
 
+# Allow wsario.exe through the remote firewall
+Write-Output "Allowing wsario.exe through firewall on peer..."
+Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir, $RemoteAddress)
+    . $RemoteDir\tools\common.ps1
+    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    Write-Verbose "Adding firewall rules"
+    & netsh.exe advfirewall firewall add rule name="AllowWsaRio" program=$WsaRio dir=in action=allow protocol=any remoteip=$RemoteAddress | Write-Verbose
+} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress
+
 # Start logging.
 Write-Output "Starting local logs..."
 try { wpr.exe -cancel -instancename xskcpu 2>&1 | Out-Null } catch { }
@@ -120,13 +130,13 @@ Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $LocalInterface)
     $XskBench = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -ci 0 -q -id 0
+    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -group 0 -ca 0x1 -q -id 0
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
 for ($i = 0; $i -lt 5; $i++) {
     Write-Output "Run $($i+1): Running xskbench locally (sending to UDP 9999)..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench tx -i $LocalInterface -d 10 -t -ci 0 -q -id 0 -tx_pattern $TxBytes -b 8
+    & $XskBench tx -i $LocalInterface -d 10 -t -group 0 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8
     Start-Sleep -Seconds 1
 }
 
@@ -171,6 +181,10 @@ Write-Output "Test Complete!"
     tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
     Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs -ErrorAction 'Continue'
+    Write-Output "Removing WsaRio firewall rule on peer"
+    Invoke-Command -Session $Session -ScriptBlock {
+        & netsh.exe advfirewall firewall del rule name="AllowWsaRio" | Out-Null
+    }
     # Clean up XDP driver state.
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
