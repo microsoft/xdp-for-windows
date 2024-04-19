@@ -97,6 +97,7 @@ ParseArgs(
             }
             if (!_stricmp(ArgV[i], "*")) {
                 ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
+                QueueId = 0;
             } else {
                 QueueId = atoi(ArgV[i]);
             }
