@@ -106,10 +106,14 @@ Invoke-Command -Session $Session -ScriptBlock {
 # Install XDP on the machines.
 Write-Output "Installing XDP locally..."
 tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
     & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+    Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
+    reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 } -ArgumentList $Config, $Arch, $RemoteDir
 
 #
@@ -161,8 +165,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    $WsaRioJob = & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
-    Stop-Job $WsaRioJob
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
 } -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
@@ -181,7 +184,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
 
     for ($i = 0; $i -lt 5; $i++) {
         Start-Sleep -Seconds 1
-        Write-Output "Run $($i+1): Running wsario locally (receiving from to UDP 9999)..."
+        Write-Output "Run $($i+1): Running wsario locally (receiving from UDP 9999)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
         & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2
     }
