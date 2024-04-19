@@ -104,6 +104,9 @@ Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $Config, $Arch, $RemoteDir
 
 # Install XDP on the machines.
+# Set GenericDelayDetachTimeoutSec regkey to zero. This ensures XDP
+# instantly detaches from the LWF data path whenever no programs are plumbed.
+#
 Write-Output "Installing XDP locally..."
 tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
 Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
@@ -116,10 +119,6 @@ Invoke-Command -Session $Session -ScriptBlock {
     reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 } -ArgumentList $Config, $Arch, $RemoteDir
 
-#
-# TODO set GenericDelayDetachTimeoutSec regkey to zero. This ensures XDP
-# instantly detaches from the LWF data path whenever no programs are plumbed.
-#
 
 # Allow wsario.exe through the remote firewall
 Write-Output "Allowing wsario.exe through firewall..."

@@ -284,7 +284,7 @@ function Uninstall-Xdp {
             $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'XDP for Windows'").IdentifyingNumber
 
             Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt"
-            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt
+            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt | Write-Verbose
             Write-Verbose "msiexe.exe returned $LastExitCode"
         }
 
