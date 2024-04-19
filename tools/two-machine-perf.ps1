@@ -145,13 +145,13 @@ Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $LocalInterface)
     $XskBench = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -group 0 -ca 0x1 -q -id 0
+    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -group 1 -ca 0x1 -q -id 0
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
 for ($i = 0; $i -lt 5; $i++) {
     Write-Output "Run $($i+1): Running xskbench locally (sending to UDP 9999)..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench tx -i $LocalInterface -d 10 -t -group 0 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8
+    & $XskBench tx -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8
     Start-Sleep -Seconds 1
 }
 
@@ -165,7 +165,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 &
 } -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
@@ -186,7 +186,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         Start-Sleep -Seconds 1
         Write-Output "Run $($i+1): Running wsario locally (receiving from UDP 9999)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2
     }
 
     switch ($XdpMode) {
@@ -194,6 +194,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         {
             Write-Output "Stopping BuiltIn program"
             Stop-Job $RxFilterJob
+            Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
         }
         eBPF
         {
