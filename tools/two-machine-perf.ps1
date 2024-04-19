@@ -139,19 +139,35 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 Write-Output "`n====================EXECUTION====================`n"
 
+Write-Output "Configuring 1 RSS queue"
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 1
+Write-Verbose "Waiting for IP address DAD to complete..."
+Start-Sleep -Seconds 5
+
 # Run xskbench.
-Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
+Write-Output "Generating TX on the peer (sending to UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $LocalInterface)
-    $XskBench = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -group 1 -ca 0x1 -q -id 0
-} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
+    param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
+    . $RemoteDir\tools\common.ps1
+    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000
+} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 for ($i = 0; $i -lt 5; $i++) {
-    Write-Output "Run $($i+1): Running xskbench locally (sending to UDP 9999)..."
-    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench tx -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8
     Start-Sleep -Seconds 1
+    Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0
+}
+
+Write-Output "Configuring 8 RSS queues"
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 1
+
+for ($i = 0; $i -lt 5; $i++) {
+    Start-Sleep -Seconds 1
+    Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -q -id 1 -q -id 2 -q -id 3 -q -id 4 -q -id 4 -q -id 5 -q -id 6 -q -id 7
 }
 
 Write-Output "Waiting for remote xskbench..."
@@ -164,7 +180,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000
 } -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
@@ -185,7 +201,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         Start-Sleep -Seconds 1
         Write-Output "Run $($i+1): Running wsario locally (receiving from UDP 9999)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x9 -IoSize 65535 -Uro 65535
     }
 
     switch ($XdpMode) {
