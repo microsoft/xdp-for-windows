@@ -33,6 +33,7 @@ if ($null -eq $Session) {
 
 $RootDir = $pwd
 . $RootDir\tools\common.ps1
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Arch
 
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
@@ -93,13 +94,22 @@ Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $RemoteDir
 
 try {
+# Install eBPF on the machines.
+Write-Output "Installing eBPF locally..."
+tools\setup.ps1 -Install ebpf -Config $Config -Arch $Arch
+Write-Output "Installing eBPF on peer..."
+Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir)
+    & $RemoteDir\tools\setup.ps1 -Install ebpf -Config $Config -Arch $Arch
+} -ArgumentList $Config, $Arch, $RemoteDir
+
 # Install XDP on the machines.
 Write-Output "Installing XDP locally..."
 tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
 } -ArgumentList $Config, $Arch, $RemoteDir
 
 #
@@ -108,14 +118,10 @@ Invoke-Command -Session $Session -ScriptBlock {
 #
 
 # Allow wsario.exe through the remote firewall
-Write-Output "Allowing wsario.exe through firewall on peer..."
-Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $RemoteAddress)
-    . $RemoteDir\tools\common.ps1
-    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    Write-Verbose "Adding firewall rules"
-    & netsh.exe advfirewall firewall add rule name="AllowWsaRio" program=$WsaRio dir=in action=allow protocol=any remoteip=$RemoteAddress | Write-Verbose
-} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress
+Write-Output "Allowing wsario.exe through firewall..."
+$WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+Write-Verbose "Adding firewall rules"
+& netsh.exe advfirewall firewall add rule name="AllowWsaRio" program=$WsaRio dir=in action=allow protocol=any remoteip=$RemoteAddress | Write-Verbose
 
 # Start logging.
 Write-Output "Starting local logs..."
@@ -150,22 +156,48 @@ Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
 # Run wsario.
-Write-Output "Starting wsario on the peer (listening on UDP 9999)..."
+Write-Output "Starting wsario on the peer (sending to UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $LocalInterface, $LocalAddress)
+    param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
-    $ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Arch
-    $RxFilterJob = & $ArtifactBin\rxfilter.exe -IfIndex $LocalInterface -QueueId * -MatchType All -Action Pass &
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 60 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2
-    Stop-Job $RxFilterJob
-} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface, $RemoteAddress -AsJob
+    $WsaRioJob = & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
+    Stop-Job $WsaRioJob
+} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
-for ($i = 0; $i -lt 5; $i++) {
-    Write-Output "Run $($i+1): Running wsario locally (sending to UDP 9999)..."
-    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2
-    Start-Sleep -Seconds 1
+foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
+    switch ($XdpMode) {
+        BuiltIn
+        {
+            Write-Output "Attaching BuiltIn program"
+            $RxFilterJob = & $ArtifactBin\rxfilter.exe -IfIndex $LocalInterface -QueueId * -MatchType All -Action Pass &
+        }
+        eBPF
+        {
+            Write-Output "Attaching eBPF program"
+            $ProgId = (& netsh.exe ebpf add program $ArtifactBin\bpf\pass.sys interface=$LocalInterface)[0].substring("Loaded with ID ".length)
+        }
+    }
+
+    for ($i = 0; $i -lt 5; $i++) {
+        Start-Sleep -Seconds 1
+        Write-Output "Run $($i+1): Running wsario locally (sending to UDP 9999)..."
+        $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+        $WsaRioJob = & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
+    }
+
+    switch ($XdpMode) {
+        BuiltIn
+        {
+            Write-Output "Stopping BuiltIn program"
+            Stop-Job $RxFilterJob
+        }
+        eBPF
+        {
+            Write-Output "Stopping eBPF program"
+            & netsh.exe ebpf delete program $ProgId
+        }
+    }
 }
 
 Write-Output "Waiting for remote wsario..."
@@ -186,10 +218,8 @@ Write-Output "Test Complete!"
     tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
     Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs -ErrorAction 'Continue'
-    Write-Output "Removing WsaRio firewall rule on peer"
-    Invoke-Command -Session $Session -ScriptBlock {
-        & netsh.exe advfirewall firewall del rule name="AllowWsaRio" | Out-Null
-    }
+    Write-Output "Removing WsaRio firewall rule"
+    & netsh.exe advfirewall firewall del rule name="AllowWsaRio" | Out-Null
     # Clean up XDP driver state.
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
