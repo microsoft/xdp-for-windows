@@ -105,7 +105,7 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 # Install XDP on the machines.
 Write-Output "Installing XDP locally..."
-tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
 Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
@@ -181,9 +181,9 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
 
     for ($i = 0; $i -lt 5; $i++) {
         Start-Sleep -Seconds 1
-        Write-Output "Run $($i+1): Running wsario locally (sending to UDP 9999)..."
+        Write-Output "Run $($i+1): Running wsario locally (receiving from to UDP 9999)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-        $WsaRioJob = & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 0 -CPU 0 -CPUOffset 2 &
     }
 
     switch ($XdpMode) {
@@ -227,5 +227,13 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    } -ArgumentList $Config, $Arch, $RemoteDir
+    # Clean up eBPF
+    Write-Output "Removing eBPF locally..."
+    tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    Write-Output "Removing eBPF on peer..."
+    Invoke-Command -Session $Session -ScriptBlock {
+        param ($Config, $Arch, $RemoteDir)
+        & $RemoteDir\tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
     } -ArgumentList $Config, $Arch, $RemoteDir
 }
