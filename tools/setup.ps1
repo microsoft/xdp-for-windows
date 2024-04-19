@@ -276,6 +276,7 @@ function Uninstall-Xdp {
 
         Write-Verbose "msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt"
         msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
+        Write-Verbose "msiexe.exe returned $LastExitCode"
 
         if ($LastExitCode -eq 0x666) {
             Write-Warning "The current version of XDP could not be uninstalled using MSI. Trying the existing installer..."
@@ -284,6 +285,7 @@ function Uninstall-Xdp {
 
             Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt"
             msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt
+            Write-Verbose "msiexe.exe returned $LastExitCode"
         }
 
         if ($LastExitCode -ne 0) {

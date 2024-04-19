@@ -102,6 +102,11 @@ Invoke-Command -Session $Session -ScriptBlock {
     & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 } -ArgumentList $Config, $Arch, $RemoteDir
 
+#
+# TODO set GenericDelayDetachTimeoutSec regkey to zero. This ensures XDP
+# instantly detaches from the LWF data path whenever no programs are plumbed.
+#
+
 # Allow wsario.exe through the remote firewall
 Write-Output "Allowing wsario.exe through firewall on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
