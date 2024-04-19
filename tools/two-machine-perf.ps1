@@ -48,6 +48,8 @@ Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
 $LocalMacAddress = (Get-NetAdapter -InterfaceIndex $LocalInterface).MacAddress
+$LocalAdapter = Get-NetAdapter -ifIndex $LocalInterface
+$LocalVfAdapter = Get-NetAdapter | Where-Object {$_.MacAddress -eq $LocalMacAddress -and $_.ifIndex -ne $LocalInterface}
 Write-Output "Local interface: $LocalInterface, $LocalMacAddress"
 
 $out = Invoke-Command -Session $Session -ScriptBlock {
@@ -140,6 +142,9 @@ Write-Output "`n====================EXECUTION====================`n"
 
 Write-Output "Configuring 1 RSS queue"
 Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 1
+if ($LocalVfAdapter) {
+    $LocalVfAdapter | Set-NetAdapterRss -NumberOfReceiveQueues 1
+}
 Write-Verbose "Waiting for IP address DAD to complete..."
 Start-Sleep -Seconds 5
 
@@ -160,7 +165,10 @@ for ($i = 0; $i -lt 5; $i++) {
 }
 
 Write-Output "Configuring 8 RSS queues"
-Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 1
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 8
+if ($LocalVfAdapter) {
+    $LocalVfAdapter | Set-NetAdapterRss -NumberOfReceiveQueues 8
+}
 
 for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
@@ -222,7 +230,7 @@ Write-Output "Waiting for remote wsario..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
-# Run xskbench latency mode.
+# Run xskbench latency mode and forward traffic on the peer.
 Write-Output "Starting L2FWD on peer (forwarding on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $LocalInterface)
@@ -241,7 +249,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
 }
 
-Write-Output "Waiting for remote xskbench..."
+Write-Output "Waiting for remote RxFilter..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
