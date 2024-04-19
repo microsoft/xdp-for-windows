@@ -119,7 +119,6 @@ Invoke-Command -Session $Session -ScriptBlock {
     reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 } -ArgumentList $Config, $Arch, $RemoteDir
 
-
 # Allow wsario.exe through the remote firewall
 Write-Output "Allowing wsario.exe through firewall..."
 $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
@@ -150,14 +149,14 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1
 } -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0
+    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8
 }
 
 Write-Output "Configuring 8 RSS queues"
@@ -167,7 +166,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -q -id 1 -q -id 2 -q -id 3 -q -id 4 -q -id 4 -q -id 5 -q -id 6 -q -id 7
+    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -q -id 1 -b 8 -q -id 2 -b 8 -q -id 3 -b 8 -q -id 4 -b 8 -q -id 5 -b 8 -q -id 6 -b 8 -q -id 7 -b 8
 }
 
 Write-Output "Waiting for remote xskbench..."
@@ -180,7 +179,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1
 } -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
@@ -201,7 +200,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         Start-Sleep -Seconds 1
         Write-Output "Run $($i+1): Running wsario locally (receiving from UDP 9999)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x9 -IoSize 65535 -Uro 65535
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x9 -QueueDepth 1 -IoSize 65535 -Uro 65535
     }
 
     switch ($XdpMode) {
@@ -220,6 +219,29 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
 }
 
 Write-Output "Waiting for remote wsario..."
+Wait-Job -Job $Job | Out-Null
+Receive-Job -Job $Job -ErrorAction 'Continue'
+
+# Run xskbench latency mode.
+Write-Output "Starting L2FWD on peer (forwarding on UDP 9999)..."
+$Job = Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir, $LocalInterface)
+    $RxFilter = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\rxfilter.exe"
+    $RxFilterJob = & $RxFilter -IfIndex $LocalInterface -QueueId * -MatchType UdpDstPort -UdpDstPort 9999 -Action L2Fwd &
+    Write-Output "Forwarding for 60 seconds"
+    Start-Sleep -Seconds 60
+    Stop-Job $RxFilterJob
+    Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
+} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
+
+for ($i = 0; $i -lt 5; $i++) {
+    Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench lat -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -q -id 1 -tx_pattern $TxBytes -b 8 -q -id 2 -tx_pattern $TxBytes -b 8 -q -id 3 -tx_pattern $TxBytes -b 8 -q -id 4 -tx_pattern $TxBytes -b 8 -q -id 5 -tx_pattern $TxBytes -b 8 -q -id 6 -tx_pattern $TxBytes -b 8 -q -id 7 -tx_pattern $TxBytes -b 8
+    Start-Sleep -Seconds 1
+}
+
+Write-Output "Waiting for remote xskbench..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
