@@ -165,7 +165,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 &
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0
 } -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
