@@ -48,7 +48,6 @@ Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
 $LocalMacAddress = (Get-NetAdapter -InterfaceIndex $LocalInterface).MacAddress
-$LocalAdapter = Get-NetAdapter -ifIndex $LocalInterface
 $LocalVfAdapter = Get-NetAdapter | Where-Object {$_.MacAddress -eq $LocalMacAddress -and $_.ifIndex -ne $LocalInterface}
 Write-Output "Local interface: $LocalInterface, $LocalMacAddress"
 
