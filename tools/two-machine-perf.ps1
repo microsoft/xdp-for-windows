@@ -75,15 +75,6 @@ Invoke-Command -Session $Session -ScriptBlock {
 Copy-Item -ToSession $Session .\artifacts -Destination $RemoteDir\artifacts -Recurse
 Copy-Item -ToSession $Session .\tools -Destination $RemoteDir\tools -Recurse
 
-# Check for any previously drivers.
-Write-Output "Checking local machine state..."
-tools\check-drivers.ps1 -Config $Config -Arch $Arch
-Write-Output "Checking remote machine state..."
-Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Arch $Arch
-} -ArgumentList $Config, $Arch, $RemoteDir
-
 # Prepare the machines for the testing.
 Write-Output "Preparing local machine for testing..."
 tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
@@ -92,6 +83,15 @@ Invoke-Command -Session $Session -ScriptBlock {
     param ($RemoteDir)
     & $RemoteDir\tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
 } -ArgumentList $RemoteDir
+
+# Check for any previously drivers.
+Write-Output "Checking local machine state..."
+tools\check-drivers.ps1 -Config $Config -Arch $Arch
+Write-Output "Checking remote machine state..."
+Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir)
+    & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Arch $Arch
+} -ArgumentList $Config, $Arch, $RemoteDir
 
 try {
 # Install eBPF on the machines.
