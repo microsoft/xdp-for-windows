@@ -51,6 +51,11 @@ $LocalMacAddress = (Get-NetAdapter -InterfaceIndex $LocalInterface).MacAddress
 $LocalVfAdapter = Get-NetAdapter | Where-Object {$_.MacAddress -eq $LocalMacAddress -and $_.ifIndex -ne $LocalInterface}
 Write-Output "Local interface: $LocalInterface, $LocalMacAddress"
 
+$LowestInterface = $LocalInterface
+if ($LocalVfAdapter) {
+    $script:LowestInterface = $LocalVfAdapter.ifIndex
+}
+
 $out = Invoke-Command -Session $Session -ScriptBlock {
     param ($LocalAddress)
     $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
@@ -62,8 +67,6 @@ Write-Output "Remote interface: $RemoteInterface, $RemoteMacAddress"
 
 # Generate payload to send to the peer.
 $PktCmd = "artifacts\bin\$($Arch)_$($Config)\pktcmd.exe"
-$TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 1280
-Write-Debug "TX Payload:`n$TxBytes"
 
 Write-Output "`n====================SET UP====================`n"
 
@@ -160,10 +163,13 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
+$TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 8
+Write-Debug "TX Payload:`n$TxBytes"
+
 for ($i = 0; $i -lt 5; $i++) {
     Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench lat -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -s
+    & $XskBench lat -i $LowestInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -s
     Start-Sleep -Seconds 1
 }
 
@@ -184,7 +190,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s
+    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s
 }
 
 Write-Output "Configuring 8 RSS queues"
@@ -198,7 +204,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s -q -id 1 -b 8 -s -q -id 2 -b 8 -s -q -id 3 -b 8 -s -q -id 4 -b 8 -s -q -id 5 -b 8 -s -q -id 6 -b 8 -s -q -id 7 -b 8 -s
+    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s -q -id 1 -b 8 -s -q -id 2 -b 8 -s -q -id 3 -b 8 -s -q -id 4 -b 8 -s -q -id 5 -b 8 -s -q -id 6 -b 8 -s -q -id 7 -b 8 -s
 }
 
 Write-Output "Waiting for remote xskbench..."
