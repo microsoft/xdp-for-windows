@@ -160,7 +160,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8
+    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s
 }
 
 Write-Output "Configuring 8 RSS queues"
@@ -173,7 +173,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -q -id 1 -b 8 -q -id 2 -b 8 -q -id 3 -b 8 -q -id 4 -b 8 -q -id 5 -b 8 -q -id 6 -b 8 -q -id 7 -b 8
+    & $XskBench rx -i $LocalInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s -q -id 1 -b 8 -s -q -id 2 -b 8 -s -q -id 3 -b 8 -s -q -id 4 -b 8 -s -q -id 5 -b 8 -s -q -id 6 -b 8 -s -q -id 7 -b 8 -s
 }
 
 Write-Output "Waiting for remote xskbench..."
@@ -244,7 +244,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
 for ($i = 0; $i -lt 5; $i++) {
     Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench lat -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -q -id 1 -tx_pattern $TxBytes -b 8 -q -id 2 -tx_pattern $TxBytes -b 8 -q -id 3 -tx_pattern $TxBytes -b 8 -q -id 4 -tx_pattern $TxBytes -b 8 -q -id 5 -tx_pattern $TxBytes -b 8 -q -id 6 -tx_pattern $TxBytes -b 8 -q -id 7 -tx_pattern $TxBytes -b 8
+    & $XskBench lat -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -s -q -id 1 -tx_pattern $TxBytes -b 8 -s -q -id 2 -tx_pattern $TxBytes -b 8 -s -q -id 3 -tx_pattern $TxBytes -b 8 -s -q -id 4 -tx_pattern $TxBytes -b 8 -s -q -id 5 -tx_pattern $TxBytes -b 8 -s -q -id 6 -tx_pattern $TxBytes -b 8 -s -q -id 7 -tx_pattern $TxBytes -b 8 -s
     Start-Sleep -Seconds 1
 }
 
