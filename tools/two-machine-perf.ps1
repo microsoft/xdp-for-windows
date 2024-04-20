@@ -148,6 +148,29 @@ if ($LocalVfAdapter) {
 Write-Verbose "Waiting for IP address DAD to complete..."
 Start-Sleep -Seconds 5
 
+# Run xskbench latency mode and forward traffic on the peer.
+Write-Output "Starting L2FWD on peer (forwarding on UDP 9999)..."
+$Job = Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir, $LocalInterface)
+    $RxFilter = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\rxfilter.exe"
+    $RxFilterJob = & $RxFilter -IfIndex $LocalInterface -QueueId * -MatchType UdpDstPort -UdpDstPort 9999 -Action L2Fwd &
+    Write-Output "Forwarding for 60 seconds"
+    Start-Sleep -Seconds 60
+    Stop-Job $RxFilterJob
+    Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
+} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
+
+for ($i = 0; $i -lt 5; $i++) {
+    Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench lat -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -s -q -id 1 -tx_pattern $TxBytes -b 8 -s -q -id 2 -tx_pattern $TxBytes -b 8 -s -q -id 3 -tx_pattern $TxBytes -b 8 -s -q -id 4 -tx_pattern $TxBytes -b 8 -s -q -id 5 -tx_pattern $TxBytes -b 8 -s -q -id 6 -tx_pattern $TxBytes -b 8 -s -q -id 7 -tx_pattern $TxBytes -b 8 -s
+    Start-Sleep -Seconds 1
+}
+
+Write-Output "Waiting for remote RxFilter..."
+Wait-Job -Job $Job | Out-Null
+Receive-Job -Job $Job -ErrorAction 'Continue'
+
 # Run xskbench.
 Write-Output "Generating TX on the peer (sending to UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
@@ -228,29 +251,6 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
 }
 
 Write-Output "Waiting for remote wsario..."
-Wait-Job -Job $Job | Out-Null
-Receive-Job -Job $Job -ErrorAction 'Continue'
-
-# Run xskbench latency mode and forward traffic on the peer.
-Write-Output "Starting L2FWD on peer (forwarding on UDP 9999)..."
-$Job = Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $LocalInterface)
-    $RxFilter = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\rxfilter.exe"
-    $RxFilterJob = & $RxFilter -IfIndex $LocalInterface -QueueId * -MatchType UdpDstPort -UdpDstPort 9999 -Action L2Fwd &
-    Write-Output "Forwarding for 60 seconds"
-    Start-Sleep -Seconds 60
-    Stop-Job $RxFilterJob
-    Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
-} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
-
-for ($i = 0; $i -lt 5; $i++) {
-    Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
-    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench lat -i $LocalInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -s -q -id 1 -tx_pattern $TxBytes -b 8 -s -q -id 2 -tx_pattern $TxBytes -b 8 -s -q -id 3 -tx_pattern $TxBytes -b 8 -s -q -id 4 -tx_pattern $TxBytes -b 8 -s -q -id 5 -tx_pattern $TxBytes -b 8 -s -q -id 6 -tx_pattern $TxBytes -b 8 -s -q -id 7 -tx_pattern $TxBytes -b 8 -s
-    Start-Sleep -Seconds 1
-}
-
-Write-Output "Waiting for remote RxFilter..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
