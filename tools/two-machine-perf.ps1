@@ -140,7 +140,8 @@ Invoke-Command -Session $Session -ScriptBlock {
 Write-Output "`n====================EXECUTION====================`n"
 
 Write-Output "Configuring 1 RSS queue"
-Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 1
+# Hyper-V NIC cannot configure NumberOfReceiveQueues, so configure MaxProcessors instead
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -MaxProcessors 1
 if ($LocalVfAdapter) {
     $LocalVfAdapter | Set-NetAdapterRss -NumberOfReceiveQueues 1
 }
@@ -164,7 +165,8 @@ for ($i = 0; $i -lt 5; $i++) {
 }
 
 Write-Output "Configuring 8 RSS queues"
-Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -NumberOfReceiveQueues 8
+# Hyper-V NIC cannot configure NumberOfReceiveQueues, so configure MaxProcessors instead
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -MaxProcessors 8
 if ($LocalVfAdapter) {
     $LocalVfAdapter | Set-NetAdapterRss -NumberOfReceiveQueues 8
 }
