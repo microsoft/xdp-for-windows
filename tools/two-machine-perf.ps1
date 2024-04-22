@@ -201,10 +201,17 @@ if ($LocalVfAdapter) {
 }
 
 for ($i = 0; $i -lt 5; $i++) {
+    Write-Output "Starting local detailed logs..."
+    try { wpr.exe -cancel -instancename "xskfunc$i" 2>&1 | Out-Null } catch { }
+    tools\log.ps1 -Start -Name "xskfunc$i" -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
+
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
     & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s -q -id 1 -b 8 -s -q -id 2 -b 8 -s -q -id 3 -b 8 -s -q -id 4 -b 8 -s -q -id 5 -b 8 -s -q -id 6 -b 8 -s -q -id 7 -b 8 -s
+
+    Write-Output "Stopping local logs..."
+    tools\log.ps1 -Stop -Name "xskfunc$i" -Config $Config -Arch $Arch -EtlPath artifacts\logs\"xskfunc$i"-local.etl -ErrorAction 'Continue' | Out-Null
 }
 
 Write-Output "Waiting for remote xskbench..."
