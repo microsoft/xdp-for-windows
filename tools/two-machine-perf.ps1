@@ -217,7 +217,7 @@ Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
 # Run wsario.
-Write-Output "Starting wsario on the peer (sending to UDP 9999)..."
+Write-Output "Starting wsario on the peer (sending to UDP 9999, 10000, 10001, ...)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
@@ -241,9 +241,9 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
 
     for ($i = 0; $i -lt 5; $i++) {
         Start-Sleep -Seconds 1
-        Write-Output "Run $($i+1): Running wsario locally (receiving from UDP 9999)..."
+        Write-Output "Run $($i+1): Running wsario locally (receiving)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x9 -QueueDepth 1 -IoSize 65535 -Uro 65535
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x1 -IoSize 2048
     }
 
     switch ($XdpMode) {
