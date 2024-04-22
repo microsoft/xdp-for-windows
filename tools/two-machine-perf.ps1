@@ -59,7 +59,7 @@ if ($LocalVfAdapter) {
 $ChunkSize = 2048
 $UmemSize = $ChunkSize * 256
 $BatchSize = 32
-$XskQueueParams = "-u $UmemSize -c $ChunkSize -b $BatchSize -s"
+$XskQueueParams = "-u", $UmemSize, "-c", $ChunkSize, "-b", $BatchSize, "-s"
 
 $out = Invoke-Command -Session $Session -ScriptBlock {
     param ($LocalAddress)
