@@ -212,7 +212,7 @@ for ($i = 0; $i -lt 5; $i++) {
     & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams -q -id 1 $XskQueueParams -q -id 2 $XskQueueParams -q -id 3 $XskQueueParams -q -id 4 $XskQueueParams -q -id 5 $XskQueueParams -q -id 6 $XskQueueParams -q -id 7 $XskQueueParams
 }
 
-Write-Output "Waiting for remote xskbench..."
+Write-Output "Waiting for remote wsario..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
