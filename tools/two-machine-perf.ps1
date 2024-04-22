@@ -56,6 +56,11 @@ if ($LocalVfAdapter) {
     $script:LowestInterface = $LocalVfAdapter.ifIndex
 }
 
+$ChunkSize = 2048
+$UmemSize = $ChunkSize * 256
+$BatchSize = 32
+$XskQueueParams = "-u $UmemSize -c $ChunkSize -b $BatchSize -s"
+
 $out = Invoke-Command -Session $Session -ScriptBlock {
     param ($LocalAddress)
     $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
@@ -164,12 +169,12 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
 $TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 8
-Write-Debug "TX Payload:`n$TxBytes"
+Write-Verbose "TX Payload:`n$TxBytes"
 
 for ($i = 0; $i -lt 5; $i++) {
     Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench lat -i $LowestInterface -d 10 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -b 8 -s
+    & $XskBench lat -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -ring_size 1
     Start-Sleep -Seconds 1
 }
 
@@ -190,7 +195,7 @@ for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s
+    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams
 }
 
 Write-Output "Configuring 8 RSS queues"
@@ -201,17 +206,10 @@ if ($LocalVfAdapter) {
 }
 
 for ($i = 0; $i -lt 5; $i++) {
-    Write-Output "Starting local detailed logs..."
-    try { wpr.exe -cancel -instancename "xskfunc$i" 2>&1 | Out-Null } catch { }
-    tools\log.ps1 -Start -Name "xskfunc$i" -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
-
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -b 8 -s -q -id 1 -b 8 -s -q -id 2 -b 8 -s -q -id 3 -b 8 -s -q -id 4 -b 8 -s -q -id 5 -b 8 -s -q -id 6 -b 8 -s -q -id 7 -b 8 -s
-
-    Write-Output "Stopping local logs..."
-    tools\log.ps1 -Stop -Name "xskfunc$i" -Config $Config -Arch $Arch -EtlPath artifacts\logs\"xskfunc$i"-local.etl -ErrorAction 'Continue' | Out-Null
+    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams -q -id 1 $XskQueueParams -q -id 2 $XskQueueParams -q -id 3 $XskQueueParams -q -id 4 $XskQueueParams -q -id 5 $XskQueueParams -q -id 6 $XskQueueParams -q -id 7 $XskQueueParams
 }
 
 Write-Output "Waiting for remote xskbench..."
