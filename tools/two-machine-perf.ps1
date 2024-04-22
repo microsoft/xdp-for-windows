@@ -222,10 +222,11 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    $ThreadCount = 8
     $ThreadsPerPort = 4
     $Jobs = @{}
     for ($i = 0; $i -lt $ThreadsPerPort; $i++) {
-        $Jobs[$i] = & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount 8 -Group 1 -CPU ($ThreadsPerPort * $i) -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1 &
+        $Jobs[$i] = & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount $ThreadCount -Group 1 -CPU ($ThreadCount * $i) -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1 &
     }
     Write-Output "Waiting for wsario(s)..."
     for ($i = 0; $i -lt $ThreadsPerPort; $i++) {
