@@ -81,11 +81,11 @@ Copy-Item -ToSession $Session .\tools -Destination $RemoteDir\tools -Recurse
 
 # Prepare the machines for the testing.
 Write-Output "Preparing local machine for testing..."
-tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
+tools\prepare-machine.ps1 -ForTest -NoReboot
 Write-Output "Preparing remote machine for testing..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($RemoteDir)
-    & $RemoteDir\tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
+    & $RemoteDir\tools\prepare-machine.ps1 -ForTest -NoReboot
 } -ArgumentList $RemoteDir
 
 # Check for any previously drivers.
