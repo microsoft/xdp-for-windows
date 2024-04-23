@@ -181,6 +181,18 @@ function Get-CoreNetCiArtifactPath {
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
 }
 
+function Get-ArtifactBinPath {
+    param (
+        [Parameter()]
+        [string]$Config,
+        [Parameter()]
+        [string]$Arch
+    )
+
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    return "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+}
+
 function Get-XdpBuildVersion {
     $RootDir = Split-Path $PSScriptRoot -Parent
     $XdpBuildVersion = @{}

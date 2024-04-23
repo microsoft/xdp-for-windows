@@ -276,6 +276,7 @@ function Uninstall-Xdp {
 
         Write-Verbose "msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt"
         msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
+        Write-Verbose "msiexe.exe returned $LastExitCode"
 
         if ($LastExitCode -eq 0x666) {
             Write-Warning "The current version of XDP could not be uninstalled using MSI. Trying the existing installer..."
@@ -283,7 +284,8 @@ function Uninstall-Xdp {
             $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'XDP for Windows'").IdentifyingNumber
 
             Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt"
-            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt
+            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt | Write-Verbose
+            Write-Verbose "msiexe.exe returned $LastExitCode"
         }
 
         if ($LastExitCode -ne 0) {
@@ -549,8 +551,20 @@ function Uninstall-Ebpf {
     if ($Process.ExitCode -ne 0) {
         Write-Warning "Uninstalling eBPF from $EbpfMsiFullPath failed: $($Process.ExitCode)"
 
-        Write-Verbose "Attempting generic uninstall using Uninstall-Package"
-        Get-Package | Where-Object -Property "Name" -eq "eBPF for Windows" | Uninstall-Package
+        if ($Process.ExitCode -eq 0x666) {
+            Write-Warning "The current version of eBPF could not be uninstalled using MSI. Trying the existing installer..."
+
+            $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF For Windows'").IdentifyingNumber
+
+            Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\ebpfuninstallwmi.txt"
+            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\ebpfuninstallwmi.txt | Write-Verbose
+            Write-Verbose "msiexe.exe returned $LastExitCode"
+
+            if ($LastExitCode -ne 0) {
+                Write-Error "eBPF MSI uninstall failed with status $LastExitCode" -ErrorAction Continue
+                Uninstall-Failure "ebpf_uninstall.dmp"
+            }
+        }
     }
 
     if (Test-Path $EbpfPath) {

@@ -20,10 +20,6 @@ This prepares a machine for running XDP.
     Installs all the run-time dependencies and configures machine for
     spinxsk tests.
 
-.PARAMETER ForNetPerfTest
-    Installs all the run-time dependencies and configures machine for
-    running performance tests on the netperf lab machines.
-
 .PARAMETER ForLogging
     Installs all the logging dependencies.
 
@@ -58,9 +54,6 @@ param (
     [switch]$ForPerfTest = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$ForNetPerfTest = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$ForLogging = $false,
 
     [Parameter(Mandatory = $false)]
@@ -84,8 +77,8 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 
 $ArtifactsDir = "$RootDir\artifacts"
 
-if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForNetPerfTest -and !$ForLogging) {
-    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, -ForNetPerfTest, or -ForLogging'
+if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
+    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
 }
 
 # Flag that indicates something required a reboot.
@@ -349,14 +342,6 @@ if ($Cleanup) {
         }
 
         Install-AzStorageModule
-    }
-
-    if ($ForNetPerfTest) {
-        Setup-VcRuntime
-        Download-CoreNet-Deps
-        Download-Ebpf-Msi
-        Setup-TestSigning
-        Install-Certs
     }
 
     if ($ForTest) {
