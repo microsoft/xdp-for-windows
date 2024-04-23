@@ -172,10 +172,18 @@ $TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $Remot
 Write-Verbose "TX Payload: $TxBytes"
 
 for ($i = 0; $i -lt 5; $i++) {
+    Write-Output "Starting local logs..."
+    $LogName = "xsklat$i"
+    try { wpr.exe -cancel -instancename $LogName 2>&1 | Out-Null } catch { }
+    tools\log.ps1 -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
+
     Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
     $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
     & $XskBench lat -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -ring_size 1
     Start-Sleep -Seconds 1
+
+    Write-Output "Stopping local logs..."
+    tools\log.ps1 -Stop -Name $LogName -Config $Config -Arch $Arch -EtlPath artifacts\logs\$LogName.etl -ErrorAction 'Continue' | Out-Null
 }
 
 Write-Output "Waiting for remote RxFilter..."
