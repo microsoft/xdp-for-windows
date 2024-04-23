@@ -253,7 +253,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         Start-Sleep -Seconds 1
         Write-Output "Run $($i+1): Running wsario locally (receiving)..."
         $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
-        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x1 -IoSize 2048
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x1 -QueueDepth 1 -IoSize 2048
     }
 
     switch ($XdpMode) {
