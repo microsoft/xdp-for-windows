@@ -1289,6 +1289,11 @@ ProcessLat(
         XskRingConsumerRelease(&Queue->compRing, available);
         XskRingProducerSubmit(&Queue->freeRing, available);
         processed += available;
+
+        if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+                Queue->txRing.Size) {
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
     }
 
     //
