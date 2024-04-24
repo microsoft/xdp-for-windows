@@ -96,13 +96,16 @@ jobs:
           !artifacts/bin/**/*.ilk
           !artifacts/bin/**/*.exp
           !artifacts/bin/**/*.lastcodeanalysissucceeded
-    - name: Publish Symbols
-      uses: microsoft/action-publish-symbols@719c40b80e38bca806f3e01e1e3dd3a67554cd68
-      if: inputs.publish_symbols
-      with:
-        accountName: mscodehub
-        symbolServiceUrl: 'https://artifacts.dev.azure.com'
-        personalAccessToken: ${{ secrets.publish_symbols_pat }}
+    #
+    # Do not publish symbols: releases are based on internal builds, not GitHub.
+    #
+    # - name: Publish Symbols
+    #   uses: microsoft/action-publish-symbols@719c40b80e38bca806f3e01e1e3dd3a67554cd68
+    #   if: inputs.publish_symbols
+    #   with:
+    #     accountName: mscodehub
+    #     symbolServiceUrl: 'https://artifacts.dev.azure.com'
+    #     personalAccessToken: ${{ secrets.publish_symbols_pat }}
     - name: Perform CodeQL Analysis
       if: inputs.codeql
       uses: github/codeql-action/analyze@v3
