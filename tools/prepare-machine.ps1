@@ -84,6 +84,10 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
 # Flag that indicates something required a reboot.
 $Reboot = $false
 
+# Log the OS version.
+Write-Verbose "Querying OS BuildLabEx"
+(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').BuildLabEx | Write-Verbose
+
 function Download-CoreNet-Deps {
     $CoreNetCiCommit = Get-CoreNetCiCommit
 
