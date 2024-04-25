@@ -246,11 +246,6 @@ jobs:
     - name: Run xskperfsuite (Winsock, RIO)
       shell: PowerShell
       run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Upload results
-      shell: PowerShell
-      env:
-        SAS_TOKEN: ${{ secrets.PERF_DATA_SAS }}
-      run: tools/upload-perfdata.ps1 -Verbose -FileName "artifacts/logs/xskperfsuite.csv" -ContainerName "cidata" -BlobName "xskperf-ws${{ matrix.windows }}.csv"
     - name: Upload Logs
       uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba
       if: ${{ always() }}
