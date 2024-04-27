@@ -81,7 +81,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@8caf195ad4b1dee92908e23f56eeb0696f1dd42d
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -144,7 +144,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForSpinxskTest -NoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@8caf195ad4b1dee92908e23f56eeb0696f1dd42d
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -193,7 +193,7 @@ jobs:
       with:
         sparse-checkout: tools
     - name: Download Artifacts
-      uses: actions/download-artifact@8caf195ad4b1dee92908e23f56eeb0696f1dd42d
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -233,7 +233,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@8caf195ad4b1dee92908e23f56eeb0696f1dd42d
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -286,7 +286,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose -UseJitEbpf
     - name: Download Artifacts
-      uses: actions/download-artifact@8caf195ad4b1dee92908e23f56eeb0696f1dd42d
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -329,7 +329,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b
     - name: Download Artifacts
-      uses: actions/download-artifact@8caf195ad4b1dee92908e23f56eeb0696f1dd42d
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
