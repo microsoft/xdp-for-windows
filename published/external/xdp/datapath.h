@@ -74,13 +74,6 @@ typedef struct _XDP_BUFFER {
 C_ASSERT(sizeof(XDP_BUFFER) == 16);
 
 typedef struct _XDP_FRAME {
-    XDP_FRAME_LAYOUT Layout;
-    XDP_FRAME_CHECKSUM Checksum;
-    union {
-        XDP_FRAME_GSO Gso;
-        XDP_FRAME_GRO Gro;
-#pragma warning(suppress:4201) // nonstandard extension used: nameless struct/union
-    } DUMMYUNIONNAME;
     XDP_BUFFER Buffer;
     //
     // Followed by various XDP descriptor extensions.
