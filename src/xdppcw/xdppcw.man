@@ -188,11 +188,11 @@
             />
           <counter
             id="3"
-            uri="Microsoft.Xdp.LwfRxQueue.ForwardingFailures"
-            name="Forwarding Failures"
+            uri="Microsoft.Xdp.LwfRxQueue.ForwardingFailuresAllocation"
+            name="Forwarding Failures: Allocation"
             nameID="3012"
-            field="ForwardingFailures"
-            description="Frames that failed to be forwarded after XDP inspection."
+            field="ForwardingFailuresAllocation"
+            description="Frames that failed to be forwarded due to allocation failure."
             descriptionID="3014"
             type="perf_counter_rawcount"
             aggregate="sum"

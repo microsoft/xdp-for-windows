@@ -6,6 +6,13 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
+//
+// TODO: find a better way to fix intellisense.
+//
+#ifdef KERNEL_MODE
+#undef KERNEL_MODE
+#endif
+
 #define _CRT_RAND_S
 #include <cstdlib>
 #include <algorithm>
@@ -17,6 +24,7 @@
 #include <set>
 #include <stack>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Windows and WIL includes need to be ordered in a certain way.
@@ -1604,6 +1612,20 @@ MpTxGetFrame(
     )
 {
     return FnMpTxGetFrame(Handle.get(), Index, 0, FrameBufferLength, Frame);
+}
+
+static
+VOID
+MpTxVerifyNoFrame(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Index
+    )
+{
+    UINT32 FrameBufferLength = 0;
+    std::this_thread::sleep_for(TEST_TIMEOUT_ASYNC);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        MpTxGetFrame(Handle, Index, &FrameBufferLength, NULL));
 }
 
 static
@@ -3853,8 +3875,119 @@ typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
     _In_ BOOLEAN IsUdp;
     _In_ BOOLEAN IsTxInspect;
     _In_ BOOLEAN LowResources;
+    _In_ UINT16 GroSegCount;
     _In_ XDP_RULE_ACTION Action;
 } GENERIC_RX_FRAGMENT_PARAMS;
+
+static
+VOID
+GenericRxValidateGroToGso(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ const GENERIC_RX_FRAGMENT_PARAMS *Params,
+    _In_ unique_fnmp_handle &GenericMp,
+    _In_ const UCHAR *GroPacketBuffer,
+    _In_ UINT32 GroPacketLength,
+    _In_ DATA_FLUSH_OPTIONS &RxFlushOptions
+    )
+{
+    UINT32 TcpHdrSize = sizeof(TCP_HDR); // TODO: No TCP options tested.
+    UINT32 TotalTcpHdrSize = TCP_HEADER_BACKFILL(Af) - sizeof(TCP_HDR) + TcpHdrSize;
+    std::vector<UCHAR> Filter(TotalTcpHdrSize);
+    std::vector<UCHAR> Mask(Filter.size(), 0xFF);
+    std::vector<UCHAR> FinalPayload;
+    unique_malloc_ptr<DATA_FRAME> TxFrame;
+
+    TEST_NOT_EQUAL(0, Params->GroSegCount);
+    TEST_EQUAL(XDP_PROGRAM_ACTION_L2FWD, Params->Action);
+    TEST_TRUE(GroPacketLength > Filter.size());
+
+    //
+    // GSO to GRO for TxInspect is not implemented yet.
+    // UDP GRO to GSO is not implemented yet.
+    //
+    TEST_FALSE(Params->IsTxInspect);
+    TEST_FALSE(Params->IsUdp);
+
+    memcpy(&Filter[0], GroPacketBuffer, Filter.size());
+
+    //
+    // Clear variable fields in the mask. These will be validated in the final
+    // GSO'd frames.
+    //
+
+    if (Af == AF_INET) {
+        IPV4_HEADER *Ipv4 = (IPV4_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
+        Ipv4->TotalLength = 0;
+        Ipv4->Identification = 0;
+        Ipv4->HeaderChecksum = 0;
+    } else {
+        IPV6_HEADER *Ipv6 = (IPV6_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
+        Ipv6->PayloadLength = 0;
+    }
+
+    TCP_HDR *Tcp = (TCP_HDR *)&Mask[TCP_HEADER_BACKFILL(Af) - sizeof(*Tcp)];
+    Tcp->th_flags = 0; // Technically, some flag bits could be kept constant, e.g. SYN.
+    Tcp->th_seq = 0;
+    Tcp->th_sum = 0;
+
+    MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
+    MpRxFlush(GenericMp, &RxFlushOptions);
+
+    if (Params->SplitCount > 0 && Params->SplitIndexes[0] < TotalTcpHdrSize) {
+        //
+        // GRO to GSO requires contiguous headers through the TCP header.
+        //
+        MpTxVerifyNoFrame(GenericMp, 0);
+        return;
+    }
+
+    TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+
+    //
+    // TODO: validate multiple GSO/csum offloaded frames in a loop.
+    //
+
+    std::vector<UCHAR> FramePayload;
+
+    //
+    // Verify the entire packet (and nothing more) was forwarded. The TX
+    // filter verifies the bytes match up to the length of the filter.
+    //
+    for (UINT32 i = 0; i < TxFrame->BufferCount; i++) {
+        DATA_BUFFER *Buffer = &TxFrame->Buffers[i];
+        const UCHAR *PayloadStart = Buffer->VirtualAddress + Buffer->DataOffset;
+        FramePayload.insert(FramePayload.end(), PayloadStart, PayloadStart + Buffer->DataLength);
+    }
+
+    //
+    // TODO: ensure frame sizes are maximized, respect MSS, etc.
+    // TODO: verify each of the fields zero'd out in the mask above.
+    //
+
+    TEST_TRUE(FramePayload.size() > TotalTcpHdrSize);
+    FinalPayload.insert(FinalPayload.end(), &FramePayload[TotalTcpHdrSize], &FramePayload.end()[0]);
+
+    //
+    // Non-low-resources NBLs should be forwarded without a data copy. We
+    // infer this is true by the TX NBL having the same MDL layout as the
+    // original NBL.
+    //
+    if (!Params->LowResources) {
+        TEST_EQUAL(Params->SplitCount + 1, TxFrame->BufferCount);
+    }
+
+    //
+    // XDP should preserve the available backfill.
+    //
+    TEST_EQUAL(Params->Backfill, TxFrame->Buffers[0].DataOffset);
+
+    TEST_EQUAL(GroPacketLength - TotalTcpHdrSize, FinalPayload.size());
+    TEST_TRUE(
+        RtlEqualMemory(&FinalPayload[0], &GroPacketBuffer[TotalTcpHdrSize], FinalPayload.size()));
+
+    MpTxDequeueFrame(GenericMp, 0);
+    MpTxFlush(GenericMp);
+}
 
 static
 VOID
@@ -3931,7 +4064,7 @@ GenericRxFragmentBuffer(
     std::vector<DATA_BUFFER> Buffers;
 
     //
-    // Split up the UDP frame into RX fragment buffers.
+    // Split up the frame into RX fragment buffers.
     //
     for (UINT16 Index = 0; Index < Params->SplitCount; Index++) {
         DATA_BUFFER Buffer = {0};
@@ -3964,6 +4097,7 @@ GenericRxFragmentBuffer(
         FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfTxEnqueue(FnLwf, &Frame.Frame);
     } else {
+        Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params->GroSegCount;
         GenericMp = MpOpenGeneric(If.GetIfIndex());
         TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     }
@@ -4015,6 +4149,13 @@ GenericRxFragmentBuffer(
         Ethernet->Destination = Ethernet->Source;
         Ethernet->Source = TempAddress;
 
+        if (Params->GroSegCount > 0) {
+            GenericRxValidateGroToGso(
+                Af, Params, GenericMp, &L2FwdPacket[Params->Backfill], ActualPacketLength,
+                RxFlushOptions);
+            return;
+        }
+
         if (Params->IsTxInspect) {
             LwfRxFilter(FnLwf, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
             LwfTxFlush(FnLwf, &RxFlushOptions);
@@ -4046,7 +4187,7 @@ GenericRxFragmentBuffer(
         //
         // XDP should preserve the available backfill.
         //
-        TEST_EQUAL(Params->Backfill, Buffers[0].DataOffset);
+        TEST_EQUAL(Params->Backfill, TxFrame->Buffers[0].DataOffset);
 
         if (Params->IsTxInspect) {
             LwfRxDequeueFrame(FnLwf, 0);

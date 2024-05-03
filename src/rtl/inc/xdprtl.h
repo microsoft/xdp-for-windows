@@ -66,6 +66,8 @@
 #define ntohl _byteswap_ulong
 #endif
 
+#define CONST_HTONS(_x) ((((UINT16)(_x)) >> 8 | (((UINT16)(_x)) << 8)))
+
 #ifdef KERNEL_MODE
 
 _IRQL_requires_max_(APC_LEVEL)

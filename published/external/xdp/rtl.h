@@ -20,6 +20,9 @@ extern "C" {
     ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Value)))
 #endif
 
+#define RTL_PTR_DIFF(A, B) \
+   ((ULONG_PTR)(A) - (ULONG_PTR)(B))
+
 #if (!defined(NTDDI_WIN10_CO) || (WDK_NTDDI_VERSION < NTDDI_WIN10_CO)) && \
     !defined(UINT32_VOLATILE_ACCESSORS)
 #define UINT32_VOLATILE_ACCESSORS

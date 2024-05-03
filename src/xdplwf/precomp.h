@@ -36,6 +36,7 @@
 #include <xdp/txframecompletioncontext.h>
 
 #include <xdpassert.h>
+#include <xdpchecksum.h>
 #include <xdpetw.h>
 #include <xdpif.h>
 #include <xdplifetime.h>
