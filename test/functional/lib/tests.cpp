@@ -1591,18 +1591,6 @@ RxInitializeFrame(
 }
 
 static
-VOID
-MpTxFilter(
-    _In_ const unique_fnmp_handle &Handle,
-    _In_ const VOID *Pattern,
-    _In_ const VOID *Mask,
-    _In_ UINT32 Length
-    )
-{
-    TEST_HRESULT(FnMpTxFilter(Handle.get(), Pattern, Mask, Length));
-}
-
-static
 HRESULT
 MpTxGetFrame(
     _In_ const unique_fnmp_handle &Handle,
@@ -1687,6 +1675,20 @@ MpTxFlush(
     )
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
+}
+
+[[nodiscard]]
+static
+VOID
+MpTxFilter(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_opt_bytecount_(Length) const VOID *Pattern,
+    _In_opt_bytecount_(Length) const VOID *Mask,
+    _In_ UINT32 Length
+    )
+{
+#pragma warning(suppress:6387) // 'Pattern' could be '0':  this does not adhere to the specification for the function 'FnMpTxFilter'
+    TEST_HRESULT(FnMpTxFilter(Handle.get(), Pattern, Mask, Length));
 }
 
 static
@@ -3866,7 +3868,7 @@ GenericRxUdpFragmentQuicLongHeader(
     }
 }
 
-typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
+typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
     _In_ UINT16 Backfill;
     _In_ UINT16 Trailer;
@@ -3925,7 +3927,7 @@ GenericRxValidateGroToGso(
         Ipv6->PayloadLength = 0;
     }
 
-    TCP_HDR *Tcp = (TCP_HDR *)&Mask[TCP_HEADER_BACKFILL(Af) - sizeof(*Tcp)];
+    TCP_HDR *Tcp = (TCP_HDR *)&Mask[TotalTcpHdrSize - sizeof(*Tcp)];
     Tcp->th_flags = 0; // Technically, some flag bits could be kept constant, e.g. SYN.
     Tcp->th_seq = 0;
     Tcp->th_sum = 0;
@@ -3962,10 +3964,14 @@ GenericRxValidateGroToGso(
     //
     // TODO: ensure frame sizes are maximized, respect MSS, etc.
     // TODO: verify each of the fields zero'd out in the mask above.
+    // TODO: verify LSO OOB info properly.
     //
 
+    TEST_TRUE(TxFrame->Output.Lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE);
+
     TEST_TRUE(FramePayload.size() > TotalTcpHdrSize);
-    FinalPayload.insert(FinalPayload.end(), &FramePayload[TotalTcpHdrSize], &FramePayload.end()[0]);
+    FinalPayload.insert(
+        FinalPayload.end(), FramePayload.begin() + TotalTcpHdrSize, FramePayload.end());
 
     //
     // Non-low-resources NBLs should be forwarded without a data copy. We
@@ -4002,6 +4008,7 @@ GenericRxFragmentBuffer(
     UINT32 PacketBufferOffset = 0;
     UINT32 TotalOffset = 0;
     MY_SOCKET Xsk;
+    wil::unique_handle ProgramHandle;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
     const XDP_HOOK_ID *RxHookId = Params->IsTxInspect ? &XdpInspectTxL2 : &XdpInspectRxL2;
@@ -4032,7 +4039,7 @@ GenericRxFragmentBuffer(
         Rule.Redirect.Target = Xsk.Handle.get();
     }
 
-    wil::unique_handle ProgramHandle =
+    ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), RxHookId, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     //
@@ -4151,8 +4158,7 @@ GenericRxFragmentBuffer(
 
         if (Params->GroSegCount > 0) {
             GenericRxValidateGroToGso(
-                Af, Params, GenericMp, &L2FwdPacket[Params->Backfill], ActualPacketLength,
-                RxFlushOptions);
+                Af, Params, GenericMp, &L2FwdPacket[0], ActualPacketLength, RxFlushOptions);
             return;
         }
 
@@ -4381,6 +4387,44 @@ GenericRxFromTxInspect(
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
+}
+
+VOID
+GenericRxForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    const UINT8 IpHdrSize = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = XDP_PROGRAM_ACTION_L2FWD;
+    Params.PayloadLength = 60000;
+    Params.Backfill = 7;
+    Params.Trailer = 23;
+    UINT16 SplitIndexes[] = {
+        0,
+        sizeof(ETHERNET_HEADER) / 2,
+        sizeof(ETHERNET_HEADER),
+        sizeof(ETHERNET_HEADER) + IpHdrSize / 2,
+        sizeof(ETHERNET_HEADER) + IpHdrSize,
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) / 2,
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR),
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) + 42,
+    };
+
+    for (auto IsLowResources : {false, true}) {
+    for (auto Split : SplitIndexes) {
+        if (Split > 0) {
+            Params.SplitIndexes = &Split;
+            Params.SplitCount = 1;
+        } else {
+            Params.SplitIndexes = NULL;
+            Params.SplitCount = 0;
+        }
+
+        Params.GroSegCount = Params.PayloadLength / 1000;
+        Params.LowResources = IsLowResources;
+        GenericRxFragmentBuffer(Af, &Params);
+    }}
 }
 
 static

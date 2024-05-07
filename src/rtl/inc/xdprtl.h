@@ -66,7 +66,7 @@
 #define ntohl _byteswap_ulong
 #endif
 
-#define CONST_HTONS(_x) ((((UINT16)(_x)) >> 8 | (((UINT16)(_x)) << 8)))
+#define CONST_HTONS(_x) ((((UINT16)(_x)) >> 8 | (((UINT16)((_x) & 0xFF)) << 8)))
 
 #ifdef KERNEL_MODE
 
