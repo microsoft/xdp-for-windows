@@ -4186,7 +4186,12 @@ GenericRxFragmentBuffer(
         // infer this is true by the TX NBL having the same MDL layout as the
         // original NBL.
         //
-        if (!Params->LowResources) {
+        // For TX-inspect NBLs, allow XDP to copy data if the first buffer is
+        // too short to reliably contain all L2 and L3 headers due to NDIS
+        // lookahead requirements.
+        //
+        if (!Params->LowResources &&
+            (!Params->IsTxInspect || Frame.Frame.Buffers[0].DataLength > 128)) {
             TEST_EQUAL(Buffers.size(), TxFrame->BufferCount);
         }
 
@@ -4245,7 +4250,7 @@ GenericRxTooManyFragments(
 }
 
 VOID
-GenericRxHeaderFragments(
+GenericRxHeaderMultipleFragments(
     _In_ ADDRESS_FAMILY Af,
     _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp,
@@ -4266,15 +4271,40 @@ GenericRxHeaderFragments(
     SplitIndexes[3] = SplitIndexes[2] + ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
     SplitIndexes[4] = SplitIndexes[3] + (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR)) / 2;
 
-    for (auto Split : {false, true}) {
-        if (Split) {
-            Params.SplitIndexes = SplitIndexes;
-            Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
-        } else {
-            Params.SplitIndexes = NULL;
-            Params.SplitCount = 0;
-        }
+    for (UINT16 i = 0; i < RTL_NUMBER_OF(SplitIndexes) - 1; i++) {
+        Params.SplitIndexes = &SplitIndexes[i];
+        Params.SplitCount = RTL_NUMBER_OF(SplitIndexes) - i;
+        Params.IsTxInspect = IsTxInspect;
+        Params.LowResources = IsLowResources;
+        GenericRxFragmentBuffer(Af, &Params);
+    }
+}
 
+VOID
+GenericRxHeaderFragments(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ XDP_RULE_ACTION ProgramAction,
+    _In_ BOOLEAN IsUdp,
+    _In_ BOOLEAN IsTxInspect,
+    _In_ BOOLEAN IsLowResources
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = ProgramAction;
+    Params.IsUdp = IsUdp;
+    Params.PayloadLength = 43;
+    Params.Backfill = 13;
+    Params.Trailer = 17;
+    UINT16 HeadersLength =
+        sizeof(ETHERNET_HEADER) +
+            ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)) +
+            (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR));
+
+    GenericRxHeaderMultipleFragments(Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources);
+
+    for (UINT16 i = 1; i < HeadersLength; i++) {
+        Params.SplitIndexes = &i;
+        Params.SplitCount = 1;
         Params.IsTxInspect = IsTxInspect;
         Params.LowResources = IsLowResources;
         GenericRxFragmentBuffer(Af, &Params);

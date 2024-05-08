@@ -10,6 +10,15 @@
 #define RECV_TX_INSPECT_BATCH_SIZE 64
 #define RECV_DEFAULT_MAX_TX_BUFFERS 256
 #define RECV_MAX_MAX_TX_BUFFERS 4096
+//
+// Rather than tracking the current lookaside via OIDs, which is subject to
+// theoretical race conditions, simply set the minimum lookahead for forwarding
+// TX inspected packets onto the RX path based on the known minimums for TCPIP
+// and TCPIP6. Older OS builds also erroneously configure excessively large
+// lookasides. The value here is the maximum IPv4 header size, which is larger
+// than the IPv6 header, plus the L2 header.
+//
+#define RECV_TX_INSPECT_LOOKAHEAD (sizeof(ETHERNET_HEADER) + (0xF * sizeof(UINT32)))
 
 typedef struct _XDP_LWF_GENERIC_RX_FRAME_CONTEXT {
     NET_BUFFER *Nb;
@@ -673,7 +682,16 @@ XdpGenericReceiveEnqueueTxNb(
         }
     }
 
-    if (CanPend) {
+    //
+    // If we are allowed to clone and pend NBLs, reuse the existing MDL chain.
+    //
+    // We cannot reuse the MDL chain if the NBL is being forwarded onto the
+    // local RX path and the frame is potentially discontiguous within L2 or L3
+    // headers.
+    //
+    if (CanPend &&
+            (!RxQueue->Flags.TxInspect ||
+                Nb->CurrentMdl->ByteCount - Nb->CurrentMdlOffset >= RECV_TX_INSPECT_LOOKAHEAD)) {
         TxNbl->FirstNetBuffer->MdlChain = Nb->MdlChain;
         TxNbl->FirstNetBuffer->CurrentMdl = Nb->CurrentMdl;
         TxNbl->FirstNetBuffer->DataLength = Nb->DataLength;
