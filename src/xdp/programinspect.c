@@ -284,12 +284,12 @@ XdpParseFragmentedFrame(
     _In_ XDP_EXTENSION *FragmentExtension,
     _In_ UINT32 FragmentIndex,
     _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ UINT32 BufferDataOffset,
     _Inout_ XDP_PROGRAM_FRAME_CACHE *Cache,
     _Inout_ XDP_PROGRAM_FRAME_STORAGE *Storage
     )
 {
     XDP_BUFFER *Buffer = &Frame->Buffer;
-    UINT32 BufferDataOffset = 0;
     UINT32 FragmentCount;
     IPPROTO IpProto = IPPROTO_MAX;
 
@@ -479,7 +479,7 @@ BufferTooSmall:
         ASSERT(FragmentExtension);
         XdpParseFragmentedFrame(
             Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
-            Cache, Storage);
+            Offset, Cache, Storage);
     }
 }
 
