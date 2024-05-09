@@ -502,6 +502,19 @@ XdpGenericReceiveLinearizeNb(
 
 static
 VOID
+XdpGenericRxClearNblCloneData(
+    _Inout_ NET_BUFFER_LIST *Nbl
+    )
+{
+    Nbl->FirstNetBuffer->MdlChain = NULL;
+    Nbl->FirstNetBuffer->CurrentMdl = NULL;
+    Nbl->FirstNetBuffer->DataLength = 0;
+    Nbl->FirstNetBuffer->DataOffset = 0;
+    Nbl->FirstNetBuffer->CurrentMdlOffset = 0;
+}
+
+static
+VOID
 XdpGenericRxFreeNblCloneCache(
     _In_opt_ NET_BUFFER_LIST *NblChain
     )
@@ -511,11 +524,7 @@ XdpGenericRxFreeNblCloneCache(
         NblChain = NblChain->Next;
 
         ASSERT(Nbl->FirstNetBuffer->Next == NULL);
-        Nbl->FirstNetBuffer->MdlChain = NULL;
-        Nbl->FirstNetBuffer->CurrentMdl = NULL;
-        Nbl->FirstNetBuffer->DataLength = 0;
-        Nbl->FirstNetBuffer->DataOffset = 0;
-        Nbl->FirstNetBuffer->CurrentMdlOffset = 0;
+        XdpGenericRxClearNblCloneData(Nbl);
 
         NdisFreeNetBufferList(Nbl);
     }
@@ -588,6 +597,8 @@ XdpGenericReceiveEnqueueTxNb(
     } else {
         NDIS_STATUS NdisStatus;
         ULONG BytesCopied;
+
+        XdpGenericRxClearNblCloneData(TxNbl);
 
         NdisStatus =
             NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL);
