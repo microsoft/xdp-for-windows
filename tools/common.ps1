@@ -166,7 +166,7 @@ function Get-FnRuntimeDir {
 }
 
 function Get-CoreNetCiCommit {
-    return "61af6f56ef187dcedb459bcc56f56e305f98a6e4"
+    return "285f2f66ac3319220c663312e93da28af9e9365e"
 }
 
 function Get-CoreNetCiArtifactPath {
