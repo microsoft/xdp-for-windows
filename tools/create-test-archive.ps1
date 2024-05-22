@@ -33,10 +33,12 @@ Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll" $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll"   $DstPath\bin
+copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltestdrv\xdpfunctionaltestdrv.sys" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.pdb"   $DstPath\symbols
+copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltestdrv.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 

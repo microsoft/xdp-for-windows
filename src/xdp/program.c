@@ -1417,7 +1417,6 @@ XdpProgramDetach(
     TraceExitSuccess(TRACE_CORE);
 }
 
-static
 NTSTATUS
 XdpProgramCreate(
     _Out_ XDP_PROGRAM_OBJECT **NewProgramObject,
@@ -1576,7 +1575,6 @@ Exit:
     return Status;
 }
 
-static
 VOID
 XdpProgramClose(
     _In_ XDP_PROGRAM_OBJECT *ProgramObject

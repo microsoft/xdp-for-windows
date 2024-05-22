@@ -12,10 +12,14 @@
 #include <winerror.h>
 #include "testframeworkapi.h"
 
+#ifdef KERNEL_MODE
+#define TEST_FAILURE(Format, ...) LogTestFailure(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__)
+#else
 #define TEST_FAILURE(Format, ...) { \
     LogTestFailure(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__); \
     StopTest(); \
 }
+#endif
 
 #define TEST_WARNING(Format, ...) LogTestWarning(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__)
 

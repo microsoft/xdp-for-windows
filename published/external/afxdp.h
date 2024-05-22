@@ -7,6 +7,7 @@
 #define AFXDP_H
 
 #include <xdp/hookid.h>
+#include <xdpapi_status.h>
 
 #ifndef XDPAPI
 #define XDPAPI __declspec(dllimport)
@@ -15,6 +16,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if defined(_KERNEL_MODE)
+typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
+#endif // defined(_KERNEL_MODE)
 
 typedef union _XSK_BUFFER_ADDRESS {
     struct {
@@ -55,11 +60,27 @@ typedef enum _XSK_RING_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XSK_RING_FLAGS);
 C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 
+#if defined(_KERNEL_MODE)
+
 typedef
-HRESULT
+XDP_STATUS
 XSK_CREATE_FN(
-    _Out_ HANDLE* Socket
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+    _Out_ HANDLE *Socket
     );
+
+#else
+
+typedef
+XDP_STATUS
+XSK_CREATE_FN(
+    _Out_ HANDLE *Socket
+    );
+
+#endif // defined(_KERNEL_MODE)
 
 typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NONE = 0x0,
@@ -73,7 +94,7 @@ DEFINE_ENUM_FLAG_OPERATORS(XSK_BIND_FLAGS)
 C_ASSERT(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32));
 
 typedef
-HRESULT
+XDP_STATUS
 XSK_BIND_FN(
     _In_ HANDLE Socket,
     _In_ UINT32 IfIndex,
@@ -89,7 +110,7 @@ DEFINE_ENUM_FLAG_OPERATORS(XSK_ACTIVATE_FLAGS)
 C_ASSERT(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32));
 
 typedef
-HRESULT
+XDP_STATUS
 XSK_ACTIVATE_FN(
     _In_ HANDLE Socket,
     _In_ XSK_ACTIVATE_FLAGS Flags
@@ -116,7 +137,7 @@ DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_RESULT_FLAGS)
 C_ASSERT(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32));
 
 typedef
-HRESULT
+XDP_STATUS
 XSK_NOTIFY_SOCKET_FN(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
@@ -126,8 +147,31 @@ XSK_NOTIFY_SOCKET_FN(
 
 typedef struct _OVERLAPPED OVERLAPPED;
 
+#if defined(_KERNEL_MODE)
+
 typedef
-HRESULT
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XSK_DELETE_FN(
+    _In_ HANDLE Socket
+    );
+
+typedef VOID* XSK_COMPLETION_CONTEXT;
+
+typedef
+_IRQL_requires_max_(DISPATCH_LEVEL)
+XDP_STATUS
+XSK_NOTIFY_CALLBACK(
+    _In_ VOID *ClientContext,
+    _In_ XSK_NOTIFY_RESULT_FLAGS Result
+    );
+
+#else
+
+typedef OVERLAPPED* XSK_COMPLETION_CONTEXT;
+
+typedef
+XDP_STATUS
 XSK_NOTIFY_ASYNC_FN(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
@@ -135,14 +179,25 @@ XSK_NOTIFY_ASYNC_FN(
     );
 
 typedef
-HRESULT
+XDP_STATUS
 XSK_GET_NOTIFY_ASYNC_RESULT_FN(
     _In_ OVERLAPPED *Overlapped,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     );
 
+#endif // defined(_KERNEL_MODE)
+
 typedef
-HRESULT
+XDP_STATUS
+XSK_NOTIFY_ASYNC2_FN(
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _Inout_ XSK_COMPLETION_CONTEXT CompletionContext,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
+    );
+
+typedef
+XDP_STATUS
 XSK_SET_SOCKOPT_FN(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
@@ -151,7 +206,7 @@ XSK_SET_SOCKOPT_FN(
     );
 
 typedef
-HRESULT
+XDP_STATUS
 XSK_GET_SOCKOPT_FN(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
@@ -160,7 +215,7 @@ XSK_GET_SOCKOPT_FN(
     );
 
 typedef
-HRESULT
+XDP_STATUS
 XSK_IOCTL_FN(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,

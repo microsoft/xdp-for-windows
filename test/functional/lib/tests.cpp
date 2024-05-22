@@ -3,6 +3,19 @@
 // Licensed under the MIT License.
 //
 
+#ifdef KERNEL_MODE
+#include <ntddk.h>
+#include <ntintsafe.h>
+#include <ntstrsafe.h>
+#include <ndis.h>
+#include <netioddk.h>
+#include <initguid.h>
+#include <ws2def.h>
+#include <ws2ipdef.h>
+#include <netiodef.h>
+#include <netioapi.h>
+#include <mstcpip.h>
+#else
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
@@ -31,6 +44,8 @@
 #include <lm.h>
 #include <sddl.h>
 
+#endif
+
 #if _MSCVER < 1930
 //
 // WIL causes VS2019 to warn on benign errors.
@@ -38,6 +53,9 @@
 #pragma warning(push)
 #pragma warning(disable:6001)
 #pragma warning(disable:6387)
+#pragma warning(disable:28157)
+#pragma warning(disable:28158)
+#pragma warning(disable:28167)
 #endif
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
@@ -54,17 +72,26 @@
 #include <fnmpapi.h>
 #include <fnlwfapi.h>
 #include <fnoid.h>
+
+#ifndef KERNEL_MODE
 #include <xdpndisuser.h>
+#endif KERNEL_MODE
+
 #include <fntrace.h>
 #include <qeo_ndis.h>
 
+#ifndef KERNEL_MODE
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
 #include "ebpf_nethooks.h"
+#endif
+
 #include "xdptest.h"
 #include "tests.h"
+#ifndef KERNEL_MODE
 #include "util.h"
+#endif
 
 #include "tests.tmh"
 
@@ -102,6 +129,7 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 // execute.
 //
 #define TEST_TIMEOUT_ASYNC_MS 1000
+#ifndef KERNEL_MODE
 #define TEST_TIMEOUT_ASYNC std::chrono::milliseconds(TEST_TIMEOUT_ASYNC_MS)
 
 //
@@ -112,8 +140,10 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 //
 // Interval between polling attempts.
 //
+#endif
 #define POLL_INTERVAL_MS 10
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
+#ifndef KERNEL_MODE
 C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
 
 
@@ -123,8 +153,35 @@ using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_dele
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
+#endif
 
+#ifdef KERNEL_MODE
+#define POOLTAG_TEST 'tsTX' // XTst
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+XDP_STATUS
+XdpFuncXskNotifyCallback(
+    _In_ VOID* ClientContext,
+    _In_ XSK_NOTIFY_RESULT_FLAGS Result
+    )
+{
+    UNREFERENCED_PARAMETER(ClientContext);
+    UNREFERENCED_PARAMETER(Result);
+    return STATUS_SUCCESS;
+}
+
+static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
+    XdpFuncXskNotifyCallback
+};
+static XDP_LOAD_API_CONTEXT XdpLoadApiContext;
+static const XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
+static const XDP_API_PROVIDER_DISPATCH *XdpApi;
+#else
 static unique_xdp_api XdpApi;
+#endif
+
+#ifndef KERNEL_MODE
+
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
 static FNLWF_LOAD_API_CONTEXT FnLwfLoadApiContext;
 
@@ -662,6 +719,67 @@ SetDeviceSddl(
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
+#endif
+
+#ifdef KERNEL_MODE
+
+static
+NTSTATUS
+InitializeApi(
+    _Out_ XDP_LOAD_API_CONTEXT *LoadApiContext,
+    _Out_ const XDP_API_PROVIDER_DISPATCH **ProviderDispatch,
+    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **ProviderBindingContext,
+    _In_ const XDP_API_CLIENT_DISPATCH *ClientDispatch,
+    _In_ UINT32 Version = XDP_API_VERSION_1
+    )
+{
+    NTSTATUS Status;
+    KEVENT Event;
+    INT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+
+    Status = XdpLoadApi(Version, NULL, NULL, NULL, ClientDispatch, LoadApiContext);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    do {
+        LARGE_INTEGER Timeout100Ns;
+
+        Status =
+            XdpOpenApi(
+                *LoadApiContext,
+                ProviderDispatch,
+                ProviderBindingContext);
+        if (NT_SUCCESS(Status)) {
+            break;
+        }
+
+        Timeout100Ns.QuadPart = -1 * Int32x32To64(POLL_INTERVAL_MS, 10000);
+        KeResetEvent(&Event);
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
+        TimeoutMs = TimeoutMs - POLL_INTERVAL_MS;
+    } while (TimeoutMs > 0);
+
+    if (!NT_SUCCESS(Status)) {
+        XdpUnloadApi(*LoadApiContext);
+    }
+
+    return Status;
+}
+
+static
+VOID
+UninitializeApi(
+    _In_ XDP_LOAD_API_CONTEXT LoadApiContext
+    )
+{
+    XdpUnloadApi(LoadApiContext);
+}
+
+#else
+
 static
 HRESULT
 TryOpenApi(
@@ -682,6 +800,9 @@ OpenApi(
     TEST_HRESULT(TryOpenApi(XdpApiTable, Version));
     return XdpApiTable;
 }
+#endif
+
+#ifndef KERNEL_MODE
 
 static
 HRESULT
@@ -2302,11 +2423,13 @@ ClearMaskedBits(
     }
 }
 
+#endif
+
 bool
 TestSetup()
 {
+#ifndef KERNEL_MODE
     WSADATA WsaData;
-    WPP_INIT_TRACING(NULL);
     GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
     XdpApi = OpenApi();
@@ -2318,20 +2441,24 @@ TestSetup()
     WaitForNdisDatapath(FnMpIf);
     WaitForWfpQuarantine(FnMp1QIf);
     WaitForNdisDatapath(FnMp1QIf);
+#endif
     return true;
 }
 
 bool
 TestCleanup()
 {
+#ifndef KERNEL_MODE
     FnLwfUnloadApi(FnLwfLoadApiContext);
     FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
     TEST_EQUAL(0, WSACleanup());
     XdpApi.reset();
-    WPP_CLEANUP();
+#endif
     return true;
 }
+
+#ifndef KERNEL_MODE
 
 //
 // Tests
@@ -2347,9 +2474,25 @@ OpenApiTest()
     TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_1 + 1)));
 }
 
+#endif
+
 VOID
 LoadApiTest()
 {
+#ifdef KERNEL_MODE
+    XDP_LOAD_API_CONTEXT LoadApiContext;
+    const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
+    const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
+
+    NTSTATUS Status = InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
+    TEST_NTSTATUS(Status);
+    if (!NT_SUCCESS(Status)) {
+        return;
+    }
+    UninitializeApi(LoadApiContext);
+
+    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
+#else
     XDP_LOAD_API_CONTEXT XdpLoadApiContext;
     const XDP_API_TABLE *XdpApiTable;
 
@@ -2357,7 +2500,10 @@ LoadApiTest()
     XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
 
     TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
+#endif
 }
+
+#ifndef KERNEL_MODE
 
 static
 VOID
@@ -7397,3 +7543,5 @@ OffloadQeoOidFailure(
  * - NMR itself can tear down binding between XDP and NIC.
  *
  */
+
+#endif

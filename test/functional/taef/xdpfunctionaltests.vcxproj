@@ -19,6 +19,9 @@
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\functional\km\xdpfunctionaltestdrv.vcxproj">
+      <Project>{bdf5ef66-403a-4d96-95d5-871689f76c4f}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -67,6 +70,7 @@
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\inc;
+        $(SolutionDir)test\functional\km;
         $(SolutionDir)test\functional\lib;
         $(VCInstallDir)UnitTest\include;
         %(AdditionalIncludeDirectories)

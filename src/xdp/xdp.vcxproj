@@ -8,6 +8,7 @@
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
   <ItemGroup>
+    <ClCompile Include="apikernel.c" />
     <ClCompile Include="bind.c" />
     <ClCompile Include="dispatch.c" />
     <ClCompile Include="ebpfextension.c" />

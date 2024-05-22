@@ -92,6 +92,9 @@ param (
     [switch]$Pacing = $false,
 
     [Parameter(Mandatory=$false)]
+    [switch]$KernelMode = $false,
+
+    [Parameter(Mandatory=$false)]
     [string]$OutFile = "",
 
     [Parameter(Mandatory=$false)]
@@ -343,16 +346,24 @@ try {
             "-t -ca $XskAffinity -group $XskGroup $ThreadParams " +
             (($QueueParams + " ") * $SocketCount)
 
-        Write-Verbose "xskbench.exe $ArgList"
+        if ($KernelMode) {
+            $Executable = "xskbench_km.exe"
+
+            # Assumes tmf has already been generated.
+            $ArgList = "$ArtifactsDir\tmfs " + $ArgList
+        } else {
+            $Executable = "xskbench.exe"
+        }
+        Write-Verbose "$Executable $ArgList"
         if ([string]::IsNullOrEmpty($OutFile)) {
-            Start-Process $ArtifactsDir\xskbench.exe -Wait -NoNewWindow $ArgList
+            Start-Process $ArtifactsDir\$Executable -Wait -NoNewWindow $ArgList
         } else {
             $StdErrFile = [System.IO.Path]::GetTempFileName()
-            Start-Process $ArtifactsDir\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
+            Start-Process $ArtifactsDir\$Executable -Wait -RedirectStandardOutput $OutFile `
                 -RedirectStandardError $StdErrFile $ArgList
             $StdErr = Get-Content $StdErrFile
             if (-not [string]::IsNullOrWhiteSpace($StdErr)) {
-                throw "xskbench.exe $StdErr"
+                throw "$Executable $StdErr"
             }
         }
     } else {
