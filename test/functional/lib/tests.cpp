@@ -4816,7 +4816,7 @@ GenericRxEbpfFragments()
     //
     // Actions apply to the entire frame, not just to the first fragement.
     //
-    std::vector<UCHAR> Mask(Buffers[0].DataLength + Buffers[1].DataLength, 0xFF);
+    std::vector<UCHAR> Mask((SIZE_T)Buffers[0].DataLength + Buffers[1].DataLength, 0xFF);
     MpTxFilter(GenericMp, Payload + Backfill, &Mask[0], (ULONG)Mask.size());
 
     RX_FRAME Frame;
