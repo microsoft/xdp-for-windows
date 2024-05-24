@@ -31,7 +31,7 @@ Notes:
 
 #pragma once
 
-#include "platform.h"
+#include "cxplat.h"
 #include <new.h>
 #ifdef KERNEL_MODE
 #include <ntintsafe.h>
@@ -42,6 +42,51 @@ Notes:
 #include <wil/wistd_type_traits.h>
 
 #define NOTHING
+
+#if defined(KERNEL_MODE)
+#define CODE_SEG(segment) __declspec(code_seg(segment))
+#else
+#define CODE_SEG(segment)
+#endif
+
+#ifndef KRTL_INIT_SEGMENT
+#define KRTL_INIT_SEGMENT "INIT"
+#endif
+#ifndef KRTL_PAGE_SEGMENT
+#define KRTL_PAGE_SEGMENT "PAGE"
+#endif
+#ifndef KRTL_NONPAGED_SEGMENT
+#define KRTL_NONPAGED_SEGMENT ".text"
+#endif
+
+// Use on pageable functions.
+#define PAGED CODE_SEG(KRTL_PAGE_SEGMENT) _IRQL_always_function_max_(PASSIVE_LEVEL)
+
+// Use on code that must always be locked in memory.
+#define NONPAGED CODE_SEG(KRTL_NONPAGED_SEGMENT) _IRQL_requires_max_(DISPATCH_LEVEL)
+
+// Use on code that must always be locked in memory, where you don't want SAL IRQL annotations.
+#define NONPAGEDX CODE_SEG(KRTL_NONPAGED_SEGMENT)
+
+#ifndef _KERNEL_MODE
+
+#ifndef PAGED_CODE
+#define PAGED_CODE() (void)0
+#endif // PAGED_CODE
+
+#ifndef INIT_CODE
+#define INIT_CODE() (void)0
+#endif // INIT_CODE
+
+#endif // _KERNEL_MODE
+
+// Use on classes or structs.  Class member functions & compiler-generated code
+// will default to the PAGE segment.  You can override any member function with `NONPAGED`.
+#define KRTL_CLASS CODE_SEG(KRTL_PAGE_SEGMENT) __declspec(empty_bases)
+
+// Use on classes or structs.  Class member functions & compiler-generated code
+// will default to the NONPAGED segment.  You can override any member function with `PAGED`.
+#define KRTL_CLASS_DPC_ALLOC __declspec(empty_bases)
 
 template<ULONG SIGNATURE>
 struct KRTL_CLASS DebugBlock

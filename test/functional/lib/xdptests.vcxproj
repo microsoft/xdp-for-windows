@@ -47,6 +47,7 @@
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)test\functional\lwf\inc;
         $(SolutionDir)test\functional\mp\inc;
+        $(SolutionDir)submodules\cxplat\inc;
         $(SolutionDir)submodules\net-offloads\include;
         $(SolutionDir)submodules\wil\include;
         $(FnPackagePath)include;
@@ -54,6 +55,7 @@
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
+        CX_PLATFORM_WINUSER;
         UM_NDIS683=1;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>

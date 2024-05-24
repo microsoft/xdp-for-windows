@@ -57,9 +57,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktfuzz", "test\pktfuzz\pkt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bpfexport", "src\bpfexport\bpfexport.vcxproj", "{8F8830FF-1648-4772-87ED-F5DA091FC931}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformkernel", "test\common\lib\platform_kernel\platform_kernel.vcxproj", "{9D6C2600-08B5-4954-BB22-80DB923F0D9A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformkernel", "test\common\lib\cxplat\platform_kernel.vcxproj", "{9D6C2600-08B5-4954-BB22-80DB923F0D9A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformuser", "test\common\lib\platform_user\platform_user.vcxproj", "{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformuser", "test\common\lib\cxplat\platform_user.vcxproj", "{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

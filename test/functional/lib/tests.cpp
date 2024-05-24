@@ -50,7 +50,7 @@
 #include <bpf/libbpf.h>
 
 #include "ebpf_nethooks.h"
-#include "platform.h"
+#include "cxplat.h"
 #include "karray.h"
 #include "xdptest.h"
 #include "tests.h"
@@ -105,14 +105,12 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
 C_ASSERT(POLL_INTERVAL_MS * 5 <= MP_RESTART_TIMEOUT_MS);
 
-
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
-using unique_cxplat_thread = wil::unique_any<CXPLAT_THREAD, decltype(::CxPlatThreadDelete), ::CxPlatThreadDelete>;
 
 static unique_xdp_api XdpApi;
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
@@ -158,6 +156,20 @@ static RX_TX_TESTCASE RxTxTestCases[] = {
 
 static const CHAR *PowershellPrefix;
 static RTL_OSVERSIONINFOW OsVersionInfo;
+
+//
+// Delete once cxplat has support for timeout-based thread wait.
+//
+BOOLEAN
+CxPlatThreadWaitShim(
+    _In_ CXPLAT_THREAD* Thread,
+    _In_ UINT32 Timeout
+    )
+{
+    UNREFERENCED_PARAMETER(Timeout);
+    CxPlatThreadWait(Thread);
+    return TRUE;
+}
 
 //
 // Helper functions.
@@ -2023,10 +2035,7 @@ typedef struct {
 } TCP_ACCEPT_THREAD_CONTEXT;
 
 static
-CXPLAT_THREAD_RETURN_TYPE
-TcpAcceptFn(
-    _In_ VOID* Context
-    )
+CXPLAT_THREAD_CALLBACK(TcpAcceptFn, Context)
 {
     TCP_ACCEPT_THREAD_CONTEXT *Ctx = (TCP_ACCEPT_THREAD_CONTEXT *)Context;
     Ctx->AcceptedSocket = accept(Ctx->ListeningSocket, NULL, 0);
@@ -2167,14 +2176,18 @@ CreateTcpSocket(
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, TcpAcceptFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
+    CXPLAT_THREAD AsyncThread;
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
     auto CloseListener = wil::scope_exit([&]
     {
         Socket.reset();
     });
 
-    TEST_TRUE(CxPlatThreadWait(AsyncThread.get(), TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
 
     wil::unique_socket AcceptedSocket{Ctx.AcceptedSocket};
     TEST_NOT_EQUAL(INVALID_SOCKET, AcceptedSocket.get());
@@ -5297,10 +5310,7 @@ typedef struct {
 } DELAY_INDICATE_THREAD_CONTEXT;
 
 static
-CXPLAT_THREAD_RETURN_TYPE
-DelayIndicateFn(
-    _In_ VOID* Context
-    )
+CXPLAT_THREAD_CALLBACK(DelayIndicateFn, Context)
 {
     DELAY_INDICATE_THREAD_CONTEXT *Ctx = (DELAY_INDICATE_THREAD_CONTEXT *)Context;
     auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
@@ -5380,8 +5390,12 @@ GenericXskWait(
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, DelayIndicateFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
+    CXPLAT_THREAD AsyncThread;
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -5480,8 +5494,12 @@ GenericXskWaitAsync(
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, DelayIndicateFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
+    CXPLAT_THREAD AsyncThread;
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -5821,10 +5839,7 @@ typedef struct {
 } TRY_RSS_SET_THREAD_CONTEXT;
 
 static
-CXPLAT_THREAD_RETURN_TYPE
-TryRssSetFn(
-    _In_ VOID* Context
-    )
+CXPLAT_THREAD_CALLBACK(TryRssSetFn, Context)
 {
     TRY_RSS_SET_THREAD_CONTEXT *Ctx = (TRY_RSS_SET_THREAD_CONTEXT *)Context;
     Ctx->Result = TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize);
@@ -5883,8 +5898,12 @@ SetXdpRss(
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, TryRssSetFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
-    TEST_EQUAL(CXPLAT_STATUS_SUCCESS, CxPlatThreadCreate(&ThreadConfig, &AsyncThread));
+    CXPLAT_THREAD AsyncThread;
+    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
 
     UINT32 OidInfoBufferLength;
     unique_malloc_ptr<VOID> OidInfoBuffer =
@@ -5898,7 +5917,7 @@ SetXdpRss(
     TEST_TRUE(RtlEqualMemory(NdisIndirectionTable, IndirectionTable.get(), IndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_TRUE(CxPlatThreadWait(AsyncThread.get(), TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
     TEST_HRESULT(Ctx.Result);
 }
 
@@ -6672,10 +6691,7 @@ typedef struct {
 } TRY_UNBIND_XDP_THREAD_CONTEXT;
 
 static
-CXPLAT_THREAD_RETURN_TYPE
-TryUnbindXdpFn(
-    _In_ VOID* Context
-    )
+CXPLAT_THREAD_CALLBACK(TryUnbindXdpFn, Context)
 {
     TRY_UNBIND_XDP_THREAD_CONTEXT *Ctx = (TRY_UNBIND_XDP_THREAD_CONTEXT *)Context;
     Ctx->Result = FnMpIf.TryUnbindXdp();
@@ -6754,8 +6770,12 @@ OffloadRssReset()
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, TryUnbindXdpFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
-    TEST_EQUAL(CXPLAT_STATUS_SUCCESS, CxPlatThreadCreate(&ThreadConfig, &AsyncThread));
+    CXPLAT_THREAD AsyncThread;
+    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
 
     auto BindingScopeGuard = wil::scope_exit([&]
     {
@@ -6777,7 +6797,7 @@ OffloadRssReset()
         OriginalIndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_TRUE(CxPlatThreadWait(AsyncThread.get(), TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
     TEST_HRESULT(Ctx.Result);
 }
 
@@ -7115,10 +7135,7 @@ typedef struct {
 } TRY_QEO_SET_THREAD_CONTEXT;
 
 static
-CXPLAT_THREAD_RETURN_TYPE
-TryQeoSetFn(
-    _In_ VOID* Context
-    )
+CXPLAT_THREAD_CALLBACK(TryQeoSetFn, Context)
 {
     TRY_QEO_SET_THREAD_CONTEXT *Ctx = (TRY_QEO_SET_THREAD_CONTEXT *)Context;
     Ctx->Result = TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection));
@@ -7181,8 +7198,12 @@ OffloadQeoConnection()
             CXPLAT_THREAD_CONFIG ThreadConfig {
                 0, 0, NULL, TryQeoSetFn, &Ctx
             };
-            unique_cxplat_thread AsyncThread;
+            CXPLAT_THREAD AsyncThread;
             TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+            auto DeleteThread = wil::scope_exit([&]
+            {
+                CxPlatThreadDelete(&AsyncThread);
+            });
 
             //
             // In case of failure, ensure the adapter is cleaned up before the
@@ -7250,7 +7271,7 @@ OffloadQeoConnection()
             //
             // Verify the XDP offload API is completed once the OID completes.
             //
-            TEST_TRUE(CxPlatThreadWait(AsyncThread.get(), TEST_TIMEOUT_ASYNC_MS));
+            TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
 
             //
             // Verify the XDP offload API succeeded.
@@ -7290,10 +7311,7 @@ typedef struct {
 } QEO_REVERT_THREAD_CONTEXT;
 
 static
-CXPLAT_THREAD_RETURN_TYPE
-QeoRevertFn(
-    _In_ VOID* Context
-    )
+CXPLAT_THREAD_CALLBACK(QeoRevertFn, Context)
 {
     QEO_REVERT_THREAD_CONTEXT *Ctx = (QEO_REVERT_THREAD_CONTEXT *)Context;
     if (Ctx->RevertReason == RevertReasonInterfaceRemoval) {
@@ -7370,8 +7388,12 @@ OffloadQeoRevert(
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, QeoRevertFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
+    CXPLAT_THREAD AsyncThread;
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -7435,7 +7457,7 @@ OffloadQeoRevert(
     //
     // Verify the revert/teardown is completed once the OID completes.
     //
-    TEST_TRUE(CxPlatThreadWait(AsyncThread.get(), Timeout));
+    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, Timeout));
 
     //
     // Verify the revert/teardown succeeded.
@@ -7501,8 +7523,12 @@ OffloadQeoOidFailure(
     CXPLAT_THREAD_CONFIG ThreadConfig {
         0, 0, NULL, TryQeoSetFn, &Ctx
     };
-    unique_cxplat_thread AsyncThread;
+    CXPLAT_THREAD AsyncThread;
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
+    auto DeleteThread = wil::scope_exit([&]
+    {
+        CxPlatThreadDelete(&AsyncThread);
+    });
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -7531,7 +7557,7 @@ OffloadQeoOidFailure(
     //
     // Verify the offload API fails once the OID completes.
     //
-    TEST_TRUE(CxPlatThreadWait(AsyncThread.get(), TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
 
     //
     // Verify the XDP offload API failed.

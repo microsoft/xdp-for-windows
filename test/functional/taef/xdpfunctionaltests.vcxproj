@@ -19,7 +19,7 @@
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\common\lib\platform_user\platform_user.vcxproj">
+    <ProjectReference Include="$(SolutionDir)test\common\lib\cxplat\platform_user.vcxproj">
       <Project>{ee3dd8a1-9903-4f13-bdfb-fa8121861efb}</Project>
     </ProjectReference>
   </ItemGroup>
