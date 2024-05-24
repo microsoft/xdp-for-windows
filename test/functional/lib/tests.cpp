@@ -158,20 +158,6 @@ static const CHAR *PowershellPrefix;
 static RTL_OSVERSIONINFOW OsVersionInfo;
 
 //
-// Delete once cxplat has support for timeout-based thread wait.
-//
-BOOLEAN
-CxPlatThreadWaitShim(
-    _In_ CXPLAT_THREAD* Thread,
-    _In_ UINT32 Timeout
-    )
-{
-    UNREFERENCED_PARAMETER(Timeout);
-    CxPlatThreadWait(Thread);
-    return TRUE;
-}
-
-//
 // Helper functions.
 //
 
@@ -2187,7 +2173,7 @@ CreateTcpSocket(
         Socket.reset();
     });
 
-    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
 
     wil::unique_socket AcceptedSocket{Ctx.AcceptedSocket};
     TEST_NOT_EQUAL(INVALID_SOCKET, AcceptedSocket.get());
@@ -5917,7 +5903,7 @@ SetXdpRss(
     TEST_TRUE(RtlEqualMemory(NdisIndirectionTable, IndirectionTable.get(), IndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
     TEST_HRESULT(Ctx.Result);
 }
 
@@ -6797,7 +6783,7 @@ OffloadRssReset()
         OriginalIndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
     TEST_HRESULT(Ctx.Result);
 }
 
@@ -7271,7 +7257,7 @@ OffloadQeoConnection()
             //
             // Verify the XDP offload API is completed once the OID completes.
             //
-            TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+            TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
 
             //
             // Verify the XDP offload API succeeded.
@@ -7457,7 +7443,7 @@ OffloadQeoRevert(
     //
     // Verify the revert/teardown is completed once the OID completes.
     //
-    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, Timeout));
+    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, Timeout));
 
     //
     // Verify the revert/teardown succeeded.
@@ -7557,7 +7543,7 @@ OffloadQeoOidFailure(
     //
     // Verify the offload API fails once the OID completes.
     //
-    TEST_TRUE(CxPlatThreadWaitShim(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
 
     //
     // Verify the XDP offload API failed.
