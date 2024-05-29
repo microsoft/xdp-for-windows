@@ -90,6 +90,12 @@ for ($i = 1; $i -le $Iterations; $i++) {
 
         & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
 
+        if (!$EbpfPreinstalled) {
+            Write-Verbose "installing ebpf..."
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
+            Write-Verbose "installed ebpf."
+        }
+
         Write-Verbose "installing xdp..."
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf
         Write-Verbose "installed xdp."
@@ -101,12 +107,6 @@ for ($i = 1; $i -le $Iterations; $i++) {
         Write-Verbose "installing fnlwf..."
         & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
         Write-Verbose "installed fnlwf."
-
-        if (!$EbpfPreinstalled) {
-            Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
-            Write-Verbose "installed ebpf."
-        }
 
         $TestArgs = @()
         if (![string]::IsNullOrEmpty($TestBinaryPath)) {
@@ -145,12 +145,12 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if ($Watchdog -ne $null) {
             Remove-Job -Job $Watchdog -Force
         }
-        if (!$EbpfPreinstalled) {
-            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        }
         & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        if (!$EbpfPreinstalled) {
+            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        }
         & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Arch $Arch -ErrorAction 'Continue'
     }
 }

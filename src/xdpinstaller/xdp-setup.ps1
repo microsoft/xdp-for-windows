@@ -30,6 +30,7 @@ $InstallDir = $PSScriptRoot
 # Global paths.
 $XdpInf = "$InstallDir\xdp.inf"
 $XdpPcwMan = "$InstallDir\xdppcw.man"
+$XdpBpfExport = "$InstallDir\xdp_bpfexport.exe"
 
 # Helper wait for a service to stop and then delete it. Callers are responsible
 # making sure the service is already stopped or stopping.
@@ -124,11 +125,22 @@ if ($Install -eq "xdp") {
         Write-Error "lodctr.exe exit code: $LastExitCode"
     }
 
+    Write-Verbose "$XdpBpfExport"
+    & $XdpBpfExport
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+    }
+
     Write-Verbose "xdp.sys install complete!"
 }
 
 # Uninstalls the xdp driver.
 if ($Uninstall -eq "xdp") {
+    Write-Verbose "$XdpBpfExport --clear"
+    & $XdpBpfExport --clear
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+    }
 
     Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
     unlodctr.exe /m:$XdpPcwMan | Write-Verbose

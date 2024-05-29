@@ -104,6 +104,9 @@ VOID
 SecurityAdjustDeviceAcl();
 
 VOID
+EbpfNetsh();
+
+VOID
 GenericRxEbpfAttach();
 
 VOID
