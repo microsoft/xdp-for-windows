@@ -396,6 +396,10 @@ public:
         ::SecurityAdjustDeviceAcl();
     }
 
+    TEST_METHOD(EbpfNetsh) {
+        ::EbpfNetsh();
+    }
+
     TEST_METHOD(GenericRxEbpfAttach) {
         ::GenericRxEbpfAttach();
     }
