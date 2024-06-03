@@ -60,8 +60,6 @@ CHAR *HELP =
 "                         Default: \"\"\n"
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
-"   -EnableEbpf           Enables eBPF testing\n"
-"                         Default: off\n"
 ;
 
 #define ASSERT_FRE(expr) \
@@ -265,7 +263,6 @@ BOOLEAN verbose = FALSE;
 BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
-BOOLEAN enableEbpf = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
@@ -393,10 +390,6 @@ FuzzProgTestRunXdpEbpfProgram()
     int PacketOutSize = 100;
     UCHAR* PacketOut = NULL;
     struct bpf_test_run_opts Opts = {0};
-
-    if (!enableEbpf) {
-        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-    }
 
     OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
     ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
@@ -548,10 +541,6 @@ AttachXdpEbpfProgram(
     // Since eBPF does not yet support AF_XDP, ignore the socket.
     //
     UNREFERENCED_PARAMETER(Sock);
-
-    if (!enableEbpf) {
-        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-    }
 
     OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
     ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
@@ -2539,8 +2528,6 @@ ParseArgs(
             }
             successThresholdPercent = (UINT8)atoi(argv[i]);
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
-        } else if (!strcmp(argv[i], "-EnableEbpf")) {
-            enableEbpf = TRUE;
         } else {
             Usage();
         }

@@ -15,9 +15,6 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
 
-.PARAMETER EnableEbpf
-    Enable eBPF in the XDP driver.
-
 .PARAMETER UseJitEbpf
     If true, install JIT mode for eBPF.
 
@@ -47,9 +44,6 @@ param (
     [Parameter(Mandatory = $false)]
     [ValidateSet("MSI", "INF")]
     [string]$XdpInstaller = "MSI",
-
-    [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$UseJitEbpf = $false
@@ -251,12 +245,6 @@ function Install-Xdp {
         if ($LastExitCode) {
             Write-Error "lodctr.exe exit code: $LastExitCode"
         }
-    }
-
-    if ($EnableEbpf) {
-        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
-        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
-        Stop-Service xdp
     }
 
     Start-Service-With-Retry xdp

@@ -120,13 +120,13 @@ Invoke-Command -Session $Session -ScriptBlock {
 # instantly detaches from the LWF data path whenever no programs are plumbed.
 #
 Write-Output "Installing XDP locally..."
-tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
 Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
 reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
     Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
     reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 } -ArgumentList $Config, $Arch, $RemoteDir
