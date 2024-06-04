@@ -289,7 +289,7 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue' | Out-Null
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
     Write-Output "Stopping local logs..."
     tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
@@ -303,7 +303,7 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
     # Clean up eBPF
     Write-Output "Removing eBPF locally..."
     tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
@@ -311,5 +311,5 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
 }
