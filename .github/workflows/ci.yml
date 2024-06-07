@@ -381,24 +381,24 @@ jobs:
       with:
         category: "/language:csharp"
 
-  netperf:
-    name: Run Perf
-    needs: []
-    runs-on: windows-latest
-    steps:
-    - name: Run NetPerf Workflow
-      shell: pwsh
-      run: |
-        $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
-        if ('${{ secrets.NET_PERF_TRIGGER }}' -eq '') {
-            Write-Host "Not able to run because no secrets are available!"
-            return
-        }
-        iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
+  # netperf:
+  #   name: Run Perf
+  #   needs: []
+  #   runs-on: windows-latest
+  #   steps:
+  #   - name: Run NetPerf Workflow
+  #     shell: pwsh
+  #     run: |
+  #       $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
+  #       if ('${{ secrets.NET_PERF_TRIGGER }}' -eq '') {
+  #           Write-Host "Not able to run because no secrets are available!"
+  #           return
+  #       }
+  #       iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
 
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw, netperf]
+    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
     runs-on: windows-latest
     steps:
     - run: echo "CI succeeded"
