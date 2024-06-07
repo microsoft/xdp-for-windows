@@ -45,9 +45,6 @@ jobs:
       arch: ${{ matrix.arch }}
       codeql: ${{ github.event_name == 'schedule' }}
       upload_artifacts: ${{ matrix.os == 2022 }}
-      publish_symbols: ${{ github.event_name != 'pull_request' && matrix.os == 2022 }}
-    secrets:
-      publish_symbols_pat: ${{ secrets.AZDO_PAT }}
 
   functional_tests:
     name: Functional Tests
