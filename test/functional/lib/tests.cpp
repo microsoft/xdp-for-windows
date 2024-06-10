@@ -2080,6 +2080,17 @@ CreateTcpSocket(
         0,
         setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
 
+    //
+    // Use RST to close local TCP sockets by default. This prevents closed
+    // sockets from retransmitting FINs beyond the scope of the uinque_socket.
+    //
+    LINGER lingerInfo;
+    lingerInfo.l_onoff = 1;
+    lingerInfo.l_linger = 0;
+    TEST_EQUAL(
+        0,
+        setsockopt(Socket.get(), SOL_SOCKET, SO_LINGER, (char *)&lingerInfo, sizeof(lingerInfo)));
+
     *LocalPort = SS_PORT(&Address);
 
     //
