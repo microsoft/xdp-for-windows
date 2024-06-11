@@ -14,6 +14,15 @@
 #include "tests.tmh"
 
 //
+// Define a test method for a feature not yet officially released.
+//
+#define TEST_METHOD_PRERELEASE(_Name) \
+    BEGIN_TEST_METHOD_ATTRIBUTE(_Name) \
+        TEST_METHOD_ATTRIBUTE(L"Prerelease", L"1") \
+    END_TEST_METHOD_ATTRIBUTE() \
+    TEST_METHOD(_Name)
+
+//
 // Test suite(s).
 //
 
@@ -396,39 +405,39 @@ public:
         ::SecurityAdjustDeviceAcl();
     }
 
-    TEST_METHOD(GenericRxEbpfAttach) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfAttach) {
         ::GenericRxEbpfAttach();
     }
 
-    TEST_METHOD(GenericRxEbpfDrop) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfDrop) {
         ::GenericRxEbpfDrop();
     }
 
-    TEST_METHOD(GenericRxEbpfPass) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfPass) {
         ::GenericRxEbpfPass();
     }
 
-    TEST_METHOD(GenericRxEbpfTx) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfTx) {
         ::GenericRxEbpfTx();
     }
 
-    TEST_METHOD(GenericRxEbpfPayload) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfPayload) {
         ::GenericRxEbpfPayload();
     }
 
-    TEST_METHOD(ProgTestRunRxEbpfPayload) {
+    TEST_METHOD_PRERELEASE(ProgTestRunRxEbpfPayload) {
         ::ProgTestRunRxEbpfPayload();
     }
 
-    TEST_METHOD(GenericRxEbpfIfIndex) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfIfIndex) {
         ::GenericRxEbpfIfIndex();
     }
 
-    TEST_METHOD(GenericRxEbpfFragments) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfFragments) {
         ::GenericRxEbpfFragments();
     }
 
-    TEST_METHOD(GenericRxEbpfUnload) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfUnload) {
         ::GenericRxEbpfUnload();
     }
 
@@ -440,39 +449,39 @@ public:
         GenericLoopback(AF_INET6);
     }
 
-    TEST_METHOD(OffloadRssError) {
+    TEST_METHOD_PRERELEASE(OffloadRssError) {
         ::OffloadRssError();
     }
 
-    TEST_METHOD(OffloadRssReference) {
+    TEST_METHOD_PRERELEASE(OffloadRssReference) {
         ::OffloadRssReference();
     }
 
-    TEST_METHOD(OffloadRssInterfaceRestart) {
+    TEST_METHOD_PRERELEASE(OffloadRssInterfaceRestart) {
         ::OffloadRssInterfaceRestart();
     }
 
-    TEST_METHOD(OffloadRssUnchanged) {
+    TEST_METHOD_PRERELEASE(OffloadRssUnchanged) {
         ::OffloadRssUnchanged();
     }
 
-    TEST_METHOD(OffloadRssUpperSet) {
+    TEST_METHOD_PRERELEASE(OffloadRssUpperSet) {
         ::OffloadRssUpperSet();
     }
 
-    TEST_METHOD(OffloadRssSet) {
+    TEST_METHOD_PRERELEASE(OffloadRssSet) {
         ::OffloadRssSet();
     }
 
-    TEST_METHOD(OffloadRssCapabilities) {
+    TEST_METHOD_PRERELEASE(OffloadRssCapabilities) {
         ::OffloadRssCapabilities();
     }
 
-    TEST_METHOD(OffloadRssReset) {
+    TEST_METHOD_PRERELEASE(OffloadRssReset) {
         ::OffloadRssReset();
     }
 
-    TEST_METHOD(OffloadSetHardwareCapabilities) {
+    TEST_METHOD_PRERELEASE(OffloadSetHardwareCapabilities) {
         ::OffloadSetHardwareCapabilities();
     }
 
@@ -480,19 +489,19 @@ public:
         ::GenericXskQueryAffinity();
     }
 
-    TEST_METHOD(OffloadQeoConnection) {
+    TEST_METHOD_PRERELEASE(OffloadQeoConnection) {
         ::OffloadQeoConnection();
     }
 
-    TEST_METHOD(OffloadQeoRevertInterfaceRemoval) {
+    TEST_METHOD_PRERELEASE(OffloadQeoRevertInterfaceRemoval) {
         ::OffloadQeoRevert(RevertReasonInterfaceRemoval);
     }
 
-    TEST_METHOD(OffloadQeoRevertHandleClosure) {
+    TEST_METHOD_PRERELEASE(OffloadQeoRevertHandleClosure) {
         ::OffloadQeoRevert(RevertReasonHandleClosure);
     }
 
-    TEST_METHOD(OffloadQeoOidFailure) {
+    TEST_METHOD_PRERELEASE(OffloadQeoOidFailure) {
         ::OffloadQeoOidFailure();
     }
 };
