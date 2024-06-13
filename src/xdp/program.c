@@ -223,12 +223,18 @@ XdpInvokeEbpf(
     ASSERT((FragmentRing == NULL) || (FragmentExtension != NULL));
 
     //
-    // Fragmented frames are currently not supported by eBPF.
+    // Fragmented frames require special handling for eBPF programs using direct
+    // packet access. On Linux, the program must be loaded with a specific flag
+    // in order to inspect discontiguous packets. On Windows, discontiguous
+    // frames are always inspected by default, at least until a program flag API
+    // is supported by eBPF-for-Windows.
+    //
+    // https://github.com/microsoft/ebpf-for-windows/issues/3576
+    // https://github.com/microsoft/xdp-for-windows/issues/517
     //
     if (FragmentRing != NULL &&
         XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount != 0) {
-        RxAction = XDP_RX_ACTION_DROP;
-        goto Exit;
+        STAT_INC(RxQueueStats, InspectFramesDiscontiguous);
     }
 
     Buffer = &Frame->Buffer;

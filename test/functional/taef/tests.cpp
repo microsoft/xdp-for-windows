@@ -15,10 +15,12 @@
 
 //
 // Define a test method for a feature not yet officially released.
+// Unfortunately, the vstest.console.exe runner seems unable to filter on
+// arbitrary properties, so mark prerelease as priority 1.
 //
 #define TEST_METHOD_PRERELEASE(_Name) \
     BEGIN_TEST_METHOD_ATTRIBUTE(_Name) \
-        TEST_METHOD_ATTRIBUTE(L"Prerelease", L"1") \
+        TEST_PRIORITY(1) \
     END_TEST_METHOD_ATTRIBUTE() \
     TEST_METHOD(_Name)
 

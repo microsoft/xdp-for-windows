@@ -4829,17 +4829,15 @@ GenericRxEbpfFragments()
 {
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
-    unique_fnlwf_handle FnLwf;
     const UINT32 Backfill = 3;
     const UINT32 Trailer = 4;
     const UINT32 SplitAt = 4;
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
-    FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     Buffers[0].DataLength = SplitAt;
     Buffers[0].DataOffset = Backfill;
@@ -4850,26 +4848,24 @@ GenericRxEbpfFragments()
     Buffers[1].BufferLength = Buffers[1].DataLength + Trailer;
     Buffers[1].VirtualAddress = Payload + Buffers[0].BufferLength;
 
+    //
+    // XDP-for-Windows has limited eBPF support for fragments: the first buffer
+    // is visible to eBPF programs, and the remaining fragments (if any) are
+    // inaccessible.
+    //
+    // Actions apply to the entire frame, not just to the first fragement.
+    //
+    std::vector<UCHAR> Mask((SIZE_T)Buffers[0].DataLength + Buffers[1].DataLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, &Mask[0], (ULONG)Mask.size());
+
     RX_FRAME Frame;
-    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
-
-    std::vector<UCHAR> Mask(sizeof(Payload) - Backfill - Trailer, 0xFF);
-    auto LwfFilter = LwfRxFilter(FnLwf, Payload + Backfill, &Mask[0], sizeof(Payload) - Backfill - Trailer);
-
+    RxInitializeFrame(&Frame, If.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    //
-    // We currently do not support fragments with eBPF, so this packet should
-    // be dropped.
-    //
-
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
-
-    UINT32 FrameLength = 0;
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+    MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
 }
 
 VOID

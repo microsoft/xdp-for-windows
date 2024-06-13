@@ -145,6 +145,19 @@
             detailLevel="standard"
             defaultScale="1"
             />
+          <counter
+            id="10"
+            uri="Microsoft.Xdp.RxQueue.InspectFramesDiscontiguous"
+            name="Inspection Frames Discontiguous"
+            nameID="2040"
+            field="InspectFramesDiscontiguous"
+            description="Frames inspected by XDP with discontiguous data."
+            descriptionID="2042"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
         <counterSet
           guid="{10672701-093b-4b91-8b76-8f53afd07cd0}"
