@@ -4856,7 +4856,7 @@ GenericRxEbpfFragments()
     // Actions apply to the entire frame, not just to the first fragement.
     //
     std::vector<UCHAR> Mask((SIZE_T)Buffers[0].DataLength + Buffers[1].DataLength, 0xFF);
-    MpTxFilter(GenericMp, Payload + Backfill, &Mask[0], (ULONG)Mask.size());
+    auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, &Mask[0], (ULONG)Mask.size());
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
