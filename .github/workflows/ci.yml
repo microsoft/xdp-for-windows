@@ -71,13 +71,6 @@ jobs:
           !artifacts/bin/**/*.ilk
           !artifacts/bin/**/*.exp
           !artifacts/bin/**/*.lastcodeanalysissucceeded
-    - name: Publish Symbols
-      uses: microsoft/action-publish-symbols@719c40b80e38bca806f3e01e1e3dd3a67554cd68
-      if: github.event_name != 'pull_request' && matrix.os == 2022
-      with:
-        accountName: mscodehub
-        symbolServiceUrl: 'https://artifacts.dev.azure.com'
-        personalAccessToken: ${{ secrets.AZDO_PAT }}
 
   functional_tests:
     name: Functional Tests
