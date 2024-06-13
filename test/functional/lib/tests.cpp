@@ -7426,7 +7426,7 @@ OidPassthru()
     //
     InitializeOidKey(&OidKeys[0], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestQueryInformation);
 
-    ULONG OriginalPacketFilter;
+    ULONG OriginalPacketFilter = 0;
     LwfInfoBufferLength = sizeof(OriginalPacketFilter);
     TEST_HRESULT(
         LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &OriginalPacketFilter));
@@ -7439,7 +7439,7 @@ OidPassthru()
     //
     // Verify synchronous OID completion, i.e. without FNMP pending the OID.
     //
-    ULONG BlockSize;
+    ULONG BlockSize = 0;
     LwfInfoBufferLength = sizeof(BlockSize);
     TEST_HRESULT(
         LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &BlockSize));
@@ -7466,7 +7466,7 @@ OidPassthru()
     //
     // Verify synchronous OID completion, i.e. without FNMP pending the OID.
     //
-    NDIS_QUIC_CONNECTION Connection;
+    NDIS_QUIC_CONNECTION Connection = {0};
     LwfInfoBufferLength = sizeof(Connection);
     TEST_HRESULT(
         LwfOidSubmitRequest(DefaultLwf, OidKeys[2], &LwfInfoBufferLength, &Connection));
@@ -7496,7 +7496,7 @@ OidPassthru()
         MpInfoBuffer = MpOidAllocateAndGetRequest(ExclusiveMp, OidKeys[Index], &MpInfoBufferLength);
         TEST_NOT_NULL(MpInfoBuffer.get());
 
-        TEST_TRUE(MpOidCompleteRequest(
+        TEST_HRESULT(MpOidCompleteRequest(
             ExclusiveMp, OidKeys[Index], STATUS_SUCCESS, &LwfInfoBuffer, CompletionSize));
 
         TEST_EQUAL(OidRequestThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
