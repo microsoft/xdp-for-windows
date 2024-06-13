@@ -7440,7 +7440,7 @@ OidPassthru()
     // Method. (Direct OID)
     //
     OidKeys[2].BufferSize = sizeof(NDIS_QUIC_CONNECTION);
-    OidKeys[2].CompletionSize = 0;
+    OidKeys[2].CompletionSize = sizeof(NDIS_QUIC_CONNECTION);
     InitializeOidKey(
         &OidKeys[2].Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
         OID_REQUEST_INTERFACE_DIRECT);
@@ -7470,6 +7470,21 @@ OidPassthru()
 
         auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
         TEST_NOT_NULL(ExclusiveMp.get());
+
+        if (OidParam->Key.Oid == OID_GEN_CURRENT_PACKET_FILTER &&
+            OidParam->Key.RequestType == NdisRequestSetInformation) {
+            //
+            // NDIS absorbs the set OID unless the packet filter is changed.
+            // Query the current filter and then modify the info buffer.
+            //
+            OID_KEY GetKey = OidParam->Key;
+            GetKey.RequestType = NdisRequestQueryInformation;
+            TEST_HRESULT(LwfOidSubmitRequest(
+                DefaultLwf, GetKey, &LwfInfoBufferLength, &LwfInfoBuffer[0]));
+            TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
+
+            LwfInfoBuffer[0] ^= 1;
+        }
 
         MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
 
