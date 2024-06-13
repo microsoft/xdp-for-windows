@@ -7410,94 +7410,83 @@ OffloadQeoOidFailure(
 VOID
 OidPassthru()
 {
-    OID_KEY OidKeys[3];
+    typedef struct _OID_PARAMS {
+        OID_KEY Key;
+        UINT32 BufferSize;
+        UINT32 CompletionSize;
+    } OID_PARAMS;
+    OID_PARAMS OidKeys[3] = {0};
     UINT32 MpInfoBufferLength;
     unique_malloc_ptr<VOID> MpInfoBuffer;
-    UINT32 LwfInfoBufferLength;
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
     auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
 
     TEST_NOT_NULL(DefaultLwf.get());
-
-    //
-    // Get the existing packet filter from NDIS so we can tweak it to make sure
-    // the set OID makes it to the miniport. N.B. this get OID is handled by
-    // NDIS, not the miniport.
-    //
-    InitializeOidKey(&OidKeys[0], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestQueryInformation);
-
-    ULONG OriginalPacketFilter = 0;
-    LwfInfoBufferLength = sizeof(OriginalPacketFilter);
-    TEST_HRESULT(
-        LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &OriginalPacketFilter));
+    TEST_NOT_NULL(ExclusiveMp.get());
 
     //
     // Get.
     //
-    InitializeOidKey(&OidKeys[0], OID_GEN_RECEIVE_BLOCK_SIZE, NdisRequestQueryInformation);
-
-    //
-    // Verify synchronous OID completion, i.e. without FNMP pending the OID.
-    //
-    ULONG BlockSize = 0;
-    LwfInfoBufferLength = sizeof(BlockSize);
-    TEST_HRESULT(
-        LwfOidSubmitRequest(DefaultLwf, OidKeys[0], &LwfInfoBufferLength, &BlockSize));
+    OidKeys[0].BufferSize = sizeof(ULONG);
+    OidKeys[0].CompletionSize = sizeof(ULONG);
+    InitializeOidKey(&OidKeys[0].Key, OID_GEN_RECEIVE_BLOCK_SIZE, NdisRequestQueryInformation);
 
     //
     // Set.
     //
-    InitializeOidKey(&OidKeys[1], OID_GEN_CURRENT_PACKET_FILTER, NdisRequestSetInformation);
-
-    //
-    // Verify synchronous OID completion, i.e. without FNMP pending the OID.
-    //
-    LwfInfoBufferLength = sizeof(OriginalPacketFilter);
-    TEST_HRESULT(
-        LwfOidSubmitRequest(DefaultLwf, OidKeys[1], &LwfInfoBufferLength, &OriginalPacketFilter));
+    OidKeys[1].BufferSize = sizeof(ULONG);
+    OidKeys[1].CompletionSize = sizeof(ULONG);
+    InitializeOidKey(&OidKeys[1].Key, OID_GEN_CURRENT_PACKET_FILTER, NdisRequestSetInformation);
 
     //
     // Method. (Direct OID)
     //
+    OidKeys[2].BufferSize = sizeof(NDIS_QUIC_CONNECTION);
+    OidKeys[2].CompletionSize = 0;
     InitializeOidKey(
-        &OidKeys[2], OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        &OidKeys[2].Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
         OID_REQUEST_INTERFACE_DIRECT);
 
     //
     // Verify synchronous OID completion, i.e. without FNMP pending the OID.
     //
-    NDIS_QUIC_CONNECTION Connection = {0};
-    LwfInfoBufferLength = sizeof(Connection);
-    TEST_HRESULT(
-        LwfOidSubmitRequest(DefaultLwf, OidKeys[2], &LwfInfoBufferLength, &Connection));
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
+        const OID_PARAMS *OidParam = &OidKeys[Index];
+        UINT32 LwfInfoBufferLength = OidParam->BufferSize;
+        std::vector<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
+
+        TEST_HRESULT(LwfOidSubmitRequest(
+            DefaultLwf, OidParam->Key, &LwfInfoBufferLength, &LwfInfoBuffer[0]));
+        TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
+    }
 
     //
     // Verify asynchronous completions.
     //
 
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
-        ULONG LwfInfoBuffer;
-        const UINT32 CompletionSize = sizeof(LwfInfoBuffer) / 2;
-        TEST_NOT_NULL(ExclusiveMp.get());
+        const OID_PARAMS *OidParam = &OidKeys[Index];
+        UINT32 LwfInfoBufferLength = OidParam->BufferSize;
+        std::vector<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
+        const UINT32 CompletionSize = LwfInfoBufferLength / 2;
 
-        LwfInfoBufferLength = sizeof(LwfInfoBuffer);
-
-        MpOidFilter(ExclusiveMp, &OidKeys[Index], 1);
+        MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
 
         auto OidRequestThread = std::async(
             std::launch::async,
             [&] {
                 return
                     LwfOidSubmitRequest(
-                        DefaultLwf, OidKeys[Index], &LwfInfoBufferLength, &LwfInfoBuffer);
+                        DefaultLwf, OidParam->Key, &LwfInfoBufferLength, &LwfInfoBuffer[0]);
             }
         );
 
-        MpInfoBuffer = MpOidAllocateAndGetRequest(ExclusiveMp, OidKeys[Index], &MpInfoBufferLength);
+        MpInfoBuffer =
+            MpOidAllocateAndGetRequest(ExclusiveMp, OidParam->Key, &MpInfoBufferLength);
         TEST_NOT_NULL(MpInfoBuffer.get());
 
         TEST_HRESULT(MpOidCompleteRequest(
-            ExclusiveMp, OidKeys[Index], STATUS_SUCCESS, &LwfInfoBuffer, CompletionSize));
+            ExclusiveMp, OidParam->Key, STATUS_SUCCESS, &LwfInfoBuffer[0], CompletionSize));
 
         TEST_EQUAL(OidRequestThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
         TEST_HRESULT(OidRequestThread.get());
