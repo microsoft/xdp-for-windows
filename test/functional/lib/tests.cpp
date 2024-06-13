@@ -7419,10 +7419,8 @@ OidPassthru()
     UINT32 MpInfoBufferLength;
     unique_malloc_ptr<VOID> MpInfoBuffer;
     auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
-    auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
 
     TEST_NOT_NULL(DefaultLwf.get());
-    TEST_NOT_NULL(ExclusiveMp.get());
 
     //
     // Get.
@@ -7469,6 +7467,9 @@ OidPassthru()
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
         std::vector<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
         const UINT32 CompletionSize = LwfInfoBufferLength / 2;
+
+        auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
+        TEST_NOT_NULL(ExclusiveMp.get());
 
         MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
 
