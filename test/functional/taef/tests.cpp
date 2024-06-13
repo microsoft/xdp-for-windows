@@ -506,4 +506,8 @@ public:
     TEST_METHOD_PRERELEASE(OffloadQeoOidFailure) {
         ::OffloadQeoOidFailure();
     }
+
+    TEST_METHOD(OidPassthru) {
+        ::OidPassthru();
+    }
 };
