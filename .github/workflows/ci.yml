@@ -296,7 +296,7 @@ jobs:
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -Timeout ${{ env.Runtime }} -UseJitEbpf
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -UseJitEbpf
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 5
