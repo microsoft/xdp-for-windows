@@ -116,6 +116,23 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
 C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
 
+static
+VOID
+MpTxFilterReset(
+    _In_ const FNMP_HANDLE Handle
+    )
+{
+    TEST_HRESULT(FnMpTxFilter(Handle, NULL, NULL, 0));
+}
+
+static
+VOID
+LwfRxFilterReset(
+    _In_ const FNLWF_HANDLE Handle
+    )
+{
+    TEST_HRESULT(FnLwfRxFilter(Handle, NULL, NULL, 0));
+}
 
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
@@ -123,6 +140,8 @@ using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_dele
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
+using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
+using unique_fnlwf_filter_handle = wil::unique_any<FNLWF_HANDLE, decltype(::LwfRxFilterReset), ::LwfRxFilterReset>;
 
 static unique_xdp_api XdpApi;
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
@@ -1582,8 +1601,9 @@ RxInitializeFrame(
     Frame->Frame.Buffers = &Frame->SingleBufferStorage;
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_filter_handle
 MpTxFilter(
     _In_ const unique_fnmp_handle &Handle,
     _In_ const VOID *Pattern,
@@ -1592,6 +1612,8 @@ MpTxFilter(
     )
 {
     TEST_HRESULT(FnMpTxFilter(Handle.get(), Pattern, Mask, Length));
+
+    return unique_fnmp_filter_handle(Handle.get());
 }
 
 static
@@ -1700,8 +1722,9 @@ LwfTxFlush(
     TEST_HRESULT(Result);
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnlwf_filter_handle
 LwfRxFilter(
     _In_ const unique_fnlwf_handle &Handle,
     _In_ const VOID *Pattern,
@@ -1710,6 +1733,8 @@ LwfRxFilter(
     )
 {
     TEST_HRESULT(FnLwfRxFilter(Handle.get(), Pattern, Mask, Length));
+
+    return unique_fnlwf_filter_handle(Handle.get());
 }
 
 static
@@ -2054,6 +2079,17 @@ CreateTcpSocket(
     TEST_EQUAL(
         0,
         setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    //
+    // Use RST to close local TCP sockets by default. This prevents closed
+    // sockets from retransmitting FINs beyond the scope of the uinque_socket.
+    //
+    LINGER lingerInfo;
+    lingerInfo.l_onoff = 1;
+    lingerInfo.l_linger = 0;
+    TEST_EQUAL(
+        0,
+        setsockopt(Socket.get(), SOL_SOCKET, SO_LINGER, (char *)&lingerInfo, sizeof(lingerInfo)));
 
     *LocalPort = SS_PORT(&Address);
 
@@ -4016,12 +4052,15 @@ GenericRxFragmentBuffer(
         Ethernet->Destination = Ethernet->Source;
         Ethernet->Source = TempAddress;
 
+        unique_fnlwf_filter_handle LwfFilter;
+        unique_fnmp_filter_handle MpFilter;
+
         if (Params->IsTxInspect) {
-            LwfRxFilter(FnLwf, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+            LwfFilter = LwfRxFilter(FnLwf, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
             LwfTxFlush(FnLwf, &RxFlushOptions);
             TxFrame = LwfRxAllocateAndGetFrame(FnLwf, 0);
         } else {
-            MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+            MpFilter = MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
             MpRxFlush(GenericMp, &RxFlushOptions);
             TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
         }
@@ -4553,7 +4592,7 @@ GenericRxEbpfDrop()
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4582,7 +4621,7 @@ GenericRxEbpfPass()
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4606,7 +4645,7 @@ GenericRxEbpfTx()
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
+    auto MpFilter = MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4644,7 +4683,7 @@ GenericRxEbpfPayload()
             &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     std::vector<UCHAR> Mask(UdpFrameLength, 0xFF);
-    LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
+    auto LwfFilter = LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
 
     RX_FRAME Frame;
     DATA_BUFFER Buffer = {0};
@@ -4747,7 +4786,7 @@ GenericRxEbpfIfIndex()
     TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &IfIndex, BPF_ANY));
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4903,7 +4942,7 @@ GenericTxSingleFrame()
     UINT64 Pattern = 0xA5CC7729CE99C16Aui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxSingleFrame";
@@ -4958,7 +4997,7 @@ GenericTxOutOfOrder()
     UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxOutOfOrder";
@@ -5023,7 +5062,7 @@ GenericTxSharing()
         UINT64 Pattern = 0xA5CC7729CE99C16Aui64 + i;
         UINT64 Mask = ~0ui64;
 
-        MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+        auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
         UINT16 FrameOffset = 13;
         UCHAR Payload[] = "GenericTxSharing";
@@ -5079,7 +5118,7 @@ GenericTxPoke()
     UINT64 Pattern = 0x4FA3DF603CC44911ui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxPoke";
@@ -5967,7 +6006,7 @@ VerifyRssDatapath(
     auto DefaultLwf = LwfOpenDefault(If.GetIfIndex());
     UCHAR Pattern = 0x00;
     UCHAR Mask = 0x00;
-    LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
+    auto LwfFilter = LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
 
     IndicateOnAllActiveRssQueues(If, (UINT32)RssProcessors.size());
 
