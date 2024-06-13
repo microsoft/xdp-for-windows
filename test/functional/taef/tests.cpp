@@ -18,7 +18,7 @@
 //
 #define TEST_METHOD_PRERELEASE(_Name) \
     BEGIN_TEST_METHOD_ATTRIBUTE(_Name) \
-        TEST_METHOD_ATTRIBUTE(L"Prerelease", L"1") \
+        TEST_PRIORITY(1) \
     END_TEST_METHOD_ATTRIBUTE() \
     TEST_METHOD(_Name)
 
