@@ -48,7 +48,10 @@ param (
     [string]$TestBinaryPath = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$UseJitEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoPrerelease = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -116,6 +119,9 @@ for ($i = 1; $i -le $Iterations; $i++) {
         }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
             $TestArgs += "/TestCaseFilter:$TestCaseFilter"
+        }
+        if ($NoPrerelease) {
+            $TestArgs += "/TestCaseFilter:Priority!=1"
         }
         if ($ListTestCases) {
             $TestArgs += "/lt"

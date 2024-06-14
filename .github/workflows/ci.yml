@@ -45,9 +45,6 @@ jobs:
       arch: ${{ matrix.arch }}
       codeql: ${{ github.event_name == 'schedule' }}
       upload_artifacts: ${{ matrix.os == 2022 }}
-      publish_symbols: ${{ github.event_name != 'pull_request' && matrix.os == 2022 }}
-    secrets:
-      publish_symbols_pat: ${{ secrets.AZDO_PAT }}
 
   functional_tests:
     name: Functional Tests
@@ -71,7 +68,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -124,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022]
+        windows: [2019, 2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64]
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
@@ -134,7 +131,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -189,7 +186,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
       with:
         sparse-checkout: tools
     - name: Download Artifacts
@@ -223,7 +220,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -276,7 +273,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -299,7 +296,7 @@ jobs:
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -Timeout ${{ env.Runtime }} -UseJitEbpf
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -UseJitEbpf
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 5
@@ -327,7 +324,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
     - name: Download Artifacts
       uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
@@ -359,7 +356,7 @@ jobs:
       security-events: write  # For CodeQL
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v3
@@ -384,24 +381,29 @@ jobs:
       with:
         category: "/language:csharp"
 
-  netperf:
-    name: Run Perf
-    needs: []
-    runs-on: windows-latest
-    steps:
-    - name: Run NetPerf Workflow
-      shell: pwsh
-      run: |
-        $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
-        if ('${{ secrets.NET_PERF_TRIGGER }}' -eq '') {
-            Write-Host "Not able to run because no secrets are available!"
-            return
-        }
-        iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
+  # netperf:
+  #   name: Run Perf
+  #   needs: []
+  #   runs-on: windows-latest
+  #   steps:
+  #   - name: Run NetPerf Workflow
+  #     shell: pwsh
+  #     run: |
+  #       $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
+  #       if ('${{ secrets.NET_PERF_TRIGGER }}' -eq '') {
+  #           Write-Host "Not able to run because no secrets are available!"
+  #           return
+  #       }
+  #       iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
 
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw, netperf]
-    runs-on: windows-latest
+    if: always()
+    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    runs-on: ubuntu-latest
+    permissions: {} # No need for any permissions.
     steps:
-    - run: echo "CI succeeded"
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON(needs) }}

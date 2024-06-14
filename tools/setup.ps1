@@ -115,18 +115,19 @@ function Start-Service-With-Retry($Name) {
 # fail with ERROR_TRANSACTION_NOT_ACTIVE.
 function Rename-NetAdapter-With-Retry($IfDesc, $Name) {
     Write-Verbose "Rename-NetAdapter $IfDesc $Name"
-    $RenameSuccess = $false
-    for ($i=0; $i -lt 10; $i++) {
+    $Retries = 10
+    for ($i=0; $i -le $Retries; $i++) {
         try {
-            Rename-NetAdapter -InterfaceDescription $IfDesc $Name
-            $RenameSuccess = $true
+            Rename-NetAdapter -InterfaceDescription $IfDesc $Name -ErrorAction 'Stop'
             break
         } catch {
-            Start-Sleep -Milliseconds 100
+            if ($i -lt $Retries) {
+                Start-Sleep -Milliseconds 100
+            } else {
+                Write-Error "Failed to rename $Name" -ErrorAction 'Continue'
+                throw
+            }
         }
-    }
-    if ($RenameSuccess -eq $false) {
-        Write-Error "Failed to rename $Name"
     }
 }
 

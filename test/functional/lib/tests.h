@@ -222,3 +222,6 @@ OffloadQeoRevert(
 VOID
 OffloadQeoOidFailure(
     );
+
+VOID
+OidPassthru();
