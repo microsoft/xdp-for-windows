@@ -221,6 +221,94 @@ XdpLwfOidRequestWorker(
 }
 
 VOID
+XdpLwfCommonOidRequestComplete(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
+    _In_ NDIS_OID_REQUEST *Request,
+    _In_ NDIS_STATUS Status
+    )
+{
+    XDP_OID_CLONE *Context = (XDP_OID_CLONE *)(&Request->SourceReserved[0]);
+    NDIS_OID_REQUEST *OriginalRequest = Context->OriginalRequest;
+
+    TraceEnter(
+        TRACE_LWF,
+        "Filter=%p Request=%p Oid=%x RequestInterface=%!OID_REQUEST_INTERFACE! OriginalRequest=%p",
+        Filter, Request, Request->DATA.Oid, RequestInterface, OriginalRequest);
+
+    if (OriginalRequest == NULL) {
+        XdpLwfOidInternalRequestComplete(Filter, Request, Status);
+        return;
+    }
+
+    //
+    // Copy the information from the returned request to the original request
+    //
+    switch(Request->RequestType)
+    {
+    case NdisRequestMethod:
+        OriginalRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
+            Request->DATA.METHOD_INFORMATION.OutputBufferLength;
+        OriginalRequest->DATA.METHOD_INFORMATION.BytesRead =
+            Request->DATA.METHOD_INFORMATION.BytesRead;
+        OriginalRequest->DATA.METHOD_INFORMATION.BytesNeeded =
+            Request->DATA.METHOD_INFORMATION.BytesNeeded;
+        OriginalRequest->DATA.METHOD_INFORMATION.BytesWritten =
+            Request->DATA.METHOD_INFORMATION.BytesWritten;
+        break;
+
+    case NdisRequestSetInformation:
+        OriginalRequest->DATA.SET_INFORMATION.BytesRead =
+            Request->DATA.SET_INFORMATION.BytesRead;
+        OriginalRequest->DATA.SET_INFORMATION.BytesNeeded =
+            Request->DATA.SET_INFORMATION.BytesNeeded;
+        break;
+
+    case NdisRequestQueryInformation:
+    case NdisRequestQueryStatistics:
+    default:
+        OriginalRequest->DATA.QUERY_INFORMATION.BytesWritten =
+            Request->DATA.QUERY_INFORMATION.BytesWritten;
+        OriginalRequest->DATA.QUERY_INFORMATION.BytesNeeded =
+            Request->DATA.QUERY_INFORMATION.BytesNeeded;
+        break;
+    }
+
+    NdisFreeCloneOidRequest(Filter->NdisFilterHandle, Request);
+
+    XdpLwfInvokeFOidRequestComplete(
+        Filter->NdisFilterHandle, RequestInterface, OriginalRequest, Status);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+_Use_decl_annotations_
+VOID
+XdpLwfOidRequestComplete(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request,
+    NDIS_STATUS Status
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    XdpLwfCommonOidRequestComplete(Filter, XDP_OID_REQUEST_INTERFACE_REGULAR, Request, Status);
+}
+
+_Use_decl_annotations_
+VOID
+XdpLwfDirectOidRequestComplete(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_OID_REQUEST *Request,
+    NDIS_STATUS Status
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    XdpLwfCommonOidRequestComplete(Filter, XDP_OID_REQUEST_INTERFACE_DIRECT, Request, Status);
+}
+
+VOID
 XdpLwfCommonOidRequestInspectComplete(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
@@ -266,7 +354,7 @@ Exit:
 
     if (Status != NDIS_STATUS_PENDING) {
         if (ClonedRequest != NULL) {
-            XdpLwfOidRequestComplete(Filter, ClonedRequest, Status);
+            XdpLwfCommonOidRequestComplete(Filter, RequestInterface, ClonedRequest, Status);
         } else {
             XdpLwfInvokeFOidRequestComplete(
                 Filter->NdisFilterHandle, RequestInterface, Request, Status);
@@ -469,90 +557,6 @@ XdpVfLwfDirectOidRequest(
     return Status;
 }
 #endif
-
-VOID
-XdpLwfCommonOidRequestComplete(
-    _In_ XDP_LWF_FILTER *Filter,
-    _In_ XDP_OID_REQUEST_INTERFACE RequestInterface,
-    _In_ NDIS_OID_REQUEST *Request,
-    _In_ NDIS_STATUS Status
-    )
-{
-    NDIS_OID_REQUEST *OriginalRequest;
-    XDP_OID_CLONE *Context;
-
-    Context = (XDP_OID_CLONE *)(&Request->SourceReserved[0]);
-    OriginalRequest = Context->OriginalRequest;
-
-    if (OriginalRequest == NULL) {
-        XdpLwfOidInternalRequestComplete(Filter, Request, Status);
-        return;
-    }
-
-    //
-    // Copy the information from the returned request to the original request
-    //
-    switch(Request->RequestType)
-    {
-    case NdisRequestMethod:
-        OriginalRequest->DATA.METHOD_INFORMATION.OutputBufferLength =
-            Request->DATA.METHOD_INFORMATION.OutputBufferLength;
-        OriginalRequest->DATA.METHOD_INFORMATION.BytesRead =
-            Request->DATA.METHOD_INFORMATION.BytesRead;
-        OriginalRequest->DATA.METHOD_INFORMATION.BytesNeeded =
-            Request->DATA.METHOD_INFORMATION.BytesNeeded;
-        OriginalRequest->DATA.METHOD_INFORMATION.BytesWritten =
-            Request->DATA.METHOD_INFORMATION.BytesWritten;
-        break;
-
-    case NdisRequestSetInformation:
-        OriginalRequest->DATA.SET_INFORMATION.BytesRead =
-            Request->DATA.SET_INFORMATION.BytesRead;
-        OriginalRequest->DATA.SET_INFORMATION.BytesNeeded =
-            Request->DATA.SET_INFORMATION.BytesNeeded;
-        break;
-
-    case NdisRequestQueryInformation:
-    case NdisRequestQueryStatistics:
-    default:
-        OriginalRequest->DATA.QUERY_INFORMATION.BytesWritten =
-            Request->DATA.QUERY_INFORMATION.BytesWritten;
-        OriginalRequest->DATA.QUERY_INFORMATION.BytesNeeded =
-            Request->DATA.QUERY_INFORMATION.BytesNeeded;
-        break;
-    }
-
-    NdisFreeCloneOidRequest(Filter->NdisFilterHandle, Request);
-
-    XdpLwfInvokeFOidRequestComplete(
-        Filter->NdisFilterHandle, RequestInterface, OriginalRequest, Status);
-}
-
-_Use_decl_annotations_
-VOID
-XdpLwfOidRequestComplete(
-    NDIS_HANDLE FilterModuleContext,
-    NDIS_OID_REQUEST *Request,
-    NDIS_STATUS Status
-    )
-{
-    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
-
-    XdpLwfCommonOidRequestComplete(Filter, XDP_OID_REQUEST_INTERFACE_REGULAR, Request, Status);
-}
-
-_Use_decl_annotations_
-VOID
-XdpLwfDirectOidRequestComplete(
-    NDIS_HANDLE FilterModuleContext,
-    NDIS_OID_REQUEST *Request,
-    NDIS_STATUS Status
-    )
-{
-    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
-
-    XdpLwfCommonOidRequestComplete(Filter, XDP_OID_REQUEST_INTERFACE_DIRECT, Request, Status);
-}
 
 #if DBG
 _Use_decl_annotations_
