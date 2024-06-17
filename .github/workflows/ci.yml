@@ -68,7 +68,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -131,7 +131,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -186,7 +186,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Download Artifacts
@@ -220,7 +220,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -273,7 +273,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -324,7 +324,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
     - name: Download Artifacts
       uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
@@ -356,7 +356,7 @@ jobs:
       security-events: write  # For CodeQL
     steps:
     - name: Checkout repository
-      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v3
