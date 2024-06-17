@@ -320,21 +320,16 @@ XdpInspectEbpfStartBatch(
     )
 {
     const EBPF_EXTENSION_CLIENT *Client;
-    const VOID *ClientBindingContext;
     ebpf_result_t EbpfResult;
 
     ASSERT(XdpProgramIsEbpf(Program));
 
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
-    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
     ebpf_program_batch_begin_invoke_function_t EbpfBatchBegin =
         EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_begin_invoke_function;
 
-    EbpfResult =
-        EbpfBatchBegin(
-            ClientBindingContext, sizeof(InspectionContext->EbpfContext),
-            &InspectionContext->EbpfContext);
+    EbpfResult = EbpfBatchBegin(sizeof(InspectionContext->EbpfContext), &InspectionContext->EbpfContext);
 
     return EbpfResult == EBPF_SUCCESS;
 }
@@ -347,18 +342,16 @@ XdpInspectEbpfEndBatch(
     )
 {
     const EBPF_EXTENSION_CLIENT *Client;
-    const VOID *ClientBindingContext;
     ebpf_result_t EbpfResult;
 
     ASSERT(XdpProgramIsEbpf(Program));
 
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
-    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
     ebpf_program_batch_end_invoke_function_t EbpfBatchEnd =
             EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_end_invoke_function;
 
-    EbpfResult = EbpfBatchEnd(ClientBindingContext, &InspectionContext->EbpfContext);
+    EbpfResult = EbpfBatchEnd(&InspectionContext->EbpfContext);
 
     ASSERT(EbpfResult == EBPF_SUCCESS);
 }
