@@ -109,7 +109,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.15.1"
+    return "0.17.0"
 }
 
 # Returns the eBPF package type.

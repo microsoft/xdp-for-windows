@@ -5,7 +5,7 @@
     <XdpMinorVersion>1</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
     <!-- Project-wide properties -->
-    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.15.1\</EbpfPackagePath>
+    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.17.0\</EbpfPackagePath>
     <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
     <FnPackagePath>$(SolutionDir)artifacts\fn\devkit-0.4.4\</FnPackagePath>
   </PropertyGroup>
