@@ -68,6 +68,7 @@ C_ASSERT(!"NDIS_RUNTIME_VERSION_688 has been publicly defined. Remove redundant 
 #include "offload.h"
 #include "offloadqeo.h"
 #include "offloadrss.h"
+#include "offloadtask.h"
 #include "oid.h"
 #include "recv.h"
 #include "send.h"

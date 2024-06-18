@@ -307,6 +307,98 @@ Exit:
     return Status;
 }
 
+typedef struct _XDP_LWF_OFFLOAD_INSPECT_STATUS {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _In_ NDIS_STATUS StatusCode;
+    _In_ const VOID *StatusBuffer;
+    _In_ UINT32 StatusBufferSize;
+} XDP_LWF_OFFLOAD_INSPECT_STATUS;
+
+static
+VOID
+XdpOffloadFreeStatusRequest(
+    _In_ XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest
+    )
+{
+    if (InspectRequest->StatusBuffer != NULL) {
+        #pragma warning(suppress:4090) // different 'const' qualifiers
+        ExFreePoolWithTag(InspectRequest->StatusBuffer, POOLTAG_OFFLOAD);
+    }
+
+    ExFreePoolWithTag(InspectRequest, POOLTAG_OFFLOAD);
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpOffloadFilterStatusWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_INSPECT_STATUS, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+
+    TraceEnter(TRACE_LWF, "Filter=%p StatusIndication=%u", Filter, InspectRequest->StatusCode);
+
+    switch (InspectRequest->StatusCode) {
+    case NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG:
+        XdpOffloadUpdateTaskOffloadConfig(
+            Filter, InspectRequest->StatusBuffer, InspectRequest->StatusBufferSize);
+        break;
+    }
+
+    XdpOffloadFreeStatusRequest(InspectRequest);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpOffloadFilterStatus(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ const NDIS_STATUS_INDICATION *StatusIndication
+    )
+{
+    XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest = NULL;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p StatusIndication=%u", Filter, StatusIndication->StatusCode);
+
+    InspectRequest = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*InspectRequest), POOLTAG_OFFLOAD);
+    if (InspectRequest == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    InspectRequest->StatusCode = StatusIndication->StatusCode;
+
+    if (StatusIndication->StatusBufferSize > 0) {
+        InspectRequest->StatusBuffer =
+            ExAllocatePoolZero(NonPagedPoolNx, InspectRequest->StatusBufferSize, POOLTAG_OFFLOAD);
+
+        if (InspectRequest == NULL) {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+
+        InspectRequest->StatusBufferSize = StatusIndication->StatusBufferSize;
+    }
+
+    XdpLwfOffloadQueueWorkItem(
+        Filter, &InspectRequest->WorkItem, XdpOffloadFilterStatusWorker);
+    Status = STATUS_PENDING;
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (InspectRequest != NULL) {
+            XdpOffloadFreeStatusRequest(InspectRequest);
+        }
+    }
+
+    TraceExitStatus(TRACE_LWF);
+}
+
 VOID
 XdpLwfOffloadTransformNbls(
     _In_ XDP_LWF_FILTER *Filter,

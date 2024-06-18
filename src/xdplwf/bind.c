@@ -16,6 +16,7 @@ FILTER_RESTART XdpLwfFilterRestart;
 FILTER_PAUSE XdpLwfFilterPause;
 FILTER_SET_MODULE_OPTIONS XdpLwfFilterSetOptions;
 FILTER_NET_PNP_EVENT XdpLwfFilterPnpEvent;
+FILTER_STATUS XdpLwfFilterStatus;
 
 NDIS_HANDLE XdpLwfNdisDriverHandle = NULL;
 UINT32 XdpLwfNdisVersion;
@@ -97,6 +98,7 @@ XdpLwfBindStart(
     FChars.PauseHandler                     = XdpLwfFilterPause;
     FChars.SetFilterModuleOptionsHandler    = XdpLwfFilterSetOptions;
     FChars.NetPnPEventHandler               = XdpLwfFilterPnpEvent;
+    FChars.StatusHandler                    = XdpLwfFilterStatus;
 
 #if DBG
     FChars.OidRequestHandler                = XdpVfLwfOidRequest;
@@ -386,4 +388,16 @@ XdpLwfFilterPnpEvent(
     }
 
     return NdisFNetPnPEvent(Filter->NdisFilterHandle, NetPnPEventNotification);
+}
+
+_Use_decl_annotations_
+VOID
+XdpLwfFilterStatus(
+    NDIS_HANDLE FilterModuleContext,
+    NDIS_STATUS_INDICATION *StatusIndication
+    )
+{
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+
+    XdpOffloadFilterStatus(Filter, StatusIndication);
 }

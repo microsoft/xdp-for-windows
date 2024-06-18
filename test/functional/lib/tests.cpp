@@ -3961,10 +3961,10 @@ GenericRxValidateGroToGso(
         Ipv6->PayloadLength = 0;
     }
 
-    TCP_HDR *Tcp = (TCP_HDR *)&Mask[TotalTcpHdrSize - sizeof(*Tcp)];
-    Tcp->th_flags = 0; // Technically, some flag bits could be kept constant, e.g. SYN.
-    Tcp->th_seq = 0;
-    Tcp->th_sum = 0;
+    TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TotalTcpHdrSize - sizeof(*TcpMask)];
+    TcpMask->th_flags = 0; // Technically, some flag bits could be kept constant, e.g. SYN.
+    TcpMask->th_seq = 0;
+    TcpMask->th_sum = 0;
 
     auto MpFilter = MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
     MpRxFlush(GenericMp, &RxFlushOptions);
