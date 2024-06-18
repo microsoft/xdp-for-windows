@@ -114,8 +114,11 @@ function Extract-Ebpf-Msi {
 
     # Extract the MSI from the package.
     pushd $ArtifactsDir
+    dir
     Expand-Archive -Path $EbpfPackageFullPath -Force
+    dir "$ArtifactsDir\$EbpfDirectoryName"
     xcopy "$ArtifactsDir\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
+    dir "$EbpfMsiDir"
     popd
 }
 
