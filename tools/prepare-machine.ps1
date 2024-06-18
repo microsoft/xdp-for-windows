@@ -116,9 +116,7 @@ function Extract-Ebpf-Msi {
     pushd $ArtifactsDir
     dir
     Expand-Archive -Path $EbpfPackageFullPath -Force
-    dir /s
-    Write-Host "$ArtifactsDir\$EbpfDirectoryName\ebpf-for-windows.msi"
-    xcopy "$ArtifactsDir\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
+    xcopy "$ArtifactsDir\ebpf\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
     popd
 }
 
