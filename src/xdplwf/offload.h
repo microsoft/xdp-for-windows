@@ -39,6 +39,12 @@ typedef struct _XDP_LWF_OFFLOAD {
     XDP_WORK_QUEUE *WorkQueue;
 
     //
+    // Deactivating an interface reverts all XDP-initiated changes to an
+    // interface and prevents new changes.
+    //
+    BOOLEAN Deactivated;
+
+    //
     // Hardware capabilities.
     //
     NDIS_RECEIVE_SCALE_CAPABILITIES RssCaps;

@@ -7,6 +7,7 @@
 #include "offloadtask.tmh"
 
 static
+_Offload_work_routine_
 VOID
 XdpLwfFreeTaskOffloadSetting(
     _In_ XDP_LIFETIME_ENTRY *Entry
@@ -18,6 +19,22 @@ XdpLwfFreeTaskOffloadSetting(
     ExFreePoolWithTag(OldOffload, POOLTAG_OFFLOAD);
 }
 
+_Offload_work_routine_
+VOID
+XdpLwfOffloadTaskOffloadDeactivate(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *OldOffload;
+
+    if (Filter->Offload.LowerEdge.TaskOffload != NULL) {
+        OldOffload = Filter->Offload.LowerEdge.TaskOffload;
+        Filter->Offload.LowerEdge.TaskOffload = NULL;
+        XdpLifetimeDelete(XdpLwfFreeTaskOffloadSetting, &OldOffload->DeleteEntry);
+    }
+}
+
+_Offload_work_routine_
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpOffloadUpdateTaskOffloadConfig(
@@ -32,6 +49,11 @@ XdpOffloadUpdateTaskOffloadConfig(
     XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *OldOffload = NULL;
 
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    if (Filter->Offload.Deactivated) {
+        Status = STATUS_DEVICE_NOT_READY;
+        goto Exit;
+    }
 
     if (TaskOffloadSize < sizeof(TaskOffload->Header) ||
         TaskOffload->Header.Size > TaskOffloadSize) {

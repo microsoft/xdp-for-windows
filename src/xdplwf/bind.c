@@ -400,4 +400,6 @@ XdpLwfFilterStatus(
     XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
 
     XdpOffloadFilterStatus(Filter, StatusIndication);
+
+    NdisFIndicateStatus(Filter->NdisFilterHandle, StatusIndication);
 }

@@ -55,7 +55,6 @@ XdpLwfOffloadQueueWorkItem(
     XdpInsertWorkQueue(Filter->Offload.WorkQueue, &WorkItem->Link);
 }
 
-
 static
 XDP_LWF_OFFLOAD_EDGE
 XdpLwfConvertHookIdToOffloadEdge(
@@ -225,6 +224,8 @@ XdpLwfSetInterfaceOffload(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
+    ASSERT(!Filter->Offload.Deactivated);
+
     switch (OffloadType) {
     case XdpOffloadRss:
         Status = XdpLwfOffloadRssSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
@@ -374,8 +375,7 @@ XdpOffloadFilterStatus(
 
     if (StatusIndication->StatusBufferSize > 0) {
         InspectRequest->StatusBuffer =
-            ExAllocatePoolZero(NonPagedPoolNx, InspectRequest->StatusBufferSize, POOLTAG_OFFLOAD);
-
+            ExAllocatePoolZero(NonPagedPoolNx, StatusIndication->StatusBufferSize, POOLTAG_OFFLOAD);
         if (InspectRequest == NULL) {
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
@@ -444,7 +444,10 @@ XdpLwfOffloadDeactivateWorker(
         CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_DEACTIVATE, WorkItem);
     XDP_LWF_FILTER *Filter = WorkItem->Filter;
 
+    Filter->Offload.Deactivated = TRUE;
+
     XdpLwfOffloadRssDeactivate(Filter);
+    XdpLwfOffloadTaskOffloadDeactivate(Filter);
 
     KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
 }
@@ -482,7 +485,7 @@ XdpLwfOffloadStart(
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     Filter->Offload.WorkQueue =
-        XdpCreateWorkQueue(XdpLwfOffloadWorker, PASSIVE_LEVEL, XdpLwfDriverObject, NULL);
+        XdpCreateWorkQueue(XdpLwfOffloadWorker, DISPATCH_LEVEL, XdpLwfDriverObject, NULL);
     if (Filter->Offload.WorkQueue == NULL) {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
