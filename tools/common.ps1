@@ -124,10 +124,18 @@ function Get-EbpfPackageType {
 # Return the eBPF package name.
 function Get-EbpfPackageName {
     if ($UseJitEbpf) {
-        return "Build-x64-Release.zip"
+        return "Build-x64.Release.zip"
     }
 
-    return "Build-x64-native-only-NativeOnlyRelease.zip"
+    return "Build-x64-native-only.NativeOnlyRelease.zip"
+}
+
+function Get-EbpfDirectoryName {
+    if ($UseJitEbpf) {
+        return "Build-x64 Release"
+    }
+
+    return "Build-x64-native-only NativeOnlyRelease"
 }
 
 # Returns the eBPF MSI full path

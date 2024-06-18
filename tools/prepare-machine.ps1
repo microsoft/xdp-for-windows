@@ -108,15 +108,14 @@ function Extract-Ebpf-Msi {
     $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-    $EbpfPackageType = Get-EbpfPackageType
+    $EbpfDirectoryName = Get-EbpfDirectoryName
 
     Write-Debug "Extracting eBPF MSI from Release package"
 
     # Extract the MSI from the package.
     pushd $ArtifactsDir
     Expand-Archive -Path $EbpfPackageFullPath -Force
-    Expand-Archive -Path "$ArtifactsDir\ebpf\build-$EbpfPackageType.zip" -Force
-    xcopy "$ArtifactsDir\build-$EbpfPackageType\$EbpfPackageType\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
+    xcopy "$ArtifactsDir\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
     popd
 }
 
