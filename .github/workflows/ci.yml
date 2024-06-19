@@ -76,7 +76,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
@@ -139,7 +139,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForSpinxskTest -NoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForSpinxskTest -RequireNoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
@@ -228,7 +228,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForPerfTest -RequireNoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
@@ -281,7 +281,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose -UseJitEbpf
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose -UseJitEbpf
     - name: Download Artifacts
       uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
