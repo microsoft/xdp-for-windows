@@ -118,15 +118,15 @@ function Extract-Ebpf-Msi {
     $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-    $EbpfPackageType = Get-EbpfPackageType
+    $EbpfDirectoryName = Get-EbpfDirectoryName
 
     Write-Debug "Extracting eBPF MSI from Release package"
 
     # Extract the MSI from the package.
     pushd $ArtifactsDir
+    dir
     Expand-Archive -Path $EbpfPackageFullPath -Force
-    Expand-Archive -Path "$ArtifactsDir\ebpf\build-$EbpfPackageType.zip" -Force
-    xcopy "$ArtifactsDir\build-$EbpfPackageType\$EbpfPackageType\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
+    xcopy "$ArtifactsDir\ebpf\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
     popd
 }
 
@@ -233,7 +233,7 @@ function Setup-VcRuntime {
         Remove-Item -Force "$ArtifactsDir\vc_redist.x64.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
+        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
         & $ArtifactsDir\vc_redist.x64.exe /install /passive | Write-Verbose
     }
 }

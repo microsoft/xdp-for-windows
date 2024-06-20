@@ -24,10 +24,7 @@ static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
 // XDP helper function prototype descriptors.
 static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] = {
     {
-        .header = {
-            .version = EBPF_HELPER_FUNCTION_PROTOTYPE_CURRENT_VERSION,
-            .size = EBPF_HELPER_FUNCTION_PROTOTYPE_CURRENT_VERSION_SIZE
-        },
+        .header = EBPF_HELPER_FUNCTION_PROTOTYPE_HEADER,
         .helper_id = XDP_EXT_HELPER_FUNCTION_START + 1,
         .name = "bpf_xdp_adjust_head",
         .return_type = EBPF_RETURN_TYPE_INTEGER,
@@ -39,10 +36,7 @@ static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] =
 };
 
 static const ebpf_program_type_descriptor_t EbpfXdpProgramTypeDescriptor = {
-    .header = {
-        .version = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION,
-        .size = EBPF_PROGRAM_TYPE_DESCRIPTOR_CURRENT_VERSION_SIZE
-    },
+    .header = EBPF_PROGRAM_TYPE_DESCRIPTOR_HEADER,
     .name = "xdp",
     .context_descriptor = &EbpfXdpContextDescriptor,
     .program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
@@ -50,17 +44,14 @@ static const ebpf_program_type_descriptor_t EbpfXdpProgramTypeDescriptor = {
 };
 
 const ebpf_program_info_t EbpfXdpProgramInfo = {
-    .header = {
-        .version = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION,
-        .size = EBPF_PROGRAM_INFORMATION_CURRENT_VERSION_SIZE
-    },
+    .header = EBPF_PROGRAM_INFORMATION_HEADER,
     .program_type_descriptor = &EbpfXdpProgramTypeDescriptor,
     .count_of_program_type_specific_helpers = RTL_NUMBER_OF(EbpfXdpHelperFunctionPrototype),
     .program_type_specific_helper_prototype = EbpfXdpHelperFunctionPrototype,
 };
 
 #define DECLARE_XDP_SECTION(_section_name) \
-    { EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION, EBPF_PROGRAM_SECTION_INFORMATION_CURRENT_VERSION_SIZE }, \
+    EBPF_PROGRAM_SECTION_INFORMATION_HEADER, \
     (const wchar_t*)_section_name, &EBPF_PROGRAM_TYPE_XDP, &EBPF_ATTACH_TYPE_XDP, \
     BPF_PROG_TYPE_XDP, BPF_XDP
 
