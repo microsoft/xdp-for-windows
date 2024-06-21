@@ -27,6 +27,7 @@ typedef struct _XDP_PCW_LWF_RX_QUEUE {
     UINT64 LinearizationFailures;
     UINT64 ForwardingLowResources;
     UINT64 ForwardingFailuresAllocation;
+    UINT64 ForwardingFailuresAllocationLimit;
     UINT64 ForwardingFailuresRscInvalidHeaders;
 } XDP_PCW_LWF_RX_QUEUE;
 

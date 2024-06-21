@@ -2036,6 +2036,31 @@ MpOidCompleteRequest(
 
 static
 VOID
+InitializeOffloadParameters(
+    _Out_ NDIS_OFFLOAD_PARAMETERS *OffloadParameters
+    )
+{
+    ZeroMemory(OffloadParameters, sizeof(*OffloadParameters));
+    OffloadParameters->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5;
+    OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
+}
+
+static
+VOID
+MpUpdateTaskOffload(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ FN_OFFLOAD_TYPE OffloadType,
+    _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters
+    )
+{
+    UINT32 Size = OffloadParameters != NULL ? sizeof(*OffloadParameters) : 0;
+
+    TEST_HRESULT(FnMpUpdateTaskOffload(Handle.get(), OffloadType, OffloadParameters, Size));
+}
+
+static
+VOID
 WaitForWfpQuarantine(
     _In_ const TestInterface &If
     );
@@ -3936,6 +3961,7 @@ GenericRxValidateGroToGso(
     std::vector<UCHAR> Mask(Filter.size(), 0xFF);
     std::vector<UCHAR> FinalPayload;
     unique_malloc_ptr<DATA_FRAME> TxFrame;
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
 
     TEST_NOT_EQUAL(0, Params->GroSegCount);
     TEST_EQUAL(XDP_PROGRAM_ACTION_L2FWD, Params->Action);
@@ -3951,7 +3977,7 @@ GenericRxValidateGroToGso(
     memcpy(&Filter[0], GroPacketBuffer, Filter.size());
 
     //
-    // Clear variable fields in the mask. These will be validated in the final
+    // Clear variable IP fields in the mask. These will be validated in the final
     // GSO'd frames.
     //
 
@@ -3965,10 +3991,21 @@ GenericRxValidateGroToGso(
         Ipv6->PayloadLength = 0;
     }
 
+    //
+    // TODO: test more LSO/CSUM states.
+    //
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+    MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+
+    //
+    // Filter all traffic matching the TCP port tuple.
+    //
     TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TotalTcpHdrSize - sizeof(*TcpMask)];
-    TcpMask->th_flags = 0; // Technically, some flag bits could be kept constant, e.g. SYN.
-    TcpMask->th_seq = 0;
-    TcpMask->th_sum = 0;
+    RtlZeroMemory(TcpMask, sizeof(*TcpMask));
+    TcpMask->th_dport = UINT16_MAX;
+    TcpMask->th_sport = UINT16_MAX;
 
     auto MpFilter = MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
     MpRxFlush(GenericMp, &RxFlushOptions);

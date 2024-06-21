@@ -44,9 +44,9 @@ XdpOffloadUpdateTaskOffloadConfig(
     )
 {
     NTSTATUS Status;
-
     XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *NewOffload = NULL;
     XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *OldOffload = NULL;
+    static const UINT32 Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
 
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
@@ -70,11 +70,44 @@ XdpOffloadUpdateTaskOffloadConfig(
     }
 
     //
-    // Since XDP does not have configuration APIs for task offload, simply copy
-    // the current NDIS settings.
+    // Simplify the adapter's checksum capabilities and impose minimum
+    // requirements. Any modern NIC should support IP, TCP (with options) and
+    // UDP checksums for all protocols and directions, otherwise it probably
+    // doesn't support any.
     //
-    RtlCopyMemory(
-        &NewOffload->Params, TaskOffload, min(sizeof(NewOffload->Params), TaskOffloadSize));
+    if (((TaskOffload->Checksum.IPv4Receive.Encapsulation & Encapsulation) == Encapsulation) &&
+        ((TaskOffload->Checksum.IPv6Receive.Encapsulation & Encapsulation) == Encapsulation) &&
+        ((TaskOffload->Checksum.IPv4Transmit.Encapsulation & Encapsulation) == Encapsulation) &&
+        ((TaskOffload->Checksum.IPv6Transmit.Encapsulation & Encapsulation) == Encapsulation) &&
+        TaskOffload->Checksum.IPv4Receive.IpChecksum &&
+        TaskOffload->Checksum.IPv4Receive.TcpChecksum &&
+        TaskOffload->Checksum.IPv4Receive.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv4Receive.UdpChecksum &&
+        TaskOffload->Checksum.IPv6Receive.TcpChecksum &&
+        TaskOffload->Checksum.IPv6Receive.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv6Receive.UdpChecksum &&
+        TaskOffload->Checksum.IPv4Transmit.IpChecksum &&
+        TaskOffload->Checksum.IPv4Transmit.TcpChecksum &&
+        TaskOffload->Checksum.IPv4Transmit.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv4Transmit.UdpChecksum &&
+        TaskOffload->Checksum.IPv6Transmit.TcpChecksum &&
+        TaskOffload->Checksum.IPv6Transmit.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv6Transmit.UdpChecksum) {
+        NewOffload->Checksum.Enabled = TRUE;
+    }
+
+    //
+    // Simplify the adapter's LSO capabilities and impose minimum requirements.
+    // Any modern NIC should support LSOv2, TCPv4, TCPv6, and TCP options.
+    //
+    if (((TaskOffload->LsoV2.IPv4.Encapsulation & Encapsulation) == Encapsulation) &&
+        ((TaskOffload->LsoV2.IPv6.Encapsulation & Encapsulation) == Encapsulation) &&
+        TaskOffload->LsoV2.IPv6.TcpOptionsSupported) {
+        NewOffload->Lso.MaxOffloadSize =
+            min(TaskOffload->LsoV2.IPv4.MaxOffLoadSize, TaskOffload->LsoV2.IPv6.MaxOffLoadSize);
+        NewOffload->Lso.MinSegments =
+            max(TaskOffload->LsoV2.IPv4.MinSegmentCount, TaskOffload->LsoV2.IPv6.MinSegmentCount);
+    }
 
     OldOffload = Filter->Offload.LowerEdge.TaskOffload;
     Filter->Offload.LowerEdge.TaskOffload = NewOffload;

@@ -14,7 +14,13 @@ typedef struct _XDP_LWF_OFFLOAD_SETTING_RSS {
 } XDP_LWF_OFFLOAD_SETTING_RSS;
 
 typedef struct _XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD {
-    NDIS_OFFLOAD Params;
+    struct {
+        BOOLEAN Enabled : 1;
+    } Checksum;
+    struct {
+        UINT32 MaxOffloadSize;
+        UINT32 MinSegments;
+    } Lso;
     XDP_LIFETIME_ENTRY DeleteEntry;
 } XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD;
 

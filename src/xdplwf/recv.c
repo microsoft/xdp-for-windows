@@ -8,8 +8,8 @@
 
 #define RECV_MAX_FRAGMENTS 64
 #define RECV_TX_INSPECT_BATCH_SIZE 64
-#define RECV_DEFAULT_MAX_TX_BUFFERS 256
-#define RECV_MAX_MAX_TX_BUFFERS 4096
+#define RECV_DEFAULT_MAX_TX_BUFFERS 1024
+#define RECV_MAX_MAX_TX_BUFFERS 65536
 //
 // Rather than tracking the current lookaside via OIDs, which is subject to
 // theoretical race conditions, simply set the minimum lookahead for forwarding
@@ -531,12 +531,140 @@ XdpGenericRxFreeNblCloneCache(
 }
 
 static
+VOID
+XdpGenericRxReturnTxCloneNbl(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
+    _Inout_ NET_BUFFER_LIST *TxNbl
+    )
+{
+    TxNbl->Next = RxQueue->TxCloneNblList;
+    RxQueue->TxCloneNblList = TxNbl;
+}
+
+static
+NET_BUFFER_LIST *
+XdpGenericRxAllocateTxCloneNbl(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue
+    )
+{
+    NET_BUFFER_LIST *TxNbl;
+
+    if (RxQueue->TxCloneNblList == NULL) {
+        RxQueue->TxCloneNblList =
+            (NET_BUFFER_LIST *)InterlockedFlushSList(&RxQueue->TxCloneNblSList);
+    }
+
+    if (RxQueue->TxCloneNblList != NULL) {
+        TxNbl = RxQueue->TxCloneNblList;
+        RxQueue->TxCloneNblList = TxNbl->Next;
+    } else if (RxQueue->TxCloneCacheCount < RxQueue->TxCloneCacheLimit) {
+        TxNbl =
+            NdisAllocateNetBufferAndNetBufferList(
+                RxQueue->TxCloneNblPool, RX_TX_CONTEXT_SIZE, 0, NULL, 0, 0);
+        if (TxNbl == NULL) {
+            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
+            return NULL;
+        }
+
+        RxQueue->TxCloneCacheCount++;
+    } else {
+        TxNbl = NULL;
+        STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocationLimit);
+        return NULL;
+    }
+
+    ASSERT(TxNbl != NULL);
+    TxNbl->NetBufferListInfo[TcpLargeSendNetBufferListInfo] = 0;
+
+    return TxNbl;
+}
+
+static
+VOID
+XdpGenericRxEnqueueTxNbl(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
+    _Inout_ NBL_COUNTED_QUEUE *TxList,
+    _Inout_ NET_BUFFER_LIST *Nbl,
+    _Inout_ NET_BUFFER_LIST *TxNbl
+    )
+{
+    NblRxTxContext(TxNbl)->RxQueue = RxQueue;
+    NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
+    TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
+    NET_BUFFER_LIST_SET_HASH_VALUE(TxNbl, NET_BUFFER_LIST_GET_HASH_VALUE(Nbl));
+    NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
+}
+
+static
 BOOLEAN
+XdpGenericRxCloneOrCopyTxNblData(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
+    _Inout_ NET_BUFFER_LIST *Nbl,
+    _In_ NET_BUFFER *Nb,
+    _In_ BOOLEAN CanPend,
+    _Inout_ NET_BUFFER_LIST *TxNbl
+    )
+{
+    //
+    // If we are allowed to clone and pend NBLs, reuse the existing MDL chain
+    // and reference the parent net buffer list.
+    //
+    // We cannot reuse the MDL chain if the NBL is being forwarded onto the
+    // local RX path and the frame is potentially discontiguous within L2 or L3
+    // headers; in that case, allocate a new MDL chain and copy the data.
+    //
+
+    if (CanPend &&
+            (!RxQueue->Flags.TxInspect ||
+                Nb->CurrentMdl->ByteCount - Nb->CurrentMdlOffset >= RECV_TX_INSPECT_LOOKAHEAD)) {
+        TxNbl->FirstNetBuffer->MdlChain = Nb->MdlChain;
+        TxNbl->FirstNetBuffer->CurrentMdl = Nb->CurrentMdl;
+        TxNbl->FirstNetBuffer->DataLength = Nb->DataLength;
+        TxNbl->FirstNetBuffer->DataOffset = Nb->DataOffset;
+        TxNbl->FirstNetBuffer->CurrentMdlOffset = Nb->CurrentMdlOffset;
+        TxNbl->ParentNetBufferList = Nbl;
+        Nbl->ChildRefCount++;
+    } else {
+        NDIS_STATUS NdisStatus;
+        ULONG BytesCopied;
+
+        STAT_INC(&RxQueue->PcwStats, ForwardingLowResources);
+
+        XdpGenericRxClearNblCloneData(TxNbl);
+
+        NdisStatus =
+            NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL);
+        if (NdisStatus != NDIS_STATUS_SUCCESS) {
+            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
+            return FALSE;
+        }
+
+        //
+        // NBL data copy cannot fail because XDP has already mapped all MDLs
+        // into the system virtual address space.
+        //
+        NdisStatus =
+            NdisCopyFromNetBufferToNetBuffer(
+                TxNbl->FirstNetBuffer, 0, Nb->DataLength, Nb, 0, &BytesCopied);
+        ASSERT(NdisStatus == NDIS_STATUS_SUCCESS);
+        ASSERT(BytesCopied == Nb->DataLength);
+
+        TxNbl->ParentNetBufferList = NULL;
+    }
+
+    return TRUE;
+}
+
+static
+_IRQL_requires_(DISPATCH_LEVEL)
+VOID
 XdpGenericConvertRscToLso(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
+    _Inout_ NBL_COUNTED_QUEUE *TxList,
     _In_ NET_BUFFER_LIST *Nbl,
     _In_ NET_BUFFER *Nb,
-    _In_ NET_BUFFER_LIST *CloneNbl
+    _In_ NET_BUFFER_LIST *TxNbl,
+    _In_ BOOLEAN CanPend
     )
 {
     MDL *Mdl = Nb->CurrentMdl;
@@ -550,14 +678,18 @@ XdpGenericConvertRscToLso(
     UINT16 TcpOffset;
     UINT16 TcpHdrLen;
     UINT32 TcpTotalHdrLen;
+    UINT32 TcpUserDataLen;
     TCP_HDR *Tcp;
+    XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *TaskOffload;
     NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO *Lso =
         (NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO *)
-            &NET_BUFFER_LIST_INFO(CloneNbl, TcpLargeSendNetBufferListInfo);
+            &NET_BUFFER_LIST_INFO(TxNbl, TcpLargeSendNetBufferListInfo);
     UINT16 NumSeg = NET_BUFFER_LIST_COALESCED_SEG_COUNT(Nbl);
     UINT32 TxMss;
     UINT32 RscMss;
+    UINT32 LsoMss;
 
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
     ASSERT(!RxQueue->Flags.TxInspect);
     ASSERT(NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl));
     ASSERT(Nbl->FirstNetBuffer == Nb);
@@ -567,7 +699,7 @@ XdpGenericConvertRscToLso(
 
     if (MdlDataLength < sizeof(*Ethernet)) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
-        return FALSE;
+        goto Error;
     }
 
     switch (Ethernet->Type) {
@@ -595,20 +727,21 @@ XdpGenericConvertRscToLso(
     }
     default:
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
-        return FALSE;
+        goto Error;
     }
 
     if (MdlDataLength < TcpOffset + sizeof(*Tcp)) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
-        return FALSE;
+        goto Error;
     }
 
     //
-    // TODO: verify NIC supports LSOv2, TCP, and IPv4 checksum offloads, the RSC
-    // size fits within the max LSO size, and each send contains the min segment
-    // count. If either of the latter two conditions fail to hold, we'll need to
-    // truncate the first clone NBL and generate extra NBLs.
+    // TODO/WIP: verify NIC supports LSOv2, TCP, and IPv4 checksum offloads, the
+    // RSC size fits within the max LSO size, and each send contains the min
+    // segment count. If either of the latter two conditions fail to hold, we'll
+    // need to truncate the first clone NBL and generate extra NBLs.
     //
+    TaskOffload = ReadPointerNoFence(&RxQueue->Generic->Filter->Offload.LowerEdge.TaskOffload);
 
     Tcp = RTL_PTR_ADD(Ethernet, TcpOffset);
     TcpHdrLen = Tcp->th_len << 2;
@@ -616,27 +749,52 @@ XdpGenericConvertRscToLso(
 
     if (TcpHdrLen < sizeof(*Tcp) || MdlDataLength < TcpTotalHdrLen) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
-        return FALSE;
+        goto Error;
     }
 
-    *IpTotalLength = 0;
-    Tcp->th_sum =
-        XdpChecksumFold(
-            XdpPartialChecksum(IpSrc, IpAddressLength) +
-            XdpPartialChecksum(IpDst, IpAddressLength) +
-            (IPPROTO_TCP << 8));
-
-    Lso->LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE;
-    Lso->LsoV2Transmit.TcpHeaderOffset = TcpOffset;
+    ASSERT(Nb->DataLength > TcpTotalHdrLen);
+    TcpUserDataLen = Nb->DataLength - TcpTotalHdrLen;
 
     ASSERT(RxQueue->Generic->Tx.Mtu > TcpTotalHdrLen);
     TxMss = RxQueue->Generic->Tx.Mtu - TcpTotalHdrLen;
+    RscMss = (TcpUserDataLen + NumSeg - 1) / NumSeg;
+    LsoMss = min(TxMss, RscMss);
+    ASSERT(LsoMss > 0);
 
-    ASSERT(Nb->DataLength > TcpTotalHdrLen);
-    RscMss = (Nb->DataLength - TcpTotalHdrLen + NumSeg - 1) / NumSeg;
-    Lso->LsoV2Transmit.MSS = min(TxMss, RscMss);
+    if (TaskOffload != NULL &&
+        TcpUserDataLen <= TaskOffload->Lso.MaxOffloadSize &&
+        (TcpUserDataLen + NumSeg - 1) / LsoMss >= TaskOffload->Lso.MinSegments) {
 
-    return TRUE;
+        //
+        // Fast path: the RSC NBL can be converted to a single LSO NBL.
+        //
+
+        *IpTotalLength = 0;
+        Tcp->th_sum =
+            XdpChecksumFold(
+                XdpPartialChecksum(IpSrc, IpAddressLength) +
+                XdpPartialChecksum(IpDst, IpAddressLength) +
+                (IPPROTO_TCP << 8));
+
+        Lso->LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE;
+        Lso->LsoV2Transmit.TcpHeaderOffset = TcpOffset;
+        Lso->LsoV2Transmit.MSS = LsoMss;
+
+        if (!XdpGenericRxCloneOrCopyTxNblData(RxQueue, Nbl, Nb, CanPend, TxNbl)) {
+            goto Error;
+        }
+
+        XdpGenericRxEnqueueTxNbl(RxQueue, TxList, Nbl, TxNbl);
+    } else {
+        // XdpGenericConvertRscToLsoWithSegmentation(
+        //     RxQueue);
+    }
+
+    return;
+
+Error:
+
+    XdpGenericRxReturnTxCloneNbl(RxQueue, TxNbl);
 }
 
 static
@@ -656,90 +814,26 @@ XdpGenericReceiveEnqueueTxNb(
     Nbl->FirstNetBuffer = Nb;
     Nbl->FirstNetBuffer->Next = NULL;
 
-    if (RxQueue->TxCloneNblList == NULL) {
-        RxQueue->TxCloneNblList =
-            (NET_BUFFER_LIST *)InterlockedFlushSList(&RxQueue->TxCloneNblSList);
-    }
-
-    if (RxQueue->TxCloneNblList != NULL) {
-        TxNbl = RxQueue->TxCloneNblList;
-        RxQueue->TxCloneNblList = TxNbl->Next;
-    } else if (RxQueue->TxCloneCacheCount < RxQueue->TxCloneCacheLimit) {
-        TxNbl =
-            NdisAllocateNetBufferAndNetBufferList(
-                RxQueue->TxCloneNblPool, RX_TX_CONTEXT_SIZE, 0, NULL, 0, 0);
-        if (TxNbl == NULL) {
-            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
-            goto Exit;
-        }
-
-        RxQueue->TxCloneCacheCount++;
-    } else {
-        STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
+    TxNbl = XdpGenericRxAllocateTxCloneNbl(RxQueue);
+    if (TxNbl == NULL) {
         goto Exit;
     }
 
     ASSERT(TxNbl->FirstNetBuffer->Next == NULL);
 
-    TxNbl->NetBufferListInfo[TcpLargeSendNetBufferListInfo] = 0;
-
     if (!RxQueue->Flags.TxInspect) {
         if (NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl)) {
-            if (!XdpGenericConvertRscToLso(RxQueue, Nbl, Nb, TxNbl)) {
-                goto Exit;
-            }
-        }
-    }
-
-    //
-    // If we are allowed to clone and pend NBLs, reuse the existing MDL chain.
-    //
-    // We cannot reuse the MDL chain if the NBL is being forwarded onto the
-    // local RX path and the frame is potentially discontiguous within L2 or L3
-    // headers.
-    //
-    if (CanPend &&
-            (!RxQueue->Flags.TxInspect ||
-                Nb->CurrentMdl->ByteCount - Nb->CurrentMdlOffset >= RECV_TX_INSPECT_LOOKAHEAD)) {
-        TxNbl->FirstNetBuffer->MdlChain = Nb->MdlChain;
-        TxNbl->FirstNetBuffer->CurrentMdl = Nb->CurrentMdl;
-        TxNbl->FirstNetBuffer->DataLength = Nb->DataLength;
-        TxNbl->FirstNetBuffer->DataOffset = Nb->DataOffset;
-        TxNbl->FirstNetBuffer->CurrentMdlOffset = Nb->CurrentMdlOffset;
-        TxNbl->ParentNetBufferList = Nbl;
-        Nbl->ChildRefCount++;
-    } else {
-        NDIS_STATUS NdisStatus;
-        ULONG BytesCopied;
-
-        STAT_INC(&RxQueue->PcwStats, ForwardingLowResources);
-
-        XdpGenericRxClearNblCloneData(TxNbl);
-
-        NdisStatus =
-            NdisRetreatNetBufferListDataStart(TxNbl, Nb->DataLength, Nb->DataOffset, NULL, NULL);
-        if (NdisStatus != NDIS_STATUS_SUCCESS) {
-            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
-            TxNbl->Next = RxQueue->TxCloneNblList;
-            RxQueue->TxCloneNblList = TxNbl;
+            XdpGenericConvertRscToLso(RxQueue, TxList, Nbl, Nb, TxNbl, CanPend);
             goto Exit;
         }
-
-        NdisStatus =
-            NdisCopyFromNetBufferToNetBuffer(
-                TxNbl->FirstNetBuffer, 0, Nb->DataLength, Nb, 0, &BytesCopied);
-        ASSERT(NdisStatus == NDIS_STATUS_SUCCESS);
-        ASSERT(BytesCopied == Nb->DataLength);
-
-        TxNbl->ParentNetBufferList = NULL;
     }
 
-    ASSERT(TxNbl != NULL);
-    NblRxTxContext(TxNbl)->RxQueue = RxQueue;
-    NblRxTxContext(TxNbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_RECV;
-    TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
-    NET_BUFFER_LIST_SET_HASH_VALUE(TxNbl, NET_BUFFER_LIST_GET_HASH_VALUE(Nbl));
-    NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
+    if (!XdpGenericRxCloneOrCopyTxNblData(RxQueue, Nbl, Nb, CanPend, TxNbl)) {
+        XdpGenericRxReturnTxCloneNbl(RxQueue, TxNbl);
+        goto Exit;
+    }
+
+    XdpGenericRxEnqueueTxNbl(RxQueue, TxList, Nbl, TxNbl);
 
 Exit:
 
