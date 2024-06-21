@@ -152,16 +152,7 @@ function Get-EbpfPackageUrl {
 }
 
 function Get-FnVersion {
-    return "0.4.4"
-}
-
-function Get-FnDevKitUrl {
-    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-devkit-x64.zip"
-}
-
-function Get-FnDevKitDir {
-    $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir/artifacts/fn/devkit-$(Get-FnVersion)"
+    return "0.5.2"
 }
 
 function Get-FnRuntimeUrl {
