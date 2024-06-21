@@ -152,24 +152,6 @@ function Download-Ebpf-Msi {
     }
 }
 
-function Download-Fn-DevKit {
-    $FnDevKitUrl = Get-FnDevKitUrl
-    $FnDevKitDir = Get-FnDevKitDir
-    $FnDevKitZip = "$FnDevKitDir/devkit.zip"
-
-    if ($Force -and (Test-Path $FnDevKitDir)) {
-        Remove-Item -Recurse -Force $FnDevKitDir
-    }
-    if (!(Test-Path $FnDevKitDir)) {
-        mkdir $FnDevKitDir | Write-Verbose
-
-        Write-Verbose "Downloading Fn dev kit"
-        Invoke-WebRequest-WithRetry -Uri $FnDevKitUrl -OutFile $FnDevKitZip
-        Expand-Archive -Path $FnDevKitZip -DestinationPath $FnDevKitDir -Force
-        Remove-Item -Path $FnDevKitZip
-    }
-}
-
 function Download-Fn-Runtime {
     $FnRuntimeUrl = Get-FnRuntimeUrl
     $FnRuntimeDir = Get-FnRuntimeDir
@@ -280,7 +262,6 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
-        Download-Fn-DevKit
     }
 
     if ($ForEbpfBuild) {
