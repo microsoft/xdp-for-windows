@@ -152,7 +152,7 @@ function Get-EbpfPackageUrl {
 }
 
 function Get-FnVersion {
-    return "0.4.4"
+    return "0.5.2"
 }
 
 function Get-FnDevKitUrl {
