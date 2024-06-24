@@ -28,4 +28,15 @@
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <!-- Configuration properties to match Windows -->
+  <PropertyGroup>
+    <WinConfig Condition="'$(Configuration)' == 'Release'">fre</WinConfig>
+    <WinConfig Condition="'$(Configuration)' == 'Debug'">chk</WinConfig>
+  </PropertyGroup>
+  <PropertyGroup>
+    <WinPlat Condition="'$(Platform)' == 'Win32'">x86</WinPlat>
+    <WinPlat Condition="'$(Platform)' == 'x64'">amd64</WinPlat>
+    <WinPlat Condition="'$(Platform)' == 'ARM64'">arm64</WinPlat>
+    <WinPlat Condition="'$(Platform)' == 'ARM64EC'">arm64ec</WinPlat>
+  </PropertyGroup>
 </Project>

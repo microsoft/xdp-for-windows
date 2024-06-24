@@ -33,7 +33,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>xdptests</TargetName>
-    <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>

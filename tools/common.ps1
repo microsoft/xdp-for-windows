@@ -181,6 +181,27 @@ function Get-CoreNetCiArtifactPath {
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
 }
 
+function Get-ArtifactBinPathBase {
+    param (
+        [Parameter()]
+        [string]$Config,
+        [Parameter()]
+        [string]$Arch
+    )
+
+    # Convert to Windows format
+    if (($Arch -eq "x64")) {
+        $Arch = "amd64"
+    }
+    if ($Config -eq "Debug") {
+        $Config = "chk"
+    } else {
+        $Config = "fre"
+    }
+
+    return "artifacts\bin\$($Arch)_$($Config)"
+}
+
 function Get-ArtifactBinPath {
     param (
         [Parameter()]
@@ -190,7 +211,7 @@ function Get-ArtifactBinPath {
     )
 
     $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+    return "$RootDir\$(Get-ArtifactBinPathBase -Config $Config -Arch $Arch)"
 }
 
 function Get-XdpBuildVersion {
