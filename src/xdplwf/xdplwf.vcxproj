@@ -66,8 +66,8 @@
         $(SolutionDir)src\xdp\inc;
         $(SolutionDir)src\xdppcw\inc;
         $(IntDir);
-        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdpetw\;
-        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdppcw\;
+        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdpetw\;
+        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdppcw\;
         %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         NDIS_WDM=1;

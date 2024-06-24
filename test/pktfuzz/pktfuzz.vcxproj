@@ -52,7 +52,7 @@
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdp;
         $(SolutionDir)src\xdppcw\inc;
-        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdppcw\;
+        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdppcw\;
         $(FnPackagePath)include;
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
