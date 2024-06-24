@@ -376,11 +376,15 @@ XdpOffloadFilterStatus(
     if (StatusIndication->StatusBufferSize > 0) {
         InspectRequest->StatusBuffer =
             ExAllocatePoolZero(NonPagedPoolNx, StatusIndication->StatusBufferSize, POOLTAG_OFFLOAD);
-        if (InspectRequest == NULL) {
+        if (InspectRequest->StatusBuffer == NULL) {
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
         }
 
+        #pragma warning(suppress:4090) // different 'const' qualifiers
+        RtlCopyMemory(
+            InspectRequest->StatusBuffer, StatusIndication->StatusBuffer,
+            StatusIndication->StatusBufferSize);
         InspectRequest->StatusBufferSize = StatusIndication->StatusBufferSize;
     }
 
