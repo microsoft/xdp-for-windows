@@ -320,21 +320,16 @@ XdpInspectEbpfStartBatch(
     )
 {
     const EBPF_EXTENSION_CLIENT *Client;
-    const VOID *ClientBindingContext;
     ebpf_result_t EbpfResult;
 
     ASSERT(XdpProgramIsEbpf(Program));
 
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
-    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
     ebpf_program_batch_begin_invoke_function_t EbpfBatchBegin =
         EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_begin_invoke_function;
 
-    EbpfResult =
-        EbpfBatchBegin(
-            ClientBindingContext, sizeof(InspectionContext->EbpfContext),
-            &InspectionContext->EbpfContext);
+    EbpfResult = EbpfBatchBegin(sizeof(InspectionContext->EbpfContext), &InspectionContext->EbpfContext);
 
     return EbpfResult == EBPF_SUCCESS;
 }
@@ -347,18 +342,16 @@ XdpInspectEbpfEndBatch(
     )
 {
     const EBPF_EXTENSION_CLIENT *Client;
-    const VOID *ClientBindingContext;
     ebpf_result_t EbpfResult;
 
     ASSERT(XdpProgramIsEbpf(Program));
 
     Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
-    ClientBindingContext = EbpfExtensionClientGetClientContext(Client);
 
     ebpf_program_batch_end_invoke_function_t EbpfBatchEnd =
             EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_end_invoke_function;
 
-    EbpfResult = EbpfBatchEnd(ClientBindingContext, &InspectionContext->EbpfContext);
+    EbpfResult = EbpfBatchEnd(&InspectionContext->EbpfContext);
 
     ASSERT(EbpfResult == EBPF_SUCCESS);
 }
@@ -648,19 +641,13 @@ static const VOID *EbpfXdpHelperFunctions[] = {
 };
 
 static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
-    .header = {
-        .version = EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION,
-        .size = EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION_SIZE
-    },
+    .header = EBPF_HELPER_FUNCTION_ADDRESSES_HEADER,
     .helper_function_count = RTL_NUMBER_OF(EbpfXdpHelperFunctions),
     .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
 };
 
 static const ebpf_program_data_t EbpfXdpProgramData = {
-    .header = {
-        .version = EBPF_PROGRAM_DATA_CURRENT_VERSION,
-        .size = EBPF_PROGRAM_DATA_CURRENT_VERSION_SIZE
-    },
+    .header = EBPF_PROGRAM_DATA_HEADER,
     .program_info = &EbpfXdpProgramInfo,
     .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
     .context_create = XdpCreateContext,
@@ -675,10 +662,7 @@ static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
 };
 
 static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
-    .header = {
-        .version = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION ,
-        .size = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION_SIZE
-    },
+    .header = EBPF_ATTACH_PROVIDER_DATA_HEADER,
     .supported_program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
     .bpf_attach_type = BPF_XDP,
     .link_type = BPF_LINK_TYPE_XDP,
