@@ -56,8 +56,8 @@
     <ResourceCompile Include="xdp.rc">
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;
-        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdpetw\;
-        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdppcw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdpetw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdppcw\;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
@@ -131,8 +131,8 @@
         $(SolutionDir)src\xdppcw\inc;
         $(SolutionDir)published\private;
         $(IntDir);
-        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdpetw\;
-        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdppcw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdpetw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdppcw\;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>

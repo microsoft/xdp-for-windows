@@ -13,7 +13,7 @@
   </PropertyGroup>
   <!-- Use the 'build' directory for intermediate files -->
   <PropertyGroup>
-    <IntDir>$(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\$(ProjectName)\</IntDir>
+    <IntDir>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(ProjectName)\</IntDir>
     <OutDir>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\</OutDir>
   </PropertyGroup>
   <!-- OneBranch goop -->

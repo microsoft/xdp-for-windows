@@ -66,8 +66,8 @@
         $(SolutionDir)src\xdp\inc;
         $(SolutionDir)src\xdppcw\inc;
         $(IntDir);
-        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdpetw\;
-        $(SolutionDir)build\obj\$(WinPlat)$(WinConfig)\xdppcw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdpetw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdppcw\;
         %(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         NDIS_WDM=1;
