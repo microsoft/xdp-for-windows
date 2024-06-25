@@ -29,8 +29,6 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 
-. $RootDir\tools\common.ps1
-
 for ($i = 0; $i -lt $QueueCount; $i++) {
     Start-Process $ArtifactsDir\rxfilter.exe -ArgumentList `
         "-IfIndex", (Get-NetAdapter -Name $AdapterName).ifIndex, `

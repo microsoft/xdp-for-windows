@@ -14,7 +14,7 @@
     <ProjectGuid>{5de7385c-80b3-40cd-97d0-7c24dec2f95c}</ProjectGuid>
     <RootNamespace>bpf</RootNamespace>
   </PropertyGroup>
-<Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Utility</ConfigurationType>

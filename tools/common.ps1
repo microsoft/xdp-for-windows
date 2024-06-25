@@ -198,7 +198,7 @@ function Get-ArtifactBinPathBase {
         $Config = "fre"
     }
 
-    return "artifacts\bin\$($Arch)_$($Config)"
+    return "artifacts\bin\$($Arch)$($Config)"
 }
 
 function Get-ArtifactBinPath {
