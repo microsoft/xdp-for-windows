@@ -197,13 +197,15 @@ class TestInterface;
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
     );
 
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
     );
 
 static
@@ -2264,13 +2266,14 @@ WaitForWfpQuarantine(
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout
     )
 {
     CHAR CmdBuff[256];
     BOOLEAN AdapterUp = FALSE;
     BOOLEAN LwfUp = FALSE;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch<std::chrono::milliseconds> Watchdog(Timeout);
 
     //
     // Wait for the adapter to be "Up", which implies the adapter's data path
@@ -2313,10 +2316,11 @@ TryWaitForNdisDatapath(
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout
     )
 {
-    TEST_TRUE(TryWaitForNdisDatapath(If));
+    TEST_TRUE(TryWaitForNdisDatapath(If, Timeout));
 }
 
 static
@@ -5196,9 +5200,12 @@ GenericTxMtu()
     TEST_TRUE(XskRingError(&Xsk.Rings.Tx));
 
     //
-    // Wait for the MTU changes to quiesce.
+    // Wait for the MTU changes to quiesce. If filter or protocol drivers
+    // incompatible with MTU changes are installed, this requires a complete
+    // detach/attach cycle of the entire interface stack.
     //
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    WaitForNdisDatapath(If, MP_RESTART_TIMEOUT);
+
     Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
 
     //

@@ -38,7 +38,7 @@ SPDX-License-Identifier: MIT
 
         <!-- Define the UI style & behavior -->
         <UIRef Id="WixUI_FeatureTree" />
-        <WixVariable Id="WixUILicenseRtf" Value="$(var.SolutionDir)..\..\LICENSE.rtf" />
+        <WixVariable Id="WixUILicenseRtf" Value="$(var.SolutionDir)license.rtf" />
         <CustomAction Id="SetWixInstallLocation" Property="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
         <InstallUISequence>
             <Custom Action="SetWixInstallLocation" After="CostFinalize" />

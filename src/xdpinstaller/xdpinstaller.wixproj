@@ -21,7 +21,7 @@
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Product.wxs" />
+    <Compile Include="product.wxs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="scripts\xdp-setup.ps1" />
