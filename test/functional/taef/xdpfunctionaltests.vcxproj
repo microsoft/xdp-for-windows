@@ -79,7 +79,6 @@
       <AdditionalDependencies>
         ntdll.lib;
         onecore.lib;
-        ws2_32.lib;
         iphlpapi.lib;
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;

@@ -82,6 +82,11 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
+        <EventProvider Id="EP_FnSockWpp" Name="9A90334B-68EE-43E5-8FFA-AEF115CE44A1" Level="5" NonPagedMemory="true">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
         <EventProvider Id="EP_XdpFnTestWpp" Name="D6143B62-9FD6-44BA-BA02-FAD9EA0C263D" Level="5">
             <Keywords>
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
@@ -113,6 +118,7 @@
                         <EventProviderId Value="EP_EbpfEtw" />
                         <EventProviderId Value="EP_FnMpWpp" />
                         <EventProviderId Value="EP_FnLwfWpp" />
+                        <EventProviderId Value="EP_FnSockWpp" />
                         <EventProviderId Value="EP_XdpFnTestWpp" />
 
                         <EventProviderId Value="EP_MicrosoftWindowsTcpipPerPacket" />
