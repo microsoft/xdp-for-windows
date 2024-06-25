@@ -48,7 +48,10 @@ param (
     [string]$TestBinaryPath = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$UseJitEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoPrerelease = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -102,6 +105,10 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
         Write-Verbose "installed fnlwf."
 
+        Write-Verbose "installing fnsock..."
+        & "$RootDir\tools\setup.ps1" -Install fnsock -Config $Config -Arch $Arch
+        Write-Verbose "installed fnsock."
+
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
             & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
@@ -116,6 +123,9 @@ for ($i = 1; $i -le $Iterations; $i++) {
         }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
             $TestArgs += "/TestCaseFilter:$TestCaseFilter"
+        }
+        if ($NoPrerelease) {
+            $TestArgs += "/TestCaseFilter:Priority!=1"
         }
         if ($ListTestCases) {
             $TestArgs += "/lt"
@@ -148,6 +158,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }
+        & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'

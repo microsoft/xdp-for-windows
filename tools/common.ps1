@@ -109,7 +109,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.15.1"
+    return "0.17.0"
 }
 
 # Returns the eBPF package type.
@@ -124,10 +124,18 @@ function Get-EbpfPackageType {
 # Return the eBPF package name.
 function Get-EbpfPackageName {
     if ($UseJitEbpf) {
-        return "Build-x64-Release.zip"
+        return "Build-x64.Release.zip"
     }
 
-    return "Build-x64-native-only-NativeOnlyRelease.zip"
+    return "Build-x64-native-only.NativeOnlyRelease.zip"
+}
+
+function Get-EbpfDirectoryName {
+    if ($UseJitEbpf) {
+        return "Build-x64 Release"
+    }
+
+    return "Build-x64-native-only NativeOnlyRelease"
 }
 
 # Returns the eBPF MSI full path
@@ -144,16 +152,7 @@ function Get-EbpfPackageUrl {
 }
 
 function Get-FnVersion {
-    return "0.4.1"
-}
-
-function Get-FnDevKitUrl {
-    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-devkit-x64.zip"
-}
-
-function Get-FnDevKitDir {
-    $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir/artifacts/fn/devkit-$(Get-FnVersion)"
+    return "0.5.2"
 }
 
 function Get-FnRuntimeUrl {

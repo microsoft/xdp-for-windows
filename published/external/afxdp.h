@@ -22,7 +22,7 @@ typedef union _XSK_BUFFER_ADDRESS {
     struct {
         UINT64 BaseAddress : 48;
         UINT64 Offset : 16;
-    } DUMMYUNIONNAME;
+    } DUMMYSTRUCTNAME;
     UINT64 AddressAndOffset;
 } XSK_BUFFER_ADDRESS;
 #pragma warning(pop)

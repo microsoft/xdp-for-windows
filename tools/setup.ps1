@@ -33,11 +33,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -115,18 +115,19 @@ function Start-Service-With-Retry($Name) {
 # fail with ERROR_TRANSACTION_NOT_ACTIVE.
 function Rename-NetAdapter-With-Retry($IfDesc, $Name) {
     Write-Verbose "Rename-NetAdapter $IfDesc $Name"
-    $RenameSuccess = $false
-    for ($i=0; $i -lt 10; $i++) {
+    $Retries = 10
+    for ($i=0; $i -le $Retries; $i++) {
         try {
-            Rename-NetAdapter -InterfaceDescription $IfDesc $Name
-            $RenameSuccess = $true
+            Rename-NetAdapter -InterfaceDescription $IfDesc $Name -ErrorAction 'Stop'
             break
         } catch {
-            Start-Sleep -Milliseconds 100
+            if ($i -lt $Retries) {
+                Start-Sleep -Milliseconds 100
+            } else {
+                Write-Error "Failed to rename $Name" -ErrorAction 'Continue'
+                throw
+            }
         }
-    }
-    if ($RenameSuccess -eq $false) {
-        Write-Error "Failed to rename $Name"
     }
 }
 
@@ -491,6 +492,18 @@ function Uninstall-FnLwf {
     & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
+# Installs fnsock.
+function Install-FnSock {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnsock -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnsock -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+}
+
+# Uninstalls fnsock.
+function Uninstall-FnSock {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnsock -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+}
+
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
@@ -593,6 +606,9 @@ try {
     if ($Install -eq "ebpf") {
         Install-Ebpf
     }
+    if ($Install -eq "fnsock") {
+        Install-FnSock
+    }
 
     if ($Uninstall -eq "fndis") {
         Uninstall-FakeNdis
@@ -611,6 +627,9 @@ try {
     }
     if ($Uninstall -eq "ebpf") {
         Uninstall-Ebpf
+    }
+    if ($Uninstall -eq "fnsock") {
+        Uninstall-FnSock
     }
 } catch {
     Write-Error $_ -ErrorAction $OriginalErrorActionPreference

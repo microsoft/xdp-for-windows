@@ -26,6 +26,9 @@ This prepares a machine for running XDP.
 .PARAMETER NoReboot
     Does not reboot the machine.
 
+.PARAMETER RequireNoReboot
+    Returns an error if a reboot is needed.
+
 .PARAMETER UseJitEbpf
     Installs eBPF with JIT mode. Needed for backward compatibility tests.
 
@@ -60,6 +63,9 @@ param (
     [switch]$NoReboot = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$RequireNoReboot = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$Force = $false,
 
     [Parameter(Mandatory = $false)]
@@ -83,6 +89,10 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
 
 # Flag that indicates something required a reboot.
 $Reboot = $false
+
+if ($RequireNoReboot) {
+    $script:NoReboot = $true
+}
 
 # Log the OS version.
 Write-Verbose "Querying OS BuildLabEx"
@@ -108,15 +118,15 @@ function Extract-Ebpf-Msi {
     $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
     $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-    $EbpfPackageType = Get-EbpfPackageType
+    $EbpfDirectoryName = Get-EbpfDirectoryName
 
     Write-Debug "Extracting eBPF MSI from Release package"
 
     # Extract the MSI from the package.
     pushd $ArtifactsDir
+    dir
     Expand-Archive -Path $EbpfPackageFullPath -Force
-    Expand-Archive -Path "$ArtifactsDir\ebpf\build-$EbpfPackageType.zip" -Force
-    xcopy "$ArtifactsDir\build-$EbpfPackageType\$EbpfPackageType\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
+    xcopy "$ArtifactsDir\ebpf\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
     popd
 }
 
@@ -139,24 +149,6 @@ function Download-Ebpf-Msi {
 
         # Extract the MSI from the package.
         Extract-Ebpf-Msi
-    }
-}
-
-function Download-Fn-DevKit {
-    $FnDevKitUrl = Get-FnDevKitUrl
-    $FnDevKitDir = Get-FnDevKitDir
-    $FnDevKitZip = "$FnDevKitDir/devkit.zip"
-
-    if ($Force -and (Test-Path $FnDevKitDir)) {
-        Remove-Item -Recurse -Force $FnDevKitDir
-    }
-    if (!(Test-Path $FnDevKitDir)) {
-        mkdir $FnDevKitDir | Write-Verbose
-
-        Write-Verbose "Downloading Fn dev kit"
-        Invoke-WebRequest-WithRetry -Uri $FnDevKitUrl -OutFile $FnDevKitZip
-        Expand-Archive -Path $FnDevKitZip -DestinationPath $FnDevKitDir -Force
-        Remove-Item -Path $FnDevKitZip
     }
 }
 
@@ -223,7 +215,7 @@ function Setup-VcRuntime {
         Remove-Item -Force "$ArtifactsDir\vc_redist.x64.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
+        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
         & $ArtifactsDir\vc_redist.x64.exe /install /passive | Write-Verbose
     }
 }
@@ -270,7 +262,6 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         Download-CoreNet-Deps
-        Download-Fn-DevKit
     }
 
     if ($ForEbpfBuild) {
@@ -362,10 +353,16 @@ if ($Cleanup) {
     }
 }
 
-if ($Reboot -and !$NoReboot) {
-    # Reboot the machine.
-    Write-Host "Rebooting..."
-    shutdown.exe /f /r /t 0
-} elseif ($Reboot) {
-    Write-Host "Reboot required."
+if ($Reboot) {
+    if ($RequireNoReboot) {
+        Write-Error "Reboot required but disallowed"
+    } elseif ($NoReboot) {
+        Write-Verbose "Reboot required"
+        return @{"RebootRequired" = $true}
+    } else {
+        Write-Host "Rebooting..."
+        shutdown.exe /f /r /t 0
+    }
+} else {
+    return $null
 }
