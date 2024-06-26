@@ -4912,8 +4912,9 @@ GenericRxEbpfFragments()
     //
     // Actions apply to the entire frame, not just to the first fragement.
     //
-    Rtl::KArray<UCHAR> Mask((SIZE_T)Buffers[0].DataLength + Buffers[1].DataLength, 0xFF);
-    auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, Mask.data(), (ULONG)Mask.size());
+    UINT32 MaskSize = Buffers[0].DataLength + Buffers[1].DataLength;
+    Rtl::KArray<UCHAR> Mask(MaskSize, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, Mask.data(), MaskSize);
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
