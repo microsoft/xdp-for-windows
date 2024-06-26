@@ -21,6 +21,7 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Platform
 
 $Name = "xdp-runtime-$Platform"
 if ($Config -eq "Debug") {
@@ -34,13 +35,13 @@ New-Item -Path $DstPath -ItemType Directory > $null
 copy docs\usage.md $DstPath
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\CoreNetSignRoot.cer" $DstPath\bin
-copy "artifacts\bin\$($Platform)_$($Config)\xdpinstaller\xdp-for-windows.msi" $DstPath\bin
+copy "$ArtifactBin\CoreNetSignRoot.cer" $DstPath\bin
+copy "$ArtifactBin\xdpinstaller\xdp-for-windows.msi" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdp.pdb"   $DstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Config)\xdpapi.pdb" $DstPath\symbols
-copy "artifacts\bin\$($Platform)_$($Config)\xdpcfg.pdb" $DstPath\symbols
+copy "$ArtifactBin\xdp.pdb" $DstPath\symbols
+copy "$ArtifactBin\xdpapi.pdb" $DstPath\symbols
+copy "$ArtifactBin\xdpcfg.pdb" $DstPath\symbols
 
 [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
 $Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion

@@ -92,7 +92,7 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $LogsDir = "$RootDir\artifacts\logs"
 $SpinXsk = "$ArtifactsDir\spinxsk.exe"
 $LiveKD = Get-CoreNetCiArtifactPath -Name "livekd64.exe"

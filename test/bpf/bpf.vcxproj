@@ -29,21 +29,21 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>bpf</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\bpf\</OutDir>
+    <OutDir>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\bpf\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>
-        xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration) /Y
+        xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig) /Y
         $(EbpfPackagePath)build\native\bin\export_program_info.exe
-        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe
+        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdp_bpfexport.exe
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
-        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe --clear
+        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdp_bpfexport.exe --clear
         $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
-        del $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\ebpfapi.dll /F
+        del $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\ebpfapi.dll /F
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

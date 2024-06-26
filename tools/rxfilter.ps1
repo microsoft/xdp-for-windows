@@ -26,9 +26,8 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
-
 . $RootDir\tools\common.ps1
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 
 for ($i = 0; $i -lt $QueueCount; $i++) {
     Start-Process $ArtifactsDir\rxfilter.exe -ArgumentList `

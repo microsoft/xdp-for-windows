@@ -40,7 +40,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>spinxsk</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>

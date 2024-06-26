@@ -32,7 +32,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>util</TargetName>
-    <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
