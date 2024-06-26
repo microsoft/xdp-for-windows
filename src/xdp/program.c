@@ -1648,7 +1648,7 @@ EbpfProgramOnClientAttach(
         goto Exit;
     }
 
-    if (ClientDispatch == NULL || ClientDispatch->version < 1 || ClientDispatch->count < 4) {
+    if (ClientDispatch == NULL || ClientDispatch->version != 1 || ClientDispatch->count < 4) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
