@@ -7703,10 +7703,10 @@ OidPassthru()
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
         const OID_PARAMS *OidParam = &OidKeys[Index];
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
-        Rtl::KArray<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
+        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)malloc(LwfInfoBufferLength));
 
         TEST_HRESULT(LwfOidSubmitRequest(
-            DefaultLwf, OidParam->Key, &LwfInfoBufferLength, &LwfInfoBuffer[0]));
+            DefaultLwf, OidParam->Key, &LwfInfoBufferLength, LwfInfoBuffer.get()));
         TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
     }
 
@@ -7717,7 +7717,7 @@ OidPassthru()
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
         const OID_PARAMS *OidParam = &OidKeys[Index];
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
-        Rtl::KArray<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
+        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)malloc(LwfInfoBufferLength));
         const UINT32 CompletionSize = LwfInfoBufferLength / 2;
 
         auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
@@ -7725,6 +7725,7 @@ OidPassthru()
 
         if (OidParam->Key.Oid == OID_GEN_CURRENT_PACKET_FILTER &&
             OidParam->Key.RequestType == NdisRequestSetInformation) {
+
             //
             // NDIS absorbs the set OID unless the packet filter is changed.
             // Query the current filter and then modify the info buffer.
@@ -7732,19 +7733,18 @@ OidPassthru()
             OID_KEY GetKey = OidParam->Key;
             GetKey.RequestType = NdisRequestQueryInformation;
             TEST_HRESULT(LwfOidSubmitRequest(
-                DefaultLwf, GetKey, &LwfInfoBufferLength, LwfInfoBuffer.data()));
+                DefaultLwf, GetKey, &LwfInfoBufferLength, LwfInfoBuffer.get()));
             TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
 
-            LwfInfoBuffer[0] ^= 1;
+            LwfInfoBuffer.get()[0] ^= 1;
         }
 
         MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
-
         OID_REQUEST_THREAD_CONTEXT Ctx;
         Ctx.Handle.reset(DefaultLwf.release());
         Ctx.Key = OidParam->Key;
         Ctx.InformationBufferLength = LwfInfoBufferLength;
-        Ctx.InformationBuffer = LwfInfoBuffer.data();
+        Ctx.InformationBuffer = LwfInfoBuffer.get();
         Ctx.HResult = E_FAIL;
         CXPLAT_THREAD_CONFIG ThreadConfig {
             0, 0, NULL, OidRequestFn, &Ctx
@@ -7761,11 +7761,11 @@ OidPassthru()
         TEST_NOT_NULL(MpInfoBuffer.get());
 
         TEST_HRESULT(MpOidCompleteRequest(
-            ExclusiveMp, OidParam->Key, STATUS_SUCCESS, &LwfInfoBuffer[0], CompletionSize));
-
+            ExclusiveMp, OidParam->Key, STATUS_SUCCESS, LwfInfoBuffer.get(), CompletionSize));
         TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
         TEST_HRESULT(Ctx.HResult);
 
+        DefaultLwf.reset(Ctx.Handle.release());
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
     }
 }
