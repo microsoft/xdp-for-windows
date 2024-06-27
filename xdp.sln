@@ -57,10 +57,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktfuzz", "test\pktfuzz\pkt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bpfexport", "src\bpfexport\bpfexport.vcxproj", "{8F8830FF-1648-4772-87ED-F5DA091FC931}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformkernel", "test\common\lib\cxplat\platform_kernel.vcxproj", "{9D6C2600-08B5-4954-BB22-80DB923F0D9A}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformuser", "test\common\lib\cxplat\platform_user.vcxproj", "{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -349,22 +345,6 @@ Global
 		{8F8830FF-1648-4772-87ED-F5DA091FC931}.Release|ARM64.Build.0 = Release|ARM64
 		{8F8830FF-1648-4772-87ED-F5DA091FC931}.Release|x64.ActiveCfg = Release|x64
 		{8F8830FF-1648-4772-87ED-F5DA091FC931}.Release|x64.Build.0 = Release|x64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Debug|ARM64.ActiveCfg = Debug|ARM64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Debug|ARM64.Build.0 = Debug|ARM64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Debug|x64.ActiveCfg = Debug|x64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Debug|x64.Build.0 = Debug|x64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Release|ARM64.ActiveCfg = Release|ARM64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Release|ARM64.Build.0 = Release|ARM64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Release|x64.ActiveCfg = Release|x64
-		{9D6C2600-08B5-4954-BB22-80DB923F0D9A}.Release|x64.Build.0 = Release|x64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Debug|ARM64.ActiveCfg = Debug|ARM64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Debug|ARM64.Build.0 = Debug|ARM64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Debug|x64.ActiveCfg = Debug|x64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Debug|x64.Build.0 = Debug|x64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|ARM64.ActiveCfg = Release|ARM64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|ARM64.Build.0 = Release|ARM64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|x64.ActiveCfg = Release|x64
-		{EE3DD8A1-9903-4F13-BDFB-FA8121861EFB}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

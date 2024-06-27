@@ -20,9 +20,6 @@
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\common\lib\cxplat\platform_user.vcxproj">
-      <Project>{ee3dd8a1-9903-4f13-bdfb-fa8121861efb}</Project>
-    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -86,8 +83,14 @@
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         $(WntLibPath)\fnsock_um.lib;
+        $(SolutionDir)submodules\cxplat\artifacts\bin\winuser\$(Platform)_$(Configuration)\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
+      <!-- cxplat has CRT statically linked which conflicts with the dynamic CRT import lib. So, ignore them for now. -->
+      <AdditionalOptions>
+        /NODEFAULTLIB:LIBCMTD /NODEFAULTLIB:LIBCMT
+        %(AdditionalOptions)
+      </AdditionalOptions>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
