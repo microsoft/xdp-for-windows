@@ -524,6 +524,146 @@ XdpGenericReceiveLinearizeNb(
 }
 
 static
+UINT16
+XdpGenericRxChecksumNb(
+    _In_ const NET_BUFFER *NetBuffer,
+    _In_ UINT32 DataLength,
+    _In_ UINT32 DataOffset
+    )
+{
+    UINT32 Checksum = 0;
+    UINT32 MdlOffset;
+    UINT32 Offset;
+    MDL *Mdl;
+
+    //
+    // The first MDL must be checksummed from an offset.
+    //
+    Mdl = NetBuffer->CurrentMdl;
+    MdlOffset = NetBuffer->CurrentMdlOffset;
+
+    //
+    // Advance past any additional offset.
+    //
+    while (DataOffset > 0) {
+        UINT32 MdlBytes = Mdl->ByteCount - MdlOffset;
+        if (DataOffset < MdlBytes) {
+            MdlOffset += DataOffset;
+            DataOffset = 0;
+        } else {
+            Mdl = Mdl->Next;
+            MdlOffset = 0;
+            DataOffset -= MdlBytes;
+        }
+    }
+
+    Offset = 0;
+
+    ASSERT(DataLength <= NetBuffer->DataLength);
+    while (DataLength != 0) {
+        UCHAR *Buffer;
+        UINT32 BufferLength;
+        UINT16 BufferChecksum;
+
+        ASSERT(Mdl->MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL));
+        Buffer = Mdl->MappedSystemVa;
+
+        BufferLength = Mdl->ByteCount;
+        ASSERT(BufferLength >= MdlOffset);
+
+        Buffer += MdlOffset;
+        BufferLength -= MdlOffset;
+
+        //
+        // BufferLength might be bigger than we need, if there is "extra" data
+        // in the packet.
+        //
+        if (BufferLength > DataLength) {
+            BufferLength = DataLength;
+        }
+
+        BufferChecksum = XdpPartialChecksum(Buffer, BufferLength);
+        if ((Offset & 1) == 0) {
+            Checksum += BufferChecksum;
+        } else {
+            //
+            // We're at an odd offset into the logical buffer, so we need to
+            // swap the bytes that XdpPartialChecksum returns.
+            //
+            Checksum += (BufferChecksum >> 8) + ((BufferChecksum & 0xFF) << 8);
+        }
+
+        Offset += BufferLength;
+        DataLength -= BufferLength;
+        Mdl = Mdl->Next;
+        MdlOffset = 0;
+    }
+
+    //
+    // Wrap in the carries to reduce Checksum to 16 bits.
+    // (Twice is sufficient because it can only overflow once.)
+    //
+    Checksum = XdpChecksumFold(Checksum);
+
+    //
+    // Take ones-complement and replace 0 with 0xffff.
+    //
+    if (Checksum != 0xffff) {
+        Checksum = (UINT16)~Checksum;
+    }
+
+    return (UINT16)Checksum;
+}
+
+static
+VOID
+XdpGenericRxChecksumNbl(
+    _Inout_ NET_BUFFER_LIST *Nbl
+    )
+{
+    NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *Csum =
+        (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+            &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
+    NET_BUFFER *Nb = Nbl->FirstNetBuffer;
+    ETHERNET_HEADER *Ethernet = RTL_PTR_ADD(Nb->CurrentMdl->MappedSystemVa, Nb->CurrentMdlOffset);
+
+    ASSERT(Nb->CurrentMdl->MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL));
+    ASSERT(Nb->Next == NULL);
+
+    //
+    // For simplicity, assume all checksum fields lie within the first MDL.
+    // Since this code path is only used by RSC/LSO, this is safe, fast, and
+    // simple.
+    //
+    ASSERT(Csum->Transmit.TcpChecksum);
+    ASSERT(
+        Csum->Transmit.TcpHeaderOffset + RTL_SIZEOF_THROUGH_FIELD(TCP_HDR, th_sum) <=
+            Nb->CurrentMdl->ByteCount - Nb->CurrentMdlOffset);
+
+    if (Csum->Transmit.IpHeaderChecksum) {
+        IPV4_HEADER *Ipv4 = RTL_PTR_ADD(Ethernet, sizeof(ETHERNET_HEADER));
+
+        ASSERT(Csum->Transmit.TcpHeaderOffset > sizeof(ETHERNET_HEADER));
+
+        Ipv4->HeaderChecksum =
+            XdpGenericRxChecksumNb(
+                Nb, Csum->Transmit.TcpHeaderOffset - sizeof(ETHERNET_HEADER),
+                sizeof(ETHERNET_HEADER));
+    }
+
+    if (Csum->Transmit.TcpChecksum) {
+        TCP_HDR *Tcp = RTL_PTR_ADD(Ethernet, Csum->Transmit.TcpHeaderOffset);
+
+        ASSERT(Csum->Transmit.TcpHeaderOffset < Nb->DataLength);
+
+        Tcp->th_sum =
+            XdpGenericRxChecksumNb(
+                Nb, Nb->DataLength - Csum->Transmit.TcpHeaderOffset,
+                Csum->Transmit.TcpHeaderOffset);
+    }
+}
+
+static
 VOID
 XdpGenericRxClearNblCloneData(
     _Inout_ NET_BUFFER_LIST *Nbl
@@ -548,7 +688,6 @@ XdpGenericRxFreeNblCloneCache(
 
         ASSERT(Nbl->FirstNetBuffer->Next == NULL);
         XdpGenericRxClearNblCloneData(Nbl);
-        NblRxTxContext(Nbl)->ValidFields.Value = 0;
 
         NdisFreeNetBufferList(Nbl);
     }
@@ -594,7 +733,7 @@ XdpGenericRxAllocateTxCloneNbl(
 
         RxQueue->TxCloneCacheCount++;
 
-        ASSERT(NblRxTxContext(TxNbl)->ValidFields.Value == 0);
+        NblRxTxContext(TxNbl)->ValidFields.Value = 0;
     } else {
         TxNbl = NULL;
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocationLimit);
@@ -625,6 +764,7 @@ XdpGenericRxEnqueueTxNbl(
     TxNbl->SourceHandle = RxQueue->Generic->NdisFilterHandle;
     NET_BUFFER_LIST_SET_HASH_VALUE(TxNbl, NET_BUFFER_LIST_GET_HASH_VALUE(Nbl));
     NdisAppendSingleNblToNblCountedQueue(TxList, TxNbl);
+    STAT_INC(&RxQueue->PcwStats, ForwardingNbsSent);
 }
 
 static
@@ -682,7 +822,7 @@ XdpGenericRxCloneOrCopyTxNblData2(
         NT_VERIFY(
             NT_SUCCESS(
                 MdlCopyMdlChainToMdlChainAtOffsetNonTemporal(
-                    Mdl, IdealBackfill, Mdl, MdlOffset, DataLength)));
+                    TxNb->CurrentMdl, TxNb->CurrentMdlOffset, Mdl, MdlOffset, DataLength)));
 
         TxNbl->ParentNetBufferList = NULL;
     }
@@ -718,6 +858,7 @@ XdpGenericRxInitializeGsoContext(
         MmInitializeMdl(
             &NblContext->Gso.HeaderMdl, NblContext->Gso.Headers, sizeof(NblContext->Gso.Headers));
         MmBuildMdlForNonPagedPool(&NblContext->Gso.HeaderMdl);
+        NblContext->ValidFields.Value = 0;
         NblContext->ValidFields.Gso = TRUE;
     }
 }
@@ -730,20 +871,21 @@ XdpGenericRxSegmentRscToLso(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
     _Inout_ NBL_COUNTED_QUEUE *TxList,
     _In_ NET_BUFFER_LIST *Nbl,
-    _In_opt_ const XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *TaskOffload,
+    _In_opt_ const XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *const TaskOffload,
     _In_ const BOOLEAN CanPend,
-    _In_ const UINT32 TcpOffset,
-    _In_ const UINT32 TcpTotalHdrLen,
-    _In_ const UINT32 LsoMss,
-    _In_ const UINT8 LsoIpVersion
+    _In_ const NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO LsoInfo,
+    _In_ const UINT32 TcpTotalHdrLen
     )
 {
-    NET_BUFFER *Nb = Nbl->FirstNetBuffer;
+    const UINT32 TcpOffset = LsoInfo.LsoV2Transmit.TcpHeaderOffset;
+    const UINT32 LsoMss = LsoInfo.LsoV2Transmit.MSS;
+    const UINT32 LsoIpVersion = LsoInfo.LsoV2Transmit.IPVersion;
+    NET_BUFFER *const Nb = Nbl->FirstNetBuffer;
     MDL *Mdl = Nb->CurrentMdl;
-    UINT32 MdlOffset = Nb->CurrentMdlOffset + TcpOffset;
-    ETHERNET_HEADER *RscEthernet = RTL_PTR_ADD(Mdl->MappedSystemVa, Nb->CurrentMdlOffset);
-    TCP_HDR *RscTcp = RTL_PTR_ADD(RscEthernet, TcpOffset);
-    UINT8 RscThFlags;
+    UINT32 MdlOffset = Nb->CurrentMdlOffset;
+    ETHERNET_HEADER *const RscEthernet = RTL_PTR_ADD(Mdl->MappedSystemVa, Nb->CurrentMdlOffset);
+    TCP_HDR *const RscTcp = RTL_PTR_ADD(RscEthernet, TcpOffset);
+    const UINT8 RscThFlags = RscTcp->th_flags;
     UINT32 SeqNum = ntohl(RscTcp->th_seq);
     UINT32 TcpUserDataLen = Nb->DataLength - TcpTotalHdrLen;
     UINT32 MinOffloadSize = MAXUINT32;
@@ -764,10 +906,9 @@ XdpGenericRxSegmentRscToLso(
     ASSERT(Nb->DataLength > TcpTotalHdrLen);
 
     //
-    // Save the original TCP flags, then clear all TCP flags that require
-    // special handling before they get copied into each segment.
+    // Clear all TCP flags that require special handling before they get copied
+    // into each segment.
     //
-    RscThFlags = RscTcp->th_flags;
     RscTcp->th_flags &= TH_ACK | TH_PSH | TH_ECE;
 
     if (TaskOffload != NULL) {
@@ -777,9 +918,22 @@ XdpGenericRxSegmentRscToLso(
         // Simplify the inner loop below by requiring the minimum offload size
         // be compatible with the maximum offload size.
         //
-        if (MinOffloadSize <= TaskOffload->Lso.MaxOffloadSize) {
+        if (CandidateMinOffloadSize <= TaskOffload->Lso.MaxOffloadSize) {
             MinOffloadSize = CandidateMinOffloadSize;
         }
+    }
+
+    //
+    // Advance past headers to the start of TCP payload. The MDLs must be
+    // contiguous through the TCP header, but the first byte of data could be in
+    // the remainder of the MDL chain.
+    //
+
+    MdlOffset += TcpTotalHdrLen;
+    ASSERT(MdlOffset <= Mdl->ByteCount);
+    if (MdlOffset == Mdl->ByteCount) {
+        Mdl = Mdl->Next;
+        MdlOffset = 0;
     }
 
     while (TcpUserDataLen > 0) {
@@ -810,21 +964,18 @@ XdpGenericRxSegmentRscToLso(
         // Figure out how much data we can send, generating as many LSO segments
         // as possible, followed by regular TCP segments.
         //
-
         if (TcpUserDataLen >= MinOffloadSize) {
             //
-            // Generate LSO segment.
+            // Generate LSO segments.
             //
-            NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO *Lso =
-                (NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO *)
-                    &NET_BUFFER_LIST_INFO(TxNbl, TcpLargeSendNetBufferListInfo);
 
-            Lso->LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE;
-            Lso->LsoV2Transmit.TcpHeaderOffset = TcpOffset;
-            Lso->LsoV2Transmit.MSS = LsoMss;
-            Lso->LsoV2Transmit.IPVersion = LsoIpVersion;
+            NET_BUFFER_LIST_INFO(TxNbl, TcpLargeSendNetBufferListInfo) = LsoInfo.Value;
 
             if (TcpUserDataLen > TaskOffload->Lso.MaxOffloadSize) {
+                //
+                // Review: these values are loop-invariant and could be
+                // precomputed.
+                //
                 MssInSegment = TaskOffload->Lso.MaxOffloadSize / LsoMss;
                 SegmentSize = MssInSegment * LsoMss;
             } else {
@@ -834,52 +985,43 @@ XdpGenericRxSegmentRscToLso(
             //
             // Generate a single TCP segment.
             //
+
+            NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *Csum =
+                (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+                    &NET_BUFFER_LIST_INFO(TxNbl, TcpIpChecksumNetBufferListInfo);
             UINT16 TcpHeaderAndPayloadLength;
 
             SegmentSize = min(TcpUserDataLen, LsoMss);
             MssInSegment = 1;
             TcpHeaderAndPayloadLength = (UINT16)(TcpTotalHdrLen - TcpOffset + SegmentSize);
 
-            if (TaskOffload != NULL && TaskOffload->Checksum.Enabled) {
-                NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *Csum =
-                    (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
-                        &NET_BUFFER_LIST_INFO(TxNbl, TcpIpChecksumNetBufferListInfo);
-
-                Csum->Transmit.TcpChecksum = TRUE;
-                Csum->Transmit.TcpHeaderOffset = TcpOffset;
-
-                if (LsoIpVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4) {
-                    Csum->Transmit.IpHeaderChecksum = TRUE;
-                    Csum->Transmit.IsIPv4 = TRUE;
-                    goto UpdateIpv4Header;
-                } else {
-                    ASSERT(LsoIpVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6);
-                    Csum->Transmit.IsIPv6 = TRUE;
-                    goto UpdateIpv6Header;
-                }
-            } else {
-                NeedChecksum = TRUE;
-            }
+            ASSERT(Csum->Value == NULL);
+            Csum->Transmit.TcpChecksum = TRUE;
+            Csum->Transmit.TcpHeaderOffset = TcpOffset;
+            TxTcp->th_sum =
+                XdpChecksumFold(TxTcp->th_sum + htons(TcpHeaderAndPayloadLength));
 
             if (LsoIpVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4) {
-UpdateIpv4Header:
                 IPV4_HEADER *Ipv4 =
                     RTL_PTR_ADD(NblContext->Gso.Headers, sizeof(ETHERNET_HEADER));
 
                 Ipv4->TotalLength =
                     htons((UINT16)(TcpTotalHdrLen - sizeof(ETHERNET_HEADER) + SegmentSize));
+                Csum->Transmit.IpHeaderChecksum = TRUE;
+                Csum->Transmit.IsIPv4 = TRUE;
             } else {
-UpdateIpv6Header:
                 IPV6_HEADER *Ipv6 =
                     RTL_PTR_ADD(NblContext->Gso.Headers, sizeof(ETHERNET_HEADER));
 
                 ASSERT(LsoIpVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6);
 
                 Ipv6->PayloadLength = htons(TcpHeaderAndPayloadLength);
+                Csum->Transmit.IsIPv6 = TRUE;
             }
 
-            TxTcp->th_sum =
-                XdpChecksumFold(TxTcp->th_sum + htons(TcpHeaderAndPayloadLength));
+            if (TaskOffload == NULL || !TaskOffload->Checksum.Enabled) {
+                NeedChecksum = TRUE;
+            }
         }
 
         ASSERT(SegmentSize > 0);
@@ -938,14 +1080,15 @@ UpdateIpv6Header:
                 Mdl, &NblContext->Gso.PartialMdl,
                 RTL_PTR_ADD(MmGetMdlVirtualAddress(Mdl), MdlOffset), PartialMdlLength);
 
-            MdlOffset += PartialMdlLength;
-            SegmentSize -= PartialMdlLength;
-
-            if (MdlOffset == Mdl->ByteCount) {
-                TxNb->CurrentMdl->Next = Mdl;
-            }
-
             TxNb->CurrentMdl = &NblContext->Gso.PartialMdl;
+
+            //
+            // Link the remainder of the MDL chain behind the partial MDL. The
+            // next MDL needs to be valid only if the segment contains data
+            // beyond the partial MDL.
+            //
+            ASSERT(PartialMdlLength == SegmentSize || Mdl->Next != NULL);
+            TxNb->CurrentMdl->Next = Mdl->Next;
         } else {
             TxNb->CurrentMdl = Mdl;
         }
@@ -970,9 +1113,7 @@ UpdateIpv6Header:
         TxNb->DataLength += TcpTotalHdrLen;
 
         if (NeedChecksum) {
-            //
-            // TODO.
-            //
+            XdpGenericRxChecksumNbl(TxNbl);
         }
 
         XdpGenericRxEnqueueTxNbl(RxQueue, TxList, Nbl, TxNbl);
@@ -985,16 +1126,16 @@ UpdateIpv6Header:
         ASSERT(TcpUserDataLen >= SegmentSize);
         TcpUserDataLen -= SegmentSize;
 
-        while (SegmentSize > 0) {
-            if (SegmentSize > Mdl->ByteCount - MdlOffset) {
+        do {
+            if (SegmentSize >= Mdl->ByteCount - MdlOffset) {
+                SegmentSize -= Mdl->ByteCount - MdlOffset;
                 Mdl = Mdl->Next;
                 MdlOffset = 0;
-                SegmentSize -= Mdl->ByteCount - MdlOffset;
             } else {
                 MdlOffset += SegmentSize;
                 SegmentSize = 0;
             }
-        }
+        } while (SegmentSize > 0);
     }
 
 Exit:
@@ -1024,7 +1165,6 @@ XdpGenericRxConvertRscToLso(
     UINT16 *IpTotalLength;
     UINT16 Ipv6Checksum;
     UINT16 *IpChecksum = &Ipv6Checksum;
-    UINT8 LsoIpVersion;
     UINT16 TcpOffset;
     UINT16 TcpHdrLen;
     UINT32 TcpTotalHdrLen;
@@ -1035,6 +1175,9 @@ XdpGenericRxConvertRscToLso(
     UINT32 TxMss;
     UINT32 RscMss;
     UINT32 LsoMss;
+    NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO LsoInfo = {
+        .LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE,
+    };
 
     ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
     ASSERT(!RxQueue->Flags.TxInspect);
@@ -1058,7 +1201,7 @@ XdpGenericRxConvertRscToLso(
         IpDst = &Ipv4->DestinationAddress;
         IpTotalLength = &Ipv4->TotalLength;
         IpChecksum = &Ipv4->HeaderChecksum;
-        LsoIpVersion = NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4;
+        LsoInfo.LsoV2Transmit.IPVersion = NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4;
         break;
     }
     case CONST_HTONS(ETHERNET_TYPE_IPV6):
@@ -1069,7 +1212,7 @@ XdpGenericRxConvertRscToLso(
         IpSrc = &Ipv6->SourceAddress;
         IpDst = &Ipv6->DestinationAddress;
         IpTotalLength = &Ipv6->PayloadLength;
-        LsoIpVersion = NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6;
+        LsoInfo.LsoV2Transmit.IPVersion = NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6;
         break;
     }
     default:
@@ -1100,6 +1243,9 @@ XdpGenericRxConvertRscToLso(
     LsoMss = min(TxMss, RscMss);
     ASSERT(LsoMss > 0);
 
+    LsoInfo.LsoV2Transmit.TcpHeaderOffset = TcpOffset;
+    LsoInfo.LsoV2Transmit.MSS = LsoMss;
+
     //
     // Re-initialize IP and TCP header fields for TX.
     //
@@ -1117,7 +1263,6 @@ XdpGenericRxConvertRscToLso(
         TcpUserDataLen <= TaskOffload->Lso.MaxOffloadSize &&
         (TcpUserDataLen + NumSeg - 1) / LsoMss >= TaskOffload->Lso.MinSegments) {
         NET_BUFFER_LIST *TxNbl;
-        NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO *Lso;
 
         //
         // Fast path: the RSC NBL can be directly converted to a single LSO NBL.
@@ -1128,30 +1273,22 @@ XdpGenericRxConvertRscToLso(
             goto Exit;
         }
 
-        Lso =
-            (NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO *)
-                &NET_BUFFER_LIST_INFO(TxNbl, TcpLargeSendNetBufferListInfo);
-        Lso->LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE;
-        Lso->LsoV2Transmit.TcpHeaderOffset = TcpOffset;
-        Lso->LsoV2Transmit.MSS = LsoMss;
-        Lso->LsoV2Transmit.IPVersion = LsoIpVersion;
-
         if (!XdpGenericRxCloneOrCopyTxNblData(RxQueue, Nbl, Nb, CanPend, TxNbl)) {
             XdpGenericRxReturnTxCloneNbl(RxQueue, TxNbl);
             goto Exit;
         }
 
+        NET_BUFFER_LIST_INFO(TxNbl, TcpLargeSendNetBufferListInfo) = LsoInfo.Value;
+
         XdpGenericRxEnqueueTxNbl(RxQueue, TxList, Nbl, TxNbl);
     } else {
-
         //
         // Slow and careful path: the RSC NBL needs to be segmented into two or
         // more NBLs.
         //
 
         XdpGenericRxSegmentRscToLso(
-            RxQueue, TxList, Nbl, TaskOffload, CanPend, TcpOffset, TcpTotalHdrLen, LsoMss,
-            LsoIpVersion);
+            RxQueue, TxList, Nbl, TaskOffload, CanPend, LsoInfo, TcpTotalHdrLen);
     }
 
 Exit:
@@ -1173,6 +1310,8 @@ XdpGenericReceiveEnqueueTxNb(
     NET_BUFFER *OriginalFirstNb = Nbl->FirstNetBuffer;
     NET_BUFFER *OriginalNextNb = Nb->Next;
     NET_BUFFER_LIST *TxNbl;
+
+    STAT_INC(&RxQueue->PcwStats, ForwardingNbsRequested);
 
     Nbl->FirstNetBuffer = Nb;
     Nbl->FirstNetBuffer->Next = NULL;

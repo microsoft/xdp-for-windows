@@ -212,6 +212,58 @@
             detailLevel="standard"
             defaultScale="1"
             />
+          <counter
+            id="4"
+            uri="Microsoft.Xdp.LwfRxQueue.ForwardingFailuresAllocationLimit"
+            name="Forwarding Failures: Allocation Limit"
+            nameID="3016"
+            field="ForwardingFailuresAllocationLimit"
+            description="Frames that failed to be forwarded due to allocation limit."
+            descriptionID="3018"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="5"
+            uri="Microsoft.Xdp.LwfRxQueue.ForwardingFailuresRscInvalidHeaders"
+            name="Forwarding Failures: RSC Invalid Headers"
+            nameID="3020"
+            field="ForwardingFailuresRscInvalidHeaders"
+            description="Frames that failed to be forwarded due to RSC invalid headers."
+            descriptionID="3022"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="6"
+            uri="Microsoft.Xdp.LwfRxQueue.ForwardingNbsRequested"
+            name="Forwarding NBs: Requested"
+            nameID="3024"
+            field="ForwardingNbsRequested"
+            description="Frames requiring forwarding."
+            descriptionID="3026"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="7"
+            uri="Microsoft.Xdp.LwfRxQueue.ForwardingNbsSent"
+            name="Forwarding NBs: Sent"
+            nameID="3028"
+            field="ForwardingNbsSent"
+            description="Frames sent for forwarding."
+            descriptionID="3030"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
         <counterSet
           guid="{05947256-79cd-4393-b54c-a65be0963294}"

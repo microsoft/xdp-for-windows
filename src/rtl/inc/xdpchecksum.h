@@ -27,7 +27,7 @@ FORCEINLINE
 UINT16
 XdpPartialChecksum(
     _In_ CONST VOID *Buffer,
-    _In_ UINT16 BufferLength
+    _In_ UINT32 BufferLength
     )
 {
     UINT32 Checksum = 0;
