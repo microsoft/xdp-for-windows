@@ -669,8 +669,7 @@ XdpGenericRxCloneOrCopyTxNblData2(
 
         XdpGenericRxClearNblCloneData(TxNbl);
 
-        NdisStatus =
-            NdisRetreatNetBufferListDataStart(TxNbl, DataLength, IdealBackfill, NULL, NULL);
+        NdisStatus = NdisRetreatNetBufferDataStart(TxNb, DataLength, IdealBackfill, NULL);
         if (NdisStatus != NDIS_STATUS_SUCCESS) {
             STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
             return FALSE;
