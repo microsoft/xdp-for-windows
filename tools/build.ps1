@@ -33,7 +33,7 @@ param (
     [switch]$UpdateDeps = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$BuildCxPlatOnly = $false
+    [switch]$BuildDepsOnly = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -60,7 +60,7 @@ if ([string]::IsNullOrEmpty($Project)) {
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
-if ($BuildCxPlatOnly) {
+if ($BuildDepsOnly) {
     $CurrentWorkDir = Get-Location
     Set-Location $RootDir\submodules\cxplat
     pwsh $RootDir\submodules\cxplat\scripts\build.ps1 -Config $Config -Platform winkernel -BuildToolSet vs
