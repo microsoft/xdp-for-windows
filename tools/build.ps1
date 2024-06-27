@@ -30,7 +30,10 @@ param (
     [switch]$TestArchive = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$UpdateDeps = $false
+    [switch]$UpdateDeps = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$BuildCxPlatOnly = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -57,11 +60,14 @@ if ([string]::IsNullOrEmpty($Project)) {
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
-$CurrentWorkDir = Get-Location
-Set-Location $RootDir\submodules\cxplat
-pwsh $RootDir\submodules\cxplat\scripts\build.ps1 -Config $Config -Platform winkernel -BuildToolSet vs
-pwsh $RootDir\submodules\cxplat\scripts\build.ps1 -Config $Config -Platform windows -BuildToolSet vs
-Set-Location $CurrentWorkDir
+if ($BuildCxPlatOnly) {
+    $CurrentWorkDir = Get-Location
+    Set-Location $RootDir\submodules\cxplat
+    pwsh $RootDir\submodules\cxplat\scripts\build.ps1 -Config $Config -Platform winkernel -BuildToolSet vs
+    pwsh $RootDir\submodules\cxplat\scripts\build.ps1 -Config $Config -Platform windows -BuildToolSet vs
+    Set-Location $CurrentWorkDir
+    return
+}
 
 Write-Verbose "Restoring packages [xdp.sln]"
 msbuild.exe $RootDir\xdp.sln `
