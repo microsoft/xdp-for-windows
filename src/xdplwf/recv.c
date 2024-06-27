@@ -922,7 +922,7 @@ UpdateIpv6Header:
             // segmenting the packet will produce different IDs, but this
             // should be harmless according to RFC 6864.
             //
-            Ipv4->Identification = htons(ntohs((UINT16)((Ipv4->Identification) + SegmentsCreated)));
+            Ipv4->Identification = htons((UINT16)(ntohs(Ipv4->Identification) + SegmentsCreated));
         }
 
         //
