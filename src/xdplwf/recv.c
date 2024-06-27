@@ -661,6 +661,11 @@ XdpGenericRxChecksumNbl(
                 Nb, Nb->DataLength - Csum->Transmit.TcpHeaderOffset,
                 Csum->Transmit.TcpHeaderOffset);
     }
+
+    //
+    // Clear the checksum OOB after all offloads have been performed in SW.
+    //
+    Csum->Value = NULL;
 }
 
 static
