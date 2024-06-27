@@ -867,7 +867,8 @@ UpdateIpv4Header:
                 IPV4_HEADER *Ipv4 =
                     RTL_PTR_ADD(NblContext->Gso.Headers, sizeof(ETHERNET_HEADER));
 
-                Ipv4->TotalLength = htons((UINT16)(TcpTotalHdrLen + SegmentSize));
+                Ipv4->TotalLength =
+                    htons((UINT16)(TcpTotalHdrLen - sizeof(ETHERNET_HEADER) + SegmentSize));
             } else {
 UpdateIpv6Header:
                 IPV6_HEADER *Ipv6 =
