@@ -56,7 +56,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>xdpfunctionaltests</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
@@ -79,7 +78,6 @@
       <AdditionalDependencies>
         ntdll.lib;
         onecore.lib;
-        ws2_32.lib;
         iphlpapi.lib;
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;

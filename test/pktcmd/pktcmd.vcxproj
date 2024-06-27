@@ -33,7 +33,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>pktcmd</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

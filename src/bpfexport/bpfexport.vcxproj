@@ -28,7 +28,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>xdp_bpfexport</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemGroup>
     <ResourceCompile Include="bpfexport.rc">

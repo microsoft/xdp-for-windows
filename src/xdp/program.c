@@ -1633,7 +1633,10 @@ EbpfProgramOnClientAttach(
     TraceEnter(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
-    if (ClientData == NULL || ClientData->header.size != sizeof(IfIndex) || ClientData->data == NULL) {
+    if (ClientData == NULL ||
+        ClientData->header.version != 0 ||
+        ClientData->header.size != sizeof(IfIndex) ||
+        ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -1645,7 +1648,7 @@ EbpfProgramOnClientAttach(
         goto Exit;
     }
 
-    if (ClientDispatch == NULL || ClientDispatch->version < 1 || ClientDispatch->count < 4) {
+    if (ClientDispatch == NULL || ClientDispatch->version != 1 || ClientDispatch->count < 4) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }

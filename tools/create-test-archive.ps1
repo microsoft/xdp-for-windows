@@ -22,6 +22,7 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Platform
 
 $Name = "xdp-tests-$Platform"
 if ($Config -eq "Debug") {
@@ -33,10 +34,10 @@ Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll" $DstPath\bin
+copy "$ArtifactBin\xdpfunctionaltests.dll" $DstPath\bin
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.pdb"   $DstPath\symbols
+copy "$ArtifactBin\xdpfunctionaltests.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 

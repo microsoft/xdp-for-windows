@@ -37,7 +37,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>pollshim</TargetName>
-    <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\bin\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

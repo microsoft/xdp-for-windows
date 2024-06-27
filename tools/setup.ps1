@@ -33,11 +33,11 @@ param (
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -63,7 +63,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 # Important paths.
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
@@ -492,6 +492,18 @@ function Uninstall-FnLwf {
     & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
+# Installs fnsock.
+function Install-FnSock {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnsock -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnsock -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+}
+
+# Uninstalls fnsock.
+function Uninstall-FnSock {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnsock -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+}
+
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
@@ -594,6 +606,9 @@ try {
     if ($Install -eq "ebpf") {
         Install-Ebpf
     }
+    if ($Install -eq "fnsock") {
+        Install-FnSock
+    }
 
     if ($Uninstall -eq "fndis") {
         Uninstall-FakeNdis
@@ -612,6 +627,9 @@ try {
     }
     if ($Uninstall -eq "ebpf") {
         Uninstall-Ebpf
+    }
+    if ($Uninstall -eq "fnsock") {
+        Uninstall-FnSock
     }
 } catch {
     Write-Error $_ -ErrorAction $OriginalErrorActionPreference
