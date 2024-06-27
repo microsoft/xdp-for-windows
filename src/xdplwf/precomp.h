@@ -13,6 +13,7 @@
 #include <ntintsafe.h>
 #include <ntstrsafe.h>
 #include <ndis.h>
+#include <ndis/ndl/mdl.h>
 #include <ndis/ndl/nblqueue.h>
 #include <ndis/ndl/nblclassify.h>
 #include <netiodef.h>

@@ -10,6 +10,7 @@
 #pragma once
 
 inline
+FORCEINLINE
 UINT16
 XdpChecksumFold(
     _In_ UINT32 Checksum
@@ -22,6 +23,7 @@ XdpChecksumFold(
 }
 
 inline
+FORCEINLINE
 UINT16
 XdpPartialChecksum(
     _In_ CONST VOID *Buffer,
