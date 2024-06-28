@@ -86,7 +86,7 @@
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         $(WntLibPath)\fnsock_um.lib;
-        $(SolutionDir)submodules\cxplat\artifacts\bin\winuser\$(Platform)_$(Configuration)\cxplat.lib;
+        $(SolutionDir)artifacts\bin\winuser\$(Platform)_$(Configuration)\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <!-- cxplat has CRT statically linked which conflicts with dynamic CRT import libs. So, ignore them for now. -->
