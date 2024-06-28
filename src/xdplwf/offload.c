@@ -55,7 +55,6 @@ XdpLwfOffloadQueueWorkItem(
     XdpInsertWorkQueue(Filter->Offload.WorkQueue, &WorkItem->Link);
 }
 
-
 static
 XDP_LWF_OFFLOAD_EDGE
 XdpLwfConvertHookIdToOffloadEdge(
@@ -225,6 +224,8 @@ XdpLwfSetInterfaceOffload(
 
     TraceEnter(TRACE_LWF, "OffloadContext=%p OffloadType=%u", OffloadContext, OffloadType);
 
+    ASSERT(!Filter->Offload.Deactivated);
+
     switch (OffloadType) {
     case XdpOffloadRss:
         Status = XdpLwfOffloadRssSet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
@@ -307,6 +308,99 @@ Exit:
     return Status;
 }
 
+typedef struct _XDP_LWF_OFFLOAD_INSPECT_STATUS {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _In_ NDIS_STATUS StatusCode;
+    _In_ const VOID *StatusBuffer;
+    _In_ UINT32 StatusBufferSize;
+} XDP_LWF_OFFLOAD_INSPECT_STATUS;
+
+static
+VOID
+XdpOffloadFreeStatusRequest(
+    _In_ XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest
+    )
+{
+    if (InspectRequest->StatusBuffer != NULL) {
+        ExFreePoolWithTag(RTL_CONST_CAST(VOID *)(VOID *)InspectRequest->StatusBuffer, POOLTAG_OFFLOAD);
+    }
+
+    ExFreePoolWithTag(InspectRequest, POOLTAG_OFFLOAD);
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpOffloadFilterStatusWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_INSPECT_STATUS, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+
+    TraceEnter(TRACE_LWF, "Filter=%p StatusIndication=%u", Filter, InspectRequest->StatusCode);
+
+    switch (InspectRequest->StatusCode) {
+    case NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG:
+        XdpOffloadUpdateTaskOffloadConfig(
+            Filter, InspectRequest->StatusBuffer, InspectRequest->StatusBufferSize);
+        break;
+    }
+
+    XdpOffloadFreeStatusRequest(InspectRequest);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpOffloadFilterStatus(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ const NDIS_STATUS_INDICATION *StatusIndication
+    )
+{
+    XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest = NULL;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p StatusIndication=%u", Filter, StatusIndication->StatusCode);
+
+    InspectRequest = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*InspectRequest), POOLTAG_OFFLOAD);
+    if (InspectRequest == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    InspectRequest->StatusCode = StatusIndication->StatusCode;
+
+    if (StatusIndication->StatusBufferSize > 0) {
+        InspectRequest->StatusBuffer =
+            ExAllocatePoolZero(NonPagedPoolNx, StatusIndication->StatusBufferSize, POOLTAG_OFFLOAD);
+        if (InspectRequest->StatusBuffer == NULL) {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+
+        RtlCopyMemory(
+            RTL_CONST_CAST(VOID *)InspectRequest->StatusBuffer, StatusIndication->StatusBuffer,
+            StatusIndication->StatusBufferSize);
+        InspectRequest->StatusBufferSize = StatusIndication->StatusBufferSize;
+    }
+
+    XdpLwfOffloadQueueWorkItem(
+        Filter, &InspectRequest->WorkItem, XdpOffloadFilterStatusWorker);
+    Status = STATUS_PENDING;
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (InspectRequest != NULL) {
+            XdpOffloadFreeStatusRequest(InspectRequest);
+        }
+    }
+
+    TraceExitStatus(TRACE_LWF);
+}
+
 VOID
 XdpLwfOffloadTransformNbls(
     _In_ XDP_LWF_FILTER *Filter,
@@ -352,7 +446,10 @@ XdpLwfOffloadDeactivateWorker(
         CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_DEACTIVATE, WorkItem);
     XDP_LWF_FILTER *Filter = WorkItem->Filter;
 
+    Filter->Offload.Deactivated = TRUE;
+
     XdpLwfOffloadRssDeactivate(Filter);
+    XdpLwfOffloadTaskOffloadDeactivate(Filter);
 
     KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
 }
@@ -390,7 +487,7 @@ XdpLwfOffloadStart(
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
     Filter->Offload.WorkQueue =
-        XdpCreateWorkQueue(XdpLwfOffloadWorker, PASSIVE_LEVEL, XdpLwfDriverObject, NULL);
+        XdpCreateWorkQueue(XdpLwfOffloadWorker, DISPATCH_LEVEL, XdpLwfDriverObject, NULL);
     if (Filter->Offload.WorkQueue == NULL) {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;

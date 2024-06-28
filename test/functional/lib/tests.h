@@ -101,6 +101,11 @@ GenericRxFromTxInspect(
     );
 
 VOID
+GenericRxForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 SecurityAdjustDeviceAcl();
 
 VOID

@@ -6,6 +6,13 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
+//
+// TODO: find a better way to fix intellisense.
+//
+#ifdef KERNEL_MODE
+#undef KERNEL_MODE
+#endif
+
 #define _CRT_RAND_S
 #include <cstdlib>
 #include <algorithm>
@@ -17,6 +24,7 @@
 #include <set>
 #include <stack>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Windows and WIL includes need to be ordered in a certain way.
@@ -1633,6 +1641,20 @@ MpTxGetFrame(
 }
 
 static
+VOID
+MpTxVerifyNoFrame(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Index
+    )
+{
+    UINT32 FrameBufferLength = 0;
+    std::this_thread::sleep_for(TEST_TIMEOUT_ASYNC);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        MpTxGetFrame(Handle, Index, &FrameBufferLength, NULL));
+}
+
+static
 unique_malloc_ptr<DATA_FRAME>
 MpTxAllocateAndGetFrame(
     _In_ const unique_fnmp_handle &Handle,
@@ -2012,6 +2034,31 @@ MpOidCompleteRequest(
     return
         FnMpOidCompleteRequest(
             Handle.get(), Key, Status, InformationBuffer, InformationBufferLength);
+}
+
+static
+VOID
+InitializeOffloadParameters(
+    _Out_ NDIS_OFFLOAD_PARAMETERS *OffloadParameters
+    )
+{
+    ZeroMemory(OffloadParameters, sizeof(*OffloadParameters));
+    OffloadParameters->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5;
+    OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
+}
+
+static
+VOID
+MpUpdateTaskOffload(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ FN_OFFLOAD_TYPE OffloadType,
+    _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters
+    )
+{
+    UINT32 Size = OffloadParameters != NULL ? sizeof(*OffloadParameters) : 0;
+
+    TEST_HRESULT(FnMpUpdateTaskOffload(Handle.get(), OffloadType, OffloadParameters, Size));
 }
 
 static
@@ -3918,7 +3965,7 @@ GenericRxUdpFragmentQuicLongHeader(
     }
 }
 
-typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
+typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
     _In_ UINT16 Backfill;
     _In_ UINT16 Trailer;
@@ -3927,8 +3974,135 @@ typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
     _In_ BOOLEAN IsUdp;
     _In_ BOOLEAN IsTxInspect;
     _In_ BOOLEAN LowResources;
+    _In_ UINT16 GroSegCount;
     _In_ XDP_RULE_ACTION Action;
 } GENERIC_RX_FRAGMENT_PARAMS;
+
+static
+VOID
+GenericRxValidateGroToGso(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ const GENERIC_RX_FRAGMENT_PARAMS *Params,
+    _In_ unique_fnmp_handle &GenericMp,
+    _In_ const UCHAR *GroPacketBuffer,
+    _In_ UINT32 GroPacketLength,
+    _In_ DATA_FLUSH_OPTIONS &RxFlushOptions
+    )
+{
+    UINT32 TcpHdrSize = sizeof(TCP_HDR); // TODO: No TCP options tested.
+    UINT32 TotalTcpHdrSize = TCP_HEADER_BACKFILL(Af) - sizeof(TCP_HDR) + TcpHdrSize;
+    std::vector<UCHAR> Filter(TotalTcpHdrSize);
+    std::vector<UCHAR> Mask(Filter.size(), 0xFF);
+    std::vector<UCHAR> FinalPayload;
+    unique_malloc_ptr<DATA_FRAME> TxFrame;
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+
+    TEST_NOT_EQUAL(0, Params->GroSegCount);
+    TEST_EQUAL(XDP_PROGRAM_ACTION_L2FWD, Params->Action);
+    TEST_TRUE(GroPacketLength > Filter.size());
+
+    //
+    // GSO to GRO for TxInspect is not implemented yet.
+    // UDP GRO to GSO is not implemented yet.
+    //
+    TEST_FALSE(Params->IsTxInspect);
+    TEST_FALSE(Params->IsUdp);
+
+    memcpy(&Filter[0], GroPacketBuffer, Filter.size());
+
+    //
+    // Clear variable IP fields in the mask. These will be validated in the final
+    // GSO'd frames.
+    //
+
+    if (Af == AF_INET) {
+        IPV4_HEADER *Ipv4 = (IPV4_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
+        Ipv4->TotalLength = 0;
+        Ipv4->Identification = 0;
+        Ipv4->HeaderChecksum = 0;
+    } else {
+        IPV6_HEADER *Ipv6 = (IPV6_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
+        Ipv6->PayloadLength = 0;
+    }
+
+    //
+    // TODO: test more LSO/CSUM states.
+    //
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+    MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+
+    //
+    // Filter all traffic matching the TCP port tuple.
+    //
+    TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TotalTcpHdrSize - sizeof(*TcpMask)];
+    RtlZeroMemory(TcpMask, sizeof(*TcpMask));
+    TcpMask->th_dport = UINT16_MAX;
+    TcpMask->th_sport = UINT16_MAX;
+
+    auto MpFilter = MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
+    MpRxFlush(GenericMp, &RxFlushOptions);
+
+    if (Params->SplitCount > 0 && Params->SplitIndexes[0] < TotalTcpHdrSize) {
+        //
+        // GRO to GSO requires contiguous headers through the TCP header.
+        //
+        MpTxVerifyNoFrame(GenericMp, 0);
+        return;
+    }
+
+    TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+
+    //
+    // TODO: validate multiple GSO/csum offloaded frames in a loop.
+    //
+
+    std::vector<UCHAR> FramePayload;
+
+    //
+    // Verify the entire packet (and nothing more) was forwarded. The TX
+    // filter verifies the bytes match up to the length of the filter.
+    //
+    for (UINT32 i = 0; i < TxFrame->BufferCount; i++) {
+        DATA_BUFFER *Buffer = &TxFrame->Buffers[i];
+        const UCHAR *PayloadStart = Buffer->VirtualAddress + Buffer->DataOffset;
+        FramePayload.insert(FramePayload.end(), PayloadStart, PayloadStart + Buffer->DataLength);
+    }
+
+    //
+    // TODO: ensure frame sizes are maximized, respect MSS, etc.
+    // TODO: verify each of the fields zero'd out in the mask above.
+    // TODO: verify LSO OOB info properly.
+    //
+
+    TEST_TRUE(TxFrame->Output.Lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE);
+
+    TEST_TRUE(FramePayload.size() > TotalTcpHdrSize);
+    FinalPayload.insert(
+        FinalPayload.end(), FramePayload.begin() + TotalTcpHdrSize, FramePayload.end());
+
+    //
+    // Non-low-resources NBLs should be forwarded without a data copy. We
+    // infer this is true by the TX NBL having the same MDL layout as the
+    // original NBL.
+    //
+    if (!Params->LowResources) {
+        TEST_EQUAL(Params->SplitCount + 1, TxFrame->BufferCount);
+    }
+
+    //
+    // XDP should preserve the available backfill.
+    //
+    TEST_EQUAL(Params->Backfill, TxFrame->Buffers[0].DataOffset);
+
+    TEST_EQUAL(GroPacketLength - TotalTcpHdrSize, FinalPayload.size());
+    TEST_TRUE(
+        RtlEqualMemory(&FinalPayload[0], &GroPacketBuffer[TotalTcpHdrSize], FinalPayload.size()));
+
+    MpTxDequeueFrame(GenericMp, 0);
+    MpTxFlush(GenericMp);
+}
 
 static
 VOID
@@ -4006,7 +4180,7 @@ GenericRxFragmentBuffer(
     std::vector<DATA_BUFFER> Buffers;
 
     //
-    // Split up the UDP frame into RX fragment buffers.
+    // Split up the frame into RX fragment buffers.
     //
     for (UINT16 Index = 0; Index < Params->SplitCount; Index++) {
         DATA_BUFFER Buffer = {0};
@@ -4039,6 +4213,7 @@ GenericRxFragmentBuffer(
         FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfTxEnqueue(FnLwf, &Frame.Frame);
     } else {
+        Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params->GroSegCount;
         GenericMp = MpOpenGeneric(If.GetIfIndex());
         TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     }
@@ -4090,6 +4265,12 @@ GenericRxFragmentBuffer(
         Ethernet->Destination = Ethernet->Source;
         Ethernet->Source = TempAddress;
 
+        if (Params->GroSegCount > 0) {
+            GenericRxValidateGroToGso(
+                Af, Params, GenericMp, &L2FwdPacket[0], ActualPacketLength, RxFlushOptions);
+            return;
+        }
+
         unique_fnlwf_filter_handle LwfFilter;
         unique_fnmp_filter_handle MpFilter;
 
@@ -4129,7 +4310,7 @@ GenericRxFragmentBuffer(
         //
         // XDP should preserve the available backfill.
         //
-        TEST_EQUAL(Params->Backfill, Buffers[0].DataOffset);
+        TEST_EQUAL(Params->Backfill, TxFrame->Buffers[0].DataOffset);
 
         if (Params->IsTxInspect) {
             LwfRxDequeueFrame(FnLwf, 0);
@@ -4356,6 +4537,44 @@ GenericRxFromTxInspect(
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
+}
+
+VOID
+GenericRxForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    const UINT8 IpHdrSize = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = XDP_PROGRAM_ACTION_L2FWD;
+    Params.PayloadLength = 60000;
+    Params.Backfill = 7;
+    Params.Trailer = 23;
+    UINT16 SplitIndexes[] = {
+        0,
+        sizeof(ETHERNET_HEADER) / 2,
+        sizeof(ETHERNET_HEADER),
+        sizeof(ETHERNET_HEADER) + IpHdrSize / 2,
+        sizeof(ETHERNET_HEADER) + IpHdrSize,
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) / 2,
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR),
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) + 42,
+    };
+
+    for (auto IsLowResources : {false, true}) {
+    for (auto Split : SplitIndexes) {
+        if (Split > 0) {
+            Params.SplitIndexes = &Split;
+            Params.SplitCount = 1;
+        } else {
+            Params.SplitIndexes = NULL;
+            Params.SplitCount = 0;
+        }
+
+        Params.GroSegCount = Params.PayloadLength / 1000;
+        Params.LowResources = IsLowResources;
+        GenericRxFragmentBuffer(Af, &Params);
+    }}
 }
 
 static

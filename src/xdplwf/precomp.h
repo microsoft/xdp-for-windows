@@ -13,6 +13,14 @@
 #include <ntintsafe.h>
 #include <ntstrsafe.h>
 #include <ndis.h>
+#if _MSC_VER < 1930
+#pragma warning(push)
+#pragma warning(disable:4090) // 'function': different 'const' qualifiers
+#endif
+#include <ndis/ndl/mdl.h>
+#if _MSC_VER < 1930
+#pragma warning(pop)
+#endif
 #include <ndis/ndl/nblqueue.h>
 #include <ndis/ndl/nblclassify.h>
 #include <netiodef.h>
@@ -36,6 +44,7 @@
 #include <xdp/txframecompletioncontext.h>
 
 #include <xdpassert.h>
+#include <xdpchecksum.h>
 #include <xdpetw.h>
 #include <xdpif.h>
 #include <xdplifetime.h>
@@ -48,6 +57,7 @@
 #include <xdptimer.h>
 #include <xdptxqueue_internal.h>
 #include <xdptrace.h>
+#include <xdpwdk.h>
 #include <xdpworkqueue.h>
 
 #ifndef NDIS_RUNTIME_VERSION_688
@@ -67,6 +77,7 @@ C_ASSERT(!"NDIS_RUNTIME_VERSION_688 has been publicly defined. Remove redundant 
 #include "offload.h"
 #include "offloadqeo.h"
 #include "offloadrss.h"
+#include "offloadtask.h"
 #include "oid.h"
 #include "recv.h"
 #include "send.h"

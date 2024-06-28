@@ -19,9 +19,10 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     NDIS_HANDLE TxCloneNblPool;
     UINT32 TxCloneCacheLimit;
     UINT32 TxCloneCacheCount;
-    SLIST_HEADER TxCloneNblSList;
     NET_BUFFER_LIST *TxCloneNblList;
-    EX_RUNDOWN_REF NblRundown;
+
+    DECLSPEC_CACHEALIGN SLIST_HEADER TxCloneNblSList;
+    DECLSPEC_CACHEALIGN EX_RUNDOWN_REF NblRundown;
 
     //
     // For RX inspect, the EcLock provides mutual exclusion on the data path,

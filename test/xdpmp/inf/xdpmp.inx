@@ -126,6 +126,15 @@
  HKR, Ndi\Params\RxPatternCopy\Enum,   "0",               0, %DISABLED_STR%
  HKR, Ndi\Params\RxPatternCopy\Enum,   "1",               0, %ENABLED_STR%
 
+; RxRscSegmentCount
+ HKR, Ndi\Params\RxRscSegmentCount,    ParamDesc,         0, "RxRscSegmentCount"
+ HKR, Ndi\Params\RxRscSegmentCount,    default,           0, "0"
+ HKR, Ndi\Params\RxRscSegmentCount,    type,              0, "dword"
+ HKR, Ndi\Params\RxRscSegmentCount,    min,               0, "0"
+ HKR, Ndi\Params\RxRscSegmentCount,    max,               0, "65536"
+ HKR, Ndi\Params\RxRscSegmentCount,    step,              0, "1"
+ HKR, Ndi\Params\RxRscSegmentCount,    Optional,          0, "0"
+
 ; PollProvider
  HKR, Ndi\Params\PollProvider,          ParamDesc,         0, "PollProvider"
  HKR, Ndi\Params\PollProvider,          default,           0, "0"

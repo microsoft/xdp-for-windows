@@ -403,6 +403,14 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxForwardGroV4) {
+        GenericRxForwardGro(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroV6) {
+        GenericRxForwardGro(AF_INET6);
+    }
+
     TEST_METHOD(SecurityAdjustDeviceAcl) {
         ::SecurityAdjustDeviceAcl();
     }

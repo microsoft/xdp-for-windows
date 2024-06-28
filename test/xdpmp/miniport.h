@@ -192,6 +192,7 @@ typedef struct _ADAPTER_CONTEXT {
     ULONG RxPatternLength;
     UCHAR RxPattern[128];
     ULONG RxPatternCopy;
+    ULONG RxRscSegmentCount;
     XDPMP_RATE_SIM_WMI RateSim;
     FNDIS_NPI_CLIENT FndisClient;
     ADAPTER_POLL_PROVIDER PollProvider;
