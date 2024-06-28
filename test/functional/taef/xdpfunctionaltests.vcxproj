@@ -89,11 +89,6 @@
         $(SolutionDir)artifacts\bin\winuser\$(Platform)_$(Configuration)\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
-      <!-- cxplat has CRT statically linked which conflicts with dynamic CRT import libs. So, ignore them for now. -->
-      <AdditionalOptions>
-        /NODEFAULTLIB:msvcrtd /NODEFAULTLIB:msvcrt
-        %(AdditionalOptions)
-      </AdditionalOptions>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
