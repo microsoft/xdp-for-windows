@@ -524,98 +524,6 @@ XdpGenericReceiveLinearizeNb(
 }
 
 static
-UINT16
-XdpGenericRxChecksumNb(
-    _In_ const NET_BUFFER *NetBuffer,
-    _In_ UINT32 DataLength,
-    _In_ UINT32 DataOffset
-    )
-{
-    UINT32 Checksum = 0;
-    UINT32 MdlOffset;
-    UINT32 Offset;
-    MDL *Mdl;
-
-    //
-    // The first MDL must be checksummed from an offset.
-    //
-    Mdl = NetBuffer->CurrentMdl;
-    MdlOffset = NetBuffer->CurrentMdlOffset;
-
-    //
-    // Advance past any additional offset.
-    //
-    while (DataOffset > 0) {
-        UINT32 MdlBytes = Mdl->ByteCount - MdlOffset;
-        if (DataOffset < MdlBytes) {
-            MdlOffset += DataOffset;
-            DataOffset = 0;
-        } else {
-            Mdl = Mdl->Next;
-            MdlOffset = 0;
-            DataOffset -= MdlBytes;
-        }
-    }
-
-    Offset = 0;
-
-    ASSERT(DataLength <= NetBuffer->DataLength);
-    while (DataLength != 0) {
-        UCHAR *Buffer;
-        UINT32 BufferLength;
-        UINT16 BufferChecksum;
-
-        ASSERT(Mdl->MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL));
-        Buffer = Mdl->MappedSystemVa;
-
-        BufferLength = Mdl->ByteCount;
-        ASSERT(BufferLength >= MdlOffset);
-
-        Buffer += MdlOffset;
-        BufferLength -= MdlOffset;
-
-        //
-        // BufferLength might be bigger than we need, if there is "extra" data
-        // in the packet.
-        //
-        if (BufferLength > DataLength) {
-            BufferLength = DataLength;
-        }
-
-        BufferChecksum = XdpPartialChecksum(Buffer, BufferLength);
-        if ((Offset & 1) == 0) {
-            Checksum += BufferChecksum;
-        } else {
-            //
-            // We're at an odd offset into the logical buffer, so we need to
-            // swap the bytes that XdpPartialChecksum returns.
-            //
-            Checksum += (BufferChecksum >> 8) + ((BufferChecksum & 0xFF) << 8);
-        }
-
-        Offset += BufferLength;
-        DataLength -= BufferLength;
-        Mdl = Mdl->Next;
-        MdlOffset = 0;
-    }
-
-    //
-    // Wrap in the carries to reduce Checksum to 16 bits.
-    // (Twice is sufficient because it can only overflow once.)
-    //
-    Checksum = XdpChecksumFold(Checksum);
-
-    //
-    // Take ones-complement and replace 0 with 0xffff.
-    //
-    if (Checksum != 0xffff) {
-        Checksum = (UINT16)~Checksum;
-    }
-
-    return (UINT16)Checksum;
-}
-
-static
 VOID
 XdpGenericRxChecksumNbl(
     _Inout_ NET_BUFFER_LIST *Nbl
@@ -646,7 +554,7 @@ XdpGenericRxChecksumNbl(
         ASSERT(Csum->Transmit.TcpHeaderOffset > sizeof(ETHERNET_HEADER));
 
         Ipv4->HeaderChecksum =
-            XdpGenericRxChecksumNb(
+            XdpOffloadChecksumNb(
                 Nb, Csum->Transmit.TcpHeaderOffset - sizeof(ETHERNET_HEADER),
                 sizeof(ETHERNET_HEADER));
     }
@@ -657,7 +565,7 @@ XdpGenericRxChecksumNbl(
         ASSERT(Csum->Transmit.TcpHeaderOffset < Nb->DataLength);
 
         Tcp->th_sum =
-            XdpGenericRxChecksumNb(
+            XdpOffloadChecksumNb(
                 Nb, Nb->DataLength - Csum->Transmit.TcpHeaderOffset,
                 Csum->Transmit.TcpHeaderOffset);
     }

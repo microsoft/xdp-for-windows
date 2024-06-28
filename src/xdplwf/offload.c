@@ -322,8 +322,7 @@ XdpOffloadFreeStatusRequest(
     )
 {
     if (InspectRequest->StatusBuffer != NULL) {
-        #pragma warning(suppress:4090) // different 'const' qualifiers
-        ExFreePoolWithTag(InspectRequest->StatusBuffer, POOLTAG_OFFLOAD);
+        ExFreePoolWithTag(RTL_CONST_CAST(VOID *)(VOID *)InspectRequest->StatusBuffer, POOLTAG_OFFLOAD);
     }
 
     ExFreePoolWithTag(InspectRequest, POOLTAG_OFFLOAD);
@@ -381,9 +380,8 @@ XdpOffloadFilterStatus(
             goto Exit;
         }
 
-        #pragma warning(suppress:4090) // different 'const' qualifiers
         RtlCopyMemory(
-            InspectRequest->StatusBuffer, StatusIndication->StatusBuffer,
+            RTL_CONST_CAST(VOID *)InspectRequest->StatusBuffer, StatusIndication->StatusBuffer,
             StatusIndication->StatusBufferSize);
         InspectRequest->StatusBufferSize = StatusIndication->StatusBufferSize;
     }

@@ -7,6 +7,13 @@
 
 #include "offload.h"
 
+UINT16
+XdpOffloadChecksumNb(
+    _In_ const NET_BUFFER *NetBuffer,
+    _In_ UINT32 DataLength,
+    _In_ UINT32 DataOffset
+    );
+
 _Offload_work_routine_
 VOID
 XdpLwfOffloadTaskOffloadDeactivate(
