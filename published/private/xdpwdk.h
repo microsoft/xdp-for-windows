@@ -12,7 +12,7 @@
 
 #if NDIS_SUPPORT_NDIS630
 
-#if (!defined(NTDDI_WIN10_CO) || (WDK_NTDDI_VERSION < NTDDI_WIN10_CO))
+#if (!defined(NTDDI_WIN10_NI) || (WDK_NTDDI_VERSION < NTDDI_WIN10_NI))
 
 inline
 BOOLEAN
@@ -25,6 +25,6 @@ NET_BUFFER_LIST_IS_TCP_RSC_SET(
     return ((UINT_PTR)Info->Value & 0xFFFFFFFF) != 0;
 }
 
-#endif // (!defined(NTDDI_WIN10_CO) || (WDK_NTDDI_VERSION < NTDDI_WIN10_CO))
+#endif // (!defined(NTDDI_WIN10_NI) || (WDK_NTDDI_VERSION < NTDDI_WIN10_NI))
 
 #endif // NDIS_SUPPORT_NDIS630
