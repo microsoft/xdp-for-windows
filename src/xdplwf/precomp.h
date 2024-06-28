@@ -50,6 +50,7 @@
 #include <xdptimer.h>
 #include <xdptxqueue_internal.h>
 #include <xdptrace.h>
+#include <xdpwdk.h>
 #include <xdpworkqueue.h>
 
 #ifndef NDIS_RUNTIME_VERSION_688
