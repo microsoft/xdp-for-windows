@@ -106,6 +106,11 @@ GenericRxForwardGro(
     );
 
 VOID
+GenericRxFuzzForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 SecurityAdjustDeviceAcl();
 
 VOID

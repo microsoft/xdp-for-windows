@@ -1964,6 +1964,24 @@ MpSetMtu(
 
 static
 VOID
+MpSetMtuAndWaitForNdis(
+    _In_ const TestInterface &If,
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Mtu
+    )
+{
+    MpSetMtu(Handle, Mtu);
+
+    //
+    // Wait for the MTU changes to quiesce. If filter or protocol drivers
+    // incompatible with MTU changes are installed, this requires a complete
+    // detach/attach cycle of the entire interface stack.
+    //
+    WaitForNdisDatapath(If, MP_RESTART_TIMEOUT);
+}
+
+static
+VOID
 MpOidFilter(
     _In_ const unique_fnmp_handle &Handle,
     _In_ const OID_KEY *Keys,
@@ -2053,12 +2071,14 @@ VOID
 MpUpdateTaskOffload(
     _In_ const unique_fnmp_handle &Handle,
     _In_ FN_OFFLOAD_TYPE OffloadType,
-    _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters
+    _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
+    _In_opt_ FN_OFFLOAD_OPTIONS *OffloadOptions = NULL
     )
 {
     UINT32 Size = OffloadParameters != NULL ? sizeof(*OffloadParameters) : 0;
 
-    TEST_HRESULT(FnMpUpdateTaskOffload(Handle.get(), OffloadType, OffloadParameters, Size));
+    TEST_HRESULT(
+        FnMpUpdateTaskOffload2(Handle.get(), OffloadType, OffloadParameters, Size, OffloadOptions));
 }
 
 static
@@ -4105,6 +4125,53 @@ GenericRxValidateGroToGso(
 }
 
 static
+std::vector<DATA_BUFFER>
+GenericRxCreateSplitBuffers(
+    _In_ const UCHAR *FrameData,
+    _In_ UINT32 PacketLength,
+    _In_ UINT16 Backfill,
+    _In_ UINT16 Trailer,
+    _In_opt_count_(SplitCount) const UINT16 *SplitIndexes,
+    _In_ UINT16 SplitCount
+    )
+{
+    std::vector<DATA_BUFFER> Buffers;
+    UINT32 PacketBufferOffset = 0;
+    UINT32 TotalOffset = 0;
+
+    //
+    // Split up the frame into RX fragment buffers.
+    //
+    for (UINT16 Index = 0; Index < SplitCount; Index++) {
+        DATA_BUFFER Buffer = {0};
+
+        __analysis_assume(SplitIndexes != NULL);
+
+        Buffer.DataOffset = Index == 0 ? Backfill : 0;
+        Buffer.DataLength = SplitIndexes[Index] - PacketBufferOffset;
+        Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
+        Buffer.VirtualAddress = FrameData + TotalOffset;
+
+        PacketBufferOffset += Buffer.DataLength;
+        TotalOffset += Buffer.BufferLength;
+
+        Buffers.push_back(Buffer);
+    }
+
+    //
+    // Produce the final RX fragment buffer.
+    //
+    DATA_BUFFER Buffer = {0};
+    Buffer.DataOffset = Buffers.size() == 0 ? Backfill : 0;
+    Buffer.DataLength = PacketLength - PacketBufferOffset;
+    Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength + Trailer;
+    Buffer.VirtualAddress = FrameData + TotalOffset;
+    Buffers.push_back(Buffer);
+
+    return Buffers;
+}
+
+static
 VOID
 GenericRxFragmentBuffer(
     _In_ ADDRESS_FAMILY Af,
@@ -4114,8 +4181,6 @@ GenericRxFragmentBuffer(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 PacketBufferOffset = 0;
-    UINT32 TotalOffset = 0;
     MY_SOCKET Xsk;
     wil::unique_handle ProgramHandle;
     unique_fnmp_handle GenericMp;
@@ -4177,34 +4242,10 @@ GenericRxFragmentBuffer(
                 &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
     }
 
-    std::vector<DATA_BUFFER> Buffers;
-
-    //
-    // Split up the frame into RX fragment buffers.
-    //
-    for (UINT16 Index = 0; Index < Params->SplitCount; Index++) {
-        DATA_BUFFER Buffer = {0};
-
-        Buffer.DataOffset = Index == 0 ? Params->Backfill : 0;
-        Buffer.DataLength = Params->SplitIndexes[Index] - PacketBufferOffset;
-        Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
-        Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
-
-        PacketBufferOffset += Buffer.DataLength;
-        TotalOffset += Buffer.BufferLength;
-
-        Buffers.push_back(Buffer);
-    }
-
-    //
-    // Produce the final RX fragment buffer.
-    //
-    DATA_BUFFER Buffer = {0};
-    Buffer.DataOffset = Buffers.size() == 0 ? Params->Backfill : 0;
-    Buffer.DataLength = ActualPacketLength - PacketBufferOffset;
-    Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength + Params->Trailer;
-    Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
-    Buffers.push_back(Buffer);
+    std::vector<DATA_BUFFER> Buffers =
+        GenericRxCreateSplitBuffers(
+            &PacketBuffer[0], ActualPacketLength, Params->Backfill, Params->Trailer,
+            Params->SplitIndexes, Params->SplitCount);
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
@@ -4575,6 +4616,146 @@ GenericRxForwardGro(
         Params.LowResources = IsLowResources;
         GenericRxFragmentBuffer(Af, &Params);
     }}
+}
+
+VOID
+GenericRxFuzzForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    auto MtuScopeGuard = wil::scope_exit([&]
+    {
+        MpSetMtu(GenericMp, FNMP_DEFAULT_MTU);
+        //
+        // Wait for the MTU changes to quiesce, which may involve a complete NDIS
+        // rebind for filters and protocols.
+        //
+        Sleep(TEST_TIMEOUT_ASYNC_MS);
+        WaitForWfpQuarantine(If);
+    });
+    const UINT16 IfMtu = FNMP_MIN_MTU;
+    const UINT16 IfMss = IfMtu - TCP_HEADER_BACKFILL(Af);
+    const UINT16 MaxPayload = IfMss * 4ui16; // Allow up to 4 MSS segments to be RSC'd.
+
+    //
+    // Set the MTU to the smallest possible value to maximize fuzz efficiency.
+    //
+    MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_MIN_MTU);
+
+    //
+    // Forward all packets.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_L2FWD;
+    auto ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    std::srand((unsigned int)std::time(NULL));
+
+    for (UINT32 i = 0; i < 10000; i++) {
+        GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+        std::vector<UINT16> SplitIndexes;
+        UINT8 SplitCount = std::rand() % 8;
+        UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
+        UINT8 TcpOptionsLength = 0;
+
+        //
+        // Periodically advertise new NIC capabilities.
+        //
+        if ((i % 100) == 0) {
+            NDIS_OFFLOAD_PARAMETERS OffloadParams;
+            FN_OFFLOAD_OPTIONS OffloadOptions;
+
+            InitializeOffloadParameters(&OffloadParams);
+            FnMpInitializeOffloadOptions(&OffloadOptions);
+
+            if (std::rand() & 1) {
+                OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+                OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+            }
+
+            if (std::rand() & 1) {
+                OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            }
+
+            OffloadOptions.GsoMaxOffloadSize = (std::rand() % MaxPayload) + 1;
+
+            MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams, &OffloadOptions);
+        }
+
+        Params.Action = XDP_PROGRAM_ACTION_L2FWD;
+        Params.PayloadLength = std::rand() % MaxPayload;
+        Params.Backfill = std::rand() % 100;
+        Params.Trailer = std::rand() % 100;
+        Params.GroSegCount = (std::rand() % Params.PayloadLength) + 1;
+        Params.LowResources = std::rand() & 1;
+
+        std::vector<UCHAR> Payload(Params.PayloadLength);
+        std::generate(Payload.begin(), Payload.end(), []{ return (UCHAR)std::rand(); });
+
+        std::vector<UCHAR> PacketBuffer(
+            Params.Backfill +
+            TCP_HEADER_BACKFILL(Af) + sizeof(TcpOptions) + Params.PayloadLength + Params.Trailer);
+        UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params.Backfill - Params.Trailer;
+
+        TcpOptionsLength = (std::rand() % (sizeof(TcpOptions) + 1) / 4) * 4;
+        std::generate(&TcpOptions[0], &TcpOptions[TcpOptionsLength],
+            []{ return (UCHAR)std::rand(); });
+
+        ETHERNET_ADDRESS DummyEthernet = {0};
+        INET_ADDR DummyIp = {0};
+        UINT16 DummyPort = 0;
+        TEST_TRUE(
+            PktBuildTcpFrame(
+                &PacketBuffer[0] + Params.Backfill, &ActualPacketLength,
+                &Payload[0], (UINT16)Payload.size(),
+                TcpOptions, TcpOptionsLength, 0, 0, TH_ACK, 65535, &DummyEthernet,
+                &DummyEthernet, Af, &DummyIp, &DummyIp, DummyPort, DummyPort));
+
+        for (UINT32 j = 0; j < 100; j++) {
+            PacketBuffer[std::rand() % PacketBuffer.size()] = (UINT8)std::rand();
+        }
+
+        while (SplitCount-- > 0) {
+            UINT16 FrameSize = TCP_HEADER_BACKFILL(Af) + Params.PayloadLength;
+            //
+            // Generate a monotonic sequence of split indexes.
+            //
+            if (!SplitIndexes.empty()) {
+                SplitIndexes.push_back(
+                    (std::rand() % (FrameSize - SplitIndexes.back() - SplitCount + 1)) +
+                        SplitIndexes.back() + 1);
+            } else {
+                SplitIndexes.push_back(std::rand() % (FrameSize - SplitCount + 1));
+            }
+        }
+
+        if (!SplitIndexes.empty()) {
+            Params.SplitIndexes = &SplitIndexes[0];
+            Params.SplitCount = (UINT16)SplitIndexes.size();
+        }
+
+        std::vector<DATA_BUFFER> Buffers =
+            GenericRxCreateSplitBuffers(
+                &PacketBuffer[0], ActualPacketLength, Params.Backfill, Params.Trailer,
+                Params.SplitIndexes, Params.SplitCount);
+
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
+        Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params.GroSegCount;
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+
+        DATA_FLUSH_OPTIONS RxFlushOptions = {0};
+        RxFlushOptions.Flags.LowResources = Params.LowResources;
+        MpRxFlush(GenericMp, &RxFlushOptions);
+    }
 }
 
 static
@@ -6966,18 +7147,6 @@ OffloadRssReset()
     TEST_HRESULT(AsyncThread.get());
 }
 
-static
-VOID
-InitializeOffloadParams(
-    _Out_ NDIS_OFFLOAD_PARAMETERS *Params
-    )
-{
-    RtlZeroMemory(Params, sizeof(*Params));
-    Params->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-    Params->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_1;
-    Params->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1;
-}
-
 VOID
 OffloadSetHardwareCapabilities()
 {
@@ -7016,7 +7185,7 @@ OffloadSetHardwareCapabilities()
 
         OID_KEY OidKey;
         NDIS_OFFLOAD_PARAMETERS OffloadParams;
-        InitializeOffloadParams(&OffloadParams);
+        InitializeOffloadParameters(&OffloadParams);
         OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED;
         InitializeOidKey(&OidKey, Configs[i].Oid, NdisRequestSetInformation);
         UINT32 OidBufferSize = sizeof(OffloadParams);

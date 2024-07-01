@@ -10,7 +10,7 @@
 #define RECV_TX_INSPECT_BATCH_SIZE 64
 #define RECV_DEFAULT_MAX_TX_BUFFERS 1024
 #define RECV_MAX_MAX_TX_BUFFERS 65536
-#define RECV_MAX_GSO_HEADER_SIZE (sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + (0xF << 2))
+#define RECV_MAX_GSO_HEADER_SIZE (sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + TH_MAX_LEN)
 #define RECV_MAX_GSO_PAYLOAD_SIZE MAXUINT16
 
 //
@@ -1092,12 +1092,32 @@ XdpGenericRxConvertRscToLso(
         .LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE,
     };
 
+    //
+    // This routine converts an RSC NBL into one or more NBLs for forwarding.
+    //
+
     ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
     ASSERT(!RxQueue->Flags.TxInspect);
     ASSERT(NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl));
     ASSERT(Nb->Next == NULL);
     ASSERT(Mdl->MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL));
     ASSERT(NumSeg > 0);
+
+    //
+    // N.B. Windows software coalescing violates the RSC specification by
+    // coalescing segments that have not had their checksums validated. XDP
+    // ignores this contract violation for two reasons:
+    //
+    // 1. NICs used in XDP scenarios are expected to in fact validate checksums;
+    //    typically only consumer NICs lack this feature.
+    // 2. All production traffic should be encrypted, by L2 encapsulation or
+    //    TCP/TLS. Cryptographic checksums perform much stronger validation than
+    //    TCP checksum, so the weaker TCP checksum is practically redundant.
+    //
+    // This optimization implies RSC TCP segments forwarded by XDP will have
+    // correct checksums even if the original checksums were invalid,
+    // potentially introducing corruption.
+    //
 
     if (MdlDataLength < sizeof(*Ethernet)) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);

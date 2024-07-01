@@ -411,6 +411,14 @@ public:
         GenericRxForwardGro(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxFuzzForwardGroV4) {
+        GenericRxFuzzForwardGro(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxFuzzForwardGroV6) {
+        GenericRxFuzzForwardGro(AF_INET6);
+    }
+
     TEST_METHOD(SecurityAdjustDeviceAcl) {
         ::SecurityAdjustDeviceAcl();
     }
