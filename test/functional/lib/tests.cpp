@@ -3989,7 +3989,7 @@ typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
     _In_ UINT16 Backfill;
     _In_ UINT16 Trailer;
-    _In_ UINT16 *SplitIndexes;
+    _In_ UINT32 *SplitIndexes;
     _In_ UINT16 SplitCount;
     _In_ BOOLEAN IsUdp;
     _In_ BOOLEAN IsTxInspect;
@@ -4131,7 +4131,7 @@ GenericRxCreateSplitBuffers(
     _In_ UINT32 PacketLength,
     _In_ UINT16 Backfill,
     _In_ UINT16 Trailer,
-    _In_opt_count_(SplitCount) const UINT16 *SplitIndexes,
+    _In_opt_count_(SplitCount) const UINT32 *SplitIndexes,
     _In_ UINT16 SplitCount
     )
 {
@@ -4369,7 +4369,7 @@ GenericRxFragmentHeaderData(
     _In_ BOOLEAN IsUdp
     )
 {
-    UINT16 SplitIndexes[] = { IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) };
+    UINT32 SplitIndexes[] = { IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) };
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
     Params.Action = XDP_PROGRAM_ACTION_REDIRECT;
     Params.IsUdp = IsUdp;
@@ -4393,7 +4393,7 @@ GenericRxTooManyFragments(
     Params.PayloadLength = 512;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    std::vector<UINT16> SplitIndexes;
+    std::vector<UINT32> SplitIndexes;
     for (UINT16 Index = 0; Index < Params.PayloadLength - 1; Index++) {
         SplitIndexes.push_back(Index + 1);
     }
@@ -4417,7 +4417,7 @@ GenericRxHeaderMultipleFragments(
     Params.PayloadLength = 43;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    UINT16 SplitIndexes[5] = { 0 };
+    UINT32 SplitIndexes[5] = { 0 };
     SplitIndexes[0] = sizeof(ETHERNET_HEADER) / 2;
     SplitIndexes[1] = SplitIndexes[0] + sizeof(ETHERNET_HEADER);
     SplitIndexes[2] = SplitIndexes[1] + 1;
@@ -4455,7 +4455,7 @@ GenericRxHeaderFragments(
 
     GenericRxHeaderMultipleFragments(Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources);
 
-    for (UINT16 i = 1; i < HeadersLength; i++) {
+    for (UINT32 i = 1; i < HeadersLength; i++) {
         Params.SplitIndexes = &i;
         Params.SplitCount = 1;
         Params.IsTxInspect = IsTxInspect;
@@ -4591,7 +4591,7 @@ GenericRxForwardGro(
     Params.PayloadLength = 60000;
     Params.Backfill = 7;
     Params.Trailer = 23;
-    UINT16 SplitIndexes[] = {
+    UINT32 SplitIndexes[] = {
         0,
         sizeof(ETHERNET_HEADER) / 2,
         sizeof(ETHERNET_HEADER),
@@ -4657,7 +4657,7 @@ GenericRxFuzzForwardGro(
 
     for (UINT32 i = 0; i < 10000; i++) {
         GENERIC_RX_FRAGMENT_PARAMS Params = {0};
-        std::vector<UINT16> SplitIndexes;
+        std::vector<UINT32> SplitIndexes;
         UINT8 SplitCount = std::rand() % 8;
         UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
         UINT8 TcpOptionsLength = 0;
@@ -4694,15 +4694,15 @@ GenericRxFuzzForwardGro(
         Params.PayloadLength = std::rand() % MaxPayload;
         Params.Backfill = std::rand() % 100;
         Params.Trailer = std::rand() % 100;
-        Params.GroSegCount = (std::rand() % Params.PayloadLength) + 1;
+        Params.GroSegCount = (std::rand() % (Params.PayloadLength + 1)) + 1;
         Params.LowResources = std::rand() & 1;
 
         std::vector<UCHAR> Payload(Params.PayloadLength);
         std::generate(Payload.begin(), Payload.end(), []{ return (UCHAR)std::rand(); });
 
         std::vector<UCHAR> PacketBuffer(
-            Params.Backfill +
-            TCP_HEADER_BACKFILL(Af) + sizeof(TcpOptions) + Params.PayloadLength + Params.Trailer);
+            Params.Backfill + TCP_HEADER_BACKFILL(Af) + sizeof(TcpOptions) +
+                Params.PayloadLength + Params.Trailer);
         UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params.Backfill - Params.Trailer;
 
         TcpOptionsLength = (std::rand() % (sizeof(TcpOptions) + 1) / 4) * 4;
@@ -4715,7 +4715,7 @@ GenericRxFuzzForwardGro(
         TEST_TRUE(
             PktBuildTcpFrame(
                 &PacketBuffer[0] + Params.Backfill, &ActualPacketLength,
-                &Payload[0], (UINT16)Payload.size(),
+                Payload.empty() ? NULL : &Payload[0], (UINT16)Payload.size(),
                 TcpOptions, TcpOptionsLength, 0, 0, TH_ACK, 65535, &DummyEthernet,
                 &DummyEthernet, Af, &DummyIp, &DummyIp, DummyPort, DummyPort));
 
@@ -4724,16 +4724,15 @@ GenericRxFuzzForwardGro(
         }
 
         while (SplitCount-- > 0) {
-            UINT16 FrameSize = TCP_HEADER_BACKFILL(Af) + Params.PayloadLength;
             //
-            // Generate a monotonic sequence of split indexes.
+            // Generate a monotonic increasing sequence of split indexes.
             //
             if (!SplitIndexes.empty()) {
                 SplitIndexes.push_back(
-                    (std::rand() % (FrameSize - SplitIndexes.back() - SplitCount + 1)) +
+                    (std::rand() % (ActualPacketLength - SplitCount - SplitIndexes.back() - 1)) +
                         SplitIndexes.back() + 1);
             } else {
-                SplitIndexes.push_back(std::rand() % (FrameSize - SplitCount + 1));
+                SplitIndexes.push_back(std::rand() % (ActualPacketLength - SplitCount));
             }
         }
 

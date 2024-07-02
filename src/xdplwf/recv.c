@@ -102,7 +102,29 @@ XdpGenericRecvInjectReturnNbls(
                 NdisAppendSingleNblToNblQueue(&ReturnList, Nbl->ParentNetBufferList);
             }
         } else {
-            NdisAdvanceNetBufferListDataStart(Nbl, Nbl->FirstNetBuffer->DataLength, TRUE, NULL);
+            NET_BUFFER *Nb = Nbl->FirstNetBuffer;
+
+            ASSERT(Nb->Next == NULL);
+
+            //
+            // Restore the NBL to the state allocated by NDIS. Skip over
+            // ephemeral MDLs: only the final MDL in the chain was allocated by
+            // NDIS.
+            //
+            while (Nb->MdlChain->Next != NULL) {
+                UINT32 MdlOffset = min(Nb->DataOffset, Nb->MdlChain->ByteCount);
+                Nb->DataOffset -= MdlOffset;
+                Nb->DataLength -= Nb->MdlChain->ByteCount - MdlOffset;
+                Nb->CurrentMdl = Nb->MdlChain = Nb->MdlChain->Next;
+                Nb->CurrentMdlOffset = Nb->DataOffset;
+            }
+
+            ASSERT(Nb->MdlChain->Next == NULL);
+            ASSERT(Nb->CurrentMdl == Nb->MdlChain);
+            ASSERT(Nb->DataOffset + Nb->DataLength == Nb->MdlChain->ByteCount);
+            ASSERT(Nb->DataOffset == Nb->CurrentMdlOffset);
+
+            NdisAdvanceNetBufferDataStart(Nb, Nb->DataLength, TRUE, NULL);
         }
     }
 
@@ -729,6 +751,12 @@ XdpGenericRxCloneOrCopyTxNblData2(
         }
 
         //
+        // NDIS must allocate a single contiguous MDL for the data + backfill.
+        // See XdpGenericRecvInjectReturnNbls where we also rely on this.
+        //
+        ASSERT(TxNb->MdlChain->Next == NULL);
+
+        //
         // NBL data copy cannot fail because XDP has already mapped all MDLs
         // into the system virtual address space.
         //
@@ -764,7 +792,8 @@ static
 DECLSPEC_NOINLINE
 VOID
 XdpGenericRxInitializeGsoContext(
-    _Inout_ NBL_RX_TX_CONTEXT *NblContext
+    _Inout_ NBL_RX_TX_CONTEXT *NblContext,
+    _In_ UINT32 HeaderSize
     )
 {
     if (!NblContext->ValidFields.Gso) {
@@ -774,6 +803,9 @@ XdpGenericRxInitializeGsoContext(
         NblContext->ValidFields.Value = 0;
         NblContext->ValidFields.Gso = TRUE;
     }
+
+    ASSERT(HeaderSize <= sizeof(NblContext->Gso.Headers));
+    NblContext->Gso.HeaderMdl.ByteCount = HeaderSize;
 }
 
 static
@@ -868,8 +900,7 @@ XdpGenericRxSegmentRscToLso(
         //
         // Copy L2-L4 headers from the RSC packet into the clone.
         //
-        XdpGenericRxInitializeGsoContext(NblContext);
-        ASSERT(TcpTotalHdrLen <= sizeof(NblContext->Gso.Headers));
+        XdpGenericRxInitializeGsoContext(NblContext, TcpTotalHdrLen);
         RtlCopyMemory(NblContext->Gso.Headers, RscEthernet, TcpTotalHdrLen);
         TxTcp = RTL_PTR_ADD(NblContext->Gso.Headers, TcpOffset);
 
