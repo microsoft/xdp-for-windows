@@ -857,7 +857,10 @@ XdpGenericRxSegmentRscToLso(
     RscTcp->th_flags &= TH_ACK | TH_PSH | TH_ECE;
 
     if (TaskOffload != NULL) {
-        UINT32 CandidateMinOffloadSize = (TaskOffload->Lso.MinSegments - 1) * LsoMss + 1;
+        UINT32 CandidateMinOffloadSize;
+
+        ASSERT(TaskOffload->Lso.MinSegments >= 1);
+        CandidateMinOffloadSize = (TaskOffload->Lso.MinSegments - 1) * LsoMss + 1;
 
         //
         // Simplify the inner loop below by requiring the minimum offload size

@@ -4691,10 +4691,10 @@ GenericRxFuzzForwardGro(
         }
 
         Params.Action = XDP_PROGRAM_ACTION_L2FWD;
-        Params.PayloadLength = std::rand() % MaxPayload;
+        Params.PayloadLength = (std::rand() % MaxPayload) + 1;
         Params.Backfill = std::rand() % 100;
         Params.Trailer = std::rand() % 100;
-        Params.GroSegCount = (std::rand() % (Params.PayloadLength + 1)) + 1;
+        Params.GroSegCount = (std::rand() % Params.PayloadLength) + 1;
         Params.LowResources = std::rand() & 1;
 
         std::vector<UCHAR> Payload(Params.PayloadLength);

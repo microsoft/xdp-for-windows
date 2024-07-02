@@ -198,8 +198,12 @@ XdpOffloadUpdateTaskOffloadConfig(
             min(TaskOffload->LsoV2.IPv4.MaxOffLoadSize, TaskOffload->LsoV2.IPv6.MaxOffLoadSize);
         NewOffload->Lso.MinSegments =
             max(TaskOffload->LsoV2.IPv4.MinSegmentCount, TaskOffload->LsoV2.IPv6.MinSegmentCount);
-        NewOffload->Lso.MinSegments = max(1, NewOffload->Lso.MinSegments);
     }
+
+    //
+    // LSO code assumes a minimum of one segment.
+    //
+    NewOffload->Lso.MinSegments = max(1, NewOffload->Lso.MinSegments);
 
     OldOffload = Filter->Offload.LowerEdge.TaskOffload;
     Filter->Offload.LowerEdge.TaskOffload = NewOffload;
