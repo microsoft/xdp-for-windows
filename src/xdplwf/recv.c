@@ -848,7 +848,7 @@ XdpGenericRxSegmentRscToLso(
     ASSERT(NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl));
     ASSERT(Nb->Next == NULL);
     ASSERT(LsoMss > 0);
-    ASSERT(Nb->DataLength > TcpTotalHdrLen);
+    ASSERT(TcpTotalHdrLen <= Nb->DataLength);
 
     //
     // Clear all TCP flags that require special handling before they get copied
@@ -884,7 +884,16 @@ XdpGenericRxSegmentRscToLso(
         MdlOffset = 0;
     }
 
-    while (TcpUserDataLen > 0) {
+    //
+    // Generate a chain of NBLs for the original RSC frame, producing as many
+    // LSO frames as possible using the greedy algorithm (not globally optimal)
+    // followed by regular NBLs.
+    //
+    // N.B. We must always create at least one NBL, even for pure ACKs with no
+    // TCP payload.
+    //
+
+    do {
         UINT32 SegmentSize = TcpUserDataLen;
         UINT32 MssInSegment;
         NET_BUFFER *TxNb;
@@ -971,7 +980,7 @@ XdpGenericRxSegmentRscToLso(
             }
         }
 
-        ASSERT(SegmentSize > 0);
+        ASSERT(SegmentSize > 0 || (TcpUserDataLen == 0 && SegmentsCreated == 0));
         ASSERT(MssInSegment > 0);
 
         //
@@ -1073,7 +1082,7 @@ XdpGenericRxSegmentRscToLso(
         ASSERT(TcpUserDataLen >= SegmentSize);
         TcpUserDataLen -= SegmentSize;
 
-        do {
+        while (SegmentSize > 0) {
             if (SegmentSize >= Mdl->ByteCount - MdlOffset) {
                 SegmentSize -= Mdl->ByteCount - MdlOffset;
                 Mdl = Mdl->Next;
@@ -1082,8 +1091,8 @@ XdpGenericRxSegmentRscToLso(
                 MdlOffset += SegmentSize;
                 SegmentSize = 0;
             }
-        } while (SegmentSize > 0);
-    }
+        }
+    } while (TcpUserDataLen > 0);
 
 Exit:
 
@@ -1196,17 +1205,28 @@ XdpGenericRxConvertRscToLso(
     TcpHdrLen = Tcp->th_len << 2;
     TcpTotalHdrLen = TcpOffset + TcpHdrLen;
 
-    if (TcpHdrLen < sizeof(*Tcp) || MdlDataLength < TcpTotalHdrLen) {
+    if (TcpHdrLen < sizeof(*Tcp) || MdlDataLength < TcpTotalHdrLen ||
+        Nb->DataLength < TcpTotalHdrLen) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         goto Exit;
     }
 
-    ASSERT(Nb->DataLength > TcpTotalHdrLen);
+    ASSERT(Nb->DataLength >= TcpTotalHdrLen);
     TcpUserDataLen = Nb->DataLength - TcpTotalHdrLen;
 
+    //
+    // While RSC NICs are required to provide a valid number of segments in each
+    // coalesced NBL, the XDP program can rewrite headers and cause the TCP
+    // payload size to drop below the segment count, producing a contradiction.
+    //
+    if (TcpUserDataLen < NumSeg) {
+        STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
+        goto Exit;
+    }
+
+    RscMss = (TcpUserDataLen + NumSeg - 1) / NumSeg;
     ASSERT(RxQueue->Generic->Tx.Mtu > TcpTotalHdrLen);
     TxMss = RxQueue->Generic->Tx.Mtu - TcpTotalHdrLen;
-    RscMss = (TcpUserDataLen + NumSeg - 1) / NumSeg;
     LsoMss = min(TxMss, RscMss);
     ASSERT(LsoMss > 0);
 
@@ -1250,8 +1270,7 @@ XdpGenericRxConvertRscToLso(
         XdpGenericRxEnqueueTxNbl(RxQueue, TxList, Nbl, TxNbl);
     } else {
         //
-        // Slow and careful path: the RSC NBL needs to be segmented into two or
-        // more NBLs.
+        // Slow and careful path: the RSC NBL needs special handling.
         //
 
         XdpGenericRxSegmentRscToLso(

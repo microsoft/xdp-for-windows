@@ -4658,7 +4658,7 @@ GenericRxFuzzForwardGro(
     for (UINT32 i = 0; i < 10000; i++) {
         GENERIC_RX_FRAGMENT_PARAMS Params = {0};
         std::vector<UINT32> SplitIndexes;
-        UINT8 SplitCount = std::rand() % 8;
+        UINT8 SplitCount;
         UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
         UINT8 TcpOptionsLength = 0;
 
@@ -4691,10 +4691,10 @@ GenericRxFuzzForwardGro(
         }
 
         Params.Action = XDP_PROGRAM_ACTION_L2FWD;
-        Params.PayloadLength = (std::rand() % MaxPayload) + 1;
+        Params.PayloadLength = std::rand() % (MaxPayload + 1);
         Params.Backfill = std::rand() % 100;
         Params.Trailer = std::rand() % 100;
-        Params.GroSegCount = (std::rand() % Params.PayloadLength) + 1;
+        Params.GroSegCount = (std::rand() % (Params.PayloadLength + TCP_HEADER_BACKFILL(Af))) + 1;
         Params.LowResources = std::rand() & 1;
 
         std::vector<UCHAR> Payload(Params.PayloadLength);
@@ -4723,16 +4723,35 @@ GenericRxFuzzForwardGro(
             PacketBuffer[std::rand() % PacketBuffer.size()] = (UINT8)std::rand();
         }
 
+        if ((std::rand() % 10) == 0) {
+            ActualPacketLength = (std::rand() % ActualPacketLength) + 1;
+        }
+
+        //
+        // TODO: remove this workaround before check-in.
+        //
+        ETHERNET_HEADER *Ethernet = (ETHERNET_HEADER *)(&PacketBuffer[0]);
+        if (ntohs(Ethernet->Type) <= ETHERNET_TYPE_MINIMUM) {
+            Ethernet->Type = htons(ntohs(Ethernet->Type) + ETHERNET_TYPE_MINIMUM);
+        }
+
+        //
+        // Generate a monotonic increasing sequence of split indexes.
+        //
+        // The first split can be at index zero only if there is backfill.
+        // If there is no backfill, use index one as the minimum.
+        //
+        UINT8 BackfillOffset = (Params.Backfill > 0) ? 0 : 1;
+        SplitCount = (UINT8)std::min(std::rand() % 8ui32, ActualPacketLength - BackfillOffset);
         while (SplitCount-- > 0) {
-            //
-            // Generate a monotonic increasing sequence of split indexes.
-            //
             if (!SplitIndexes.empty()) {
                 SplitIndexes.push_back(
                     (std::rand() % (ActualPacketLength - SplitCount - SplitIndexes.back() - 1)) +
                         SplitIndexes.back() + 1);
             } else {
-                SplitIndexes.push_back(std::rand() % (ActualPacketLength - SplitCount));
+                SplitIndexes.push_back(
+                    (std::rand() % (ActualPacketLength - SplitCount - BackfillOffset)) +
+                        BackfillOffset);
             }
         }
 
@@ -4751,10 +4770,14 @@ GenericRxFuzzForwardGro(
         Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params.GroSegCount;
         TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
 
-        DATA_FLUSH_OPTIONS RxFlushOptions = {0};
-        RxFlushOptions.Flags.LowResources = Params.LowResources;
-        MpRxFlush(GenericMp, &RxFlushOptions);
+        if ((std::rand() % 4) == 0) {
+            DATA_FLUSH_OPTIONS RxFlushOptions = {0};
+            RxFlushOptions.Flags.LowResources = Params.LowResources;
+            MpRxFlush(GenericMp, &RxFlushOptions);
+        }
     }
+
+    MpRxFlush(GenericMp);
 }
 
 static
