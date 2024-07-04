@@ -1118,9 +1118,8 @@ XdpGenericRxConvertRscToLso(
     UINT8 IpAddressLength;
     const VOID *IpSrc;
     const VOID *IpDst;
-    UINT16 *IpTotalLength;
-    UINT16 Ipv6Checksum;
-    UINT16 *IpChecksum = &Ipv6Checksum;
+    UINT32 TruncatedBytes = 0;
+    UINT16 IpPayloadLength;
     UINT16 TcpOffset;
     UINT16 TcpHdrLen;
     UINT32 TcpTotalHdrLen;
@@ -1175,8 +1174,20 @@ XdpGenericRxConvertRscToLso(
         IpAddressLength = sizeof(Ipv4->SourceAddress);
         IpSrc = &Ipv4->SourceAddress;
         IpDst = &Ipv4->DestinationAddress;
-        IpTotalLength = &Ipv4->TotalLength;
-        IpChecksum = &Ipv4->HeaderChecksum;
+
+        if (MdlDataLength < TcpOffset + sizeof(*Tcp)) {
+            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
+            goto Exit;
+        }
+
+        IpPayloadLength = ntohs(Ipv4->TotalLength);
+        if (IpPayloadLength < sizeof(*Ipv4)) {
+            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
+            goto Exit;
+        }
+        IpPayloadLength -= sizeof(*Ipv4);
+        Ipv4->TotalLength = 0;
+        Ipv4->HeaderChecksum = 0;
         LsoInfo.LsoV2Transmit.IPVersion = NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4;
         break;
     }
@@ -1187,7 +1198,14 @@ XdpGenericRxConvertRscToLso(
         IpAddressLength = sizeof(Ipv6->SourceAddress);
         IpSrc = &Ipv6->SourceAddress;
         IpDst = &Ipv6->DestinationAddress;
-        IpTotalLength = &Ipv6->PayloadLength;
+
+        if (MdlDataLength < TcpOffset + sizeof(*Tcp)) {
+            STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
+            goto Exit;
+        }
+
+        IpPayloadLength = ntohs(Ipv6->PayloadLength);
+        Ipv6->PayloadLength = 0;
         LsoInfo.LsoV2Transmit.IPVersion = NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6;
         break;
     }
@@ -1196,10 +1214,19 @@ XdpGenericRxConvertRscToLso(
         goto Exit;
     }
 
-    if (MdlDataLength < TcpOffset + sizeof(*Tcp)) {
+    ASSERT(TcpOffset + sizeof(*Tcp) <= MdlDataLength);
+
+    //
+    // Truncate the frame based on the IP packet's total length field.
+    //
+    if (TcpOffset + (UINT32)IpPayloadLength > Nb->DataLength) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         goto Exit;
     }
+    ASSERT(Nb->DataLength >= TcpOffset + (UINT32)IpPayloadLength);
+    TruncatedBytes = Nb->DataLength - (TcpOffset + (UINT32)IpPayloadLength);
+    Nb->DataLength -= TruncatedBytes;
+    MdlDataLength = min(Mdl->ByteCount - DataOffset, Nb->DataLength);
 
     Tcp = RTL_PTR_ADD(Ethernet, TcpOffset);
     TcpHdrLen = Tcp->th_len << 2;
@@ -1232,12 +1259,6 @@ XdpGenericRxConvertRscToLso(
 
     LsoInfo.LsoV2Transmit.TcpHeaderOffset = TcpOffset;
     LsoInfo.LsoV2Transmit.MSS = LsoMss;
-
-    //
-    // Re-initialize IP and TCP header fields for TX.
-    //
-    *IpTotalLength = 0;
-    *IpChecksum = 0;
     Tcp->th_sum =
         XdpChecksumFold(
             XdpPartialChecksum(IpSrc, IpAddressLength) +
@@ -1278,6 +1299,8 @@ XdpGenericRxConvertRscToLso(
     }
 
 Exit:
+
+    Nb->DataLength += TruncatedBytes;
 
     return;
 }
