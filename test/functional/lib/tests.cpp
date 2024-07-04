@@ -4700,7 +4700,7 @@ GenericRxFuzzForwardGro(
             Params.DataTrailer = std::rand() % (MaxDataTrailer + 1);
         }
 
-        std::vector<UCHAR> Payload(Params.PayloadLength + Params.DataTrailer);
+        std::vector<UCHAR> Payload((UINT32)Params.PayloadLength + Params.DataTrailer);
         std::generate(Payload.begin(), Payload.end(), []{ return (UCHAR)std::rand(); });
 
         std::vector<UCHAR> PacketBuffer(
