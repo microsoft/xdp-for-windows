@@ -3987,7 +3987,9 @@ GenericRxUdpFragmentQuicLongHeader(
 
 typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
+    _In_ UINT8 TcpOptionsLength;
     _In_ UINT16 Backfill;
+    _In_ UINT16 DataTrailer;
     _In_ UINT16 Trailer;
     _In_ UINT32 *SplitIndexes;
     _In_ UINT16 SplitCount;
@@ -4630,9 +4632,8 @@ GenericRxFuzzForwardGro(
         MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_DEFAULT_MTU);
         WaitForWfpQuarantine(If);
     });
-    const UINT16 IfMtu = FNMP_MIN_MTU;
-    const UINT16 IfMss = IfMtu - TCP_HEADER_BACKFILL(Af);
-    const UINT16 MaxPayload = IfMss * 4ui16; // Allow up to 4 MSS segments to be RSC'd.
+    const UINT16 MaxPayload = (Af == AF_INET6) ? MAX_IPV6_PAYLOAD : MAX_IPV4_PAYLOAD;
+    const UINT16 MaxDataTrailer = 100;
 
     //
     // Set the MTU to the smallest possible value to maximize fuzz efficiency.
@@ -4657,7 +4658,6 @@ GenericRxFuzzForwardGro(
         std::vector<UINT32> SplitIndexes;
         UINT8 SplitCount;
         UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
-        UINT8 TcpOptionsLength = 0;
 
         //
         // Periodically advertise new NIC capabilities.
@@ -4688,23 +4688,29 @@ GenericRxFuzzForwardGro(
         }
 
         Params.Action = XDP_PROGRAM_ACTION_L2FWD;
-        Params.PayloadLength = std::rand() % (MaxPayload + 1);
+        Params.TcpOptionsLength = (std::rand() % (sizeof(TcpOptions) + 1) / 4) * 4;
+        Params.PayloadLength =
+            (UINT16)(std::rand() % (MaxPayload - sizeof(TCP_HDR) - Params.TcpOptionsLength + 1));
         Params.Backfill = std::rand() % 100;
         Params.Trailer = std::rand() % 100;
         Params.GroSegCount = (std::rand() % (Params.PayloadLength + TCP_HEADER_BACKFILL(Af))) + 1;
         Params.LowResources = std::rand() & 1;
 
-        std::vector<UCHAR> Payload(Params.PayloadLength);
+        if ((std::rand() % 4 == 0)) {
+            Params.DataTrailer = std::rand() % (MaxDataTrailer + 1);
+        }
+
+        std::vector<UCHAR> Payload(Params.PayloadLength + Params.DataTrailer);
         std::generate(Payload.begin(), Payload.end(), []{ return (UCHAR)std::rand(); });
 
         std::vector<UCHAR> PacketBuffer(
             Params.Backfill + TCP_HEADER_BACKFILL(Af) + sizeof(TcpOptions) +
-                Params.PayloadLength + Params.Trailer);
-        UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params.Backfill - Params.Trailer;
+                Payload.size() + Params.Trailer);
+        UINT32 ActualPacketLength =
+            (UINT32)PacketBuffer.size() - Params.Backfill - Params.Trailer - Params.DataTrailer;
 
-        TcpOptionsLength = (std::rand() % (sizeof(TcpOptions) + 1) / 4) * 4;
-        std::generate(&TcpOptions[0], &TcpOptions[TcpOptionsLength],
-            []{ return (UCHAR)std::rand(); });
+        std::generate(
+            &TcpOptions[0], &TcpOptions[Params.TcpOptionsLength], []{ return (UCHAR)std::rand(); });
 
         ETHERNET_ADDRESS DummyEthernet = {0};
         INET_ADDR DummyIp = {0};
@@ -4712,12 +4718,18 @@ GenericRxFuzzForwardGro(
         TEST_TRUE(
             PktBuildTcpFrame(
                 &PacketBuffer[0] + Params.Backfill, &ActualPacketLength,
-                Payload.empty() ? NULL : &Payload[0], (UINT16)Payload.size(),
-                TcpOptions, TcpOptionsLength, 0, 0, TH_ACK, 65535, &DummyEthernet,
+                Payload.empty() ? NULL : &Payload[0], Params.PayloadLength,
+                TcpOptions, Params.TcpOptionsLength, 0, 0, TH_ACK, 65535, &DummyEthernet,
                 &DummyEthernet, Af, &DummyIp, &DummyIp, DummyPort, DummyPort));
 
+        ActualPacketLength += Params.DataTrailer;
+
+        //
+        // Fuzz the headers and the first few bytes of payload.
+        //
         for (UINT32 j = 0; j < 100; j++) {
-            PacketBuffer[std::rand() % PacketBuffer.size()] = (UINT8)std::rand();
+            PacketBuffer[std::rand() % std::min(100ui64, PacketBuffer.size() + 1)] =
+                (UINT8)std::rand();
         }
 
         if ((std::rand() % 10) == 0) {
