@@ -4627,12 +4627,7 @@ GenericRxFuzzForwardGro(
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     auto MtuScopeGuard = wil::scope_exit([&]
     {
-        MpSetMtu(GenericMp, FNMP_DEFAULT_MTU);
-        //
-        // Wait for the MTU changes to quiesce, which may involve a complete NDIS
-        // rebind for filters and protocols.
-        //
-        Sleep(TEST_TIMEOUT_ASYNC_MS);
+        MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_DEFAULT_MTU);
         WaitForWfpQuarantine(If);
     });
     const UINT16 IfMtu = FNMP_MIN_MTU;
@@ -4653,7 +4648,9 @@ GenericRxFuzzForwardGro(
     auto ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    std::srand((unsigned int)std::time(NULL));
+    UINT Seed = (UINT)std::time(NULL);
+    TraceVerbose("Seeding %u", Seed);
+    std::srand(Seed);
 
     for (UINT32 i = 0; i < 10000; i++) {
         GENERIC_RX_FRAGMENT_PARAMS Params = {0};
