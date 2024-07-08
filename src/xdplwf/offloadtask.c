@@ -205,12 +205,17 @@ XdpOffloadUpdateTaskOffloadConfig(
     //
     NewOffload->Lso.MinSegments = max(1, NewOffload->Lso.MinSegments);
 
+    TraceInfo(
+        TRACE_LWF,
+        "Filter=%p updated task offload. "
+        "Checksum.Enabled=%!BOOLEAN! Lso.MaxOffloadSize=%u Lso.MinSegments=%u",
+        Filter, NewOffload->Checksum.Enabled, NewOffload->Lso.MaxOffloadSize,
+        NewOffload->Lso.MinSegments);
+
     OldOffload = Filter->Offload.LowerEdge.TaskOffload;
     Filter->Offload.LowerEdge.TaskOffload = NewOffload;
     NewOffload = NULL;
     Status = STATUS_SUCCESS;
-
-    TraceInfo(TRACE_LWF, "Filter=%p updated task offload setting", Filter);
 
 Exit:
 
