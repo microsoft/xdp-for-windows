@@ -3987,17 +3987,20 @@ GenericRxUdpFragmentQuicLongHeader(
 
 typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
+    _In_opt_ UINT8 *TcpOptions;
     _In_ UINT8 TcpOptionsLength;
     _In_ UINT16 Backfill;
     _In_ UINT16 DataTrailer;
     _In_ UINT16 Trailer;
-    _In_ UINT32 *SplitIndexes;
+    _In_opt_ const UINT32 *SplitIndexes;
     _In_ UINT16 SplitCount;
     _In_ BOOLEAN IsUdp;
     _In_ BOOLEAN IsTxInspect;
     _In_ BOOLEAN LowResources;
     _In_ UINT16 GroSegCount;
     _In_ XDP_RULE_ACTION Action;
+    _In_opt_ const NDIS_OFFLOAD_PARAMETERS *OffloadParams;
+    _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions;
 } GENERIC_RX_FRAGMENT_PARAMS;
 
 static
@@ -4011,7 +4014,7 @@ GenericRxValidateGroToGso(
     _In_ DATA_FLUSH_OPTIONS &RxFlushOptions
     )
 {
-    UINT32 TcpHdrSize = sizeof(TCP_HDR); // TODO: No TCP options tested.
+    UINT32 TcpHdrSize = sizeof(TCP_HDR) + Params->TcpOptionsLength;
     UINT32 TotalTcpHdrSize = TCP_HEADER_BACKFILL(Af) - sizeof(TCP_HDR) + TcpHdrSize;
     std::vector<UCHAR> Filter(TotalTcpHdrSize);
     std::vector<UCHAR> Mask(Filter.size(), 0xFF);
@@ -4030,6 +4033,13 @@ GenericRxValidateGroToGso(
     TEST_FALSE(Params->IsTxInspect);
     TEST_FALSE(Params->IsUdp);
 
+    //
+    // TODO: test more LSO/CSUM states.
+    //
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+    MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
     memcpy(&Filter[0], GroPacketBuffer, Filter.size());
 
     //
@@ -4046,14 +4056,6 @@ GenericRxValidateGroToGso(
         IPV6_HEADER *Ipv6 = (IPV6_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
         Ipv6->PayloadLength = 0;
     }
-
-    //
-    // TODO: test more LSO/CSUM states.
-    //
-    InitializeOffloadParameters(&OffloadParams);
-    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
-    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
-    MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
 
     //
     // Filter all traffic matching the TCP port tuple.
@@ -4093,7 +4095,16 @@ GenericRxValidateGroToGso(
     }
 
     //
-    // TODO: ensure frame sizes are maximized, respect MSS, etc.
+    // TODO: ensure frame sizes are maximized
+    // Respect RSC and TX MSS.
+    // sequence numbers
+    // flags (TH_CWR, TH_PSH)
+    // pure ACK
+    // checksum offload
+    // no offload
+    // IPv4 ID
+    // runt frames (IP len < frame len)
+
     // TODO: verify each of the fields zero'd out in the mask above.
     // TODO: verify LSO OOB info properly.
     //
@@ -4226,7 +4237,8 @@ GenericRxFragmentBuffer(
 
     std::vector<UCHAR> PacketBuffer(
         Params->Backfill +
-        (Params->IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af)) +
+        (Params->IsUdp ?
+            UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) + Params->TcpOptionsLength) +
         Params->PayloadLength + Params->Trailer);
     UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params->Backfill - Params->Trailer;
     if (Params->IsUdp) {
@@ -4240,7 +4252,7 @@ GenericRxFragmentBuffer(
             PktBuildTcpFrame(
                 &PacketBuffer[0] + Params->Backfill, &ActualPacketLength,
                 &Payload[0], (UINT16)Payload.size(),
-                NULL, 0, 0, 0, TH_SYN, 65535, &LocalHw,
+                Params->TcpOptions, Params->TcpOptionsLength, 0, 0, TH_SYN, 65535, &LocalHw,
                 &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
     }
 
