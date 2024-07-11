@@ -103,27 +103,7 @@ XdpGenericRecvInjectReturnNbls(
             }
         } else {
             NET_BUFFER *Nb = Nbl->FirstNetBuffer;
-
             ASSERT(Nb->Next == NULL);
-
-            //
-            // Restore the NBL to the state allocated by NDIS. Skip over
-            // ephemeral MDLs: only the final MDL in the chain was allocated by
-            // NDIS.
-            //
-            while (Nb->MdlChain->Next != NULL) {
-                UINT32 MdlOffset = min(Nb->DataOffset, Nb->MdlChain->ByteCount);
-                Nb->DataOffset -= MdlOffset;
-                Nb->DataLength -= Nb->MdlChain->ByteCount - MdlOffset;
-                Nb->CurrentMdl = Nb->MdlChain = Nb->MdlChain->Next;
-                Nb->CurrentMdlOffset = Nb->DataOffset;
-            }
-
-            ASSERT(Nb->MdlChain->Next == NULL);
-            ASSERT(Nb->CurrentMdl == Nb->MdlChain);
-            ASSERT(Nb->DataOffset + Nb->DataLength == Nb->MdlChain->ByteCount);
-            ASSERT(Nb->DataOffset == Nb->CurrentMdlOffset);
-
             NdisAdvanceNetBufferDataStart(Nb, Nb->DataLength, TRUE, NULL);
         }
     }
@@ -751,12 +731,6 @@ XdpGenericRxCloneOrCopyTxNblData2(
         }
 
         //
-        // NDIS must allocate a single contiguous MDL for the data + backfill.
-        // See XdpGenericRecvInjectReturnNbls where we also rely on this.
-        //
-        ASSERT(TxNb->MdlChain->Next == NULL);
-
-        //
         // NBL data copy cannot fail because XDP has already mapped all MDLs
         // into the system virtual address space.
         //
@@ -851,10 +825,10 @@ XdpGenericRxSegmentRscToLso(
     ASSERT(TcpTotalHdrLen <= Nb->DataLength);
 
     //
-    // Clear all TCP flags that require special handling before they get copied
+    // Clear any TCP flags that require special handling before they get copied
     // into each segment.
     //
-    RscTcp->th_flags &= TH_ACK | TH_PSH | TH_ECE;
+    RscTcp->th_flags &= ~(TH_PSH);
 
     if (TaskOffload != NULL) {
         UINT32 CandidateMinOffloadSize;
@@ -989,13 +963,6 @@ XdpGenericRxSegmentRscToLso(
 
         TxTcp->th_seq = htonl(SeqNum);
 
-        if (SegmentsCreated == 0) {
-            //
-            // This is the first segment.
-            //
-            TxTcp->th_flags |= (RscThFlags & TH_CWR);
-        }
-
         if (SegmentSize == TcpUserDataLen) {
             //
             // This is the final segment.
@@ -1050,23 +1017,20 @@ XdpGenericRxSegmentRscToLso(
         }
 
         //
-        // Clone or copy the TCP segment data into the clone NBL.
+        // Link the headers in ahead of the TCP data payload.
+        //
+        NblContext->Gso.HeaderMdl.Next = TxNb->CurrentMdl;
+        TxNb->CurrentMdl = &NblContext->Gso.HeaderMdl;
+
+        //
+        // Clone or copy the TCP data into the clone NBL.
         //
         if (!XdpGenericRxCloneOrCopyTxNblData2(
-                RxQueue, Nbl, SegmentSize, 0, TxNb->CurrentMdl, 0, CanPend, TxNbl)) {
+                RxQueue, Nbl, TcpTotalHdrLen + SegmentSize, 0, TxNb->CurrentMdl, 0,
+                CanPend, TxNbl)) {
             XdpGenericRxReturnTxCloneNbl(RxQueue, TxNbl);
             goto Exit;
         }
-
-        //
-        // Link the headers in ahead of the TCP data payload.
-        //
-        ASSERT(TxNb->DataOffset == 0);
-        ASSERT(TxNb->CurrentMdlOffset == 0);
-        NblContext->Gso.HeaderMdl.Next = TxNb->MdlChain;
-        TxNb->MdlChain = &NblContext->Gso.HeaderMdl;
-        TxNb->CurrentMdl = TxNb->MdlChain;
-        TxNb->DataLength += TcpTotalHdrLen;
 
         if (NeedChecksum) {
             XdpGenericRxChecksumNbl(TxNbl);
@@ -1124,11 +1088,12 @@ XdpGenericRxConvertRscToLso(
     UINT16 TcpHdrLen;
     UINT32 TcpTotalHdrLen;
     UINT32 TcpUserDataLen;
+    UINT32 TcpUserDataLenOrPureAck;
+    UINT32 RscMss;
+    UINT32 TxMss;
     TCP_HDR *Tcp;
     const XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *TaskOffload;
     UINT16 NumSeg = NET_BUFFER_LIST_COALESCED_SEG_COUNT(Nbl);
-    UINT32 TxMss;
-    UINT32 RscMss;
     UINT32 LsoMss;
     NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO LsoInfo = {
         .LsoV2Transmit.Type = NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE,
@@ -1242,19 +1207,30 @@ XdpGenericRxConvertRscToLso(
     TcpUserDataLen = Nb->DataLength - TcpTotalHdrLen;
 
     //
+    // Pure ACKs are also valid RSC frames. To handle pure ACKs along with
+    // regular segments while performing the MSS arithmetic, pad the user data
+    // length to one for pure ACKs.
+    //
+    TcpUserDataLenOrPureAck = TcpUserDataLen | !TcpUserDataLen;
+    ASSERT(
+        (TcpUserDataLen == 0 && (TcpUserDataLenOrPureAck == 1)) ||
+        (TcpUserDataLen == TcpUserDataLenOrPureAck));
+
+    //
     // While RSC NICs are required to provide a valid number of segments in each
     // coalesced NBL, the XDP program can rewrite headers and cause the TCP
     // payload size to drop below the segment count, producing a contradiction.
     //
-    if (TcpUserDataLen < NumSeg) {
+    if (TcpUserDataLenOrPureAck < NumSeg) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         goto Exit;
     }
 
-    RscMss = (TcpUserDataLen + NumSeg - 1) / NumSeg;
+    RscMss = (TcpUserDataLenOrPureAck + NumSeg - 1) / NumSeg;
     ASSERT(RxQueue->Generic->Tx.Mtu > TcpTotalHdrLen);
     TxMss = RxQueue->Generic->Tx.Mtu - TcpTotalHdrLen;
     LsoMss = min(TxMss, RscMss);
+
     ASSERT(LsoMss > 0);
 
     LsoInfo.LsoV2Transmit.TcpHeaderOffset = TcpOffset;

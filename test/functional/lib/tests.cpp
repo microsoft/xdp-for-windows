@@ -125,6 +125,8 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
 C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
 
+class TestInterface;
+
 static
 VOID
 MpTxFilterReset(
@@ -143,6 +145,12 @@ LwfRxFilterReset(
     TEST_HRESULT(FnLwfRxFilter(Handle, NULL, NULL, 0));
 }
 
+static
+VOID
+MpTaskOffloadReset(
+    _In_ const FNMP_HANDLE Handle
+    );
+
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
@@ -152,6 +160,15 @@ using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose)
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
 using unique_fnlwf_filter_handle = wil::unique_any<FNLWF_HANDLE, decltype(::LwfRxFilterReset), ::LwfRxFilterReset>;
 using unique_fnsock = wil::unique_any<FNSOCK_HANDLE, decltype(::FnSockClose), ::FnSockClose>;
+using unique_fnmp_task_offload_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTaskOffloadReset), ::MpTaskOffloadReset>;
+
+static
+VOID
+MpResetMtu(
+    _In_ const TestInterface *If
+    );
+
+using unique_fnmp_mtu_handle = wil::unique_any<const TestInterface *, decltype(::MpResetMtu), ::MpResetMtu>;
 
 static unique_xdp_api XdpApi;
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
@@ -201,8 +218,6 @@ static RTL_OSVERSIONINFOW OsVersionInfo;
 //
 // Helper functions.
 //
-
-class TestInterface;
 
 static
 VOID
@@ -592,6 +607,12 @@ public:
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
 static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
+
+static
+VOID
+WaitForWfpQuarantine(
+    _In_ const TestInterface &If
+    );
 
 static
 HRESULT
@@ -1952,25 +1973,29 @@ MpGetLastMiniportPauseTimestamp(
     return Timestamp;
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_mtu_handle
 MpSetMtu(
+    _In_ const TestInterface &If,
     _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Mtu
     )
 {
     TEST_HRESULT(FnMpSetMtu(Handle.get(), Mtu));
+    return unique_fnmp_mtu_handle(&If);
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_mtu_handle
 MpSetMtuAndWaitForNdis(
     _In_ const TestInterface &If,
     _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Mtu
     )
 {
-    MpSetMtu(Handle, Mtu);
+    unique_fnmp_mtu_handle MtuHandle = MpSetMtu(If, Handle, Mtu);
 
     //
     // Wait for the MTU changes to quiesce. If filter or protocol drivers
@@ -1978,6 +2003,18 @@ MpSetMtuAndWaitForNdis(
     // detach/attach cycle of the entire interface stack.
     //
     WaitForNdisDatapath(If, MP_RESTART_TIMEOUT);
+
+    return MtuHandle;
+}
+
+static
+VOID
+MpResetMtu(
+    _In_ const TestInterface *If
+    )
+{
+    MpSetMtuAndWaitForNdis(*If, MpOpenGeneric(If->GetIfIndex()), FNMP_DEFAULT_MTU).release();
+    WaitForWfpQuarantine(*If);
 }
 
 static
@@ -2066,26 +2103,48 @@ InitializeOffloadParameters(
     OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_task_offload_handle
 MpUpdateTaskOffload(
     _In_ const unique_fnmp_handle &Handle,
     _In_ FN_OFFLOAD_TYPE OffloadType,
     _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
-    _In_opt_ FN_OFFLOAD_OPTIONS *OffloadOptions = NULL
+    _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions = NULL
     )
 {
     UINT32 Size = OffloadParameters != NULL ? sizeof(*OffloadParameters) : 0;
 
     TEST_HRESULT(
-        FnMpUpdateTaskOffload2(Handle.get(), OffloadType, OffloadParameters, Size, OffloadOptions));
+        FnMpUpdateTaskOffload2(
+            Handle.get(), OffloadType, OffloadParameters, Size,
+            const_cast<FN_OFFLOAD_OPTIONS *>(OffloadOptions)));
+
+    return unique_fnmp_task_offload_handle(Handle.get());
 }
 
 static
 VOID
-WaitForWfpQuarantine(
-    _In_ const TestInterface &If
-    );
+MpTaskOffloadReset(
+    _In_ const FNMP_HANDLE Handle
+    )
+{
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+    OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+
+    TEST_HRESULT(FnMpUpdateTaskOffload(
+        Handle, FnOffloadHardwareCapabilities, &OffloadParams, sizeof(OffloadParams)));
+    TEST_HRESULT(FnMpUpdateTaskOffload(
+        Handle, FnOffloadCurrentConfig, &OffloadParams, sizeof(OffloadParams)));
+}
 
 static
 unique_fnsock
@@ -3989,6 +4048,7 @@ typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
     _In_opt_ UINT8 *TcpOptions;
     _In_ UINT8 TcpOptionsLength;
+    _In_opt_ UINT8 TcpFlags;
     _In_ UINT16 Backfill;
     _In_ UINT16 DataTrailer;
     _In_ UINT16 Trailer;
@@ -3998,10 +4058,22 @@ typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ BOOLEAN IsTxInspect;
     _In_ BOOLEAN LowResources;
     _In_ UINT16 GroSegCount;
+    _In_opt_ UINT32 IfMtu;
     _In_ XDP_RULE_ACTION Action;
     _In_opt_ const NDIS_OFFLOAD_PARAMETERS *OffloadParams;
     _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions;
 } GENERIC_RX_FRAGMENT_PARAMS;
+
+static
+BOOLEAN
+NdisOffloadTxEnabled(
+    _In_ UINT8 OffloadValue
+    )
+{
+    return
+        OffloadValue == NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED ||
+        OffloadValue == NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+}
 
 static
 VOID
@@ -4014,17 +4086,31 @@ GenericRxValidateGroToGso(
     _In_ DATA_FLUSH_OPTIONS &RxFlushOptions
     )
 {
-    UINT32 TcpHdrSize = sizeof(TCP_HDR) + Params->TcpOptionsLength;
-    UINT32 TotalTcpHdrSize = TCP_HEADER_BACKFILL(Af) - sizeof(TCP_HDR) + TcpHdrSize;
+    const UINT8 TcpHdrSize = sizeof(TCP_HDR) + Params->TcpOptionsLength;
+    const UINT8 TcpHdrOffset = TCP_HEADER_BACKFILL(Af) - sizeof(TCP_HDR);
+    const TCP_HDR *const RscTcp = (const TCP_HDR *)&GroPacketBuffer[TcpHdrOffset];
+    const UINT32 TotalTcpHdrSize = TcpHdrOffset + TcpHdrSize;
+    const UINT32 IfMtu = Params->IfMtu > 0 ? Params->IfMtu : FNMP_DEFAULT_MTU;
+    const UINT16 IfMss = (UINT16)(IfMtu - TotalTcpHdrSize);
+    const UINT16 TxMss =
+        std::min(
+            IfMss,
+            (UINT16)((Params->PayloadLength + Params->GroSegCount - 1) / Params->GroSegCount));
+    //
+    // The following two default properties are hard-coded in FNMP and not
+    // defined in API headers.
+    //
+    const UINT16 LsoMinSegmentCount = 1;
+    const UINT32 LsoMaxOffloadSize =
+        Params->OffloadOptions != NULL ? Params->OffloadOptions->GsoMaxOffloadSize : 0x20000;
+    const UINT32 LsoMinOffloadSize = LsoMinSegmentCount * TxMss + 1;
     std::vector<UCHAR> Filter(TotalTcpHdrSize);
     std::vector<UCHAR> Mask(Filter.size(), 0xFF);
     std::vector<UCHAR> FinalPayload;
-    unique_malloc_ptr<DATA_FRAME> TxFrame;
-    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+    UINT16 TotalSegmentCount = 0;
 
     TEST_NOT_EQUAL(0, Params->GroSegCount);
     TEST_EQUAL(XDP_PROGRAM_ACTION_L2FWD, Params->Action);
-    TEST_TRUE(GroPacketLength > Filter.size());
 
     //
     // GSO to GRO for TxInspect is not implemented yet.
@@ -4033,17 +4119,11 @@ GenericRxValidateGroToGso(
     TEST_FALSE(Params->IsTxInspect);
     TEST_FALSE(Params->IsUdp);
 
-    //
-    // TODO: test more LSO/CSUM states.
-    //
-    InitializeOffloadParameters(&OffloadParams);
-    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
-    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
-    MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+    TEST_TRUE(GroPacketLength >= Filter.size());
     memcpy(&Filter[0], GroPacketBuffer, Filter.size());
 
     //
-    // Clear variable IP fields in the mask. These will be validated in the final
+    // Clear variable fields in the mask. These will be validated in the final
     // GSO'd frames.
     //
 
@@ -4057,13 +4137,10 @@ GenericRxValidateGroToGso(
         Ipv6->PayloadLength = 0;
     }
 
-    //
-    // Filter all traffic matching the TCP port tuple.
-    //
-    TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TotalTcpHdrSize - sizeof(*TcpMask)];
-    RtlZeroMemory(TcpMask, sizeof(*TcpMask));
-    TcpMask->th_dport = UINT16_MAX;
-    TcpMask->th_sport = UINT16_MAX;
+    TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TcpHdrOffset];
+    TcpMask->th_seq = 0;
+    TcpMask->th_sum = 0;
+    TcpMask->th_flags = (UINT8)~(TH_PSH);
 
     auto MpFilter = MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
     MpRxFlush(GenericMp, &RxFlushOptions);
@@ -4076,65 +4153,188 @@ GenericRxValidateGroToGso(
         return;
     }
 
-    TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
-
     //
-    // TODO: validate multiple GSO/csum offloaded frames in a loop.
-    //
-
-    std::vector<UCHAR> FramePayload;
-
-    //
-    // Verify the entire packet (and nothing more) was forwarded. The TX
-    // filter verifies the bytes match up to the length of the filter.
-    //
-    for (UINT32 i = 0; i < TxFrame->BufferCount; i++) {
-        DATA_BUFFER *Buffer = &TxFrame->Buffers[i];
-        const UCHAR *PayloadStart = Buffer->VirtualAddress + Buffer->DataOffset;
-        FramePayload.insert(FramePayload.end(), PayloadStart, PayloadStart + Buffer->DataLength);
-    }
-
-    //
-    // TODO: ensure frame sizes are maximized
-    // Respect RSC and TX MSS.
-    // sequence numbers
-    // flags (TH_CWR, TH_PSH)
-    // pure ACK
-    // checksum offload
-    // no offload
-    // IPv4 ID
-    // runt frames (IP len < frame len)
-
-    // TODO: verify each of the fields zero'd out in the mask above.
-    // TODO: verify LSO OOB info properly.
+    // Validate multiple GSO/csum offloaded frames. Require at least one frame,
+    // even if there is no payload remaining, to handle the case of pure ACKs.
     //
 
-    TEST_TRUE(TxFrame->Output.Lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE);
+    do {
+        const UINT16 PayloadRemaining = Params->PayloadLength - (UINT16)FinalPayload.size();
+        std::vector<UCHAR> FrameData;
 
-    TEST_TRUE(FramePayload.size() > TotalTcpHdrSize);
-    FinalPayload.insert(
-        FinalPayload.end(), FramePayload.begin() + TotalTcpHdrSize, FramePayload.end());
+        auto TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+        MpTxDequeueFrame(GenericMp, 0);
 
-    //
-    // Non-low-resources NBLs should be forwarded without a data copy. We
-    // infer this is true by the TX NBL having the same MDL layout as the
-    // original NBL.
-    //
-    if (!Params->LowResources) {
-        TEST_EQUAL(Params->SplitCount + 1, TxFrame->BufferCount);
-    }
+        //
+        // Verify the entire packet (and nothing more) was forwarded. The TX
+        // filter verifies the bytes match up to the length of the filter.
+        //
+        for (UINT32 i = 0; i < TxFrame->BufferCount; i++) {
+            DATA_BUFFER *Buffer = &TxFrame->Buffers[i];
+            const UCHAR *PayloadStart = Buffer->VirtualAddress + Buffer->DataOffset;
+            FrameData.insert(
+                FrameData.end(), PayloadStart, PayloadStart + Buffer->DataLength);
+        }
 
-    //
-    // XDP should preserve the available backfill.
-    //
-    TEST_EQUAL(Params->Backfill, TxFrame->Buffers[0].DataOffset);
+        TEST_TRUE(FrameData.size() >= TotalTcpHdrSize);
+        const IPV4_HEADER *const Ipv4 =
+            (const IPV4_HEADER *)&FrameData[sizeof(ETHERNET_HEADER)];
+        const IPV6_HEADER *const Ipv6 =
+            (const IPV6_HEADER *)&FrameData[sizeof(ETHERNET_HEADER)];
+        const TCP_HDR *const Tcp = (const TCP_HDR *)&FrameData[TcpHdrOffset];
+        const UINT16 TcpPayloadLength = (UINT16)(FrameData.size() - TotalTcpHdrSize);
+        const UINT16 SegmentCount =
+            (TcpPayloadLength == 0) ? 1 : (UINT16)(TcpPayloadLength + TxMss - 1) / TxMss;
+        const VOID *IpSrc;
+        const VOID *IpDst;
+        UINT8 IpAddressLength;
+        UINT16 TcpPseudoHdrCsum;
 
-    TEST_EQUAL(GroPacketLength - TotalTcpHdrSize, FinalPayload.size());
+        //
+        // TODO: ensure frame sizes are maximized
+        // Respect RSC and TX MSS.
+        // checksum offload
+        // no offload
+
+        if (Af == AF_INET) {
+            const IPV4_HEADER *const RscIpv4 =
+                (const IPV4_HEADER *)&GroPacketBuffer[sizeof(ETHERNET_HEADER)];
+
+            TEST_EQUAL(
+                htons(ntohs(RscIpv4->Identification) + TotalSegmentCount),
+                Ipv4->Identification);
+
+            IpSrc = &Ipv4->SourceAddress;
+            IpDst = &Ipv4->DestinationAddress;
+            IpAddressLength = sizeof(Ipv4->SourceAddress);
+        } else {
+            IpSrc = &Ipv6->SourceAddress;
+            IpDst = &Ipv6->DestinationAddress;
+            IpAddressLength = sizeof(Ipv6->SourceAddress);
+        }
+
+        TcpPseudoHdrCsum =
+            PktPseudoHeaderChecksum(
+                IpSrc, IpDst, IpAddressLength, TcpHdrSize + TcpPayloadLength, IPPROTO_TCP);
+
+        TEST_EQUAL(htonl(ntohl(RscTcp->th_seq) + (UINT16)FinalPayload.size()), Tcp->th_seq);
+
+        if (TcpPayloadLength == PayloadRemaining) {
+            TEST_EQUAL(RscTcp->th_flags & TH_PSH, Tcp->th_flags & TH_PSH);
+        } else {
+            TEST_FALSE(Tcp->th_flags & TH_PSH);
+        }
+
+        if (TxFrame->Output.Lso.Value != 0) {
+            //
+            // This is an LSO frame.
+            //
+
+            TEST_EQUAL(NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE, TxFrame->Output.Lso.LsoV2Transmit.Type);
+            TEST_EQUAL(TxMss, TxFrame->Output.Lso.LsoV2Transmit.MSS);
+            TEST_EQUAL(TcpHdrOffset, TxFrame->Output.Lso.LsoV2Transmit.TcpHeaderOffset);
+            TEST_EQUAL(0, TxFrame->Output.Checksum.Value);
+            TEST_TRUE(SegmentCount >= LsoMinSegmentCount);
+            TEST_EQUAL(TcpPseudoHdrCsum, Tcp->th_sum);
+            TEST_TRUE(TcpPayloadLength == PayloadRemaining || TcpPayloadLength % TxMss == 0);
+            TEST_TRUE(TcpPayloadLength <= LsoMaxOffloadSize);
+            TEST_TRUE(TcpPayloadLength >= LsoMinOffloadSize);
+
+            if (Af == AF_INET) {
+                TEST_EQUAL(0, Ipv4->TotalLength);
+                TEST_EQUAL(0, Ipv4->HeaderChecksum);
+                TEST_TRUE(
+                    Params->OffloadParams != NULL &&
+                    Params->OffloadParams->LsoV2IPv4 == NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED);
+                TEST_EQUAL(
+                    NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4, TxFrame->Output.Lso.LsoV2Transmit.IPVersion);
+            } else {
+                TEST_EQUAL(0, Ipv6->PayloadLength);
+                TEST_TRUE(
+                    Params->OffloadParams != NULL &&
+                    Params->OffloadParams->LsoV2IPv6 == NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED);
+                TEST_EQUAL(
+                    NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6, TxFrame->Output.Lso.LsoV2Transmit.IPVersion);
+            }
+        } else {
+            //
+            // This is a regular, non-LSO frame.
+            //
+
+            BOOLEAN TcpChecksumOffload = FALSE;
+
+            TEST_TRUE(
+                PayloadRemaining < LsoMinOffloadSize ||
+                LsoMinSegmentCount * (UINT32)TxMss > LsoMaxOffloadSize ||
+                Params->OffloadParams == NULL ||
+                (Af == AF_INET &&
+                    Params->OffloadParams->LsoV2IPv4 == NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED) ||
+                (Af == AF_INET6 &&
+                    Params->OffloadParams->LsoV2IPv6 == NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED));
+            TEST_EQUAL(1, SegmentCount);
+            TEST_TRUE(TcpPayloadLength == PayloadRemaining || TcpPayloadLength == TxMss);
+            TEST_FALSE(
+                TxFrame->Output.Checksum.Transmit.IsIPv4 &&
+                TxFrame->Output.Checksum.Transmit.IsIPv6);
+
+            if (Af == AF_INET) {
+                TEST_EQUAL(
+                    htons((UINT16)FrameData.size() - sizeof(ETHERNET_HEADER)),
+                    Ipv4->TotalLength);
+
+                if (Params->OffloadParams != NULL &&
+                    NdisOffloadTxEnabled(Params->OffloadParams->IPv4Checksum)) {
+                    TEST_EQUAL(0, Ipv4->HeaderChecksum);
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IsIPv4);
+                } else {
+                    TEST_EQUAL(0ui16, PktChecksum(0, Ipv4, sizeof(*Ipv4)));
+                    TEST_FALSE(TxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+                }
+
+                if (Params->OffloadParams != NULL &&
+                    NdisOffloadTxEnabled(Params->OffloadParams->TCPIPv4Checksum)) {
+                    TcpChecksumOffload = TRUE;
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IsIPv4);
+                }
+            } else {
+                TEST_EQUAL(
+                    htons((UINT16)FrameData.size() - TcpHdrOffset),
+                    Ipv6->PayloadLength);
+
+                if (Params->OffloadParams != NULL &&
+                    NdisOffloadTxEnabled(Params->OffloadParams->TCPIPv6Checksum)) {
+                    TcpChecksumOffload = TRUE;
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IsIPv6);
+                }
+            }
+
+            TEST_EQUAL(TcpChecksumOffload, TxFrame->Output.Checksum.Transmit.TcpChecksum);
+
+            if (TcpChecksumOffload) {
+                TEST_EQUAL(TcpHdrOffset, TxFrame->Output.Checksum.Transmit.TcpHeaderOffset);
+                TEST_EQUAL(TcpPseudoHdrCsum, Tcp->th_sum);
+            } else {
+                TEST_EQUAL(
+                    0ui16,
+                    PktChecksum(TcpPseudoHdrCsum, Tcp, TcpHdrSize + TcpPayloadLength));
+            }
+        }
+
+        FinalPayload.insert(
+            FinalPayload.end(), FrameData.begin() + TotalTcpHdrSize, FrameData.end());
+
+        TotalSegmentCount += SegmentCount;
+    } while (FinalPayload.size() < Params->PayloadLength);
+
+    TEST_EQUAL(Params->GroSegCount, TotalSegmentCount);
+    TEST_EQUAL(GroPacketLength - TotalTcpHdrSize - Params->DataTrailer, FinalPayload.size());
     TEST_TRUE(
-        RtlEqualMemory(&FinalPayload[0], &GroPacketBuffer[TotalTcpHdrSize], FinalPayload.size()));
+        RtlEqualMemory(
+            FinalPayload.data(), &GroPacketBuffer[TotalTcpHdrSize], FinalPayload.size()));
 
-    MpTxDequeueFrame(GenericMp, 0);
     MpTxFlush(GenericMp);
+    MpTxVerifyNoFrame(GenericMp, 0);
 }
 
 static
@@ -4199,7 +4399,9 @@ GenericRxFragmentBuffer(
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
     const XDP_HOOK_ID *RxHookId = Params->IsTxInspect ? &XdpInspectTxL2 : &XdpInspectRxL2;
-
+    unique_fnmp_task_offload_handle OffloadReset;
+    unique_fnmp_mtu_handle MtuReset;
+    const UINT8 ThFlags = Params->TcpFlags != 0 ? Params->TcpFlags : TH_ACK;
     auto If = FnMpIf;
 
     LocalPort = htons(1234);
@@ -4212,6 +4414,23 @@ GenericRxFragmentBuffer(
     } else {
         If.GetIpv6Address(&LocalIp.Ipv6);
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    if (Params->IsTxInspect) {
+        FnLwf = LwfOpenDefault(If.GetIfIndex());
+    } else {
+        GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+        if (Params->OffloadParams != NULL) {
+            OffloadReset =
+                MpUpdateTaskOffload(
+                    GenericMp, FnOffloadCurrentConfig, Params->OffloadParams,
+                    Params->OffloadOptions);
+        }
+
+        if (Params->IfMtu > 0) {
+            MtuReset = MpSetMtuAndWaitForNdis(If, GenericMp, Params->IfMtu);
+        }
     }
 
     XDP_RULE Rule;
@@ -4239,22 +4458,25 @@ GenericRxFragmentBuffer(
         Params->Backfill +
         (Params->IsUdp ?
             UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) + Params->TcpOptionsLength) +
-        Params->PayloadLength + Params->Trailer);
-    UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params->Backfill - Params->Trailer;
+        Params->PayloadLength + Params->DataTrailer + Params->Trailer);
+    UINT32 ActualPacketLength =
+        (UINT32)PacketBuffer.size() - Params->Backfill - Params->Trailer - Params->DataTrailer;
     if (Params->IsUdp) {
         TEST_TRUE(
             PktBuildUdpFrame(
-                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength, &Payload[0],
+                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength, Payload.data(),
                 (UINT16)Payload.size(), &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
                 RemotePort));
     } else {
         TEST_TRUE(
             PktBuildTcpFrame(
-                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength,
-                &Payload[0], (UINT16)Payload.size(),
-                Params->TcpOptions, Params->TcpOptionsLength, 0, 0, TH_SYN, 65535, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength, Payload.data(),
+                (UINT16)Payload.size(), Params->TcpOptions, Params->TcpOptionsLength, 0xabcd4321,
+                0x567890fe, ThFlags, 65535, &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
+                RemotePort));
     }
+
+    ActualPacketLength += Params->DataTrailer;
 
     std::vector<DATA_BUFFER> Buffers =
         GenericRxCreateSplitBuffers(
@@ -4265,11 +4487,9 @@ GenericRxFragmentBuffer(
     RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
 
     if (Params->IsTxInspect) {
-        FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfTxEnqueue(FnLwf, &Frame.Frame);
     } else {
         Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params->GroSegCount;
-        GenericMp = MpOpenGeneric(If.GetIfIndex());
         TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     }
 
@@ -4595,13 +4815,62 @@ GenericRxFromTxInspect(
 }
 
 VOID
-GenericRxForwardGro(
+GenericRxForwardGroHelper(
+    _In_ ADDRESS_FAMILY Af,
+    _Inout_ GENERIC_RX_FRAGMENT_PARAMS *Params
+    )
+{
+    const auto Booleans = {false, true};
+    Params->Action = XDP_PROGRAM_ACTION_L2FWD;
+
+    //
+    // Execute the test case over a matrix of NIC configurations.
+    //
+
+    for (auto Lso : Booleans) {
+    for (auto Checksum : Booleans) {
+    for (auto IsLowResources : Booleans) {
+        NDIS_OFFLOAD_PARAMETERS OffloadParams;
+
+        InitializeOffloadParameters(&OffloadParams);
+
+        if (Lso) {
+            OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+            OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+        }
+
+        if (Checksum) {
+            OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+        }
+
+        Params->LowResources = IsLowResources;
+
+        GenericRxFragmentBuffer(Af, Params);
+    }}}
+}
+
+VOID
+GenericRxForwardGroSanity(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 100;
+    Params.GroSegCount = Params.PayloadLength;
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroMdlOffsets(
     _In_ ADDRESS_FAMILY Af
     )
 {
     const UINT8 IpHdrSize = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
-    Params.Action = XDP_PROGRAM_ACTION_L2FWD;
     Params.PayloadLength = 60000;
     Params.Backfill = 7;
     Params.Trailer = 23;
@@ -4616,20 +4885,108 @@ GenericRxForwardGro(
         sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) + 42,
     };
 
-    for (auto IsLowResources : {false, true}) {
     for (auto Split : SplitIndexes) {
         if (Split > 0) {
             Params.SplitIndexes = &Split;
             Params.SplitCount = 1;
         } else {
-            Params.SplitIndexes = NULL;
             Params.SplitCount = 0;
         }
 
         Params.GroSegCount = Params.PayloadLength / 1000;
-        Params.LowResources = IsLowResources;
-        GenericRxFragmentBuffer(Af, &Params);
-    }}
+        GenericRxForwardGroHelper(Af, &Params);
+    }
+}
+
+VOID
+GenericRxForwardGroPureAck(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.GroSegCount = 1;
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroDataTrailer(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 1000;
+    Params.GroSegCount = 4;
+    Params.DataTrailer = 13;
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroTcpOptions(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 1000;
+    Params.GroSegCount = 4;
+    Params.TcpOptions = TcpOptions;
+    Params.TcpOptionsLength = sizeof(TcpOptions);
+
+    for (UINT8 i = 0; i < sizeof(TcpOptions); i++) {
+        TcpOptions[i] = 42ui8 + i;
+    }
+
+    while (Params.TcpOptionsLength > 0) {
+        GenericRxForwardGroHelper(Af, &Params);
+        Params.TcpOptionsLength -= sizeof(UINT32);
+    }
+}
+
+VOID
+GenericRxForwardGroMtu(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 4000;
+    Params.GroSegCount = 1;
+    Params.IfMtu = 2000;
+
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroMaxOffload(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 4000;
+    Params.GroSegCount = 1;
+
+    FN_OFFLOAD_OPTIONS OffloadOptions;
+    FnMpInitializeOffloadOptions(&OffloadOptions);
+    OffloadOptions.GsoMaxOffloadSize = 1000;
+    Params.OffloadOptions = &OffloadOptions;
+
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroTcpFlags(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 4000;
+    Params.GroSegCount = 4;
+
+    for (const auto& Psh : {0, TH_PSH}) {
+    for (const auto& Ece : {0, TH_ECE}) {
+    for (const auto& Cwr : {0, TH_CWR}) {
+        Params.TcpFlags = (UINT8)(TH_ACK | Psh | Ece | Cwr);
+        GenericRxForwardGroHelper(Af, &Params);
+    }}}
 }
 
 VOID
@@ -4639,18 +4996,14 @@ GenericRxFuzzForwardGro(
 {
     auto If = FnMpIf;
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    auto MtuScopeGuard = wil::scope_exit([&]
-    {
-        MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_DEFAULT_MTU);
-        WaitForWfpQuarantine(If);
-    });
     const UINT16 MaxPayload = (Af == AF_INET6) ? MAX_IPV6_PAYLOAD : MAX_IPV4_PAYLOAD;
     const UINT16 MaxDataTrailer = 100;
+    unique_fnmp_task_offload_handle OffloadReset;
 
     //
     // Set the MTU to the smallest possible value to maximize fuzz efficiency.
     //
-    MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_MIN_MTU);
+    auto MtuReset = MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_MIN_MTU);
 
     //
     // Forward all packets.
@@ -4696,7 +5049,13 @@ GenericRxFuzzForwardGro(
 
             OffloadOptions.GsoMaxOffloadSize = (std::rand() % MaxPayload) + 1;
 
-            MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams, &OffloadOptions);
+            //
+            // Set the offload and replace the offload resetter without
+            // triggering an immediate reset for the old handle (if any) here.
+            //
+            *OffloadReset.addressof() =
+                MpUpdateTaskOffload(
+                    GenericMp, FnOffloadCurrentConfig, &OffloadParams, &OffloadOptions).release();
         }
 
         Params.Action = XDP_PROGRAM_ACTION_L2FWD;
@@ -4746,14 +5105,6 @@ GenericRxFuzzForwardGro(
 
         if ((std::rand() % 10) == 0) {
             ActualPacketLength = (std::rand() % ActualPacketLength) + 1;
-        }
-
-        //
-        // TODO: remove this workaround before check-in.
-        //
-        ETHERNET_HEADER *Ethernet = (ETHERNET_HEADER *)(&PacketBuffer[0]);
-        if (ntohs(Ethernet->Type) <= ETHERNET_TYPE_MINIMUM) {
-            Ethernet->Type = htons(ntohs(Ethernet->Type) + ETHERNET_TYPE_MINIMUM);
         }
 
         //
@@ -5658,22 +6009,11 @@ GenericTxMtu()
     auto If = FnMpIf;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    auto MtuScopeGuard = wil::scope_exit([&]
-    {
-        MpSetMtu(GenericMp, FNMP_DEFAULT_MTU);
-        //
-        // Wait for the MTU changes to quiesce, which may involve a complete NDIS
-        // rebind for filters and protocols.
-        //
-        Sleep(TEST_TIMEOUT_ASYNC_MS);
-        WaitForWfpQuarantine(If);
-    });
-
     const UINT32 TestMtu = 2048;
     C_ASSERT(TestMtu != FNMP_DEFAULT_MTU);
     C_ASSERT(TestMtu < DEFAULT_UMEM_CHUNK_SIZE);
 
-    MpSetMtu(GenericMp, TestMtu);
+    auto MtuReset = MpSetMtu(If, GenericMp, TestMtu);
 
     //
     // The XSK TX path should be torn down after an MTU change.
