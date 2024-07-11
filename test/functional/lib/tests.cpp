@@ -4315,7 +4315,7 @@ GenericRxValidateGroToGso(
         TotalSegmentCount += SegmentCount;
     } while (FinalPayload.size() < Params->PayloadLength);
 
-    TEST_EQUAL((Params->PayloadLength + TxMss - 1) / TxMss, TotalSegmentCount);
+    TEST_EQUAL((std::max(1ui16, Params->PayloadLength) + TxMss - 1) / TxMss, TotalSegmentCount);
     TEST_EQUAL(GroPacketLength - TotalTcpHdrSize - Params->DataTrailer, FinalPayload.size());
     TEST_TRUE(
         RtlEqualMemory(
