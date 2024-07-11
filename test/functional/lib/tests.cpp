@@ -4190,12 +4190,6 @@ GenericRxValidateGroToGso(
         UINT8 IpAddressLength;
         UINT16 TcpPseudoHdrCsum;
 
-        //
-        // TODO: ensure frame sizes are maximized
-        // Respect RSC and TX MSS.
-        // checksum offload
-        // no offload
-
         if (Af == AF_INET) {
             const IPV4_HEADER *const RscIpv4 =
                 (const IPV4_HEADER *)&GroPacketBuffer[sizeof(ETHERNET_HEADER)];
@@ -4327,7 +4321,7 @@ GenericRxValidateGroToGso(
         TotalSegmentCount += SegmentCount;
     } while (FinalPayload.size() < Params->PayloadLength);
 
-    TEST_EQUAL(Params->GroSegCount, TotalSegmentCount);
+    TEST_EQUAL((Params->PayloadLength + TxMss - 1) / TxMss, TotalSegmentCount);
     TEST_EQUAL(GroPacketLength - TotalTcpHdrSize - Params->DataTrailer, FinalPayload.size());
     TEST_TRUE(
         RtlEqualMemory(
