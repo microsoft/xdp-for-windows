@@ -241,20 +241,6 @@ function Setup-VsTest {
     }
 }
 
-function Install-AzStorageModule {
-    if (!(Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Ignore)) {
-        Write-Host "Installing NuGet package provider"
-        Install-PackageProvider -Name NuGet -Force | Write-Verbose
-    }
-    if (!(Get-Module -ListAvailable -Name Az.Storage)) {
-        Write-Host "Installing Az.Storage module"
-        Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -AllowClobber -Force | Write-Verbose
-    }
-    # AzureRM is installed by default on some CI images and is incompatible with
-    # Az. Uninstall.
-    Uninstall-AzureRm
-}
-
 if ($Cleanup) {
     if ($ForTest) {
         Uninstall-Certs
@@ -335,8 +321,6 @@ if ($Cleanup) {
         if (!$?) {
             $Reboot = $true
         }
-
-        Install-AzStorageModule
     }
 
     if ($ForTest) {
