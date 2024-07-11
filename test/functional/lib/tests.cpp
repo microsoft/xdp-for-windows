@@ -4088,7 +4088,7 @@ GenericRxValidateGroToGso(
     const UINT16 TxMss =
         std::min(
             IfMss,
-            (UINT16)((std::max(1, Params->PayloadLength) + Params->GroSegCount - 1) /
+            (UINT16)((std::max(1ui16, Params->PayloadLength) + Params->GroSegCount - 1) /
                 Params->GroSegCount));
     //
     // The following two default properties are hard-coded in FNMP and not
