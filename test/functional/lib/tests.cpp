@@ -7503,6 +7503,7 @@ OffloadRssReset()
     auto BindingScopeGuard = wil::scope_exit([&]
     {
         TEST_HRESULT(If.TryRebindXdp());
+        If.Restart();
     });
 
     UINT32 OidInfoBufferLength;
