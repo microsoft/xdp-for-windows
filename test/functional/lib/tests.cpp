@@ -4088,7 +4088,8 @@ GenericRxValidateGroToGso(
     const UINT16 TxMss =
         std::min(
             IfMss,
-            (UINT16)((Params->PayloadLength + Params->GroSegCount - 1) / Params->GroSegCount));
+            (UINT16)((std::max(1ui16, Params->PayloadLength) + Params->GroSegCount - 1) /
+                Params->GroSegCount));
     //
     // The following two default properties are hard-coded in FNMP and not
     // defined in API headers.
@@ -4314,7 +4315,7 @@ GenericRxValidateGroToGso(
         TotalSegmentCount += SegmentCount;
     } while (FinalPayload.size() < Params->PayloadLength);
 
-    TEST_EQUAL((Params->PayloadLength + TxMss - 1) / TxMss, TotalSegmentCount);
+    TEST_EQUAL((std::max(1ui16, Params->PayloadLength) + TxMss - 1) / TxMss, TotalSegmentCount);
     TEST_EQUAL(GroPacketLength - TotalTcpHdrSize - Params->DataTrailer, FinalPayload.size());
     TEST_TRUE(
         RtlEqualMemory(
