@@ -4100,7 +4100,7 @@ GenericRxValidateGroToGso(
     // The following two default properties are hard-coded in FNMP and not
     // defined in API headers.
     //
-    const UINT16 LsoMinSegmentCount = 1;
+    const UINT16 LsoMinSegmentCount = 2;
     const UINT32 LsoMaxOffloadSize =
         Params->OffloadOptions != NULL ? Params->OffloadOptions->GsoMaxOffloadSize : 0x20000;
     const UINT32 LsoMinOffloadSize = LsoMinSegmentCount * TxMss + 1;
