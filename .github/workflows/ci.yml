@@ -258,7 +258,7 @@ jobs:
     name: Downlevel Functional Tests
     needs: build
     env:
-      Runtime: 15 # minutes. Update timeout-minutes with any changes.
+      Runtime: 25 # minutes. Update timeout-minutes with any changes.
       Iters: 1
     strategy:
       fail-fast: false
