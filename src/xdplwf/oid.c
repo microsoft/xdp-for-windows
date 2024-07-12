@@ -233,8 +233,9 @@ XdpLwfCommonOidRequestComplete(
 
     TraceEnter(
         TRACE_LWF,
-        "Filter=%p Request=%p Oid=%x RequestInterface=%!OID_REQUEST_INTERFACE! OriginalRequest=%p",
-        Filter, Request, Request->DATA.Oid, RequestInterface, OriginalRequest);
+        "Filter=%p Request=%p Oid=%x RequestInterface=%!OID_REQUEST_INTERFACE! "
+        "OriginalRequest=%p Status=%!STATUS!",
+        Filter, Request, Request->DATA.Oid, RequestInterface, OriginalRequest, Status);
 
     if (OriginalRequest == NULL) {
         XdpLwfOidInternalRequestComplete(Filter, Request, Status);

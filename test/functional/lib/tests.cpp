@@ -589,12 +589,18 @@ public:
     TryRebindXdp() const
     {
         CHAR CmdBuff[256];
+        HRESULT Result;
         RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
         sprintf_s(
             CmdBuff,
             "%s /c \"(Get-NetAdapter -ifDesc '%s') | Enable-NetAdapterBinding -ComponentID ms_xdp",
             PowershellPrefix, _IfDesc);
-        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
+        Result = HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
+        if (FAILED(Result)) {
+            TraceError("%s failed: %u", CmdBuff, Result);
+            return Result;
+        }
+        return TryWaitForNdisDatapath(*this) ? S_OK : E_FAIL;
     }
 };
 
