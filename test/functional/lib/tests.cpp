@@ -258,6 +258,15 @@ GetOSVersion(
 }
 
 BOOLEAN
+OsVersionIsVbOrLater()
+{
+    return
+        (OsVersionInfo.dwMajorVersion > 10 || (OsVersionInfo.dwMajorVersion == 10 &&
+        (OsVersionInfo.dwMinorVersion > 0 || (OsVersionInfo.dwMinorVersion == 0 &&
+        (OsVersionInfo.dwBuildNumber >= 19041)))));
+}
+
+BOOLEAN
 OsVersionIsFeOrLater()
 {
     return
@@ -2092,8 +2101,14 @@ InitializeOffloadParameters(
 {
     ZeroMemory(OffloadParameters, sizeof(*OffloadParameters));
     OffloadParameters->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-    OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5;
-    OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
+
+    if (OsVersionIsVbOrLater()) {
+        OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5;
+        OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
+    } else {
+        OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_4;
+        OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_4;
+    }
 }
 
 [[nodiscard]]
