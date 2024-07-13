@@ -4839,11 +4839,6 @@ GenericRxForwardGroHelper(
 
         GenericRxFragmentBuffer(Af, Params);
     }}}
-
-    //
-    // Restore registry settings.
-    //
-    FnMpIf.Reset();
 }
 
 VOID
