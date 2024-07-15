@@ -765,16 +765,26 @@ XdpGenericRxCloneOrCopyTxNblData(
 static
 DECLSPEC_NOINLINE
 VOID
+XdpGenericRxInitializeGsoContextMdl(
+    _Inout_ NBL_RX_TX_CONTEXT *NblContext
+    )
+{
+    MmInitializeMdl(
+        &NblContext->Gso.HeaderMdl, NblContext->Gso.Headers, sizeof(NblContext->Gso.Headers));
+    MmBuildMdlForNonPagedPool(&NblContext->Gso.HeaderMdl);
+    NblContext->ValidFields.Value = 0;
+}
+
+static
+FORCEINLINE
+VOID
 XdpGenericRxInitializeGsoContext(
     _Inout_ NBL_RX_TX_CONTEXT *NblContext,
     _In_ UINT32 HeaderSize
     )
 {
     if (!NblContext->ValidFields.Gso) {
-        MmInitializeMdl(
-            &NblContext->Gso.HeaderMdl, NblContext->Gso.Headers, sizeof(NblContext->Gso.Headers));
-        MmBuildMdlForNonPagedPool(&NblContext->Gso.HeaderMdl);
-        NblContext->ValidFields.Value = 0;
+        XdpGenericRxInitializeGsoContextMdl(NblContext);
         NblContext->ValidFields.Gso = TRUE;
     }
 
