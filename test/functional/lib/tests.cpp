@@ -4991,7 +4991,7 @@ GenericRxForwardGroTcpFlags(
     for (const auto& Cwr : {0, TH_CWR}) {
         Params.TcpFlags = (UINT8)(TH_ACK | Fin | Psh | Ece | Cwr);
         GenericRxForwardGroHelper(Af, &Params);
-    }}}
+    }}}}
 }
 
 VOID
