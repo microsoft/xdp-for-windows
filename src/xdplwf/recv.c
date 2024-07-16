@@ -814,6 +814,7 @@ XdpGenericRxSegmentRscToLso(
     UINT32 MdlOffset = Nb->CurrentMdlOffset;
     ETHERNET_HEADER *const RscEthernet = RTL_PTR_ADD(Mdl->MappedSystemVa, Nb->CurrentMdlOffset);
     TCP_HDR *const RscTcp = RTL_PTR_ADD(RscEthernet, TcpOffset);
+    static const UINT8 FinalSegTcpFlags = TH_FIN | TH_PSH;
     const UINT8 RscThFlags = RscTcp->th_flags;
     UINT32 SeqNum = ntohl(RscTcp->th_seq);
     UINT32 TcpUserDataLen = Nb->DataLength - TcpTotalHdrLen;
@@ -838,7 +839,7 @@ XdpGenericRxSegmentRscToLso(
     // Clear any TCP flags that require special handling before they get copied
     // into each segment.
     //
-    RscTcp->th_flags &= ~(TH_PSH);
+    RscTcp->th_flags &= ~(FinalSegTcpFlags);
 
     if (TaskOffload != NULL) {
         UINT32 CandidateMinOffloadSize;
@@ -977,7 +978,7 @@ XdpGenericRxSegmentRscToLso(
             //
             // This is the final segment.
             //
-            TxTcp->th_flags |= (RscThFlags & TH_PSH);
+            TxTcp->th_flags |= (RscThFlags & FinalSegTcpFlags);
         }
 
         if (LsoIpVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4) {

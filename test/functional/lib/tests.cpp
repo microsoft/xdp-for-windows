@@ -4113,6 +4113,7 @@ GenericRxValidateGroToGso(
     const UINT32 LsoMaxOffloadSize =
         Params->OffloadOptions != NULL ? Params->OffloadOptions->GsoMaxOffloadSize : 0x20000;
     const UINT32 LsoMinOffloadSize = LsoMinSegmentCount * TxMss + 1;
+    const UINT8 FinalSegmentFlags = TH_FIN | TH_PSH;
     std::vector<UCHAR> Filter(TotalTcpHdrSize);
     std::vector<UCHAR> Mask(Filter.size(), 0xFF);
     std::vector<UCHAR> FinalPayload;
@@ -4149,7 +4150,7 @@ GenericRxValidateGroToGso(
     TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TcpHdrOffset];
     TcpMask->th_seq = 0;
     TcpMask->th_sum = 0;
-    TcpMask->th_flags = (UINT8)~(TH_PSH);
+    TcpMask->th_flags = (UINT8)~(FinalSegmentFlags);
 
     auto MpFilter = MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
     MpRxFlush(GenericMp, &RxFlushOptions);
@@ -4223,9 +4224,9 @@ GenericRxValidateGroToGso(
         TEST_EQUAL(htonl(ntohl(RscTcp->th_seq) + (UINT16)FinalPayload.size()), Tcp->th_seq);
 
         if (TcpPayloadLength == PayloadRemaining) {
-            TEST_EQUAL(RscTcp->th_flags & TH_PSH, Tcp->th_flags & TH_PSH);
+            TEST_EQUAL(RscTcp->th_flags & FinalSegmentFlags, Tcp->th_flags & FinalSegmentFlags);
         } else {
-            TEST_FALSE(Tcp->th_flags & TH_PSH);
+            TEST_FALSE(Tcp->th_flags & FinalSegmentFlags);
         }
 
         if (TxFrame->Output.Lso.Value != 0) {
@@ -4984,10 +4985,11 @@ GenericRxForwardGroTcpFlags(
     Params.PayloadLength = 4000;
     Params.GroSegCount = 4;
 
+    for (const auto& Fin : {0, TH_FIN}) {
     for (const auto& Psh : {0, TH_PSH}) {
     for (const auto& Ece : {0, TH_ECE}) {
     for (const auto& Cwr : {0, TH_CWR}) {
-        Params.TcpFlags = (UINT8)(TH_ACK | Psh | Ece | Cwr);
+        Params.TcpFlags = (UINT8)(TH_ACK | Fin | Psh | Ece | Cwr);
         GenericRxForwardGroHelper(Af, &Params);
     }}}
 }
