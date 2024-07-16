@@ -15,7 +15,7 @@
     </metadata>
     <files>
         <file src="xdp-for-windows.props" target="build\native"/>
-        <file src="..\..\published\external\**" target="build\native\include"/>
+        <file src="{rootpath}\published\external\**" target="build\native\include"/>
         <file src="{binpath}\xdpbpfexport.exe" target="build\native\bin"/>
         <file src="{binpath}\xdpapi.lib" target="build\native\lib"/>
         <file src="{binpath}\xdpnmr.lib" target="build\native\lib"/>
