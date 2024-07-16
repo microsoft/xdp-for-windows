@@ -84,6 +84,9 @@ SPDX-License-Identifier: MIT
             <Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
                 <File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)..\xdp\xdp.cat" KeyPath="yes"/>
             </Component>
+            <Component Id="xdptrace.wprp" Guid="{1C280B10-A3CC-4C2D-B0D1-3F4CBE03BEAF}">
+                <File Id="xdptrace.wprp" Name="xdptrace.wprp" Source="..\..\tools\xdptrace.wprp" KeyPath="yes"/>
+            </Component>
         </ComponentGroup>
 
         <!-- Install/Uninstall/Rollback the XDP driver installation -->
