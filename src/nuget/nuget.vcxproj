@@ -1,17 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup Label="Globals">
     <ProjectGuid>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</ProjectGuid>
-    <TargetName>nuget</TargetName>
-    <UndockedType>lib</UndockedType>
+    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <DriverType>KMDF</DriverType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)submodules\undocking\vs\windows.undocked.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.kernel.props" />
+  <PropertyGroup>
+    <TargetName>nuget</TargetName>
+  </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\sys\nmr.vcxproj">
+    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
+      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\sys\xdpapi.vcxproj">
+    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
       <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
       <Private>false</Private>
     </ProjectReference>
@@ -19,7 +39,7 @@
   <ItemDefinitionGroup>
     <PostBuildEvent>
       <Command>
-        powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update_nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Arch $(Arch) -Config $(Configuration)
+        powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update-nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Arch $(Platform) -Config $(Configuration)
         NuGet.exe pack $(IntDir)xdp-for-windows.nuspec -OutputDirectory $(OutDir) -BasePath $(ProjectDir)
       </Command>
     </PostBuildEvent>

@@ -27,7 +27,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <TargetName>xdp_bpfexport</TargetName>
+    <TargetName>xdpbpfexport</TargetName>
   </PropertyGroup>
   <ItemGroup>
     <ResourceCompile Include="bpfexport.rc">
