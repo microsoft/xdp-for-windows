@@ -21,6 +21,12 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$NoInstaller = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoInstallerProjectReferences = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
@@ -75,6 +81,8 @@ if (!$?) {
 msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
+    /p:BuildInstaller=$(!$NoInstaller) `
+    /p:InstallerProjectReferences=$(!$NoInstallerProjectReferences) `
     /p:IsAdmin=$IsAdmin `
     /t:$($Tasks -join ",") `
     /maxCpuCount

@@ -17,7 +17,7 @@
       $(DefineConstants)
     </DefineConstants>
   </PropertyGroup>
- <ItemGroup>
+ <ItemGroup Condition="'$(InstallerProjectReferences)' != 'false'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
     </ProjectReference>
@@ -51,8 +51,11 @@
   <ItemGroup>
     <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
-  <Import Project="$(WixPackagePath)build\wix.props" Condition="Exists('$(WixPackagePath)\build\wix.props')" />
-  <Import Project="$(WixTargetsPath)" Condition="$(WixTargetsPath) != ''" />
+  <Import Project="$(WixPackagePath)build\wix.props"/>
+  <Target Name="Build" />
+  <Target Name="Clean" />
+  <Target Name="Rebuild" />
+  <Import Project="$(WixTargetsPath)" Condition="'$(BuildInstaller)' != 'false'" />
   <!-- prevents NU1503 -->
   <Target Name="_IsProjectRestoreSupported"
           Returns="@(_ValidProjectsForRestore)">
