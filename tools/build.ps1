@@ -18,9 +18,6 @@ param (
     [switch]$NoClean = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoSign = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$NoInstaller = $false,
 
     [Parameter(Mandatory = $false)]
@@ -51,7 +48,6 @@ if ([string]::IsNullOrEmpty($Project)) {
         $Clean = ":Rebuild"
     }
     $Tasks += "$Project$Clean"
-    $NoSign = $true
     $NoInstaller = $true
 }
 
@@ -63,7 +59,8 @@ msbuild.exe $RootDir\xdp.sln `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
     /p:Configuration=$Config `
-    /p:Platform=$Platform
+    /p:Platform=$Platform `
+    /p:SignMode=TestSign
 if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
@@ -81,10 +78,6 @@ msbuild.exe $RootDir\xdp.sln `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"
-}
-
-if (!$NoSign) {
-    & $RootDir\tools\sign.ps1 -Config $Config -Arch $Platform
 }
 
 if (!$NoInstaller) {

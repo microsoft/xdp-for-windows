@@ -188,22 +188,6 @@ function Setup-TestSigning {
     }
 }
 
-# Installs the XDP certificates.
-function Install-Certs {
-    $CodeSignCertPath = Get-CoreNetCiArtifactPath -Name "CoreNetSignRoot.cer"
-    if (!(Test-Path $CodeSignCertPath)) {
-        Write-Error "$CodeSignCertPath does not exist!"
-    }
-    CertUtil.exe -f -addstore Root $CodeSignCertPath 2>&1 | Write-Verbose
-    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath 2>&1 | Write-Verbose
-}
-
-# Uninstalls the XDP certificates.
-function Uninstall-Certs {
-    try { CertUtil.exe -delstore Root "CoreNetTestSigning" } catch { }
-    try { CertUtil.exe -delstore trustedpublisher "CoreNetTestSigning" } catch { }
-}
-
 function Setup-VcRuntime {
     $Installed = $false
     try { $Installed = Get-ChildItem -Path Registry::HKEY_CLASSES_ROOT\Installer\Dependencies | Where-Object { $_.Name -like "*VC,redist*" } } catch {}
@@ -243,11 +227,11 @@ function Setup-VsTest {
 
 if ($Cleanup) {
     if ($ForTest) {
-        Uninstall-Certs
+        # Tests do not fully clean up.
     }
 } else {
     if ($ForBuild) {
-        Download-CoreNet-Deps
+        # There are currently no build dependencies required.
     }
 
     if ($ForEbpfBuild) {
@@ -329,7 +313,6 @@ if ($Cleanup) {
         Download-CoreNet-Deps
         Download-Ebpf-Msi
         Setup-TestSigning
-        Install-Certs
     }
 
     if ($ForLogging) {
