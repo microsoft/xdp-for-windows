@@ -21,9 +21,6 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoInstaller = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
@@ -37,6 +34,7 @@ Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
 
 $Tasks = @()
 if ([string]::IsNullOrEmpty($Project)) {
@@ -52,10 +50,14 @@ if ([string]::IsNullOrEmpty($Project)) {
     }
     $Tasks += "$Project$Clean"
     $NoSign = $true
-    $NoInstaller = $true
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
+
+$IsAdmin = Test-Admin
+if (!$IsAdmin) {
+    Write-Verbose "MSI installer validation requires admin privileges. Skipping."
+}
 
 Write-Verbose "Restoring packages [xdp.sln]"
 msbuild.exe $RootDir\xdp.sln `
@@ -68,15 +70,12 @@ if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
 
-Write-Verbose "Restoring packages [xdpinstaller.sln]"
-nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
-    -ConfigFile $RootDir\src\nuget.config
-
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 
 msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
+    /p:IsAdmin=$IsAdmin `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
@@ -85,10 +84,6 @@ if (!$?) {
 
 if (!$NoSign) {
     & $RootDir\tools\sign.ps1 -Config $Config -Arch $Platform
-}
-
-if (!$NoInstaller) {
-    & $RootDir\tools\create-installer.ps1 -Config $Config -Platform $Platform
 }
 
 if ($DevKit) {
