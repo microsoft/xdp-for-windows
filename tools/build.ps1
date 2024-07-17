@@ -59,8 +59,7 @@ msbuild.exe $RootDir\xdp.sln `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
     /p:Configuration=$Config `
-    /p:Platform=$Platform `
-    /p:SignMode=TestSign
+    /p:Platform=$Platform
 if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
@@ -74,6 +73,7 @@ nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
 msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
+    /p:SignMode=TestSign `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
