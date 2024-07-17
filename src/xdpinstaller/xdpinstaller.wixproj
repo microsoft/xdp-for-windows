@@ -52,6 +52,7 @@
     <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <Import Project="$(WixPackagePath)build\wix.props"/>
+  <!-- Define empty default targets. If BuildInstaller is enabled, WiX will override these. -->
   <Target Name="Build" />
   <Target Name="Clean" />
   <Target Name="Rebuild" />
