@@ -46,5 +46,9 @@
     <Link>
       <CETCompat>true</CETCompat>
     </Link>
+    <!-- Driver signing is used by both driver and driver application projects -->
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
 </Project>

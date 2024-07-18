@@ -18,9 +18,6 @@ param (
     [switch]$NoClean = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoSign = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$NoInstaller = $false,
 
     [Parameter(Mandatory = $false)]
@@ -51,7 +48,6 @@ if ([string]::IsNullOrEmpty($Project)) {
         $Clean = ":Rebuild"
     }
     $Tasks += "$Project$Clean"
-    $NoSign = $true
     $NoInstaller = $true
 }
 
@@ -77,14 +73,11 @@ nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
 msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
+    /p:SignMode=TestSign `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"
-}
-
-if (!$NoSign) {
-    & $RootDir\tools\sign.ps1 -Config $Config -Arch $Platform
 }
 
 if (!$NoInstaller) {

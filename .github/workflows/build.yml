@@ -72,10 +72,7 @@ jobs:
     - name: Prepare for compiling eBPF programs
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
     - name: Build
-      run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.arch }}
-    - name: Sign Binaries
-      shell: PowerShell
-      run: tools/sign.ps1 -Config ${{ inputs.config }} -Arch ${{ inputs.arch }}
+      run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.arch }} /p:SignMode=TestSign
     - name: Build Installer
       shell: PowerShell
       run: tools/create-installer.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.arch }}
