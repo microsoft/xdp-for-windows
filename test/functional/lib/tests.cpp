@@ -51,7 +51,7 @@
 
 #include "ebpf_nethooks.h"
 #include "cxplat.h"
-#include "karray.h"
+#include "cxplatvector.h"
 #include "fnsock.h"
 #include "xdptest.h"
 #include "tests.h"
@@ -162,7 +162,7 @@ typedef struct {
     wil::unique_handle Handle;
     wil::unique_handle RxProgram;
     RING_SET Rings;
-    Rtl::KArray<UINT64> FreeDescriptors;
+    CxPlatVector<UINT64> FreeDescriptors;
 } MY_SOCKET;
 
 typedef struct {
@@ -3689,7 +3689,7 @@ GenericRxUdpFragmentQuicShortHeader(
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
     };
 
-    Rtl::KArray<DATA_BUFFER> Buffers;
+    CxPlatVector<DATA_BUFFER> Buffers;
     DATA_BUFFER Buffer = {0};
 
     XDP_RULE Rules[2];
@@ -3824,7 +3824,7 @@ GenericRxUdpFragmentQuicLongHeader(
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
     };
 
-    Rtl::KArray<DATA_BUFFER> Buffers;
+    CxPlatVector<DATA_BUFFER> Buffers;
     DATA_BUFFER Buffer = {0};
 
     XDP_RULE Rules[2];
@@ -3993,7 +3993,7 @@ GenericRxFragmentBuffer(
     unique_malloc_ptr<UCHAR> Payload((UCHAR *)malloc(Params->PayloadLength));
     CxPlatRandom(Params->PayloadLength, Payload.get());
 
-    Rtl::KArray<UCHAR> PacketBuffer(
+    CxPlatVector<UCHAR> PacketBuffer(
         Params->Backfill +
         (Params->IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af)) +
         Params->PayloadLength + Params->Trailer);
@@ -4013,7 +4013,7 @@ GenericRxFragmentBuffer(
                 &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
     }
 
-    Rtl::KArray<DATA_BUFFER> Buffers;
+    CxPlatVector<DATA_BUFFER> Buffers;
 
     //
     // Split up the UDP frame into RX fragment buffers.
@@ -4085,7 +4085,7 @@ GenericRxFragmentBuffer(
     } else if (Params->Action == XDP_PROGRAM_ACTION_L2FWD) {
         UCHAR *L2FwdPacket = PacketBuffer.data() + Params->Backfill;
         UINT32 L2FwdPacketLength = ActualPacketLength;
-        Rtl::KArray<UCHAR> Mask(L2FwdPacketLength, 0xFF);
+        CxPlatVector<UCHAR> Mask(L2FwdPacketLength, 0xFF);
         ETHERNET_HEADER *Ethernet = (ETHERNET_HEADER *)L2FwdPacket;
         ETHERNET_ADDRESS TempAddress;
         unique_malloc_ptr<DATA_FRAME> TxFrame;
@@ -4180,7 +4180,7 @@ GenericRxTooManyFragments(
     Params.PayloadLength = 512;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    Rtl::KArray<UINT16> SplitIndexes;
+    CxPlatVector<UINT16> SplitIndexes;
     for (UINT16 Index = 0; Index < Params.PayloadLength - 1; Index++) {
         TEST_TRUE(SplitIndexes.push_back(Index + 1));
     }
@@ -4648,7 +4648,7 @@ GenericRxEbpfDrop()
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
-    Rtl::KArray<UCHAR> Mask(sizeof(Payload), 0xFF);
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
     auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
@@ -4677,7 +4677,7 @@ GenericRxEbpfPass()
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
-    Rtl::KArray<UCHAR> Mask(sizeof(Payload), 0xFF);
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
     auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
@@ -4701,7 +4701,7 @@ GenericRxEbpfTx()
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
-    Rtl::KArray<UCHAR> Mask(sizeof(Payload), 0xFF);
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
     auto MpFilter = MpTxFilter(GenericMp, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
@@ -4739,7 +4739,7 @@ GenericRxEbpfPayload()
             UdpFrame + Backfill, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
             &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
-    Rtl::KArray<UCHAR> Mask(UdpFrameLength, 0xFF);
+    CxPlatVector<UCHAR> Mask(UdpFrameLength, 0xFF);
     auto LwfFilter = LwfRxFilter(FnLwf, UdpFrame + Backfill, Mask.data(), UdpFrameLength);
 
     RX_FRAME Frame;
@@ -4842,7 +4842,7 @@ GenericRxEbpfIfIndex()
 
     TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &IfIndex, BPF_ANY));
 
-    Rtl::KArray<UCHAR> Mask(sizeof(Payload), 0xFF);
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
     auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
@@ -4913,7 +4913,7 @@ GenericRxEbpfFragments()
     // Actions apply to the entire frame, not just to the first fragement.
     //
     UINT32 MaskSize = Buffers[0].DataLength + Buffers[1].DataLength;
-    Rtl::KArray<UCHAR> Mask(MaskSize, 0xFF);
+    CxPlatVector<UCHAR> Mask(MaskSize, 0xFF);
     auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, Mask.data(), MaskSize);
 
     RX_FRAME Frame;
@@ -6030,7 +6030,7 @@ static
 VOID
 PrintProcArray(
     _In_ const char* Prefix,
-    _In_ const Rtl::KArray<UINT32> &ProcArray
+    _In_ const CxPlatVector<UINT32> &ProcArray
     )
 {
     CHAR Msg[1024] = {0};
@@ -6072,7 +6072,7 @@ static
 _Success_(return)
 BOOLEAN
 FindProcessorNumber(
-    _In_ const Rtl::KArray<PROCESSOR_NUMBER> &Array,
+    _In_ const CxPlatVector<PROCESSOR_NUMBER> &Array,
     _In_ const PROCESSOR_NUMBER &Processor,
     _Out_ ULONG *Index
     )
@@ -6088,13 +6088,13 @@ FindProcessorNumber(
 }
 
 static
-Rtl::KArray<PROCESSOR_NUMBER>
+CxPlatVector<PROCESSOR_NUMBER>
 GetRssProcessorSetFromIndirectionTable(
     _In_ const PROCESSOR_NUMBER *IndirectionTable,
     _In_ UINT32 IndirectionTableSize
     )
 {
-    Rtl::KArray<PROCESSOR_NUMBER> RssProcessors;
+    CxPlatVector<PROCESSOR_NUMBER> RssProcessors;
 
     //
     // Convert indirection table to processor set.
@@ -6120,7 +6120,7 @@ VerifyRssDatapath(
     _In_ UINT32 IndirectionTableSize
     )
 {
-    Rtl::KArray<PROCESSOR_NUMBER> RssProcessors =
+    CxPlatVector<PROCESSOR_NUMBER> RssProcessors =
         GetRssProcessorSetFromIndirectionTable(IndirectionTable.get(), IndirectionTableSize);
 
     //
@@ -6592,7 +6592,7 @@ OffloadRssUpperSet()
 static
 VOID
 CreateIndirectionTable(
-    _In_ const Rtl::KArray<UINT32> &ProcessorIndices,
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices,
     _Out_ unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
     _Out_ UINT32 *IndirectionTableSize
     )
@@ -6610,7 +6610,7 @@ CreateIndirectionTable(
 
 VOID
 OffloadRssSingleSet(
-    _In_ const Rtl::KArray<UINT32> &ProcessorIndices
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices
     )
 {
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
@@ -6642,8 +6642,8 @@ OffloadRssSingleSet(
 
 VOID
 OffloadRssSubsequentSet(
-    _In_ const Rtl::KArray<UINT32> &ProcessorIndices1,
-    _In_ const Rtl::KArray<UINT32> &ProcessorIndices2
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices1,
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices2
     )
 {
     wil::unique_handle InterfaceHandle;
@@ -6682,8 +6682,8 @@ OffloadRssSet()
         return;
     }
 
-    Rtl::KArray<UINT32> RssProcs1;
-    Rtl::KArray<UINT32> RssProcs2;
+    CxPlatVector<UINT32> RssProcs1;
+    CxPlatVector<UINT32> RssProcs2;
 
     RssProcs1.clear();
     TEST_TRUE(RssProcs1.push_back(0));
@@ -6805,7 +6805,7 @@ OffloadRssReset()
     // Create and set a new RSS table.
     //
 
-    Rtl::KArray<UINT32> ProcessorIndices;
+    CxPlatVector<UINT32> ProcessorIndices;
     TEST_TRUE(ProcessorIndices.push_back(1));
     TEST_TRUE(ProcessorIndices.push_back(0));
     CreateIndirectionTable(ProcessorIndices, IndirectionTable, &IndirectionTableSize);
@@ -7049,7 +7049,7 @@ GenericXskQueryAffinity()
             PROCESSOR_NUMBER TargetProcNumber;
             ProcessorIndexToProcessorNumber(ProcIndex, &TargetProcNumber);
 
-            Rtl::KArray<UINT32> ProcessorIndices;
+            CxPlatVector<UINT32> ProcessorIndices;
             TEST_TRUE(ProcessorIndices.push_back(ProcIndex));
             CreateIndirectionTable(ProcessorIndices, IndirectionTable, &IndirectionTableSize);
             InterfaceHandle = InterfaceOpen(FnMpIf.GetIfIndex());
