@@ -520,7 +520,6 @@ function Uninstall-FnSock {
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfOptions = ""
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -528,17 +527,11 @@ function Install-Ebpf {
         Write-Error "$EbpfPath is already installed!"
     }
 
-    if ($UseJitEbpf) {
-        $EbpfOptions = "eBPF_Runtime_Components,eBPF_Runtime_Components_JIT"
-    } else {
-        $EbpfOptions = "eBPF_Runtime_Components"
-    }
-
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
     for ($i = 0; $i -lt 100; $i++) {
-        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
         if ($?) {
             break;
         }

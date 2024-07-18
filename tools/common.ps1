@@ -112,43 +112,16 @@ function Get-EbpfMsiVersion {
     return "0.17.0"
 }
 
-# Returns the eBPF package type.
-function Get-EbpfPackageType {
-    if ($UseJitEbpf) {
-        return "Release"
-    }
-
-    return "NativeOnlyRelease"
-}
-
-# Return the eBPF package name.
-function Get-EbpfPackageName {
-    if ($UseJitEbpf) {
-        return "Build-x64.Release.zip"
-    }
-
-    return "Build-x64-native-only.NativeOnlyRelease.zip"
-}
-
-function Get-EbpfDirectoryName {
-    if ($UseJitEbpf) {
-        return "Build-x64 Release"
-    }
-
-    return "Build-x64-native-only NativeOnlyRelease"
-}
-
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfMsiLocation = "$RootDir\artifacts\ebpfmsi"
-    return "$EbpfMsiLocation\ebpf-for-windows.msi"
+    $EbpfVersion = Get-EbpfMsiVersion
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.msi"
 }
 
-function Get-EbpfPackageUrl {
+function Get-EbpfMsiUrl {
     $EbpfVersion = Get-EbpfMsiVersion
-    $EbpfPackageName = Get-EbpfPackageName
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfPackageName
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
 }
 
 function Get-FnVersion {

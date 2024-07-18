@@ -114,41 +114,19 @@ function Download-CoreNet-Deps {
     }
 }
 
-function Extract-Ebpf-Msi {
-    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-    $EbpfDirectoryName = Get-EbpfDirectoryName
-
-    Write-Debug "Extracting eBPF MSI from Release package"
-
-    # Extract the MSI from the package.
-    pushd $ArtifactsDir
-    dir
-    Expand-Archive -Path $EbpfPackageFullPath -Force
-    xcopy "$ArtifactsDir\ebpf\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
-    popd
-}
-
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfPackageUrl = Get-EbpfPackageUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
-    $EbpfPackageType = Get-EbpfPackageType
-
-    Write-Debug "Downloading eBPF $EbpfPackageType package"
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
+        $EbpfMsiUrl = Get-EbpfMsiUrl
+
         if (!(Test-Path $EbpfMsiDir)) {
             mkdir $EbpfMsiDir | Write-Verbose
         }
 
-        Invoke-WebRequest-WithRetry -Uri $EbpfPackageUrl -OutFile $EbpfPackageFullPath
-
-        # Extract the MSI from the package.
-        Extract-Ebpf-Msi
+        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
     }
 }
 
