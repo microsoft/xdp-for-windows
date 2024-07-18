@@ -18,7 +18,10 @@ param (
     [switch]$NoClean = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoInstaller = $false,
+    [switch]$NoSign = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoInstallerProjectReferences = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
@@ -34,6 +37,7 @@ Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
 
 $Tasks = @()
 if ([string]::IsNullOrEmpty($Project)) {
@@ -48,7 +52,11 @@ if ([string]::IsNullOrEmpty($Project)) {
         $Clean = ":Rebuild"
     }
     $Tasks += "$Project$Clean"
-    $NoInstaller = $true
+}
+
+$SignMode = "TestSign"
+if ($NoSign) {
+    $SignMode = "Off"
 }
 
 $Sln = "$RootDir\xdp.sln"
@@ -57,6 +65,11 @@ if ($OneBranch) {
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
+
+$IsAdmin = Test-Admin
+if (!$IsAdmin) {
+    Write-Verbose "MSI installer validation requires admin privileges. Skipping."
+}
 
 Write-Verbose "Restoring packages [$Sln]"
 msbuild.exe $Sln `
@@ -69,25 +82,19 @@ if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
 
-Write-Verbose "Restoring packages [xdpinstaller.sln]"
-nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
-    -ConfigFile $RootDir\src\nuget.config
-
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 
 Write-Verbose "Building [$Sln]"
 msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
-    /p:SignMode=TestSign `
+    /p:InstallerProjectReferences=$(!$NoInstallerProjectReferences) `
+    /p:IsAdmin=$IsAdmin `
+    /p:SignMode=$SignMode `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"
-}
-
-if (!$NoInstaller) {
-    & $RootDir\tools\create-installer.ps1 -Config $Config -Platform $Platform
 }
 
 if ($TestArchive) {
