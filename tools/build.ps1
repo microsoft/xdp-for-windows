@@ -21,9 +21,6 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoInstaller = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$NoInstallerProjectReferences = $false,
 
     [Parameter(Mandatory = $false)]
@@ -55,7 +52,11 @@ if ([string]::IsNullOrEmpty($Project)) {
         $Clean = ":Rebuild"
     }
     $Tasks += "$Project$Clean"
-    $NoSign = $true
+}
+
+$SignMode = "TestSign"
+if ($NoSign) {
+    $SignMode = "Off"
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
@@ -81,17 +82,13 @@ if (!$?) {
 msbuild.exe $RootDir\xdp.sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
-    /p:BuildInstaller=$(!$NoInstaller) `
     /p:InstallerProjectReferences=$(!$NoInstallerProjectReferences) `
     /p:IsAdmin=$IsAdmin `
+    /p:SignMode=$SignMode `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"
-}
-
-if (!$NoSign) {
-    & $RootDir\tools\sign.ps1 -Config $Config -Arch $Platform
 }
 
 if ($DevKit) {
