@@ -101,6 +101,51 @@ GenericRxFromTxInspect(
     );
 
 VOID
+GenericRxForwardGroSanity(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroMdlOffsets(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroPureAck(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroDataTrailer(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroTcpOptions(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroMtu(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroMaxOffload(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxForwardGroTcpFlags(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxFuzzForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 SecurityAdjustDeviceAcl();
 
 VOID

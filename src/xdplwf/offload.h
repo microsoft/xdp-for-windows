@@ -13,11 +13,23 @@ typedef struct _XDP_LWF_OFFLOAD_SETTING_RSS {
     XDP_LIFETIME_ENTRY DeleteEntry;
 } XDP_LWF_OFFLOAD_SETTING_RSS;
 
+typedef struct _XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD {
+    struct {
+        BOOLEAN Enabled : 1;
+    } Checksum;
+    struct {
+        UINT32 MaxOffloadSize;
+        UINT32 MinSegments;
+    } Lso;
+    XDP_LIFETIME_ENTRY DeleteEntry;
+} XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD;
+
 //
 // Describes a set of interface offload configurations.
 //
 typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
     XDP_LWF_OFFLOAD_SETTING_RSS *Rss;
+    XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *TaskOffload;
 } XDP_LWF_INTERFACE_OFFLOAD_SETTINGS;
 
 //
@@ -31,6 +43,12 @@ typedef struct _XDP_LWF_OFFLOAD {
     // mode requests.
     //
     XDP_WORK_QUEUE *WorkQueue;
+
+    //
+    // Deactivating an interface reverts all XDP-initiated changes to an
+    // interface and prevents new changes.
+    //
+    BOOLEAN Deactivated;
 
     //
     // Hardware capabilities.
@@ -98,6 +116,13 @@ XdpLwfOffloadInspectOidRequest(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ NDIS_OID_REQUEST *Request,
     _In_ XDP_OID_INSPECT_COMPLETE *InspectComplete
+    );
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpOffloadFilterStatus(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ const NDIS_STATUS_INDICATION *StatusIndication
     );
 
 VOID

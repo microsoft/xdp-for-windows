@@ -15,6 +15,7 @@
     <ClCompile Include="offload.c" />
     <ClCompile Include="offloadqeo.c" />
     <ClCompile Include="offloadrss.c" />
+    <ClCompile Include="offloadtask.c" />
     <ClCompile Include="oid.c" />
     <ClCompile Include="recv.c" />
     <ClCompile Include="rss.c" />

@@ -51,10 +51,10 @@ jobs:
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 120 # minutes. Update timeout-minutes with any changes.
+      fullRuntime: 180 # minutes. Update timeout-minutes with any changes.
       fullIters: 10
       # For PRs
-      prRuntime: 15 # minutes. Update timeout-minutes with any changes.
+      prRuntime: 25 # minutes. Update timeout-minutes with any changes.
       prIters: 1
     strategy:
       fail-fast: false
@@ -85,12 +85,12 @@ jobs:
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 15
+      timeout-minutes: 25
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 120
+      timeout-minutes: 180
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
@@ -258,7 +258,7 @@ jobs:
     name: Downlevel Functional Tests
     needs: build
     env:
-      Runtime: 15 # minutes. Update timeout-minutes with any changes.
+      Runtime: 25 # minutes. Update timeout-minutes with any changes.
       Iters: 1
     strategy:
       fail-fast: false
@@ -295,7 +295,7 @@ jobs:
         tools/merge-artifacts.ps1 -SourcePath artifacts/downlevel-test/${{ matrix.platform }}/bin/*  -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Run Tests
       shell: PowerShell
-      timeout-minutes: 15
+      timeout-minutes: 25
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -UseJitEbpf
     - name: Convert Logs
       if: ${{ always() }}

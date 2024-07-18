@@ -403,6 +403,79 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxForwardGroSanityV4) {
+        GenericRxForwardGroSanity(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroSanityV6) {
+        GenericRxForwardGroSanity(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMdlOffsetsV4) {
+        GenericRxForwardGroMdlOffsets(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMdlOffsetsV6) {
+        GenericRxForwardGroMdlOffsets(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroPureAckV4) {
+        GenericRxForwardGroPureAck(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroPureAckV6) {
+        GenericRxForwardGroPureAck(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroDataTrailerV4) {
+        GenericRxForwardGroDataTrailer(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroDataTrailerV6) {
+        GenericRxForwardGroDataTrailer(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroTcpOptionsV4) {
+        GenericRxForwardGroTcpOptions(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroTcpOptionsV6) {
+        GenericRxForwardGroTcpOptions(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMtuV4) {
+        GenericRxForwardGroMtu(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMtuV6) {
+        GenericRxForwardGroMtu(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMaxOffloadV4) {
+        GenericRxForwardGroMaxOffload(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMaxOffloadV6) {
+        GenericRxForwardGroMaxOffload(AF_INET6);
+    }
+
+
+    TEST_METHOD(GenericRxForwardGroTcpFlagsV4) {
+        GenericRxForwardGroTcpFlags(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroTcpFlagsV6) {
+        GenericRxForwardGroTcpFlags(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxFuzzForwardGroV4) {
+        GenericRxFuzzForwardGro(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxFuzzForwardGroV6) {
+        GenericRxFuzzForwardGro(AF_INET6);
+    }
+
     TEST_METHOD(SecurityAdjustDeviceAcl) {
         ::SecurityAdjustDeviceAcl();
     }
