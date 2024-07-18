@@ -20,6 +20,9 @@
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj">
+      <Project>{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -82,6 +85,7 @@
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         $(WntLibPath)\fnsock_um.lib;
+        $(SolutionDir)artifacts\bin\winuser\$(Platform)_$(Configuration)\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
