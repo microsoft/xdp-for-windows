@@ -21,9 +21,6 @@ param (
     [switch]$NoInstaller = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$DevKit = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
 
     [Parameter(Mandatory = $false)]
@@ -91,10 +88,6 @@ if (!$?) {
 
 if (!$NoInstaller) {
     & $RootDir\tools\create-installer.ps1 -Config $Config -Platform $Platform
-}
-
-if ($DevKit) {
-    & $RootDir\tools\create-devkit.ps1 -Config $Config
 }
 
 if ($TestArchive) {

@@ -330,9 +330,6 @@ jobs:
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
-    - name: Create Dev Kit
-      shell: PowerShell
-      run: tools/create-devkit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Create Test Archive
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
