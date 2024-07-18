@@ -24,13 +24,13 @@ param (
     [switch]$NoInstallerProjectReferences = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$DevKit = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$UpdateDeps = $false
+    [switch]$UpdateDeps = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$OneBranch = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -59,6 +59,11 @@ if ($NoSign) {
     $SignMode = "Off"
 }
 
+$Sln = "$RootDir\xdp.sln"
+if ($OneBranch) {
+    $Sln = "$RootDir\xdp-onebranch.sln"
+}
+
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
 $IsAdmin = Test-Admin
@@ -66,8 +71,8 @@ if (!$IsAdmin) {
     Write-Verbose "MSI installer validation requires admin privileges. Skipping."
 }
 
-Write-Verbose "Restoring packages [xdp.sln]"
-msbuild.exe $RootDir\xdp.sln `
+Write-Verbose "Restoring packages [$Sln]"
+msbuild.exe $Sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
@@ -79,7 +84,8 @@ if (!$?) {
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 
-msbuild.exe $RootDir\xdp.sln `
+Write-Verbose "Building [$Sln]"
+msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
     /p:InstallerProjectReferences=$(!$NoInstallerProjectReferences) `
@@ -89,10 +95,6 @@ msbuild.exe $RootDir\xdp.sln `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"
-}
-
-if ($DevKit) {
-    & $RootDir\tools\create-devkit.ps1 -Config $Config
 }
 
 if ($TestArchive) {

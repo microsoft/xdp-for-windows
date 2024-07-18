@@ -36,12 +36,12 @@
       <Command>
         xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig) /Y
         $(EbpfPackagePath)build\native\bin\export_program_info.exe
-        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdp_bpfexport.exe
+        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpbpfexport.exe
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
-        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdp_bpfexport.exe --clear
+        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpbpfexport.exe --clear
         $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
         del $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\ebpfapi.dll /F
       </Command>

@@ -18,6 +18,7 @@ NDIS_STRING RegRxDataLength = NDIS_STRING_CONST("RxDataLength");
 NDIS_STRING RegRxPattern = NDIS_STRING_CONST("RxPattern");
 NDIS_STRING RegRxPatternCopy = NDIS_STRING_CONST("RxPatternCopy");
 NDIS_STRING RegPollProvider = NDIS_STRING_CONST("PollProvider");
+NDIS_STRING RxRscSegmentCount = NDIS_STRING_CONST("RxRscSegmentCount");
 
 PCSTR MpDriverFriendlyName = "XDPMP";
 UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
@@ -45,6 +46,8 @@ UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 #define MIN_RX_DATA_LENGTH 64
 #define DEFAULT_RX_BUFFER_DATA_LENGTH 64
 #define MAX_RX_DATA_LENGTH 65536
+
+#define MAX_GSO_SIZE 62000
 
 //
 // The driver only supports the driver API version in the DDK or higher.
@@ -1009,6 +1012,13 @@ MpReadConfiguration(
         goto Exit;
     }
 
+    Adapter->RxRscSegmentCount = 0;
+    TRY_READ_INT_CONFIGURATION(ConfigHandle, RxRscSegmentCount, &Adapter->RxRscSegmentCount);
+    if (Adapter->RxRscSegmentCount > MAXUINT16) {
+        Status = NDIS_STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
     NdisReadConfiguration(&Status, &ConfigParam, ConfigHandle, &RegRxPattern, NdisParameterString);
     if (Status == NDIS_STATUS_SUCCESS) {
         if (ConfigParam->ParameterType != NdisParameterString) {
@@ -1062,23 +1072,32 @@ MpSetOffloadAttributes(
 {
     NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES OffloadAttributes = {0};
     NDIS_OFFLOAD Offload = {0};
+    const ULONG Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
 
     Offload.Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
     Offload.Header.Revision = NDIS_OFFLOAD_REVISION_7;
     Offload.Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_7;
 
-    Offload.Checksum.IPv4Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+    Offload.Checksum.IPv4Transmit.Encapsulation = Encapsulation;
     Offload.Checksum.IPv4Transmit.IpOptionsSupported = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv4Transmit.TcpOptionsSupported = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv4Transmit.TcpChecksum = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv4Transmit.UdpChecksum = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv4Transmit.IpChecksum = NDIS_OFFLOAD_SET_ON;
 
-    Offload.Checksum.IPv6Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+    Offload.Checksum.IPv6Transmit.Encapsulation = Encapsulation;
     Offload.Checksum.IPv6Transmit.IpExtensionHeadersSupported = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv6Transmit.TcpOptionsSupported = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv6Transmit.TcpChecksum = NDIS_OFFLOAD_SET_ON;
     Offload.Checksum.IPv6Transmit.UdpChecksum = NDIS_OFFLOAD_SET_ON;
+
+    Offload.LsoV2.IPv4.Encapsulation = Encapsulation;
+    Offload.LsoV2.IPv4.MaxOffLoadSize = MAX_GSO_SIZE;
+    Offload.LsoV2.IPv4.MinSegmentCount = 1;
+    Offload.LsoV2.IPv6.Encapsulation = Encapsulation;
+    Offload.LsoV2.IPv6.MaxOffLoadSize = MAX_GSO_SIZE;
+    Offload.LsoV2.IPv6.MinSegmentCount = 1;
+    Offload.LsoV2.IPv6.TcpOptionsSupported = TRUE;
 
     OffloadAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES;
     OffloadAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
