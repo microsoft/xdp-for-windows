@@ -27,7 +27,10 @@ param (
     [switch]$TestArchive = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$UpdateDeps = $false
+    [switch]$UpdateDeps = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$OneBranch = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -51,10 +54,15 @@ if ([string]::IsNullOrEmpty($Project)) {
     $NoInstaller = $true
 }
 
+$Sln = "$RootDir\xdp.sln"
+if ($OneBranch) {
+    $Sln = "$RootDir\xdp-onebranch.sln"
+}
+
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
-Write-Verbose "Restoring packages [xdp.sln]"
-msbuild.exe $RootDir\xdp.sln `
+Write-Verbose "Restoring packages [$Sln]"
+msbuild.exe $Sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
@@ -70,7 +78,8 @@ nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 
-msbuild.exe $RootDir\xdp.sln `
+Write-Verbose "Building [$Sln]"
+msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
     /p:SignMode=TestSign `
