@@ -134,8 +134,26 @@ MpTaskOffloadReset(
     _In_ const FNMP_HANDLE Handle
     );
 
+static
+void*
+AllocMem(
+    _In_ SIZE_T Size
+    )
+{
+    return CXPLAT_ALLOC_NONPAGED(Size, 'tPDX');
+}
+
+static
+void
+FreeMem(
+    _In_ void *Mem
+)
+{
+    CXPLAT_FREE(Mem, 'tPDX');
+}
+
 template <typename T>
-using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
+using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
@@ -438,7 +456,7 @@ private:
         //
         OutBufLen = 0;
         TEST_EQUAL(ERROR_BUFFER_OVERFLOW, GetAdaptersInfo(NULL, &OutBufLen));
-        unique_malloc_ptr<IP_ADAPTER_INFO> AdapterInfoList{ (IP_ADAPTER_INFO *)malloc(OutBufLen) };
+        unique_malloc_ptr<IP_ADAPTER_INFO> AdapterInfoList{ (IP_ADAPTER_INFO *)AllocMem(OutBufLen) };
         TEST_NOT_NULL(AdapterInfoList);
         TEST_EQUAL(NO_ERROR, GetAdaptersInfo(AdapterInfoList.get(), &OutBufLen));
 
@@ -1703,7 +1721,7 @@ MpTxAllocateAndGetFrame(
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
-    FrameBuffer.reset((DATA_FRAME *)malloc(FrameLength));
+    FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
     TEST_TRUE(FrameBuffer != NULL);
 
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
@@ -1824,7 +1842,7 @@ LwfRxAllocateAndGetFrame(
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
-    FrameBuffer.reset((DATA_FRAME *)malloc(FrameLength));
+    FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
     TEST_TRUE(FrameBuffer != NULL);
 
     TEST_HRESULT(LwfRxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
@@ -1892,7 +1910,7 @@ LwfOidAllocateAndSubmitRequest(
     TEST_EQUAL(Result, HRESULT_FROM_WIN32(ERROR_MORE_DATA));
     TEST_TRUE(InformationBufferLength > 0);
 
-    InformationBuffer.reset((T *)malloc(InformationBufferLength));
+    InformationBuffer.reset((T *)AllocMem(InformationBufferLength));
     TEST_TRUE(InformationBuffer.get() != NULL);
 
     Result = LwfOidSubmitRequest(Handle, Key, &InformationBufferLength, InformationBuffer.get());
@@ -1957,7 +1975,7 @@ LwfStatusAllocateAndGetIndication(
         TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
         TEST_NOT_EQUAL(0, *StatusBufferLength);
 
-        StatusBuffer.reset((T *)malloc(*StatusBufferLength));
+        StatusBuffer.reset((T *)AllocMem(*StatusBufferLength));
         TEST_TRUE(StatusBuffer != NULL);
 
         TEST_HRESULT(LwfStatusGetIndication(Handle, StatusBufferLength, StatusBuffer.get()));
@@ -2070,7 +2088,7 @@ MpOidAllocateAndGetRequest(
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(Length > 0);
-    InformationBuffer.reset(malloc(Length));
+    InformationBuffer.reset(AllocMem(Length));
     TEST_TRUE(InformationBuffer != NULL);
 
     TEST_HRESULT(MpOidGetRequest(Handle, Key, &Length, InformationBuffer.get()));
@@ -4462,7 +4480,7 @@ GenericRxFragmentBuffer(
     //
     // Allocate UDP payload and initialize to a pattern.
     //
-    unique_malloc_ptr<UCHAR> Payload((UCHAR *)malloc(Params->PayloadLength));
+    unique_malloc_ptr<UCHAR> Payload((UCHAR *)AllocMem(Params->PayloadLength));
     CxPlatRandom(Params->PayloadLength, Payload.get());
 
     CxPlatVector<UCHAR> PacketBuffer(
@@ -6654,7 +6672,7 @@ GetXdpRss(
         TryRssGet(InterfaceHandle.get(), NULL, &Size));
     TEST_TRUE(Size >= sizeof(*RssConfig.get()));
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(Size));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(Size));
     TEST_TRUE(RssConfig.get() != NULL);
 
     RssGet(InterfaceHandle.get(), RssConfig.get(), &Size);
@@ -6679,7 +6697,7 @@ GetXdpRssIndirectionTable(
     wil::unique_handle InterfaceHandle = InterfaceOpen(If.GetIfIndex());
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(InterfaceHandle);
 
-    IndirectionTableOut.reset((PROCESSOR_NUMBER *)malloc(RssConfig->IndirectionTableSize));
+    IndirectionTableOut.reset((PROCESSOR_NUMBER *)AllocMem(RssConfig->IndirectionTableSize));
 
     PROCESSOR_NUMBER *IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
@@ -6706,7 +6724,7 @@ SetXdpRss(
     // Form the XdpSetRss input.
     //
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
@@ -6967,7 +6985,7 @@ OffloadRssError()
     } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), CurrentRssResult);
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
 
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
@@ -7030,7 +7048,7 @@ OffloadRssReference()
         //
 
         ModifiedRssConfigSize = OriginalRssConfigSize;
-        ModifiedRssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(ModifiedRssConfigSize));
+        ModifiedRssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(ModifiedRssConfigSize));
 
         XdpInitializeRssConfiguration(ModifiedRssConfig.get(), ModifiedRssConfigSize);
         ModifiedRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
@@ -7161,7 +7179,7 @@ OffloadRssInterfaceRestart()
     InterfaceHandle = InterfaceOpen(FnMpIf.GetIfIndex());
     OriginalRssConfig = GetXdpRss(InterfaceHandle, &OriginalRssConfigSize);
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(OriginalRssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(OriginalRssConfigSize));
     RtlCopyMemory(RssConfig.get(), OriginalRssConfig.get(), OriginalRssConfigSize);
     RssConfigSize = OriginalRssConfigSize;
 
@@ -7286,7 +7304,7 @@ OffloadRssUpperSet()
     //
     // Set lower edge settings via XDP.
     //
-    LowerRssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    LowerRssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
     LowerRssConfigSize = RssConfigSize;
     RtlCopyMemory(LowerRssConfig.get(), RssConfig.get(), RssConfigSize);
     LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
@@ -7364,7 +7382,7 @@ CreateIndirectionTable(
 {
     *IndirectionTableSize = (UINT32)ProcessorIndices.size() * sizeof(*IndirectionTable);
 
-    IndirectionTable.reset((PROCESSOR_NUMBER *)malloc(*IndirectionTableSize));
+    IndirectionTable.reset((PROCESSOR_NUMBER *)AllocMem(*IndirectionTableSize));
     TEST_TRUE(IndirectionTable.get() != NULL);
 
     RtlZeroMemory(IndirectionTable.get(), *IndirectionTableSize);
@@ -7511,7 +7529,7 @@ OffloadRssCapabilities()
         TryRssGetCapabilities(InterfaceHandle.get(), NULL, &Size));
     TEST_EQUAL(Size, XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2);
 
-    RssCapabilities.reset((XDP_RSS_CAPABILITIES *)malloc(Size));
+    RssCapabilities.reset((XDP_RSS_CAPABILITIES *)AllocMem(Size));
     TEST_TRUE(RssCapabilities.get() != NULL);
 
     RssGetCapabilities(InterfaceHandle.get(), RssCapabilities.get(), &Size);
@@ -7566,7 +7584,7 @@ OffloadRssReset()
     UINT16 HashSecretKeySize = 40;
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
@@ -8385,7 +8403,7 @@ OidPassthru()
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
         const OID_PARAMS *OidParam = &OidKeys[Index];
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
-        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)malloc(LwfInfoBufferLength));
+        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)AllocMem(LwfInfoBufferLength));
 
         TEST_HRESULT(LwfOidSubmitRequest(
             DefaultLwf, OidParam->Key, &LwfInfoBufferLength, LwfInfoBuffer.get()));
@@ -8399,7 +8417,7 @@ OidPassthru()
     for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
         const OID_PARAMS *OidParam = &OidKeys[Index];
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
-        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)malloc(LwfInfoBufferLength));
+        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)AllocMem(LwfInfoBufferLength));
         const UINT32 CompletionSize = LwfInfoBufferLength / 2;
 
         auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
