@@ -2332,8 +2332,8 @@ CreateTcpSocket(
     struct TCP_ACCEPT_THREAD_CONTEXT {
         FNSOCK_HANDLE ListeningSocket;
         FNSOCK_HANDLE AcceptedSocket;
-    } AsyncCtx;
-    AsyncCtx.ListeningSocket = Socket.get();
+    } Ctx;
+    Ctx.ListeningSocket = Socket.get();
 
     CxPlatAsync Async([](void *Context) -> void* {
         struct TCP_ACCEPT_THREAD_CONTEXT *Ctx = (struct TCP_ACCEPT_THREAD_CONTEXT *)Context;
@@ -2341,7 +2341,7 @@ CreateTcpSocket(
         INT AddressLength = sizeof(Address);
         Ctx->AcceptedSocket = FnSockAccept(Ctx->ListeningSocket, (SOCKADDR *)&Address, &AddressLength);
         return nullptr;
-    }, &AsyncCtx);
+    }, &Ctx);
     auto CloseListener = wil::scope_exit([&]
     {
         Socket.reset();
@@ -2349,7 +2349,7 @@ CreateTcpSocket(
 
     TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
-    unique_fnsock AcceptedSocket{AsyncCtx.AcceptedSocket};
+    unique_fnsock AcceptedSocket{Ctx.AcceptedSocket};
     TEST_NOT_NULL(AcceptedSocket.get());
 
     *AckNum = AckNumForSynAck;
@@ -6211,14 +6211,14 @@ GenericXskWait(
         UINT32 QueueId;
         BOOLEAN Rx;
         BOOLEAN Tx;
-    } AsyncCtx;
-    AsyncCtx.Payload = Payload;
-    AsyncCtx.PayloadLength = sizeof(Payload);
-    AsyncCtx.Xsk = &Xsk;
-    AsyncCtx.IfIndex = If.GetIfIndex();
-    AsyncCtx.QueueId = FnMpIf.GetQueueId();
-    AsyncCtx.Rx = Rx;
-    AsyncCtx.Tx = Tx;
+    } Ctx;
+    Ctx.Payload = Payload;
+    Ctx.PayloadLength = sizeof(Payload);
+    Ctx.Xsk = &Xsk;
+    Ctx.IfIndex = If.GetIfIndex();
+    Ctx.QueueId = FnMpIf.GetQueueId();
+    Ctx.Rx = Rx;
+    Ctx.Tx = Tx;
 
     CxPlatAsync Async([](void *Context) -> void* {
         struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
@@ -6234,7 +6234,7 @@ GenericXskWait(
             TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
         }
         return nullptr;
-    }, &AsyncCtx);
+    }, &Ctx);
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -6330,14 +6330,14 @@ GenericXskWaitAsync(
         UINT32 QueueId;
         BOOLEAN Rx;
         BOOLEAN Tx;
-    } AsyncCtx;
-    AsyncCtx.Payload = Payload;
-    AsyncCtx.PayloadLength = sizeof(Payload);
-    AsyncCtx.Xsk = &Xsk;
-    AsyncCtx.IfIndex = If.GetIfIndex();
-    AsyncCtx.QueueId = FnMpIf.GetQueueId();
-    AsyncCtx.Rx = Rx;
-    AsyncCtx.Tx = Tx;
+    } Ctx;
+    Ctx.Payload = Payload;
+    Ctx.PayloadLength = sizeof(Payload);
+    Ctx.Xsk = &Xsk;
+    Ctx.IfIndex = If.GetIfIndex();
+    Ctx.QueueId = FnMpIf.GetQueueId();
+    Ctx.Rx = Rx;
+    Ctx.Tx = Tx;
 
     CxPlatAsync Async([](void *Context) -> void* {
         struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
@@ -6353,7 +6353,7 @@ GenericXskWaitAsync(
             TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
         }
         return nullptr;
-    }, &AsyncCtx);
+    }, &Ctx);
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -6735,15 +6735,15 @@ SetXdpRss(
         HANDLE InterfaceHandle;
         XDP_RSS_CONFIGURATION *RssConfig;
         UINT32 RssConfigSize;
-    } AsyncCtx;
-    AsyncCtx.InterfaceHandle = InterfaceHandle.get();
-    AsyncCtx.RssConfig = RssConfig.get();
-    AsyncCtx.RssConfigSize = RssConfigSize;
+    } Ctx;
+    Ctx.InterfaceHandle = InterfaceHandle.get();
+    Ctx.RssConfig = RssConfig.get();
+    Ctx.RssConfigSize = RssConfigSize;
 
-    CxPlatAsync Async([](void* Context) -> void* {
-        TRY_RSS_SET_THREAD_CONTEXT *Ctx = (TRY_RSS_SET_THREAD_CONTEXT *)Context;
+    CxPlatAsync Async([](void *Context) -> void* {
+        struct TRY_RSS_SET_THREAD_CONTEXT *Ctx = (struct TRY_RSS_SET_THREAD_CONTEXT *)Context;
         return (void*)((uintptr_t)TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize));
-    }, &AsyncCtx);
+    }, &Ctx);
 
     UINT32 OidInfoBufferLength;
     unique_malloc_ptr<VOID> OidInfoBuffer =
@@ -7988,14 +7988,14 @@ OffloadQeoConnection()
             struct TRY_QEO_SET_THREAD_CONTEXT {
                 HANDLE InterfaceHandle;
                 XDP_QUIC_CONNECTION *Connection;
-            } AsyncCtx;
-            AsyncCtx.InterfaceHandle = InterfaceHandle.get();
-            AsyncCtx.Connection = &Connection;
+            } Ctx;
+            Ctx.InterfaceHandle = InterfaceHandle.get();
+            Ctx.Connection = &Connection;
 
-            CxPlatAsync Async([](void* Context) -> void* {
+            CxPlatAsync Async([](void *Context) -> void* {
                 struct TRY_QEO_SET_THREAD_CONTEXT *Ctx = (struct TRY_QEO_SET_THREAD_CONTEXT *)Context;
                 return (void*)((uintptr_t)TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection)));
-            }, &AsyncCtx);
+            }, &Ctx);
 
             //
             // In case of failure, ensure the adapter is cleaned up before the
@@ -8156,11 +8156,11 @@ OffloadQeoRevert(
     struct QEO_REVERT_THREAD_CONTEXT {
         wil::unique_handle InterfaceHandle;
         REVERT_REASON RevertReason;
-    } AsyncCtx;
-    AsyncCtx.InterfaceHandle.reset(InterfaceHandle.release());
-    AsyncCtx.RevertReason = RevertReason;
+    } Ctx;
+    Ctx.InterfaceHandle.reset(InterfaceHandle.release());
+    Ctx.RevertReason = RevertReason;
 
-    CxPlatAsync Async([](void* Context) -> void* {
+    CxPlatAsync Async([](void *Context) -> void* {
         struct QEO_REVERT_THREAD_CONTEXT *Ctx = (struct QEO_REVERT_THREAD_CONTEXT *)Context;
         BOOLEAN Result;
         if (Ctx->RevertReason == RevertReasonInterfaceRemoval) {
@@ -8171,7 +8171,7 @@ OffloadQeoRevert(
             Result = (BOOLEAN)TRUE;
         }
         return (void*)((uintptr_t)Result);
-    }, &AsyncCtx);
+    }, &Ctx);
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -8301,7 +8301,7 @@ OffloadQeoOidFailure(
     Ctx.InterfaceHandle = InterfaceHandle.get();
     Ctx.Connection = &Connection;
 
-    CxPlatAsync Async([](void* Context) -> void* {
+    CxPlatAsync Async([](void *Context) -> void* {
         struct TRY_QEO_SET_THREAD_CONTEXT *Ctx = (struct TRY_QEO_SET_THREAD_CONTEXT *)Context;
         return (void*)((uintptr_t)TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection)));
     }, &Ctx);
@@ -8433,8 +8433,8 @@ OidPassthru()
         Ctx.InformationBufferLength = LwfInfoBufferLength;
         Ctx.InformationBuffer = LwfInfoBuffer.get();
 
-        CxPlatAsync Async([](void* Context) -> void* {
-            OID_REQUEST_THREAD_CONTEXT *Ctx = (OID_REQUEST_THREAD_CONTEXT *)Context;
+        CxPlatAsync Async([](void *Context) -> void* {
+            struct OID_REQUEST_THREAD_CONTEXT *Ctx = (struct OID_REQUEST_THREAD_CONTEXT *)Context;
             return
                 (void*)((uintptr_t)LwfOidSubmitRequest(
                     Ctx->Handle, Ctx->Key, &Ctx->InformationBufferLength, Ctx->InformationBuffer));
