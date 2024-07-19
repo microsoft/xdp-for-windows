@@ -8338,7 +8338,7 @@ OffloadQeoOidFailure(
     //
     // Verify the XDP offload API succeeded.
     //
-    TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
+    TEST_TRUE(FAILED((HRESULT)((uintptr_t)Async.Get())));
 }
 
 VOID
