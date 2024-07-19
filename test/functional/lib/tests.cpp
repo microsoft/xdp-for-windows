@@ -57,6 +57,8 @@
 #include "tests.h"
 #include "util.h"
 
+#include "cxplat.hpp"
+
 #include "tests.tmh"
 
 #define FNMP_IF_DESC "FNMP"
@@ -2188,21 +2190,6 @@ CreateUdpSocket(
     return Socket;
 }
 
-typedef struct {
-    FNSOCK_HANDLE ListeningSocket;
-    FNSOCK_HANDLE AcceptedSocket;
-} TCP_ACCEPT_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(TcpAcceptFn, Context)
-{
-    TCP_ACCEPT_THREAD_CONTEXT *Ctx = (TCP_ACCEPT_THREAD_CONTEXT *)Context;
-    SOCKADDR_INET Address;
-    INT AddressLength = sizeof(Address);
-    Ctx->AcceptedSocket = FnSockAccept(Ctx->ListeningSocket, (SOCKADDR *)&Address, &AddressLength);
-    CXPLAT_THREAD_RETURN(0);
-}
-
 static
 unique_fnsock
 CreateTcpSocket(
@@ -2342,25 +2329,27 @@ CreateTcpSocket(
     // within the timeout, the listening socket gets closed, which will cancel
     // the accept request.
     //
-    TCP_ACCEPT_THREAD_CONTEXT Ctx;
-    Ctx.ListeningSocket = Socket.get();
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, TcpAcceptFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
-    });
+    struct TCP_ACCEPT_THREAD_CONTEXT {
+        FNSOCK_HANDLE ListeningSocket;
+        FNSOCK_HANDLE AcceptedSocket;
+    } AsyncCtx;
+    AsyncCtx.ListeningSocket = Socket.get();
+
+    CxPlatAsync Async([](void *Context) -> void* {
+        struct TCP_ACCEPT_THREAD_CONTEXT *Ctx = (struct TCP_ACCEPT_THREAD_CONTEXT *)Context;
+        SOCKADDR_INET Address;
+        INT AddressLength = sizeof(Address);
+        Ctx->AcceptedSocket = FnSockAccept(Ctx->ListeningSocket, (SOCKADDR *)&Address, &AddressLength);
+        return nullptr;
+    }, &AsyncCtx);
     auto CloseListener = wil::scope_exit([&]
     {
         Socket.reset();
     });
 
-    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
-    unique_fnsock AcceptedSocket{Ctx.AcceptedSocket};
+    unique_fnsock AcceptedSocket{AsyncCtx.AcceptedSocket};
     TEST_NOT_NULL(AcceptedSocket.get());
 
     *AckNum = AckNumForSynAck;
@@ -6163,35 +6152,6 @@ TxIndicate(
     TEST_EQUAL(0, PokeResult);
 }
 
-typedef struct {
-    UCHAR *Payload;
-    SIZE_T PayloadLength;
-    MY_SOCKET *Xsk;
-    NET_IFINDEX IfIndex;
-    UINT32 QueueId;
-    BOOLEAN Rx;
-    BOOLEAN Tx;
-} DELAY_INDICATE_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(DelayIndicateFn, Context)
-{
-    DELAY_INDICATE_THREAD_CONTEXT *Ctx = (DELAY_INDICATE_THREAD_CONTEXT *)Context;
-    auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
-
-    Sleep(10);
-
-    if (Ctx->Rx) {
-        RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
-    }
-
-    if (Ctx->Tx) {
-        TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
-    }
-
-    CXPLAT_THREAD_RETURN(0);
-}
-
 VOID
 GenericXskWait(
     _In_ BOOLEAN Rx,
@@ -6243,23 +6203,38 @@ GenericXskWait(
     // On another thread, briefly delay execution to give the main test
     // thread a chance to begin waiting. Then, produce RX and TX.
     //
-    DELAY_INDICATE_THREAD_CONTEXT Ctx;
-    Ctx.Payload = Payload;
-    Ctx.PayloadLength = sizeof(Payload);
-    Ctx.Xsk = &Xsk;
-    Ctx.IfIndex = If.GetIfIndex();
-    Ctx.QueueId = FnMpIf.GetQueueId();
-    Ctx.Rx = Rx;
-    Ctx.Tx = Tx;
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, DelayIndicateFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
-    });
+    struct DELAY_INDICATE_THREAD_CONTEXT {
+        UCHAR *Payload;
+        SIZE_T PayloadLength;
+        MY_SOCKET *Xsk;
+        NET_IFINDEX IfIndex;
+        UINT32 QueueId;
+        BOOLEAN Rx;
+        BOOLEAN Tx;
+    } AsyncCtx;
+    AsyncCtx.Payload = Payload;
+    AsyncCtx.PayloadLength = sizeof(Payload);
+    AsyncCtx.Xsk = &Xsk;
+    AsyncCtx.IfIndex = If.GetIfIndex();
+    AsyncCtx.QueueId = FnMpIf.GetQueueId();
+    AsyncCtx.Rx = Rx;
+    AsyncCtx.Tx = Tx;
+
+    CxPlatAsync Async([](void *Context) -> void* {
+        struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
+        auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
+
+        Sleep(10);
+
+        if (Ctx->Rx) {
+            RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
+        }
+
+        if (Ctx->Tx) {
+            TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
+        }
+        return nullptr;
+    }, &AsyncCtx);
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -6347,23 +6322,38 @@ GenericXskWaitAsync(
     // On another thread, briefly delay execution to give the main test
     // thread a chance to begin waiting. Then, produce RX and TX.
     //
-    DELAY_INDICATE_THREAD_CONTEXT Ctx;
-    Ctx.Payload = Payload;
-    Ctx.PayloadLength = sizeof(Payload);
-    Ctx.Xsk = &Xsk;
-    Ctx.IfIndex = If.GetIfIndex();
-    Ctx.QueueId = FnMpIf.GetQueueId();
-    Ctx.Rx = Rx;
-    Ctx.Tx = Tx;
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, DelayIndicateFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
-    });
+    struct DELAY_INDICATE_THREAD_CONTEXT {
+        UCHAR *Payload;
+        SIZE_T PayloadLength;
+        MY_SOCKET *Xsk;
+        NET_IFINDEX IfIndex;
+        UINT32 QueueId;
+        BOOLEAN Rx;
+        BOOLEAN Tx;
+    } AsyncCtx;
+    AsyncCtx.Payload = Payload;
+    AsyncCtx.PayloadLength = sizeof(Payload);
+    AsyncCtx.Xsk = &Xsk;
+    AsyncCtx.IfIndex = If.GetIfIndex();
+    AsyncCtx.QueueId = FnMpIf.GetQueueId();
+    AsyncCtx.Rx = Rx;
+    AsyncCtx.Tx = Tx;
+
+    CxPlatAsync Async([](void *Context) -> void* {
+        struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
+        auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
+
+        Sleep(10);
+
+        if (Ctx->Rx) {
+            RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
+        }
+
+        if (Ctx->Tx) {
+            TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
+        }
+        return nullptr;
+    }, &AsyncCtx);
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -6697,21 +6687,6 @@ GetXdpRssIndirectionTable(
     IndirectionTableSizeOut = RssConfig->IndirectionTableSize;
 }
 
-typedef struct {
-    HANDLE InterfaceHandle;
-    XDP_RSS_CONFIGURATION *RssConfig;
-    UINT32 RssConfigSize;
-    HRESULT Result;
-} TRY_RSS_SET_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(TryRssSetFn, Context)
-{
-    TRY_RSS_SET_THREAD_CONTEXT *Ctx = (TRY_RSS_SET_THREAD_CONTEXT *)Context;
-    Ctx->Result = TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize);
-    CXPLAT_THREAD_RETURN(0);
-}
-
 static
 VOID
 SetXdpRss(
@@ -6756,20 +6731,19 @@ SetXdpRss(
     InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
-    TRY_RSS_SET_THREAD_CONTEXT Ctx;
-    Ctx.InterfaceHandle = InterfaceHandle.get();
-    Ctx.RssConfig = RssConfig.get();
-    Ctx.RssConfigSize = RssConfigSize;
-    Ctx.Result = E_FAIL;
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, TryRssSetFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
-    });
+    struct TRY_RSS_SET_THREAD_CONTEXT {
+        HANDLE InterfaceHandle;
+        XDP_RSS_CONFIGURATION *RssConfig;
+        UINT32 RssConfigSize;
+    } AsyncCtx;
+    AsyncCtx.InterfaceHandle = InterfaceHandle.get();
+    AsyncCtx.RssConfig = RssConfig.get();
+    AsyncCtx.RssConfigSize = RssConfigSize;
+
+    CxPlatAsync Async([](void* Context) -> void* {
+        TRY_RSS_SET_THREAD_CONTEXT *Ctx = (TRY_RSS_SET_THREAD_CONTEXT *)Context;
+        return (void*)((uintptr_t)TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize));
+    }, &AsyncCtx);
 
     UINT32 OidInfoBufferLength;
     unique_malloc_ptr<VOID> OidInfoBuffer =
@@ -6783,8 +6757,8 @@ SetXdpRss(
     TEST_TRUE(RtlEqualMemory(NdisIndirectionTable, IndirectionTable.get(), IndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
-    TEST_HRESULT(Ctx.Result);
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+    TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
 }
 
 static
@@ -7552,18 +7526,6 @@ OffloadRssCapabilities()
     TEST_EQUAL(RssCapabilities->NumberOfIndirectionTableEntries, FNMP_MAX_RSS_INDIR_COUNT);
 }
 
-typedef struct {
-    HRESULT Result;
-} TRY_UNBIND_XDP_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(TryUnbindXdpFn, Context)
-{
-    TRY_UNBIND_XDP_THREAD_CONTEXT *Ctx = (TRY_UNBIND_XDP_THREAD_CONTEXT *)Context;
-    Ctx->Result = FnMpIf.TryUnbindXdp();
-    CXPLAT_THREAD_RETURN(0);
-}
-
 VOID
 OffloadRssReset()
 {
@@ -7631,16 +7593,8 @@ OffloadRssReset()
     InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
-    TRY_UNBIND_XDP_THREAD_CONTEXT Ctx;
-    Ctx.Result = E_FAIL;
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, TryUnbindXdpFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
+    CxPlatAsync Async([](void*) -> void* {
+        return (void*)((uintptr_t)FnMpIf.TryUnbindXdp());
     });
 
     auto BindingScopeGuard = wil::scope_exit([&]
@@ -7663,8 +7617,8 @@ OffloadRssReset()
         OriginalIndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
-    TEST_HRESULT(Ctx.Result);
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+    TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
 }
 
 VOID
@@ -7982,20 +7936,6 @@ OffloadQeoGetExpectedOid()
             OID_QUIC_CONNECTION_ENCRYPTION : OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE;
 }
 
-typedef struct {
-    HANDLE InterfaceHandle;
-    XDP_QUIC_CONNECTION *Connection;
-    HRESULT Result;
-} TRY_QEO_SET_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(TryQeoSetFn, Context)
-{
-    TRY_QEO_SET_THREAD_CONTEXT *Ctx = (TRY_QEO_SET_THREAD_CONTEXT *)Context;
-    Ctx->Result = TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection));
-    CXPLAT_THREAD_RETURN(0);
-}
-
 VOID
 OffloadQeoConnection()
 {
@@ -8045,19 +7985,17 @@ OffloadQeoConnection()
             // block until the OID is completed, which won't happen until the miniport
             // handle is reset below.
             //
-            TRY_QEO_SET_THREAD_CONTEXT Ctx;
-            Ctx.InterfaceHandle = InterfaceHandle.get();
-            Ctx.Connection = &Connection;
-            Ctx.Result = E_FAIL;
-            CXPLAT_THREAD_CONFIG ThreadConfig {
-                0, 0, NULL, TryQeoSetFn, &Ctx
-            };
-            CXPLAT_THREAD AsyncThread;
-            TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-            auto DeleteThread = wil::scope_exit([&]
-            {
-                CxPlatThreadDelete(&AsyncThread);
-            });
+            struct TRY_QEO_SET_THREAD_CONTEXT {
+                HANDLE InterfaceHandle;
+                XDP_QUIC_CONNECTION *Connection;
+            } AsyncCtx;
+            AsyncCtx.InterfaceHandle = InterfaceHandle.get();
+            AsyncCtx.Connection = &Connection;
+
+            CxPlatAsync Async([](void* Context) -> void* {
+                struct TRY_QEO_SET_THREAD_CONTEXT *Ctx = (struct TRY_QEO_SET_THREAD_CONTEXT *)Context;
+                return (void*)((uintptr_t)TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection)));
+            }, &AsyncCtx);
 
             //
             // In case of failure, ensure the adapter is cleaned up before the
@@ -8125,12 +8063,12 @@ OffloadQeoConnection()
             //
             // Verify the XDP offload API is completed once the OID completes.
             //
-            TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+            TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
             //
             // Verify the XDP offload API succeeded.
             //
-            TEST_HRESULT(Ctx.Result);
+            TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
 
             //
             // Verify the connection's status field was updated with the miniport
@@ -8156,26 +8094,6 @@ OffloadQeoConnection()
             }
         }}}}}}
     }
-}
-
-typedef struct {
-    wil::unique_handle InterfaceHandle;
-    REVERT_REASON RevertReason;
-    BOOLEAN Result;
-} QEO_REVERT_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(QeoRevertFn, Context)
-{
-    QEO_REVERT_THREAD_CONTEXT *Ctx = (QEO_REVERT_THREAD_CONTEXT *)Context;
-    if (Ctx->RevertReason == RevertReasonInterfaceRemoval) {
-        Ctx->Result = FnMpIf.TryRestart();
-    } else {
-        ASSERT(Ctx->RevertReason == RevertReasonHandleClosure);
-        Ctx->InterfaceHandle.reset();
-        Ctx->Result = (BOOLEAN)TRUE;
-    }
-    CXPLAT_THREAD_RETURN(0);
 }
 
 VOID
@@ -8235,19 +8153,25 @@ OffloadQeoRevert(
     // block until the OID is completed, which won't happen until the miniport
     // handle is reset below.
     //
-    QEO_REVERT_THREAD_CONTEXT Ctx;
-    Ctx.InterfaceHandle.reset(InterfaceHandle.release());
-    Ctx.RevertReason = RevertReason;
-    Ctx.Result = FALSE;
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, QeoRevertFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
-    });
+    struct QEO_REVERT_THREAD_CONTEXT {
+        wil::unique_handle InterfaceHandle;
+        REVERT_REASON RevertReason;
+    } AsyncCtx;
+    AsyncCtx.InterfaceHandle.reset(InterfaceHandle.release());
+    AsyncCtx.RevertReason = RevertReason;
+
+    CxPlatAsync Async([](void* Context) -> void* {
+        struct QEO_REVERT_THREAD_CONTEXT *Ctx = (struct QEO_REVERT_THREAD_CONTEXT *)Context;
+        BOOLEAN Result;
+        if (Ctx->RevertReason == RevertReasonInterfaceRemoval) {
+            Result = FnMpIf.TryRestart();
+        } else {
+            ASSERT(Ctx->RevertReason == RevertReasonHandleClosure);
+            Ctx->InterfaceHandle.reset();
+            Result = (BOOLEAN)TRUE;
+        }
+        return (void*)((uintptr_t)Result);
+    }, &AsyncCtx);
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -8311,12 +8235,12 @@ OffloadQeoRevert(
     //
     // Verify the revert/teardown is completed once the OID completes.
     //
-    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, Timeout));
+    TEST_TRUE(Async.WaitFor(Timeout));
 
     //
     // Verify the revert/teardown succeeded.
     //
-    TEST_TRUE(Ctx.Result);
+    TEST_TRUE((BOOLEAN)((uintptr_t)Async.Get()));
 }
 
 VOID
@@ -8370,19 +8294,17 @@ OffloadQeoOidFailure(
     // block until the OID is completed, which won't happen until the miniport
     // handle is reset below.
     //
-    TRY_QEO_SET_THREAD_CONTEXT Ctx;
+    struct TRY_QEO_SET_THREAD_CONTEXT {
+        HANDLE InterfaceHandle;
+        XDP_QUIC_CONNECTION *Connection;
+    } Ctx;
     Ctx.InterfaceHandle = InterfaceHandle.get();
     Ctx.Connection = &Connection;
-    Ctx.Result = ERROR_SUCCESS;
-    CXPLAT_THREAD_CONFIG ThreadConfig {
-        0, 0, NULL, TryQeoSetFn, &Ctx
-    };
-    CXPLAT_THREAD AsyncThread;
-    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-    auto DeleteThread = wil::scope_exit([&]
-    {
-        CxPlatThreadDelete(&AsyncThread);
-    });
+
+    CxPlatAsync Async([](void* Context) -> void* {
+        struct TRY_QEO_SET_THREAD_CONTEXT *Ctx = (struct TRY_QEO_SET_THREAD_CONTEXT *)Context;
+        return (void*)((uintptr_t)TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection)));
+    }, &Ctx);
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -8409,33 +8331,14 @@ OffloadQeoOidFailure(
     MpOidCompleteRequest(AdapterMp, Key, NDIS_STATUS_FAILURE, NdisConnection, OidInfoBufferLength);
 
     //
-    // Verify the offload API fails once the OID completes.
+    // Verify the XDP offload API is completed once the OID completes.
     //
-    TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
     //
-    // Verify the XDP offload API failed.
+    // Verify the XDP offload API succeeded.
     //
-    TEST_TRUE(FAILED(Ctx.Result));
-}
-
-typedef struct {
-    unique_fnlwf_handle Handle;
-    OID_KEY Key;
-    UINT32 InformationBufferLength;
-    VOID *InformationBuffer;
-    HRESULT HResult;
-} OID_REQUEST_THREAD_CONTEXT;
-
-static
-CXPLAT_THREAD_CALLBACK(OidRequestFn, Context)
-{
-
-    OID_REQUEST_THREAD_CONTEXT *Ctx = (OID_REQUEST_THREAD_CONTEXT *)Context;
-    Ctx->HResult =
-        LwfOidSubmitRequest(
-            Ctx->Handle, Ctx->Key, &Ctx->InformationBufferLength, Ctx->InformationBuffer);
-    CXPLAT_THREAD_RETURN(0);
+    TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
 }
 
 VOID
@@ -8519,21 +8422,23 @@ OidPassthru()
         }
 
         MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
-        OID_REQUEST_THREAD_CONTEXT Ctx;
+        struct OID_REQUEST_THREAD_CONTEXT {
+            unique_fnlwf_handle Handle;
+            OID_KEY Key;
+            UINT32 InformationBufferLength;
+            VOID *InformationBuffer;
+        } Ctx;
         Ctx.Handle.reset(DefaultLwf.release());
         Ctx.Key = OidParam->Key;
         Ctx.InformationBufferLength = LwfInfoBufferLength;
         Ctx.InformationBuffer = LwfInfoBuffer.get();
-        Ctx.HResult = E_FAIL;
-        CXPLAT_THREAD_CONFIG ThreadConfig {
-            0, 0, NULL, OidRequestFn, &Ctx
-        };
-        CXPLAT_THREAD AsyncThread;
-        TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatThreadCreate(&ThreadConfig, &AsyncThread)));
-        auto DeleteThread = wil::scope_exit([&]
-        {
-            CxPlatThreadDelete(&AsyncThread);
-        });
+
+        CxPlatAsync Async([](void* Context) -> void* {
+            OID_REQUEST_THREAD_CONTEXT *Ctx = (OID_REQUEST_THREAD_CONTEXT *)Context;
+            return
+                (void*)((uintptr_t)LwfOidSubmitRequest(
+                    Ctx->Handle, Ctx->Key, &Ctx->InformationBufferLength, Ctx->InformationBuffer));
+        }, &Ctx);
 
         MpInfoBuffer =
             MpOidAllocateAndGetRequest(ExclusiveMp, OidParam->Key, &MpInfoBufferLength);
@@ -8541,10 +8446,10 @@ OidPassthru()
 
         TEST_HRESULT(MpOidCompleteRequest(
             ExclusiveMp, OidParam->Key, STATUS_SUCCESS, LwfInfoBuffer.get(), CompletionSize));
-        TEST_TRUE(CxPlatThreadWaitWithTimeout(&AsyncThread, TEST_TIMEOUT_ASYNC_MS));
-        TEST_HRESULT(Ctx.HResult);
+        TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+        TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
 
-        DefaultLwf.reset(Ctx.Handle.release());
+        DefaultLwf.reset(Ctx.Handle.release()); 
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
     }
 }
