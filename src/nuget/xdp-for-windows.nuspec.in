@@ -19,6 +19,5 @@
         <file src="{binpath}\xdpbpfexport.exe" target="build\native\bin"/>
         <file src="{binpath}\xdpapi.lib" target="build\native\lib"/>
         <file src="{binpath}\xdpnmr.lib" target="build\native\lib"/>
-        <file src="{binpath}\xdpnmr.pdb" target="build\native\symbols"/>
     </files>
 </package>
