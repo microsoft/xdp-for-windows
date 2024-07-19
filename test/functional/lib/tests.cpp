@@ -8336,7 +8336,7 @@ OffloadQeoOidFailure(
     TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
     //
-    // Verify the XDP offload API succeeded.
+    // Verify the XDP offload API failed.
     //
     TEST_TRUE(FAILED((HRESULT)((uintptr_t)Async.Get())));
 }
@@ -8449,7 +8449,7 @@ OidPassthru()
         TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
         TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
 
-        DefaultLwf.reset(Ctx.Handle.release()); 
+        DefaultLwf.reset(Ctx.Handle.release());
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
     }
 }
