@@ -645,7 +645,7 @@ TryStartService(
         if (ServiceState == SERVICE_RUNNING) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     Result = (ServiceState == SERVICE_RUNNING) ? S_OK : E_FAIL;
     TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
@@ -679,7 +679,7 @@ TryStopService(
         if (ServiceState == SERVICE_STOPPED) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     Result = (ServiceState == SERVICE_STOPPED) ? S_OK : E_FAIL;
     TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
@@ -1280,7 +1280,7 @@ CreateAndBindSocket(
         if (SUCCEEDED(BindResult)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
     TEST_HRESULT(XdpApi->XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
@@ -1485,7 +1485,7 @@ LwfOpenDefault(
         } else {
             TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), Result);
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 
@@ -1568,7 +1568,7 @@ MpRxFlush(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_READY)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 }
@@ -1673,7 +1673,7 @@ MpTxVerifyNoFrame(
     )
 {
     UINT32 FrameBufferLength = 0;
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
         MpTxGetFrame(Handle, Index, &FrameBufferLength, NULL));
@@ -1699,7 +1699,7 @@ MpTxAllocateAndGetFrame(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
@@ -1768,7 +1768,7 @@ LwfTxFlush(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_READY)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 }
@@ -1820,7 +1820,7 @@ LwfRxAllocateAndGetFrame(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
@@ -1949,7 +1949,7 @@ LwfStatusAllocateAndGetIndication(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     if (SUCCEEDED(Result)) {
         TEST_EQUAL(0, *StatusBufferLength);
@@ -2066,7 +2066,7 @@ MpOidAllocateAndGetRequest(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(Length > 0);
@@ -2404,7 +2404,7 @@ WaitForWfpQuarantine(
         if (Bytes == sizeof(UdpPayload)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(Bytes, sizeof(UdpPayload));
 }
 
@@ -2443,7 +2443,7 @@ TryWaitForNdisDatapath(
 
         unique_fnlwf_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfUp = LwfIsDatapathActive(FnLwf);
-    } while (Sleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
+    } while (CxPlatSleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
 
     if (!AdapterUp) {
         TraceError("AdapterUp=FALSE");
@@ -2784,7 +2784,7 @@ GenericRxAllQueueRedirect(
     RxInitializeFrame(&Frame, If.GetQueueId() + 1, PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
@@ -2872,7 +2872,7 @@ GenericRxTcpControl(
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
@@ -3768,7 +3768,7 @@ GenericRxMultiProgram()
         //
         if (Detach) {
             UINT32 ConsumerIndex;
-            Sleep(TEST_TIMEOUT_ASYNC_MS);
+            CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
             TEST_EQUAL(0, XskRingConsumerReserve(&Socket.Rings.Rx, MAXUINT32, &ConsumerIndex));
         } else {
             UINT32 ConsumerIndex = SocketConsumerReserve(&Socket.Rings.Rx, 1);
@@ -4801,7 +4801,7 @@ GenericRxFromTxInspect(
         // TCPIP returns WSAENOBUFS when it cannot reference the data path.
         //
         TEST_EQUAL(WSAENOBUFS, FnSockGetLastError());
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)Bytes);
 
@@ -5390,7 +5390,7 @@ AttachEbpfXdpProgram(
     //
     // TODO: https://github.com/microsoft/ebpf-for-windows/issues/2133
     // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
-    // Try a few times to load and attach the program with a sleep in between.
+    // Try a few times to load and attach the program with a CxPlatSleep in between.
     //
     Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
@@ -5399,7 +5399,7 @@ AttachEbpfXdpProgram(
         if (Result == S_OK) {
             break;
         }
-    } while (Sleep(2 * POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(2 * POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 
@@ -5421,7 +5421,7 @@ GenericRxEbpfAttach()
     // tearing down the object, so allow some time for that to happen before
     // retrying with the replace flag.
     //
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
     BpfObjectReplacement =
         AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
@@ -5447,7 +5447,7 @@ GenericRxEbpfDrop()
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
     UINT32 FrameLength = 0;
     TEST_EQUAL(
@@ -5641,7 +5641,7 @@ GenericRxEbpfIfIndex()
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
     UINT32 FrameLength = 0;
     // Packet should be dropped.
@@ -5664,7 +5664,7 @@ GenericRxEbpfIfIndex()
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
     // Packet should not be dropped.
     TEST_EQUAL(
@@ -6032,7 +6032,7 @@ GenericTxMtu()
         if (XskRingError(&Xsk.Rings.Tx)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_TRUE(XskRingError(&Xsk.Rings.Tx));
 
     //
@@ -6224,7 +6224,7 @@ GenericXskWait(
         struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
         auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
-        Sleep(10);
+        CxPlatSleep(10);
 
         if (Ctx->Rx) {
             RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
@@ -6343,7 +6343,7 @@ GenericXskWaitAsync(
         struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
         auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
-        Sleep(10);
+        CxPlatSleep(10);
 
         if (Ctx->Rx) {
             RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
@@ -6446,10 +6446,10 @@ GenericLwfDelayDetach(
         TEST_EQUAL(
             ERROR_SUCCESS,
             RegDeleteValueA(XdpParametersKey.get(), DelayDetachTimeoutRegName));
-        Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+        CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
         FnMpIf.Restart();
     });
-    Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
     FnMpIf.Restart();
     {
@@ -6471,7 +6471,7 @@ GenericLwfDelayDetach(
             XdpParametersKey.get(),
             DelayDetachTimeoutRegName,
             0, REG_DWORD, (BYTE *)&DelayTimeoutSec, sizeof(DelayTimeoutSec)));
-    Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
     FnMpIf.Restart();
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
@@ -6492,11 +6492,11 @@ GenericLwfDelayDetach(
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
         QueryPerformanceCounter(&SocketClosureTime);
     }
-    Sleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
     TEST_TRUE(LastMpPauseTime.QuadPart < SocketClosureTime.QuadPart);
     QueryPerformanceCounter(&LowerBoundTime);
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
     QueryPerformanceCounter(&UpperBoundTime);
 
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
@@ -6516,15 +6516,15 @@ GenericLwfDelayDetach(
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
         QueryPerformanceCounter(&SocketClosureTime);
     }
-    Sleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
     }
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
     TEST_TRUE(LastMpPauseTime.QuadPart < SocketClosureTime.QuadPart);
     QueryPerformanceCounter(&LowerBoundTime);
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
     QueryPerformanceCounter(&UpperBoundTime);
 
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
@@ -6964,7 +6964,7 @@ OffloadRssError()
         if (CurrentRssResult == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), CurrentRssResult);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
@@ -7219,7 +7219,7 @@ OffloadRssInterfaceRestart()
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
 
     RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
