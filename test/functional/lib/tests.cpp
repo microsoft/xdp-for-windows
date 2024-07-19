@@ -147,7 +147,7 @@ static
 void
 FreeMem(
     _In_ void *Mem
-)
+    )
 {
     CXPLAT_FREE(Mem, 'tPDX');
 }
