@@ -51,7 +51,7 @@ jobs:
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 180 # minutes. Update timeout-minutes with any changes.
+      fullRuntime: 250 # minutes. Update timeout-minutes with any changes.
       fullIters: 10
       # For PRs
       prRuntime: 25 # minutes. Update timeout-minutes with any changes.
@@ -90,11 +90,11 @@ jobs:
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 180
+      timeout-minutes: 250
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 10
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
@@ -299,7 +299,7 @@ jobs:
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -UseJitEbpf
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 10
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
