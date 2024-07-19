@@ -830,7 +830,7 @@ XdpGenericRxSegmentRscToLso(
 
     ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
     ASSERT(!RxQueue->Flags.TxInspect);
-    ASSERT(NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl));
+    ASSERT(NET_BUFFER_LIST_COALESCED_SEG_COUNT(Nbl) > 0);
     ASSERT(Nb->Next == NULL);
     ASSERT(LsoMss > 0);
     ASSERT(TcpTotalHdrLen <= Nb->DataLength);
@@ -1116,7 +1116,7 @@ XdpGenericRxConvertRscToLso(
 
     ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
     ASSERT(!RxQueue->Flags.TxInspect);
-    ASSERT(NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl));
+    ASSERT(NET_BUFFER_LIST_COALESCED_SEG_COUNT(Nbl) > 0);
     ASSERT(Nb->Next == NULL);
     ASSERT(Mdl->MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL));
     ASSERT(NumSeg > 0);
@@ -1313,7 +1313,7 @@ XdpGenericReceiveEnqueueTxNb(
     Nbl->FirstNetBuffer->Next = NULL;
 
     if (!RxQueue->Flags.TxInspect) {
-        if (NET_BUFFER_LIST_IS_TCP_RSC_SET(Nbl)) {
+        if (NET_BUFFER_LIST_COALESCED_SEG_COUNT(Nbl) > 0) {
             XdpGenericRxConvertRscToLso(RxQueue, TxList, Nbl, CanPend);
             goto Exit;
         }
