@@ -4481,8 +4481,11 @@ GenericRxFragmentBuffer(
     //
     // Allocate UDP payload and initialize to a pattern.
     //
-    unique_malloc_ptr<UCHAR> Payload((UCHAR *)AllocMem(Params->PayloadLength));
-    CxPlatRandom(Params->PayloadLength, Payload.get());
+    unique_malloc_ptr<UCHAR> Payload;
+    if (Params->PayloadLength > 0) {
+        Payload.reset((UCHAR *)AllocMem(Params->PayloadLength));
+        CxPlatRandom(Params->PayloadLength, Payload.get());
+    }
 
     CxPlatVector<UCHAR> PacketBuffer(
         Params->Backfill +
