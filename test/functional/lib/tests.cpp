@@ -2353,12 +2353,10 @@ CreateTcpSocket(
     } Ctx;
     Ctx.ListeningSocket = Socket.get();
 
-    CxPlatAsync Async([](void *Context) -> void* {
-        struct TCP_ACCEPT_THREAD_CONTEXT *Ctx = (struct TCP_ACCEPT_THREAD_CONTEXT *)Context;
+    CxPlatAsyncT<TCP_ACCEPT_THREAD_CONTEXT> Async([](TCP_ACCEPT_THREAD_CONTEXT * Ctx) {
         SOCKADDR_INET Address;
         INT AddressLength = sizeof(Address);
         Ctx->AcceptedSocket = FnSockAccept(Ctx->ListeningSocket, (SOCKADDR *)&Address, &AddressLength);
-        return nullptr;
     }, &Ctx);
     auto CloseListener = wil::scope_exit([&]
     {
@@ -6242,8 +6240,7 @@ GenericXskWait(
     Ctx.Rx = Rx;
     Ctx.Tx = Tx;
 
-    CxPlatAsync Async([](void *Context) -> void* {
-        struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
+    CxPlatAsyncT<DELAY_INDICATE_THREAD_CONTEXT> Async([](DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
         auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
         CxPlatSleep(10);
@@ -6255,7 +6252,6 @@ GenericXskWait(
         if (Ctx->Tx) {
             TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
         }
-        return nullptr;
     }, &Ctx);
 
     //
@@ -6361,8 +6357,7 @@ GenericXskWaitAsync(
     Ctx.Rx = Rx;
     Ctx.Tx = Tx;
 
-    CxPlatAsync Async([](void *Context) -> void* {
-        struct DELAY_INDICATE_THREAD_CONTEXT *Ctx = (struct DELAY_INDICATE_THREAD_CONTEXT *)Context;
+    CxPlatAsyncT<DELAY_INDICATE_THREAD_CONTEXT> Async([](DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
         auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
         CxPlatSleep(10);
@@ -6374,7 +6369,6 @@ GenericXskWaitAsync(
         if (Ctx->Tx) {
             TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
         }
-        return nullptr;
     }, &Ctx);
 
     //
@@ -6757,14 +6751,14 @@ SetXdpRss(
         HANDLE InterfaceHandle;
         XDP_RSS_CONFIGURATION *RssConfig;
         UINT32 RssConfigSize;
+        HRESULT Result;
     } Ctx;
     Ctx.InterfaceHandle = InterfaceHandle.get();
     Ctx.RssConfig = RssConfig.get();
     Ctx.RssConfigSize = RssConfigSize;
 
-    CxPlatAsync Async([](void *Context) -> void* {
-        struct TRY_RSS_SET_THREAD_CONTEXT *Ctx = (struct TRY_RSS_SET_THREAD_CONTEXT *)Context;
-        return (void*)((uintptr_t)TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize));
+    CxPlatAsyncT<TRY_RSS_SET_THREAD_CONTEXT> Async([](TRY_RSS_SET_THREAD_CONTEXT *Ctx) {
+        Ctx->Result = TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize);
     }, &Ctx);
 
     UINT32 OidInfoBufferLength;
@@ -6780,7 +6774,7 @@ SetXdpRss(
 
     AdapterMp.reset();
     TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
-    TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
+    TEST_HRESULT(Ctx.Result);
 }
 
 static
@@ -7615,8 +7609,9 @@ OffloadRssReset()
     InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
-    CxPlatAsync Async([](void*) -> void* {
-        return (void*)((uintptr_t)FnMpIf.TryUnbindXdp());
+    HRESULT Result = E_FAIL; 
+    CxPlatAsyncT<HRESULT> Async([](HRESULT* Result) {
+        *Result = FnMpIf.TryUnbindXdp();
     });
 
     auto BindingScopeGuard = wil::scope_exit([&]
@@ -7640,7 +7635,7 @@ OffloadRssReset()
 
     AdapterMp.reset();
     TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
-    TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
+    TEST_HRESULT(Result);
 }
 
 VOID
@@ -8010,13 +8005,13 @@ OffloadQeoConnection()
             struct TRY_QEO_SET_THREAD_CONTEXT {
                 HANDLE InterfaceHandle;
                 XDP_QUIC_CONNECTION *Connection;
+                HRESULT Result;
             } Ctx;
             Ctx.InterfaceHandle = InterfaceHandle.get();
             Ctx.Connection = &Connection;
 
-            CxPlatAsync Async([](void *Context) -> void* {
-                struct TRY_QEO_SET_THREAD_CONTEXT *Ctx = (struct TRY_QEO_SET_THREAD_CONTEXT *)Context;
-                return (void*)((uintptr_t)TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection)));
+            CxPlatAsyncT<TRY_QEO_SET_THREAD_CONTEXT> Async([](TRY_QEO_SET_THREAD_CONTEXT *Ctx) {
+                Ctx->Result = TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection));
             }, &Ctx);
 
             //
@@ -8090,7 +8085,7 @@ OffloadQeoConnection()
             //
             // Verify the XDP offload API succeeded.
             //
-            TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
+            TEST_HRESULT(Ctx.Result);
 
             //
             // Verify the connection's status field was updated with the miniport
@@ -8178,21 +8173,20 @@ OffloadQeoRevert(
     struct QEO_REVERT_THREAD_CONTEXT {
         wil::unique_handle InterfaceHandle;
         REVERT_REASON RevertReason;
+        BOOLEAN Succeeded;
     } Ctx;
     Ctx.InterfaceHandle.reset(InterfaceHandle.release());
     Ctx.RevertReason = RevertReason;
+    Ctx.Succeeded = FALSE;
 
-    CxPlatAsync Async([](void *Context) -> void* {
-        struct QEO_REVERT_THREAD_CONTEXT *Ctx = (struct QEO_REVERT_THREAD_CONTEXT *)Context;
-        BOOLEAN Result;
+    CxPlatAsyncT<QEO_REVERT_THREAD_CONTEXT> Async([](QEO_REVERT_THREAD_CONTEXT *Ctx)  {
         if (Ctx->RevertReason == RevertReasonInterfaceRemoval) {
-            Result = FnMpIf.TryRestart();
+            Ctx->Succeeded = FnMpIf.TryRestart();
         } else {
             ASSERT(Ctx->RevertReason == RevertReasonHandleClosure);
             Ctx->InterfaceHandle.reset();
-            Result = (BOOLEAN)TRUE;
+            Ctx->Succeeded = (BOOLEAN)TRUE;
         }
-        return (void*)((uintptr_t)Result);
     }, &Ctx);
 
     //
@@ -8262,7 +8256,7 @@ OffloadQeoRevert(
     //
     // Verify the revert/teardown succeeded.
     //
-    TEST_TRUE((BOOLEAN)((uintptr_t)Async.Get()));
+    TEST_TRUE(Ctx.Succeeded);
 }
 
 VOID
@@ -8319,13 +8313,13 @@ OffloadQeoOidFailure(
     struct TRY_QEO_SET_THREAD_CONTEXT {
         HANDLE InterfaceHandle;
         XDP_QUIC_CONNECTION *Connection;
+        HRESULT Result;
     } Ctx;
     Ctx.InterfaceHandle = InterfaceHandle.get();
     Ctx.Connection = &Connection;
 
-    CxPlatAsync Async([](void *Context) -> void* {
-        struct TRY_QEO_SET_THREAD_CONTEXT *Ctx = (struct TRY_QEO_SET_THREAD_CONTEXT *)Context;
-        return (void*)((uintptr_t)TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection)));
+    CxPlatAsyncT<TRY_QEO_SET_THREAD_CONTEXT> Async([](TRY_QEO_SET_THREAD_CONTEXT *Ctx) {
+        Ctx->Result = TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection));
     }, &Ctx);
 
     //
@@ -8360,7 +8354,7 @@ OffloadQeoOidFailure(
     //
     // Verify the XDP offload API failed.
     //
-    TEST_TRUE(FAILED((HRESULT)((uintptr_t)Async.Get())));
+    TEST_TRUE(FAILED(Ctx.Result));
 }
 
 VOID
@@ -8449,17 +8443,17 @@ OidPassthru()
             OID_KEY Key;
             UINT32 InformationBufferLength;
             VOID *InformationBuffer;
+            HRESULT Result;
         } Ctx;
         Ctx.Handle.reset(DefaultLwf.release());
         Ctx.Key = OidParam->Key;
         Ctx.InformationBufferLength = LwfInfoBufferLength;
         Ctx.InformationBuffer = LwfInfoBuffer.get();
 
-        CxPlatAsync Async([](void *Context) -> void* {
-            struct OID_REQUEST_THREAD_CONTEXT *Ctx = (struct OID_REQUEST_THREAD_CONTEXT *)Context;
-            return
-                (void*)((uintptr_t)LwfOidSubmitRequest(
-                    Ctx->Handle, Ctx->Key, &Ctx->InformationBufferLength, Ctx->InformationBuffer));
+        CxPlatAsyncT<OID_REQUEST_THREAD_CONTEXT> Async([](OID_REQUEST_THREAD_CONTEXT *Ctx) {
+            Ctx->Result =
+                LwfOidSubmitRequest(
+                    Ctx->Handle, Ctx->Key, &Ctx->InformationBufferLength, Ctx->InformationBuffer);
         }, &Ctx);
 
         MpInfoBuffer =
@@ -8469,7 +8463,7 @@ OidPassthru()
         TEST_HRESULT(MpOidCompleteRequest(
             ExclusiveMp, OidParam->Key, STATUS_SUCCESS, LwfInfoBuffer.get(), CompletionSize));
         TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
-        TEST_HRESULT((HRESULT)((uintptr_t)Async.Get()));
+        TEST_HRESULT(Ctx.Result);
 
         DefaultLwf.reset(Ctx.Handle.release());
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
