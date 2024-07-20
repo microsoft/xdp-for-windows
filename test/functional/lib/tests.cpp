@@ -5412,7 +5412,7 @@ AttachEbpfXdpProgram(
     //
     // TODO: https://github.com/microsoft/ebpf-for-windows/issues/2133
     // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
-    // Try a few times to load and attach the program with a CxPlatSleep in between.
+    // Try a few times to load and attach the program with a sleep in between.
     //
     Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
