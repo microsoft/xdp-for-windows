@@ -3140,8 +3140,9 @@ GenericRxMatch(
                MatchType == XDP_MATCH_IPV6_UDP_PORT_SET ||
                MatchType == XDP_MATCH_IPV4_TCP_PORT_SET ||
                MatchType == XDP_MATCH_IPV6_TCP_PORT_SET) {
-        PortSet.reset((UINT8 *)calloc(XDP_PORT_SET_BUFFER_SIZE, 1));
+        PortSet.reset((UINT8 *)AllocMem(XDP_PORT_SET_BUFFER_SIZE));
         TEST_NOT_NULL(PortSet.get());
+        CxPlatZeroMemory(PortSet.get(), XDP_PORT_SET_BUFFER_SIZE);
 
         SetBit(PortSet.get(), LocalPort);
 
