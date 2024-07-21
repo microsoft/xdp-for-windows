@@ -7612,7 +7612,7 @@ OffloadRssReset()
     HRESULT Result = E_FAIL; 
     CxPlatAsyncT<HRESULT> Async([](HRESULT* Result) {
         *Result = FnMpIf.TryUnbindXdp();
-    });
+    }, &Result);
 
     auto BindingScopeGuard = wil::scope_exit([&]
     {
