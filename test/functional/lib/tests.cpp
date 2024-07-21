@@ -2358,10 +2358,6 @@ CreateTcpSocket(
         INT AddressLength = sizeof(Address);
         Ctx->AcceptedSocket = FnSockAccept(Ctx->ListeningSocket, (SOCKADDR *)&Address, &AddressLength);
     }, &Ctx);
-    auto CloseListener = wil::scope_exit([&]
-    {
-        Socket.reset();
-    });
 
     TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
