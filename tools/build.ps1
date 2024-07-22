@@ -21,7 +21,16 @@ param (
     [switch]$NoSign = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$NoInstaller = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$NoInstallerProjectReferences = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoDevNuget = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoDevNugetProjectReferences = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
@@ -89,6 +98,9 @@ msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
     /p:InstallerProjectReferences=$(!$NoInstallerProjectReferences) `
+    /p:NoInstaller=$NoInstaller `
+    /p:DevNugetProjectReferences=$(!$NoDevNugetProjectReferences) `
+    /p:NoDevNuget=$NoDevNuget `
     /p:IsAdmin=$IsAdmin `
     /p:SignMode=$SignMode `
     /t:$($Tasks -join ",") `

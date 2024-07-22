@@ -56,7 +56,7 @@
   <Target Name="Build" />
   <Target Name="Clean" />
   <Target Name="Rebuild" />
-  <Import Project="$(WixTargetsPath)" Condition="'$(SignMode)' != 'Off'" />
+  <Import Project="$(WixTargetsPath)" Condition="'$(NoInstaller)' != 'true'" />
   <!-- prevents NU1503 -->
   <Target Name="_IsProjectRestoreSupported"
           Returns="@(_ValidProjectsForRestore)">
