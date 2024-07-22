@@ -461,7 +461,7 @@ private:
         OutBufLen = 0;
         TEST_EQUAL(ERROR_BUFFER_OVERFLOW, GetAdaptersInfo(NULL, &OutBufLen));
         unique_malloc_ptr<IP_ADAPTER_INFO> AdapterInfoList{ (IP_ADAPTER_INFO *)AllocMem(OutBufLen) };
-        TEST_NOT_NULL(AdapterInfoList);
+        TEST_NOT_NULL(AdapterInfoList.get());
         TEST_EQUAL(NO_ERROR, GetAdaptersInfo(AdapterInfoList.get(), &OutBufLen));
 
         //
@@ -1726,7 +1726,7 @@ MpTxAllocateAndGetFrame(
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
     FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
-    TEST_TRUE(FrameBuffer != NULL);
+    TEST_NOT_NULL(FrameBuffer.get());
 
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
@@ -1847,7 +1847,7 @@ LwfRxAllocateAndGetFrame(
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
     FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
-    TEST_TRUE(FrameBuffer != NULL);
+    TEST_NOT_NULL(FrameBuffer.get());
 
     TEST_HRESULT(LwfRxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
@@ -1915,7 +1915,7 @@ LwfOidAllocateAndSubmitRequest(
     TEST_TRUE(InformationBufferLength > 0);
 
     InformationBuffer.reset((T *)AllocMem(InformationBufferLength));
-    TEST_TRUE(InformationBuffer.get() != NULL);
+    TEST_NOT_NULL(InformationBuffer.get());
 
     Result = LwfOidSubmitRequest(Handle, Key, &InformationBufferLength, InformationBuffer.get());
     TEST_HRESULT(Result);
@@ -1980,7 +1980,7 @@ LwfStatusAllocateAndGetIndication(
         TEST_NOT_EQUAL(0, *StatusBufferLength);
 
         StatusBuffer.reset((T *)AllocMem(*StatusBufferLength));
-        TEST_TRUE(StatusBuffer != NULL);
+        TEST_NOT_NULL(StatusBuffer.get());
 
         TEST_HRESULT(LwfStatusGetIndication(Handle, StatusBufferLength, StatusBuffer.get()));
     }
@@ -2093,7 +2093,7 @@ MpOidAllocateAndGetRequest(
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(Length > 0);
     InformationBuffer.reset(AllocMem(Length));
-    TEST_TRUE(InformationBuffer != NULL);
+    TEST_NOT_NULL(InformationBuffer.get());
 
     TEST_HRESULT(MpOidGetRequest(Handle, Key, &Length, InformationBuffer.get()));
 
@@ -4481,6 +4481,7 @@ GenericRxFragmentBuffer(
     unique_malloc_ptr<UCHAR> Payload;
     if (Params->PayloadLength > 0) {
         Payload.reset((UCHAR *)AllocMem(Params->PayloadLength));
+        TEST_NOT_NULL(Payload.get());
         CxPlatRandom(Params->PayloadLength, Payload.get());
     }
 
@@ -6239,7 +6240,7 @@ GenericXskWait(
     Ctx.Rx = Rx;
     Ctx.Tx = Tx;
 
-    CxPlatAsyncT<DELAY_INDICATE_THREAD_CONTEXT> Async([](DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
+    CxPlatAsyncT<const DELAY_INDICATE_THREAD_CONTEXT> Async([](const DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
         auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
         CxPlatSleep(10);
@@ -6356,7 +6357,7 @@ GenericXskWaitAsync(
     Ctx.Rx = Rx;
     Ctx.Tx = Tx;
 
-    CxPlatAsyncT<DELAY_INDICATE_THREAD_CONTEXT> Async([](DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
+    CxPlatAsyncT<const DELAY_INDICATE_THREAD_CONTEXT> Async([](const DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
         auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
         CxPlatSleep(10);
@@ -6670,7 +6671,7 @@ GetXdpRss(
     TEST_TRUE(Size >= sizeof(*RssConfig.get()));
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(Size));
-    TEST_TRUE(RssConfig.get() != NULL);
+    TEST_NOT_NULL(RssConfig.get());
 
     RssGet(InterfaceHandle.get(), RssConfig.get(), &Size);
     TEST_EQUAL(RssConfig->Header.Revision, XDP_RSS_CONFIGURATION_REVISION_1);
@@ -6695,7 +6696,7 @@ GetXdpRssIndirectionTable(
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(InterfaceHandle);
 
     IndirectionTableOut.reset((PROCESSOR_NUMBER *)AllocMem(RssConfig->IndirectionTableSize));
-
+    TEST_NOT_NULL(IndirectionTableOut.get());
     PROCESSOR_NUMBER *IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
     RtlCopyMemory(IndirectionTableOut.get(), IndirectionTable, RssConfig->IndirectionTableSize);
@@ -6722,6 +6723,8 @@ SetXdpRss(
     //
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
+
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
@@ -6983,6 +6986,7 @@ OffloadRssError()
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), CurrentRssResult);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
 
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
@@ -7046,6 +7050,7 @@ OffloadRssReference()
 
         ModifiedRssConfigSize = OriginalRssConfigSize;
         ModifiedRssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(ModifiedRssConfigSize));
+        TEST_NOT_NULL(ModifiedRssConfig.get());
 
         XdpInitializeRssConfiguration(ModifiedRssConfig.get(), ModifiedRssConfigSize);
         ModifiedRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
@@ -7177,6 +7182,7 @@ OffloadRssInterfaceRestart()
     OriginalRssConfig = GetXdpRss(InterfaceHandle, &OriginalRssConfigSize);
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(OriginalRssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
     RtlCopyMemory(RssConfig.get(), OriginalRssConfig.get(), OriginalRssConfigSize);
     RssConfigSize = OriginalRssConfigSize;
 
@@ -7302,6 +7308,7 @@ OffloadRssUpperSet()
     // Set lower edge settings via XDP.
     //
     LowerRssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(LowerRssConfig.get());
     LowerRssConfigSize = RssConfigSize;
     RtlCopyMemory(LowerRssConfig.get(), RssConfig.get(), RssConfigSize);
     LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
@@ -7380,7 +7387,7 @@ CreateIndirectionTable(
     *IndirectionTableSize = (UINT32)ProcessorIndices.size() * sizeof(*IndirectionTable);
 
     IndirectionTable.reset((PROCESSOR_NUMBER *)AllocMem(*IndirectionTableSize));
-    TEST_TRUE(IndirectionTable.get() != NULL);
+    TEST_NOT_NULL(IndirectionTable.get());
 
     RtlZeroMemory(IndirectionTable.get(), *IndirectionTableSize);
     for (UINT32 i = 0; i < ProcessorIndices.size(); i++) {
@@ -7527,7 +7534,7 @@ OffloadRssCapabilities()
     TEST_EQUAL(Size, XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2);
 
     RssCapabilities.reset((XDP_RSS_CAPABILITIES *)AllocMem(Size));
-    TEST_TRUE(RssCapabilities.get() != NULL);
+    TEST_NOT_NULL(RssCapabilities.get());
 
     RssGetCapabilities(InterfaceHandle.get(), RssCapabilities.get(), &Size);
     TEST_EQUAL(RssCapabilities->Header.Revision, XDP_RSS_CAPABILITIES_REVISION_2);
@@ -7582,6 +7589,7 @@ OffloadRssReset()
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
 
     RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
@@ -8401,6 +8409,7 @@ OidPassthru()
         const OID_PARAMS *OidParam = &OidKeys[Index];
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
         unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)AllocMem(LwfInfoBufferLength));
+        TEST_NOT_NULL(LwfInfoBuffer.get());
 
         TEST_HRESULT(LwfOidSubmitRequest(
             DefaultLwf, OidParam->Key, &LwfInfoBufferLength, LwfInfoBuffer.get()));
@@ -8415,6 +8424,7 @@ OidPassthru()
         const OID_PARAMS *OidParam = &OidKeys[Index];
         UINT32 LwfInfoBufferLength = OidParam->BufferSize;
         unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)AllocMem(LwfInfoBufferLength));
+        TEST_NOT_NULL(LwfInfoBuffer.get());
         const UINT32 CompletionSize = LwfInfoBufferLength / 2;
 
         auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
