@@ -20,7 +20,7 @@
   <PropertyGroup>
     <TargetName>nuget</TargetName>
   </PropertyGroup>
-  <ItemGroup>
+ <ItemGroup Condition="'$(DevNugetProjectReferences)' != 'false'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
       <Private>false</Private>
@@ -34,7 +34,7 @@
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(NoDevNuget)' != 'true'">
     <PostBuildEvent>
       <Command>
         powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update-nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Arch $(Platform) -Config $(Configuration)
