@@ -10,4 +10,3 @@
 [submodule "submodules/cxplat"]
 	path = submodules/cxplat
 	url = https://github.com/microsoft/cxplat
-	branch = undocked
