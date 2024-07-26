@@ -18,6 +18,7 @@ typedef struct _EBPF_PROG_TEST_RUN_CONTEXT {
 } EBPF_PROG_TEST_RUN_CONTEXT;
 
 typedef struct _EBPF_XDP_MD {
+    EBPF_CONTEXT_HEADER;
     xdp_md_t Base;
     EBPF_PROG_TEST_RUN_CONTEXT* ProgTestRunContext;
 } EBPF_XDP_MD;
@@ -653,6 +654,7 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
+    .capabilities = {.supports_context_header = TRUE},
 };
 
 static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
