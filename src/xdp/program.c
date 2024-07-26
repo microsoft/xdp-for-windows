@@ -121,7 +121,7 @@ XdpCreateContext(
         XdpMd->Base.ingress_ifindex = xdp_context->ingress_ifindex;
     }
 
-    *Context = XdpMd;
+    *Context = &XdpMd->Base;
     XdpMd = NULL;
 
     EbpfResult = EBPF_SUCCESS;
@@ -155,7 +155,7 @@ XdpDeleteContext(
         goto Exit;
     }
 
-    XdpMd = (EBPF_XDP_MD*)Context;
+    XdpMd = CONTAINING_RECORD(Context, EBPF_XDP_MD, Base);
 
     // Copy the packet data to the output buffer.
     if (DataOut != NULL && DataSizeOut != NULL && XdpMd->Base.data != NULL) {
