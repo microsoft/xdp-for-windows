@@ -14,23 +14,12 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Project = "",
 
+    [ValidateSet("", "Binary", "Catalog", "Package")]
+    [Parameter(Mandatory=$false)]
+    [string]$BuildStage = "",
+
     [Parameter(Mandatory = $false)]
     [switch]$NoClean = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoSign = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoInstaller = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoInstallerProjectReferences = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoDevNuget = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoDevNugetProjectReferences = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
@@ -48,6 +37,18 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
+$SignMode = "TestSign"
+$Sln = "$RootDir\xdp.sln"
+
+if ($OneBranch) {
+    if (![string]::IsNullOrEmpty($Project)) {
+        Write-Error "-OneBranch cannot be set with -Project"
+    }
+
+    $Project = "onebranch"
+    $SignMode = "Off"
+}
+
 $Tasks = @()
 if ([string]::IsNullOrEmpty($Project)) {
     $Tasks += "Build"
@@ -61,16 +62,6 @@ if ([string]::IsNullOrEmpty($Project)) {
         $Clean = ":Rebuild"
     }
     $Tasks += "$Project$Clean"
-}
-
-$SignMode = "TestSign"
-if ($NoSign) {
-    $SignMode = "Off"
-}
-
-$Sln = "$RootDir\xdp.sln"
-if ($OneBranch) {
-    $Sln = "$RootDir\xdp-onebranch.sln"
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
@@ -97,12 +88,9 @@ Write-Verbose "Building [$Sln]"
 msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
-    /p:InstallerProjectReferences=$(!$NoInstallerProjectReferences) `
-    /p:NoInstaller=$NoInstaller `
-    /p:DevNugetProjectReferences=$(!$NoDevNugetProjectReferences) `
-    /p:NoDevNuget=$NoDevNuget `
     /p:IsAdmin=$IsAdmin `
     /p:SignMode=$SignMode `
+    /p:BuildStage=$BuildStage `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
