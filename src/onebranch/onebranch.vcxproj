@@ -34,10 +34,10 @@
     </ProjectReference>
   </ItemGroup>
   <Target Name="Catalog" Condition="'$(BuildStage)' == 'Catalog'" AfterTargets="Build" >
-      <MSBuild Projects ="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2cat=true"/>
+      <MSBuild Projects="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2Cat=true"/>
   </Target>
   <Target Name="Package" Condition="'$(BuildStage)' == 'Package'" AfterTargets="Build" >
-      <MSBuild Projects ="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
+      <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
   </Target>
   <ItemGroup Condition="'$(BuildStage)' == 'Package'">
     <ProjectReference Include="$(SolutionDir)src\nuget\nuget.vcxproj">
