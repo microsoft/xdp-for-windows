@@ -2,8 +2,7 @@
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</ProjectGuid>
-    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
+    <ProjectGuid>{b68d3e02-9e67-4a2e-b46f-df393c106996}</ProjectGuid>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
     <DriverType>KMDF</DriverType>
@@ -18,29 +17,33 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <PropertyGroup>
-    <TargetName>nuget</TargetName>
+    <TargetName>onebranch</TargetName>
   </PropertyGroup>
- <ItemGroup Condition="'$(BuildStage)' != 'Package'">
+ <ItemGroup Condition="'$(BuildStage)' == 'Binary'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
-      <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
+    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
+      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
+    <ProjectReference Include="$(SolutionDir)src\xdpcfg\xdpcfg.vcxproj">
+      <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <ItemDefinitionGroup>
-    <PostBuildEvent>
-      <Command>
-        powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update-nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Arch $(Platform) -Config $(Configuration)
-        NuGet.exe pack $(IntDir)xdp-for-windows.nuspec -OutputDirectory $(OutDir) -BasePath $(ProjectDir)
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
+  <Target Name="Catalog" Condition="'$(BuildStage)' == 'Catalog'" AfterTargets="Build" >
+      <MSBuild Projects="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2Cat=true"/>
+  </Target>
+  <Target Name="Package" Condition="'$(BuildStage)' == 'Package'" AfterTargets="Build" >
+      <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
+  </Target>
+  <ItemGroup Condition="'$(BuildStage)' == 'Package'">
+    <ProjectReference Include="$(SolutionDir)src\nuget\nuget.vcxproj">
+      <Project>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
