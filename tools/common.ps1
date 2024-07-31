@@ -198,7 +198,13 @@ function Get-XdpBuildVersion {
 
 function Get-XdpBuildVersionString {
     $XdpVersion = Get-XdpBuildVersion
-    return "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+    $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+
+    if (!(Is-ReleaseBuild)) {
+        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+    }
+
+    return $VersionString;
 }
 
 # Returns whether the script is running as a built-in administrator.

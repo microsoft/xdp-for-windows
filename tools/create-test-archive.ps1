@@ -41,8 +41,4 @@ copy "$ArtifactBin\xdpfunctionaltests.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 
-if (!(Is-ReleaseBuild)) {
-    $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
-}
-
 Compress-Archive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*
