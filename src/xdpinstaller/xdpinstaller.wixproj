@@ -34,11 +34,8 @@
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup  Condition="'$(BuildStage)' != 'Binary'">
     <Compile Include="product.wxs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="scripts\xdp-setup.ps1" />
   </ItemGroup>
   <ItemGroup>
     <WixExtension Include="WixUtilExtension">
@@ -47,9 +44,6 @@
     <WixExtension Include="WixUIExtension">
       <Name>WixUIExtension</Name>
     </WixExtension>
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="scripts" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(SolutionDir)src\xdp\packages.config" />
@@ -62,6 +56,12 @@
     <ItemGroup>
       <_ValidProjectsForRestore Include="$(MSBuildProjectFullPath)" />
     </ItemGroup>
+  </Target>
+  <Target Name="CopyFiles" BeforeTargets="Compile" Condition="'$(BuildStage)' != 'Package'">
+      <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutputPath)" />
+  </Target>
+  <Target Name="SignFiles" DependsOnTargets="CopyFiles" BeforeTargets="Compile" Condition="$(SignMode) != 'Off'">
+      <Exec Command="powershell.exe /c &quot;Set-AuthenticodeSignature -FilePath $(OutputPath)xdp-setup.ps1 -Certificate (Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object {$_.Thumbprint -match (Get-AuthenticodeSignature $(OutputPath)..\xdp\xdp.sys).SignerCertificate.Thumbprint}) -HashAlgorithm sha256&quot;" />
   </Target>
   <Target Name="Restore" />
   <Target Name="EnsureNuGetPackageBuildImports" Condition=" '$(WixTargetsImported)' != 'true' " BeforeTargets="PrepareForBuild">
