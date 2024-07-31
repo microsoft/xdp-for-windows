@@ -34,7 +34,7 @@
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
-  <ItemGroup  Condition="'$(BuildStage)' != 'Binary'">
+  <ItemGroup Condition="'$(BuildStage)' != 'Binary'">
     <Compile Include="product.wxs" />
   </ItemGroup>
   <ItemGroup>
