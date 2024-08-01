@@ -61,7 +61,7 @@
       <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutputPath)" />
   </Target>
   <Target Name="SignFiles" DependsOnTargets="CopyFiles" BeforeTargets="Compile" Condition="$(SignMode) != 'Off'">
-      <Exec Command="powershell.exe /c &quot;signtool.exe sign /sha1 (Get-AuthenticodeSignature $(OutputPath)..\xdp\xdp.sys).SignerCertificate.Thumbprint /fd sha256  $(OutputPath)xdp-setup.ps1&quot;" />
+      <Exec Command="powershell.exe /c &quot;signtool.exe sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutputPath)..\xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutputPath)xdp-setup.ps1&quot;" />
   </Target>
   <Target Name="Restore" />
   <Target Name="EnsureNuGetPackageBuildImports" Condition=" '$(WixTargetsImported)' != 'true' " BeforeTargets="PrepareForBuild">
