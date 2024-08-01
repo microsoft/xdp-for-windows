@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)src\xdp.props" />
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</ProjectGuid>
+    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <DriverType>KMDF</DriverType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
+    <ConfigurationType>Utility</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <PropertyGroup>
+    <TargetName>xdpinstaller</TargetName>
+  </PropertyGroup>
+ <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
+      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyFiles" BeforeTargets="Build">
+      <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)xdpinstaller\" />
+  </Target>
+  <Target Name="SignFiles" DependsOnTargets="CopyFiles" BeforeTargets="Build" Condition="$(SignMode) != 'Off'">
+      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdpinstaller\xdp-setup.ps1&quot;" />
+  </Target>
+</Project>

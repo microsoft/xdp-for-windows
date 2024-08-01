@@ -30,15 +30,15 @@
     <ProjectReference Include="$(SolutionDir)src\xdpcfg\xdpcfg.vcxproj">
       <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj">
+      <Project>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(BuildStage)' != 'Binary'">
     <Compile Include="product.wxs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="scripts\xdp-setup.ps1" />
   </ItemGroup>
   <ItemGroup>
     <WixExtension Include="WixUtilExtension">
@@ -47,9 +47,6 @@
     <WixExtension Include="WixUIExtension">
       <Name>WixUIExtension</Name>
     </WixExtension>
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="scripts" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(SolutionDir)src\xdp\packages.config" />
