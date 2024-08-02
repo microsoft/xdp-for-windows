@@ -736,7 +736,7 @@ SetDeviceSddl(
 
     TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
 
-    sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
+    sprintf_s(CmdBuff, "%s\\..\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
@@ -7616,7 +7616,7 @@ OffloadRssReset()
     InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
-    HRESULT Result = E_FAIL; 
+    HRESULT Result = E_FAIL;
     CxPlatAsyncT<HRESULT> Async([](HRESULT* Result) {
         *Result = FnMpIf.TryUnbindXdp();
     }, &Result);
