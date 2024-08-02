@@ -32,8 +32,8 @@ $DstPath = "artifacts\tests\$Name"
 Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
-New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll" $DstPath\bin
+New-Item -Path $DstPath\bin\test -ItemType Directory > $null
+copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll" $DstPath\bin\test
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
 copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.pdb"   $DstPath\symbols

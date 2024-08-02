@@ -21,16 +21,22 @@ GetPowershellPrefix()
 
 EXTERN_C
 HRESULT
-GetCurrentBinaryFileName(
+GetLoadedModuleFileName(
     _Out_ CHAR *Path,
+    _In_ CONST VOID *ModuleAddress,
     _In_ UINT32 PathSize
     )
 {
     HMODULE Module;
 
+    //
+    // Resolves the file name of a module based on an address within that
+    // loaded module.
+    //
+
     if (!GetModuleHandleExA(
             GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            (LPCSTR)&GetCurrentBinaryPath, &Module)) {
+            (LPCSTR)ModuleAddress, &Module)) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
@@ -43,15 +49,16 @@ GetCurrentBinaryFileName(
 
 EXTERN_C
 HRESULT
-GetCurrentBinaryPath(
+GetLoadedModulePath(
     _Out_ CHAR *Path,
+    _In_ CONST VOID *ModuleAddress,
     _In_ UINT32 PathSize
     )
 {
     HRESULT Result;
     CHAR *FinalBackslash;
 
-    Result = GetCurrentBinaryFileName(Path, PathSize);
+    Result = GetLoadedModuleFileName(Path, ModuleAddress, PathSize);
     if (FAILED(Result)) {
         return Result;
     }
@@ -63,6 +70,16 @@ GetCurrentBinaryPath(
 
     *FinalBackslash = '\0';
     return S_OK;
+}
+
+EXTERN_C
+HRESULT
+GetCurrentBinaryPath(
+    _Out_ CHAR *Path,
+    _In_ UINT32 PathSize
+    )
+{
+    return GetLoadedModulePath(Path, &GetCurrentBinaryPath, PathSize);
 }
 
 EXTERN_C

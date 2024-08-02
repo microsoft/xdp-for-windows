@@ -655,7 +655,7 @@ SetDeviceSddl(
     CHAR Path[MAX_PATH];
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
 
-    TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
+    TEST_HRESULT(GetLoadedModulePath(Path, XdpApi->XdpOpenApi, sizeof(Path)));
 
     sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
