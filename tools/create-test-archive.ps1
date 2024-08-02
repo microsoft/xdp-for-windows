@@ -34,10 +34,10 @@ Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "$ArtifactBin\xdpfunctionaltests.dll" $DstPath\bin
+copy "$ArtifactBin\test\xdpfunctionaltests.dll" $DstPath\bin\test\
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
-copy "$ArtifactBin\xdpfunctionaltests.pdb" $DstPath\symbols
+copy "$ArtifactBin\test\xdpfunctionaltests.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 
