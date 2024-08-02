@@ -25,7 +25,6 @@
     <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
     <ConfigurationType>Application</ConfigurationType>
-    <TestCode>true</TestCode>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.user.props" />
   <PropertyGroup>
