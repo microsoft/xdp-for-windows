@@ -81,7 +81,7 @@
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
-      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="CxPlatOutDir=$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\test\cxplat\"/>
+      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="CxPlatOutDir=$(OutDir)cxplat\"/>
   </Target>
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>
