@@ -151,6 +151,8 @@ XdpLwfFilterAttach(
 
     UNREFERENCED_PARAMETER(FilterDriverContext);
 
+    TraceEnter(TRACE_LWF, "IfIndex=%u", AttachParameters->BaseMiniportIfIndex);
+
     if (AttachParameters->MiniportMediaType != NdisMedium802_3) {
         Status = NDIS_STATUS_UNSUPPORTED_MEDIA;
         goto Exit;
@@ -262,6 +264,8 @@ Exit:
     if (Status != NDIS_STATUS_SUCCESS && Filter != NULL) {
         XdpLwfFilterDetach((NDIS_HANDLE)Filter);
     }
+
+    TraceExitStatus(TRACE_LWF);
 
     return Status;
 }
