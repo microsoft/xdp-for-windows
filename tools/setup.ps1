@@ -17,10 +17,6 @@ This script installs or uninstalls various XDP components.
 
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver.
-
-.PARAMETER UseJitEbpf
-    If true, install JIT mode for eBPF.
-
 #>
 
 param (
@@ -49,10 +45,7 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
