@@ -273,6 +273,8 @@ function Install-Xdp {
 
     Start-Service-With-Retry xdp
 
+    Refresh-Path
+
     Write-Verbose "xdp.sys install complete!"
 }
 
@@ -321,6 +323,8 @@ function Uninstall-Xdp {
 
         Cleanup-Service xdp
     }
+
+    Refresh-Path
 
     Write-Verbose "xdp.sys uninstall complete!"
 }
