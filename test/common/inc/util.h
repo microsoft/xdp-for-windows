@@ -15,16 +15,8 @@ CONST CHAR*
 GetPowershellPrefix();
 
 HRESULT
-GetLoadedModuleFileName(
+GetCurrentBinaryFileName(
     _Out_ CHAR *Path,
-    _In_ CONST VOID *ModuleAddress,
-    _In_ UINT32 PathSize
-    );
-
-HRESULT
-GetLoadedModulePath(
-    _Out_ CHAR *Path,
-    _In_ CONST VOID *ModuleAddress,
     _In_ UINT32 PathSize
     );
 
