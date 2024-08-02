@@ -53,6 +53,9 @@
   </ItemGroup>
   <Import Project="$(WixPackagePath)build\wix.props"/>
   <Import Project="$(WixTargetsPath)" />
+  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Link">
+    <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
+  </Target>
   <!-- prevents NU1503 -->
   <Target Name="_IsProjectRestoreSupported"
           Returns="@(_ValidProjectsForRestore)">
