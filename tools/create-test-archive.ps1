@@ -28,12 +28,13 @@ $Name = "xdp-tests-$Platform"
 if ($Config -eq "Debug") {
     $Name += "-debug"
 }
-$DstPath = "artifacts\tests\$Name"
+$DstPath = "artifacts\testarchive\$Name"
 
 Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
+New-Item -Path $DstPath\bin\test -ItemType Directory > $null
 copy "$ArtifactBin\test\xdpfunctionaltests.dll" $DstPath\bin\test\
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
