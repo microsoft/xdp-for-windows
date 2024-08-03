@@ -69,11 +69,11 @@ jobs:
     - name: Nuget Restore
       run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
     - name: Build Binary
-      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Binary
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:UndockedOfficial=true /p:BuildStage=Binary
     - name: Build Catalog
-      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Catalog
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:UndockedOfficial=true /p:BuildStage=Catalog
     - name: Build Package
-      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:UndockedOfficial=true /p:BuildStage=Package
     - name: Upload Artifacts
       uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
       with:
