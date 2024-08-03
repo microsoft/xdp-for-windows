@@ -319,7 +319,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose -UseJitEbpf
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
@@ -334,7 +334,7 @@ jobs:
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 25
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -UseJitEbpf
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }}
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
