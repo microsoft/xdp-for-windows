@@ -69,14 +69,26 @@ SPDX-License-Identifier: MIT
             <Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
                 <File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)..\xdp\xdpapi.dll" KeyPath="yes" />
             </Component>
+            <Component Id="xdpapi.pdb" Guid="{4FDB4EA7-420A-442C-9EDD-EC862F00E160}">
+                <File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.TargetDir)..\xdpapi.pdb" KeyPath="yes" />
+            </Component>
             <Component Id="xdpcfg.exe" Guid="{2F099CCD-54DA-495C-9741-3F3EFE357087}">
                 <File Id="xdpcfg.exe" Name="xdpcfg.exe" Source="$(var.TargetDir)..\xdpcfg.exe" KeyPath="yes" />
+            </Component>
+            <Component Id="xdpcfg.pdb" Guid="{ECA5A361-BF61-443C-8E6F-1CE57C0B19DA}">
+                <File Id="xdpcfg.pdb" Name="xdpcfg.pdb" Source="$(var.TargetDir)..\xdpcfg.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdpbpfexport.exe" Guid="{E190E2ED-566C-424A-83F3-0422EB865FCA}">
                 <File Id="xdpbpfexport.exe" Name="xdpbpfexport.exe" Source="$(var.TargetDir)..\xdpbpfexport.exe" KeyPath="yes" />
             </Component>
+            <Component Id="xdpbpfexport.pdb" Guid="{13148622-35D3-4005-AA31-DD9AAE4C9021}">
+                <File Id="xdpbpfexport.pdb" Name="xdpbpfexport.pdb" Source="$(var.TargetDir)..\xdpbpfexport.pdb" KeyPath="yes" />
+            </Component>
             <Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
                 <File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)..\xdp\xdp.sys" KeyPath="yes" />
+            </Component>
+            <Component Id="xdp.pdb" Guid="{D5D7961D-32A7-4A9A-A2C2-8F4E07A9194B}">
+                <File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.TargetDir)..\xdp.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
                 <File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)..\xdp\xdp.inf" KeyPath="yes"/>
