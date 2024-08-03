@@ -34,7 +34,7 @@
       <Project>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</Project>
     </ProjectReference>
   </ItemGroup>
-  <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
+  <PropertyGroup Condition=" '$(IsAdmin)' == 'False' OR '$(UndockedOfficial)' == 'true' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
   <ItemGroup Condition="'$(BuildStage)' != 'Binary'">
