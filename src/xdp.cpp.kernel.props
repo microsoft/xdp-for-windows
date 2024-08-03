@@ -30,10 +30,10 @@
   <PropertyGroup>
     <InfVerif_AdditionalOptions>/msft</InfVerif_AdditionalOptions>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(SignMode)' != 'Off'">
+  <PropertyGroup Condition="'$(SignMode)' != 'Off' AND '$(UndockedOfficial)' != 'true'">
       <EnableInf2cat>true</EnableInf2cat>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(SignMode)' == 'Off'">
+  <PropertyGroup Condition="'$(SignMode)' == 'Off' OR '$(UndockedOfficial)' == 'true'">
       <EnableInf2cat>false</EnableInf2cat>
   </PropertyGroup>
 </Project>
