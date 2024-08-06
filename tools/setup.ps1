@@ -17,10 +17,6 @@ This script installs or uninstalls various XDP components.
 
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver.
-
-.PARAMETER UseJitEbpf
-    If true, install JIT mode for eBPF.
-
 #>
 
 param (
@@ -49,10 +45,7 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -77,10 +70,10 @@ $XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.$XdpFileVersion.msi"
-$FndisSys = "$ArtifactsDir\fndis\fndis.sys"
-$XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
-$XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
-$XdpMpCert = "$ArtifactsDir\xdpmp.cer"
+$FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
+$XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
+$XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
+$XdpMpCert = "$ArtifactsDir\test\xdpmp.cer"
 $XdpMpComponentId = "ms_xdpmp"
 $XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
@@ -273,6 +266,8 @@ function Install-Xdp {
 
     Start-Service-With-Retry xdp
 
+    Refresh-Path
+
     Write-Verbose "xdp.sys install complete!"
 }
 
@@ -321,6 +316,8 @@ function Uninstall-Xdp {
 
         Cleanup-Service xdp
     }
+
+    Refresh-Path
 
     Write-Verbose "xdp.sys uninstall complete!"
 }

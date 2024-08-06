@@ -94,7 +94,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $LogsDir = "$RootDir\artifacts\logs"
-$SpinXsk = "$ArtifactsDir\spinxsk.exe"
+$SpinXsk = "$ArtifactsDir\test\spinxsk.exe"
 $LiveKD = Get-CoreNetCiArtifactPath -Name "livekd64.exe"
 $KD = Get-CoreNetCiArtifactPath -Name "kd.exe"
 
