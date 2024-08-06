@@ -113,7 +113,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if (![string]::IsNullOrEmpty($TestBinaryPath)) {
             $TestArgs += $TestBinaryPath
         } else {
-            $TestArgs += "$ArtifactsDir\xdpfunctionaltests.dll"
+            $TestArgs += "$ArtifactsDir\test\xdpfunctionaltests.dll"
         }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
             $TestArgs += "/TestCaseFilter:$TestCaseFilter"

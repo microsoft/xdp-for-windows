@@ -1,4 +1,5 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!-- Use debug libraries in debug mode -->
   <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -15,6 +16,9 @@
   <PropertyGroup>
     <IntDir>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(ProjectName)\</IntDir>
     <OutDir>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TestCode)' == 'true'">
+    <OutDir>$(OutDir)test\</OutDir>
   </PropertyGroup>
   <!-- OneBranch goop -->
   <PropertyGroup>

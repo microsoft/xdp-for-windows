@@ -30,7 +30,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 
 for ($i = 0; $i -lt $QueueCount; $i++) {
-    Start-Process $ArtifactsDir\rxfilter.exe -ArgumentList `
+    Start-Process $ArtifactsDir\test\rxfilter.exe -ArgumentList `
         "-IfIndex", (Get-NetAdapter -Name $AdapterName).ifIndex, `
         "-QueueId", $i, "-MatchType" ,"All", "-Action", $Action, `
         "-XdpMode", $XdpMode

@@ -377,7 +377,7 @@ jobs:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
           artifacts/kit/**/*.zip
-          artifacts/tests/**/*.zip
+          artifacts/testarchive/**/*.zip
 
   etw:
     name: ETW Plugin
