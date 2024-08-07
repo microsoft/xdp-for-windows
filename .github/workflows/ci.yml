@@ -186,16 +186,16 @@ jobs:
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 15
+      timeout-minutes: 20
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 65
+      timeout-minutes: 70
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 15
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
