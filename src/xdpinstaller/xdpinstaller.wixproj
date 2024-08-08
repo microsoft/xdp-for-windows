@@ -7,7 +7,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
-    <OutputPath>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpinstaller\</OutputPath>
+    <OutputPath>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\</OutputPath>
     <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DefineConstants>
@@ -18,18 +18,6 @@
     </DefineConstants>
   </PropertyGroup>
  <ItemGroup Condition="'$(BuildStage)' != 'Package'">
-    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
-      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
-      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\xdpcfg\xdpcfg.vcxproj">
-      <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj">
       <Project>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</Project>
     </ProjectReference>

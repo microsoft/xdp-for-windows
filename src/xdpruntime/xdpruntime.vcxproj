@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)src\xdp.props" />
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{8250c528-6a2c-44e7-aa76-1e6bec9127a3}</ProjectGuid>
+    <DriverType>KMDF</DriverType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
+    <ConfigurationType>Utility</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <PropertyGroup>
+    <TargetName>xdpruntime</TargetName>
+  </PropertyGroup>
+ <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
+      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
+      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
+      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdpcfg\xdpcfg.vcxproj">
+      <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyBinaries" BeforeTargets="Build">
+      <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)" />
+  </Target>
+  <Target Name="SignBinaries" DependsOnTargets="CopyBinaries" BeforeTargets="Build" Condition="$(SignMode) != 'Off'">
+      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdp-setup.ps1&quot;" />
+  </Target>
+</Project>
