@@ -36,4 +36,4 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 
-Copy-Item -Path $SourcePath -Destination $ArtifactsDir
+Copy-Item -Path $SourcePath -Destination $ArtifactsDir -Recurse -Force
