@@ -19,19 +19,13 @@
     <TargetName>xdpinstaller</TargetName>
   </PropertyGroup>
  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
-      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
+    <ProjectReference Include="$(SolutionDir)src\xdpruntime\xdpruntime.vcxproj">
+      <Project>{8250c528-6a2c-44e7-aa76-1e6bec9127a3}</Project>
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Target Name="CopyBinaries" BeforeTargets="Build">
-      <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)xdpinstaller\" />
-  </Target>
-  <Target Name="SignBinaries" DependsOnTargets="CopyBinaries" BeforeTargets="Build" Condition="$(SignMode) != 'Off'">
-      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdpinstaller\xdp-setup.ps1&quot;" />
-  </Target>
   <Target Name="SignMsi">
-      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdpinstaller\*.msi &quot;" />
+      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)*.msi &quot;" />
   </Target>
 </Project>

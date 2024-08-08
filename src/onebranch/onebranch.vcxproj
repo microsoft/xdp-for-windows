@@ -33,6 +33,7 @@
   </ItemGroup>
   <Target Name="Package" Condition="'$(BuildStage)' == 'Binary' or '$(BuildStage)' == 'Package'" AfterTargets="Build" >
       <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
+      <MSBuild Projects="$(SolutionDir)src\xdpruntime\xdpruntime.vcxproj" Targets="Build"/>
   </Target>
   <Target Name="Catalog" Condition="'$(BuildStage)' == 'Catalog'" AfterTargets="Build" >
       <MSBuild Projects="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2Cat=true"/>

@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!-- Copyright (c) Microsoft Corporation -->
+<package>
+    <metadata>
+        <title>XDP for Windows Runtime</title>
+        <id>XDP-for-Windows-Runtime</id>
+        <version>{version}</version>
+        <authors>XDP for Windows Contributors</authors>
+        <owners>XDP for Windows Contributors</owners>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<license type="expression">MIT</license>
+        <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
+        <description>XDP for Windows Runtime</description>
+        <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
+    </metadata>
+    <files>
+        <file src="{binpath}\xdp-setup.ps1" target="runtime\native"/>
+        <file src="{binpath}\xdpbpfexport.exe" target="runtime\native"/>
+        <file src="{binpath}\xdpbpfexport.pdb" target="runtime\native"/>
+        <file src="{binpath}\xdpcfg.exe" target="runtime\native"/>
+        <file src="{binpath}\xdpcfg.pdb" target="runtime\native"/>
+        <file src="{binpath}\xdppcw.man" target="runtime\native"/>
+        <file src="{binpath}\xdp\xdp.cat" target="runtime\native"/>
+        <file src="{binpath}\xdp\xdp.inf" target="runtime\native"/>
+        <file src="{binpath}\xdp\xdp.sys" target="runtime\native"/>
+        <file src="{binpath}\xdp.pdb" target="runtime\native"/>
+        <file src="{binpath}\xdp\xdpapi.dll" target="runtime\native"/>
+        <file src="{binpath}\xdpapi.pdb" target="runtime\native"/>
+        <file src="{rootpath}\tools\xdptrace.wprp" target="runtime\native"/>
+    </files>
+</package>
