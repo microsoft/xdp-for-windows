@@ -14,8 +14,8 @@
   </PropertyGroup>
   <!-- Use the 'build' directory for intermediate files -->
   <PropertyGroup>
-    <IntDir>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(ProjectName)\</IntDir>
-    <OutDir>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\</OutDir>
+    <IntDir>$(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TestCode)' == 'true'">
     <OutDir>$(OutDir)test\</OutDir>

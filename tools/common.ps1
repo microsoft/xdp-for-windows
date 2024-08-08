@@ -161,17 +161,7 @@ function Get-ArtifactBinPathBase {
         [string]$Arch
     )
 
-    # Convert to Windows format
-    if (($Arch -eq "x64")) {
-        $Arch = "amd64"
-    }
-    if ($Config -eq "Debug") {
-        $Config = "chk"
-    } else {
-        $Config = "fre"
-    }
-
-    return "artifacts\bin\$($Arch)$($Config)"
+    return "artifacts\bin\$($Arch)_$($Config)"
 }
 
 function Get-ArtifactBinPath {

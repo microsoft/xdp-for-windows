@@ -75,7 +75,7 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
       <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\test\</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\test\</AdditionalLibraryDirectories>
       <AdditionalDependencies>
         fndis.lib;
         ndis.lib;
