@@ -7,8 +7,8 @@
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
-    <OutputPath>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\</OutputPath>
-    <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(OutputName)\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DefineConstants>
       XdpMajorVersion=$(XdpMajorVersion);

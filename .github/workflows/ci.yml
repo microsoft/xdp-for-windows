@@ -75,7 +75,7 @@ jobs:
     - name: Build Package
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
     - name: Upload Artifacts
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: onebranch_bin_${{ matrix.config }}_${{ matrix.arch }}
         path: |
@@ -136,7 +136,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -199,7 +199,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -236,7 +236,7 @@ jobs:
       shell: PowerShell
       run: tools/pktfuzz.ps1 -Minutes 10 -Workers 8 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Upload Logs
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -282,7 +282,7 @@ jobs:
       shell: PowerShell
       run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Upload Logs
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -341,7 +341,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_downlevel_${{ matrix.downlevel_release }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -372,7 +372,7 @@ jobs:
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Release Artifacts
-      uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
@@ -406,7 +406,7 @@ jobs:
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
-    - uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029
+    - uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
