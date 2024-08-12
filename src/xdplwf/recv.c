@@ -45,6 +45,7 @@ typedef struct _NBL_RX_TX_CONTEXT {
 
     union {
         struct {
+            UINT16 HeaderPadding; // Aligns L3+ headers to 4 bytes after the Ethernet header.
             UCHAR Headers[RECV_MAX_GSO_HEADER_SIZE];
             DEFINE_MDL_AND_PFNS(HeaderMdl, RECV_MAX_GSO_HEADER_SIZE);
             DEFINE_MDL_AND_PFNS(PartialMdl, RECV_MAX_GSO_PAYLOAD_SIZE);
@@ -58,6 +59,9 @@ C_ASSERT(
 C_ASSERT(
     FIELD_OFFSET(NBL_RX_TX_CONTEXT, InjectionType) ==
     FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType));
+C_ASSERT(
+   (FIELD_OFFSET(NBL_RX_TX_CONTEXT, Gso.Headers) + sizeof(ETHERNET_HEADER)) %
+        TYPE_ALIGNMENT(UINT32) == 0);
 
 #define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
 C_ASSERT(RX_TX_CONTEXT_SIZE % MEMORY_ALLOCATION_ALIGNMENT == 0);
@@ -901,6 +905,8 @@ XdpGenericRxSegmentRscToLso(
         RtlCopyMemory(NblContext->Gso.Headers, RscEthernet, TcpTotalHdrLen);
         TxTcp = RTL_PTR_ADD(NblContext->Gso.Headers, TcpOffset);
 
+        ASSERT((ULONG_PTR)TxTcp % TYPE_ALIGNMENT(UINT32) == 0);
+
         //
         // Figure out how much data we can send, generating as many LSO segments
         // as possible, followed by regular TCP segments.
@@ -1089,7 +1095,7 @@ XdpGenericRxConvertRscToLso(
     MDL *Mdl = Nb->CurrentMdl;
     UINT32 DataOffset = NET_BUFFER_CURRENT_MDL_OFFSET(Nb);
     UINT32 MdlDataLength = min(Mdl->ByteCount - DataOffset, Nb->DataLength);
-    ETHERNET_HEADER *Ethernet = RTL_PTR_ADD(Mdl->MappedSystemVa, DataOffset);
+    ETHERNET_HEADER UNALIGNED *Ethernet = RTL_PTR_ADD(Mdl->MappedSystemVa, DataOffset);
     UINT8 IpAddressLength;
     const VOID *IpSrc;
     const VOID *IpDst;
@@ -1102,7 +1108,7 @@ XdpGenericRxConvertRscToLso(
     UINT32 TcpUserDataLenOrPureAck;
     UINT32 RscMss;
     UINT32 TxMss;
-    TCP_HDR *Tcp;
+    TCP_HDR UNALIGNED *Tcp;
     const XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *TaskOffload;
     UINT16 NumSeg = NET_BUFFER_LIST_COALESCED_SEG_COUNT(Nbl);
     UINT32 LsoMss;
@@ -1145,7 +1151,7 @@ XdpGenericRxConvertRscToLso(
     switch (Ethernet->Type) {
     case CONST_HTONS(ETHERNET_TYPE_IPV4):
     {
-        IPV4_HEADER *Ipv4 = (IPV4_HEADER *)(Ethernet + 1);
+        IPV4_HEADER UNALIGNED *Ipv4 = (IPV4_HEADER UNALIGNED *)(Ethernet + 1);
         TcpOffset = sizeof(*Ethernet) + sizeof(*Ipv4);
         IpAddressLength = sizeof(Ipv4->SourceAddress);
         IpSrc = &Ipv4->SourceAddress;
@@ -1169,7 +1175,7 @@ XdpGenericRxConvertRscToLso(
     }
     case CONST_HTONS(ETHERNET_TYPE_IPV6):
     {
-        IPV6_HEADER *Ipv6 = (IPV6_HEADER *)(Ethernet + 1);
+        IPV6_HEADER UNALIGNED *Ipv6 = (IPV6_HEADER UNALIGNED *)(Ethernet + 1);
         TcpOffset = sizeof(*Ethernet) + sizeof(*Ipv6);
         IpAddressLength = sizeof(Ipv6->SourceAddress);
         IpSrc = &Ipv6->SourceAddress;
