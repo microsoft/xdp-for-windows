@@ -240,10 +240,10 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 function Install-Xdp {
+    Install-SignedDriverCertificate $XdpSys
+
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
-
-        Install-SignedDriverCertificate $XdpMsiFullPath
 
         Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt"
         msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
@@ -252,8 +252,6 @@ function Install-Xdp {
             Write-Error "XDP MSI installation failed: $LastExitCode"
         }
     } elseif ($XdpInstaller -eq "INF") {
-        Install-SignedDriverCertificate $XdpSys
-
         Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
         netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
         if ($LastExitCode) {
