@@ -63,9 +63,9 @@ $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
-$XdpCert = "$ArtifactsDir\xdp.cer"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
-$XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
+$XdpSys = "$ArtifactsDir\xdp\xdp.sys"
+$XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
@@ -175,6 +175,13 @@ function Install-DriverCertificate($CertFileName) {
     Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
 }
 
+function Install-SignedDriverCertificate($SignedFileName) {
+    $CertFileName = "$SignedFileName.cer"
+    Write-Verbose "Extracting driver signing certificate $CertFileName from $SignedFileName"
+    Get-AuthenticodeSignature $SignedFileName | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName
+    Install-DriverCertificate $CertFileName
+}
+
 # Helper to wait for an adapter to start.
 function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
     Write-Verbose "Waiting for $Count `"$IfDesc`" adapter(s) to start"
@@ -233,10 +240,10 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 function Install-Xdp {
-    Install-DriverCertificate $XdpCert
-
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
+
+        Install-SignedDriverCertificate $XdpMsiFullPath
 
         Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt"
         msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
@@ -245,6 +252,8 @@ function Install-Xdp {
             Write-Error "XDP MSI installation failed: $LastExitCode"
         }
     } elseif ($XdpInstaller -eq "INF") {
+        Install-SignedDriverCertificate $XdpSys
+
         Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
         netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
         if ($LastExitCode) {
