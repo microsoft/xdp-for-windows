@@ -234,6 +234,13 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
+        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).AlwaysKeepMemoryDump -ne 1) {
+            # Always retain crash dumps
+            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f
+            $Reboot = $true
+        }
+
         Download-Fn-Runtime
         Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
         $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
@@ -265,6 +272,13 @@ if ($Cleanup) {
             # Enable complete (kernel + user) system crash dumps
             Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
             reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
+            $Reboot = $true
+        }
+
+        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).AlwaysKeepMemoryDump -ne 1) {
+            # Always retain crash dumps
+            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f
             $Reboot = $true
         }
     }
