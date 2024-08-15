@@ -62,6 +62,7 @@ $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
+$XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
@@ -240,7 +241,7 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 function Install-Xdp {
-    Install-SignedDriverCertificate $XdpSys
+    Install-SignedDriverCertificate $XdpCat
 
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
