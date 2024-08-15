@@ -188,11 +188,12 @@ function Install-DriverCertificate($CertFileName) {
         $i = 0
 
         foreach ($Certificate in $Chain.ChainElements.Certificate) {
-            $TempFileName = "$CertFileName.tmp.$($i++).cer"
+            $TempFileName = "$CertFileName.tmp.$i.cer"
             $Certificate | Export-Certificate -Type CERT -FilePath $TempFileName | Write-Verbose
             Write-Verbose "Gratuitously importing $($Certificate.Subject) everywhere"
             Import-Certificate -FilePath $TempFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
             Import-Certificate -FilePath $TempFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+            $i++
         }
     }
 }
