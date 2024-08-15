@@ -179,8 +179,8 @@ function Install-DriverCertificate($CertFileName) {
     $Chain.Build($CertFileName) | Write-Verbose
     $Chain.ChainElements.Certificate | Select-Object -Last 1 | Export-Certificate -Type CERT -FilePath $CertRootFileName | Write-Verbose
 
-    Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
-    Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+    Import-Certificate -FilePath $CertRootFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
+    Import-Certificate -FilePath $CertRootFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
 }
 
 function Install-SignedDriverCertificate($SignedFileName) {
