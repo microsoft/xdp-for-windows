@@ -182,10 +182,18 @@ function Install-DriverCertificate($CertFileName) {
     Import-Certificate -FilePath $CertRootFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
     Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
 
-    # WS2019 and older also require the root cert be installed to trustedpublisher.
+    # WS2019 and older also require extra certificates.
     $OsVersion = [Environment]::OSVersion.Version
     if ($OsVersion.Major -lt 10 -or ($OsVersion.Major -eq 10 -and $OsVersion.Build -le 17763)) {
-        Import-Certificate -FilePath $CertRootFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+        $i = 0
+
+        foreach ($Certificate in $Chain.ChainElements.Certificate) {
+            $TempFileName = "$CertFileName.tmp.$($i++).cer"
+            $Certificate | Export-Certificate -Type CERT -FilePath $TempFileName | Write-Verbose
+            Write-Verbose "Gratuitously importing $($Certificate.Subject) everywhere"
+            Import-Certificate -FilePath $TempFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
+            Import-Certificate -FilePath $TempFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+        }
     }
 }
 
