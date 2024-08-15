@@ -172,6 +172,13 @@ function Cleanup-Service($Name) {
 # Installs the certificates for driver package signing.
 function Install-DriverCertificate($CertFileName) {
     Write-Verbose "Installing driver signing certificate $CertFileName"
+
+    # Resolve the root certificate in the signing certificate's chain, and trust that.
+    $CertRootFileName = "$CertFileName.root.cer"
+    $Chain = New-Object -TypeName System.Security.Cryptography.X509Certificates.X509Chain
+    $Chain.Build($CertFileName) | Write-Verbose
+    $Chain.ChainElements.Certificate | Select-Object -Last 1 | Export-Certificate -Type CERT -FilePath $CertRootFileName | Write-Verbose
+
     Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
     Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
 }
@@ -179,7 +186,7 @@ function Install-DriverCertificate($CertFileName) {
 function Install-SignedDriverCertificate($SignedFileName) {
     $CertFileName = "$SignedFileName.cer"
     Write-Verbose "Extracting driver signing certificate $CertFileName from $SignedFileName"
-    Get-AuthenticodeSignature $SignedFileName | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName
+    Get-AuthenticodeSignature $SignedFileName | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName | Write-Verbose
     Install-DriverCertificate $CertFileName
 }
 
