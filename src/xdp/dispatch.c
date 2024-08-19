@@ -505,6 +505,8 @@ Exit:
     return Status;
 }
 
+static volatile BOOLEAN Bugcheck = TRUE;
+
 _Use_decl_annotations_
 NTSTATUS
 DriverEntry(
@@ -523,6 +525,10 @@ DriverEntry(
     EventRegisterMicrosoft_XDP();
 
     TraceEnter(TRACE_CORE, "DriverObject=%p", DriverObject);
+
+    if (Bugcheck) {
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+    }
 
     if (wcscat_s(
             XdpParametersKeyStorage, RTL_NUMBER_OF(XdpParametersKeyStorage),
