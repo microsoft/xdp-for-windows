@@ -7,7 +7,7 @@
     <!-- Project-wide properties -->
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.18.0\</EbpfPackagePath>
     <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
-    <WntPackagePath>$(SolutionDir)packages\win-net-test.0.5.2\</WntPackagePath>
+    <WntPackagePath>$(SolutionDir)packages\win-net-test.1.0.0\</WntPackagePath>
   </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
   <ItemGroup Label="ProjectConfigurations">
