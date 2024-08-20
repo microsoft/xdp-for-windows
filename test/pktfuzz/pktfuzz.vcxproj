@@ -6,6 +6,7 @@
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
   <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
+  <Import Project="$(FnPackagePath)build\native\win-net-test.props" Condition="Exists('$(FnPackagePath)build\native\win-net-test.props')" />
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)src\xdp\programinspect.c" />
     <ClCompile Include="pktfuzz.c" />
@@ -54,7 +55,6 @@
         $(SolutionDir)src\xdp;
         $(SolutionDir)src\xdppcw\inc;
         $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdppcw\;
-        $(FnPackagePath)include;
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
     </ClCompile>
