@@ -127,16 +127,7 @@ function Get-EbpfMsiUrl {
 }
 
 function Get-FnVersion {
-    return "0.4.1"
-}
-
-function Get-FnDevKitUrl {
-    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-devkit-x64.zip"
-}
-
-function Get-FnDevKitDir {
-    $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir/artifacts/fn/devkit-$(Get-FnVersion)"
+    return "1.0.0"
 }
 
 function Get-FnRuntimeUrl {
