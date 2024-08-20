@@ -1,4 +1,5 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <!-- Use the highest available VS toolset -->
   <PropertyGroup>
     <XdpPlatformToolset>v143</XdpPlatformToolset>

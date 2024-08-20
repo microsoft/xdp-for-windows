@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)src\xdp.props" />
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{b68d3e02-9e67-4a2e-b46f-df393c106996}</ProjectGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <DriverType>KMDF</DriverType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
+    <ConfigurationType>Utility</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <PropertyGroup>
+    <TargetName>onebranch</TargetName>
+  </PropertyGroup>
+ <ItemGroup Condition="'$(BuildStage)' == 'Binary'">
+    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
+      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
+      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdpcfg\xdpcfg.vcxproj">
+      <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Target Name="Package" Condition="'$(BuildStage)' == 'Binary' or '$(BuildStage)' == 'Package'" AfterTargets="Build" >
+      <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
+      <MSBuild Projects="$(SolutionDir)src\xdpruntime\xdpruntime.vcxproj" Targets="Build"/>
+  </Target>
+  <Target Name="Catalog" Condition="'$(BuildStage)' == 'Catalog'" AfterTargets="Build" >
+      <MSBuild Projects="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2Cat=true"/>
+  </Target>
+  <ItemGroup Condition="'$(BuildStage)' == 'Package'">
+    <ProjectReference Include="$(SolutionDir)src\nuget\nuget.vcxproj">
+      <Project>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

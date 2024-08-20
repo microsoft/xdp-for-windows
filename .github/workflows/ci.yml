@@ -46,6 +46,44 @@ jobs:
       codeql: ${{ github.event_name == 'schedule' }}
       upload_artifacts: ${{ matrix.os == 2022 }}
 
+  onebranch_build_validation:
+    name: OneBranch Build Validation
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Release, Debug]
+        arch: [x64]
+    permissions:
+      actions: read
+      contents: read
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+        ref: ${{ inputs.ref }}
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+    - name: Nuget Restore
+      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+    - name: Build Binary
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Binary
+    - name: Build Catalog
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Catalog
+    - name: Build Package
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
+      with:
+        name: onebranch_bin_${{ matrix.config }}_${{ matrix.arch }}
+        path: |
+          artifacts/bin
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
+
   functional_tests:
     name: Functional Tests
     needs: build
@@ -98,7 +136,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -148,20 +186,20 @@ jobs:
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 15
+      timeout-minutes: 20
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 65
+      timeout-minutes: 70
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 15
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -198,7 +236,7 @@ jobs:
       shell: PowerShell
       run: tools/pktfuzz.ps1 -Minutes 10 -Workers 8 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Upload Logs
-      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -207,6 +245,8 @@ jobs:
   perf_tests:
     name: Perf Tests
     needs: build
+    env:
+      ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
     strategy:
       fail-fast: false
       matrix:
@@ -236,15 +276,15 @@ jobs:
         path: artifacts/bin
     - name: Run xskperfsuite (Generic, Native)
       shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Run xskperfsuite (TX-inspect, RX-inject)
       shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Run xskperfsuite (Winsock, RIO)
       shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Upload Logs
-      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -281,7 +321,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose -UseJitEbpf
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
@@ -292,18 +332,18 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.platform }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
         Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
-        tools/merge-artifacts.ps1 -SourcePath artifacts/downlevel-test/${{ matrix.platform }}/bin/*  -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
+        tools/merge-artifacts.ps1 -SourcePath artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 25
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -UseJitEbpf
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }}
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       if: ${{ always() }}
       with:
         name: logs_downlevel_${{ matrix.downlevel_release }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -334,12 +374,12 @@ jobs:
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Release Artifacts
-      uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
           artifacts/kit/**/*.zip
-          artifacts/tests/**/*.zip
+          artifacts/testarchive/**/*.zip
 
   etw:
     name: ETW Plugin
@@ -368,7 +408,7 @@ jobs:
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
-    - uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b
+    - uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
@@ -396,7 +436,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:

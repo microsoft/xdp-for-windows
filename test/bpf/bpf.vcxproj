@@ -14,36 +14,29 @@
     <ProjectGuid>{5de7385c-80b3-40cd-97d0-7c24dec2f95c}</ProjectGuid>
     <RootNamespace>bpf</RootNamespace>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Utility</ConfigurationType>
     <PlatformToolset>$(XdpPlatformToolset)</PlatformToolset>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
-  <ImportGroup Label="ExtensionSettings" />
-  <ImportGroup Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>bpf</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\bpf\</OutDir>
+    <OutDir>$(OutDir)bpf\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>
-        xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig) /Y
+        xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration) /Y
         $(EbpfPackagePath)build\native\bin\export_program_info.exe
-        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpbpfexport.exe
+        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdpbpfexport.exe
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
-        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpbpfexport.exe --clear
+        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdpbpfexport.exe --clear
         $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
-        del $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\ebpfapi.dll /F
+        del $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\ebpfapi.dll /F
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

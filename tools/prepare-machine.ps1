@@ -29,9 +29,6 @@ This prepares a machine for running XDP.
 .PARAMETER RequireNoReboot
     Returns an error if a reboot is needed.
 
-.PARAMETER UseJitEbpf
-    Installs eBPF with JIT mode. Needed for backward compatibility tests.
-
 .PARAMETER Force
     Forces the installation of the latest dependencies.
 
@@ -69,10 +66,7 @@ param (
     [switch]$Force = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Cleanup = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$Cleanup = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -203,6 +197,24 @@ function Setup-VsTest {
     }
 }
 
+function Enable-CrashDumps {
+    $CrashControl = Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl
+
+    if ($CrashControl.CrashDumpEnabled -ne 1) {
+        # Enable complete (kernel + user) system crash dumps
+        Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
+        $script:Reboot = $true
+    }
+
+    if (!($CrashControl.PSobject.Properties.name -match "AlwaysKeepMemoryDump") -or $CrashControl.AlwaysKeepMemoryDump -ne 1) {
+        # Always retain crash dumps
+        Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f
+        $script:Reboot = $true
+    }
+}
+
 if ($Cleanup) {
     if ($ForTest) {
         # Tests do not fully clean up.
@@ -233,13 +245,7 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
-        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).CrashDumpEnabled -ne 1) {
-            # Enable complete (kernel + user) system crash dumps
-            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
-            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
-            $Reboot = $true
-        }
-
+        Enable-CrashDumps
         Download-Fn-Runtime
         Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
         $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
@@ -267,12 +273,7 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
-        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).CrashDumpEnabled -ne 1) {
-            # Enable complete (kernel + user) system crash dumps
-            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
-            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
-            $Reboot = $true
-        }
+        Enable-CrashDumps
     }
 
     if ($ForPerfTest) {

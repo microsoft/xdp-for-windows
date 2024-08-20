@@ -41,8 +41,8 @@ try {
     Push-Location $LogsDir
     $env:ASAN_SAVE_DUMPS="$pwd\asan.dmp"
 
-    Write-Verbose "$ArtifactsDir\pktfuzz.exe $Options"
-    & $ArtifactsDir\pktfuzz.exe $Options
+    Write-Verbose "$ArtifactsDir\test\pktfuzz.exe $Options"
+    & $ArtifactsDir\test\pktfuzz.exe $Options
 
     if (!$?) {
         Write-Error "pktfuzz.exe failed: $LastExitCode"

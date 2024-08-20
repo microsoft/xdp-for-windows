@@ -6,6 +6,7 @@
     <UndockedType>dll</UndockedType>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
   <Import Project="$(SolutionDir)src\xdp.undocked.props" />
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="Exists('$(WntPackagePath)build\native\win-net-test.props')" />
@@ -18,9 +19,6 @@
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj">
-      <Project>{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
@@ -50,10 +48,14 @@
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         $(WntLibPath)\fnsock_um.lib;
+        $(OutDir)\cxplat\winuser\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.targets" />
+  <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
+      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
+  </Target>
 </Project>

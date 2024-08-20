@@ -7,8 +7,8 @@
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
-    <OutputPath>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpinstaller\</OutputPath>
-    <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(OutputName)\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DefineConstants>
       XdpMajorVersion=$(XdpMajorVersion);
@@ -17,25 +17,16 @@
       $(DefineConstants)
     </DefineConstants>
   </PropertyGroup>
- <ItemGroup Condition="'$(InstallerProjectReferences)' != 'false'">
-    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
-      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
-      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
+ <ItemGroup Condition="'$(BuildStage)' != 'Package'">
+    <ProjectReference Include="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj">
+      <Project>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</Project>
     </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(BuildStage)' != 'Binary'">
     <Compile Include="product.wxs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="scripts\xdp-setup.ps1" />
   </ItemGroup>
   <ItemGroup>
     <WixExtension Include="WixUtilExtension">
@@ -46,17 +37,13 @@
     </WixExtension>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="scripts" />
-  </ItemGroup>
-  <ItemGroup>
     <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
   <Import Project="$(WixPackagePath)build\wix.props"/>
-  <!-- Define empty default targets. If BuildInstaller is enabled, WiX will override these. -->
-  <Target Name="Build" />
-  <Target Name="Clean" />
-  <Target Name="Rebuild" />
-  <Import Project="$(WixTargetsPath)" Condition="'$(NoInstaller)' != 'true'" />
+  <Import Project="$(WixTargetsPath)" />
+  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Link">
+    <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
+  </Target>
   <!-- prevents NU1503 -->
   <Target Name="_IsProjectRestoreSupported"
           Returns="@(_ValidProjectsForRestore)">

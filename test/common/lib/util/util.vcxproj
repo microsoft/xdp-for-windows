@@ -5,7 +5,6 @@
     <TargetName>util</TargetName>
     <UndockedType>lib</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.props" />
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <ItemGroup>
     <ClCompile Include="util.cpp" />

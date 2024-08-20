@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)src\xdp.props" />
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</ProjectGuid>
+    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <DriverType>KMDF</DriverType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
+    <ConfigurationType>Utility</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <PropertyGroup>
+    <TargetName>xdpinstaller</TargetName>
+  </PropertyGroup>
+ <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\xdpruntime\xdpruntime.vcxproj">
+      <Project>{8250c528-6a2c-44e7-aa76-1e6bec9127a3}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="SignMsi">
+      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)*.msi &quot;" />
+  </Target>
+</Project>

@@ -25,7 +25,6 @@
     <ProjectGuid>{A1864618-ED3D-43C5-8013-A177F9CF73D9}</ProjectGuid>
     <RootNamespace>pktfuzz</RootNamespace>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -33,14 +32,7 @@
     <EnableASAN>true</EnableASAN>
     <EnableFuzzer>true</EnableFuzzer>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.user.props" />
-  <ImportGroup Label="ExtensionSettings" />
-  <ImportGroup Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>pktfuzz</TargetName>
   </PropertyGroup>
@@ -53,7 +45,7 @@
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdp;
         $(SolutionDir)src\xdppcw\inc;
-        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdppcw\;
+        $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdppcw\;
         $(WntIncPath);
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>

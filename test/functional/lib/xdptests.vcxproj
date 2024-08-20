@@ -5,7 +5,7 @@
     <TargetName>xdptests</TargetName>
     <UndockedType>lib</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
   <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="Exists('$(WntPackagePath)build\native\win-net-test.props')" />

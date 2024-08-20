@@ -109,7 +109,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.17.0"
+    return "0.18.0"
 }
 
 # Returns the eBPF MSI full path
@@ -161,17 +161,7 @@ function Get-ArtifactBinPathBase {
         [string]$Arch
     )
 
-    # Convert to Windows format
-    if (($Arch -eq "x64")) {
-        $Arch = "amd64"
-    }
-    if ($Config -eq "Debug") {
-        $Config = "chk"
-    } else {
-        $Config = "fre"
-    }
-
-    return "artifacts\bin\$($Arch)$($Config)"
+    return "artifacts\bin\$($Arch)_$($Config)"
 }
 
 function Get-ArtifactBinPath {
@@ -198,7 +188,13 @@ function Get-XdpBuildVersion {
 
 function Get-XdpBuildVersionString {
     $XdpVersion = Get-XdpBuildVersion
-    return "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+    $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+
+    if (!(Is-ReleaseBuild)) {
+        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+    }
+
+    return $VersionString;
 }
 
 # Returns whether the script is running as a built-in administrator.
