@@ -174,6 +174,11 @@ function Setup-VcRuntime {
         Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
         & $ArtifactsDir\vc_redist.x64.exe /install /passive | Write-Verbose
     }
+
+    # The debug CRT does not have an official redistributable, so use our own repackaged version.
+    if ($Config -eq "Debug") {
+        Add-Path -NewPath "$(Get-ArtifactBinPath -Arch $Arch -Config $Config)\test\debugcrt\"
+    }
 }
 
 function Setup-VsTest {

@@ -10,6 +10,14 @@ XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sy
 
 ### Install the Latest (1.x) Official
 
+Install [Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version) (2022)
+
+```Text
+https://aka.ms/vs/17/release/vc_redist.x64.exe
+```
+
+Install XDP
+
 ```PowerShell
 Invoke-WebRequest https://aka.ms/xdp-v1.msi -OutFile xdp.msi
 msiexec /i xdp.msi /quiet

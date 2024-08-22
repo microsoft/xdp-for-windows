@@ -4,12 +4,12 @@
   <!-- Statically link the CRT -->
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
     <Link>
