@@ -249,7 +249,8 @@ function Uninstall-Driver($Inf) {
 function Install-DebugCrt {
     # The debug CRT does not have an official redistributable, so use our own repackaged version.
     if ($Config -eq "Debug") {
-        Add-Path -NewPath "$(Get-ArtifactBinPath -Arch $Arch -Config $Config)\test\debugcrt\"
+        Write-Verbose "Installing debugcrt from $(Get-ArtifactBinPath -Arch $Arch -Config $Config)\test\debugcrt\* to $env:WINDIR\system32"
+        Copy-Item -Recurse -Force "$(Get-ArtifactBinPath -Arch $Arch -Config $Config)\test\debugcrt\*" "$env:WINDIR\system32" | Write-Verbose
     }
 }
 
