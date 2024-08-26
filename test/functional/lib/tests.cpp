@@ -146,6 +146,23 @@ C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
 #ifndef KERNEL_MODE
 C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
 
+static
+VOID
+MpTxFilterReset(
+    _In_ const FNMP_HANDLE Handle
+    )
+{
+    TEST_HRESULT(FnMpTxFilter(Handle, NULL, NULL, 0));
+}
+
+static
+VOID
+LwfRxFilterReset(
+    _In_ const FNLWF_HANDLE Handle
+    )
+{
+    TEST_HRESULT(FnLwfRxFilter(Handle, NULL, NULL, 0));
+}
 
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
@@ -153,6 +170,9 @@ using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_dele
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
+using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
+using unique_fnlwf_filter_handle = wil::unique_any<FNLWF_HANDLE, decltype(::LwfRxFilterReset), ::LwfRxFilterReset>;
+
 #endif
 
 #ifdef KERNEL_MODE
@@ -235,13 +255,15 @@ class TestInterface;
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
     );
 
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
     );
 
 static
@@ -1560,7 +1582,7 @@ LwfOpenDefault(
 static
 BOOLEAN
 LwfIsDatapathActive(
-    _In_ const unique_fnlwf_handle& Handle
+    _In_ const unique_fnlwf_handle &Handle
     )
 {
     BOOLEAN IsDatapathActive;
@@ -1597,7 +1619,7 @@ struct RX_FRAME {
 static
 HRESULT
 MpRxEnqueueFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ RX_FRAME *RxFrame
     )
 {
@@ -1608,7 +1630,7 @@ MpRxEnqueueFrame(
 static
 HRESULT
 TryMpRxFlush(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1618,7 +1640,7 @@ TryMpRxFlush(
 static
 VOID
 MpRxFlush(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1642,7 +1664,7 @@ MpRxFlush(
 static
 HRESULT
 MpRxIndicateFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ RX_FRAME *RxFrame
     )
 {
@@ -1703,22 +1725,25 @@ RxInitializeFrame(
     Frame->Frame.Buffers = &Frame->SingleBufferStorage;
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_filter_handle
 MpTxFilter(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ const VOID *Pattern,
     _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {
     TEST_HRESULT(FnMpTxFilter(Handle.get(), Pattern, Mask, Length));
+
+    return unique_fnmp_filter_handle(Handle.get());
 }
 
 static
 HRESULT
 MpTxGetFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
@@ -1730,7 +1755,7 @@ MpTxGetFrame(
 static
 unique_malloc_ptr<DATA_FRAME>
 MpTxAllocateAndGetFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1762,7 +1787,7 @@ MpTxAllocateAndGetFrame(
 static
 VOID
 MpTxDequeueFrame(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1782,7 +1807,7 @@ MpTxDequeueFrame(
 static
 VOID
 MpTxFlush(
-    _In_ const unique_fnmp_handle& Handle
+    _In_ const unique_fnmp_handle &Handle
     )
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
@@ -1791,7 +1816,7 @@ MpTxFlush(
 static
 VOID
 LwfTxEnqueue(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ DATA_FRAME *Frame
     )
 {
@@ -1801,7 +1826,7 @@ LwfTxEnqueue(
 static
 VOID
 LwfTxFlush(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_opt_ DATA_FLUSH_OPTIONS *Options = nullptr
     )
 {
@@ -1821,22 +1846,25 @@ LwfTxFlush(
     TEST_HRESULT(Result);
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnlwf_filter_handle
 LwfRxFilter(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ const VOID *Pattern,
     _In_ const VOID *Mask,
     _In_ UINT32 Length
     )
 {
     TEST_HRESULT(FnLwfRxFilter(Handle.get(), Pattern, Mask, Length));
+
+    return unique_fnlwf_filter_handle(Handle.get());
 }
 
 static
 HRESULT
 LwfRxGetFrame(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ UINT32 Index,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
@@ -1848,7 +1876,7 @@ LwfRxGetFrame(
 static
 unique_malloc_ptr<DATA_FRAME>
 LwfRxAllocateAndGetFrame(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1880,7 +1908,7 @@ LwfRxAllocateAndGetFrame(
 static
 VOID
 LwfRxDequeueFrame(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ UINT32 Index
     )
 {
@@ -1900,7 +1928,7 @@ LwfRxDequeueFrame(
 static
 VOID
 LwfRxFlush(
-    _In_ const unique_fnlwf_handle& Handle
+    _In_ const unique_fnlwf_handle &Handle
     )
 {
     TEST_HRESULT(FnLwfRxFlush(Handle.get()));
@@ -1909,7 +1937,7 @@ LwfRxFlush(
 static
 HRESULT
 LwfOidSubmitRequest(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
     _Inout_opt_ VOID *InformationBuffer
@@ -1924,7 +1952,7 @@ template <typename T>
 static
 unique_malloc_ptr<T>
 LwfOidAllocateAndSubmitRequest(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *BytesReturned
     )
@@ -1951,7 +1979,7 @@ LwfOidAllocateAndSubmitRequest(
 static
 VOID
 LwfStatusSetFilter(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _In_ NDIS_STATUS StatusCode,
     _In_ BOOLEAN BlockIndications,
     _In_ BOOLEAN QueueIndications
@@ -1964,7 +1992,7 @@ LwfStatusSetFilter(
 static
 HRESULT
 LwfStatusGetIndication(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _Inout_ UINT32 *StatusBufferLength,
     _Out_writes_bytes_opt_(*StatusBufferLength) VOID *StatusBuffer
     )
@@ -1976,7 +2004,7 @@ template <typename T>
 static
 unique_malloc_ptr<T>
 LwfStatusAllocateAndGetIndication(
-    _In_ const unique_fnlwf_handle& Handle,
+    _In_ const unique_fnlwf_handle &Handle,
     _Out_ UINT32 *StatusBufferLength
     )
 {
@@ -2014,7 +2042,7 @@ LwfStatusAllocateAndGetIndication(
 static
 LARGE_INTEGER
 MpGetLastMiniportPauseTimestamp(
-    _In_ const unique_fnmp_handle& Handle
+    _In_ const unique_fnmp_handle &Handle
     )
 {
     LARGE_INTEGER Timestamp = {0};
@@ -2025,7 +2053,7 @@ MpGetLastMiniportPauseTimestamp(
 static
 VOID
 MpSetMtu(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Mtu
     )
 {
@@ -2035,7 +2063,7 @@ MpSetMtu(
 static
 VOID
 MpOidFilter(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ const OID_KEY *Keys,
     _In_ UINT32 KeyCount
     )
@@ -2046,7 +2074,7 @@ MpOidFilter(
 static
 HRESULT
 MpOidGetRequest(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _Inout_ UINT32 *InformationBufferLength,
     _Out_opt_ VOID *InformationBuffer
@@ -2059,7 +2087,7 @@ template<typename T=decltype(TEST_TIMEOUT_ASYNC)>
 static
 unique_malloc_ptr<VOID>
 MpOidAllocateAndGetRequest(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *InformationBufferLength,
     _In_opt_ T Timeout = TEST_TIMEOUT_ASYNC
@@ -2094,7 +2122,7 @@ MpOidAllocateAndGetRequest(
 static
 HRESULT
 MpOidCompleteRequest(
-    _In_ const unique_fnmp_handle& Handle,
+    _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _In_ NDIS_STATUS Status,
     _In_opt_ const VOID *InformationBuffer,
@@ -2109,7 +2137,7 @@ MpOidCompleteRequest(
 static
 VOID
 WaitForWfpQuarantine(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     );
 
 static
@@ -2175,6 +2203,17 @@ CreateTcpSocket(
     TEST_EQUAL(
         0,
         setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    //
+    // Use RST to close local TCP sockets by default. This prevents closed
+    // sockets from retransmitting FINs beyond the scope of the uinque_socket.
+    //
+    LINGER lingerInfo;
+    lingerInfo.l_onoff = 1;
+    lingerInfo.l_linger = 0;
+    TEST_EQUAL(
+        0,
+        setsockopt(Socket.get(), SOL_SOCKET, SO_LINGER, (char *)&lingerInfo, sizeof(lingerInfo)));
 
     *LocalPort = SS_PORT(&Address);
 
@@ -2297,7 +2336,7 @@ CreateTcpSocket(
 static
 VOID
 WaitForWfpQuarantine(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If
     )
 {
     //
@@ -2349,13 +2388,14 @@ WaitForWfpQuarantine(
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout
     )
 {
     CHAR CmdBuff[256];
     BOOLEAN AdapterUp = FALSE;
     BOOLEAN LwfUp = FALSE;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch<std::chrono::milliseconds> Watchdog(Timeout);
 
     //
     // Wait for the adapter to be "Up", which implies the adapter's data path
@@ -2398,10 +2438,11 @@ TryWaitForNdisDatapath(
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface& If
+    _In_ const TestInterface &If,
+    _In_opt_ std::chrono::milliseconds Timeout
     )
 {
-    TEST_TRUE(TryWaitForNdisDatapath(If));
+    TEST_TRUE(TryWaitForNdisDatapath(If, Timeout));
 }
 
 static
@@ -2508,7 +2549,7 @@ LoadApiTest()
 static
 VOID
 BindingTest(
-    _In_ const TestInterface& If,
+    _In_ const TestInterface &If,
     _In_ BOOLEAN RestartAdapter
     )
 {
@@ -4015,6 +4056,7 @@ GenericRxFragmentBuffer(
     UINT32 PacketBufferOffset = 0;
     UINT32 TotalOffset = 0;
     MY_SOCKET Xsk;
+    wil::unique_handle ProgramHandle;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
     const XDP_HOOK_ID *RxHookId = Params->IsTxInspect ? &XdpInspectTxL2 : &XdpInspectRxL2;
@@ -4045,7 +4087,7 @@ GenericRxFragmentBuffer(
         Rule.Redirect.Target = Xsk.Handle.get();
     }
 
-    wil::unique_handle ProgramHandle =
+    ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), RxHookId, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     //
@@ -4161,12 +4203,15 @@ GenericRxFragmentBuffer(
         Ethernet->Destination = Ethernet->Source;
         Ethernet->Source = TempAddress;
 
+        unique_fnlwf_filter_handle LwfFilter;
+        unique_fnmp_filter_handle MpFilter;
+
         if (Params->IsTxInspect) {
-            LwfRxFilter(FnLwf, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+            LwfFilter = LwfRxFilter(FnLwf, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
             LwfTxFlush(FnLwf, &RxFlushOptions);
             TxFrame = LwfRxAllocateAndGetFrame(FnLwf, 0);
         } else {
-            MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+            MpFilter = MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
             MpRxFlush(GenericMp, &RxFlushOptions);
             TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
         }
@@ -4185,7 +4230,12 @@ GenericRxFragmentBuffer(
         // infer this is true by the TX NBL having the same MDL layout as the
         // original NBL.
         //
-        if (!Params->LowResources) {
+        // For TX-inspect NBLs, allow XDP to copy data if the first buffer is
+        // too short to reliably contain all L2 and L3 headers due to NDIS
+        // lookahead requirements.
+        //
+        if (!Params->LowResources &&
+            (!Params->IsTxInspect || Frame.Frame.Buffers[0].DataLength > 128)) {
             TEST_EQUAL(Buffers.size(), TxFrame->BufferCount);
         }
 
@@ -4244,7 +4294,7 @@ GenericRxTooManyFragments(
 }
 
 VOID
-GenericRxHeaderFragments(
+GenericRxHeaderMultipleFragments(
     _In_ ADDRESS_FAMILY Af,
     _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp,
@@ -4265,15 +4315,40 @@ GenericRxHeaderFragments(
     SplitIndexes[3] = SplitIndexes[2] + ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
     SplitIndexes[4] = SplitIndexes[3] + (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR)) / 2;
 
-    for (auto Split : {false, true}) {
-        if (Split) {
-            Params.SplitIndexes = SplitIndexes;
-            Params.SplitCount = RTL_NUMBER_OF(SplitIndexes);
-        } else {
-            Params.SplitIndexes = NULL;
-            Params.SplitCount = 0;
-        }
+    for (UINT16 i = 0; i < RTL_NUMBER_OF(SplitIndexes) - 1; i++) {
+        Params.SplitIndexes = &SplitIndexes[i];
+        Params.SplitCount = RTL_NUMBER_OF(SplitIndexes) - i;
+        Params.IsTxInspect = IsTxInspect;
+        Params.LowResources = IsLowResources;
+        GenericRxFragmentBuffer(Af, &Params);
+    }
+}
 
+VOID
+GenericRxHeaderFragments(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ XDP_RULE_ACTION ProgramAction,
+    _In_ BOOLEAN IsUdp,
+    _In_ BOOLEAN IsTxInspect,
+    _In_ BOOLEAN IsLowResources
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.Action = ProgramAction;
+    Params.IsUdp = IsUdp;
+    Params.PayloadLength = 43;
+    Params.Backfill = 13;
+    Params.Trailer = 17;
+    UINT16 HeadersLength =
+        sizeof(ETHERNET_HEADER) +
+            ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)) +
+            (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR));
+
+    GenericRxHeaderMultipleFragments(Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources);
+
+    for (UINT16 i = 1; i < HeadersLength; i++) {
+        Params.SplitIndexes = &i;
+        Params.SplitCount = 1;
         Params.IsTxInspect = IsTxInspect;
         Params.LowResources = IsLowResources;
         GenericRxFragmentBuffer(Af, &Params);
@@ -4668,7 +4743,7 @@ GenericRxEbpfDrop()
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4697,7 +4772,7 @@ GenericRxEbpfPass()
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4721,7 +4796,7 @@ GenericRxEbpfTx()
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
+    auto MpFilter = MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4759,7 +4834,7 @@ GenericRxEbpfPayload()
             &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     std::vector<UCHAR> Mask(UdpFrameLength, 0xFF);
-    LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
+    auto LwfFilter = LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
 
     RX_FRAME Frame;
     DATA_BUFFER Buffer = {0};
@@ -4862,7 +4937,7 @@ GenericRxEbpfIfIndex()
     TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &IfIndex, BPF_ANY));
 
     std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4905,17 +4980,15 @@ GenericRxEbpfFragments()
 {
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
-    unique_fnlwf_handle FnLwf;
     const UINT32 Backfill = 3;
     const UINT32 Trailer = 4;
     const UINT32 SplitAt = 4;
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
-    FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     Buffers[0].DataLength = SplitAt;
     Buffers[0].DataOffset = Backfill;
@@ -4926,26 +4999,24 @@ GenericRxEbpfFragments()
     Buffers[1].BufferLength = Buffers[1].DataLength + Trailer;
     Buffers[1].VirtualAddress = Payload + Buffers[0].BufferLength;
 
+    //
+    // XDP-for-Windows has limited eBPF support for fragments: the first buffer
+    // is visible to eBPF programs, and the remaining fragments (if any) are
+    // inaccessible.
+    //
+    // Actions apply to the entire frame, not just to the first fragement.
+    //
+    std::vector<UCHAR> Mask((SIZE_T)Buffers[0].DataLength + Buffers[1].DataLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, &Mask[0], (ULONG)Mask.size());
+
     RX_FRAME Frame;
-    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
-
-    std::vector<UCHAR> Mask(sizeof(Payload) - Backfill - Trailer, 0xFF);
-    LwfRxFilter(FnLwf, Payload + Backfill, &Mask[0], sizeof(Payload) - Backfill - Trailer);
-
+    RxInitializeFrame(&Frame, If.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    //
-    // We currently do not support fragments with eBPF, so this packet should
-    // be dropped.
-    //
-
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
-
-    UINT32 FrameLength = 0;
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+    MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
 }
 
 VOID
@@ -5022,7 +5093,7 @@ GenericTxSingleFrame()
     UINT64 Pattern = 0xA5CC7729CE99C16Aui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxSingleFrame";
@@ -5077,7 +5148,7 @@ GenericTxOutOfOrder()
     UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxOutOfOrder";
@@ -5142,7 +5213,7 @@ GenericTxSharing()
         UINT64 Pattern = 0xA5CC7729CE99C16Aui64 + i;
         UINT64 Mask = ~0ui64;
 
-        MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+        auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
         UINT16 FrameOffset = 13;
         UCHAR Payload[] = "GenericTxSharing";
@@ -5198,7 +5269,7 @@ GenericTxPoke()
     UINT64 Pattern = 0x4FA3DF603CC44911ui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxPoke";
@@ -5276,9 +5347,12 @@ GenericTxMtu()
     TEST_TRUE(XskRingError(&Xsk.Rings.Tx));
 
     //
-    // Wait for the MTU changes to quiesce.
+    // Wait for the MTU changes to quiesce. If filter or protocol drivers
+    // incompatible with MTU changes are installed, this requires a complete
+    // detach/attach cycle of the entire interface stack.
     //
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    WaitForNdisDatapath(If, MP_RESTART_TIMEOUT);
+
     Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
 
     //
@@ -6086,7 +6160,7 @@ VerifyRssDatapath(
     auto DefaultLwf = LwfOpenDefault(If.GetIfIndex());
     UCHAR Pattern = 0x00;
     UCHAR Mask = 0x00;
-    LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
+    auto LwfFilter = LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
 
     IndicateOnAllActiveRssQueues(If, (UINT32)RssProcessors.size());
 
@@ -7485,6 +7559,110 @@ OffloadQeoOidFailure(
     // Verify the XDP offload API failed.
     //
     TEST_TRUE(FAILED(AsyncThread.get()));
+}
+
+VOID
+OidPassthru()
+{
+    typedef struct _OID_PARAMS {
+        OID_KEY Key;
+        UINT32 BufferSize;
+        UINT32 CompletionSize;
+    } OID_PARAMS;
+    OID_PARAMS OidKeys[3] = {0};
+    UINT32 MpInfoBufferLength;
+    unique_malloc_ptr<VOID> MpInfoBuffer;
+    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
+
+    TEST_NOT_NULL(DefaultLwf.get());
+
+    //
+    // Get.
+    //
+    OidKeys[0].BufferSize = sizeof(ULONG);
+    OidKeys[0].CompletionSize = sizeof(ULONG);
+    InitializeOidKey(&OidKeys[0].Key, OID_GEN_RECEIVE_BLOCK_SIZE, NdisRequestQueryInformation);
+
+    //
+    // Set.
+    //
+    OidKeys[1].BufferSize = sizeof(ULONG);
+    OidKeys[1].CompletionSize = sizeof(ULONG);
+    InitializeOidKey(&OidKeys[1].Key, OID_GEN_CURRENT_PACKET_FILTER, NdisRequestSetInformation);
+
+    //
+    // Method. (Direct OID)
+    //
+    OidKeys[2].BufferSize = sizeof(NDIS_QUIC_CONNECTION);
+    OidKeys[2].CompletionSize = sizeof(NDIS_QUIC_CONNECTION);
+    InitializeOidKey(
+        &OidKeys[2].Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        OID_REQUEST_INTERFACE_DIRECT);
+
+    //
+    // Verify synchronous OID completion, i.e. without FNMP pending the OID.
+    //
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
+        const OID_PARAMS *OidParam = &OidKeys[Index];
+        UINT32 LwfInfoBufferLength = OidParam->BufferSize;
+        std::vector<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
+
+        TEST_HRESULT(LwfOidSubmitRequest(
+            DefaultLwf, OidParam->Key, &LwfInfoBufferLength, &LwfInfoBuffer[0]));
+        TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
+    }
+
+    //
+    // Verify asynchronous completions.
+    //
+
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
+        const OID_PARAMS *OidParam = &OidKeys[Index];
+        UINT32 LwfInfoBufferLength = OidParam->BufferSize;
+        std::vector<UCHAR> LwfInfoBuffer(LwfInfoBufferLength);
+        const UINT32 CompletionSize = LwfInfoBufferLength / 2;
+
+        auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
+        TEST_NOT_NULL(ExclusiveMp.get());
+
+        if (OidParam->Key.Oid == OID_GEN_CURRENT_PACKET_FILTER &&
+            OidParam->Key.RequestType == NdisRequestSetInformation) {
+            //
+            // NDIS absorbs the set OID unless the packet filter is changed.
+            // Query the current filter and then modify the info buffer.
+            //
+            OID_KEY GetKey = OidParam->Key;
+            GetKey.RequestType = NdisRequestQueryInformation;
+            TEST_HRESULT(LwfOidSubmitRequest(
+                DefaultLwf, GetKey, &LwfInfoBufferLength, &LwfInfoBuffer[0]));
+            TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
+
+            LwfInfoBuffer[0] ^= 1;
+        }
+
+        MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
+
+        auto OidRequestThread = std::async(
+            std::launch::async,
+            [&] {
+                return
+                    LwfOidSubmitRequest(
+                        DefaultLwf, OidParam->Key, &LwfInfoBufferLength, &LwfInfoBuffer[0]);
+            }
+        );
+
+        MpInfoBuffer =
+            MpOidAllocateAndGetRequest(ExclusiveMp, OidParam->Key, &MpInfoBufferLength);
+        TEST_NOT_NULL(MpInfoBuffer.get());
+
+        TEST_HRESULT(MpOidCompleteRequest(
+            ExclusiveMp, OidParam->Key, STATUS_SUCCESS, &LwfInfoBuffer[0], CompletionSize));
+
+        TEST_EQUAL(OidRequestThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+        TEST_HRESULT(OidRequestThread.get());
+
+        TEST_EQUAL(LwfInfoBufferLength, CompletionSize);
+    }
 }
 
 /**

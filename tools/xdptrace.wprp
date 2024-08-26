@@ -95,7 +95,7 @@
 
         <!-- Windows OS providers -->
         <EventProvider Id="EP_MicrosoftWindowsTcpipPerPacket" Name="2F07E2EE-15DB-40F1-90EF-9D7BA282188A" Level="17" />
-        <EventProvider Id="EP_MicrosoftWindowsWinsockAfd" Name="E53C6823-7BB8-44BB-90DC-3F86090D48A" Level="5" />
+        <EventProvider Id="EP_MicrosoftWindowsWinsockAfd" Name="E53C6823-7BB8-44BB-90DC-3F86090D48A6" Level="5" />
 
         <Profile Id="XDP.Verbose.File" Name="XDP" Description="XDP" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>

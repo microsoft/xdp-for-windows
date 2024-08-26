@@ -85,7 +85,7 @@
         clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
         pushd $(OutDir)
         powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
-        rmdir /s /q $(OutDir)\l1fwd_km-
+        rmdir /s /q $(OutDir)\l1fwd_km
         popd</Command>
     </CustomBuild>
     <CustomBuild Include="pass.c">

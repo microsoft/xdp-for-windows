@@ -223,12 +223,18 @@ XdpInvokeEbpf(
     ASSERT((FragmentRing == NULL) || (FragmentExtension != NULL));
 
     //
-    // Fragmented frames are currently not supported by eBPF.
+    // Fragmented frames require special handling for eBPF programs using direct
+    // packet access. On Linux, the program must be loaded with a specific flag
+    // in order to inspect discontiguous packets. On Windows, discontiguous
+    // frames are always inspected by default, at least until a program flag API
+    // is supported by eBPF-for-Windows.
+    //
+    // https://github.com/microsoft/ebpf-for-windows/issues/3576
+    // https://github.com/microsoft/xdp-for-windows/issues/517
     //
     if (FragmentRing != NULL &&
         XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount != 0) {
-        RxAction = XDP_RX_ACTION_DROP;
-        goto Exit;
+        STAT_INC(RxQueueStats, InspectFramesDiscontiguous);
     }
 
     Buffer = &Frame->Buffer;
@@ -642,24 +648,24 @@ static const VOID *EbpfXdpHelperFunctions[] = {
 };
 
 static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
+    .header = {
+        .version = EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION,
+        .size = EBPF_HELPER_FUNCTION_ADDRESSES_CURRENT_VERSION_SIZE
+    },
     .helper_function_count = RTL_NUMBER_OF(EbpfXdpHelperFunctions),
     .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
 };
 
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
 static const ebpf_program_data_t EbpfXdpProgramData = {
+    .header = {
+        .version = EBPF_PROGRAM_DATA_CURRENT_VERSION,
+        .size = EBPF_PROGRAM_DATA_CURRENT_VERSION_SIZE
+    },
     .program_info = &EbpfXdpProgramInfo,
     .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
-};
-
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
-static const ebpf_extension_data_t EbpfXdpProgramInfoProviderData = {
-    .version = 0, // Review: versioning?
-    .size = sizeof(EbpfXdpProgramData),
-    .data = &EbpfXdpProgramData,
 };
 
 static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
@@ -669,16 +675,13 @@ static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
 };
 
 static const ebpf_attach_provider_data_t EbpfXdpHookAttachProviderData = {
+    .header = {
+        .version = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION ,
+        .size = EBPF_ATTACH_PROVIDER_DATA_CURRENT_VERSION_SIZE
+    },
     .supported_program_type = EBPF_PROGRAM_TYPE_XDP_INIT,
     .bpf_attach_type = BPF_XDP,
     .link_type = BPF_LINK_TYPE_XDP,
-};
-
-#pragma warning(suppress:4090) // 'initializing': different 'const' qualifiers
-static const ebpf_extension_data_t EbpfXdpHookProviderData = {
-    .version = EBPF_ATTACH_PROVIDER_DATA_VERSION,
-    .size = sizeof(EbpfXdpHookAttachProviderData),
-    .data = &EbpfXdpHookAttachProviderData,
 };
 
 static const NPI_MODULEID EbpfXdpHookProviderModuleId = {
@@ -1644,7 +1647,7 @@ EbpfProgramOnClientAttach(
     TraceEnter(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
-    if (ClientData == NULL || ClientData->size != sizeof(IfIndex) || ClientData->data == NULL) {
+    if (ClientData == NULL || ClientData->header.size != sizeof(IfIndex) || ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -1729,11 +1732,11 @@ XdpProgramStart(
 {
     const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfProgramInfoProviderParameters = {
         .ProviderModuleId = &EbpfXdpProgramInfoProviderModuleId,
-        .ProviderData = &EbpfXdpProgramInfoProviderData,
+        .ProviderData = &EbpfXdpProgramData,
     };
     const EBPF_EXTENSION_PROVIDER_PARAMETERS EbpfHookProviderParameters = {
         .ProviderModuleId = &EbpfXdpHookProviderModuleId,
-        .ProviderData = &EbpfXdpHookProviderData,
+        .ProviderData = &EbpfXdpHookAttachProviderData,
     };
     DWORD EbpfEnabled;
     NTSTATUS Status;

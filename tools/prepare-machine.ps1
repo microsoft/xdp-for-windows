@@ -20,10 +20,6 @@ This prepares a machine for running XDP.
     Installs all the run-time dependencies and configures machine for
     spinxsk tests.
 
-.PARAMETER ForNetPerfTest
-    Installs all the run-time dependencies and configures machine for
-    running performance tests on the netperf lab machines.
-
 .PARAMETER ForLogging
     Installs all the logging dependencies.
 
@@ -58,9 +54,6 @@ param (
     [switch]$ForPerfTest = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$ForNetPerfTest = $false,
-
-    [Parameter(Mandatory = $false)]
     [switch]$ForLogging = $false,
 
     [Parameter(Mandatory = $false)]
@@ -84,18 +77,16 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 
 $ArtifactsDir = "$RootDir\artifacts"
 
-if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForNetPerfTest -and !$ForLogging) {
-    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, -ForNetPerfTest, or -ForLogging'
+if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
+    Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
 }
-
-$EbpfNugetVersion = "eBPF-for-Windows.0.13.0"
-$EbpfNugetBuild = "+5122375852"
-$EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-$EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-$EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
 # Flag that indicates something required a reboot.
 $Reboot = $false
+
+# Log the OS version.
+Write-Verbose "Querying OS BuildLabEx"
+(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').BuildLabEx | Write-Verbose
 
 function Download-CoreNet-Deps {
     $CoreNetCiCommit = Get-CoreNetCiCommit
@@ -110,27 +101,6 @@ function Download-CoreNet-Deps {
         Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "$ArtifactsDir\corenet-ci.zip"
         Expand-Archive -Path "$ArtifactsDir\corenet-ci.zip" -DestinationPath $ArtifactsDir -Force
         Remove-Item -Path "$ArtifactsDir\corenet-ci.zip"
-    }
-}
-
-function Download-eBpf-Nuget {
-    # Download and extract private eBPF Nuget package.
-    $NugetDir = "$ArtifactsDir/nuget"
-    if ($Force -and (Test-Path $NugetDir)) {
-        Remove-Item -Recurse -Force $NugetDir
-    }
-    if (!(Test-Path $NugetDir)) {
-        mkdir $NugetDir | Write-Verbose
-    }
-
-    if (!(Test-Path $NugetDir/$EbpfNuget)) {
-        # Remove any old builds of the package.
-        if (Test-Path $EbpfNugetRestoreDir) {
-            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
-        }
-        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
-
-        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
     }
 }
 
@@ -376,14 +346,6 @@ if ($Cleanup) {
         }
 
         Install-AzStorageModule
-    }
-
-    if ($ForNetPerfTest) {
-        Setup-VcRuntime
-        Download-CoreNet-Deps
-        Download-Ebpf-Msi
-        Setup-TestSigning
-        Install-Certs
     }
 
     if ($ForTest) {

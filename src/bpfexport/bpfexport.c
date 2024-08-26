@@ -46,7 +46,7 @@ main(
             exit_code = -1;
         }
 
-        result = ebpf_store_update_program_information(&EbpfXdpProgramInfo, 1);
+        result = ebpf_store_update_program_information_array(&EbpfXdpProgramInfo, 1);
         if (result != EBPF_SUCCESS) {
             fprintf(stderr, "ebpf_store_update_program_information failed: %u\n", result);
             exit_code = -1;

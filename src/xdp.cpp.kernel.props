@@ -1,5 +1,9 @@
 <!-- Kernel mode specific properties -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- OneBranch goop -->
+  <PropertyGroup>
+    <UndockedKernelModeBuild>true</UndockedKernelModeBuild>
+  </PropertyGroup>
   <!-- Project-wide compile properties (e.g. defines, includes) -->
   <ItemDefinitionGroup>
     <ClCompile>

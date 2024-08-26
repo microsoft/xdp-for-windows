@@ -16,6 +16,17 @@
 #include "tests.tmh"
 
 //
+// Define a test method for a feature not yet officially released.
+// Unfortunately, the vstest.console.exe runner seems unable to filter on
+// arbitrary properties, so mark prerelease as priority 1.
+//
+#define TEST_METHOD_PRERELEASE(_Name) \
+    BEGIN_TEST_METHOD_ATTRIBUTE(_Name) \
+        TEST_PRIORITY(1) \
+    END_TEST_METHOD_ATTRIBUTE() \
+    TEST_METHOD(_Name)
+
+//
 // Test suite(s).
 //
 
@@ -905,55 +916,55 @@ public:
         }
     }
 
-    TEST_METHOD(GenericRxEbpfAttach) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfAttach) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfAttach();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfDrop) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfDrop) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfDrop();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfPass) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfPass) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfPass();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfTx) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfTx) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfTx();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfPayload) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfPayload) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfPayload();
         }
     }
 
-    TEST_METHOD(ProgTestRunRxEbpfPayload) {
+    TEST_METHOD_PRERELEASE(ProgTestRunRxEbpfPayload) {
         if (!TestingKernelMode) {
             ::ProgTestRunRxEbpfPayload();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfIfIndex) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfIfIndex) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfIfIndex();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfFragments) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfFragments) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfFragments();
         }
     }
 
-    TEST_METHOD(GenericRxEbpfUnload) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfUnload) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfUnload();
         }
@@ -971,55 +982,55 @@ public:
         }
     }
 
-    TEST_METHOD(OffloadRssError) {
+    TEST_METHOD_PRERELEASE(OffloadRssError) {
         if (!TestingKernelMode) {
             ::OffloadRssError();
         }
     }
 
-    TEST_METHOD(OffloadRssReference) {
+    TEST_METHOD_PRERELEASE(OffloadRssReference) {
         if (!TestingKernelMode) {
             ::OffloadRssReference();
         }
     }
 
-    TEST_METHOD(OffloadRssInterfaceRestart) {
+    TEST_METHOD_PRERELEASE(OffloadRssInterfaceRestart) {
         if (!TestingKernelMode) {
             ::OffloadRssInterfaceRestart();
         }
     }
 
-    TEST_METHOD(OffloadRssUnchanged) {
+    TEST_METHOD_PRERELEASE(OffloadRssUnchanged) {
         if (!TestingKernelMode) {
             ::OffloadRssUnchanged();
         }
     }
 
-    TEST_METHOD(OffloadRssUpperSet) {
+    TEST_METHOD_PRERELEASE(OffloadRssUpperSet) {
         if (!TestingKernelMode) {
             ::OffloadRssUpperSet();
         }
     }
 
-    TEST_METHOD(OffloadRssSet) {
+    TEST_METHOD_PRERELEASE(OffloadRssSet) {
         if (!TestingKernelMode) {
             ::OffloadRssSet();
         }
     }
 
-    TEST_METHOD(OffloadRssCapabilities) {
+    TEST_METHOD_PRERELEASE(OffloadRssCapabilities) {
         if (!TestingKernelMode) {
             ::OffloadRssCapabilities();
         }
     }
 
-    TEST_METHOD(OffloadRssReset) {
+    TEST_METHOD_PRERELEASE(OffloadRssReset) {
         if (!TestingKernelMode) {
             ::OffloadRssReset();
         }
     }
 
-    TEST_METHOD(OffloadSetHardwareCapabilities) {
+    TEST_METHOD_PRERELEASE(OffloadSetHardwareCapabilities) {
         if (!TestingKernelMode) {
             ::OffloadSetHardwareCapabilities();
         }
@@ -1031,27 +1042,31 @@ public:
         }
     }
 
-    TEST_METHOD(OffloadQeoConnection) {
+    TEST_METHOD_PRERELEASE(OffloadQeoConnection) {
         if (!TestingKernelMode) {
             ::OffloadQeoConnection();
         }
     }
 
-    TEST_METHOD(OffloadQeoRevertInterfaceRemoval) {
+    TEST_METHOD_PRERELEASE(OffloadQeoRevertInterfaceRemoval) {
         if (!TestingKernelMode) {
             ::OffloadQeoRevert(RevertReasonInterfaceRemoval);
         }
     }
 
-    TEST_METHOD(OffloadQeoRevertHandleClosure) {
+    TEST_METHOD_PRERELEASE(OffloadQeoRevertHandleClosure) {
         if (!TestingKernelMode) {
             ::OffloadQeoRevert(RevertReasonHandleClosure);
         }
     }
 
-    TEST_METHOD(OffloadQeoOidFailure) {
+    TEST_METHOD_PRERELEASE(OffloadQeoOidFailure) {
         if (!TestingKernelMode) {
             ::OffloadQeoOidFailure();
         }
+    }
+
+    TEST_METHOD(OidPassthru) {
+        ::OidPassthru();
     }
 };

@@ -31,6 +31,10 @@ if ($null -eq $Session) {
     Write-Error "Failed to create remote session"
 }
 
+$RootDir = $pwd
+. $RootDir\tools\common.ps1
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Arch
+
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
 Write-Output "Successfully connected to peer: $RemoteAddress"
@@ -44,7 +48,21 @@ Write-Output "Local address: $LocalAddress"
 
 $LocalInterface = (Get-NetIPAddress -IPAddress $LocalAddress -ErrorAction SilentlyContinue).InterfaceIndex
 $LocalMacAddress = (Get-NetAdapter -InterfaceIndex $LocalInterface).MacAddress
+$LocalVfAdapter = Get-NetAdapter | Where-Object {$_.MacAddress -eq $LocalMacAddress -and $_.ifIndex -ne $LocalInterface}
 Write-Output "Local interface: $LocalInterface, $LocalMacAddress"
+
+$LowestInterface = $LocalInterface
+if ($LocalVfAdapter) {
+    $script:LowestInterface = $LocalVfAdapter.ifIndex
+}
+
+# Set the default AF_XDP per-queue parameters: 2KB buffer size, 256 buffers
+# (implicitly) 256 elements in each ring, and IO batch sizes of 32. Periodic
+# statistics are enabled, too.
+$ChunkSize = 2048
+$UmemSize = $ChunkSize * 256
+$BatchSize = 32
+$XskQueueParams = "-u", $UmemSize, "-c", $ChunkSize, "-b", $BatchSize, "-s"
 
 $out = Invoke-Command -Session $Session -ScriptBlock {
     param ($LocalAddress)
@@ -57,8 +75,6 @@ Write-Output "Remote interface: $RemoteInterface, $RemoteMacAddress"
 
 # Generate payload to send to the peer.
 $PktCmd = "artifacts\bin\$($Arch)_$($Config)\pktcmd.exe"
-$TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 1280
-Write-Debug "TX Payload:`n$TxBytes"
 
 Write-Output "`n====================SET UP====================`n"
 
@@ -71,6 +87,15 @@ Invoke-Command -Session $Session -ScriptBlock {
 Copy-Item -ToSession $Session .\artifacts -Destination $RemoteDir\artifacts -Recurse
 Copy-Item -ToSession $Session .\tools -Destination $RemoteDir\tools -Recurse
 
+# Prepare the machines for the testing.
+Write-Output "Preparing local machine for testing..."
+tools\prepare-machine.ps1 -ForTest -NoReboot
+Write-Output "Preparing remote machine for testing..."
+Invoke-Command -Session $Session -ScriptBlock {
+    param ($RemoteDir)
+    & $RemoteDir\tools\prepare-machine.ps1 -ForTest -NoReboot
+} -ArgumentList $RemoteDir
+
 # Check for any previously drivers.
 Write-Output "Checking local machine state..."
 tools\check-drivers.ps1 -Config $Config -Arch $Arch
@@ -80,24 +105,37 @@ Invoke-Command -Session $Session -ScriptBlock {
     & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Arch $Arch
 } -ArgumentList $Config, $Arch, $RemoteDir
 
-# Prepare the machines for the testing.
-Write-Output "Preparing local machine for testing..."
-tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
-Write-Output "Preparing remote machine for testing..."
-Invoke-Command -Session $Session -ScriptBlock {
-    param ($RemoteDir)
-    & $RemoteDir\tools\prepare-machine.ps1 -ForNetPerfTest -NoReboot
-} -ArgumentList $RemoteDir
-
 try {
+# Install eBPF on the machines.
+Write-Output "Installing eBPF locally..."
+tools\setup.ps1 -Install ebpf -Config $Config -Arch $Arch
+Write-Output "Installing eBPF on peer..."
+Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir)
+    & $RemoteDir\tools\setup.ps1 -Install ebpf -Config $Config -Arch $Arch
+} -ArgumentList $Config, $Arch, $RemoteDir
+
 # Install XDP on the machines.
+# Set GenericDelayDetachTimeoutSec regkey to zero. This ensures XDP
+# instantly detaches from the LWF data path whenever no programs are plumbed.
+#
 Write-Output "Installing XDP locally..."
-tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch
+    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+    Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
+    reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 } -ArgumentList $Config, $Arch, $RemoteDir
+
+# Allow wsario.exe through the remote firewall
+Write-Output "Allowing wsario.exe through firewall..."
+$WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+Write-Verbose "Adding firewall rules"
+& netsh.exe advfirewall firewall add rule name="AllowWsaRio" program=$WsaRio dir=in action=allow protocol=any remoteip=$RemoteAddress | Write-Verbose
 
 # Start logging.
 Write-Output "Starting local logs..."
@@ -112,22 +150,133 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 Write-Output "`n====================EXECUTION====================`n"
 
-# Run xskbench.
-Write-Output "Starting xskbench on the peer (listening on UDP 9999)..."
+Write-Output "Configuring 1 RSS queue"
+# Hyper-V NIC cannot configure NumberOfReceiveQueues, so configure MaxProcessors instead
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -MaxProcessors 1
+if ($LocalVfAdapter) {
+    $LocalVfAdapter | Set-NetAdapterRss -NumberOfReceiveQueues 1
+}
+Write-Verbose "Waiting for IP address DAD to complete..."
+Start-Sleep -Seconds 5
+
+# Run xskbench latency mode and forward traffic on the peer.
+Write-Output "Starting L2FWD on peer (forwarding on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
     param ($Config, $Arch, $RemoteDir, $LocalInterface)
-    $XskBench = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LocalInterface -d 60 -p 9999 -t -ci 0 -q -id 0
+    $RxFilter = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\rxfilter.exe"
+    $RxFilterJob = & $RxFilter -IfIndex $LocalInterface -QueueId * -MatchType UdpDstPort -UdpDstPort 9999 -Action L2Fwd &
+    Write-Output "Forwarding for 60 seconds"
+    Start-Sleep -Seconds 60
+    Stop-Job $RxFilterJob
+    Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
 } -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
 
+$TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 8
+Write-Verbose "TX Payload: $TxBytes"
+
 for ($i = 0; $i -lt 5; $i++) {
-    Write-Output "Run $($i+1): Running xskbench locally (sending to UDP 9999)..."
-    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench tx -i $LocalInterface -d 10 -t -ci 0 -q -id 0 -tx_pattern $TxBytes -b 8
     Start-Sleep -Seconds 1
+
+    Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench lat -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -ring_size 1
 }
 
-Write-Output "Waiting for remote xskbench..."
+Write-Output "Waiting for remote RxFilter..."
+Wait-Job -Job $Job | Out-Null
+Receive-Job -Job $Job -ErrorAction 'Continue'
+
+# Run xskbench.
+Write-Output "Generating TX on the peer (sending to UDP 9999)..."
+$Job = Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
+    . $RemoteDir\tools\common.ps1
+    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -PortOffset 0 -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1
+} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
+
+for ($i = 0; $i -lt 5; $i++) {
+    Start-Sleep -Seconds 1
+    Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams
+}
+
+Write-Output "Configuring 8 RSS queues"
+# Hyper-V NIC cannot configure NumberOfReceiveQueues, so configure MaxProcessors instead
+Get-NetAdapter -ifIndex $LocalInterface | Set-NetAdapterRss -MaxProcessors 8
+if ($LocalVfAdapter) {
+    $LocalVfAdapter | Set-NetAdapterRss -NumberOfReceiveQueues 8
+}
+
+for ($i = 0; $i -lt 5; $i++) {
+    Start-Sleep -Seconds 1
+    Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
+    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
+    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams -q -id 1 $XskQueueParams -q -id 2 $XskQueueParams -q -id 3 $XskQueueParams -q -id 4 $XskQueueParams -q -id 5 $XskQueueParams -q -id 6 $XskQueueParams -q -id 7 $XskQueueParams
+}
+
+Write-Output "Waiting for remote wsario..."
+Wait-Job -Job $Job | Out-Null
+Receive-Job -Job $Job -ErrorAction 'Continue'
+
+# Run wsario.
+Write-Output "Starting wsario on the peer (sending to UDP 9999, 10000, 10001, ...)..."
+$Job = Invoke-Command -Session $Session -ScriptBlock {
+    param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
+    . $RemoteDir\tools\common.ps1
+    $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+    $ThreadCount = 8
+    $ThreadsPerPort = 4
+    $Jobs = @{}
+    for ($i = 0; $i -lt $ThreadsPerPort; $i++) {
+        $Jobs[$i] = & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -IoCount -1 -MaxDuration 180 -ThreadCount $ThreadCount -Group 1 -CPU ($ThreadCount * $i) -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1 &
+    }
+    Write-Output "Waiting for wsario(s)..."
+    for ($i = 0; $i -lt $ThreadsPerPort; $i++) {
+        Wait-Job -Job $Jobs[$i] | Out-Null
+        Receive-Job -Job $Jobs[$i] -ErrorAction 'Continue'
+    }
+} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
+
+foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
+    switch ($XdpMode) {
+        BuiltIn
+        {
+            Write-Output "Attaching BuiltIn program"
+            $RxFilterJob = & $ArtifactBin\rxfilter.exe -IfIndex $LocalInterface -QueueId * -MatchType All -Action Pass &
+        }
+        eBPF
+        {
+            Write-Output "Attaching eBPF program"
+            $ProgId = (& netsh.exe ebpf add program $ArtifactBin\bpf\pass.sys interface=$LocalInterface)[0].substring("Loaded with ID ".length)
+        }
+    }
+
+    for ($i = 0; $i -lt 5; $i++) {
+        Start-Sleep -Seconds 1
+        Write-Output "Run $($i+1): Running wsario locally (receiving)..."
+        $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
+        $IoSize = 65536
+        & $WsaRio Winsock Receive -Bind "$LocalAddress`:9999" -IoCount -1 -MaxDuration 10 -ThreadCount 8 -Group 1 -CPU 0 -CPUOffset 2 -OptFlags 0x9 -QueueDepth 1 -IoSize $IoSize -Uro $IoSize
+    }
+
+    switch ($XdpMode) {
+        BuiltIn
+        {
+            Write-Output "Stopping BuiltIn program"
+            Stop-Job $RxFilterJob
+            Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
+        }
+        eBPF
+        {
+            Write-Output "Stopping eBPF program"
+            & netsh.exe ebpf delete program $ProgId
+        }
+    }
+}
+
+Write-Output "Waiting for remote wsario..."
 Wait-Job -Job $Job | Out-Null
 Receive-Job -Job $Job -ErrorAction 'Continue'
 
@@ -140,11 +289,13 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue' | Out-Null
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
     Write-Output "Stopping local logs..."
     tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
     Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs -ErrorAction 'Continue'
+    Write-Output "Removing WsaRio firewall rule"
+    & netsh.exe advfirewall firewall del rule name="AllowWsaRio" | Out-Null
     # Clean up XDP driver state.
     Write-Output "Removing XDP locally..."
     tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
@@ -152,5 +303,13 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
+    # Clean up eBPF
+    Write-Output "Removing eBPF locally..."
+    tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    Write-Output "Removing eBPF on peer..."
+    Invoke-Command -Session $Session -ScriptBlock {
+        param ($Config, $Arch, $RemoteDir)
+        & $RemoteDir\tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
 }

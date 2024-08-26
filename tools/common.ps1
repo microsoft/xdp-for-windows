@@ -109,7 +109,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.13.0"
+    return "0.15.1"
 }
 
 # Returns the eBPF package type.
@@ -144,7 +144,7 @@ function Get-EbpfPackageUrl {
 }
 
 function Get-FnVersion {
-    return "0.4.1"
+    return "0.4.4"
 }
 
 function Get-FnDevKitUrl {
@@ -166,7 +166,7 @@ function Get-FnRuntimeDir {
 }
 
 function Get-CoreNetCiCommit {
-    return "61af6f56ef187dcedb459bcc56f56e305f98a6e4"
+    return "285f2f66ac3319220c663312e93da28af9e9365e"
 }
 
 function Get-CoreNetCiArtifactPath {
@@ -179,6 +179,18 @@ function Get-CoreNetCiArtifactPath {
     $Commit = Get-CoreNetCiCommit
 
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
+}
+
+function Get-ArtifactBinPath {
+    param (
+        [Parameter()]
+        [string]$Config,
+        [Parameter()]
+        [string]$Arch
+    )
+
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    return "$RootDir\artifacts\bin\$($Arch)_$($Config)"
 }
 
 function Get-XdpBuildVersion {

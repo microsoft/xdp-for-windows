@@ -110,11 +110,16 @@ $StartTime = Get-Date
 
 while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes)) {
 
-    $ThisIterationMinutes = 5
+    $ThisIterationMinutes = 10
     if ($Minutes -ne 0) {
         $TotalRemainingMinutes = [math]::max(1, [math]::ceiling($Minutes - ((Get-Date)-$StartTime).TotalMinutes))
         if ($ThisIterationMinutes -gt $TotalRemainingMinutes) {
             $ThisIterationMinutes = $TotalRemainingMinutes
+
+            if ($ThisIterationMinutes -ne $Minutes) {
+                Write-Verbose "Using SuccessThresholdPercent = 0 for truncated final iteration"
+                $script:SuccessThresholdPercent = 0
+            }
         }
     }
 
