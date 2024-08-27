@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)..\..\src\xdp.props" />
+  <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup>
     <ProductVersion>3.10</ProductVersion>
     <ProjectGuid>93635a7b-565e-4b41-af67-5b375756b227</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
-    <OutputPath>$(SolutionDir)..\..\artifacts\bin\$(Platform)_$(Configuration)\xdpinstaller\</OutputPath>
-    <IntermediateOutputPath>$(SolutionDir)..\..\build\$(Platform)_$(Configuration)\obj\$(OutputName)\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\xdpinstaller\</OutputPath>
+    <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DefineConstants>
       XdpMajorVersion=$(XdpMajorVersion);
@@ -17,6 +17,17 @@
       $(DefineConstants)
     </DefineConstants>
   </PropertyGroup>
+ <ItemGroup Condition="'$(InstallerProjectReferences)' != 'false'">
+    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
+      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdp\xdp.vcxproj">
+      <Project>{de26c8c2-f986-47c7-8e36-8a7cac1358ee}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
+      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
@@ -38,10 +49,22 @@
     <Folder Include="scripts" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="$(SolutionDir)packages.config" />
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
-  <Import Project="$(WixPackagePath)build\wix.props" Condition="Exists('$(WixPackagePath)\build\wix.props')" />
-  <Import Project="$(WixTargetsPath)" Condition="$(WixTargetsPath) != ''" />
+  <Import Project="$(WixPackagePath)build\wix.props"/>
+  <!-- Define empty default targets. If BuildInstaller is enabled, WiX will override these. -->
+  <Target Name="Build" />
+  <Target Name="Clean" />
+  <Target Name="Rebuild" />
+  <Import Project="$(WixTargetsPath)" Condition="'$(NoInstaller)' != 'true'" />
+  <!-- prevents NU1503 -->
+  <Target Name="_IsProjectRestoreSupported"
+          Returns="@(_ValidProjectsForRestore)">
+    <ItemGroup>
+      <_ValidProjectsForRestore Include="$(MSBuildProjectFullPath)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="Restore" />
   <Target Name="EnsureNuGetPackageBuildImports" Condition=" '$(WixTargetsImported)' != 'true' " BeforeTargets="PrepareForBuild">
     <Error Text="The WiX Toolset v3 build tools must be installed to build this project. To download the WiX Toolset, see https://wixtoolset.org/releases" />
   </Target>

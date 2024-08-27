@@ -135,7 +135,7 @@ function Wait-NetAdapterUpStatus {
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 $Mode = $Mode.ToUpper()
 $Adapter = Get-NetAdapter $AdapterName

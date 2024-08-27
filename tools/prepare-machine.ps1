@@ -114,41 +114,19 @@ function Download-CoreNet-Deps {
     }
 }
 
-function Extract-Ebpf-Msi {
-    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-    $EbpfDirectoryName = Get-EbpfDirectoryName
-
-    Write-Debug "Extracting eBPF MSI from Release package"
-
-    # Extract the MSI from the package.
-    pushd $ArtifactsDir
-    dir
-    Expand-Archive -Path $EbpfPackageFullPath -Force
-    xcopy "$ArtifactsDir\ebpf\$EbpfDirectoryName\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
-    popd
-}
-
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfPackageUrl = Get-EbpfPackageUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
-    $EbpfPackageType = Get-EbpfPackageType
-
-    Write-Debug "Downloading eBPF $EbpfPackageType package"
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
+        $EbpfMsiUrl = Get-EbpfMsiUrl
+
         if (!(Test-Path $EbpfMsiDir)) {
             mkdir $EbpfMsiDir | Write-Verbose
         }
 
-        Invoke-WebRequest-WithRetry -Uri $EbpfPackageUrl -OutFile $EbpfPackageFullPath
-
-        # Extract the MSI from the package.
-        Extract-Ebpf-Msi
+        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
     }
 }
 
@@ -188,22 +166,6 @@ function Setup-TestSigning {
     }
 }
 
-# Installs the XDP certificates.
-function Install-Certs {
-    $CodeSignCertPath = Get-CoreNetCiArtifactPath -Name "CoreNetSignRoot.cer"
-    if (!(Test-Path $CodeSignCertPath)) {
-        Write-Error "$CodeSignCertPath does not exist!"
-    }
-    CertUtil.exe -f -addstore Root $CodeSignCertPath 2>&1 | Write-Verbose
-    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath 2>&1 | Write-Verbose
-}
-
-# Uninstalls the XDP certificates.
-function Uninstall-Certs {
-    try { CertUtil.exe -delstore Root "CoreNetTestSigning" } catch { }
-    try { CertUtil.exe -delstore trustedpublisher "CoreNetTestSigning" } catch { }
-}
-
 function Setup-VcRuntime {
     $Installed = $false
     try { $Installed = Get-ChildItem -Path Registry::HKEY_CLASSES_ROOT\Installer\Dependencies | Where-Object { $_.Name -like "*VC,redist*" } } catch {}
@@ -241,27 +203,13 @@ function Setup-VsTest {
     }
 }
 
-function Install-AzStorageModule {
-    if (!(Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Ignore)) {
-        Write-Host "Installing NuGet package provider"
-        Install-PackageProvider -Name NuGet -Force | Write-Verbose
-    }
-    if (!(Get-Module -ListAvailable -Name Az.Storage)) {
-        Write-Host "Installing Az.Storage module"
-        Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -AllowClobber -Force | Write-Verbose
-    }
-    # AzureRM is installed by default on some CI images and is incompatible with
-    # Az. Uninstall.
-    Uninstall-AzureRm
-}
-
 if ($Cleanup) {
     if ($ForTest) {
-        Uninstall-Certs
+        # Tests do not fully clean up.
     }
 } else {
     if ($ForBuild) {
-        Download-CoreNet-Deps
+        # There are currently no build dependencies required.
     }
 
     if ($ForEbpfBuild) {
@@ -335,8 +283,6 @@ if ($Cleanup) {
         if (!$?) {
             $Reboot = $true
         }
-
-        Install-AzStorageModule
     }
 
     if ($ForTest) {
@@ -345,7 +291,6 @@ if ($Cleanup) {
         Download-CoreNet-Deps
         Download-Ebpf-Msi
         Setup-TestSigning
-        Install-Certs
     }
 
     if ($ForLogging) {

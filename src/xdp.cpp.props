@@ -13,7 +13,8 @@
   </PropertyGroup>
   <!-- Use the 'build' directory for intermediate files -->
   <PropertyGroup>
-    <IntDir>$(SolutionDir)build\$(Platform)_$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <IntDir>$(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\</OutDir>
   </PropertyGroup>
   <!-- OneBranch goop -->
   <PropertyGroup>
@@ -45,5 +46,9 @@
     <Link>
       <CETCompat>true</CETCompat>
     </Link>
+    <!-- Driver signing is used by both driver and driver application projects -->
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
 </Project>

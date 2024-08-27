@@ -23,6 +23,9 @@
     <ProjectReference Include="$(SolutionDir)test\functional\km\xdpfunctionaltestdrv.vcxproj">
       <Project>{bdf5ef66-403a-4d96-95d5-871689f76c4f}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj">
+      <Project>{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -59,7 +62,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>xdpfunctionaltests</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
@@ -87,6 +89,7 @@
         advapi32.lib;
         $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         $(WntLibPath)\fnsock_um.lib;
+        $(SolutionDir)artifacts\bin\$(WinPlat)$(WinConfig)\cxplat\winuser\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

@@ -69,13 +69,14 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 # Important paths.
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
+$XdpCert = "$ArtifactsDir\xdp.cer"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
 $XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
@@ -86,6 +87,7 @@ $FndisSys = "$ArtifactsDir\fndis\fndis.sys"
 $XskBenchDrvSys = "$ArtifactsDir\xskbenchdrv\xskbenchdrv.sys"
 $XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
+$XdpMpCert = "$ArtifactsDir\xdpmp.cer"
 $XdpMpComponentId = "ms_xdpmp"
 $XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
@@ -180,6 +182,13 @@ function Cleanup-Service($Name) {
     }
 }
 
+# Installs the certificates for driver package signing.
+function Install-DriverCertificate($CertFileName) {
+    Write-Verbose "Installing driver signing certificate $CertFileName"
+    Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
+    Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+}
+
 # Helper to wait for an adapter to start.
 function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
     Write-Verbose "Waiting for $Count `"$IfDesc`" adapter(s) to start"
@@ -238,6 +247,8 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 function Install-Xdp {
+    Install-DriverCertificate $XdpCert
+
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
 
@@ -359,6 +370,8 @@ function Install-XdpMp {
     if (!(Test-Path $XdpMpSys)) {
         Write-Error "$XdpMpSys does not exist!"
     }
+
+    Install-DriverCertificate $XdpMpCert
 
     Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
     pnputil.exe /install /add-driver $XdpMpInf | Write-Verbose
@@ -520,7 +533,6 @@ function Uninstall-FnSock {
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfOptions = ""
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -528,17 +540,11 @@ function Install-Ebpf {
         Write-Error "$EbpfPath is already installed!"
     }
 
-    if ($UseJitEbpf) {
-        $EbpfOptions = "eBPF_Runtime_Components,eBPF_Runtime_Components_JIT"
-    } else {
-        $EbpfOptions = "eBPF_Runtime_Components"
-    }
-
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
     for ($i = 0; $i -lt 100; $i++) {
-        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
         if ($?) {
             break;
         }

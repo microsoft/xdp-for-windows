@@ -17,20 +17,21 @@
 extern "C" {
 #endif
 
+
 #if defined(_KERNEL_MODE)
 typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
 #endif // defined(_KERNEL_MODE)
 
-typedef union _XSK_BUFFER_ADDRESS {
 #pragma warning(push)
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+typedef union _XSK_BUFFER_ADDRESS {
     struct {
         UINT64 BaseAddress : 48;
         UINT64 Offset : 16;
     } DUMMYSTRUCTNAME;
-#pragma warning(pop)
     UINT64 AddressAndOffset;
 } XSK_BUFFER_ADDRESS;
+#pragma warning(pop)
 
 C_ASSERT(sizeof(XSK_BUFFER_ADDRESS) == sizeof(UINT64));
 

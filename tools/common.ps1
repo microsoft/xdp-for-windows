@@ -109,46 +109,19 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.17.0"
-}
-
-# Returns the eBPF package type.
-function Get-EbpfPackageType {
-    if ($UseJitEbpf) {
-        return "Release"
-    }
-
-    return "NativeOnlyRelease"
-}
-
-# Return the eBPF package name.
-function Get-EbpfPackageName {
-    if ($UseJitEbpf) {
-        return "Build-x64.Release.zip"
-    }
-
-    return "Build-x64-native-only.NativeOnlyRelease.zip"
-}
-
-function Get-EbpfDirectoryName {
-    if ($UseJitEbpf) {
-        return "Build-x64 Release"
-    }
-
-    return "Build-x64-native-only NativeOnlyRelease"
+    return "0.18.0"
 }
 
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfMsiLocation = "$RootDir\artifacts\ebpfmsi"
-    return "$EbpfMsiLocation\ebpf-for-windows.msi"
+    $EbpfVersion = Get-EbpfMsiVersion
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.msi"
 }
 
-function Get-EbpfPackageUrl {
+function Get-EbpfMsiUrl {
     $EbpfVersion = Get-EbpfMsiVersion
-    $EbpfPackageName = Get-EbpfPackageName
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfPackageName
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
 }
 
 function Get-FnVersion {
@@ -180,6 +153,27 @@ function Get-CoreNetCiArtifactPath {
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
 }
 
+function Get-ArtifactBinPathBase {
+    param (
+        [Parameter()]
+        [string]$Config,
+        [Parameter()]
+        [string]$Arch
+    )
+
+    # Convert to Windows format
+    if (($Arch -eq "x64")) {
+        $Arch = "amd64"
+    }
+    if ($Config -eq "Debug") {
+        $Config = "chk"
+    } else {
+        $Config = "fre"
+    }
+
+    return "artifacts\bin\$($Arch)$($Config)"
+}
+
 function Get-ArtifactBinPath {
     param (
         [Parameter()]
@@ -189,7 +183,7 @@ function Get-ArtifactBinPath {
     )
 
     $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+    return "$RootDir\$(Get-ArtifactBinPathBase -Config $Config -Arch $Arch)"
 }
 
 function Get-XdpBuildVersion {

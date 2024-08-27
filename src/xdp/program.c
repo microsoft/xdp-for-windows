@@ -18,6 +18,7 @@ typedef struct _EBPF_PROG_TEST_RUN_CONTEXT {
 } EBPF_PROG_TEST_RUN_CONTEXT;
 
 typedef struct _EBPF_XDP_MD {
+    EBPF_CONTEXT_HEADER;
     xdp_md_t Base;
     EBPF_PROG_TEST_RUN_CONTEXT* ProgTestRunContext;
 } EBPF_XDP_MD;
@@ -120,7 +121,7 @@ XdpCreateContext(
         XdpMd->Base.ingress_ifindex = xdp_context->ingress_ifindex;
     }
 
-    *Context = XdpMd;
+    *Context = &XdpMd->Base;
     XdpMd = NULL;
 
     EbpfResult = EBPF_SUCCESS;
@@ -154,7 +155,7 @@ XdpDeleteContext(
         goto Exit;
     }
 
-    XdpMd = (EBPF_XDP_MD*)Context;
+    XdpMd = CONTAINING_RECORD(Context, EBPF_XDP_MD, Base);
 
     // Copy the packet data to the output buffer.
     if (DataOut != NULL && DataSizeOut != NULL && XdpMd->Base.data != NULL) {
@@ -653,6 +654,7 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
+    .capabilities = {.supports_context_header = TRUE},
 };
 
 static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
@@ -1631,7 +1633,10 @@ EbpfProgramOnClientAttach(
     TraceEnter(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
-    if (ClientData == NULL || ClientData->header.size != sizeof(IfIndex) || ClientData->data == NULL) {
+    if (ClientData == NULL ||
+        ClientData->header.version != 0 ||
+        ClientData->header.size != sizeof(IfIndex) ||
+        ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -1643,7 +1648,7 @@ EbpfProgramOnClientAttach(
         goto Exit;
     }
 
-    if (ClientDispatch == NULL || ClientDispatch->version < 1 || ClientDispatch->count < 4) {
+    if (ClientDispatch == NULL || ClientDispatch->version != 1 || ClientDispatch->count < 4) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }

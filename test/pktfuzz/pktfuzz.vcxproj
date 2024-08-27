@@ -43,7 +43,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>pktfuzz</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -54,7 +53,7 @@
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdp;
         $(SolutionDir)src\xdppcw\inc;
-        $(SolutionDir)build\$(Platform)_$(Configuration)\obj\xdppcw\;
+        $(SolutionDir)artifacts\obj\$(WinPlat)$(WinConfig)\xdppcw\;
         $(WntIncPath);
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>

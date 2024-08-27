@@ -38,7 +38,7 @@ SPDX-License-Identifier: MIT
 
         <!-- Define the UI style & behavior -->
         <UIRef Id="WixUI_FeatureTree" />
-        <WixVariable Id="WixUILicenseRtf" Value="$(var.SolutionDir)license.rtf" />
+        <WixVariable Id="WixUILicenseRtf" Value="$(var.ProjectDir)license.rtf" />
         <CustomAction Id="SetWixInstallLocation" Property="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" />
         <InstallUISequence>
             <Custom Action="SetWixInstallLocation" After="CostFinalize" />
@@ -72,8 +72,8 @@ SPDX-License-Identifier: MIT
             <Component Id="xdpcfg.exe" Guid="{2F099CCD-54DA-495C-9741-3F3EFE357087}">
                 <File Id="xdpcfg.exe" Name="xdpcfg.exe" Source="$(var.TargetDir)..\xdpcfg.exe" KeyPath="yes" />
             </Component>
-            <Component Id="xdp_bpfexport.exe" Guid="{E190E2ED-566C-424A-83F3-0422EB865FCA}">
-                <File Id="xdp_bpfexport.exe" Name="xdp_bpfexport.exe" Source="$(var.TargetDir)..\xdp_bpfexport.exe" KeyPath="yes" />
+            <Component Id="xdpbpfexport.exe" Guid="{E190E2ED-566C-424A-83F3-0422EB865FCA}">
+                <File Id="xdpbpfexport.exe" Name="xdpbpfexport.exe" Source="$(var.TargetDir)..\xdpbpfexport.exe" KeyPath="yes" />
             </Component>
             <Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
                 <File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)..\xdp\xdp.sys" KeyPath="yes" />
@@ -83,6 +83,9 @@ SPDX-License-Identifier: MIT
             </Component>
             <Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
                 <File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)..\xdp\xdp.cat" KeyPath="yes"/>
+            </Component>
+            <Component Id="xdptrace.wprp" Guid="{1C280B10-A3CC-4C2D-B0D1-3F4CBE03BEAF}">
+                <File Id="xdptrace.wprp" Name="xdptrace.wprp" Source="$(var.SolutionDir)\tools\xdptrace.wprp" KeyPath="yes"/>
             </Component>
         </ComponentGroup>
 

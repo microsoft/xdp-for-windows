@@ -1,14 +1,4 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <!-- Defines the XDP version numbers -->
-    <XdpMajorVersion>1</XdpMajorVersion>
-    <XdpMinorVersion>1</XdpMinorVersion>
-    <XdpPatchVersion>0</XdpPatchVersion>
-    <!-- Project-wide properties -->
-    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.17.0\</EbpfPackagePath>
-    <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
-    <WntPackagePath>$(SolutionDir)packages\win-net-test.0.5.2\</WntPackagePath>
-  </PropertyGroup>
   <!-- The set of (eventually?) supported configurations -->
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -28,4 +18,21 @@
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <PropertyGroup>
+    <!-- Defines the XDP version numbers -->
+    <XdpMajorVersion>1</XdpMajorVersion>
+    <XdpMinorVersion>1</XdpMinorVersion>
+    <XdpPatchVersion>0</XdpPatchVersion>
+    <!-- Project-wide properties -->
+    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.18.0\</EbpfPackagePath>
+    <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
+    <WntPackagePath>$(SolutionDir)packages\win-net-test.0.5.2\</WntPackagePath>
+    <!-- Configuration properties to match Windows -->
+    <WinConfig Condition="'$(Configuration)' == 'Release'">fre</WinConfig>
+    <WinConfig Condition="'$(Configuration)' == 'Debug'">chk</WinConfig>
+    <WinPlat Condition="'$(Platform)' == 'Win32'">x86</WinPlat>
+    <WinPlat Condition="'$(Platform)' == 'x64'">amd64</WinPlat>
+    <WinPlat Condition="'$(Platform)' == 'ARM64'">arm64</WinPlat>
+    <WinPlat Condition="'$(Platform)' == 'ARM64EC'">arm64ec</WinPlat>
+  </PropertyGroup>
 </Project>

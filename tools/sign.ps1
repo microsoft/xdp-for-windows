@@ -61,7 +61,7 @@ if (!(Test-Path $Inf2CatToolPath)) { Write-Error "$Inf2CatToolPath does not exis
 
 # Artifact paths.
 $RootDir = (Split-Path $PSScriptRoot -Parent)
-$ArtifactsDir = Join-Path $RootDir "artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 
 # Certificate paths.
 $CodeSignCertPath = Get-CoreNetCiArtifactPath -Name "CoreNetSignRoot.cer"
