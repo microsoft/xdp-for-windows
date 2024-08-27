@@ -1,21 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <PropertyGroup Label="Globals">
+  <PropertyGroup>
     <ProjectGuid>{a87d995b-384f-4853-abdb-3ec024be18e3}</ProjectGuid>
+    <TargetName>xdpetw</TargetName>
+    <UndockedType>none</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Unknown</ConfigurationType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <ItemGroup>
     <MessageCompile Include="xdpetw.man">
       <GenerateKernelModeLoggingMacros>true</GenerateKernelModeLoggingMacros>
       <GeneratedFilesBaseName>xdpetw</GeneratedFilesBaseName>
     </MessageCompile>
   </ItemGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>

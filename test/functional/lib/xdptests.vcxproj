@@ -4,11 +4,10 @@
     <ProjectGuid>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</ProjectGuid>
     <TargetName>xdptests</TargetName>
     <UndockedType>lib</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
+    <ImportWnt>true</ImportWnt>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
-  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
-  <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="Exists('$(WntPackagePath)build\native\win-net-test.props')" />
   <ItemGroup>
     <ClCompile Include="tests.cpp" />
   </ItemGroup>
@@ -40,11 +39,5 @@
       <TreatSpecificWarningsAsErrors>4834</TreatSpecificWarningsAsErrors>
     </ClCompile>
   </ItemDefinitionGroup>
-  <Import Project="$(UndockedDir)vs\windows.undocked.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" Text="$([System.String]::Format('$(ErrorText)', '$(EbpfPackagePath)build\native\ebpf-for-windows.props'))" />
-  </Target>
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>

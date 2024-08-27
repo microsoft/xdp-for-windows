@@ -1,11 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <!--The following lines configure the properties needed for sourcelink support -->
-  <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props')" />
-  <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.props')" />
-  <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" />
-  <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" />
   <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="Exists('$(WntPackagePath)build\native\win-net-test.props')" />
   <ItemGroup>
     <ClCompile Include="hwring.c" />
@@ -36,21 +30,13 @@
       <Project>{8a82f294-00d6-40e1-9c55-6bc93c2bec0e}</Project>
     </ProjectReference>
   </ItemGroup>
-  <PropertyGroup Label="Globals">
+  <PropertyGroup>
     <ProjectGuid>{cb63d7e9-9661-468c-851d-dec51bcaad0c}</ProjectGuid>
-    <TemplateGuid>{1bc93793-694f-48fe-9372-81e2b05556fd}</TemplateGuid>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <TargetName>xdpmp</TargetName>
+    <UndockedType>sys</UndockedType>
+    <ImportWnt>true</ImportWnt>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>KMDF</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.kernel.props" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>mofcomp.exe -WMI -B:"$(IntDir)xdpmp.bmf" xdpmp.mof
@@ -89,28 +75,5 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
       <SpecifyDriverDirectiveVersion>true</SpecifyDriverDirectiveVersion>
     </Inf>
   </ItemGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <!-- The following lines configure the targets necessary for sourcelink -->
-  <ItemGroup>
-    <None Include="$(SolutionDir)src\xdp\packages.config" />
-  </ItemGroup>
-  <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" />
-    <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.targets')" />
-    <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.targets')" />
-    <Import Project="$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets')" />
-  </ImportGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.props'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.Build.Tasks.Git.1.0.0\build\Microsoft.Build.Tasks.Git.targets'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.props'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.Common.1.0.0\build\Microsoft.SourceLink.Common.targets'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.props')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.props'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.GitHub.1.0.0\build\Microsoft.SourceLink.GitHub.targets'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.props'))" />
-    <Error Condition="!Exists('$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)packages\Microsoft.SourceLink.AzureRepos.Git.1.0.0\build\Microsoft.SourceLink.AzureRepos.Git.targets'))" />
-  </Target>
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>

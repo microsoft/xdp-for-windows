@@ -1,22 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <PropertyGroup Label="Globals">
-    <ProjectGuid>{b68d3e02-9e67-4a2e-b46f-df393c106996}</ProjectGuid>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
-    <DriverType>KMDF</DriverType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <ConfigurationType>Utility</ConfigurationType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <PropertyGroup>
+    <ProjectGuid>{b68d3e02-9e67-4a2e-b46f-df393c106996}</ProjectGuid>
     <TargetName>onebranch</TargetName>
+    <UndockedType>none</UndockedType>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
  <ItemGroup Condition="'$(BuildStage)' == 'Binary'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
@@ -44,5 +33,5 @@
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>

@@ -19,5 +19,5 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
-  <Import Project="$(UndockedDir)vs\windows.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>

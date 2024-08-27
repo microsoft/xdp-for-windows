@@ -1,20 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <PropertyGroup Label="Globals">
-    <ProjectGuid>{ed611744-b780-41a2-a995-2c100d86b3a6}</ProjectGuid>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Unknown</ConfigurationType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
-  <ImportGroup Label="ExtensionSettings" />
   <PropertyGroup>
-      <TargetName>xdppcw</TargetName>
+    <ProjectGuid>{ed611744-b780-41a2-a995-2c100d86b3a6}</ProjectGuid>
+    <TargetName>xdppcw</TargetName>
+    <UndockedType>none</UndockedType>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <ItemGroup Label="WrappedTaskItems">
     <Ctrpp Include="xdppcw.man">
       <FileType>Manifest</FileType>
@@ -34,5 +25,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>

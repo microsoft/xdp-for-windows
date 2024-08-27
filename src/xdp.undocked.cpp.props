@@ -5,17 +5,31 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\external;
+        $(SolutionDir)submodules\ndis-driver-library\src\include;
+        $(SolutionDir)submodules\net-offloads\include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         POOL_NX_OPTIN_AUTO=1;
         POOL_ZERO_DOWN_LEVEL_SUPPORT=1;
+        WIN32_LEAN_AND_MEAN;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
       <!-- Disable C26812: The enum type '' is unscoped. Prefer 'enum class' over 'enum' -->
       <DisableSpecificWarnings>26812;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
+  <!-- Override undocked.props, which does not run analysis on "official" builds. -->
+  <PropertyGroup>
+    <RunCodeAnalysis>true</RunCodeAnalysis>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TestCode)' == 'true'">
+    <OutDir>$(OutDir)test\</OutDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(SignMode)' != 'Off'">
     <EnableInf2cat>true</EnableInf2cat>
   </PropertyGroup>

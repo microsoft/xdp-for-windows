@@ -6,10 +6,7 @@
     <UndockedType>dll</UndockedType>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <Import Project="$(SolutionDir)src\xdp.undocked.props" />
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
-  <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="Exists('$(WntPackagePath)build\native\win-net-test.props')" />
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
       <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
@@ -54,7 +51,7 @@
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(UndockedDir)vs\windows.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
   <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
       <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
   </Target>

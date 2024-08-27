@@ -1,23 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <PropertyGroup Label="Globals">
-    <ProjectGuid>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</ProjectGuid>
-    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
-    <DriverType>KMDF</DriverType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <ConfigurationType>Utility</ConfigurationType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <PropertyGroup>
+    <ProjectGuid>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</ProjectGuid>
     <TargetName>nuget</TargetName>
+    <UndockedType>none</UndockedType>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
  <ItemGroup Condition="'$(BuildStage)' != 'Package'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
@@ -40,5 +28,5 @@
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
 </Project>
