@@ -35,6 +35,16 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <!-- Redistribute the debug CRT to test machines. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <VCRedistVersion Condition="exists('$(VCInstallDir)Auxiliary\Build\Microsoft.VCRedistVersion.default.txt')">$([System.IO.File]::ReadAllText($(VCInstallDir)Auxiliary\Build\Microsoft.VCRedistVersion.default.txt).Trim())</VCRedistVersion>
+    <VCOutDir>$(OutDir)debugcrt\</VCOutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <PostBuildEvent>
+      <Command>xcopy "$(VCInstallDir)redist\MSVC\$(VCRedistVersion)\onecore\debug_nonredist\$(PlatformShortName)\Microsoft.VC$(PlatformToolsetVersion).DebugCRT\*.dll" "$(VCOutDir)" /D /Y &amp;&amp; xcopy "$(UniversalDebugCRT_ExecutablePath_x64)\*.dll" "$(VCOutDir)" /D /Y </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- The following lines configure the targets necessary for sourcelink -->
   <ItemGroup>

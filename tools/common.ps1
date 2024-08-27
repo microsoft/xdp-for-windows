@@ -212,6 +212,15 @@ function Refresh-Path {
     ) -match '.' -join ';'
 }
 
+function Add-Path {
+    param (
+        [Parameter()]
+        [string]$NewPath
+    )
+    [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$NewPath", "Machine")
+    Refresh-Path
+}
+
 function Collect-LiveKD {
     param (
         [Parameter()]
