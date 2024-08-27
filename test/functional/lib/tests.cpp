@@ -68,12 +68,13 @@
 #include <afxdp_helper.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
+
+#ifndef KERNEL_MODE
 #include <pkthlp.h>
 #include <fnmpapi.h>
 #include <fnlwfapi.h>
 #include <fnoid.h>
 
-#ifndef KERNEL_MODE
 #include <xdpndisuser.h>
 #endif KERNEL_MODE
 
