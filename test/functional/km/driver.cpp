@@ -90,7 +90,6 @@ Return Value:
     WDFDRIVER Driver;
 
     GlobalDriverObject = DriverObject;
-
     WPP_INIT_TRACING(GlobalDriverObject, RegistryPath);
 
     //

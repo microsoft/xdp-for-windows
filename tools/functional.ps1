@@ -139,6 +139,10 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
         Write-Verbose "installed fnlwf."
 
+        Write-Verbose "installing fnsock..."
+        & "$RootDir\tools\setup.ps1" -Install fnsock -Config $Config -Arch $Arch
+        Write-Verbose "installed fnsock."
+
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
             & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
@@ -188,6 +192,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         }
+        & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'

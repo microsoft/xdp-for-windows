@@ -74,6 +74,7 @@
 #include <fnmpapi.h>
 #include <fnlwfapi.h>
 #include <fnoid.h>
+#include "fnsock.h"
 
 #include <xdpndisuser.h>
 #endif KERNEL_MODE
@@ -173,6 +174,7 @@ using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), :
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
 using unique_fnlwf_filter_handle = wil::unique_any<FNLWF_HANDLE, decltype(::LwfRxFilterReset), ::LwfRxFilterReset>;
+using unique_fnsock = wil::unique_any<FNSOCK_HANDLE, decltype(::FnSockClose), ::FnSockClose>;
 
 #endif
 
@@ -2142,7 +2144,7 @@ WaitForWfpQuarantine(
     );
 
 static
-wil::unique_socket
+unique_fnsock
 CreateUdpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_opt_ const TestInterface *If,
@@ -2156,27 +2158,28 @@ CreateUdpSocket(
         WaitForWfpQuarantine(*If);
     }
 
-    wil::unique_socket Socket(socket(Af, SOCK_DGRAM, IPPROTO_UDP));
+    unique_fnsock Socket;
+    TEST_HRESULT(FnSockCreate(Af, SOCK_DGRAM, IPPROTO_UDP, &Socket));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
     Address.si_family = Af;
-    TEST_EQUAL(0, bind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
 
     INT AddressLength = sizeof(Address);
-    TEST_EQUAL(0, getsockname(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
 
     INT TimeoutMs = (INT)std::chrono::milliseconds(TEST_TIMEOUT_ASYNC).count();
-    TEST_EQUAL(
-        0,
-        setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
 
     *LocalPort = SS_PORT(&Address);
     return Socket;
 }
 
 static
-wil::unique_socket
+unique_fnsock
 CreateTcpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_ const TestInterface *If,
@@ -2190,20 +2193,21 @@ CreateTcpSocket(
     //
     WaitForWfpQuarantine(*If);
 
-    wil::unique_socket Socket(socket(Af, SOCK_STREAM, IPPROTO_TCP));
+    unique_fnsock Socket;
+    TEST_HRESULT(FnSockCreate(Af, SOCK_STREAM, IPPROTO_TCP, &Socket));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
     Address.si_family = Af;
-    TEST_EQUAL(0, bind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
 
     INT AddressLength = sizeof(Address);
-    TEST_EQUAL(0, getsockname(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
 
     INT TimeoutMs = (INT)std::chrono::milliseconds(TEST_TIMEOUT_ASYNC).count();
-    TEST_EQUAL(
-        0,
-        setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
 
     //
     // Use RST to close local TCP sockets by default. This prevents closed
@@ -2212,9 +2216,8 @@ CreateTcpSocket(
     LINGER lingerInfo;
     lingerInfo.l_onoff = 1;
     lingerInfo.l_linger = 0;
-    TEST_EQUAL(
-        0,
-        setsockopt(Socket.get(), SOL_SOCKET, SO_LINGER, (char *)&lingerInfo, sizeof(lingerInfo)));
+    TEST_HRESULT(
+        FnSockSetSockOpt(Socket.get(), SOL_SOCKET, SO_LINGER, (char *)&lingerInfo, sizeof(lingerInfo)));
 
     *LocalPort = SS_PORT(&Address);
 
@@ -2253,7 +2256,7 @@ CreateTcpSocket(
         If->GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    TEST_EQUAL(0, listen(Socket.get(), 512));
+    TEST_HRESULT(FnSockListen(Socket.get(), 512));
 
     UCHAR TcpFrame[TCP_HEADER_STORAGE];
 
@@ -2317,7 +2320,9 @@ CreateTcpSocket(
     auto AsyncThread = std::async(
         std::launch::async,
         [&] {
-            return wil::unique_socket(accept(Socket.get(), NULL, 0));
+            SOCKADDR_INET Address;
+            INT AddressLength = sizeof(Address);
+            return unique_fnsock(FnSockAccept(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
         }
     );
     auto CloseListener = wil::scope_exit([&]
@@ -2327,7 +2332,7 @@ CreateTcpSocket(
 
     TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
 
-    wil::unique_socket AcceptedSocket = std::move(AsyncThread.get());
+    unique_fnsock AcceptedSocket(std::move(AsyncThread.get()));
     TEST_NOT_NULL(AcceptedSocket.get());
 
     *AckNum = AckNumForSynAck;
@@ -2374,7 +2379,7 @@ WaitForWfpQuarantine(
         RX_FRAME RxFrame;
         RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
         if (SUCCEEDED(MpRxIndicateFrame(GenericMp, &RxFrame))) {
-            Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
+            Bytes = FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0);
         } else {
             Bytes = (DWORD)-1;
         }
@@ -2471,11 +2476,11 @@ bool
 TestSetup()
 {
 #ifndef KERNEL_MODE
-    WSADATA WsaData;
+    // WPP_INIT_TRACING(NULL);
     GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
     XdpApi = OpenApi();
-    TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
+    TEST_HRESULT(FnSockInitialize());
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     TEST_EQUAL(FnMpLoadApi(&FnMpLoadApiContext), FNMPAPI_STATUS_SUCCESS);
     TEST_EQUAL(FnLwfLoadApi(&FnLwfLoadApiContext), FNLWFAPI_STATUS_SUCCESS);
@@ -2494,8 +2499,9 @@ TestCleanup()
     FnLwfUnloadApi(FnLwfLoadApiContext);
     FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
-    TEST_EQUAL(0, WSACleanup());
+    FnSockUninitialize();
     XdpApi.reset();
+    // WPP_CLEANUP();
 #endif
     return true;
 }
@@ -2521,7 +2527,9 @@ OpenApiTest()
 VOID
 LoadApiTest()
 {
+    TraceInfo("====================================> LoadApiTest");
 #ifdef KERNEL_MODE
+    TraceInfo("====================================> LoadApiTest Kernel");
     XDP_LOAD_API_CONTEXT LoadApiContext;
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
@@ -2535,6 +2543,7 @@ LoadApiTest()
 
     TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
 #else
+    TraceInfo("====================================> LoadApiTest User");
     XDP_LOAD_API_CONTEXT XdpLoadApiContext;
     const XDP_API_TABLE *XdpApiTable;
 
@@ -2543,6 +2552,7 @@ LoadApiTest()
 
     TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
 #endif
+    TraceInfo("====================================> LoadApiTest Done");
 }
 
 #ifndef KERNEL_MODE
@@ -3149,7 +3159,7 @@ GenericRxMatch(
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(PayloadLength, FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
     SeqNum += PayloadLength;
 
@@ -3171,8 +3181,8 @@ GenericRxMatch(
     }
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(SOCKET_ERROR, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+    TEST_TRUE(FAILED(FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
     //
     // Redirect action is implicitly covered by XSK tests.
@@ -3191,7 +3201,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (Rule.Match == XDP_MATCH_IPV4_UDP_TUPLE || Rule.Match == XDP_MATCH_IPV6_UDP_TUPLE) {
@@ -3206,7 +3218,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
 
         //
@@ -3221,7 +3235,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
 
         //
@@ -3236,7 +3252,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
 
         //
@@ -3251,7 +3269,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID ||
@@ -3285,7 +3305,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3328,7 +3350,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3355,7 +3379,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (MatchType == XDP_MATCH_UDP_PORT_SET ||
@@ -3372,7 +3398,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3386,8 +3414,8 @@ GenericRxMatch(
         SetBit(PortSet.get(), LocalPort);
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(SOCKET_ERROR, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
-        TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+        TEST_TRUE(FAILED(FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+        TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
         if (MatchType == XDP_MATCH_IPV4_UDP_PORT_SET || MatchType == XDP_MATCH_IPV6_UDP_PORT_SET) {
             //
@@ -3402,7 +3430,9 @@ GenericRxMatch(
             RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
             TEST_EQUAL(
-                PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+                PayloadLength,
+                 FnSockRecv(
+                    Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
             TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
             SeqNum += PayloadLength;
         }
@@ -3470,8 +3500,8 @@ GenericRxMatchIpPrefix(
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+    TEST_TRUE(FAILED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
     //
     // Verify IP prefix mismatch.
@@ -3484,7 +3514,9 @@ GenericRxMatchIpPrefix(
 
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
 
@@ -3589,12 +3621,12 @@ GenericRxLowResources()
     for (UINT32 Index = 0; Index < NumNoMatchFrames; Index++) {
         TEST_EQUAL(
             sizeof(UdpNoMatchPayload),
-            recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(UdpNoMatchPayload, RecvPayload, sizeof(UdpNoMatchPayload)));
     }
 
-    TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+    TEST_TRUE(FAILED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 }
 
 VOID
@@ -3850,7 +3882,9 @@ GenericRxUdpFragmentQuicShortHeader(
         RX_FRAME RxFrame;
         RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            UdpPayloadLength,
+            FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
         //
@@ -3879,7 +3913,9 @@ GenericRxUdpFragmentQuicShortHeader(
 
             RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-            TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_EQUAL(
+                UdpPayloadLength,
+                FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
             TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
         }
     }
@@ -3986,7 +4022,9 @@ GenericRxUdpFragmentQuicLongHeader(
         RX_FRAME RxFrame;
         RxInitializeFrame(&RxFrame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -4025,7 +4063,9 @@ GenericRxUdpFragmentQuicLongHeader(
 
             RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-            TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_EQUAL(
+                PayloadLength,
+                FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
             TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
             SeqNum += PayloadLength;
         }
@@ -4402,16 +4442,24 @@ GenericRxFromTxInspect(
     //
     UINT32 NumFrames;
     UINT32 UdpSegmentSize;
+    SIZE_T OptLen = sizeof(UdpSegmentSize);
     CHAR UdpPayload[] = "GenericRxFromTxInspectPkt1GenericRxFromTxInspectPkt2";
 
-    if (WSAGetUdpSendMessageSize(UdpSocket.get(), (DWORD *)&UdpSegmentSize) == SOCKET_ERROR) {
-        TEST_EQUAL(WSAEINVAL, WSAGetLastError());
+    HRESULT Result =
+        FnSockGetSockOpt(
+            UdpSocket.get(), IPPROTO_UDP, UDP_SEND_MSG_SIZE, (DWORD *)&UdpSegmentSize,
+            &OptLen);
+    if (FAILED(Result)) {
+        TEST_EQUAL(WSAEINVAL, FnSockGetLastError());
         NumFrames = 1;
         UdpSegmentSize = sizeof(UdpPayload) - 1;
     } else {
         NumFrames = 2;
         UdpSegmentSize = (UINT32)(strchr(UdpPayload, '1') - UdpPayload + 1);
-        TEST_EQUAL(NO_ERROR, WSASetUdpSendMessageSize(UdpSocket.get(), UdpSegmentSize));
+        TEST_HRESULT(
+            FnSockSetSockOpt(
+                UdpSocket.get(), IPPROTO_UDP, UDP_SEND_MSG_SIZE, &UdpSegmentSize,
+                sizeof(UdpSegmentSize)));
     }
 
     TEST_EQUAL((SIZE_T)NumFrames * (SIZE_T)UdpSegmentSize + 1, sizeof(UdpPayload));
@@ -4430,17 +4478,17 @@ GenericRxFromTxInspect(
     INT Bytes;
     do {
         Bytes =
-            sendto(
-                UdpSocket.get(), UdpPayload, NumFrames * UdpSegmentSize, 0,
-                (SOCKADDR *)&DestAddr, sizeof(DestAddr));
+            FnSockSendto(
+                UdpSocket.get(), UdpPayload, NumFrames * UdpSegmentSize, FALSE,
+                0, (SOCKADDR *)&DestAddr, sizeof(DestAddr));
 
-        if (Bytes != SOCKET_ERROR) {
+        if (Bytes != -1) {
             break;
         }
         //
         // TCPIP returns WSAENOBUFS when it cannot reference the data path.
         //
-        TEST_EQUAL(WSAENOBUFS, WSAGetLastError());
+        TEST_EQUAL(WSAENOBUFS, FnSockGetLastError());
     } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)Bytes);
@@ -5080,7 +5128,9 @@ GenericTxToRxInject()
     NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
     TEST_EQUAL(0, NotifyResult);
 
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
 
@@ -5865,17 +5915,17 @@ GenericLoopback(
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    wil::unique_socket RawSocket(socket(Af, SOCK_RAW, IPPROTO_IP));
+    unique_fnsock RawSocket;
+    TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_IP, &RawSocket));
     TEST_NOT_NULL(RawSocket.get());
 
-    TEST_EQUAL(0, bind(RawSocket.get(), (SOCKADDR *)&LocalSockAddr, sizeof(LocalSockAddr)));
+    TEST_HRESULT(FnSockBind(RawSocket.get(), (SOCKADDR *)&LocalSockAddr, sizeof(LocalSockAddr)));
 
     DWORD Opt = RCVALL_ON;
-    DWORD BytesReturned;
-    TEST_EQUAL(
-        0,
-        WSAIoctl(
-            RawSocket.get(), SIO_RCVALL, &Opt, sizeof(Opt), NULL, 0, &BytesReturned, NULL, NULL));
+    ULONG BytesReturned;
+    TEST_HRESULT(
+        FnSockIoctl(
+            RawSocket.get(), SIO_RCVALL, &Opt, sizeof(Opt), NULL, 0, &BytesReturned));
 
     //
     // When promiscuous mode is enabled from a RAW socket in TCPIP, locally sent
@@ -5918,7 +5968,9 @@ GenericLoopback(
     // Verify that TCPIP received the frame.
     //
 
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 
     //

@@ -412,7 +412,6 @@ LogTestWarning(
 TEST_MODULE_INITIALIZE(ModuleSetup)
 {
     size_t RequiredSize;
-
     WPP_INIT_TRACING(NULL);
 
     getenv_s(&RequiredSize, NULL, 0, "xdpfunctionaltests::KernelModeEnabled");
