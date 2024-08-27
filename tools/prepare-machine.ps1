@@ -29,9 +29,6 @@ This prepares a machine for running XDP.
 .PARAMETER RequireNoReboot
     Returns an error if a reboot is needed.
 
-.PARAMETER UseJitEbpf
-    Installs eBPF with JIT mode. Needed for backward compatibility tests.
-
 .PARAMETER Force
     Forces the installation of the latest dependencies.
 
@@ -69,10 +66,7 @@ param (
     [switch]$Force = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Cleanup = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$Cleanup = $false
 )
 
 Set-StrictMode -Version 'Latest'

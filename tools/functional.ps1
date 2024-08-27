@@ -21,9 +21,6 @@ This script runs the XDP functional tests.
 .PARAMETER KernelMode
     Run kernel mode tests.
 
-.PARAMETER UseJitEbpf
-    If true, install JIT mode for eBPF.
-
 #>
 
 param (
@@ -58,9 +55,6 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$KernelMode = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$NoPrerelease = $false
@@ -146,7 +140,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
             Write-Verbose "installed ebpf."
         }
 

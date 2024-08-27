@@ -30,9 +30,7 @@
     <!-- Configuration properties to match Windows -->
     <WinConfig Condition="'$(Configuration)' == 'Release'">fre</WinConfig>
     <WinConfig Condition="'$(Configuration)' == 'Debug'">chk</WinConfig>
-    <WinPlat Condition="'$(Platform)' == 'Win32'">x86</WinPlat>
     <WinPlat Condition="'$(Platform)' == 'x64'">amd64</WinPlat>
     <WinPlat Condition="'$(Platform)' == 'ARM64'">arm64</WinPlat>
-    <WinPlat Condition="'$(Platform)' == 'ARM64EC'">arm64ec</WinPlat>
   </PropertyGroup>
 </Project>
