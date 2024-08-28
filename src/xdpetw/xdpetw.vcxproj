@@ -4,6 +4,7 @@
     <ProjectGuid>{a87d995b-384f-4853-abdb-3ec024be18e3}</ProjectGuid>
     <TargetName>xdpetw</TargetName>
     <UndockedType>none</UndockedType>
+    <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <ItemGroup>

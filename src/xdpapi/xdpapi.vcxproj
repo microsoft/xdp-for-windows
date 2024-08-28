@@ -8,10 +8,14 @@
   <ItemGroup>
     <ClInclude Include="precomp.h" />
   </ItemGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</ProjectGuid>
     <TargetName>xdpapi</TargetName>
-    <UndockedType>lib</UndockedType>
+    <UndockedType>dll</UndockedType>
+    <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <Target Name="SetSourceRevisionId" BeforeTargets="ClCompile;ResourceCompile">
@@ -54,9 +58,6 @@
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
     </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>

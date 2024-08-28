@@ -4,6 +4,7 @@
     <ProjectGuid>{ed611744-b780-41a2-a995-2c100d86b3a6}</ProjectGuid>
     <TargetName>xdppcw</TargetName>
     <UndockedType>none</UndockedType>
+    <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
   <ItemGroup Label="WrappedTaskItems">
