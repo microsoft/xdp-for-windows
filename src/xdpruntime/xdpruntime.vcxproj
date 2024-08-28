@@ -4,8 +4,9 @@
     <ProjectGuid>{8250c528-6a2c-44e7-aa76-1e6bec9127a3}</ProjectGuid>
     <TargetName>xdpruntime</TargetName>
     <UndockedType>none</UndockedType>
+    <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
  <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
@@ -20,7 +21,7 @@
       <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
   <Target Name="CopyBinaries" BeforeTargets="Build" Condition="$(BuildStage) != 'Package'">
       <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)" />
   </Target>

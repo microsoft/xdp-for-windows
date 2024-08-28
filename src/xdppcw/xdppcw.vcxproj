@@ -6,7 +6,7 @@
     <UndockedType>none</UndockedType>
     <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup Label="WrappedTaskItems">
     <Ctrpp Include="xdppcw.man">
       <FileType>Manifest</FileType>
@@ -26,5 +26,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

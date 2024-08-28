@@ -11,13 +11,13 @@
   <PropertyGroup>
     <ProjectGuid>{1ec347f7-a95f-49f3-b35f-77443a601f53}</ProjectGuid>
     <TargetName>cppsdkheaders</TargetName>
-    <UndockedType>exe</UndockedType>
+    <UndockedType>lib</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <Link>
       <AdditionalDependencies>onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

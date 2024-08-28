@@ -36,7 +36,7 @@
     <UndockedType>sys</UndockedType>
     <ImportWnt>true</ImportWnt>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>mofcomp.exe -WMI -B:"$(IntDir)xdpmp.bmf" xdpmp.mof
@@ -75,5 +75,5 @@ wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
       <SpecifyDriverDirectiveVersion>true</SpecifyDriverDirectiveVersion>
     </Inf>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

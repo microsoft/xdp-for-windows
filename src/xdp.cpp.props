@@ -1,5 +1,5 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.undocked.props" />
+  <Import Project="$(SolutionDir)src\xdp.props" />
   <!-- Project-wide compile properties (e.g. defines, includes) -->
   <ItemDefinitionGroup>
     <ClCompile>

@@ -6,12 +6,12 @@
     <UndockedType>none</UndockedType>
     <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
     <MessageCompile Include="xdpetw.man">
       <GenerateKernelModeLoggingMacros>true</GenerateKernelModeLoggingMacros>
       <GeneratedFilesBaseName>xdpetw</GeneratedFilesBaseName>
     </MessageCompile>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

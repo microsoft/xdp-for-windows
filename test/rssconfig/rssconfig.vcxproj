@@ -13,7 +13,7 @@
     <TargetName>rssconfig</TargetName>
     <UndockedType>exe</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
@@ -28,5 +28,5 @@
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

@@ -28,7 +28,7 @@
     <UndockedType>sys</UndockedType>
     <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <Target Name="SetSourceRevisionId" BeforeTargets="ClCompile;ResourceCompile">
     <Exec
       Command="git describe --long --always --dirty --exclude=* --abbrev=8"
@@ -144,5 +144,5 @@
       <SpecifyDriverDirectiveVersion>true</SpecifyDriverDirectiveVersion>
     </Inf>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

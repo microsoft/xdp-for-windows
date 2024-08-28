@@ -5,11 +5,11 @@
   </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{8f8830ff-1648-4772-87ed-f5da091fc931}</ProjectGuid>
-    <TargetName>bpfexport</TargetName>
+    <TargetName>xdpbpfexport</TargetName>
     <UndockedType>exe</UndockedType>
     <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
     <ResourceCompile Include="bpfexport.rc">
       <AdditionalIncludeDirectories>
@@ -42,5 +42,5 @@
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

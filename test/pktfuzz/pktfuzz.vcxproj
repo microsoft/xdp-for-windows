@@ -16,9 +16,10 @@
   <PropertyGroup>
     <ProjectGuid>{a1864618-ed3d-43c5-8013-a177f9cf73d9}</ProjectGuid>
     <TargetName>pktfuzz</TargetName>
-    <UndockedType>exe</UndockedType>
+    <UndockedType>dll</UndockedType>
+    <ImportWnt>true</ImportWnt>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
@@ -29,7 +30,6 @@
         $(SolutionDir)src\xdp;
         $(SolutionDir)src\xdppcw\inc;
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdppcw\;
-        $(WntIncPath);
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
     </ClCompile>
@@ -43,5 +43,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

@@ -4,6 +4,16 @@
 //
 
 #include <winsock2.h>
+
+//
+// Directly include some C++ headers that produce benign compiler warnings.
+//
+#pragma warning(push)
+#pragma warning(disable:5252) // Multiple different types resulted in the same XFG type-hash D275361C54538B70; the PDB will only record information for one of them
+#include <xlocnum>
+#include <xlocale>
+#pragma warning(pop)
+
 #include <CppUnitTest.h>
 #include <xdpapi.h>
 #include <fntrace.h>

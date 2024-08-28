@@ -4,9 +4,11 @@
     <ProjectGuid>{02D631DF-E2E7-4A6E-9773-94A45B19C367}</ProjectGuid>
     <TargetName>xdpfunctionaltests</TargetName>
     <UndockedType>dll</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
+    <ImportWnt>true</ImportWnt>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
       <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
@@ -43,15 +45,14 @@
         onecore.lib;
         iphlpapi.lib;
         advapi32.lib;
-        $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         $(WntLibPath)\fnsock_um.lib;
-        $(OutDir)\cxplat\winuser\cxplat.lib;
+        $(OutDir)\cxplat\bin\$(UndockedPlatConfig)\cxplat.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
   <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
       <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
   </Target>

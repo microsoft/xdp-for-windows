@@ -7,7 +7,7 @@
     <ImportEbpf>true</ImportEbpf>
     <ImportWnt>true</ImportWnt>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
     <ClCompile Include="tests.cpp" />
   </ItemGroup>
@@ -39,5 +39,5 @@
       <TreatSpecificWarningsAsErrors>4834</TreatSpecificWarningsAsErrors>
     </ClCompile>
   </ItemDefinitionGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

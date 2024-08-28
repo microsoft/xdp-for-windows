@@ -8,6 +8,6 @@
     <TargetName>cddkheaders</TargetName>
     <UndockedType>drvlib</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

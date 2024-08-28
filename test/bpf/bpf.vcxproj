@@ -12,7 +12,7 @@
     <UndockedType>none</UndockedType>
     <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <PropertyGroup>
     <TargetName>bpf</TargetName>
     <OutDir>$(OutDir)bpf\</OutDir>
@@ -85,5 +85,5 @@
         popd</Command>
     </CustomBuild>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

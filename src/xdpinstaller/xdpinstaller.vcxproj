@@ -4,15 +4,16 @@
     <ProjectGuid>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</ProjectGuid>
     <TargetName>xdpinstaller</TargetName>
     <UndockedType>none</UndockedType>
+    <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\xdpruntime\xdpruntime.vcxproj">
       <Project>{8250c528-6a2c-44e7-aa76-1e6bec9127a3}</Project>
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
   <Target Name="SignMsi">
       <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)*.msi &quot;" />
   </Target>

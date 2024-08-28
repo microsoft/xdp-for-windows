@@ -5,7 +5,7 @@
     <TargetName>onebranch</TargetName>
     <UndockedType>none</UndockedType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
  <ItemGroup Condition="'$(BuildStage)' == 'Binary'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
@@ -33,5 +33,5 @@
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="$(SolutionDir)src\xdp.undocked.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>
