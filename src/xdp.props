@@ -16,7 +16,7 @@
   </PropertyGroup>
   <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="'$(ImportEbpf)' == 'true' AND Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
   <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="'$(ImportWnt)' == 'true' AND Exists('$(WntPackagePath)build\native\win-net-test.props')" />
-  <Import Project="$(UndockedDir)vs\windows.undocked.props" />
+  <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
   <ItemGroup>
     <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
