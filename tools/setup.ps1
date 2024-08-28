@@ -69,14 +69,15 @@ $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
+$XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
-$XdpCert = "$ArtifactsDir\xdp.cer"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
-$XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
+$XdpSys = "$ArtifactsDir\xdp\xdp.sys"
+$XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.$XdpFileVersion.msi"
+$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
 $XskBenchDrvSys = "$ArtifactsDir\test\xskbenchdrv\xskbenchdrv.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
@@ -179,8 +180,22 @@ function Cleanup-Service($Name) {
 # Installs the certificates for driver package signing.
 function Install-DriverCertificate($CertFileName) {
     Write-Verbose "Installing driver signing certificate $CertFileName"
-    Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
+
+    # Resolve the root certificate in the signing certificate's chain, and trust that.
+    $CertRootFileName = "$CertFileName.root.cer"
+    $Chain = New-Object -TypeName System.Security.Cryptography.X509Certificates.X509Chain
+    $Chain.Build($CertFileName) | Write-Verbose
+    $Chain.ChainElements.Certificate | Select-Object -Last 1 | Export-Certificate -Type CERT -FilePath $CertRootFileName | Write-Verbose
+
+    Import-Certificate -FilePath $CertRootFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
     Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+}
+
+function Install-SignedDriverCertificate($SignedFileName) {
+    $CertFileName = "$SignedFileName.cer"
+    Write-Verbose "Extracting driver signing certificate $CertFileName from $SignedFileName"
+    Get-AuthenticodeSignature $SignedFileName | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName | Write-Verbose
+    Install-DriverCertificate $CertFileName
 }
 
 # Helper to wait for an adapter to start.
@@ -241,7 +256,7 @@ function Uninstall-Driver($Inf) {
 
 # Installs the xdp driver.
 function Install-Xdp {
-    Install-DriverCertificate $XdpCert
+    Install-SignedDriverCertificate $XdpCat
 
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath

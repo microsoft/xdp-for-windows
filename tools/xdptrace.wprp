@@ -48,6 +48,49 @@
             </Stacks>
         </SystemProvider>
 
+        <SystemProvider Id="SystemProviderHardwareSampled">
+            <Keywords>
+                <Keyword Value="ProcessThread" />
+                <Keyword Value="Loader" />
+                <Keyword Value="PmcProfile" />
+            </Keywords>
+
+            <Stacks>
+                <Stack Value="PmcInterrupt"/>
+            </Stacks>
+        </SystemProvider>
+
+        <MicroArchitecturalConfig Id="Intel" Base="">
+            <ProfileSources Architecture="INTEL" Description="Intel Counters">
+                <!-- SQ_MISC.SPLIT_LOCK -->
+                <ProfileSource Name="SplitLock" Event="0xF4" Unit="0x10" />
+                <!-- MEM_INST_RETIRED.SPLIT_LOADS -->
+                <ProfileSource Name="SplitLoad" Event="0xD0" Unit="0x41" />
+                <!-- MEM_INST_RETIRED.LOCK_LOADS -->
+                <ProfileSource Name="LockLoad" Event="0xD0" Unit="0x21" />
+            </ProfileSources>
+        </MicroArchitecturalConfig>
+
+        <HardwareCounter Id="Hardware_Intel_Sampled" Base="" Strict="true">
+            <MicroArchitecturalConfigId Value="Intel"></MicroArchitecturalConfigId>
+            <SampledCounters>
+                <SampledCounter Value="CacheMisses" Interval="10000"/>
+                <SampledCounter Value="SplitLock" Interval="10000"/>
+                <SampledCounter Value="SplitLoad" Interval="10000"/>
+                <SampledCounter Value="LockLoad" Interval="10000"/>
+            </SampledCounters>
+            <!-- ProcessorTrace captures more (and much larger) hardware data, but how to decode? -->
+            <!--
+            <ProcessorTrace>
+                <BufferSize Value="32" />
+                <CodeMode Value="UserKernel" />
+                <Events>
+                    <Event Value="PmcInterrupt"></Event>
+                </Events>
+            </ProcessorTrace>
+            -->
+        </HardwareCounter>
+
         <!-- Leave the highest keywords bit unset to work around downlevel WPR bug. -->
         <EventProvider Id="EP_XdpEtw" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="5" />
         <EventProvider Id="EP_XdpEtwPerFrame" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="25" />
@@ -178,6 +221,15 @@
             <Collectors>
                 <SystemCollectorId Value="SystemCollector">
                     <SystemProviderId Value="SystemProviderCpuSampled"/>
+                </SystemCollectorId>
+            </Collectors>
+        </Profile>
+
+        <Profile Id="CpuHardwareSample.Verbose.File" Name="CpuHardwareSample" Description="CPU hardware sampled profile" LoggingMode="File" DetailLevel="Verbose">
+            <Collectors>
+                <SystemCollectorId Value="SystemCollector">
+                    <SystemProviderId Value="SystemProviderHardwareSampled" />
+                    <HardwareCounterId Value="Hardware_Intel_Sampled"/>
                 </SystemCollectorId>
             </Collectors>
         </Profile>

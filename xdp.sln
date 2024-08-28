@@ -79,6 +79,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpinstaller", "src\xdpinst
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "onebranch", "src\onebranch\onebranch.vcxproj", "{B68D3E02-9E67-4A2E-B46F-DF393C106996}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpruntime", "src\xdpruntime\xdpruntime.vcxproj", "{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -455,6 +457,14 @@ Global
 		{B68D3E02-9E67-4A2E-B46F-DF393C106996}.Release|ARM64.Build.0 = Release|ARM64
 		{B68D3E02-9E67-4A2E-B46F-DF393C106996}.Release|x64.ActiveCfg = Release|x64
 		{B68D3E02-9E67-4A2E-B46F-DF393C106996}.Release|x64.Build.0 = Release|x64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Debug|ARM64.Build.0 = Debug|ARM64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Debug|x64.ActiveCfg = Debug|x64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Debug|x64.Build.0 = Debug|x64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Release|ARM64.ActiveCfg = Release|ARM64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Release|ARM64.Build.0 = Release|ARM64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Release|x64.ActiveCfg = Release|x64
+		{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

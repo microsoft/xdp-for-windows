@@ -125,7 +125,7 @@ function Get-EbpfMsiUrl {
 }
 
 function Get-FnVersion {
-    return "0.5.2"
+    return "1.0.0"
 }
 
 function Get-FnRuntimeUrl {

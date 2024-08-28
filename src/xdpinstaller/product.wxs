@@ -64,37 +64,37 @@ SPDX-License-Identifier: MIT
                 <File Id="xdp_setup_ps1" Source="$(var.TargetDir)xdp-setup.ps1" KeyPath="yes"/>
             </Component>
             <Component Id="xdppcw.man" Guid="{EDD336F3-5350-4046-AF01-C76B10A3B965}">
-                <File Id="xdppcw.man" Source="$(var.TargetDir)..\xdppcw.man" KeyPath="yes"/>
+                <File Id="xdppcw.man" Source="$(var.TargetDir)xdppcw.man" KeyPath="yes"/>
             </Component>
             <Component Id="xdpapi.dll" Guid="{18A0B4FC-9F22-4E15-8AD2-64131E6E238B}">
-                <File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)..\xdp\xdpapi.dll" KeyPath="yes" />
+                <File Id="xdpapi.dll" Name="xdpapi.dll" Source="$(var.TargetDir)xdp\xdpapi.dll" KeyPath="yes" />
             </Component>
             <Component Id="xdpapi.pdb" Guid="{4FDB4EA7-420A-442C-9EDD-EC862F00E160}">
-                <File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.TargetDir)..\xdpapi.pdb" KeyPath="yes" />
+                <File Id="xdpapi.pdb" Name="xdpapi.pdb" Source="$(var.TargetDir)xdpapi.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdpcfg.exe" Guid="{2F099CCD-54DA-495C-9741-3F3EFE357087}">
-                <File Id="xdpcfg.exe" Name="xdpcfg.exe" Source="$(var.TargetDir)..\xdpcfg.exe" KeyPath="yes" />
+                <File Id="xdpcfg.exe" Name="xdpcfg.exe" Source="$(var.TargetDir)xdpcfg.exe" KeyPath="yes" />
             </Component>
             <Component Id="xdpcfg.pdb" Guid="{ECA5A361-BF61-443C-8E6F-1CE57C0B19DA}">
-                <File Id="xdpcfg.pdb" Name="xdpcfg.pdb" Source="$(var.TargetDir)..\xdpcfg.pdb" KeyPath="yes" />
+                <File Id="xdpcfg.pdb" Name="xdpcfg.pdb" Source="$(var.TargetDir)xdpcfg.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdpbpfexport.exe" Guid="{E190E2ED-566C-424A-83F3-0422EB865FCA}">
-                <File Id="xdpbpfexport.exe" Name="xdpbpfexport.exe" Source="$(var.TargetDir)..\xdpbpfexport.exe" KeyPath="yes" />
+                <File Id="xdpbpfexport.exe" Name="xdpbpfexport.exe" Source="$(var.TargetDir)xdpbpfexport.exe" KeyPath="yes" />
             </Component>
             <Component Id="xdpbpfexport.pdb" Guid="{13148622-35D3-4005-AA31-DD9AAE4C9021}">
-                <File Id="xdpbpfexport.pdb" Name="xdpbpfexport.pdb" Source="$(var.TargetDir)..\xdpbpfexport.pdb" KeyPath="yes" />
+                <File Id="xdpbpfexport.pdb" Name="xdpbpfexport.pdb" Source="$(var.TargetDir)xdpbpfexport.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
-                <File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)..\xdp\xdp.sys" KeyPath="yes" />
+                <File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp\xdp.sys" KeyPath="yes" />
             </Component>
             <Component Id="xdp.pdb" Guid="{D5D7961D-32A7-4A9A-A2C2-8F4E07A9194B}">
-                <File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.TargetDir)..\xdp.pdb" KeyPath="yes" />
+                <File Id="xdp.pdb" Name="xdp.pdb" Source="$(var.TargetDir)xdp.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdp.inf" Guid="{70A53BC2-8D56-4D53-B8FA-F07EC3D4783A}">
-                <File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)..\xdp\xdp.inf" KeyPath="yes"/>
+                <File Id="xdp.inf" Name="xdp.inf" Source="$(var.TargetDir)xdp\xdp.inf" KeyPath="yes"/>
             </Component>
             <Component Id="xdp.cat" Guid="{4DE38C65-E47E-41A6-913D-3AFFE4FA5DE6}">
-                <File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)..\xdp\xdp.cat" KeyPath="yes"/>
+                <File Id="xdp.cat" Name="xdp.cat" Source="$(var.TargetDir)xdp\xdp.cat" KeyPath="yes"/>
             </Component>
             <Component Id="xdptrace.wprp" Guid="{1C280B10-A3CC-4C2D-B0D1-3F4CBE03BEAF}">
                 <File Id="xdptrace.wprp" Name="xdptrace.wprp" Source="$(var.SolutionDir)\tools\xdptrace.wprp" KeyPath="yes"/>
@@ -102,13 +102,13 @@ SPDX-License-Identifier: MIT
         </ComponentGroup>
 
         <!-- Install/Uninstall/Rollback the XDP driver installation -->
-        <SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy AllSigned &quot;&amp; '[#xdp_setup_ps1]' -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute"/>
+        <SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute"/>
         <CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
-        <SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy AllSigned &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall" Sequence="execute"/>
+        <SetProperty Id="xdp_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall" Sequence="execute"/>
         <CustomAction Id="xdp_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
 
-        <SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy AllSigned &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
+        <SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute"/>
         <CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
     </Fragment>
 </Wix>
