@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{93635a7b-565e-4b41-af67-5b375756b227}</ProjectGuid>
+    <ImportUndocked>false</ImportUndocked>
+  </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup>
     <ProductVersion>3.10</ProductVersion>
-    <ProjectGuid>93635a7b-565e-4b41-af67-5b375756b227</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>

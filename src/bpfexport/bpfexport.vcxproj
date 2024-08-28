@@ -1,31 +1,20 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
   <ItemGroup>
     <ClCompile Include="bpfexport.c" />
   </ItemGroup>
-  <PropertyGroup Label="Globals">
-    <VCProjectVersion>16.0</VCProjectVersion>
-    <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{8f8830ff-1648-4772-87ed-f5da091fc931}</ProjectGuid>
-    <RootNamespace>bpfexport</RootNamespace>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <ConfigurationType>Application</ConfigurationType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.user.props" />
   <PropertyGroup>
+    <ProjectGuid>{8f8830ff-1648-4772-87ed-f5da091fc931}</ProjectGuid>
     <TargetName>xdpbpfexport</TargetName>
+    <UndockedType>exe</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
     <ResourceCompile Include="bpfexport.rc">
       <AdditionalIncludeDirectories>
-          $(SolutionDir)published\private;
-          %(AdditionalIncludeDirectories)
+        $(SolutionDir)published\private;
+        %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         XDP_MAJOR_VERSION=$(XdpMajorVersion);
@@ -47,12 +36,11 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
       <AdditionalDependencies>
         onecore.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

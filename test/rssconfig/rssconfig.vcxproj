@@ -1,6 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
   <ItemGroup>
     <ClCompile Include="rssconfig.c" />
   </ItemGroup>
@@ -9,22 +8,12 @@
       <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
     </ProjectReference>
   </ItemGroup>
-  <PropertyGroup Label="Globals">
-    <VCProjectVersion>16.0</VCProjectVersion>
-    <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{798300cd-0d26-4fcd-843b-30a9585b102c}</ProjectGuid>
-    <RootNamespace>rssconfig</RootNamespace>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <ConfigurationType>Application</ConfigurationType>
-  </PropertyGroup>
-  <Import Project="$(SolutionDir)src\xdp.cpp.user.props" />
   <PropertyGroup>
+    <ProjectGuid>{798300cd-0d26-4fcd-843b-30a9585b102c}</ProjectGuid>
     <TargetName>rssconfig</TargetName>
+    <UndockedType>exe</UndockedType>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
@@ -33,13 +22,11 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
       <AdditionalDependencies>
         onecore.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>
