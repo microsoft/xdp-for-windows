@@ -28,19 +28,18 @@ $Name = "xdp-tests-$Platform"
 if ($Config -eq "Debug") {
     $Name += "-debug"
 }
-$DstPath = "artifacts\tests\$Name"
+$DstPath = "artifacts\testarchive\$Name"
 
 Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
-New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "$ArtifactBin\xdpfunctionaltests.dll" $DstPath\bin
-copy "$ArtifactBin\\xdpfunctionaltestdrv\xdpfunctionaltestdrv.sys" $DstPath\bin
+New-Item -Path $DstPath\bin\test -ItemType Directory > $null
+copy "$ArtifactBin\test\xdpfunctionaltests.dll" $DstPath\bin\test\
+copy "$ArtifactBin\test\xdpfunctionaltestdrv\xdpfunctionaltestdrv.sys" $DstPath\bin\test
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
-copy "$ArtifactBin\xdpfunctionaltests.pdb" $DstPath\symbols
-copy "$ArtifactBin\xdpfunctionaltestdrv.pdb" $DstPath\symbols
->>>>>>> 06011589882918b2fa1271c4bf1304e55abfc590
+copy "$ArtifactBin\test\xdpfunctionaltests.pdb" $DstPath\symbols
+copy "$ArtifactBin\test\xdpfunctionaltestdrv.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 

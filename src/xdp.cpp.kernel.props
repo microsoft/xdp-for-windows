@@ -1,5 +1,6 @@
 <!-- Kernel mode specific properties -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <!-- OneBranch goop -->
   <PropertyGroup>
     <UndockedKernelModeBuild>true</UndockedKernelModeBuild>

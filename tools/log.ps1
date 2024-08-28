@@ -131,6 +131,7 @@ try {
             $SymbolPath = $ArtifactsDir
         }
 
+        & $TracePdb -f "$SymbolPath\test\*.pdb" -p $TmfPath
         & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
 
         $FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"

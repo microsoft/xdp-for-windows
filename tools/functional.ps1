@@ -106,7 +106,7 @@ if ($KernelMode) {
     CleanupKernelMode
     [System.Environment]::SetEnvironmentVariable('xdpfunctionaltests::KernelModeEnabled', '1')
     [System.Environment]::SetEnvironmentVariable('xdpfunctionaltests::KernelModeDriverPath', "$SystemDriversPath\")
-    Copy-Item -Path "$ArtifactsDir\xdpfunctionaltestdrv\xdpfunctionaltestdrv.sys" $SystemDriversPath
+    Copy-Item -Path "$ArtifactsDir\test\xdpfunctionaltestdrv\xdpfunctionaltestdrv.sys" $SystemDriversPath
 }
 
 # Ensure the output path exists.
@@ -148,7 +148,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if (![string]::IsNullOrEmpty($TestBinaryPath)) {
             $TestArgs += $TestBinaryPath
         } else {
-            $TestArgs += "$ArtifactsDir\xdpfunctionaltests.dll"
+            $TestArgs += "$ArtifactsDir\test\xdpfunctionaltests.dll"
         }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
             $TestArgs += "/TestCaseFilter:$TestCaseFilter"

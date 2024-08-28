@@ -73,8 +73,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "platformuser", "test\common
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltestdrv", "test\functional\km\xdpfunctionaltestdrv.vcxproj", "{BDF5EF66-403A-4D96-95D5-871689F76C4F}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cxplat.user", "submodules\cxplat\src\lib\cxplat.user.vcxproj", "{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nuget", "src\nuget\nuget.vcxproj", "{FBF60D12-183D-42D1-B884-8B9FA4F1273F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpinstaller", "src\xdpinstaller\xdpinstaller.wixproj", "{93635A7B-565E-4B41-AF67-5B375756B227}"
@@ -433,14 +431,6 @@ Global
 		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|ARM64.Build.0 = Release|ARM64
 		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|x64.ActiveCfg = Release|x64
 		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|x64.Build.0 = Release|x64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Debug|ARM64.ActiveCfg = Debug|ARM64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Debug|ARM64.Build.0 = Debug|ARM64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Debug|x64.ActiveCfg = Debug|x64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Debug|x64.Build.0 = Debug|x64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Release|ARM64.ActiveCfg = Release|ARM64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Release|ARM64.Build.0 = Release|ARM64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Release|x64.ActiveCfg = Release|x64
-		{702A7493-A6A4-4209-AB69-E1E4D1EB0FB7}.Release|x64.Build.0 = Release|x64
 		{FBF60D12-183D-42D1-B884-8B9FA4F1273F}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{FBF60D12-183D-42D1-B884-8B9FA4F1273F}.Debug|ARM64.Build.0 = Debug|ARM64
 		{FBF60D12-183D-42D1-B884-8B9FA4F1273F}.Debug|x64.ActiveCfg = Debug|x64
