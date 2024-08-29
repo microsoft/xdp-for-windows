@@ -109,7 +109,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.18.0"
+    return "0.17.1"
 }
 
 # Returns the eBPF MSI full path
