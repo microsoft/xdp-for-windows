@@ -664,7 +664,7 @@ QpcToUs64(
     // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
     //
     UINT64 High = (Qpc >> 32) * 1000000;
-    UINT64 Low = (Qpc & 0xFFFFFFFF) * 1000000;
+    UINT64 Low = (Qpc & MAXUINT32) * 1000000;
     return
         ((High / QpcFrequency) << 32) +
         ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);

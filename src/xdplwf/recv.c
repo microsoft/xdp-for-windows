@@ -441,7 +441,7 @@ XdpGenericReceiveExpandFragmentBuffer(
     // the size to MAXUINT32.
     //
     FRE_ASSERT(RxQueue->FragmentBufferSize < MAXUINT32);
-    NewBufferSize = (max(RxQueue->FragmentBufferSize, 0xffff) << 1) | 1;
+    NewBufferSize = (max(RxQueue->FragmentBufferSize, MAXUINT16) << 1) | 1;
 
     NewBuffer =
         ExAllocatePoolPriorityZero(NonPagedPoolNx, NewBufferSize, POOLTAG_RECV, LowPoolPriority);
