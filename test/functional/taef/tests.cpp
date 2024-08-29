@@ -476,445 +476,643 @@ public:
     }
 
     TEST_METHOD(GenericBinding) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_BINDING));
+        } else {
             ::GenericBinding();
         }
     }
 
     TEST_METHOD(GenericBindingResetAdapter) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_BINDING_RESET_ADAPTER));
+        } else {
             ::GenericBindingResetAdapter();
         }
     }
 
     TEST_METHOD(GenericRxSingleFrame) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_SINGLE_FRAME));
+        } else {
             ::GenericRxSingleFrame();
         }
     }
 
     TEST_METHOD(GenericRxNoPoke) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_NO_POKE));
+        } else {
             ::GenericRxNoPoke();
         }
     }
 
     TEST_METHOD(GenericRxBackfillAndTrailer) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_BACKFILL_AND_TRAILER));
+        } else {
             ::GenericRxBackfillAndTrailer();
         }
     }
 
     TEST_METHOD(GenericRxLowResources) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_LOW_RESOURCES));
+        } else {
             ::GenericRxLowResources();
         }
     }
 
     TEST_METHOD(GenericRxMultiSocket) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MULTI_SOCKET));
+        } else {
             ::GenericRxMultiSocket();
         }
     }
 
     TEST_METHOD(GenericRxMultiProgram) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MULTI_PROGRAM));
+        } else {
             ::GenericRxMultiProgram();
         }
     }
 
     TEST_METHOD(GenericTxToRxInject) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_TX_TO_RX_INJECT));
+        } else {
             ::GenericTxToRxInject();
         }
     }
 
     TEST_METHOD(GenericTxSingleFrame) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_TX_SINGLE_FRAME));
+        } else {
             ::GenericTxSingleFrame();
         }
     }
 
     TEST_METHOD(GenericTxOutOfOrder) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_TX_OUT_OF_ORDER));
+        } else {
             ::GenericTxOutOfOrder();
         }
     }
 
     TEST_METHOD(GenericTxSharing) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_TX_SHARING));
+        } else {
             ::GenericTxSharing();
         }
     }
 
     TEST_METHOD(GenericTxPoke) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_TX_POKE));
+        } else {
             ::GenericTxPoke();
         }
     }
 
     TEST_METHOD(GenericTxMtu) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_TX_MTU));
+        } else {
             ::GenericTxMtu();
         }
     }
 
     TEST_METHOD(GenericRxTcpControlV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_CONTROL_V4, AF_INET));
+        } else {
             GenericRxTcpControl(AF_INET);
         }
     }
 
     TEST_METHOD(GenericRxTcpControlV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_CONTROL_V6, AF_INET6));
+        } else {
             GenericRxTcpControl(AF_INET6);
         }
     }
 
     TEST_METHOD(GenericRxAllQueueRedirectV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_ALL_QUEUE_REDIRECT_V4, AF_INET));
+        } else {
             GenericRxAllQueueRedirect(AF_INET);
         }
     }
 
     TEST_METHOD(GenericRxAllQueueRedirectV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_ALL_QUEUE_REDIRECT_V6, AF_INET6));
+        } else {
             GenericRxAllQueueRedirect(AF_INET6);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_UDP, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_UDP, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_UDP, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_UDP, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpPortV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_UDP_DST, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_PORT_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_UDP_DST, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpPortV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_UDP_DST, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_PORT_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_UDP_DST, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpTupleV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_IPV4_UDP_TUPLE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_TUPLE_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_IPV4_UDP_TUPLE, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpTupleV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_IPV6_UDP_TUPLE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_TUPLE_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_UDP_TUPLE, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpQuicSrcV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_QUIC_FLOW_SRC_CID, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_QUIC_SRC_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_QUIC_FLOW_SRC_CID, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpQuicSrcV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_QUIC_FLOW_SRC_CID, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_QUIC_SRC_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_QUIC_FLOW_SRC_CID, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpQuicDstV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_QUIC_FLOW_DST_CID, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_QUIC_DST_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_QUIC_FLOW_DST_CID, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpQuicDstV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_QUIC_FLOW_DST_CID, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_QUIC_DST_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_QUIC_FLOW_DST_CID, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchTcpQuicSrcV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_TCP_QUIC_SRC_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchTcpQuicSrcV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_TCP_QUIC_SRC_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_SRC_CID, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchTcpQuicDstV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_TCP_QUIC_DST_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchTcpQuicDstV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_TCP_QUIC_DST_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_TCP_QUIC_FLOW_DST_CID, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchIpPrefixV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_IP_PREFIX_V4, AF_INET));
+        } else {
             GenericRxMatchIpPrefix(AF_INET);
         }
     }
 
     TEST_METHOD(GenericRxMatchIpPrefixV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_IP_PREFIX_V6, AF_INET6));
+        } else {
             GenericRxMatchIpPrefix(AF_INET6);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpPortSetV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_UDP_PORT_SET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_PORT_SET_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_UDP_PORT_SET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchUdpPortSetV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_UDP_PORT_SET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_UDP_PORT_SET_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_UDP_PORT_SET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchIpv4UdpPortSet) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_IPV4_UDP_PORT_SET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_IPV4_UDP_PORT_SET, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_IPV4_UDP_PORT_SET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchIpv6UdpPortSet) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_IPV6_UDP_PORT_SET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_IPV6_UDP_PORT_SET, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_UDP_PORT_SET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxMatchIpv4TcpPortSet) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_IPV4_TCP_PORT_SET, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_IPV4_TCP_PORT_SET, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_IPV4_TCP_PORT_SET, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchIpv6TcpPortSet) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_IPV6_TCP_PORT_SET, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_IPV6_TCP_PORT_SET, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_IPV6_TCP_PORT_SET, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchTcpPortV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET, XDP_MATCH_TCP_DST, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_TCP_PORT_V4, Params));
+        } else {
             GenericRxMatch(AF_INET, XDP_MATCH_TCP_DST, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxMatchTcpPortV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_MATCH_PARAMS Params = { AF_INET6, XDP_MATCH_TCP_DST, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_MATCH_TCP_PORT_V6, Params));
+        } else {
             GenericRxMatch(AF_INET6, XDP_MATCH_TCP_DST, FALSE);
         }
     }
 
     TEST_METHOD(GenericXskWaitRx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { TRUE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_WAIT_RX, Params));
+        } else {
             GenericXskWait(TRUE, FALSE);
         }
     }
 
     TEST_METHOD(GenericXskWaitTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { FALSE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_WAIT_TX, Params));
+        } else {
             GenericXskWait(FALSE, TRUE);
         }
     }
 
     TEST_METHOD(GenericXskWaitRxTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { TRUE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_WAIT_RX_TX, Params));
+        } else {
             GenericXskWait(TRUE, TRUE);
         }
     }
 
     TEST_METHOD(GenericXskWaitAsyncRx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { TRUE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_WAIT_ASYNC_RX, Params));
+        } else {
             GenericXskWaitAsync(TRUE, FALSE);
         }
     }
 
     TEST_METHOD(GenericXskWaitAsyncTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { FALSE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_WAIT_ASYNC_TX, Params));
+        } else {
             GenericXskWaitAsync(FALSE, TRUE);
         }
     }
 
     TEST_METHOD(GenericXskWaitAsyncRxTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { TRUE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_WAIT_ASYNC_RX_TX, Params));
+        } else {
             GenericXskWaitAsync(TRUE, TRUE);
         }
     }
 
     TEST_METHOD(GenericLwfDelayDetachRx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { TRUE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_LWF_DELAY_DETACH_RX, Params));
+        } else {
             GenericLwfDelayDetach(TRUE, FALSE);
         }
     }
 
     TEST_METHOD(GenericLwfDelayDetachTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { FALSE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_LWF_DELAY_DETACH_TX, Params));
+        } else {
             GenericLwfDelayDetach(FALSE, TRUE);
         }
     }
 
     TEST_METHOD(GenericLwfDelayDetachRxTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_XSK_WAIT_PARAMS Params = { TRUE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_LWF_DELAY_DETACH_RX_TX, Params));
+        } else {
             GenericLwfDelayDetach(TRUE, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_LONG_HEADER_V4, Params));
+        } else {
             GenericRxUdpFragmentQuicLongHeader(AF_INET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicLongHeaderV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET6, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_LONG_HEADER_V6, Params));
+        } else {
             GenericRxUdpFragmentQuicLongHeader(AF_INET6, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxTcpFragmentQuicLongHeaderV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_FRAGMENT_QUIC_LONG_HEADER_V4, Params));
+        } else {
             GenericRxUdpFragmentQuicLongHeader(AF_INET, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxTcpFragmentQuicLongHeaderV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET6, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_FRAGMENT_QUIC_LONG_HEADER_V6, Params));
+        } else {
             GenericRxUdpFragmentQuicLongHeader(AF_INET6, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicShortHeaderV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_SHORT_HEADER_V4, AF_INET));
+        } else {
             GenericRxUdpFragmentQuicShortHeader(AF_INET);
         }
     }
 
     TEST_METHOD(GenericRxUdpFragmentQuicShortHeaderV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_SHORT_HEADER_V6, AF_INET6));
+        } else {
             GenericRxUdpFragmentQuicShortHeader(AF_INET6);
         }
     }
 
     TEST_METHOD(GenericRxUdpFragmentHeaderDataV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_FRAGMENT_HEADER_DATA_V4, Params));
+        } else {
             GenericRxFragmentHeaderData(AF_INET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxUdpFragmentHeaderDataV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET6, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_FRAGMENT_HEADER_DATA_V6, Params));
+        } else {
             GenericRxFragmentHeaderData(AF_INET6, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxTcpFragmentHeaderDataV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_FRAGMENT_HEADER_DATA_V4, Params));
+        } else {
             GenericRxFragmentHeaderData(AF_INET, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxTcpFragmentHeaderDataV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET6, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_FRAGMENT_HEADER_DATA_V6, Params));
+        } else {
             GenericRxFragmentHeaderData(AF_INET6, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxUdpTooManyFragmentsV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_TOO_MANY_FRAGMENTS_V4, Params));
+        } else {
             GenericRxTooManyFragments(AF_INET, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxUdpTooManyFragmentsV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET6, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_TOO_MANY_FRAGMENTS_V6, Params));
+        } else {
             GenericRxTooManyFragments(AF_INET6, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxTcpTooManyFragmentsV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_TOO_MANY_FRAGMENTS_V4, Params));
+        } else {
             GenericRxTooManyFragments(AF_INET, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxTcpTooManyFragmentsV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_FRAGMENT_PARAMS Params = { AF_INET6, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_TOO_MANY_FRAGMENTS_V6, Params));
+        } else {
             GenericRxTooManyFragments(AF_INET6, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxUdpHeaderFragmentsV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_HEADER_FRAGMENTS_V4, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxUdpHeaderFragmentsV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_UDP_HEADER_FRAGMENTS_V6, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxTcpHeaderFragmentsV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET, XDP_PROGRAM_ACTION_REDIRECT, FALSE, FALSE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_HEADER_FRAGMENTS_V4, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxTcpHeaderFragmentsV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, FALSE, FALSE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_TCP_HEADER_FRAGMENTS_V6, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, FALSE);
         }
     }
 
     TEST_METHOD(GenericRxL2Fwd) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, FALSE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_L2_FWD, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxL2FwdLowResources) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, FALSE, TRUE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_L2_FWD_LOW_RESOURCES, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, FALSE, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxL2FwdTxInspect) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            GENERIC_RX_PARAMS Params = { AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, TRUE, FALSE };
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_L2_FWD_TX_INSPECT, Params));
+        } else {
             GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, TRUE);
         }
     }
 
     TEST_METHOD(GenericRxFromTxInspectV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_FROM_TX_INSPECT_V4, AF_INET));
+        } else {
             GenericRxFromTxInspect(AF_INET);
         }
     }
 
     TEST_METHOD(GenericRxFromTxInspectV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_FROM_TX_INSPECT_V6, AF_INET6));
+        } else {
             GenericRxFromTxInspect(AF_INET6);
         }
     }
@@ -993,7 +1191,9 @@ public:
     }
 
     TEST_METHOD(SecurityAdjustDeviceAcl) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_SECURITY_ADJUST_DEVICE_ACL));
+        } else {
             ::SecurityAdjustDeviceAcl();
         }
     }
@@ -1003,151 +1203,201 @@ public:
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfAttach) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_ATTACH));
+        } else {
             ::GenericRxEbpfAttach();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfDrop) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_DROP));
+        } else {
             ::GenericRxEbpfDrop();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfPass) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_PASS));
+        } else {
             ::GenericRxEbpfPass();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfTx) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_TX));
+        } else {
             ::GenericRxEbpfTx();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfPayload) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_PAYLOAD));
+        } else {
             ::GenericRxEbpfPayload();
         }
     }
 
     TEST_METHOD_PRERELEASE(ProgTestRunRxEbpfPayload) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_PROG_TEST_RUN_RX_EBPF_PAYLOAD));
+        } else {
             ::ProgTestRunRxEbpfPayload();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfIfIndex) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_IF_INDEX));
+        } else {
             ::GenericRxEbpfIfIndex();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfFragments) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_FRAGMENTS));
+        } else {
             ::GenericRxEbpfFragments();
         }
     }
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfUnload) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_RX_EBPF_UNLOAD));
+        } else {
             ::GenericRxEbpfUnload();
         }
     }
 
     TEST_METHOD(GenericLoopbackV4) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_LOOPBACK_V4, AF_INET));
+        } else {
             GenericLoopback(AF_INET);
         }
     }
 
     TEST_METHOD(GenericLoopbackV6) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_LOOPBACK_V6, AF_INET6));
+        } else {
             GenericLoopback(AF_INET6);
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssError) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_ERROR));
+        } else {
             ::OffloadRssError();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssReference) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_REFERENCE));
+        } else {
             ::OffloadRssReference();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssInterfaceRestart) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_INTERFACE_RESTART));
+        } else {
             ::OffloadRssInterfaceRestart();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssUnchanged) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_UNCHANGED));
+        } else {
             ::OffloadRssUnchanged();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssUpperSet) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_UPPER_SET));
+        } else {
             ::OffloadRssUpperSet();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssSet) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_SET));
+        } else {
             ::OffloadRssSet();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssCapabilities) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_CAPABILITIES));
+        } else {
             ::OffloadRssCapabilities();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadRssReset) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_RSS_RESET));
+        } else {
             ::OffloadRssReset();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadSetHardwareCapabilities) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_SET_HARDWARE_CAPABILITIES));
+        } else {
             ::OffloadSetHardwareCapabilities();
         }
     }
 
     TEST_METHOD(GenericXskQueryAffinity) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_GENERIC_XSK_QUERY_AFFINITY));
+        } else {
             ::GenericXskQueryAffinity();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadQeoConnection) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_QEO_CONNECTION));
+        } else {
             ::OffloadQeoConnection();
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadQeoRevertInterfaceRemoval) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_QEO_REVERT_INTERFACE_REMOVAL, RevertReasonInterfaceRemoval));
+        } else {
             ::OffloadQeoRevert(RevertReasonInterfaceRemoval);
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadQeoRevertHandleClosure) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_QEO_REVERT_HANDLE_CLOSURE, RevertReasonHandleClosure));
+        } else {
             ::OffloadQeoRevert(RevertReasonHandleClosure);
         }
     }
 
     TEST_METHOD_PRERELEASE(OffloadQeoOidFailure) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OFFLOAD_QEO_OID_FAILURE));
+        } else {
             ::OffloadQeoOidFailure();
         }
     }

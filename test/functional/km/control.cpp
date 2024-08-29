@@ -310,8 +310,17 @@ error:
 
 size_t IOCTL_BUFFER_SIZES[] =
 {
-    0,
-    0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY),
+    sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS),
+    sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS),
+    sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS),
+    sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_XSK_WAIT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(GENERIC_RX_FRAGMENT_PARAMS),
+    sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_FRAGMENT_PARAMS), sizeof(GENERIC_RX_PARAMS), sizeof(GENERIC_RX_PARAMS), sizeof(GENERIC_RX_PARAMS),
+    sizeof(GENERIC_RX_PARAMS), sizeof(GENERIC_RX_PARAMS), sizeof(GENERIC_RX_PARAMS), sizeof(GENERIC_RX_PARAMS), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, sizeof(REVERT_REASON),
+    sizeof(REVERT_REASON), 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0
 };
 
 static_assert(
@@ -319,6 +328,12 @@ static_assert(
     "IOCTL_BUFFER_SIZES must be kept in sync with the IOCTLs");
 
 typedef union {
+    ADDRESS_FAMILY Af;
+    GENERIC_RX_MATCH_PARAMS Params1;
+    GENERIC_XSK_WAIT_PARAMS Params2;
+    GENERIC_RX_FRAGMENT_PARAMS Params3;
+    GENERIC_RX_PARAMS Params4;
+    REVERT_REASON RevertReason;
 } IOCTL_PARAMS;
 
 #define TestDrvCtlRun(X) \
@@ -415,6 +430,303 @@ TestDrvCtlEvtIoDeviceControl(
     switch (IoControlCode) {
     case IOCTL_LOAD_API:
         TestDrvCtlRun(LoadApiTest());
+        break;
+    case IOCTL_GENERIC_BINDING:
+        // TestDrvCtlRun(GenericBinding());
+        break;
+    case IOCTL_GENERIC_BINDING_RESET_ADAPTER:
+        // TestDrvCtlRun(GenericBindingResetAdapter());
+        break;
+    case IOCTL_GENERIC_RX_SINGLE_FRAME:
+        // TestDrvCtlRun(GenericRxSingleFrame());
+        break;
+    case IOCTL_GENERIC_RX_NO_POKE:
+        // TestDrvCtlRun(GenericRxNoPoke());
+        break;
+    case IOCTL_GENERIC_RX_BACKFILL_AND_TRAILER:
+        // TestDrvCtlRun(GenericRxBackfillAndTrailer());
+        break;
+    case IOCTL_GENERIC_RX_LOW_RESOURCES:
+        // TestDrvCtlRun(GenericRxLowResources());
+        break;
+    case IOCTL_GENERIC_RX_MULTI_SOCKET:
+        // TestDrvCtlRun(GenericRxMultiSocket());
+        break;
+    case IOCTL_GENERIC_RX_MULTI_PROGRAM:
+        // TestDrvCtlRun(GenericRxMultiProgram());
+        break;
+    case IOCTL_GENERIC_TX_TO_RX_INJECT:
+        // TestDrvCtlRun(GenericTxToRxInject());
+        break;
+    case IOCTL_GENERIC_TX_SINGLE_FRAME:
+        // TestDrvCtlRun(GenericTxSingleFrame());
+        break;
+    case IOCTL_GENERIC_TX_OUT_OF_ORDER:
+        // TestDrvCtlRun(GenericTxOutOfOrder());
+        break;
+    case IOCTL_GENERIC_TX_SHARING:
+        // TestDrvCtlRun(GenericTxSharing());
+        break;
+    case IOCTL_GENERIC_TX_POKE:
+        // TestDrvCtlRun(GenericTxPoke());
+        break;
+    case IOCTL_GENERIC_TX_MTU:
+        // TestDrvCtlRun(GenericTxMtu());
+        break;
+    case IOCTL_GENERIC_RX_TCP_CONTROL_V4:
+        // TestDrvCtlRun(GenericRxTcpControl(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_TCP_CONTROL_V6:
+        // TestDrvCtlRun(GenericRxTcpControl(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_ALL_QUEUE_REDIRECT_V4:
+        // TestDrvCtlRun(GenericRxAllQueueRedirect(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_ALL_QUEUE_REDIRECT_V6:
+        // TestDrvCtlRun(GenericRxAllQueueRedirect(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_PORT_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_PORT_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_TUPLE_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_TUPLE_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_QUIC_SRC_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_QUIC_SRC_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_QUIC_DST_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_QUIC_DST_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_TCP_QUIC_SRC_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_TCP_QUIC_SRC_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_TCP_QUIC_DST_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_TCP_QUIC_DST_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_IP_PREFIX_V4:
+        // TestDrvCtlRun(GenericRxMatchIpPrefix(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_IP_PREFIX_V6:
+        // TestDrvCtlRun(GenericRxMatchIpPrefix(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_PORT_SET_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_UDP_PORT_SET_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_IPV4_UDP_PORT_SET:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_IPV6_UDP_PORT_SET:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_IPV4_TCP_PORT_SET:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_IPV6_TCP_PORT_SET:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_TCP_PORT_V4:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_MATCH_TCP_PORT_V6:
+        // TestDrvCtlRun(GenericRxMatch(Params->Params1.Af, Params->Params1.MatchType, Params->Params1.IsUdp));
+        break;
+    case IOCTL_GENERIC_XSK_WAIT_RX:
+        // TestDrvCtlRun(GenericXskWait(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_XSK_WAIT_TX:
+        // TestDrvCtlRun(GenericXskWait(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_XSK_WAIT_RX_TX:
+        // TestDrvCtlRun(GenericXskWait(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_XSK_WAIT_ASYNC_RX:
+        // TestDrvCtlRun(GenericXskWaitAsync(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_XSK_WAIT_ASYNC_TX:
+        // TestDrvCtlRun(GenericXskWaitAsync(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_XSK_WAIT_ASYNC_RX_TX:
+        // TestDrvCtlRun(GenericXskWaitAsync(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_LWF_DELAY_DETACH_RX:
+        // TestDrvCtlRun(GenericLwfDelayDetach(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_LWF_DELAY_DETACH_TX:
+        // TestDrvCtlRun(GenericLwfDelayDetach(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_LWF_DELAY_DETACH_RX_TX:
+        // TestDrvCtlRun(GenericLwfDelayDetach(Params->Params2.Rx, Params->Params2.Tx));
+        break;
+    case IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_LONG_HEADER_V4:
+        // TestDrvCtlRun(GenericRxUdpFragmentQuicLongHeader(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_LONG_HEADER_V6:
+        // TestDrvCtlRun(GenericRxUdpFragmentQuicLongHeader(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_TCP_FRAGMENT_QUIC_LONG_HEADER_V4:
+        // TestDrvCtlRun(GenericRxUdpFragmentQuicLongHeader(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_TCP_FRAGMENT_QUIC_LONG_HEADER_V6:
+        // TestDrvCtlRun(GenericRxUdpFragmentQuicLongHeader(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_SHORT_HEADER_V4:
+        // TestDrvCtlRun(GenericRxUdpFragmentQuicShortHeader(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_UDP_FRAGMENT_QUIC_SHORT_HEADER_V6:
+        // TestDrvCtlRun(GenericRxUdpFragmentQuicShortHeader(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_UDP_FRAGMENT_HEADER_DATA_V4:
+        // TestDrvCtlRun(GenericRxFragmentHeaderData(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_UDP_FRAGMENT_HEADER_DATA_V6:
+        // TestDrvCtlRun(GenericRxFragmentHeaderData(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_TCP_FRAGMENT_HEADER_DATA_V4:
+        // TestDrvCtlRun(GenericRxFragmentHeaderData(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_TCP_FRAGMENT_HEADER_DATA_V6:
+        // TestDrvCtlRun(GenericRxFragmentHeaderData(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_UDP_TOO_MANY_FRAGMENTS_V4:
+        // TestDrvCtlRun(GenericRxTooManyFragments(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_UDP_TOO_MANY_FRAGMENTS_V6:
+        // TestDrvCtlRun(GenericRxTooManyFragments(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_TCP_TOO_MANY_FRAGMENTS_V4:
+        // TestDrvCtlRun(GenericRxTooManyFragments(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_TCP_TOO_MANY_FRAGMENTS_V6:
+        // TestDrvCtlRun(GenericRxTooManyFragments(Params->Params3.Af, Params->Params3.IsUdp));
+        break;
+    case IOCTL_GENERIC_RX_UDP_HEADER_FRAGMENTS_V4:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_UDP_HEADER_FRAGMENTS_V6:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_TCP_HEADER_FRAGMENTS_V4:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_TCP_HEADER_FRAGMENTS_V6:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_L2_FWD:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_L2_FWD_LOW_RESOURCES:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_L2_FWD_TX_INSPECT:
+        // TestDrvCtlRun(GenericRxHeaderFragments(Params->Params4.Af, Params->Params4.ProgramAction, Params->Params4.IsUdp, Params->Params4.IsTxInspect, Params->Params4.IsLowResources));
+        break;
+    case IOCTL_GENERIC_RX_FROM_TX_INSPECT_V4:
+        // TestDrvCtlRun(GenericRxFromTxInspect(Params->Af));
+        break;
+    case IOCTL_GENERIC_RX_FROM_TX_INSPECT_V6:
+        // TestDrvCtlRun(GenericRxFromTxInspect(Params->Af));
+        break;
+    case IOCTL_GENERIC_LOOPBACK_V4:
+        // TestDrvCtlRun(GenericLoopback(Params->Af));
+        break;
+    case IOCTL_GENERIC_LOOPBACK_V6:
+        // TestDrvCtlRun(GenericLoopback(Params->Af));
+        break;
+    case IOCTL_OFFLOAD_RSS_ERROR:
+        // TestDrvCtlRun(OffloadRssError());
+        break;
+    case IOCTL_OFFLOAD_RSS_REFERENCE:
+        // TestDrvCtlRun(OffloadRssReference());
+        break;
+    case IOCTL_OFFLOAD_RSS_INTERFACE_RESTART:
+        // TestDrvCtlRun(OffloadRssInterfaceRestart());
+        break;
+    case IOCTL_OFFLOAD_RSS_UNCHANGED:
+        // TestDrvCtlRun(OffloadRssUnchanged());
+        break;
+    case IOCTL_OFFLOAD_RSS_UPPER_SET:
+        // TestDrvCtlRun(OffloadRssUpperSet());
+        break;
+    case IOCTL_OFFLOAD_RSS_SET:
+        // TestDrvCtlRun(OffloadRssSet());
+        break;
+    case IOCTL_OFFLOAD_RSS_CAPABILITIES:
+        // TestDrvCtlRun(OffloadRssCapabilities());
+        break;
+    case IOCTL_OFFLOAD_RSS_RESET:
+        // TestDrvCtlRun(OffloadRssReset());
+        break;
+    case IOCTL_OFFLOAD_SET_HARDWARE_CAPABILITIES:
+        // TestDrvCtlRun(OffloadSetHardwareCapabilities());
+        break;
+    case IOCTL_GENERIC_XSK_QUERY_AFFINITY:
+        // TestDrvCtlRun(GenericXskQueryAffinity());
+        break;
+    case IOCTL_OFFLOAD_QEO_CONNECTION:
+        // TestDrvCtlRun(OffloadQeoConnection());
+        break;
+    case IOCTL_OFFLOAD_QEO_REVERT_INTERFACE_REMOVAL:
+        // TestDrvCtlRun(OffloadQeoRevert(Params->RevertReason));
+        break;
+    case IOCTL_OFFLOAD_QEO_REVERT_HANDLE_CLOSURE:
+        // TestDrvCtlRun(OffloadQeoRevert(Params->RevertReason));
+        break;
+    case IOCTL_OFFLOAD_QEO_OID_FAILURE:
+        // TestDrvCtlRun(OffloadQeoOidFailure());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_ATTACH:
+        // TestDrvCtlRun(GenericRxEbpfAttach());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_DROP:
+        // TestDrvCtlRun(GenericRxEbpfDrop());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_PASS:
+        // TestDrvCtlRun(GenericRxEbpfPass());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_TX:
+        // TestDrvCtlRun(GenericRxEbpfTx());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_PAYLOAD:
+        // TestDrvCtlRun(GenericRxEbpfPayload());
+        break;
+    case IOCTL_PROG_TEST_RUN_RX_EBPF_PAYLOAD:
+        // TestDrvCtlRun(ProgTestRunRxEbpfPayload());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_IF_INDEX:
+        // TestDrvCtlRun(GenericRxEbpfIfIndex());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_FRAGMENTS:
+        // TestDrvCtlRun(GenericRxEbpfFragments());
+        break;
+    case IOCTL_GENERIC_RX_EBPF_UNLOAD:
+        // TestDrvCtlRun(GenericRxEbpfUnload());
         break;
     default:
         Status = STATUS_INVALID_PARAMETER;
