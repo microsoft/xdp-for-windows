@@ -121,7 +121,7 @@ function Get-EbpfMsiFullPath {
 
 function Get-EbpfMsiUrl {
     $EbpfVersion = Get-EbpfMsiVersion
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.msi"
 }
 
 function Get-FnVersion {
