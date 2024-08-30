@@ -2684,9 +2684,7 @@ OpenApiTest()
 VOID
 LoadApiTest()
 {
-    TraceInfo("====================================> LoadApiTest");
 #ifdef KERNEL_MODE
-    TraceInfo("====================================> LoadApiTest Kernel");
     XDP_LOAD_API_CONTEXT LoadApiContext;
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
@@ -2700,7 +2698,6 @@ LoadApiTest()
 
     TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
 #else
-    TraceInfo("====================================> LoadApiTest User");
     XDP_LOAD_API_CONTEXT XdpLoadApiContext;
     const XDP_API_TABLE *XdpApiTable;
 
@@ -2709,7 +2706,6 @@ LoadApiTest()
 
     TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
 #endif
-    TraceInfo("====================================> LoadApiTest Done");
 }
 
 #ifndef KERNEL_MODE
