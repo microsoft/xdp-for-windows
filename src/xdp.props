@@ -8,24 +8,16 @@
     <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.18.0\</EbpfPackagePath>
     <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
     <WntPackagePath>$(SolutionDir)packages\win-net-test.1.0.0\</WntPackagePath>
+    <!-- Undocked project properties -->
+    <UndockedDir>$(SolutionDir)submodules\cxplat\submodules\undocked\</UndockedDir>
+    <UndockedOut>$(SolutionDir)artifacts\</UndockedOut>
+    <UndockedSourceLink>true</UndockedSourceLink>
+    <UndockedVersioning>false</UndockedVersioning>
   </PropertyGroup>
-  <!-- The set of (eventually?) supported configurations -->
-  <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|ARM64">
-      <Configuration>Debug</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|ARM64">
-      <Configuration>Release</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
+  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="'$(ImportEbpf)' == 'true' AND Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
+  <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="'$(ImportWnt)' == 'true' AND Exists('$(WntPackagePath)build\native\win-net-test.props')" />
+  <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
+  <ItemGroup>
+    <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
 </Project>

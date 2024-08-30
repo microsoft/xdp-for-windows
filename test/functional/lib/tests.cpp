@@ -23,7 +23,10 @@
 #define NOMINMAX
 #include <winsock2.h>
 #include <windows.h>
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
 #include <ntddndis.h>
+#pragma warning(pop)
 #include <netiodef.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
