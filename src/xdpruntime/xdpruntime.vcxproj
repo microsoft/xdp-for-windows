@@ -7,7 +7,7 @@
     <UndockedUseDriverToolset>true</UndockedUseDriverToolset>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
- <ItemGroup>
+ <ItemGroup Condition="'$(BuildStage)' != 'Package'">
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
     </ProjectReference>
