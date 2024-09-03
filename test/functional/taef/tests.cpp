@@ -462,7 +462,9 @@ TEST_CLASS(xdpfunctionaltests)
 {
 public:
     TEST_METHOD(OpenApi) {
-        if (!TestingKernelMode) {
+        if (TestingKernelMode) {
+            TEST_TRUE(TestDriverClient.Run(IOCTL_OPEN_API));
+        } else {
             ::OpenApiTest();
         }
     }

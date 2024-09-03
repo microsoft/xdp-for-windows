@@ -310,6 +310,7 @@ error:
 
 size_t IOCTL_BUFFER_SIZES[] =
 {
+    0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY), sizeof(ADDRESS_FAMILY),
     sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS), sizeof(GENERIC_RX_MATCH_PARAMS),
@@ -428,6 +429,9 @@ TestDrvCtlEvtIoDeviceControl(
         FunctionCode);
 
     switch (IoControlCode) {
+    case IOCTL_OPEN_API:
+        TestDrvCtlRun(OpenApiTest());
+        break;
     case IOCTL_LOAD_API:
         TestDrvCtlRun(LoadApiTest());
         break;

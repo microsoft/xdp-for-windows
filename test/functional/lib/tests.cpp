@@ -60,7 +60,6 @@
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 
-#ifndef KERNEL_MODE
 #include <pkthlp.h>
 #include <fnmpapi.h>
 #include <fnlwfapi.h>
@@ -70,6 +69,8 @@
 #include "cxplat.h"
 #include "cxplatvector.h"
 #include "fnsock.h"
+
+#ifndef KERNEL_MODE
 
 #include <xdpndisuser.h>
 #endif KERNEL_MODE
@@ -237,8 +238,6 @@ static const XDP_API_PROVIDER_DISPATCH *XdpApi;
 static unique_xdp_api XdpApi;
 #endif
 
-#ifndef KERNEL_MODE
-
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
 static FNLWF_LOAD_API_CONTEXT FnLwfLoadApiContext;
 
@@ -255,6 +254,23 @@ typedef struct {
     XSK_RING Tx;
 } RING_SET;
 
+#ifdef KERNEL_MODE
+
+typedef struct {
+    XSK_UMEM_REG Reg;
+    UCHAR* Buffer;
+} MY_UMEM;
+
+typedef struct {
+    UINT32 QueueId;
+    MY_UMEM Umem;
+    void*    Handle;
+    void* RxProgram;
+    RING_SET Rings;
+    CxPlatVector<UINT64> FreeDescriptors;
+} MY_SOCKET;
+
+#else
 typedef struct {
     XSK_UMEM_REG Reg;
     wil::unique_virtualalloc_ptr<UCHAR> Buffer;
@@ -269,6 +285,8 @@ typedef struct {
     CxPlatVector<UINT64> FreeDescriptors;
 } MY_SOCKET;
 
+#endif
+
 typedef struct {
     BOOLEAN Rx;
     BOOLEAN Tx;
@@ -279,6 +297,8 @@ static RX_TX_TESTCASE RxTxTestCases[] = {
     { FALSE, TRUE },
     { TRUE, TRUE }
 };
+
+#ifndef KERNEL_MODE
 
 static const CHAR *PowershellPrefix;
 static RTL_OSVERSIONINFOW OsVersionInfo;
@@ -500,6 +520,8 @@ public:
     }
 };
 
+#endif
+
 class TestInterface {
 private:
     const CHAR *_IfDesc;
@@ -508,6 +530,7 @@ private:
     IN_ADDR _Ipv4Address;
     IN6_ADDR _Ipv6Address;
 
+#ifndef KERNEL_MODE
     VOID
     Query() const
     {
@@ -543,6 +566,35 @@ private:
 
         TEST_NOT_EQUAL(NET_IFINDEX_UNSPECIFIED, _IfIndex);
     }
+#else
+    VOID
+    Query() const
+    {
+        MIB_IPINTERFACE_TABLE* InterfaceTable = NULL;
+        MIB_UNICASTIPADDRESS_TABLE* AddressTable = NULL;
+
+        GetIpInterfaceTable(AF_UNSPEC, &InterfaceTable);
+
+        GetUnicastIpAddressTable(AF_UNSPEC, &AddressTable);
+
+        // //
+        // // Search for the test adapter.
+        // //
+        // Adapter = AdapterInfoList.get();
+        // while (Adapter != NULL) {
+        //     if (!strcmp(Adapter->Description, _IfDesc)) {
+        //         TEST_EQUAL(sizeof(_HwAddress), Adapter->AddressLength);
+        //         RtlCopyMemory(_HwAddress, Adapter->Address, sizeof(_HwAddress));
+
+        //         WriteUInt32Release(&_IfIndex, Adapter->Index);
+        //     }
+        //     Adapter = Adapter->Next;
+        // }
+
+        // TEST_NOT_EQUAL(NET_IFINDEX_UNSPECIFIED, _IfIndex);
+    }
+
+#endif
 
 public:
 
@@ -630,7 +682,7 @@ public:
         GetIpv6Address(Ipv6Address);
         Ipv6Address->u.Byte[sizeof(*Ipv6Address) - 1]++;
     }
-
+#ifndef KERNEL_MODE
     BOOLEAN
     TryRestart(BOOLEAN WaitForUp = TRUE) const
     {
@@ -692,10 +744,13 @@ public:
             PowershellPrefix, _IfDesc);
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
+#endif
 };
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
 static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
+
+#ifndef KERNEL_MODE
 
 static
 VOID
@@ -2663,7 +2718,7 @@ TestCleanup()
     return true;
 }
 
-#ifndef KERNEL_MODE
+// #ifndef KERNEL_MODE
 
 //
 // Tests
@@ -2672,14 +2727,20 @@ TestCleanup()
 VOID
 OpenApiTest()
 {
+    TraceInfo("====================================> OpenApiTest");
+#ifdef KERNEL_MODE
+#else
+    TraceInfo("====================================> OpenApiTest USER");
     unique_xdp_api XdpApiTable = OpenApi();
     XdpCloseApi(XdpApiTable.get());
     XdpApiTable.release();
 
     TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_1 + 1)));
+#endif
+    TraceInfo("====================================> OpenApiTest Done");
 }
 
-#endif
+// #endif
 
 VOID
 LoadApiTest()
@@ -2708,7 +2769,6 @@ LoadApiTest()
 #endif
 }
 
-#ifndef KERNEL_MODE
 
 static
 VOID
@@ -2717,7 +2777,9 @@ BindingTest(
     _In_ BOOLEAN RestartAdapter
     )
 {
-    for (auto Case : RxTxTestCases) {
+    // for (auto Case : RxTxTestCases) {
+    for (int i = 0; i < ARRAYSIZE(RxTxTestCases); i++) {
+        auto& Case = RxTxTestCases[i];
         //
         // Create and close an XSK.
         //
@@ -2776,6 +2838,8 @@ GenericBinding()
 {
     BindingTest(FnMpIf, FALSE);
 }
+
+#ifndef KERNEL_MODE
 
 VOID
 GenericBindingResetAdapter()
