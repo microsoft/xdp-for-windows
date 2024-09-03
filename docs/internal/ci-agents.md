@@ -42,3 +42,4 @@ Some of our 1ES managed images have extra configuration applied during image cre
 1. Create a standalone PR consisting only of the JSON changes and corresponding [prepare.machine.ps1](/tools/prepare-machine.ps1).
 2. Once the PR is approved, the author should navigate to the [Azure portal](https://ms.portal.azure.com/) and update each 1ES image with the new JSON. It may take several hours for the 1ES images to be rebuilt with the new configuration.
 3. The author should then re-run GitHub actions on the pipelines and validate the new configuration has taken effect.
+4. The author completes the PR.
