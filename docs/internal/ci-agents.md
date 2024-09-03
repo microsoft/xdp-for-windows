@@ -19,7 +19,7 @@ We own several 1ES Hosted Pools in the [`CoreOS_LIOF_WindowsXDP_dev`](https://ms
 
 We use a mix of standardized and customized images across our agent pools.
 
-Some images are shared across Azure Pipelines and GitHub pools; for example, `WS2019-Functional` is used by both `XDP-CI-1ES-Functional-2` in Azure Pipelines and `xdp-ci-functional-g`h in GitHub.
+Some images are shared across Azure Pipelines and GitHub pools; for example, `WS2019-Functional` is used by both `XDP-CI-1ES-Functional-2` in Azure Pipelines and `xdp-ci-functional-gh` in GitHub.
 
 Some images are shared across pool types; for example, the `none` configuration is used by both `xdp-ci-fuzz-gh` and `xdp-ci-perf-gh`.
 
