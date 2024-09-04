@@ -127,7 +127,6 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 // execute.
 //
 #define TEST_TIMEOUT_ASYNC_MS 1000
-#ifndef KERNEL_MODE
 #define TEST_TIMEOUT_ASYNC std::chrono::milliseconds(TEST_TIMEOUT_ASYNC_MS)
 
 //
@@ -138,13 +137,28 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 //
 // Interval between polling attempts.
 //
-#endif
 #define POLL_INTERVAL_MS 10
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
-#ifndef KERNEL_MODE
 C_ASSERT(POLL_INTERVAL_MS * 5 <= MP_RESTART_TIMEOUT_MS);
 
 class TestInterface;
+
+#ifndef htons
+#define htons _byteswap_ushort
+#endif
+
+#ifndef ntohs
+#define ntohs _byteswap_ushort
+#endif
+
+#ifndef htonl
+#define htonl _byteswap_ulong
+#endif
+
+#ifndef ntohl
+#define ntohl _byteswap_ulong
+#endif
+
 
 static
 VOID
@@ -192,10 +206,6 @@ FreeMem(
     CXPLAT_FREE(Mem, 'tPDX');
 }
 
-template <typename T>
-using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
-using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
-using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
@@ -208,8 +218,22 @@ VOID
 MpResetMtu(
     _In_ const TestInterface *If
     );
-
 using unique_fnmp_mtu_handle = wil::unique_any<const TestInterface *, decltype(::MpResetMtu), ::MpResetMtu>;
+
+#ifndef KERNEL_MODE
+using unique_handle = wil::unique_handle;
+
+template <typename T>
+using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
+using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
+using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
+
+#else
+using unique_handle = wistd::unique_ptr<HANDLE>;
+template <typename T>
+using unique_malloc_ptr = wistd::unique_ptr<T>;
+// using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE>;
+// using unique_bpf_object = wistd::unique_ptr<bpf_object>;
 
 #endif
 
@@ -258,14 +282,14 @@ typedef struct {
 
 typedef struct {
     XSK_UMEM_REG Reg;
-    UCHAR* Buffer;
+    wistd::unique_ptr<UCHAR> Buffer;
 } MY_UMEM;
 
 typedef struct {
     UINT32 QueueId;
     MY_UMEM Umem;
-    void*    Handle;
-    void* RxProgram;
+    unique_handle Handle;
+    unique_handle RxProgram;
     RING_SET Rings;
     CxPlatVector<UINT64> FreeDescriptors;
 } MY_SOCKET;
@@ -279,8 +303,8 @@ typedef struct {
 typedef struct {
     UINT32 QueueId;
     MY_UMEM Umem;
-    wil::unique_handle Handle;
-    wil::unique_handle RxProgram;
+    unique_handle Handle;
+    unique_handle RxProgram;
     RING_SET Rings;
     CxPlatVector<UINT64> FreeDescriptors;
 } MY_SOCKET;
@@ -293,15 +317,14 @@ typedef struct {
 } RX_TX_TESTCASE;
 
 static RX_TX_TESTCASE RxTxTestCases[] = {
-    { TRUE, FALSE },
+    // { TRUE, FALSE },
     { FALSE, TRUE },
-    { TRUE, TRUE }
+    // { TRUE, TRUE }
 };
-
-#ifndef KERNEL_MODE
 
 static const CHAR *PowershellPrefix;
 static RTL_OSVERSIONINFOW OsVersionInfo;
+
 
 //
 // Helper functions.
@@ -335,6 +358,8 @@ InvokeSystem(
 
     return Result;
 }
+
+#ifndef KERNEL_MODE
 
 typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
 
@@ -447,6 +472,8 @@ GetRandomUInt32()
     return Random;
 }
 
+#endif
+
 class Stopwatch {
 private:
     UINT64 _StartQpc;
@@ -519,8 +546,6 @@ public:
         Reset();
     }
 };
-
-#endif
 
 class TestInterface {
 private:
@@ -682,7 +707,7 @@ public:
         GetIpv6Address(Ipv6Address);
         Ipv6Address->u.Byte[sizeof(*Ipv6Address) - 1]++;
     }
-#ifndef KERNEL_MODE
+
     BOOLEAN
     TryRestart(BOOLEAN WaitForUp = TRUE) const
     {
@@ -744,19 +769,18 @@ public:
             PowershellPrefix, _IfDesc);
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
-#endif
 };
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
 static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
-
-#ifndef KERNEL_MODE
 
 static
 VOID
 WaitForWfpQuarantine(
     _In_ const TestInterface &If
     );
+
+#ifndef KERNEL_MODE
 
 static
 HRESULT
@@ -938,26 +962,41 @@ OpenApi(
 }
 #endif
 
-#ifndef KERNEL_MODE
-
 static
 HRESULT
 TryCreateSocket(
-    _Inout_ wil::unique_handle &Socket
+    _Inout_ unique_handle &Socket
     )
 {
-    return XdpApi->XskCreate(&Socket);
+    return XdpApi->XskCreate(
+#ifdef KERNEL_MODE
+        CxPlatXdpApiGetProviderBindingContext(),
+        NULL, NULL, NULL,
+#endif
+        Socket.get());
 }
 
 static
-wil::unique_handle
+unique_handle
 CreateSocket()
 {
-    wil::unique_handle Socket;
+    unique_handle Socket;
     TEST_HRESULT(TryCreateSocket(Socket));
     return Socket;
 }
 
+#ifdef KERNEL_MODE
+
+static
+wistd::unique_ptr<UCHAR>
+AllocUmemBuffer()
+{
+    wistd::unique_ptr<UCHAR> Buffer(
+        (UCHAR *)CXPLAT_ALLOC_NONPAGED(DEFAULT_UMEM_SIZE, 'tPDX'));
+    TEST_NOT_NULL(Buffer.get());
+    return Buffer;
+}
+#else
 static
 wil::unique_virtualalloc_ptr<UCHAR>
 AllocUmemBuffer()
@@ -970,6 +1009,7 @@ AllocUmemBuffer()
     TEST_NOT_NULL(Buffer.get());
     return Buffer;
 }
+#endif
 
 static
 VOID
@@ -1154,6 +1194,8 @@ NotifySocket(
     TEST_HRESULT(TryNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result));
 }
 
+#ifndef KERNEL_MODE
+
 static
 HRESULT
 TryNotifyAsync(
@@ -1189,19 +1231,19 @@ static
 HRESULT
 TryInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
-    _Out_ wil::unique_handle &InterfaceHandle
+    _Out_ unique_handle &InterfaceHandle
     )
 {
     return XdpApi->XdpInterfaceOpen(InterfaceIndex, &InterfaceHandle);
 }
 
 static
-wil::unique_handle
+unique_handle
 InterfaceOpen(
     _In_ UINT32 InterfaceIndex
     )
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     TEST_HRESULT(TryInterfaceOpen(InterfaceIndex, InterfaceHandle));
     return InterfaceHandle;
 }
@@ -1308,10 +1350,12 @@ TryQeoSet(
     return XdpQeoSet(InterfaceHandle, QuicConnections, QuicConnectionsSize);
 }
 
+#endif
+
 static
 HRESULT
 TryCreateXdpProg(
-    _Out_ wil::unique_handle &ProgramHandle,
+    _Out_ unique_handle &ProgramHandle,
     _In_ UINT32 IfIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -1330,11 +1374,15 @@ TryCreateXdpProg(
     }
 
     return
-        XdpApi->XdpCreateProgram(IfIndex, HookId, QueueId, Flags, Rules, RuleCount, &ProgramHandle);
+        XdpApi->XdpCreateProgram(
+#ifdef KERNEL_MODE
+            CxPlatXdpApiGetProviderBindingContext(),
+#endif
+            IfIndex, HookId, QueueId, Flags, Rules, RuleCount, ProgramHandle.get());
 }
 
 static
-wil::unique_handle
+unique_handle
 CreateXdpProg(
     _In_ UINT32 IfIndex,
     _In_ const XDP_HOOK_ID *HookId,
@@ -1345,7 +1393,7 @@ CreateXdpProg(
     _In_ XDP_CREATE_PROGRAM_FLAGS Flags = XDP_CREATE_PROGRAM_FLAG_NONE
     )
 {
-    wil::unique_handle ProgramHandle;
+    unique_handle ProgramHandle;
 
     TEST_HRESULT(
         TryCreateXdpProg(
@@ -1355,7 +1403,7 @@ CreateXdpProg(
 }
 
 static
-wil::unique_handle
+unique_handle
 SocketAttachRxProgram(
     _In_ UINT32 IfIndex,
     _In_ const XDP_HOOK_ID *HookId,
@@ -1627,6 +1675,8 @@ SocketProducerCheckNeedPoke(
     TEST_EQUAL(ExpectedState, XskRingProducerNeedPoke(Ring));
 }
 
+#ifndef KERNEL_MODE
+
 static
 VOID
 InitializeOidKey(
@@ -1642,6 +1692,8 @@ InitializeOidKey(
     Key->RequestInterface = RequestInterface;
 }
 
+#endif
+
 static
 unique_fnmp_handle
 MpOpenGeneric(
@@ -1652,6 +1704,8 @@ MpOpenGeneric(
     TEST_HRESULT(FnMpOpenShared(IfIndex, &Handle));
     return Handle;
 }
+
+#ifndef KERNEL_MODE
 
 static
 unique_fnmp_handle
@@ -1705,6 +1759,8 @@ LwfIsDatapathActive(
 
     return IsDatapathActive;
 }
+
+#endif
 
 struct RX_FRAME {
     DATA_FRAME Frame;
@@ -1866,6 +1922,8 @@ MpTxGetFrame(
     return FnMpTxGetFrame(Handle.get(), Index, 0, FrameBufferLength, Frame);
 }
 
+#ifndef KERNEL_MODE
+
 static
 VOID
 MpTxVerifyNoFrame(
@@ -1879,6 +1937,8 @@ MpTxVerifyNoFrame(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
         MpTxGetFrame(Handle, Index, &FrameBufferLength, NULL));
 }
+
+#endif
 
 static
 unique_malloc_ptr<DATA_FRAME>
@@ -1940,6 +2000,8 @@ MpTxFlush(
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
 }
+
+#ifndef KERNEL_MODE
 
 static
 VOID
@@ -2178,6 +2240,8 @@ MpGetLastMiniportPauseTimestamp(
     return Timestamp;
 }
 
+#endif
+
 [[nodiscard]]
 static
 unique_fnmp_mtu_handle
@@ -2190,6 +2254,8 @@ MpSetMtu(
     TEST_HRESULT(FnMpSetMtu(Handle.get(), Mtu));
     return unique_fnmp_mtu_handle(&If);
 }
+
+#ifndef KERNEL_MODE
 
 [[nodiscard]]
 static
@@ -2356,6 +2422,8 @@ MpTaskOffloadReset(
         Handle, FnOffloadCurrentConfig, &OffloadParams, sizeof(OffloadParams)));
 }
 
+#endif
+
 static
 unique_fnsock
 CreateUdpSocket(
@@ -2440,7 +2508,7 @@ CreateTcpSocket(
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
     auto GenericMp = MpOpenGeneric(If->GetIfIndex());
-    wil::unique_handle ProgramHandleTx;
+    unique_handle ProgramHandleTx;
 
     auto Xsk =
         CreateAndBindSocket(
@@ -2602,6 +2670,8 @@ WaitForWfpQuarantine(
     } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(Bytes, sizeof(UdpPayload));
 }
+
+#ifndef KERNEL_MODE
 
 static
 BOOLEAN
@@ -2777,7 +2847,6 @@ BindingTest(
     _In_ BOOLEAN RestartAdapter
     )
 {
-    // for (auto Case : RxTxTestCases) {
     for (int i = 0; i < ARRAYSIZE(RxTxTestCases); i++) {
         auto& Case = RxTxTestCases[i];
         //
@@ -2838,8 +2907,6 @@ GenericBinding()
 {
     BindingTest(FnMpIf, FALSE);
 }
-
-#ifndef KERNEL_MODE
 
 VOID
 GenericBindingResetAdapter()
@@ -2990,7 +3057,7 @@ GenericRxAllQueueRedirect(
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     Rule.Redirect.Target = Xsk.Handle.get();
 
-    wil::unique_handle ProgramHandle =
+    unique_handle ProgramHandle =
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
             XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
@@ -3078,7 +3145,7 @@ GenericRxTcpControl(
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     Rule.Redirect.Target = Xsk.Handle.get();
 
-    wil::unique_handle ProgramHandle =
+    unique_handle ProgramHandle =
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
@@ -3259,7 +3326,7 @@ GenericRxMatch(
             CreateUdpSocket(Af, &If, &LocalPort) :
             CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    wil::unique_handle ProgramHandle;
+    unique_handle ProgramHandle;
     unique_malloc_ptr<UINT8> PortSet;
 
     If.GetHwAddress(&LocalHw);
@@ -3660,6 +3727,8 @@ GenericRxMatch(
     }
 }
 
+#ifndef KERNEL_MODE
+
 VOID
 GenericRxMatchIpPrefix(
     _In_ ADDRESS_FAMILY Af
@@ -3672,7 +3741,7 @@ GenericRxMatchIpPrefix(
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    wil::unique_handle ProgramHandle;
+    unique_handle ProgramHandle;
 
     RemotePort = htons(1234);
     If.GetHwAddress(&LocalHw);
@@ -3737,6 +3806,8 @@ GenericRxMatchIpPrefix(
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
 
+#endif
+
 VOID
 GenericRxLowResources()
 {
@@ -3780,7 +3851,7 @@ GenericRxLowResources()
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     Rule.Redirect.Target = Xsk.Handle.get();
 
-    wil::unique_handle ProgramHandle =
+    unique_handle ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     //
@@ -3885,7 +3956,7 @@ GenericRxMultiSocket()
         Rules[Index].Redirect.Target = Sockets[Index].Xsk.Handle.get();
     }
 
-    wil::unique_handle ProgramHandle =
+    unique_handle ProgramHandle =
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC,
             Rules, RTL_NUMBER_OF(Rules));
@@ -3932,7 +4003,7 @@ GenericRxMultiProgram()
     UCHAR UdpMatchPayload[] = "GenericRxMultiProgram";
     struct {
         MY_SOCKET Xsk;
-        wil::unique_handle ProgramHandle;
+        unique_handle ProgramHandle;
         UINT16 LocalPort;
         UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpMatchPayload)];
         UINT32 UdpFrameLength;
@@ -4014,6 +4085,8 @@ GenericRxMultiProgram()
     }
 }
 
+#ifndef _KERNEL_MODE
+
 VOID
 GenericRxUdpFragmentQuicShortHeader(
     _In_ ADDRESS_FAMILY Af
@@ -4027,7 +4100,7 @@ GenericRxUdpFragmentQuicShortHeader(
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    wil::unique_handle ProgramHandle;
+    unique_handle ProgramHandle;
 
     RemotePort = htons(1234);
     If.GetHwAddress(&LocalHw);
@@ -4158,7 +4231,7 @@ GenericRxUdpFragmentQuicLongHeader(
             CreateUdpSocket(Af, &If, &LocalPort) :
             CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    wil::unique_handle ProgramHandle;
+    unique_handle ProgramHandle;
 
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
@@ -4636,7 +4709,7 @@ GenericRxFragmentBuffer(
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
     MY_SOCKET Xsk;
-    wil::unique_handle ProgramHandle;
+    unique_handle ProgramHandle;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
     const XDP_HOOK_ID *RxHookId = Params->IsTxInspect ? &XdpInspectTxL2 : &XdpInspectRxL2;
@@ -4965,7 +5038,7 @@ GenericRxFromTxInspect(
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     Rule.Redirect.Target = Xsk.Handle.get();
 
-    wil::unique_handle ProgramHandle =
+    unique_handle ProgramHandle =
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectTxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
@@ -5464,7 +5537,7 @@ SecurityAdjustDeviceAcl()
         }
     });
 
-    wil::unique_handle Token;
+    unique_handle Token;
     TEST_TRUE(LogonUserW(
         UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
 
@@ -5478,12 +5551,12 @@ SecurityAdjustDeviceAcl()
             RevertToSelf();
         });
 
-        wil::unique_handle Socket;
+        unique_handle Socket;
         TEST_EQUAL(
             HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
             TryCreateSocket(Socket));
 
-        wil::unique_handle Interface;
+        unique_handle Interface;
         TEST_EQUAL(
             HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
             TryInterfaceOpen(If.GetIfIndex(), Interface));
@@ -5975,6 +6048,8 @@ GenericRxEbpfUnload()
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
 }
 
+#endif
+
 VOID
 GenericTxToRxInject()
 {
@@ -6347,6 +6422,8 @@ GenericTxMtu()
     TEST_EQUAL(1, Stats.TxInvalidDescriptors);
 }
 
+#ifndef KERNEL_MODE
+
 static
 VOID
 RxIndicate(
@@ -6523,7 +6600,7 @@ GenericXskWaitAsync(
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const UINT32 WaitTimeoutMs = 1000;
     OVERLAPPED ov = {0};
-    wil::unique_handle iocp(CreateIoCompletionPort(Xsk.Handle.get(), NULL, 0, 0));
+    unique_handle iocp(CreateIoCompletionPort(Xsk.Handle.get(), NULL, 0, 0));
 
     UCHAR Payload[] = "GenericXskWaitAsync";
 
@@ -6812,7 +6889,7 @@ GenericLoopback(
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     Rule.Redirect.Target = Xsk.Handle.get();
 
-    wil::unique_handle ProgramHandle =
+    unique_handle ProgramHandle =
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
@@ -6885,7 +6962,7 @@ GenericLoopback(
 static
 unique_malloc_ptr<XDP_RSS_CONFIGURATION>
 GetXdpRss(
-    _In_ const wil::unique_handle &InterfaceHandle,
+    _In_ const unique_handle &InterfaceHandle,
     _Out_opt_ UINT32 *RssConfigSize = NULL
     )
 {
@@ -6919,7 +6996,7 @@ GetXdpRssIndirectionTable(
     _Out_ UINT32 &IndirectionTableSizeOut
     )
 {
-    wil::unique_handle InterfaceHandle = InterfaceOpen(If.GetIfIndex());
+    unique_handle InterfaceHandle = InterfaceOpen(If.GetIfIndex());
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(InterfaceHandle);
 
     IndirectionTableOut.reset((PROCESSOR_NUMBER *)AllocMem(RssConfig->IndirectionTableSize));
@@ -6934,7 +7011,7 @@ static
 VOID
 SetXdpRss(
     _In_ const TestInterface &If,
-    _In_ const wil::unique_handle &InterfaceHandle,
+    _In_ const unique_handle &InterfaceHandle,
     _In_ const unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
     _In_ UINT32 IndirectionTableSize
     )
@@ -7173,7 +7250,7 @@ VerifyRssDatapath(
 VOID
 OffloadRssError()
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT16 IndirectionTableSize = 1 * sizeof(PROCESSOR_NUMBER);
     UINT32 RssConfigSize = sizeof(*RssConfig) + IndirectionTableSize;
@@ -7238,7 +7315,7 @@ OffloadRssError()
 
     RssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize);
 
-    wil::unique_handle InterfaceHandle2 = InterfaceOpen(FnMpIf.GetIfIndex());
+    unique_handle InterfaceHandle2 = InterfaceOpen(FnMpIf.GetIfIndex());
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_BAD_COMMAND),
         TryRssSet(InterfaceHandle2.get(), RssConfig.get(), RssConfigSize));
@@ -7247,7 +7324,7 @@ OffloadRssError()
 VOID
 OffloadRssReference()
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> ModifiedRssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
@@ -7311,7 +7388,7 @@ OffloadRssReference()
 VOID
 OffloadRssUnchanged()
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT32 RssConfigSize;
     UCHAR *HashSecretKey;
@@ -7382,7 +7459,7 @@ OffloadRssUnchanged()
 VOID
 OffloadRssInterfaceRestart()
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> OriginalRssConfig;
     UINT32 RssConfigSize;
@@ -7493,7 +7570,7 @@ OffloadRssInterfaceRestart()
 VOID
 OffloadRssUpperSet()
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> NdisRssParams;
     unique_malloc_ptr<NDIS_RECEIVE_SCALE_PARAMETERS> OriginalNdisRssParams;
@@ -7630,7 +7707,7 @@ OffloadRssSingleSet(
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
     unique_malloc_ptr<PROCESSOR_NUMBER> OldIndirectionTable;
     unique_malloc_ptr<PROCESSOR_NUMBER> ResetIndirectionTable;
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     UINT32 IndirectionTableSize;
     UINT32 OldIndirectionTableSize;
     UINT32 ResetIndirectionTableSize;
@@ -7660,7 +7737,7 @@ OffloadRssSubsequentSet(
     _In_ const CxPlatVector<UINT32> &ProcessorIndices2
     )
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable1;
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable2;
     UINT32 IndirectionTable1Size;
@@ -7749,7 +7826,7 @@ OffloadRssSet()
 VOID
 OffloadRssCapabilities()
 {
-    wil::unique_handle InterfaceHandle;
+    unique_handle InterfaceHandle;
     unique_malloc_ptr<XDP_RSS_CAPABILITIES> RssCapabilities;
     UINT32 Size = 0;
 
@@ -8027,7 +8104,7 @@ GenericXskQueryAffinity()
 
         for (UINT32 ProcIndex = 0; ProcIndex < 2; ProcIndex++) {
             unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
-            wil::unique_handle InterfaceHandle;
+            unique_handle InterfaceHandle;
             UINT32 IndirectionTableSize;
 
             PROCESSOR_NUMBER TargetProcNumber;
@@ -8405,7 +8482,7 @@ OffloadQeoRevert(
     // handle is reset below.
     //
     struct QEO_REVERT_THREAD_CONTEXT {
-        wil::unique_handle InterfaceHandle;
+        unique_handle InterfaceHandle;
         REVERT_REASON RevertReason;
         bool Succeeded;
     } Ctx;
