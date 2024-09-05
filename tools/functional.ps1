@@ -14,10 +14,6 @@ This script runs the XDP functional tests.
 
 .PARAMETER Iterations
     The number of times to run the test suite.
-
-.PARAMETER UseJitEbpf
-    If true, install JIT mode for eBPF.
-
 #>
 
 param (
@@ -48,7 +44,7 @@ param (
     [string]$TestBinaryPath = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$NoPrerelease = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -56,7 +52,8 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+. $RootDir\tools\common.ps1
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $LogsDir = "$RootDir\artifacts\logs"
 $IterationFailureCount = 0
 $IterationTimeout = 0
@@ -108,14 +105,21 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
         Write-Verbose "installed fnlwf."
 
+        Write-Verbose "installing fnsock..."
+        & "$RootDir\tools\setup.ps1" -Install fnsock -Config $Config -Arch $Arch
+        Write-Verbose "installed fnsock."
+
         $TestArgs = @()
         if (![string]::IsNullOrEmpty($TestBinaryPath)) {
             $TestArgs += $TestBinaryPath
         } else {
-            $TestArgs += "$ArtifactsDir\xdpfunctionaltests.dll"
+            $TestArgs += "$ArtifactsDir\test\xdpfunctionaltests.dll"
         }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
             $TestArgs += "/TestCaseFilter:$TestCaseFilter"
+        }
+        if ($NoPrerelease) {
+            $TestArgs += "/TestCaseFilter:Priority!=1"
         }
         if ($ListTestCases) {
             $TestArgs += "/lt"
@@ -145,6 +149,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if ($Watchdog -ne $null) {
             Remove-Job -Job $Watchdog -Force
         }
+        & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'

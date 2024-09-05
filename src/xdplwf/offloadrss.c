@@ -1261,7 +1261,9 @@ XdpLwfOffloadRssInspectOidRequest(
     *Action = XdpOidActionPass;
     *CompletionStatus = NDIS_STATUS_SUCCESS;
 
-    if (Request->DATA.Oid != OID_GEN_RECEIVE_SCALE_PARAMETERS) {
+    if (Filter->Offload.Deactivated ||
+        Request->DATA.Oid != OID_GEN_RECEIVE_SCALE_PARAMETERS ||
+        Request->PortNumber != NDIS_DEFAULT_PORT_NUMBER) {
         goto Exit;
     }
 

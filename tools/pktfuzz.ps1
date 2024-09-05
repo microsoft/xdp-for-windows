@@ -19,7 +19,8 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+. $RootDir\tools\common.ps1
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $LogsDir = "$RootDir\artifacts\logs"
 
 # Ensure the output path exists.
@@ -40,8 +41,8 @@ try {
     Push-Location $LogsDir
     $env:ASAN_SAVE_DUMPS="$pwd\asan.dmp"
 
-    Write-Verbose "$ArtifactsDir\pktfuzz.exe $Options"
-    & $ArtifactsDir\pktfuzz.exe $Options
+    Write-Verbose "$ArtifactsDir\test\pktfuzz.exe $Options"
+    & $ArtifactsDir\test\pktfuzz.exe $Options
 
     if (!$?) {
         Write-Error "pktfuzz.exe failed: $LastExitCode"

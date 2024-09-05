@@ -45,19 +45,54 @@ jobs:
       arch: ${{ matrix.arch }}
       codeql: ${{ github.event_name == 'schedule' }}
       upload_artifacts: ${{ matrix.os == 2022 }}
-      publish_symbols: ${{ github.event_name != 'pull_request' && matrix.os == 2022 }}
-    secrets:
-      publish_symbols_pat: ${{ secrets.AZDO_PAT }}
+
+  onebranch_build_validation:
+    name: OneBranch Build Validation
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Release, Debug]
+        arch: [x64]
+    permissions:
+      actions: read
+      contents: read
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+        ref: ${{ inputs.ref }}
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+    - name: Nuget Restore
+      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+    - name: Build Binary
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Binary
+    - name: Build Catalog
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Catalog
+    - name: Build Package
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      with:
+        name: onebranch_bin_${{ matrix.config }}_${{ matrix.arch }}
+        path: |
+          artifacts/bin
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
 
   functional_tests:
     name: Functional Tests
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 120 # minutes. Update timeout-minutes with any changes.
+      fullRuntime: 250 # minutes. Update timeout-minutes with any changes.
       fullIters: 10
       # For PRs
-      prRuntime: 15 # minutes. Update timeout-minutes with any changes.
+      prRuntime: 25 # minutes. Update timeout-minutes with any changes.
       prIters: 1
     strategy:
       fail-fast: false
@@ -71,7 +106,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -79,29 +114,29 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 15
+      timeout-minutes: 25
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 120
+      timeout-minutes: 250
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 15
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
         name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -124,7 +159,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022]
+        windows: [2019, 2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64]
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
@@ -134,7 +169,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -142,29 +177,29 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForSpinxskTest -NoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForSpinxskTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Run spinxsk (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 15
+      timeout-minutes: 20
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 65
+      timeout-minutes: 70
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 15
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
         name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -189,11 +224,11 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Download Artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -201,7 +236,7 @@ jobs:
       shell: PowerShell
       run: tools/pktfuzz.ps1 -Minutes 10 -Workers 8 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Upload Logs
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
         name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -210,6 +245,8 @@ jobs:
   perf_tests:
     name: Perf Tests
     needs: build
+    env:
+      ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
     strategy:
       fail-fast: false
       matrix:
@@ -223,7 +260,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -231,23 +268,23 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForPerfTest -NoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForPerfTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Run xskperfsuite (Generic, Native)
       shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Run xskperfsuite (TX-inspect, RX-inject)
       shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Run xskperfsuite (Winsock, RIO)
       shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Upload Logs
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
         name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -261,7 +298,7 @@ jobs:
     name: Downlevel Functional Tests
     needs: build
     env:
-      Runtime: 15 # minutes. Update timeout-minutes with any changes.
+      Runtime: 25 # minutes. Update timeout-minutes with any changes.
       Iters: 1
     strategy:
       fail-fast: false
@@ -276,7 +313,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -284,9 +321,9 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -NoReboot -Verbose -UseJitEbpf
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -295,18 +332,18 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.platform }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
         Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
-        Copy-Item -Path artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Destination artifacts/bin/${{ matrix.platform }}_${{ matrix.configuration }}
+        tools/merge-artifacts.ps1 -SourcePath artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Run Tests
       shell: PowerShell
-      timeout-minutes: 15
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -Timeout ${{ env.Runtime }} -UseJitEbpf
+      timeout-minutes: 25
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }}
     - name: Convert Logs
       if: ${{ always() }}
-      timeout-minutes: 5
+      timeout-minutes: 15
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Arch ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
         name: logs_downlevel_${{ matrix.downlevel_release }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -327,25 +364,22 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
     - name: Download Artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
-    - name: Create Dev Kit
-      shell: PowerShell
-      run: tools/create-devkit.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Create Test Archive
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Release Artifacts
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       with:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
           artifacts/kit/**/*.zip
-          artifacts/tests/**/*.zip
+          artifacts/testarchive/**/*.zip
 
   etw:
     name: ETW Plugin
@@ -359,14 +393,14 @@ jobs:
       security-events: write  # For CodeQL
     steps:
     - name: Checkout repository
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v3
       with:
         languages: csharp
     - name: Setup .NET
-      uses: actions/setup-dotnet@4d6c8fcf3c8f7a60068d26b594648e99df24cee3
+      uses: actions/setup-dotnet@6bd8b7f7774af54e05809fcc5431931b3eb1ddee
       with:
         dotnet-version: 6.0.x
     - name: Prepare Machine
@@ -374,7 +408,7 @@ jobs:
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
-    - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
@@ -384,24 +418,29 @@ jobs:
       with:
         category: "/language:csharp"
 
-  netperf:
-    name: Run Perf
-    needs: []
-    runs-on: windows-latest
-    steps:
-    - name: Run NetPerf Workflow
-      shell: pwsh
-      run: |
-        $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
-        if ('${{ secrets.NET_PERF_TRIGGER }}' -eq '') {
-            Write-Host "Not able to run because no secrets are available!"
-            return
-        }
-        iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
+  # netperf:
+  #   name: Run Perf
+  #   needs: []
+  #   runs-on: windows-latest
+  #   steps:
+  #   - name: Run NetPerf Workflow
+  #     shell: pwsh
+  #     run: |
+  #       $url = "https://raw.githubusercontent.com/microsoft/netperf/main/run-workflow.ps1"
+  #       if ('${{ secrets.NET_PERF_TRIGGER }}' -eq '') {
+  #           Write-Host "Not able to run because no secrets are available!"
+  #           return
+  #       }
+  #       iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
 
   Complete:
     name: Complete
-    needs: [build, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw, netperf]
-    runs-on: windows-latest
+    if: always()
+    needs: [build, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    runs-on: ubuntu-latest
+    permissions: {} # No need for any permissions.
     steps:
-    - run: echo "CI succeeded"
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON(needs) }}

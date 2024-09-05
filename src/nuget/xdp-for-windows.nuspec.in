@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!-- Copyright (c) Microsoft Corporation -->
+<package>
+    <metadata>
+        <title>XDP for Windows</title>
+        <id>XDP-for-Windows</id>
+        <version>{version}</version>
+        <authors>XDP for Windows Contributors</authors>
+        <owners>XDP for Windows Contributors</owners>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<license type="expression">MIT</license>
+        <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
+        <description>XDP for Windows</description>
+        <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
+    </metadata>
+    <files>
+        <file src="xdp-for-windows.props" target="build\native"/>
+        <file src="{rootpath}\published\external\**" target="build\native\include"/>
+        <file src="{binpath}\xdpbpfexport.exe" target="build\native\bin"/>
+        <file src="{binpath}\xdpapi.lib" target="build\native\lib"/>
+        <file src="{binpath}\xdpnmr.lib" target="build\native\lib"/>
+    </files>
+</package>

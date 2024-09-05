@@ -22,26 +22,24 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Platform
 
 $Name = "xdp-tests-$Platform"
 if ($Config -eq "Debug") {
     $Name += "-debug"
 }
-$DstPath = "artifacts\tests\$Name"
+$DstPath = "artifacts\testarchive\$Name"
 
 Remove-Item $DstPath -Recurse -ErrorAction Ignore
 New-Item -Path $DstPath -ItemType Directory > $null
 
 New-Item -Path $DstPath\bin -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.dll" $DstPath\bin
+New-Item -Path $DstPath\bin\test -ItemType Directory > $null
+copy "$ArtifactBin\test\xdpfunctionaltests.dll" $DstPath\bin\test\
 
 New-Item -Path $DstPath\symbols -ItemType Directory > $null
-copy "artifacts\bin\$($Platform)_$($Config)\xdpfunctionaltests.pdb"   $DstPath\symbols
+copy "$ArtifactBin\test\xdpfunctionaltests.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
-
-if (!(Is-ReleaseBuild)) {
-    $VersionString += "-prerelease+" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
-}
 
 Compress-Archive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*

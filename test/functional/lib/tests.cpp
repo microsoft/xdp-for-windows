@@ -6,30 +6,21 @@
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
 
-#define _CRT_RAND_S
-#include <cstdlib>
-#include <algorithm>
-#include <chrono>
-#include <cstdio>
-#include <future>
-#include <initializer_list>
-#include <memory>
-#include <set>
-#include <stack>
-#include <string>
-#include <vector>
-
 // Windows and WIL includes need to be ordered in a certain way.
 #define NOMINMAX
 #include <winsock2.h>
 #include <windows.h>
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
 #include <ntddndis.h>
+#pragma warning(pop)
 #include <netiodef.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
 #include <lm.h>
 #include <sddl.h>
+#include <string.h>
 
 #if _MSCVER < 1930
 //
@@ -62,9 +53,14 @@
 #include <bpf/libbpf.h>
 
 #include "ebpf_nethooks.h"
+#include "cxplat.h"
+#include "cxplatvector.h"
+#include "fnsock.h"
 #include "xdptest.h"
 #include "tests.h"
 #include "util.h"
+
+#include "cxplat.hpp"
 
 #include "tests.tmh"
 
@@ -102,27 +98,85 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 // execute.
 //
 #define TEST_TIMEOUT_ASYNC_MS 1000
-#define TEST_TIMEOUT_ASYNC std::chrono::milliseconds(TEST_TIMEOUT_ASYNC_MS)
 
 //
 // The expected maximum time needed for a network adapter to restart.
 //
-#define MP_RESTART_TIMEOUT std::chrono::seconds(15)
+#define MP_RESTART_TIMEOUT_MS 15000
 
 //
 // Interval between polling attempts.
 //
 #define POLL_INTERVAL_MS 10
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
-C_ASSERT(POLL_INTERVAL_MS * 5 <= std::chrono::milliseconds(MP_RESTART_TIMEOUT).count());
+C_ASSERT(POLL_INTERVAL_MS * 5 <= MP_RESTART_TIMEOUT_MS);
 
+class TestInterface;
+
+static
+VOID
+MpTxFilterReset(
+    _In_ const FNMP_HANDLE Handle
+    )
+{
+    TEST_HRESULT(FnMpTxFilter(Handle, NULL, NULL, 0));
+}
+
+static
+VOID
+LwfRxFilterReset(
+    _In_ const FNLWF_HANDLE Handle
+    )
+{
+    TEST_HRESULT(FnLwfRxFilter(Handle, NULL, NULL, 0));
+}
+
+static
+VOID
+MpTaskOffloadReset(
+    _In_ const FNMP_HANDLE Handle
+    );
+
+static
+void*
+AllocMem(
+    _In_ SIZE_T Size
+    )
+{
+    void* Mem = CXPLAT_ALLOC_NONPAGED(Size, 'tPDX');
+    if (Mem != NULL) {
+        CxPlatZeroMemory(Mem, Size);
+    }
+    return Mem;
+}
+
+static
+void
+FreeMem(
+    _In_ void *Mem
+    )
+{
+    CXPLAT_FREE(Mem, 'tPDX');
+}
 
 template <typename T>
-using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::free), ::free>>;
+using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
 using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
+using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
+using unique_fnlwf_filter_handle = wil::unique_any<FNLWF_HANDLE, decltype(::LwfRxFilterReset), ::LwfRxFilterReset>;
+using unique_fnsock = wil::unique_any<FNSOCK_HANDLE, decltype(::FnSockClose), ::FnSockClose>;
+using unique_fnmp_task_offload_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTaskOffloadReset), ::MpTaskOffloadReset>;
+
+static
+VOID
+MpResetMtu(
+    _In_ const TestInterface *If
+    );
+
+using unique_fnmp_mtu_handle = wil::unique_any<const TestInterface *, decltype(::MpResetMtu), ::MpResetMtu>;
 
 static unique_xdp_api XdpApi;
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
@@ -152,7 +206,7 @@ typedef struct {
     wil::unique_handle Handle;
     wil::unique_handle RxProgram;
     RING_SET Rings;
-    std::stack<UINT64> FreeDescriptors;
+    CxPlatVector<UINT64> FreeDescriptors;
 } MY_SOCKET;
 
 typedef struct {
@@ -173,18 +227,18 @@ static RTL_OSVERSIONINFOW OsVersionInfo;
 // Helper functions.
 //
 
-class TestInterface;
-
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_ UINT64 TimeoutInMs = TEST_TIMEOUT_ASYNC_MS
     );
 
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_ UINT64 TimeoutInMs = TEST_TIMEOUT_ASYNC_MS
     );
 
 static
@@ -216,6 +270,15 @@ GetOSVersion(
 
     OsVersionInfo.dwOSVersionInfoSize = sizeof(OsVersionInfo);
     TEST_EQUAL(STATUS_SUCCESS, RtlGetVersion(&OsVersionInfo));
+}
+
+BOOLEAN
+OsVersionIsVbOrLater()
+{
+    return
+        (OsVersionInfo.dwMajorVersion > 10 || (OsVersionInfo.dwMajorVersion == 10 &&
+        (OsVersionInfo.dwMinorVersion > 0 || (OsVersionInfo.dwMinorVersion == 0 &&
+        (OsVersionInfo.dwBuildNumber >= 19041)))));
 }
 
 BOOLEAN
@@ -295,40 +358,52 @@ ClearBit(
     BitMap[Index >> 3] &= (UINT8)~(1 << (Index & 0x7));
 }
 
-template<class T>
+static
+UINT32
+GetRandomUInt32()
+{
+    UINT32 Random;
+    CxPlatRandom(sizeof(Random), &Random);
+    return Random;
+}
+
 class Stopwatch {
 private:
-    LARGE_INTEGER _StartQpc;
-    LARGE_INTEGER _FrequencyQpc;
-    T _TimeoutInterval;
+    UINT64 _StartQpc;
+    UINT64 _TimeoutInterval;
 
 public:
     Stopwatch(
-        _In_opt_ T TimeoutInterval = T::max()
+        _In_opt_ UINT64 TimeoutInterval = MAXUINT64
         )
         :
         _TimeoutInterval(TimeoutInterval)
     {
-        QueryPerformanceFrequency(&_FrequencyQpc);
-        QueryPerformanceCounter(&_StartQpc);
+        _StartQpc = CxPlatTimePlat();
     }
 
-    T
+    UINT64
     Elapsed()
     {
-        LARGE_INTEGER End;
+        UINT64 End;
         UINT64 ElapsedQpc;
 
-        QueryPerformanceCounter(&End);
-        ElapsedQpc = End.QuadPart - _StartQpc.QuadPart;
+        End = CxPlatTimePlat();
+        ElapsedQpc = End - _StartQpc;
 
-        return T((ElapsedQpc * T::period::den) / T::period::num / _FrequencyQpc.QuadPart);
+        return US_TO_MS(CxPlatTimePlatToUs64(ElapsedQpc));
     }
 
-    T
+    UINT64
     Remaining()
     {
-        return std::max(T(0), _TimeoutInterval - Elapsed());
+        UINT64 Remaining = _TimeoutInterval - Elapsed();
+
+        if (Remaining > _TimeoutInterval) {
+            return 0;
+        } else {
+            return Remaining;
+        }
     }
 
     bool
@@ -339,12 +414,12 @@ public:
 
     void
     ExpectElapsed(
-        _In_ T ExpectedInterval,
+        _In_ UINT64 ExpectedInterval,
         _In_opt_ UINT32 MarginPercent = 10
         )
     {
-        T Fudge = (ExpectedInterval * MarginPercent) / 100;
-        TEST_TRUE(MarginPercent == 0 || Fudge > T(0));
+        UINT64 Fudge = (ExpectedInterval * MarginPercent) / 100;
+        TEST_TRUE(MarginPercent == 0 || Fudge > 0);
         TEST_TRUE(Elapsed() >= ExpectedInterval - Fudge);
         TEST_TRUE(Elapsed() <= ExpectedInterval + Fudge);
     }
@@ -352,12 +427,12 @@ public:
     void
     Reset()
     {
-        QueryPerformanceCounter(&_StartQpc);
+        _StartQpc = CxPlatTimePlat();
     }
 
     void
     Reset(
-        _In_ T TimeoutInterval
+        _In_ UINT64 TimeoutInterval
         )
     {
         _TimeoutInterval = TimeoutInterval;
@@ -388,8 +463,8 @@ private:
         //
         OutBufLen = 0;
         TEST_EQUAL(ERROR_BUFFER_OVERFLOW, GetAdaptersInfo(NULL, &OutBufLen));
-        unique_malloc_ptr<IP_ADAPTER_INFO> AdapterInfoList{ (IP_ADAPTER_INFO *)malloc(OutBufLen) };
-        TEST_NOT_NULL(AdapterInfoList);
+        unique_malloc_ptr<IP_ADAPTER_INFO> AdapterInfoList{ (IP_ADAPTER_INFO *)AllocMem(OutBufLen) };
+        TEST_NOT_NULL(AdapterInfoList.get());
         TEST_EQUAL(NO_ERROR, GetAdaptersInfo(AdapterInfoList.get(), &OutBufLen));
 
         //
@@ -563,6 +638,12 @@ static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
 static TestInterface FnMp1QIf(FNMP1Q_IF_DESC, FNMP1Q_IPV4_ADDRESS, FNMP1Q_IPV6_ADDRESS);
 
 static
+VOID
+WaitForWfpQuarantine(
+    _In_ const TestInterface &If
+    );
+
+static
 HRESULT
 TryStartService(
     _In_z_ const CHAR *ServiceName
@@ -579,7 +660,7 @@ TryStartService(
         return Result;
     }
 
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = GetServiceState(&ServiceState, ServiceName);
         if (FAILED(Result)) {
@@ -589,7 +670,7 @@ TryStartService(
         if (ServiceState == SERVICE_RUNNING) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     Result = (ServiceState == SERVICE_RUNNING) ? S_OK : E_FAIL;
     TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
@@ -613,7 +694,7 @@ TryStopService(
         return Result;
     }
 
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = GetServiceState(&ServiceState, ServiceName);
         if (FAILED(Result)) {
@@ -623,7 +704,7 @@ TryStopService(
         if (ServiceState == SERVICE_STOPPED) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     Result = (ServiceState == SERVICE_STOPPED) ? S_OK : E_FAIL;
     TraceVerbose("ServiceState=%u Result=%!HRESULT!", ServiceState, Result);
@@ -653,12 +734,9 @@ SetDeviceSddl(
     )
 {
     CHAR CmdBuff[256];
-    CHAR Path[MAX_PATH];
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
 
-    TEST_HRESULT(GetCurrentBinaryPath(Path, sizeof(Path)));
-
-    sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", Path, Sddl);
+    sprintf_s(CmdBuff, "xdpcfg.exe SetDeviceSddl \"%s\"", Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
@@ -1175,7 +1253,7 @@ XskSetupPostBind(
     UINT64 BufferCount = Socket->Umem.Reg.TotalSize / Socket->Umem.Reg.ChunkSize;
     UINT64 Offset = 0;
     while (BufferCount-- > 0) {
-        Socket->FreeDescriptors.push(Offset);
+        TEST_TRUE(Socket->FreeDescriptors.push_back(Offset));
         Offset += Socket->Umem.Reg.ChunkSize;
     }
 }
@@ -1217,14 +1295,14 @@ CreateAndBindSocket(
     // Since test actions (e.g. restart) might disrupt the interface, retry
     // bindings until the system must have quiesced.
     //
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     HRESULT BindResult;
     do {
         BindResult = XdpApi->XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags);
         if (SUCCEEDED(BindResult)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
     TEST_HRESULT(XdpApi->XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
@@ -1260,8 +1338,8 @@ SocketFreePop(
     _In_ MY_SOCKET *Socket
     )
 {
-    UINT64 Descriptor = Socket->FreeDescriptors.top();
-    Socket->FreeDescriptors.pop();
+    UINT64 Descriptor = Socket->FreeDescriptors[Socket->FreeDescriptors.size() - 1];
+    Socket->FreeDescriptors.pop_back();
     return Descriptor;
 }
 
@@ -1303,7 +1381,7 @@ SocketGetAndFreeRxDesc(
     )
 {
     XSK_BUFFER_DESCRIPTOR * RxDesc = SocketGetRxDesc(Socket, Index);
-    Socket->FreeDescriptors.push(RxDesc->Address.BaseAddress);
+    TEST_TRUE(Socket->FreeDescriptors.push_back(RxDesc->Address.BaseAddress));
     return RxDesc;
 }
 
@@ -1322,11 +1400,11 @@ UINT32
 SocketConsumerReserve(
     _In_ XSK_RING *Ring,
     _In_ UINT32 ExpectedCount,
-    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
+    _In_opt_ UINT64 Timeout = TEST_TIMEOUT_ASYNC_MS
     )
 {
     UINT32 Index;
-    Stopwatch<std::chrono::milliseconds> watchdog(Timeout);
+    Stopwatch watchdog(Timeout);
     while (!watchdog.IsExpired()) {
         if (XskRingConsumerReserve(Ring, ExpectedCount, &Index) == ExpectedCount) {
             break;
@@ -1357,10 +1435,10 @@ VOID
 SocketProducerCheckNeedPoke(
     _In_ XSK_RING *Ring,
     _In_ BOOLEAN ExpectedState,
-    _In_opt_ std::chrono::milliseconds Timeout = TEST_TIMEOUT_ASYNC
+    _In_opt_ UINT64 Timeout = TEST_TIMEOUT_ASYNC_MS
     )
 {
-    Stopwatch<std::chrono::milliseconds> watchdog(Timeout);
+    Stopwatch watchdog(Timeout);
     while (!watchdog.IsExpired()) {
         if (XskRingProducerNeedPoke(Ring) == ExpectedState) {
             break;
@@ -1421,7 +1499,7 @@ LwfOpenDefault(
     // so poll for readiness.
     //
 
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = FnLwfOpenDefault(IfIndex, &Handle);
         if (SUCCEEDED(Result)) {
@@ -1429,7 +1507,7 @@ LwfOpenDefault(
         } else {
             TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), Result);
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 
@@ -1502,7 +1580,7 @@ MpRxFlush(
     )
 {
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     //
     // Retry if the interface is not ready: the NDIS data path may be paused.
@@ -1512,7 +1590,7 @@ MpRxFlush(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_READY)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 }
@@ -1582,8 +1660,9 @@ RxInitializeFrame(
     Frame->Frame.Buffers = &Frame->SingleBufferStorage;
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_filter_handle
 MpTxFilter(
     _In_ const unique_fnmp_handle &Handle,
     _In_ const VOID *Pattern,
@@ -1592,6 +1671,8 @@ MpTxFilter(
     )
 {
     TEST_HRESULT(FnMpTxFilter(Handle.get(), Pattern, Mask, Length));
+
+    return unique_fnmp_filter_handle(Handle.get());
 }
 
 static
@@ -1607,6 +1688,20 @@ MpTxGetFrame(
 }
 
 static
+VOID
+MpTxVerifyNoFrame(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Index
+    )
+{
+    UINT32 FrameBufferLength = 0;
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        MpTxGetFrame(Handle, Index, &FrameBufferLength, NULL));
+}
+
+static
 unique_malloc_ptr<DATA_FRAME>
 MpTxAllocateAndGetFrame(
     _In_ const unique_fnmp_handle &Handle,
@@ -1616,7 +1711,7 @@ MpTxAllocateAndGetFrame(
     unique_malloc_ptr<DATA_FRAME> FrameBuffer;
     UINT32 FrameLength = 0;
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     //
     // Poll FNMP for TX: the driver doesn't support overlapped IO.
@@ -1626,12 +1721,12 @@ MpTxAllocateAndGetFrame(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
-    FrameBuffer.reset((DATA_FRAME *)malloc(FrameLength));
-    TEST_TRUE(FrameBuffer != NULL);
+    FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
+    TEST_NOT_NULL(FrameBuffer.get());
 
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
@@ -1646,7 +1741,7 @@ MpTxDequeueFrame(
     )
 {
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     //
     // Poll FNMP for TX: the driver doesn't support overlapped IO.
@@ -1685,7 +1780,7 @@ LwfTxFlush(
     )
 {
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     //
     // Retry if the interface is not ready: the NDIS data path may be paused.
@@ -1695,13 +1790,14 @@ LwfTxFlush(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_READY)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnlwf_filter_handle
 LwfRxFilter(
     _In_ const unique_fnlwf_handle &Handle,
     _In_ const VOID *Pattern,
@@ -1710,6 +1806,8 @@ LwfRxFilter(
     )
 {
     TEST_HRESULT(FnLwfRxFilter(Handle.get(), Pattern, Mask, Length));
+
+    return unique_fnlwf_filter_handle(Handle.get());
 }
 
 static
@@ -1734,7 +1832,7 @@ LwfRxAllocateAndGetFrame(
     unique_malloc_ptr<DATA_FRAME> FrameBuffer;
     UINT32 FrameLength = 0;
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     //
     // Poll FNLWF for RX: the driver doesn't support overlapped IO.
@@ -1744,12 +1842,12 @@ LwfRxAllocateAndGetFrame(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(FrameLength >= sizeof(DATA_FRAME));
-    FrameBuffer.reset((DATA_FRAME *)malloc(FrameLength));
-    TEST_TRUE(FrameBuffer != NULL);
+    FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
+    TEST_NOT_NULL(FrameBuffer.get());
 
     TEST_HRESULT(LwfRxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
@@ -1764,7 +1862,7 @@ LwfRxDequeueFrame(
     )
 {
     HRESULT Result;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     //
     // Poll FNLWF for RX: the driver doesn't support overlapped IO.
@@ -1816,8 +1914,8 @@ LwfOidAllocateAndSubmitRequest(
     TEST_EQUAL(Result, HRESULT_FROM_WIN32(ERROR_MORE_DATA));
     TEST_TRUE(InformationBufferLength > 0);
 
-    InformationBuffer.reset((T *)malloc(InformationBufferLength));
-    TEST_TRUE(InformationBuffer.get() != NULL);
+    InformationBuffer.reset((T *)AllocMem(InformationBufferLength));
+    TEST_NOT_NULL(InformationBuffer.get());
 
     Result = LwfOidSubmitRequest(Handle, Key, &InformationBufferLength, InformationBuffer.get());
     TEST_HRESULT(Result);
@@ -1861,7 +1959,7 @@ LwfStatusAllocateAndGetIndication(
 {
     HRESULT Result;
     unique_malloc_ptr<T> StatusBuffer;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
 
     *StatusBufferLength = 0;
 
@@ -1873,7 +1971,7 @@ LwfStatusAllocateAndGetIndication(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     if (SUCCEEDED(Result)) {
         TEST_EQUAL(0, *StatusBufferLength);
@@ -1881,8 +1979,8 @@ LwfStatusAllocateAndGetIndication(
         TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
         TEST_NOT_EQUAL(0, *StatusBufferLength);
 
-        StatusBuffer.reset((T *)malloc(*StatusBufferLength));
-        TEST_TRUE(StatusBuffer != NULL);
+        StatusBuffer.reset((T *)AllocMem(*StatusBufferLength));
+        TEST_NOT_NULL(StatusBuffer.get());
 
         TEST_HRESULT(LwfStatusGetIndication(Handle, StatusBufferLength, StatusBuffer.get()));
     }
@@ -1901,14 +1999,48 @@ MpGetLastMiniportPauseTimestamp(
     return Timestamp;
 }
 
+[[nodiscard]]
 static
-VOID
+unique_fnmp_mtu_handle
 MpSetMtu(
+    _In_ const TestInterface &If,
     _In_ const unique_fnmp_handle &Handle,
     _In_ UINT32 Mtu
     )
 {
     TEST_HRESULT(FnMpSetMtu(Handle.get(), Mtu));
+    return unique_fnmp_mtu_handle(&If);
+}
+
+[[nodiscard]]
+static
+unique_fnmp_mtu_handle
+MpSetMtuAndWaitForNdis(
+    _In_ const TestInterface &If,
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Mtu
+    )
+{
+    unique_fnmp_mtu_handle MtuHandle = MpSetMtu(If, Handle, Mtu);
+
+    //
+    // Wait for the MTU changes to quiesce. If filter or protocol drivers
+    // incompatible with MTU changes are installed, this requires a complete
+    // detach/attach cycle of the entire interface stack.
+    //
+    WaitForNdisDatapath(If, MP_RESTART_TIMEOUT_MS);
+
+    return MtuHandle;
+}
+
+static
+VOID
+MpResetMtu(
+    _In_ const TestInterface *If
+    )
+{
+    MpSetMtuAndWaitForNdis(*If, MpOpenGeneric(If->GetIfIndex()), FNMP_DEFAULT_MTU).release();
+    WaitForWfpQuarantine(*If);
 }
 
 static
@@ -1934,20 +2066,19 @@ MpOidGetRequest(
     return FnMpOidGetRequest(Handle.get(), Key, InformationBufferLength, InformationBuffer);
 }
 
-template<typename T=decltype(TEST_TIMEOUT_ASYNC)>
 static
 unique_malloc_ptr<VOID>
 MpOidAllocateAndGetRequest(
     _In_ const unique_fnmp_handle &Handle,
     _In_ OID_KEY Key,
     _Out_ UINT32 *InformationBufferLength,
-    _In_opt_ T Timeout = TEST_TIMEOUT_ASYNC
+    _In_opt_ UINT64 Timeout = TEST_TIMEOUT_ASYNC_MS
     )
 {
     unique_malloc_ptr<VOID> InformationBuffer;
     UINT32 Length = 0;
     HRESULT Result;
-    Stopwatch<T> Watchdog(Timeout);
+    Stopwatch Watchdog(Timeout);
 
     //
     // Poll FNMP for an OID: the driver doesn't support overlapped IO.
@@ -1957,12 +2088,12 @@ MpOidAllocateAndGetRequest(
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
     TEST_TRUE(Length > 0);
-    InformationBuffer.reset(malloc(Length));
-    TEST_TRUE(InformationBuffer != NULL);
+    InformationBuffer.reset(AllocMem(Length));
+    TEST_NOT_NULL(InformationBuffer.get());
 
     TEST_HRESULT(MpOidGetRequest(Handle, Key, &Length, InformationBuffer.get()));
 
@@ -1987,12 +2118,67 @@ MpOidCompleteRequest(
 
 static
 VOID
-WaitForWfpQuarantine(
-    _In_ const TestInterface &If
-    );
+InitializeOffloadParameters(
+    _Out_ NDIS_OFFLOAD_PARAMETERS *OffloadParameters
+    )
+{
+    ZeroMemory(OffloadParameters, sizeof(*OffloadParameters));
+    OffloadParameters->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+
+    if (OsVersionIsVbOrLater()) {
+        OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5;
+        OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
+    } else {
+        OffloadParameters->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_4;
+        OffloadParameters->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_4;
+    }
+}
+
+[[nodiscard]]
+static
+unique_fnmp_task_offload_handle
+MpUpdateTaskOffload(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ FN_OFFLOAD_TYPE OffloadType,
+    _In_ const NDIS_OFFLOAD_PARAMETERS *OffloadParameters,
+    _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions = NULL
+    )
+{
+    UINT32 Size = OffloadParameters != NULL ? sizeof(*OffloadParameters) : 0;
+
+    TEST_HRESULT(
+        FnMpUpdateTaskOffload2(
+            Handle.get(), OffloadType, OffloadParameters, Size,
+            const_cast<FN_OFFLOAD_OPTIONS *>(OffloadOptions)));
+
+    return unique_fnmp_task_offload_handle(Handle.get());
+}
 
 static
-wil::unique_socket
+VOID
+MpTaskOffloadReset(
+    _In_ const FNMP_HANDLE Handle
+    )
+{
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+    OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+    OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+    OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED;
+
+    TEST_HRESULT(FnMpUpdateTaskOffload(
+        Handle, FnOffloadHardwareCapabilities, &OffloadParams, sizeof(OffloadParams)));
+    TEST_HRESULT(FnMpUpdateTaskOffload(
+        Handle, FnOffloadCurrentConfig, &OffloadParams, sizeof(OffloadParams)));
+}
+
+static
+unique_fnsock
 CreateUdpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_opt_ const TestInterface *If,
@@ -2006,27 +2192,28 @@ CreateUdpSocket(
         WaitForWfpQuarantine(*If);
     }
 
-    wil::unique_socket Socket(socket(Af, SOCK_DGRAM, IPPROTO_UDP));
+    unique_fnsock Socket;
+    TEST_HRESULT(FnSockCreate(Af, SOCK_DGRAM, IPPROTO_UDP, &Socket));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
     Address.si_family = Af;
-    TEST_EQUAL(0, bind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
 
     INT AddressLength = sizeof(Address);
-    TEST_EQUAL(0, getsockname(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
 
-    INT TimeoutMs = (INT)std::chrono::milliseconds(TEST_TIMEOUT_ASYNC).count();
-    TEST_EQUAL(
-        0,
-        setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+    INT TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
 
     *LocalPort = SS_PORT(&Address);
     return Socket;
 }
 
 static
-wil::unique_socket
+unique_fnsock
 CreateTcpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_ const TestInterface *If,
@@ -2040,20 +2227,31 @@ CreateTcpSocket(
     //
     WaitForWfpQuarantine(*If);
 
-    wil::unique_socket Socket(socket(Af, SOCK_STREAM, IPPROTO_TCP));
+    unique_fnsock Socket;
+    TEST_HRESULT(FnSockCreate(Af, SOCK_STREAM, IPPROTO_TCP, &Socket));
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
     Address.si_family = Af;
-    TEST_EQUAL(0, bind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
 
     INT AddressLength = sizeof(Address);
-    TEST_EQUAL(0, getsockname(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
 
-    INT TimeoutMs = (INT)std::chrono::milliseconds(TEST_TIMEOUT_ASYNC).count();
-    TEST_EQUAL(
-        0,
-        setsockopt(Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+    INT TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    //
+    // Use RST to close local TCP sockets by default. This prevents closed
+    // sockets from retransmitting FINs beyond the scope of the uinque_socket.
+    //
+    LINGER lingerInfo;
+    lingerInfo.l_onoff = 1;
+    lingerInfo.l_linger = 0;
+    TEST_HRESULT(
+        FnSockSetSockOpt(Socket.get(), SOL_SOCKET, SO_LINGER, (char *)&lingerInfo, sizeof(lingerInfo)));
 
     *LocalPort = SS_PORT(&Address);
 
@@ -2092,7 +2290,7 @@ CreateTcpSocket(
         If->GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    TEST_EQUAL(0, listen(Socket.get(), 512));
+    TEST_HRESULT(FnSockListen(Socket.get(), 512));
 
     UCHAR TcpFrame[TCP_HEADER_STORAGE];
 
@@ -2114,7 +2312,7 @@ CreateTcpSocket(
     //
 
     TCP_HDR *TcpHeaderParsed = NULL;
-    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(5));
+    Stopwatch Watchdog(5000);
     do {
         UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1, Watchdog.Remaining());
         TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
@@ -2153,20 +2351,21 @@ CreateTcpSocket(
     // within the timeout, the listening socket gets closed, which will cancel
     // the accept request.
     //
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            return wil::unique_socket(accept(Socket.get(), NULL, 0));
-        }
-    );
-    auto CloseListener = wil::scope_exit([&]
-    {
-        Socket.reset();
-    });
+    struct TCP_ACCEPT_THREAD_CONTEXT {
+        FNSOCK_HANDLE ListeningSocket;
+        FNSOCK_HANDLE AcceptedSocket;
+    } Ctx;
+    Ctx.ListeningSocket = Socket.get();
 
-    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    CxPlatAsyncT<TCP_ACCEPT_THREAD_CONTEXT> Async([](TCP_ACCEPT_THREAD_CONTEXT * Ctx) {
+        SOCKADDR_INET Address;
+        INT AddressLength = sizeof(Address);
+        Ctx->AcceptedSocket = FnSockAccept(Ctx->ListeningSocket, (SOCKADDR *)&Address, &AddressLength);
+    }, &Ctx);
 
-    wil::unique_socket AcceptedSocket = std::move(AsyncThread.get());
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+
+    unique_fnsock AcceptedSocket{Ctx.AcceptedSocket};
     TEST_NOT_NULL(AcceptedSocket.get());
 
     *AckNum = AckNumForSynAck;
@@ -2207,13 +2406,13 @@ WaitForWfpQuarantine(
     //
     // On older Windows builds, WFP takes a very long time to de-quarantine.
     //
-    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(30));
+    Stopwatch Watchdog(30000);
     DWORD Bytes;
     do {
         RX_FRAME RxFrame;
         RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
         if (SUCCEEDED(MpRxIndicateFrame(GenericMp, &RxFrame))) {
-            Bytes = recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0);
+            Bytes = FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0);
         } else {
             Bytes = (DWORD)-1;
         }
@@ -2221,20 +2420,21 @@ WaitForWfpQuarantine(
         if (Bytes == sizeof(UdpPayload)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(Bytes, sizeof(UdpPayload));
 }
 
 static
 BOOLEAN
 TryWaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_ UINT64 TimeoutInMs
     )
 {
     CHAR CmdBuff[256];
     BOOLEAN AdapterUp = FALSE;
     BOOLEAN LwfUp = FALSE;
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TimeoutInMs);
 
     //
     // Wait for the adapter to be "Up", which implies the adapter's data path
@@ -2259,7 +2459,7 @@ TryWaitForNdisDatapath(
 
         unique_fnlwf_handle FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfUp = LwfIsDatapathActive(FnLwf);
-    } while (Sleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
+    } while (CxPlatSleep(TEST_TIMEOUT_ASYNC_MS / 10), !(AdapterUp && LwfUp) && !Watchdog.IsExpired());
 
     if (!AdapterUp) {
         TraceError("AdapterUp=FALSE");
@@ -2277,10 +2477,11 @@ TryWaitForNdisDatapath(
 static
 VOID
 WaitForNdisDatapath(
-    _In_ const TestInterface &If
+    _In_ const TestInterface &If,
+    _In_ UINT64 TimeoutInMs
     )
 {
-    TEST_TRUE(TryWaitForNdisDatapath(If));
+    TEST_TRUE(TryWaitForNdisDatapath(If, TimeoutInMs));
 }
 
 static
@@ -2305,12 +2506,12 @@ ClearMaskedBits(
 bool
 TestSetup()
 {
-    WSADATA WsaData;
     WPP_INIT_TRACING(NULL);
+    TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatInitialize()));
     GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
     XdpApi = OpenApi();
-    TEST_EQUAL(0, WSAStartup(MAKEWORD(2,2), &WsaData));
+    TEST_HRESULT(FnSockInitialize());
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     TEST_EQUAL(FnMpLoadApi(&FnMpLoadApiContext), FNMPAPI_STATUS_SUCCESS);
     TEST_EQUAL(FnLwfLoadApi(&FnLwfLoadApiContext), FNLWFAPI_STATUS_SUCCESS);
@@ -2327,8 +2528,9 @@ TestCleanup()
     FnLwfUnloadApi(FnLwfLoadApiContext);
     FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
-    TEST_EQUAL(0, WSACleanup());
+    FnSockUninitialize();
     XdpApi.reset();
+    CxPlatUninitialize();
     WPP_CLEANUP();
     return true;
 }
@@ -2376,7 +2578,7 @@ BindingTest(
                     If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
             if (RestartAdapter) {
-                Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
+                Stopwatch Timer(MP_RESTART_TIMEOUT_MS);
                 If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
 
@@ -2392,7 +2594,7 @@ BindingTest(
                 SetupSocket(If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
             if (RestartAdapter) {
-                Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
+                Stopwatch Timer(MP_RESTART_TIMEOUT_MS);
                 If.Restart(FALSE);
                 TEST_FALSE(Timer.IsExpired());
 
@@ -2598,7 +2800,7 @@ GenericRxAllQueueRedirect(
     RxInitializeFrame(&Frame, If.GetQueueId() + 1, PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
@@ -2686,7 +2888,7 @@ GenericRxTcpControl(
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
@@ -2936,7 +3138,7 @@ GenericRxMatch(
                MatchType == XDP_MATCH_IPV6_UDP_PORT_SET ||
                MatchType == XDP_MATCH_IPV4_TCP_PORT_SET ||
                MatchType == XDP_MATCH_IPV6_TCP_PORT_SET) {
-        PortSet.reset((UINT8 *)calloc(XDP_PORT_SET_BUFFER_SIZE, 1));
+        PortSet.reset((UINT8 *)AllocMem(XDP_PORT_SET_BUFFER_SIZE));
         TEST_NOT_NULL(PortSet.get());
 
         SetBit(PortSet.get(), LocalPort);
@@ -2961,7 +3163,7 @@ GenericRxMatch(
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(PayloadLength, FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
     SeqNum += PayloadLength;
 
@@ -2983,8 +3185,8 @@ GenericRxMatch(
     }
     RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(SOCKET_ERROR, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+    TEST_TRUE(FAILED(FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
     //
     // Redirect action is implicitly covered by XSK tests.
@@ -3003,7 +3205,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (Rule.Match == XDP_MATCH_IPV4_UDP_TUPLE || Rule.Match == XDP_MATCH_IPV6_UDP_TUPLE) {
@@ -3018,7 +3222,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
 
         //
@@ -3033,7 +3239,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
 
         //
@@ -3048,7 +3256,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
 
         //
@@ -3063,7 +3273,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (Rule.Match == XDP_MATCH_QUIC_FLOW_SRC_CID ||
@@ -3097,7 +3309,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3140,7 +3354,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3167,7 +3383,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
     } else if (MatchType == XDP_MATCH_UDP_PORT_SET ||
@@ -3184,7 +3402,9 @@ GenericRxMatch(
 
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3198,8 +3418,8 @@ GenericRxMatch(
         SetBit(PortSet.get(), LocalPort);
         RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-        TEST_EQUAL(SOCKET_ERROR, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
-        TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+        TEST_TRUE(FAILED(FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+        TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
         if (MatchType == XDP_MATCH_IPV4_UDP_PORT_SET || MatchType == XDP_MATCH_IPV6_UDP_PORT_SET) {
             //
@@ -3214,7 +3434,9 @@ GenericRxMatch(
             RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
             TEST_EQUAL(
-                PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+                PayloadLength,
+                 FnSockRecv(
+                    Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
             TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
             SeqNum += PayloadLength;
         }
@@ -3282,8 +3504,8 @@ GenericRxMatchIpPrefix(
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+    TEST_TRUE(FAILED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
     //
     // Verify IP prefix mismatch.
@@ -3296,7 +3518,9 @@ GenericRxMatchIpPrefix(
 
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
 
@@ -3401,12 +3625,12 @@ GenericRxLowResources()
     for (UINT32 Index = 0; Index < NumNoMatchFrames; Index++) {
         TEST_EQUAL(
             sizeof(UdpNoMatchPayload),
-            recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(UdpNoMatchPayload, RecvPayload, sizeof(UdpNoMatchPayload)));
     }
 
-    TEST_EQUAL(SOCKET_ERROR, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
-    TEST_EQUAL(WSAETIMEDOUT, WSAGetLastError());
+    TEST_TRUE(FAILED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 }
 
 VOID
@@ -3560,7 +3784,7 @@ GenericRxMultiProgram()
         //
         if (Detach) {
             UINT32 ConsumerIndex;
-            Sleep(TEST_TIMEOUT_ASYNC_MS);
+            CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
             TEST_EQUAL(0, XskRingConsumerReserve(&Socket.Rings.Rx, MAXUINT32, &ConsumerIndex));
         } else {
             UINT32 ConsumerIndex = SocketConsumerReserve(&Socket.Rings.Rx, 1);
@@ -3612,7 +3836,7 @@ GenericRxUdpFragmentQuicShortHeader(
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
     };
 
-    std::vector<DATA_BUFFER> Buffers;
+    CxPlatVector<DATA_BUFFER> Buffers;
     DATA_BUFFER Buffer = {0};
 
     XDP_RULE Rules[2];
@@ -3662,7 +3886,9 @@ GenericRxUdpFragmentQuicShortHeader(
         RX_FRAME RxFrame;
         RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-        TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            UdpPayloadLength,
+            FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
 
         //
@@ -3673,25 +3899,27 @@ GenericRxUdpFragmentQuicShortHeader(
             Buffers.clear();
             TotalOffset = 0;
 
-            std::memset(&Buffer, 0, sizeof(Buffer));
+            RtlZeroMemory(&Buffer, sizeof(Buffer));
             Buffer.DataOffset = 0;
             Buffer.DataLength = UdpFrameLength - (FragmentOffset + 1);
             Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
             Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
             TotalOffset += Buffer.BufferLength;
-            Buffers.push_back(Buffer);
+            TEST_TRUE(Buffers.push_back(Buffer));
 
-            std::memset(&Buffer, 0, sizeof(Buffer));
+            RtlZeroMemory(&Buffer, sizeof(Buffer));
             Buffer.DataOffset = 0;
             Buffer.DataLength = (FragmentOffset + 1);
             Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
             Buffer.VirtualAddress = &UdpFrame[0] + TotalOffset;
             TotalOffset += Buffer.BufferLength;
-            Buffers.push_back(Buffer);
+            TEST_TRUE(Buffers.push_back(Buffer));
 
             RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-            TEST_EQUAL(UdpPayloadLength, recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_EQUAL(
+                UdpPayloadLength,
+                FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
             TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, UdpPayloadLength));
         }
     }
@@ -3743,7 +3971,7 @@ GenericRxUdpFragmentQuicLongHeader(
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
     };
 
-    std::vector<DATA_BUFFER> Buffers;
+    CxPlatVector<DATA_BUFFER> Buffers;
     DATA_BUFFER Buffer = {0};
 
     XDP_RULE Rules[2];
@@ -3798,7 +4026,9 @@ GenericRxUdpFragmentQuicLongHeader(
         RX_FRAME RxFrame;
         RxInitializeFrame(&RxFrame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
         TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-        TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+        TEST_EQUAL(
+            PayloadLength,
+            FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
         TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
         SeqNum += PayloadLength;
 
@@ -3819,42 +4049,368 @@ GenericRxUdpFragmentQuicLongHeader(
                         &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
             }
 
-            std::memset(&Buffer, 0, sizeof(Buffer));
+            RtlZeroMemory(&Buffer, sizeof(Buffer));
             Buffer.DataOffset = 0;
             Buffer.DataLength = PacketBufferLength - (FragmentOffset + 1);
             Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
             Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
             TotalOffset += Buffer.BufferLength;
-            Buffers.push_back(Buffer);
+            TEST_TRUE(Buffers.push_back(Buffer));
 
-            std::memset(&Buffer, 0, sizeof(Buffer));
+            RtlZeroMemory(&Buffer, sizeof(Buffer));
             Buffer.DataOffset = 0;
             Buffer.DataLength = (FragmentOffset + 1);
             Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
             Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
             TotalOffset += Buffer.BufferLength;
-            Buffers.push_back(Buffer);
+            TEST_TRUE(Buffers.push_back(Buffer));
 
             RxInitializeFrame(&RxFrame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
             TEST_HRESULT(MpRxIndicateFrame(GenericMp, &RxFrame));
-            TEST_EQUAL(PayloadLength, recv(Socket.get(), RecvPayload, sizeof(RecvPayload), 0));
+            TEST_EQUAL(
+                PayloadLength,
+                FnSockRecv(Socket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
             TEST_TRUE(RtlEqualMemory(Payload, RecvPayload, PayloadLength));
             SeqNum += PayloadLength;
         }
     }
 }
 
-typedef struct _GENERIC_RX_UDP_FRAGMENT_PARAMS {
+typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 PayloadLength;
+    _In_opt_ UINT8 *TcpOptions;
+    _In_ UINT8 TcpOptionsLength;
+    _In_opt_ UINT8 TcpFlags;
     _In_ UINT16 Backfill;
+    _In_ UINT16 DataTrailer;
     _In_ UINT16 Trailer;
-    _In_ UINT16 *SplitIndexes;
+    _In_opt_ const UINT32 *SplitIndexes;
     _In_ UINT16 SplitCount;
     _In_ BOOLEAN IsUdp;
     _In_ BOOLEAN IsTxInspect;
     _In_ BOOLEAN LowResources;
+    _In_ UINT16 GroSegCount;
+    _In_opt_ UINT32 IfMtu;
     _In_ XDP_RULE_ACTION Action;
+    _In_opt_ const NDIS_OFFLOAD_PARAMETERS *OffloadParams;
+    _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions;
 } GENERIC_RX_FRAGMENT_PARAMS;
+
+static
+BOOLEAN
+NdisOffloadTxEnabled(
+    _In_ UINT8 OffloadValue
+    )
+{
+    return
+        OffloadValue == NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED ||
+        OffloadValue == NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+}
+
+static
+VOID
+GenericRxValidateGroToGso(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ const GENERIC_RX_FRAGMENT_PARAMS *Params,
+    _In_ unique_fnmp_handle &GenericMp,
+    _In_ const UCHAR *GroPacketBuffer,
+    _In_ UINT32 GroPacketLength,
+    _In_ DATA_FLUSH_OPTIONS &RxFlushOptions
+    )
+{
+    const UINT8 TcpHdrSize = sizeof(TCP_HDR) + Params->TcpOptionsLength;
+    const UINT8 TcpHdrOffset = TCP_HEADER_BACKFILL(Af) - sizeof(TCP_HDR);
+    const TCP_HDR *const RscTcp = (const TCP_HDR *)&GroPacketBuffer[TcpHdrOffset];
+    const UINT32 TotalTcpHdrSize = TcpHdrOffset + TcpHdrSize;
+    const UINT32 IfMtu = Params->IfMtu > 0 ? Params->IfMtu : FNMP_DEFAULT_MTU;
+    const UINT16 IfMss = (UINT16)(IfMtu - TotalTcpHdrSize);
+    const UINT16 RscMss =
+        (UINT16)((std::max(1ui16, Params->PayloadLength) + Params->GroSegCount - 1) /
+            Params->GroSegCount);
+    const UINT16 TxMss = std::min(IfMss, RscMss);
+    //
+    // The following two default properties are hard-coded in FNMP and not
+    // defined in API headers.
+    //
+    const UINT16 LsoMinSegmentCount = 2;
+    const UINT32 LsoMaxOffloadSize =
+        Params->OffloadOptions != NULL ? Params->OffloadOptions->GsoMaxOffloadSize : 0x20000;
+    const UINT32 LsoMinOffloadSize = LsoMinSegmentCount * TxMss + 1;
+    const UINT8 FinalSegmentFlags = TH_FIN | TH_PSH;
+    CxPlatVector<UCHAR> Filter(TotalTcpHdrSize);
+    CxPlatVector<UCHAR> Mask(Filter.size(), 0xFF);
+    CxPlatVector<UCHAR> FinalPayload;
+    UINT16 TotalSegmentCount = 0;
+
+    TEST_NOT_EQUAL(0, Params->GroSegCount);
+    TEST_EQUAL(XDP_PROGRAM_ACTION_L2FWD, Params->Action);
+
+    //
+    // GSO to GRO for TxInspect is not implemented yet.
+    // UDP GRO to GSO is not implemented yet.
+    //
+    TEST_FALSE(Params->IsTxInspect);
+    TEST_FALSE(Params->IsUdp);
+
+    TEST_TRUE(GroPacketLength >= Filter.size());
+    memcpy(&Filter[0], GroPacketBuffer, Filter.size());
+
+    //
+    // Clear variable fields in the mask. These will be validated in the final
+    // GSO'd frames.
+    //
+
+    if (Af == AF_INET) {
+        IPV4_HEADER *Ipv4 = (IPV4_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
+        Ipv4->TotalLength = 0;
+        Ipv4->Identification = 0;
+        Ipv4->HeaderChecksum = 0;
+    } else {
+        IPV6_HEADER *Ipv6 = (IPV6_HEADER *)&Mask[sizeof(ETHERNET_HEADER)];
+        Ipv6->PayloadLength = 0;
+    }
+
+    TCP_HDR *TcpMask = (TCP_HDR *)&Mask[TcpHdrOffset];
+    TcpMask->th_seq = 0;
+    TcpMask->th_sum = 0;
+    TcpMask->th_flags = (UINT8)~(FinalSegmentFlags);
+
+    auto MpFilter = MpTxFilter(GenericMp, &Filter[0], &Mask[0], (UINT32)Filter.size());
+    MpRxFlush(GenericMp, &RxFlushOptions);
+
+    if (Params->SplitCount > 0 && Params->SplitIndexes[0] < TotalTcpHdrSize) {
+        //
+        // GRO to GSO requires contiguous headers through the TCP header.
+        //
+        MpTxVerifyNoFrame(GenericMp, 0);
+        return;
+    }
+
+    //
+    // Validate multiple GSO/csum offloaded frames. Require at least one frame,
+    // even if there is no payload remaining, to handle the case of pure ACKs.
+    //
+
+    do {
+        const UINT16 PayloadRemaining = Params->PayloadLength - (UINT16)FinalPayload.size();
+        CxPlatVector<UCHAR> FrameData;
+
+        auto TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+        MpTxDequeueFrame(GenericMp, 0);
+
+        //
+        // Verify the entire packet (and nothing more) was forwarded. The TX
+        // filter verifies the bytes match up to the length of the filter.
+        //
+        for (UINT32 i = 0; i < TxFrame->BufferCount; i++) {
+            DATA_BUFFER *Buffer = &TxFrame->Buffers[i];
+            const UCHAR *PayloadStart = Buffer->VirtualAddress + Buffer->DataOffset;
+            FrameData.insert(
+                FrameData.end(), PayloadStart, PayloadStart + Buffer->DataLength);
+        }
+
+        TEST_TRUE(FrameData.size() >= TotalTcpHdrSize);
+        const IPV4_HEADER *const Ipv4 =
+            (const IPV4_HEADER *)&FrameData[sizeof(ETHERNET_HEADER)];
+        const IPV6_HEADER *const Ipv6 =
+            (const IPV6_HEADER *)&FrameData[sizeof(ETHERNET_HEADER)];
+        const TCP_HDR *const Tcp = (const TCP_HDR *)&FrameData[TcpHdrOffset];
+        const UINT16 TcpPayloadLength = (UINT16)(FrameData.size() - TotalTcpHdrSize);
+        const UINT16 SegmentCount =
+            (TcpPayloadLength == 0) ? 1 : (UINT16)(TcpPayloadLength + TxMss - 1) / TxMss;
+        const VOID *IpSrc;
+        const VOID *IpDst;
+        UINT8 IpAddressLength;
+        UINT16 TcpPseudoHdrCsum;
+
+        if (Af == AF_INET) {
+            const IPV4_HEADER *const RscIpv4 =
+                (const IPV4_HEADER *)&GroPacketBuffer[sizeof(ETHERNET_HEADER)];
+
+            TEST_EQUAL(
+                htons(ntohs(RscIpv4->Identification) + TotalSegmentCount),
+                Ipv4->Identification);
+
+            IpSrc = &Ipv4->SourceAddress;
+            IpDst = &Ipv4->DestinationAddress;
+            IpAddressLength = sizeof(Ipv4->SourceAddress);
+        } else {
+            IpSrc = &Ipv6->SourceAddress;
+            IpDst = &Ipv6->DestinationAddress;
+            IpAddressLength = sizeof(Ipv6->SourceAddress);
+        }
+
+        TcpPseudoHdrCsum =
+            PktPseudoHeaderChecksum(
+                IpSrc, IpDst, IpAddressLength, TcpHdrSize + TcpPayloadLength, IPPROTO_TCP);
+
+        TEST_EQUAL(htonl(ntohl(RscTcp->th_seq) + (UINT16)FinalPayload.size()), Tcp->th_seq);
+
+        if (TcpPayloadLength == PayloadRemaining) {
+            TEST_EQUAL(RscTcp->th_flags & FinalSegmentFlags, Tcp->th_flags & FinalSegmentFlags);
+        } else {
+            TEST_FALSE(Tcp->th_flags & FinalSegmentFlags);
+        }
+
+        if (TxFrame->Output.Lso.Value != 0) {
+            //
+            // This is an LSO frame.
+            //
+
+            TEST_EQUAL(NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE, TxFrame->Output.Lso.LsoV2Transmit.Type);
+            TEST_EQUAL(TxMss, TxFrame->Output.Lso.LsoV2Transmit.MSS);
+            TEST_EQUAL(TcpHdrOffset, TxFrame->Output.Lso.LsoV2Transmit.TcpHeaderOffset);
+            TEST_EQUAL(0, TxFrame->Output.Checksum.Value);
+            TEST_TRUE(SegmentCount >= LsoMinSegmentCount);
+            TEST_EQUAL(TcpPseudoHdrCsum, Tcp->th_sum);
+            TEST_TRUE(TcpPayloadLength == PayloadRemaining || TcpPayloadLength % TxMss == 0);
+            TEST_TRUE(TcpPayloadLength <= LsoMaxOffloadSize);
+            TEST_TRUE(TcpPayloadLength >= LsoMinOffloadSize);
+
+            if (Af == AF_INET) {
+                TEST_EQUAL(0, Ipv4->TotalLength);
+                TEST_EQUAL(0, Ipv4->HeaderChecksum);
+                TEST_TRUE(
+                    Params->OffloadParams != NULL &&
+                    Params->OffloadParams->LsoV2IPv4 == NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED);
+                TEST_EQUAL(
+                    NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4, TxFrame->Output.Lso.LsoV2Transmit.IPVersion);
+            } else {
+                TEST_EQUAL(0, Ipv6->PayloadLength);
+                TEST_TRUE(
+                    Params->OffloadParams != NULL &&
+                    Params->OffloadParams->LsoV2IPv6 == NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED);
+                TEST_EQUAL(
+                    NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6, TxFrame->Output.Lso.LsoV2Transmit.IPVersion);
+            }
+        } else {
+            //
+            // This is a regular, non-LSO frame.
+            //
+
+            BOOLEAN TcpChecksumOffload = FALSE;
+
+            TEST_TRUE(
+                PayloadRemaining < LsoMinOffloadSize ||
+                LsoMinSegmentCount * (UINT32)TxMss > LsoMaxOffloadSize ||
+                Params->OffloadParams == NULL ||
+                (Af == AF_INET &&
+                    Params->OffloadParams->LsoV2IPv4 == NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED) ||
+                (Af == AF_INET6 &&
+                    Params->OffloadParams->LsoV2IPv6 == NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED));
+            TEST_EQUAL(1, SegmentCount);
+            TEST_TRUE(TcpPayloadLength == PayloadRemaining || TcpPayloadLength == TxMss);
+            TEST_FALSE(
+                TxFrame->Output.Checksum.Transmit.IsIPv4 &&
+                TxFrame->Output.Checksum.Transmit.IsIPv6);
+
+            if (Af == AF_INET) {
+                TEST_EQUAL(
+                    htons((UINT16)FrameData.size() - sizeof(ETHERNET_HEADER)),
+                    Ipv4->TotalLength);
+
+                if (Params->OffloadParams != NULL &&
+                    NdisOffloadTxEnabled(Params->OffloadParams->IPv4Checksum)) {
+                    TEST_EQUAL(0, Ipv4->HeaderChecksum);
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IsIPv4);
+                } else {
+                    TEST_EQUAL(0ui16, PktChecksum(0, Ipv4, sizeof(*Ipv4)));
+                    TEST_FALSE(TxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+                }
+
+                if (Params->OffloadParams != NULL &&
+                    NdisOffloadTxEnabled(Params->OffloadParams->TCPIPv4Checksum)) {
+                    TcpChecksumOffload = TRUE;
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IsIPv4);
+                }
+            } else {
+                TEST_EQUAL(
+                    htons((UINT16)FrameData.size() - TcpHdrOffset),
+                    Ipv6->PayloadLength);
+
+                if (Params->OffloadParams != NULL &&
+                    NdisOffloadTxEnabled(Params->OffloadParams->TCPIPv6Checksum)) {
+                    TcpChecksumOffload = TRUE;
+                    TEST_TRUE(TxFrame->Output.Checksum.Transmit.IsIPv6);
+                }
+            }
+
+            TEST_EQUAL(TcpChecksumOffload, TxFrame->Output.Checksum.Transmit.TcpChecksum);
+
+            if (TcpChecksumOffload) {
+                TEST_EQUAL(TcpHdrOffset, TxFrame->Output.Checksum.Transmit.TcpHeaderOffset);
+                TEST_EQUAL(TcpPseudoHdrCsum, Tcp->th_sum);
+            } else {
+                TEST_EQUAL(
+                    0ui16,
+                    PktChecksum(TcpPseudoHdrCsum, Tcp, TcpHdrSize + TcpPayloadLength));
+            }
+        }
+
+        FinalPayload.insert(
+            FinalPayload.end(), FrameData.begin() + TotalTcpHdrSize, FrameData.end());
+
+        TotalSegmentCount += SegmentCount;
+    } while (FinalPayload.size() < Params->PayloadLength);
+
+    TEST_EQUAL((std::max(1ui16, Params->PayloadLength) + TxMss - 1) / TxMss, TotalSegmentCount);
+    TEST_TRUE(TotalSegmentCount == Params->GroSegCount || IfMss < RscMss);
+    TEST_EQUAL(GroPacketLength - TotalTcpHdrSize - Params->DataTrailer, FinalPayload.size());
+    TEST_TRUE(
+        RtlEqualMemory(
+            FinalPayload.data(), &GroPacketBuffer[TotalTcpHdrSize], FinalPayload.size()));
+
+    MpTxFlush(GenericMp);
+    MpTxVerifyNoFrame(GenericMp, 0);
+}
+
+static
+CxPlatVector<DATA_BUFFER>
+GenericRxCreateSplitBuffers(
+    _In_ const UCHAR *FrameData,
+    _In_ UINT32 PacketLength,
+    _In_ UINT16 Backfill,
+    _In_ UINT16 Trailer,
+    _In_opt_count_(SplitCount) const UINT32 *SplitIndexes,
+    _In_ UINT16 SplitCount
+    )
+{
+    CxPlatVector<DATA_BUFFER> Buffers;
+    UINT32 PacketBufferOffset = 0;
+    UINT32 TotalOffset = 0;
+
+    //
+    // Split up the frame into RX fragment buffers.
+    //
+    for (UINT16 Index = 0; Index < SplitCount; Index++) {
+        DATA_BUFFER Buffer = {0};
+
+        __analysis_assume(SplitIndexes != NULL);
+
+        Buffer.DataOffset = Index == 0 ? Backfill : 0;
+        Buffer.DataLength = SplitIndexes[Index] - PacketBufferOffset;
+        Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
+        Buffer.VirtualAddress = FrameData + TotalOffset;
+
+        PacketBufferOffset += Buffer.DataLength;
+        TotalOffset += Buffer.BufferLength;
+
+        Buffers.push_back(Buffer);
+    }
+
+    //
+    // Produce the final RX fragment buffer.
+    //
+    DATA_BUFFER Buffer = {0};
+    Buffer.DataOffset = Buffers.size() == 0 ? Backfill : 0;
+    Buffer.DataLength = PacketLength - PacketBufferOffset;
+    Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength + Trailer;
+    Buffer.VirtualAddress = FrameData + TotalOffset;
+    Buffers.push_back(Buffer);
+
+    return Buffers;
+}
 
 static
 VOID
@@ -3866,14 +4422,14 @@ GenericRxFragmentBuffer(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
-    UINT32 PacketBufferOffset = 0;
-    UINT32 TotalOffset = 0;
     MY_SOCKET Xsk;
     wil::unique_handle ProgramHandle;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
     const XDP_HOOK_ID *RxHookId = Params->IsTxInspect ? &XdpInspectTxL2 : &XdpInspectRxL2;
-
+    unique_fnmp_task_offload_handle OffloadReset;
+    unique_fnmp_mtu_handle MtuReset;
+    const UINT8 ThFlags = Params->TcpFlags != 0 ? Params->TcpFlags : TH_ACK;
     auto If = FnMpIf;
 
     LocalPort = htons(1234);
@@ -3886,6 +4442,23 @@ GenericRxFragmentBuffer(
     } else {
         If.GetIpv6Address(&LocalIp.Ipv6);
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    if (Params->IsTxInspect) {
+        FnLwf = LwfOpenDefault(If.GetIfIndex());
+    } else {
+        GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+        if (Params->OffloadParams != NULL) {
+            OffloadReset =
+                MpUpdateTaskOffload(
+                    GenericMp, FnOffloadCurrentConfig, Params->OffloadParams,
+                    Params->OffloadOptions);
+        }
+
+        if (Params->IfMtu > 0) {
+            MtuReset = MpSetMtuAndWaitForNdis(If, GenericMp, Params->IfMtu);
+        }
     }
 
     XDP_RULE Rule;
@@ -3902,70 +4475,52 @@ GenericRxFragmentBuffer(
 
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), RxHookId, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
-
     //
     // Allocate UDP payload and initialize to a pattern.
     //
-    std::vector<UCHAR> Payload(Params->PayloadLength);
-    std::generate(Payload.begin(), Payload.end(), []{ return (UCHAR)std::rand(); });
+    unique_malloc_ptr<UCHAR> Payload;
+    if (Params->PayloadLength > 0) {
+        Payload.reset((UCHAR *)AllocMem(Params->PayloadLength));
+        TEST_NOT_NULL(Payload.get());
+        CxPlatRandom(Params->PayloadLength, Payload.get());
+    }
 
-    std::vector<UCHAR> PacketBuffer(
+    CxPlatVector<UCHAR> PacketBuffer(
         Params->Backfill +
-        (Params->IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af)) +
-        Params->PayloadLength + Params->Trailer);
-    UINT32 ActualPacketLength = (UINT32)PacketBuffer.size() - Params->Backfill - Params->Trailer;
+        (Params->IsUdp ?
+            UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) + Params->TcpOptionsLength) +
+        Params->PayloadLength + Params->DataTrailer + Params->Trailer);
+    UINT32 ActualPacketLength =
+        (UINT32)PacketBuffer.size() - Params->Backfill - Params->Trailer - Params->DataTrailer;
     if (Params->IsUdp) {
         TEST_TRUE(
             PktBuildUdpFrame(
-                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength, &Payload[0],
-                (UINT16)Payload.size(), &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
+                PacketBuffer.data() + Params->Backfill, &ActualPacketLength, Payload.get(),
+                Params->PayloadLength, &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
                 RemotePort));
     } else {
         TEST_TRUE(
             PktBuildTcpFrame(
-                &PacketBuffer[0] + Params->Backfill, &ActualPacketLength,
-                &Payload[0], (UINT16)Payload.size(),
-                NULL, 0, 0, 0, TH_SYN, 65535, &LocalHw,
-                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+                PacketBuffer.data() + Params->Backfill, &ActualPacketLength, Payload.get(),
+                Params->PayloadLength, Params->TcpOptions, Params->TcpOptionsLength, 0xabcd4321,
+                0x567890fe, ThFlags, 65535, &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
+                RemotePort));
     }
 
-    std::vector<DATA_BUFFER> Buffers;
+    ActualPacketLength += Params->DataTrailer;
 
-    //
-    // Split up the UDP frame into RX fragment buffers.
-    //
-    for (UINT16 Index = 0; Index < Params->SplitCount; Index++) {
-        DATA_BUFFER Buffer = {0};
-
-        Buffer.DataOffset = Index == 0 ? Params->Backfill : 0;
-        Buffer.DataLength = Params->SplitIndexes[Index] - PacketBufferOffset;
-        Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength;
-        Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
-
-        PacketBufferOffset += Buffer.DataLength;
-        TotalOffset += Buffer.BufferLength;
-
-        Buffers.push_back(Buffer);
-    }
-
-    //
-    // Produce the final RX fragment buffer.
-    //
-    DATA_BUFFER Buffer = {0};
-    Buffer.DataOffset = Buffers.size() == 0 ? Params->Backfill : 0;
-    Buffer.DataLength = ActualPacketLength - PacketBufferOffset;
-    Buffer.BufferLength = Buffer.DataOffset + Buffer.DataLength + Params->Trailer;
-    Buffer.VirtualAddress = &PacketBuffer[0] + TotalOffset;
-    Buffers.push_back(Buffer);
+    CxPlatVector<DATA_BUFFER> Buffers =
+        GenericRxCreateSplitBuffers(
+            PacketBuffer.data(), ActualPacketLength, Params->Backfill, Params->Trailer,
+            Params->SplitIndexes, Params->SplitCount);
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
 
     if (Params->IsTxInspect) {
-        FnLwf = LwfOpenDefault(If.GetIfIndex());
         LwfTxEnqueue(FnLwf, &Frame.Frame);
     } else {
-        GenericMp = MpOpenGeneric(If.GetIfIndex());
+        Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params->GroSegCount;
         TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     }
 
@@ -3996,14 +4551,13 @@ GenericRxFragmentBuffer(
         TEST_TRUE(
             RtlEqualMemory(
                 Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
-                &PacketBuffer[0] + Params->Backfill,
+                PacketBuffer.data() + Params->Backfill,
                 ActualPacketLength));
     } else if (Params->Action == XDP_PROGRAM_ACTION_L2FWD) {
-        std::vector<UCHAR> L2FwdPacket(
-            PacketBuffer.begin() + Params->Backfill,
-            PacketBuffer.begin() + Params->Backfill + ActualPacketLength);
-        std::vector<UCHAR> Mask(L2FwdPacket.size(), 0xFF);
-        ETHERNET_HEADER *Ethernet = (ETHERNET_HEADER *)&L2FwdPacket[0];
+        UCHAR *L2FwdPacket = PacketBuffer.data() + Params->Backfill;
+        UINT32 L2FwdPacketLength = ActualPacketLength;
+        CxPlatVector<UCHAR> Mask(L2FwdPacketLength, 0xFF);
+        ETHERNET_HEADER *Ethernet = (ETHERNET_HEADER *)L2FwdPacket;
         ETHERNET_ADDRESS TempAddress;
         unique_malloc_ptr<DATA_FRAME> TxFrame;
         UINT32 TotalLength = 0;
@@ -4016,12 +4570,21 @@ GenericRxFragmentBuffer(
         Ethernet->Destination = Ethernet->Source;
         Ethernet->Source = TempAddress;
 
+        if (Params->GroSegCount > 0) {
+            GenericRxValidateGroToGso(
+                Af, Params, GenericMp, &L2FwdPacket[0], ActualPacketLength, RxFlushOptions);
+            return;
+        }
+
+        unique_fnlwf_filter_handle LwfFilter;
+        unique_fnmp_filter_handle MpFilter;
+
         if (Params->IsTxInspect) {
-            LwfRxFilter(FnLwf, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+            LwfFilter = LwfRxFilter(FnLwf, L2FwdPacket, Mask.data(), L2FwdPacketLength);
             LwfTxFlush(FnLwf, &RxFlushOptions);
             TxFrame = LwfRxAllocateAndGetFrame(FnLwf, 0);
         } else {
-            MpTxFilter(GenericMp, &L2FwdPacket[0], &Mask[0], (UINT32)L2FwdPacket.size());
+            MpFilter = MpTxFilter(GenericMp, L2FwdPacket, Mask.data(), L2FwdPacketLength);
             MpRxFlush(GenericMp, &RxFlushOptions);
             TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
         }
@@ -4033,7 +4596,7 @@ GenericRxFragmentBuffer(
         for (UINT32 i = 0; i < TxFrame->BufferCount; i++) {
             TotalLength += TxFrame->Buffers[i].DataLength;
         }
-        TEST_EQUAL(L2FwdPacket.size(), TotalLength);
+        TEST_EQUAL(L2FwdPacketLength, TotalLength);
 
         //
         // Non-low-resources NBLs should be forwarded without a data copy. We
@@ -4052,7 +4615,7 @@ GenericRxFragmentBuffer(
         //
         // XDP should preserve the available backfill.
         //
-        TEST_EQUAL(Params->Backfill, Buffers[0].DataOffset);
+        TEST_EQUAL(Params->Backfill, TxFrame->Buffers[0].DataOffset);
 
         if (Params->IsTxInspect) {
             LwfRxDequeueFrame(FnLwf, 0);
@@ -4070,7 +4633,7 @@ GenericRxFragmentHeaderData(
     _In_ BOOLEAN IsUdp
     )
 {
-    UINT16 SplitIndexes[] = { IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) };
+    UINT32 SplitIndexes[] = { IsUdp ? UDP_HEADER_BACKFILL(Af) : TCP_HEADER_BACKFILL(Af) };
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
     Params.Action = XDP_PROGRAM_ACTION_REDIRECT;
     Params.IsUdp = IsUdp;
@@ -4094,11 +4657,11 @@ GenericRxTooManyFragments(
     Params.PayloadLength = 512;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    std::vector<UINT16> SplitIndexes;
+    CxPlatVector<UINT32> SplitIndexes;
     for (UINT16 Index = 0; Index < Params.PayloadLength - 1; Index++) {
-        SplitIndexes.push_back(Index + 1);
+        TEST_TRUE(SplitIndexes.push_back(Index + 1));
     }
-    Params.SplitIndexes = &SplitIndexes[0];
+    Params.SplitIndexes = SplitIndexes.data();
     Params.SplitCount = (UINT16)SplitIndexes.size();
     GenericRxFragmentBuffer(Af, &Params);
 }
@@ -4118,7 +4681,7 @@ GenericRxHeaderMultipleFragments(
     Params.PayloadLength = 43;
     Params.Backfill = 13;
     Params.Trailer = 17;
-    UINT16 SplitIndexes[5] = { 0 };
+    UINT32 SplitIndexes[5] = { 0 };
     SplitIndexes[0] = sizeof(ETHERNET_HEADER) / 2;
     SplitIndexes[1] = SplitIndexes[0] + sizeof(ETHERNET_HEADER);
     SplitIndexes[2] = SplitIndexes[1] + 1;
@@ -4156,7 +4719,7 @@ GenericRxHeaderFragments(
 
     GenericRxHeaderMultipleFragments(Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources);
 
-    for (UINT16 i = 1; i < HeadersLength; i++) {
+    for (UINT32 i = 1; i < HeadersLength; i++) {
         Params.SplitIndexes = &i;
         Params.SplitCount = 1;
         Params.IsTxInspect = IsTxInspect;
@@ -4211,16 +4774,24 @@ GenericRxFromTxInspect(
     //
     UINT32 NumFrames;
     UINT32 UdpSegmentSize;
+    SIZE_T OptLen = sizeof(UdpSegmentSize);
     CHAR UdpPayload[] = "GenericRxFromTxInspectPkt1GenericRxFromTxInspectPkt2";
 
-    if (WSAGetUdpSendMessageSize(UdpSocket.get(), (DWORD *)&UdpSegmentSize) == SOCKET_ERROR) {
-        TEST_EQUAL(WSAEINVAL, WSAGetLastError());
+    HRESULT Result =
+        FnSockGetSockOpt(
+            UdpSocket.get(), IPPROTO_UDP, UDP_SEND_MSG_SIZE, (DWORD *)&UdpSegmentSize,
+            &OptLen);
+    if (FAILED(Result)) {
+        TEST_EQUAL(WSAEINVAL, FnSockGetLastError());
         NumFrames = 1;
         UdpSegmentSize = sizeof(UdpPayload) - 1;
     } else {
         NumFrames = 2;
         UdpSegmentSize = (UINT32)(strchr(UdpPayload, '1') - UdpPayload + 1);
-        TEST_EQUAL(NO_ERROR, WSASetUdpSendMessageSize(UdpSocket.get(), UdpSegmentSize));
+        TEST_HRESULT(
+            FnSockSetSockOpt(
+                UdpSocket.get(), IPPROTO_UDP, UDP_SEND_MSG_SIZE, &UdpSegmentSize,
+                sizeof(UdpSegmentSize)));
     }
 
     TEST_EQUAL((SIZE_T)NumFrames * (SIZE_T)UdpSegmentSize + 1, sizeof(UdpPayload));
@@ -4235,22 +4806,22 @@ GenericRxFromTxInspect(
     // XDP completing a bind request does not imply that the TCPIP data path is
     // restarted. Wait until the send succeeds.
     //
-    Stopwatch<std::chrono::seconds> Watchdog(std::chrono::seconds(5));
+    Stopwatch Watchdog(5000);
     INT Bytes;
     do {
         Bytes =
-            sendto(
-                UdpSocket.get(), UdpPayload, NumFrames * UdpSegmentSize, 0,
-                (SOCKADDR *)&DestAddr, sizeof(DestAddr));
+            FnSockSendto(
+                UdpSocket.get(), UdpPayload, NumFrames * UdpSegmentSize, FALSE,
+                0, (SOCKADDR *)&DestAddr, sizeof(DestAddr));
 
-        if (Bytes != SOCKET_ERROR) {
+        if (Bytes != -1) {
             break;
         }
         //
         // TCPIP returns WSAENOBUFS when it cannot reference the data path.
         //
-        TEST_EQUAL(WSAENOBUFS, WSAGetLastError());
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_EQUAL(WSAENOBUFS, FnSockGetLastError());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_EQUAL(NumFrames * UdpSegmentSize, (UINT32)Bytes);
 
@@ -4271,6 +4842,340 @@ GenericRxFromTxInspect(
                 &UdpPayload[FrameIndex * UdpSegmentSize],
                 UdpSegmentSize));
     }
+}
+
+VOID
+GenericRxForwardGroHelper(
+    _In_ ADDRESS_FAMILY Af,
+    _Inout_ GENERIC_RX_FRAGMENT_PARAMS *Params
+    )
+{
+    const auto Booleans = {false, true};
+    Params->Action = XDP_PROGRAM_ACTION_L2FWD;
+
+    //
+    // Execute the test case over a matrix of NIC configurations.
+    //
+
+    for (auto Lso : Booleans) {
+    for (auto Checksum : Booleans) {
+    for (auto IsLowResources : Booleans) {
+        NDIS_OFFLOAD_PARAMETERS OffloadParams;
+
+        InitializeOffloadParameters(&OffloadParams);
+
+        if (Lso) {
+            OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+            OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+        }
+
+        if (Checksum) {
+            OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+        }
+
+        Params->LowResources = IsLowResources;
+
+        GenericRxFragmentBuffer(Af, Params);
+    }}}
+}
+
+VOID
+GenericRxForwardGroSanity(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 100;
+    Params.GroSegCount = Params.PayloadLength;
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroMdlOffsets(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    const UINT8 IpHdrSize = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 60000;
+    Params.Backfill = 7;
+    Params.Trailer = 23;
+    UINT32 SplitIndexes[] = {
+        0,
+        sizeof(ETHERNET_HEADER) / 2,
+        sizeof(ETHERNET_HEADER),
+        sizeof(ETHERNET_HEADER) + IpHdrSize / 2,
+        sizeof(ETHERNET_HEADER) + IpHdrSize,
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) / 2,
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR),
+        sizeof(ETHERNET_HEADER) + IpHdrSize + sizeof(TCP_HDR) + 42,
+    };
+
+    for (auto Split : SplitIndexes) {
+        if (Split > 0) {
+            Params.SplitIndexes = &Split;
+            Params.SplitCount = 1;
+        } else {
+            Params.SplitCount = 0;
+        }
+
+        Params.GroSegCount = Params.PayloadLength / 1000;
+        GenericRxForwardGroHelper(Af, &Params);
+    }
+}
+
+VOID
+GenericRxForwardGroPureAck(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.GroSegCount = 1;
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroDataTrailer(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 1000;
+    Params.GroSegCount = 4;
+    Params.DataTrailer = 13;
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroTcpOptions(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 1000;
+    Params.GroSegCount = 4;
+    Params.TcpOptions = TcpOptions;
+    Params.TcpOptionsLength = sizeof(TcpOptions);
+
+    for (UINT8 i = 0; i < sizeof(TcpOptions); i++) {
+        TcpOptions[i] = 42ui8 + i;
+    }
+
+    while (Params.TcpOptionsLength > 0) {
+        GenericRxForwardGroHelper(Af, &Params);
+        Params.TcpOptionsLength -= sizeof(UINT32);
+    }
+}
+
+VOID
+GenericRxForwardGroMtu(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 4000;
+    Params.GroSegCount = 1;
+    Params.IfMtu = 2000;
+
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroMaxOffload(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 4000;
+    Params.GroSegCount = 1;
+
+    FN_OFFLOAD_OPTIONS OffloadOptions;
+    FnMpInitializeOffloadOptions(&OffloadOptions);
+    OffloadOptions.GsoMaxOffloadSize = 1000;
+    Params.OffloadOptions = &OffloadOptions;
+
+    GenericRxForwardGroHelper(Af, &Params);
+}
+
+VOID
+GenericRxForwardGroTcpFlags(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+    Params.PayloadLength = 4000;
+    Params.GroSegCount = 4;
+
+    for (const auto& Fin : {0, TH_FIN}) {
+    for (const auto& Psh : {0, TH_PSH}) {
+    for (const auto& Ece : {0, TH_ECE}) {
+    for (const auto& Cwr : {0, TH_CWR}) {
+        Params.TcpFlags = (UINT8)(TH_ACK | Fin | Psh | Ece | Cwr);
+        GenericRxForwardGroHelper(Af, &Params);
+    }}}}
+}
+
+VOID
+GenericRxFuzzForwardGro(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const UINT16 MaxPayload = (Af == AF_INET6) ? MAX_IPV6_PAYLOAD : MAX_IPV4_PAYLOAD;
+    const UINT16 MaxDataTrailer = 100;
+    unique_fnmp_task_offload_handle OffloadReset;
+
+    //
+    // Set the MTU to the smallest possible value to maximize fuzz efficiency.
+    //
+    auto MtuReset = MpSetMtuAndWaitForNdis(If, GenericMp, FNMP_MIN_MTU);
+
+    //
+    // Forward all packets.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_L2FWD;
+    auto ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    for (UINT32 i = 0; i < 10000; i++) {
+        GENERIC_RX_FRAGMENT_PARAMS Params = {0};
+        CxPlatVector<UINT32> SplitIndexes;
+        UINT8 SplitCount;
+        UINT8 TcpOptions[TH_MAX_LEN - sizeof(TCP_HDR)];
+
+        //
+        // Periodically advertise new NIC capabilities.
+        //
+        if ((i % 100) == 0) {
+            NDIS_OFFLOAD_PARAMETERS OffloadParams;
+            FN_OFFLOAD_OPTIONS OffloadOptions;
+
+            InitializeOffloadParameters(&OffloadParams);
+            FnMpInitializeOffloadOptions(&OffloadOptions);
+
+            if (GetRandomUInt32() & 1) {
+                OffloadParams.LsoV2IPv4 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+                OffloadParams.LsoV2IPv6 = NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED;
+            }
+
+            if (GetRandomUInt32() & 1) {
+                OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+                OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+            }
+
+            OffloadOptions.GsoMaxOffloadSize = (GetRandomUInt32() % MaxPayload) + 1;
+
+            //
+            // Set the offload and replace the offload resetter without
+            // triggering an immediate reset for the old handle (if any) here.
+            //
+            *OffloadReset.addressof() =
+                MpUpdateTaskOffload(
+                    GenericMp, FnOffloadCurrentConfig, &OffloadParams, &OffloadOptions).release();
+        }
+
+        Params.Action = XDP_PROGRAM_ACTION_L2FWD;
+        Params.TcpOptionsLength = (GetRandomUInt32() % (sizeof(TcpOptions) + 1) / 4) * 4;
+        Params.PayloadLength =
+            (UINT16)(GetRandomUInt32() % (MaxPayload - sizeof(TCP_HDR) - Params.TcpOptionsLength + 1));
+        Params.Backfill = GetRandomUInt32() % 100;
+        Params.Trailer = GetRandomUInt32() % 100;
+        Params.GroSegCount = (GetRandomUInt32() % (Params.PayloadLength + TCP_HEADER_BACKFILL(Af))) + 1;
+        Params.LowResources = GetRandomUInt32() & 1;
+
+        if ((GetRandomUInt32() % 4 == 0)) {
+            Params.DataTrailer = GetRandomUInt32() % (MaxDataTrailer + 1);
+        }
+
+        CxPlatVector<UCHAR> Payload((SIZE_T)Params.PayloadLength + Params.DataTrailer);
+        CxPlatRandom(Params.PayloadLength + Params.DataTrailer, Payload.data());
+
+        CxPlatVector<UCHAR> PacketBuffer(
+            Params.Backfill + TCP_HEADER_BACKFILL(Af) + sizeof(TcpOptions) +
+                Payload.size() + Params.Trailer);
+        UINT32 ActualPacketLength =
+            (UINT32)PacketBuffer.size() - Params.Backfill - Params.Trailer - Params.DataTrailer;
+
+        CxPlatRandom(Params.TcpOptionsLength, &TcpOptions[0]);
+
+        ETHERNET_ADDRESS DummyEthernet = {0};
+        INET_ADDR DummyIp = {0};
+        UINT16 DummyPort = 0;
+        TEST_TRUE(
+            PktBuildTcpFrame(
+                &PacketBuffer[0] + Params.Backfill, &ActualPacketLength,
+                Payload.empty() ? NULL : &Payload[0], Params.PayloadLength,
+                TcpOptions, Params.TcpOptionsLength, 0, 0, TH_ACK, 65535, &DummyEthernet,
+                &DummyEthernet, Af, &DummyIp, &DummyIp, DummyPort, DummyPort));
+
+        ActualPacketLength += Params.DataTrailer;
+
+        //
+        // Fuzz the headers and the first few bytes of payload.
+        //
+        for (UINT32 j = 0; j < 100; j++) {
+            PacketBuffer[GetRandomUInt32() % std::min(100ui64, PacketBuffer.size() + 1)] =
+                (UINT8)GetRandomUInt32();
+        }
+
+        if ((GetRandomUInt32() % 10) == 0) {
+            ActualPacketLength = (GetRandomUInt32() % ActualPacketLength) + 1;
+        }
+
+        //
+        // Generate a monotonic increasing sequence of split indexes.
+        //
+        // The first split can be at index zero only if there is backfill.
+        // If there is no backfill, use index one as the minimum.
+        //
+        UINT8 BackfillOffset = (Params.Backfill > 0) ? 0 : 1;
+        SplitCount = (UINT8)std::min(GetRandomUInt32() % 8ui32, ActualPacketLength - BackfillOffset);
+        while (SplitCount-- > 0) {
+            if (!SplitIndexes.empty()) {
+                SplitIndexes.push_back(
+                    (GetRandomUInt32() % (ActualPacketLength - SplitCount - SplitIndexes.back() - 1)) +
+                        SplitIndexes.back() + 1);
+            } else {
+                SplitIndexes.push_back(
+                    (GetRandomUInt32() % (ActualPacketLength - SplitCount - BackfillOffset)) +
+                        BackfillOffset);
+            }
+        }
+
+        if (!SplitIndexes.empty()) {
+            Params.SplitIndexes = &SplitIndexes[0];
+            Params.SplitCount = (UINT16)SplitIndexes.size();
+        }
+
+        CxPlatVector<DATA_BUFFER> Buffers =
+            GenericRxCreateSplitBuffers(
+                &PacketBuffer[0], ActualPacketLength, Params.Backfill, Params.Trailer,
+                Params.SplitIndexes, Params.SplitCount);
+
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, If.GetQueueId(), Buffers.data(), (UINT16)Buffers.size());
+        Frame.Frame.Input.Rsc.Info.CoalescedSegCount = Params.GroSegCount;
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+
+        if ((GetRandomUInt32() % 4) == 0) {
+            DATA_FLUSH_OPTIONS RxFlushOptions = {0};
+            RxFlushOptions.Flags.LowResources = Params.LowResources;
+            MpRxFlush(GenericMp, &RxFlushOptions);
+        }
+    }
+
+    MpRxFlush(GenericMp);
 }
 
 static
@@ -4299,7 +5204,7 @@ GenerateTestPassword(
             "0123456789";
 
         unsigned int r;
-        rand_s(&r);
+        CxPlatRandom(sizeof(r), &r);
 
         Buffer[i] = Characters[r % RTL_NUMBER_OF(Characters)];
     }
@@ -4442,21 +5347,23 @@ TryAttachEbpfXdpProgram(
     )
 {
     HRESULT Result;
-    CHAR Path[MAX_PATH];
-    std::string BpfAbsoluteFileName;
+    CHAR BpfAbsoluteFileName[MAX_PATH];
     bpf_program *Program;
     int ProgramFd;
     int ErrnoResult;
 
-    Result = GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path));
+    Result = GetCurrentBinaryPath(BpfAbsoluteFileName, RTL_NUMBER_OF(BpfAbsoluteFileName));
     if (FAILED(Result)) {
         goto Exit;
     }
 
-    BpfAbsoluteFileName = Path;
-    BpfAbsoluteFileName += BpfRelativeFileName;
+    ErrnoResult = strcat_s(BpfAbsoluteFileName, sizeof(BpfAbsoluteFileName), BpfRelativeFileName);
+    if (ErrnoResult != 0) {
+        Result = E_FAIL;
+        goto Exit;
+    }
 
-    BpfObject.reset(bpf_object__open(BpfAbsoluteFileName.c_str()));
+    BpfObject.reset(bpf_object__open(BpfAbsoluteFileName));
     if (BpfObject.get() == NULL) {
         TraceError("bpf_object__open failed: %d", errno);
         Result = E_FAIL;
@@ -4519,14 +5426,14 @@ AttachEbpfXdpProgram(
     // Workaround till the above issue is fixed (and eBPF returns E_BUSY):
     // Try a few times to load and attach the program with a sleep in between.
     //
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = TryAttachEbpfXdpProgram(
             BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
         if (Result == S_OK) {
             break;
         }
-    } while (Sleep(2 * POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(2 * POLL_INTERVAL_MS), !Watchdog.IsExpired());
 
     TEST_HRESULT(Result);
 
@@ -4548,7 +5455,7 @@ GenericRxEbpfAttach()
     // tearing down the object, so allow some time for that to happen before
     // retrying with the replace flag.
     //
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
     BpfObjectReplacement =
         AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
@@ -4566,15 +5473,15 @@ GenericRxEbpfDrop()
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
-    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
     UINT32 FrameLength = 0;
     TEST_EQUAL(
@@ -4595,8 +5502,8 @@ GenericRxEbpfPass()
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
-    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4619,8 +5526,8 @@ GenericRxEbpfTx()
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
-    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    MpTxFilter(GenericMp, Payload, &Mask[0], sizeof(Payload));
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
@@ -4657,8 +5564,8 @@ GenericRxEbpfPayload()
             UdpFrame + Backfill, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
             &RemoteHw, AF_INET6, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
-    std::vector<UCHAR> Mask(UdpFrameLength, 0xFF);
-    LwfRxFilter(FnLwf, UdpFrame + Backfill, &Mask[0], UdpFrameLength);
+    CxPlatVector<UCHAR> Mask(UdpFrameLength, 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, UdpFrame + Backfill, Mask.data(), UdpFrameLength);
 
     RX_FRAME Frame;
     DATA_BUFFER Buffer = {0};
@@ -4760,15 +5667,15 @@ GenericRxEbpfIfIndex()
 
     TEST_EQUAL(0, bpf_map_update_elem(interface_map_fd, &Zero, &IfIndex, BPF_ANY));
 
-    std::vector<UCHAR> Mask(sizeof(Payload), 0xFF);
-    LwfRxFilter(FnLwf, Payload, &Mask[0], sizeof(Payload));
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
 
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
     UINT32 FrameLength = 0;
     // Packet should be dropped.
@@ -4791,7 +5698,7 @@ GenericRxEbpfIfIndex()
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
     // Packet should not be dropped.
     TEST_EQUAL(
@@ -4804,17 +5711,15 @@ GenericRxEbpfFragments()
 {
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
-    unique_fnlwf_handle FnLwf;
     const UINT32 Backfill = 3;
     const UINT32 Trailer = 4;
     const UINT32 SplitAt = 4;
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
-    FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     Buffers[0].DataLength = SplitAt;
     Buffers[0].DataOffset = Backfill;
@@ -4825,26 +5730,25 @@ GenericRxEbpfFragments()
     Buffers[1].BufferLength = Buffers[1].DataLength + Trailer;
     Buffers[1].VirtualAddress = Payload + Buffers[0].BufferLength;
 
+    //
+    // XDP-for-Windows has limited eBPF support for fragments: the first buffer
+    // is visible to eBPF programs, and the remaining fragments (if any) are
+    // inaccessible.
+    //
+    // Actions apply to the entire frame, not just to the first fragement.
+    //
+    UINT32 MaskSize = Buffers[0].DataLength + Buffers[1].DataLength;
+    CxPlatVector<UCHAR> Mask(MaskSize, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, Payload + Backfill, Mask.data(), MaskSize);
+
     RX_FRAME Frame;
-    RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
-
-    std::vector<UCHAR> Mask(sizeof(Payload) - Backfill - Trailer, 0xFF);
-    LwfRxFilter(FnLwf, Payload + Backfill, &Mask[0], sizeof(Payload) - Backfill - Trailer);
-
+    RxInitializeFrame(&Frame, If.GetQueueId(), Buffers, RTL_NUMBER_OF(Buffers));
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    //
-    // We currently do not support fragments with eBPF, so this packet should
-    // be dropped.
-    //
-
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
-
-    UINT32 FrameLength = 0;
-    TEST_EQUAL(
-        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+    MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
 }
 
 VOID
@@ -4907,7 +5811,9 @@ GenericTxToRxInject()
     NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
     TEST_EQUAL(0, NotifyResult);
 
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
 
@@ -4921,7 +5827,7 @@ GenericTxSingleFrame()
     UINT64 Pattern = 0xA5CC7729CE99C16Aui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxSingleFrame";
@@ -4976,7 +5882,7 @@ GenericTxOutOfOrder()
     UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxOutOfOrder";
@@ -5041,7 +5947,7 @@ GenericTxSharing()
         UINT64 Pattern = 0xA5CC7729CE99C16Aui64 + i;
         UINT64 Mask = ~0ui64;
 
-        MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+        auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
         UINT16 FrameOffset = 13;
         UCHAR Payload[] = "GenericTxSharing";
@@ -5097,7 +6003,7 @@ GenericTxPoke()
     UINT64 Pattern = 0x4FA3DF603CC44911ui64;
     UINT64 Mask = ~0ui64;
 
-    MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
+    auto MpFilter = MpTxFilter(GenericMp, &Pattern, &Mask, sizeof(Pattern));
 
     UINT16 FrameOffset = 13;
     UCHAR Payload[] = "GenericTxPoke";
@@ -5146,38 +6052,30 @@ GenericTxMtu()
     auto If = FnMpIf;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    auto MtuScopeGuard = wil::scope_exit([&]
-    {
-        MpSetMtu(GenericMp, FNMP_DEFAULT_MTU);
-        //
-        // Wait for the MTU changes to quiesce, which may involve a complete NDIS
-        // rebind for filters and protocols.
-        //
-        Sleep(TEST_TIMEOUT_ASYNC_MS);
-        WaitForWfpQuarantine(If);
-    });
-
     const UINT32 TestMtu = 2048;
     C_ASSERT(TestMtu != FNMP_DEFAULT_MTU);
     C_ASSERT(TestMtu < DEFAULT_UMEM_CHUNK_SIZE);
 
-    MpSetMtu(GenericMp, TestMtu);
+    auto MtuReset = MpSetMtu(If, GenericMp, TestMtu);
 
     //
     // The XSK TX path should be torn down after an MTU change.
     //
-    Stopwatch<std::chrono::milliseconds> Watchdog(MP_RESTART_TIMEOUT);
+    Stopwatch Watchdog(MP_RESTART_TIMEOUT_MS);
     do {
         if (XskRingError(&Xsk.Rings.Tx)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_TRUE(XskRingError(&Xsk.Rings.Tx));
 
     //
-    // Wait for the MTU changes to quiesce.
+    // Wait for the MTU changes to quiesce. If filter or protocol drivers
+    // incompatible with MTU changes are installed, this requires a complete
+    // detach/attach cycle of the entire interface stack.
     //
-    Sleep(TEST_TIMEOUT_ASYNC_MS);
+    WaitForNdisDatapath(If, MP_RESTART_TIMEOUT_MS);
+
     Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
 
     //
@@ -5236,6 +6134,58 @@ GenericTxMtu()
     TEST_EQUAL(1, Stats.TxInvalidDescriptors);
 }
 
+static
+VOID
+RxIndicate(
+    _In_reads_bytes_(PayloadLength) UCHAR *Payload,
+    _In_ SIZE_T PayloadLength,
+    _In_ MY_SOCKET *Xsk,
+    _In_ NET_IFINDEX IfIndex,
+    _In_ UINT32 QueueId
+    )
+{
+    auto GenericMp = MpOpenGeneric(IfIndex);
+
+    DATA_BUFFER Buffer = {0};
+    Buffer.DataOffset = 0;
+    Buffer.DataLength = (UINT32)PayloadLength;
+    Buffer.BufferLength = Buffer.DataLength;
+    Buffer.VirtualAddress = Payload;
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, QueueId, &Buffer);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    SocketProduceRxFill(Xsk, 1);
+    TEST_HRESULT(TryMpRxFlush(GenericMp));
+}
+
+static
+VOID
+TxIndicate(
+    _In_reads_bytes_(PayloadLength) UCHAR *Payload,
+    _In_ SIZE_T PayloadLength,
+    _In_ MY_SOCKET *Xsk
+    )
+{
+    UINT64 TxBuffer = SocketFreePop(Xsk);
+    UCHAR *TxFrame = Xsk->Umem.Buffer.get() + TxBuffer;
+    UINT32 TxFrameLength = (UINT32)PayloadLength;
+    ASSERT(TxFrameLength <= Xsk->Umem.Reg.ChunkSize);
+    RtlCopyMemory(TxFrame, Payload, PayloadLength);
+
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk->Rings.Tx, 1, &ProducerIndex));
+
+    XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(Xsk, ProducerIndex++);
+    TxDesc->Address.AddressAndOffset = TxBuffer;
+    TxDesc->Length = TxFrameLength;
+    XskRingProducerSubmit(&Xsk->Rings.Tx, 1);
+
+    XSK_NOTIFY_RESULT_FLAGS PokeResult;
+    NotifySocket(Xsk->Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &PokeResult);
+    TEST_EQUAL(0, PokeResult);
+}
+
 VOID
 GenericXskWait(
     _In_ BOOLEAN Rx,
@@ -5246,43 +6196,9 @@ GenericXskWait(
     auto Xsk = SetupSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const UINT32 WaitTimeoutMs = 1000;
-    Stopwatch<std::chrono::milliseconds> Timer;
+    Stopwatch Timer;
 
     UCHAR Payload[] = "GenericXskWait";
-
-    auto RxIndicate = [&] {
-        DATA_BUFFER Buffer = {0};
-        Buffer.DataOffset = 0;
-        Buffer.DataLength = sizeof(Payload);
-        Buffer.BufferLength = Buffer.DataLength;
-        Buffer.VirtualAddress = Payload;
-
-        RX_FRAME Frame;
-        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
-        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
-        SocketProduceRxFill(&Xsk, 1);
-        TEST_HRESULT(TryMpRxFlush(GenericMp));
-    };
-
-    auto TxIndicate = [&] {
-        UINT64 TxBuffer = SocketFreePop(&Xsk);
-        UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
-        UINT32 TxFrameLength = sizeof(Payload);
-        ASSERT(TxFrameLength <= Xsk.Umem.Reg.ChunkSize);
-        RtlCopyMemory(TxFrame, Payload, sizeof(Payload));
-
-        UINT32 ProducerIndex;
-        TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
-
-        XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-        TxDesc->Address.AddressAndOffset = TxBuffer;
-        TxDesc->Length = TxFrameLength;
-        XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
-
-        XSK_NOTIFY_RESULT_FLAGS PokeResult;
-        NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &PokeResult);
-        TEST_EQUAL(0, PokeResult);
-    };
 
     XSK_NOTIFY_FLAGS NotifyFlags = XSK_NOTIFY_FLAG_NONE;
     UINT32 ExpectedResult = 0;
@@ -5295,7 +6211,7 @@ GenericXskWait(
         //
         // Produce IO that does not satisfy the wait condition.
         //
-        RxIndicate();
+        RxIndicate(Payload, sizeof(Payload), &Xsk, If.GetIfIndex(), FnMpIf.GetQueueId());
     }
 
     if (Tx) {
@@ -5305,7 +6221,7 @@ GenericXskWait(
         //
         // Produce IO that does not satisfy the wait condition.
         //
-        TxIndicate();
+        TxIndicate(Payload, sizeof(Payload), &Xsk);
     }
 
     //
@@ -5315,33 +6231,49 @@ GenericXskWait(
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_TIMEOUT),
         TryNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
-    Timer.ExpectElapsed(std::chrono::milliseconds(WaitTimeoutMs));
+    Timer.ExpectElapsed(WaitTimeoutMs);
 
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            //
-            // On another thread, briefly delay execution to give the main test
-            // thread a chance to begin waiting. Then, produce RX and TX.
-            //
-            Sleep(10);
+    //
+    // On another thread, briefly delay execution to give the main test
+    // thread a chance to begin waiting. Then, produce RX and TX.
+    //
+    struct DELAY_INDICATE_THREAD_CONTEXT {
+        UCHAR *Payload;
+        SIZE_T PayloadLength;
+        MY_SOCKET *Xsk;
+        NET_IFINDEX IfIndex;
+        UINT32 QueueId;
+        BOOLEAN Rx;
+        BOOLEAN Tx;
+    } Ctx;
+    Ctx.Payload = Payload;
+    Ctx.PayloadLength = sizeof(Payload);
+    Ctx.Xsk = &Xsk;
+    Ctx.IfIndex = If.GetIfIndex();
+    Ctx.QueueId = FnMpIf.GetQueueId();
+    Ctx.Rx = Rx;
+    Ctx.Tx = Tx;
 
-            if (Rx) {
-                RxIndicate();
-            }
+    CxPlatAsyncT<const DELAY_INDICATE_THREAD_CONTEXT> Async([](const DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
+        auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
-            if (Tx) {
-                TxIndicate();
-            }
+        CxPlatSleep(10);
+
+        if (Ctx->Rx) {
+            RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
         }
-    );
+
+        if (Ctx->Tx) {
+            TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
+        }
+    }, &Ctx);
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
     // conditions are eventually met.
     //
     do {
-        Timer.Reset(TEST_TIMEOUT_ASYNC);
+        Timer.Reset(TEST_TIMEOUT_ASYNC_MS);
         NotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult);
         TEST_FALSE(Timer.IsExpired());
         TEST_NOT_EQUAL(0, (NotifyResult & ExpectedResult));
@@ -5364,7 +6296,7 @@ GenericXskWait(
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_TIMEOUT),
         TryNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
-    Timer.ExpectElapsed(std::chrono::milliseconds(WaitTimeoutMs));
+    Timer.ExpectElapsed(WaitTimeoutMs);
 }
 
 VOID
@@ -5382,40 +6314,6 @@ GenericXskWaitAsync(
 
     UCHAR Payload[] = "GenericXskWaitAsync";
 
-    auto RxIndicate = [&] {
-        DATA_BUFFER Buffer = {0};
-        Buffer.DataOffset = 0;
-        Buffer.DataLength = sizeof(Payload);
-        Buffer.BufferLength = Buffer.DataLength;
-        Buffer.VirtualAddress = Payload;
-
-        RX_FRAME Frame;
-        RxInitializeFrame(&Frame, FnMpIf.GetQueueId(), &Buffer);
-        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
-        SocketProduceRxFill(&Xsk, 1);
-        TEST_HRESULT(TryMpRxFlush(GenericMp));
-    };
-
-    auto TxIndicate = [&] {
-        UINT64 TxBuffer = SocketFreePop(&Xsk);
-        UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
-        UINT32 TxFrameLength = sizeof(Payload);
-        ASSERT(TxFrameLength <= Xsk.Umem.Reg.ChunkSize);
-        RtlCopyMemory(TxFrame, Payload, sizeof(Payload));
-
-        UINT32 ProducerIndex;
-        TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
-
-        XSK_BUFFER_DESCRIPTOR *TxDesc = SocketGetTxDesc(&Xsk, ProducerIndex++);
-        TxDesc->Address.AddressAndOffset = TxBuffer;
-        TxDesc->Length = TxFrameLength;
-        XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
-
-        XSK_NOTIFY_RESULT_FLAGS PokeResult;
-        NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &PokeResult);
-        TEST_EQUAL(0, PokeResult);
-    };
-
     XSK_NOTIFY_FLAGS NotifyFlags = XSK_NOTIFY_FLAG_NONE;
     UINT32 ExpectedResult = 0;
     XSK_NOTIFY_RESULT_FLAGS NotifyResult;
@@ -5427,7 +6325,7 @@ GenericXskWaitAsync(
         //
         // Produce IO that does not satisfy the wait condition.
         //
-        RxIndicate();
+        RxIndicate(Payload, sizeof(Payload), &Xsk, If.GetIfIndex(), FnMpIf.GetQueueId());
     }
 
     if (Tx) {
@@ -5437,7 +6335,7 @@ GenericXskWaitAsync(
         //
         // Produce IO that does not satisfy the wait condition.
         //
-        TxIndicate();
+        TxIndicate(Payload, sizeof(Payload), &Xsk);
     }
 
     //
@@ -5452,24 +6350,40 @@ GenericXskWaitAsync(
     TEST_FALSE(GetQueuedCompletionStatus(iocp.get(), &bytes, &key, &ovp, WaitTimeoutMs));
     TEST_EQUAL(WAIT_TIMEOUT, GetLastError());
 
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            //
-            // On another thread, briefly delay execution to give the main test
-            // thread a chance to begin waiting. Then, produce RX and TX.
-            //
-            Sleep(10);
+    //
+    // On another thread, briefly delay execution to give the main test
+    // thread a chance to begin waiting. Then, produce RX and TX.
+    //
+    struct DELAY_INDICATE_THREAD_CONTEXT {
+        UCHAR *Payload;
+        SIZE_T PayloadLength;
+        MY_SOCKET *Xsk;
+        NET_IFINDEX IfIndex;
+        UINT32 QueueId;
+        BOOLEAN Rx;
+        BOOLEAN Tx;
+    } Ctx;
+    Ctx.Payload = Payload;
+    Ctx.PayloadLength = sizeof(Payload);
+    Ctx.Xsk = &Xsk;
+    Ctx.IfIndex = If.GetIfIndex();
+    Ctx.QueueId = FnMpIf.GetQueueId();
+    Ctx.Rx = Rx;
+    Ctx.Tx = Tx;
 
-            if (Rx) {
-                RxIndicate();
-            }
+    CxPlatAsyncT<const DELAY_INDICATE_THREAD_CONTEXT> Async([](const DELAY_INDICATE_THREAD_CONTEXT *Ctx) {
+        auto GenericMp = MpOpenGeneric(Ctx->IfIndex);
 
-            if (Tx) {
-                TxIndicate();
-            }
+        CxPlatSleep(10);
+
+        if (Ctx->Rx) {
+            RxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk, Ctx->IfIndex, Ctx->QueueId);
         }
-    );
+
+        if (Ctx->Tx) {
+            TxIndicate(Ctx->Payload, Ctx->PayloadLength, Ctx->Xsk);
+        }
+    }, &Ctx);
 
     //
     // Verify the wait succeeds if any of the conditions is true, and that all
@@ -5543,7 +6457,7 @@ GenericLwfDelayDetach(
     // Verify LWF datapath detach delay does not impact LWF detach.
     //
 
-    DelayTimeoutMs = 5 * (DWORD)std::chrono::milliseconds(MP_RESTART_TIMEOUT).count();
+    DelayTimeoutMs = 5 * (DWORD)MP_RESTART_TIMEOUT_MS;
     DelayTimeoutSec = DelayTimeoutMs / 1000;
     TEST_EQUAL(
         ERROR_SUCCESS,
@@ -5562,16 +6476,16 @@ GenericLwfDelayDetach(
         TEST_EQUAL(
             ERROR_SUCCESS,
             RegDeleteValueA(XdpParametersKey.get(), DelayDetachTimeoutRegName));
-        Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+        CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
         FnMpIf.Restart();
     });
-    Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
     FnMpIf.Restart();
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
     }
-    Stopwatch<std::chrono::milliseconds> Timer(MP_RESTART_TIMEOUT);
+    Stopwatch Timer(MP_RESTART_TIMEOUT_MS);
     FnMpIf.Restart();
     TEST_FALSE(Timer.IsExpired());
 
@@ -5587,7 +6501,7 @@ GenericLwfDelayDetach(
             XdpParametersKey.get(),
             DelayDetachTimeoutRegName,
             0, REG_DWORD, (BYTE *)&DelayTimeoutSec, sizeof(DelayTimeoutSec)));
-    Sleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the reg change notification to occur.
 
     FnMpIf.Restart();
     auto GenericMp = MpOpenGeneric(FnMpIf.GetIfIndex());
@@ -5608,11 +6522,11 @@ GenericLwfDelayDetach(
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
         QueryPerformanceCounter(&SocketClosureTime);
     }
-    Sleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
     TEST_TRUE(LastMpPauseTime.QuadPart < SocketClosureTime.QuadPart);
     QueryPerformanceCounter(&LowerBoundTime);
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
     QueryPerformanceCounter(&UpperBoundTime);
 
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
@@ -5632,15 +6546,15 @@ GenericLwfDelayDetach(
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
         QueryPerformanceCounter(&SocketClosureTime);
     }
-    Sleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
+    CxPlatSleep(DelayTimeoutMs - TEST_TIMEOUT_ASYNC_MS);
     {
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
     }
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
     TEST_TRUE(LastMpPauseTime.QuadPart < SocketClosureTime.QuadPart);
     QueryPerformanceCounter(&LowerBoundTime);
-    Sleep(TEST_TIMEOUT_ASYNC_MS * 2);
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
     QueryPerformanceCounter(&UpperBoundTime);
 
     LastMpPauseTime = MpGetLastMiniportPauseTimestamp(GenericMp);
@@ -5689,17 +6603,17 @@ GenericLoopback(
         CreateXdpProg(
             If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
-    wil::unique_socket RawSocket(socket(Af, SOCK_RAW, IPPROTO_IP));
+    unique_fnsock RawSocket;
+    TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_IP, &RawSocket));
     TEST_NOT_NULL(RawSocket.get());
 
-    TEST_EQUAL(0, bind(RawSocket.get(), (SOCKADDR *)&LocalSockAddr, sizeof(LocalSockAddr)));
+    TEST_HRESULT(FnSockBind(RawSocket.get(), (SOCKADDR *)&LocalSockAddr, sizeof(LocalSockAddr)));
 
     DWORD Opt = RCVALL_ON;
-    DWORD BytesReturned;
-    TEST_EQUAL(
-        0,
-        WSAIoctl(
-            RawSocket.get(), SIO_RCVALL, &Opt, sizeof(Opt), NULL, 0, &BytesReturned, NULL, NULL));
+    ULONG BytesReturned;
+    TEST_HRESULT(
+        FnSockIoctl(
+            RawSocket.get(), SIO_RCVALL, &Opt, sizeof(Opt), NULL, 0, &BytesReturned));
 
     //
     // When promiscuous mode is enabled from a RAW socket in TCPIP, locally sent
@@ -5742,7 +6656,9 @@ GenericLoopback(
     // Verify that TCPIP received the frame.
     //
 
-    TEST_EQUAL(sizeof(UdpPayload), recv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), 0));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 
     //
@@ -5768,8 +6684,8 @@ GetXdpRss(
         TryRssGet(InterfaceHandle.get(), NULL, &Size));
     TEST_TRUE(Size >= sizeof(*RssConfig.get()));
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(Size));
-    TEST_TRUE(RssConfig.get() != NULL);
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(Size));
+    TEST_NOT_NULL(RssConfig.get());
 
     RssGet(InterfaceHandle.get(), RssConfig.get(), &Size);
     TEST_EQUAL(RssConfig->Header.Revision, XDP_RSS_CONFIGURATION_REVISION_1);
@@ -5793,8 +6709,8 @@ GetXdpRssIndirectionTable(
     wil::unique_handle InterfaceHandle = InterfaceOpen(If.GetIfIndex());
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig = GetXdpRss(InterfaceHandle);
 
-    IndirectionTableOut.reset((PROCESSOR_NUMBER *)malloc(RssConfig->IndirectionTableSize));
-
+    IndirectionTableOut.reset((PROCESSOR_NUMBER *)AllocMem(RssConfig->IndirectionTableSize));
+    TEST_NOT_NULL(IndirectionTableOut.get());
     PROCESSOR_NUMBER *IndirectionTable =
         (PROCESSOR_NUMBER *)RTL_PTR_ADD(RssConfig.get(), RssConfig->IndirectionTableOffset);
     RtlCopyMemory(IndirectionTableOut.get(), IndirectionTable, RssConfig->IndirectionTableSize);
@@ -5820,7 +6736,9 @@ SetXdpRss(
     // Form the XdpSetRss input.
     //
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
+
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
@@ -5845,12 +6763,19 @@ SetXdpRss(
     InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            return TryRssSet(InterfaceHandle.get(), RssConfig.get(), RssConfigSize);
-        }
-    );
+    struct TRY_RSS_SET_THREAD_CONTEXT {
+        HANDLE InterfaceHandle;
+        XDP_RSS_CONFIGURATION *RssConfig;
+        UINT32 RssConfigSize;
+        HRESULT Result;
+    } Ctx;
+    Ctx.InterfaceHandle = InterfaceHandle.get();
+    Ctx.RssConfig = RssConfig.get();
+    Ctx.RssConfigSize = RssConfigSize;
+
+    CxPlatAsyncT<TRY_RSS_SET_THREAD_CONTEXT> Async([](TRY_RSS_SET_THREAD_CONTEXT *Ctx) {
+        Ctx->Result = TryRssSet(Ctx->InterfaceHandle, Ctx->RssConfig, Ctx->RssConfigSize);
+    }, &Ctx);
 
     UINT32 OidInfoBufferLength;
     unique_malloc_ptr<VOID> OidInfoBuffer =
@@ -5864,8 +6789,8 @@ SetXdpRss(
     TEST_TRUE(RtlEqualMemory(NdisIndirectionTable, IndirectionTable.get(), IndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
-    TEST_HRESULT(AsyncThread.get());
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+    TEST_HRESULT(Ctx.Result);
 }
 
 static
@@ -5902,22 +6827,24 @@ static
 VOID
 PrintProcArray(
     _In_ const char* Prefix,
-    _In_ const std::vector<UINT32> &ProcArray
+    _In_ const CxPlatVector<UINT32> &ProcArray
     )
 {
-    std::string Msg;
+    CHAR Msg[1024] = {0};
 
-    Msg += Prefix;
-    Msg += "[";
+    strcat_s(Msg, sizeof(Msg), Prefix);
+    strcat_s(Msg, sizeof(Msg), "[");
     for (int i = 0; i < ProcArray.size(); i++) {
-        Msg += std::to_string(ProcArray[i]);
+        CHAR NumStr[16];
+        _ultoa_s(ProcArray[i], NumStr, sizeof(NumStr), 10);
+        strcat_s(Msg, sizeof(Msg), NumStr);
         if (i != ProcArray.size() - 1) {
-            Msg += ",";
+            strcat_s(Msg, sizeof(Msg), ",");
         }
     }
-    Msg += "]";
+    strcat_s(Msg, sizeof(Msg), "]");
 
-    TraceVerbose("%s", Msg.c_str());
+    TraceVerbose("%s", Msg);
 }
 
 static
@@ -5938,20 +6865,33 @@ VerifyRssSettings(
             IndirectionTable.get(), ExpectedXdpIndirectionTable.get(), IndirectionTableSize));
 }
 
-typedef struct _PROCESSOR_NUMBER_COMP {
-    bool operator()(const PROCESSOR_NUMBER &A, const PROCESSOR_NUMBER &B) const {
-        return (A.Group == B.Group) ? A.Number < B.Number : A.Group < B.Group;
+static
+_Success_(return)
+BOOLEAN
+FindProcessorNumber(
+    _In_ const CxPlatVector<PROCESSOR_NUMBER> &Array,
+    _In_ const PROCESSOR_NUMBER &Processor,
+    _Out_ ULONG *Index
+    )
+{
+    for (int i = 0; i < Array.size(); i++) {
+        if (Processor.Group == Array[i].Group && Processor.Number == Array[i].Number) {
+            *Index = i;
+            return TRUE;
+        }
     }
-} PROCESSOR_NUMBER_COMP;
+
+    return FALSE;
+}
 
 static
-std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP>
+CxPlatVector<PROCESSOR_NUMBER>
 GetRssProcessorSetFromIndirectionTable(
     _In_ const PROCESSOR_NUMBER *IndirectionTable,
     _In_ UINT32 IndirectionTableSize
     )
 {
-    std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP> RssProcessors;
+    CxPlatVector<PROCESSOR_NUMBER> RssProcessors;
 
     //
     // Convert indirection table to processor set.
@@ -5960,7 +6900,10 @@ GetRssProcessorSetFromIndirectionTable(
         Index < IndirectionTableSize / sizeof(*IndirectionTable);
         Index++) {
         PROCESSOR_NUMBER Processor = IndirectionTable[Index];
-        RssProcessors.insert(Processor);
+        ULONG FoundIndex;
+        if (!FindProcessorNumber(RssProcessors, Processor, &FoundIndex)) {
+            TEST_TRUE(RssProcessors.push_back(Processor));
+        }
     }
 
     return RssProcessors;
@@ -5974,7 +6917,7 @@ VerifyRssDatapath(
     _In_ UINT32 IndirectionTableSize
     )
 {
-    std::set<PROCESSOR_NUMBER, PROCESSOR_NUMBER_COMP> RssProcessors =
+    CxPlatVector<PROCESSOR_NUMBER> RssProcessors =
         GetRssProcessorSetFromIndirectionTable(IndirectionTable.get(), IndirectionTableSize);
 
     //
@@ -5985,7 +6928,7 @@ VerifyRssDatapath(
     auto DefaultLwf = LwfOpenDefault(If.GetIfIndex());
     UCHAR Pattern = 0x00;
     UCHAR Mask = 0x00;
-    LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
+    auto LwfFilter = LwfRxFilter(DefaultLwf, &Pattern, &Mask, sizeof(Pattern));
 
     IndicateOnAllActiveRssQueues(If, (UINT32)RssProcessors.size());
 
@@ -6002,7 +6945,9 @@ VerifyRssDatapath(
     for (UINT32 Index = 0; Index < NumRssProcessors; Index++) {
         auto Frame = LwfRxAllocateAndGetFrame(DefaultLwf, Index);
         PROCESSOR_NUMBER Processor = Frame->Output.ProcessorNumber;
-        TEST_EQUAL(1, RssProcessors.erase(Processor));
+        ULONG FoundIndex;
+        TEST_TRUE(FindProcessorNumber(RssProcessors, Processor, &FoundIndex));
+        RssProcessors.eraseAt(FoundIndex);
         TEST_EQUAL(0, Frame->Output.RssHash);
     }
 
@@ -6043,7 +6988,7 @@ OffloadRssError()
     // XDP fails to partially set RSS. Wait for TCPIP's configuration before
     // continuing with this test case.
     //
-    Stopwatch<std::chrono::milliseconds> Watchdog(TEST_TIMEOUT_ASYNC);
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     HRESULT CurrentRssResult;
     do {
         UINT32 CurrentRssConfigSize = 0;
@@ -6051,10 +6996,11 @@ OffloadRssError()
         if (CurrentRssResult == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), CurrentRssResult);
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
 
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->Flags = XDP_RSS_FLAG_SET_INDIRECTION_TABLE;
@@ -6117,7 +7063,8 @@ OffloadRssReference()
         //
 
         ModifiedRssConfigSize = OriginalRssConfigSize;
-        ModifiedRssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(ModifiedRssConfigSize));
+        ModifiedRssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(ModifiedRssConfigSize));
+        TEST_NOT_NULL(ModifiedRssConfig.get());
 
         XdpInitializeRssConfiguration(ModifiedRssConfig.get(), ModifiedRssConfigSize);
         ModifiedRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
@@ -6248,7 +7195,8 @@ OffloadRssInterfaceRestart()
     InterfaceHandle = InterfaceOpen(FnMpIf.GetIfIndex());
     OriginalRssConfig = GetXdpRss(InterfaceHandle, &OriginalRssConfigSize);
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(OriginalRssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(OriginalRssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
     RtlCopyMemory(RssConfig.get(), OriginalRssConfig.get(), OriginalRssConfigSize);
     RssConfigSize = OriginalRssConfigSize;
 
@@ -6292,7 +7240,7 @@ OffloadRssInterfaceRestart()
     // Wait for the interface to be up and RSS to be configured by the upper
     // layer protocol.
     //
-    Stopwatch<std::chrono::milliseconds> Watchdog(MP_RESTART_TIMEOUT);
+    Stopwatch Watchdog(MP_RESTART_TIMEOUT_MS);
     HRESULT Result = S_OK;
     do {
         Result = TryInterfaceOpen(FnMpIf.GetIfIndex(), InterfaceHandle);
@@ -6306,7 +7254,7 @@ OffloadRssInterfaceRestart()
         if (Result == HRESULT_FROM_WIN32(ERROR_MORE_DATA)) {
             break;
         }
-    } while (Sleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), Result);
 
     RssConfig = GetXdpRss(InterfaceHandle, &RssConfigSize);
@@ -6373,7 +7321,8 @@ OffloadRssUpperSet()
     //
     // Set lower edge settings via XDP.
     //
-    LowerRssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    LowerRssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(LowerRssConfig.get());
     LowerRssConfigSize = RssConfigSize;
     RtlCopyMemory(LowerRssConfig.get(), RssConfig.get(), RssConfigSize);
     LowerRssConfig->Flags = XDP_RSS_FLAG_SET_HASH_TYPE;
@@ -6444,15 +7393,15 @@ OffloadRssUpperSet()
 static
 VOID
 CreateIndirectionTable(
-    _In_ const std::vector<UINT32> &ProcessorIndices,
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices,
     _Out_ unique_malloc_ptr<PROCESSOR_NUMBER> &IndirectionTable,
     _Out_ UINT32 *IndirectionTableSize
     )
 {
     *IndirectionTableSize = (UINT32)ProcessorIndices.size() * sizeof(*IndirectionTable);
 
-    IndirectionTable.reset((PROCESSOR_NUMBER *)malloc(*IndirectionTableSize));
-    TEST_TRUE(IndirectionTable.get() != NULL);
+    IndirectionTable.reset((PROCESSOR_NUMBER *)AllocMem(*IndirectionTableSize));
+    TEST_NOT_NULL(IndirectionTable.get());
 
     RtlZeroMemory(IndirectionTable.get(), *IndirectionTableSize);
     for (UINT32 i = 0; i < ProcessorIndices.size(); i++) {
@@ -6462,7 +7411,7 @@ CreateIndirectionTable(
 
 VOID
 OffloadRssSingleSet(
-    _In_ const std::vector<UINT32> &ProcessorIndices
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices
     )
 {
     unique_malloc_ptr<PROCESSOR_NUMBER> IndirectionTable;
@@ -6494,8 +7443,8 @@ OffloadRssSingleSet(
 
 VOID
 OffloadRssSubsequentSet(
-    _In_ const std::vector<UINT32> &ProcessorIndices1,
-    _In_ const std::vector<UINT32> &ProcessorIndices2
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices1,
+    _In_ const CxPlatVector<UINT32> &ProcessorIndices2
     )
 {
     wil::unique_handle InterfaceHandle;
@@ -6534,18 +7483,53 @@ OffloadRssSet()
         return;
     }
 
-    OffloadRssSingleSet({0});
-    OffloadRssSingleSet({1});
-    OffloadRssSingleSet({0,1});
+    CxPlatVector<UINT32> RssProcs1;
+    CxPlatVector<UINT32> RssProcs2;
 
-    OffloadRssSubsequentSet({0}, {1});
+    RssProcs1.clear();
+    TEST_TRUE(RssProcs1.push_back(0));
+    OffloadRssSingleSet(RssProcs1);
+
+    RssProcs1.clear();
+    TEST_TRUE(RssProcs1.push_back(1));
+    OffloadRssSingleSet(RssProcs1);
+
+    RssProcs1.clear();
+    TEST_TRUE(RssProcs1.push_back(0));
+    TEST_TRUE(RssProcs1.push_back(1));
+    OffloadRssSingleSet(RssProcs1);
+
+    RssProcs1.clear();
+    TEST_TRUE(RssProcs1.push_back(0));
+    RssProcs2.clear();
+    TEST_TRUE(RssProcs2.push_back(1));
+    OffloadRssSubsequentSet(RssProcs1, RssProcs2);
 
     if (GetProcessorCount() >= 4) {
-        OffloadRssSingleSet({0,2});
-        OffloadRssSingleSet({1,3});
-        OffloadRssSingleSet({0,1,2,3});
+        RssProcs1.clear();
+        TEST_TRUE(RssProcs1.push_back(0));
+        TEST_TRUE(RssProcs1.push_back(2));
+        OffloadRssSingleSet(RssProcs1);
 
-        OffloadRssSubsequentSet({0,2}, {1,3});
+        RssProcs1.clear();
+        TEST_TRUE(RssProcs1.push_back(1));
+        TEST_TRUE(RssProcs1.push_back(3));
+        OffloadRssSingleSet(RssProcs1);
+
+        RssProcs1.clear();
+        TEST_TRUE(RssProcs1.push_back(0));
+        TEST_TRUE(RssProcs1.push_back(1));
+        TEST_TRUE(RssProcs1.push_back(2));
+        TEST_TRUE(RssProcs1.push_back(3));
+        OffloadRssSingleSet(RssProcs1);
+
+        RssProcs1.clear();
+        TEST_TRUE(RssProcs1.push_back(0));
+        TEST_TRUE(RssProcs1.push_back(2));
+        RssProcs2.clear();
+        TEST_TRUE(RssProcs2.push_back(1));
+        TEST_TRUE(RssProcs2.push_back(3));
+        OffloadRssSubsequentSet(RssProcs1, RssProcs2);
     }
 }
 
@@ -6563,8 +7547,8 @@ OffloadRssCapabilities()
         TryRssGetCapabilities(InterfaceHandle.get(), NULL, &Size));
     TEST_EQUAL(Size, XDP_SIZEOF_RSS_CAPABILITIES_REVISION_2);
 
-    RssCapabilities.reset((XDP_RSS_CAPABILITIES *)malloc(Size));
-    TEST_TRUE(RssCapabilities.get() != NULL);
+    RssCapabilities.reset((XDP_RSS_CAPABILITIES *)AllocMem(Size));
+    TEST_NOT_NULL(RssCapabilities.get());
 
     RssGetCapabilities(InterfaceHandle.get(), RssCapabilities.get(), &Size);
     TEST_EQUAL(RssCapabilities->Header.Revision, XDP_RSS_CAPABILITIES_REVISION_2);
@@ -6610,12 +7594,16 @@ OffloadRssReset()
     // Create and set a new RSS table.
     //
 
-    CreateIndirectionTable({1, 0}, IndirectionTable, &IndirectionTableSize);
+    CxPlatVector<UINT32> ProcessorIndices;
+    TEST_TRUE(ProcessorIndices.push_back(1));
+    TEST_TRUE(ProcessorIndices.push_back(0));
+    CreateIndirectionTable(ProcessorIndices, IndirectionTable, &IndirectionTableSize);
     unique_malloc_ptr<XDP_RSS_CONFIGURATION> RssConfig;
     UINT16 HashSecretKeySize = 40;
     UINT32 RssConfigSize = sizeof(*RssConfig) + HashSecretKeySize + IndirectionTableSize;
 
-    RssConfig.reset((XDP_RSS_CONFIGURATION *)malloc(RssConfigSize));
+    RssConfig.reset((XDP_RSS_CONFIGURATION *)AllocMem(RssConfigSize));
+    TEST_NOT_NULL(RssConfig.get());
     XdpInitializeRssConfiguration(RssConfig.get(), RssConfigSize);
     RssConfig->HashSecretKeyOffset = sizeof(*RssConfig);
     RssConfig->IndirectionTableOffset = RssConfig->HashSecretKeyOffset + HashSecretKeySize;
@@ -6642,12 +7630,10 @@ OffloadRssReset()
     InitializeOidKey(&Key, OID_GEN_RECEIVE_SCALE_PARAMETERS, NdisRequestSetInformation);
     MpOidFilter(AdapterMp, &Key, 1);
 
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            return If.TryUnbindXdp();
-        }
-    );
+    HRESULT Result = E_FAIL;
+    CxPlatAsyncT<HRESULT> Async([](HRESULT* Result) {
+        *Result = FnMpIf.TryUnbindXdp();
+    }, &Result);
 
     auto BindingScopeGuard = wil::scope_exit([&]
     {
@@ -6656,7 +7642,7 @@ OffloadRssReset()
 
     UINT32 OidInfoBufferLength;
     unique_malloc_ptr<VOID> OidInfoBuffer =
-        MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength, MP_RESTART_TIMEOUT);
+        MpOidAllocateAndGetRequest(AdapterMp, Key, &OidInfoBufferLength, MP_RESTART_TIMEOUT_MS);
 
     NDIS_RECEIVE_SCALE_PARAMETERS *NdisParams =
         (NDIS_RECEIVE_SCALE_PARAMETERS *)OidInfoBuffer.get();
@@ -6669,20 +7655,8 @@ OffloadRssReset()
         OriginalIndirectionTableSize));
 
     AdapterMp.reset();
-    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
-    TEST_HRESULT(AsyncThread.get());
-}
-
-static
-VOID
-InitializeOffloadParams(
-    _Out_ NDIS_OFFLOAD_PARAMETERS *Params
-    )
-{
-    RtlZeroMemory(Params, sizeof(*Params));
-    Params->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-    Params->Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_1;
-    Params->Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1;
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+    TEST_HRESULT(Result);
 }
 
 VOID
@@ -6723,7 +7697,7 @@ OffloadSetHardwareCapabilities()
 
         OID_KEY OidKey;
         NDIS_OFFLOAD_PARAMETERS OffloadParams;
-        InitializeOffloadParams(&OffloadParams);
+        InitializeOffloadParameters(&OffloadParams);
         OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED;
         InitializeOidKey(&OidKey, Configs[i].Oid, NdisRequestSetInformation);
         UINT32 OidBufferSize = sizeof(OffloadParams);
@@ -6846,7 +7820,9 @@ GenericXskQueryAffinity()
             PROCESSOR_NUMBER TargetProcNumber;
             ProcessorIndexToProcessorNumber(ProcIndex, &TargetProcNumber);
 
-            CreateIndirectionTable({ProcIndex}, IndirectionTable, &IndirectionTableSize);
+            CxPlatVector<UINT32> ProcessorIndices;
+            TEST_TRUE(ProcessorIndices.push_back(ProcIndex));
+            CreateIndirectionTable(ProcessorIndices, IndirectionTable, &IndirectionTableSize);
             InterfaceHandle = InterfaceOpen(FnMpIf.GetIfIndex());
             SetXdpRss(FnMpIf, InterfaceHandle, IndirectionTable, IndirectionTableSize);
 
@@ -7047,12 +8023,17 @@ OffloadQeoConnection()
             // block until the OID is completed, which won't happen until the miniport
             // handle is reset below.
             //
-            auto AsyncThread = std::async(
-                std::launch::async,
-                [&] {
-                    return TryQeoSet(InterfaceHandle.get(), &Connection, sizeof(Connection));
-                }
-            );
+            struct TRY_QEO_SET_THREAD_CONTEXT {
+                HANDLE InterfaceHandle;
+                XDP_QUIC_CONNECTION *Connection;
+                HRESULT Result;
+            } Ctx;
+            Ctx.InterfaceHandle = InterfaceHandle.get();
+            Ctx.Connection = &Connection;
+
+            CxPlatAsyncT<TRY_QEO_SET_THREAD_CONTEXT> Async([](TRY_QEO_SET_THREAD_CONTEXT *Ctx) {
+                Ctx->Result = TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection));
+            }, &Ctx);
 
             //
             // In case of failure, ensure the adapter is cleaned up before the
@@ -7120,12 +8101,12 @@ OffloadQeoConnection()
             //
             // Verify the XDP offload API is completed once the OID completes.
             //
-            TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+            TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
             //
             // Verify the XDP offload API succeeded.
             //
-            TEST_HRESULT(AsyncThread.get());
+            TEST_HRESULT(Ctx.Result);
 
             //
             // Verify the connection's status field was updated with the miniport
@@ -7163,7 +8144,7 @@ OffloadQeoRevert(
     auto AdapterMp = MpOpenAdapter(If.GetIfIndex());
     const auto Timeout =
         RevertReason == RevertReasonInterfaceRemoval ?
-            MP_RESTART_TIMEOUT : TEST_TIMEOUT_ASYNC;
+            MP_RESTART_TIMEOUT_MS : TEST_TIMEOUT_ASYNC_MS;
 
     const auto &Operation = QeoOperationMap[0];
     const auto &Direction = QeoDirectionMap[0];
@@ -7210,18 +8191,24 @@ OffloadQeoRevert(
     // block until the OID is completed, which won't happen until the miniport
     // handle is reset below.
     //
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            if (RevertReason == RevertReasonInterfaceRemoval) {
-                return If.TryRestart();
-            } else {
-                ASSERT(RevertReason == RevertReasonHandleClosure);
-                InterfaceHandle.reset();
-                return (BOOLEAN)TRUE;
-            }
+    struct QEO_REVERT_THREAD_CONTEXT {
+        wil::unique_handle InterfaceHandle;
+        REVERT_REASON RevertReason;
+        bool Succeeded;
+    } Ctx;
+    Ctx.InterfaceHandle.reset(InterfaceHandle.release());
+    Ctx.RevertReason = RevertReason;
+    Ctx.Succeeded = FALSE;
+
+    CxPlatAsyncT<QEO_REVERT_THREAD_CONTEXT> Async([](QEO_REVERT_THREAD_CONTEXT *Ctx)  {
+        if (Ctx->RevertReason == RevertReasonInterfaceRemoval) {
+            Ctx->Succeeded = FnMpIf.TryRestart();
+        } else {
+            ASSERT(Ctx->RevertReason == RevertReasonHandleClosure);
+            Ctx->InterfaceHandle.reset();
+            Ctx->Succeeded = true;
         }
-    );
+    }, &Ctx);
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -7285,12 +8272,12 @@ OffloadQeoRevert(
     //
     // Verify the revert/teardown is completed once the OID completes.
     //
-    TEST_EQUAL(AsyncThread.wait_for(Timeout), std::future_status::ready);
+    TEST_TRUE(Async.WaitFor(Timeout));
 
     //
     // Verify the revert/teardown succeeded.
     //
-    TEST_TRUE(AsyncThread.get());
+    TEST_TRUE(Ctx.Succeeded);
 }
 
 VOID
@@ -7344,12 +8331,17 @@ OffloadQeoOidFailure(
     // block until the OID is completed, which won't happen until the miniport
     // handle is reset below.
     //
-    auto AsyncThread = std::async(
-        std::launch::async,
-        [&] {
-            return TryQeoSet(InterfaceHandle.get(), &Connection, sizeof(Connection));
-        }
-    );
+    struct TRY_QEO_SET_THREAD_CONTEXT {
+        HANDLE InterfaceHandle;
+        XDP_QUIC_CONNECTION *Connection;
+        HRESULT Result;
+    } Ctx;
+    Ctx.InterfaceHandle = InterfaceHandle.get();
+    Ctx.Connection = &Connection;
+
+    CxPlatAsyncT<TRY_QEO_SET_THREAD_CONTEXT> Async([](TRY_QEO_SET_THREAD_CONTEXT *Ctx) {
+        Ctx->Result = TryQeoSet(Ctx->InterfaceHandle, Ctx->Connection, sizeof(*Ctx->Connection));
+    }, &Ctx);
 
     //
     // In case of failure, ensure the adapter is cleaned up before the
@@ -7376,14 +8368,129 @@ OffloadQeoOidFailure(
     MpOidCompleteRequest(AdapterMp, Key, NDIS_STATUS_FAILURE, NdisConnection, OidInfoBufferLength);
 
     //
-    // Verify the offload API fails once the OID completes.
+    // Verify the XDP offload API is completed once the OID completes.
     //
-    TEST_EQUAL(AsyncThread.wait_for(TEST_TIMEOUT_ASYNC), std::future_status::ready);
+    TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
 
     //
     // Verify the XDP offload API failed.
     //
-    TEST_TRUE(FAILED(AsyncThread.get()));
+    TEST_TRUE(FAILED(Ctx.Result));
+}
+
+VOID
+OidPassthru()
+{
+    typedef struct _OID_PARAMS {
+        OID_KEY Key;
+        UINT32 BufferSize;
+        UINT32 CompletionSize;
+    } OID_PARAMS;
+    OID_PARAMS OidKeys[3] = {0};
+    UINT32 MpInfoBufferLength;
+    unique_malloc_ptr<VOID> MpInfoBuffer;
+    auto DefaultLwf = LwfOpenDefault(FnMpIf.GetIfIndex());
+
+    TEST_NOT_NULL(DefaultLwf.get());
+
+    //
+    // Get.
+    //
+    OidKeys[0].BufferSize = sizeof(ULONG);
+    OidKeys[0].CompletionSize = sizeof(ULONG);
+    InitializeOidKey(&OidKeys[0].Key, OID_GEN_RECEIVE_BLOCK_SIZE, NdisRequestQueryInformation);
+
+    //
+    // Set.
+    //
+    OidKeys[1].BufferSize = sizeof(ULONG);
+    OidKeys[1].CompletionSize = sizeof(ULONG);
+    InitializeOidKey(&OidKeys[1].Key, OID_GEN_CURRENT_PACKET_FILTER, NdisRequestSetInformation);
+
+    //
+    // Method. (Direct OID)
+    //
+    OidKeys[2].BufferSize = sizeof(NDIS_QUIC_CONNECTION);
+    OidKeys[2].CompletionSize = sizeof(NDIS_QUIC_CONNECTION);
+    InitializeOidKey(
+        &OidKeys[2].Key, OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE, NdisRequestMethod,
+        OID_REQUEST_INTERFACE_DIRECT);
+
+    //
+    // Verify synchronous OID completion, i.e. without FNMP pending the OID.
+    //
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
+        const OID_PARAMS *OidParam = &OidKeys[Index];
+        UINT32 LwfInfoBufferLength = OidParam->BufferSize;
+        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)AllocMem(LwfInfoBufferLength));
+        TEST_NOT_NULL(LwfInfoBuffer.get());
+
+        TEST_HRESULT(LwfOidSubmitRequest(
+            DefaultLwf, OidParam->Key, &LwfInfoBufferLength, LwfInfoBuffer.get()));
+        TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
+    }
+
+    //
+    // Verify asynchronous completions.
+    //
+
+    for (UINT32 Index = 0; Index < RTL_NUMBER_OF(OidKeys); Index++) {
+        const OID_PARAMS *OidParam = &OidKeys[Index];
+        UINT32 LwfInfoBufferLength = OidParam->BufferSize;
+        unique_malloc_ptr<UCHAR> LwfInfoBuffer((UCHAR *)AllocMem(LwfInfoBufferLength));
+        TEST_NOT_NULL(LwfInfoBuffer.get());
+        const UINT32 CompletionSize = LwfInfoBufferLength / 2;
+
+        auto ExclusiveMp = MpOpenAdapter(FnMpIf.GetIfIndex());
+        TEST_NOT_NULL(ExclusiveMp.get());
+
+        if (OidParam->Key.Oid == OID_GEN_CURRENT_PACKET_FILTER &&
+            OidParam->Key.RequestType == NdisRequestSetInformation) {
+
+            //
+            // NDIS absorbs the set OID unless the packet filter is changed.
+            // Query the current filter and then modify the info buffer.
+            //
+            OID_KEY GetKey = OidParam->Key;
+            GetKey.RequestType = NdisRequestQueryInformation;
+            TEST_HRESULT(LwfOidSubmitRequest(
+                DefaultLwf, GetKey, &LwfInfoBufferLength, LwfInfoBuffer.get()));
+            TEST_EQUAL(LwfInfoBufferLength, OidParam->CompletionSize);
+
+            LwfInfoBuffer.get()[0] ^= 1;
+        }
+
+        MpOidFilter(ExclusiveMp, &OidParam->Key, 1);
+        struct OID_REQUEST_THREAD_CONTEXT {
+            unique_fnlwf_handle Handle;
+            OID_KEY Key;
+            UINT32 InformationBufferLength;
+            VOID *InformationBuffer;
+            HRESULT Result;
+        } Ctx;
+        Ctx.Handle.reset(DefaultLwf.release());
+        Ctx.Key = OidParam->Key;
+        Ctx.InformationBufferLength = LwfInfoBufferLength;
+        Ctx.InformationBuffer = LwfInfoBuffer.get();
+
+        CxPlatAsyncT<OID_REQUEST_THREAD_CONTEXT> Async([](OID_REQUEST_THREAD_CONTEXT *Ctx) {
+            Ctx->Result =
+                LwfOidSubmitRequest(
+                    Ctx->Handle, Ctx->Key, &Ctx->InformationBufferLength, Ctx->InformationBuffer);
+        }, &Ctx);
+
+        MpInfoBuffer =
+            MpOidAllocateAndGetRequest(ExclusiveMp, OidParam->Key, &MpInfoBufferLength);
+        TEST_NOT_NULL(MpInfoBuffer.get());
+
+        TEST_HRESULT(MpOidCompleteRequest(
+            ExclusiveMp, OidParam->Key, STATUS_SUCCESS, LwfInfoBuffer.get(), CompletionSize));
+        TEST_TRUE(Async.WaitFor(TEST_TIMEOUT_ASYNC_MS));
+        TEST_HRESULT(Ctx.Result);
+
+        DefaultLwf.reset(Ctx.Handle.release());
+        TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
+    }
 }
 
 /**

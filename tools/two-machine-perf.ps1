@@ -34,6 +34,7 @@ if ($null -eq $Session) {
 $RootDir = $pwd
 . $RootDir\tools\common.ps1
 $ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactBinBase = Get-ArtifactBinPatBase -Config $Config -Arch $Arch
 
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
@@ -72,9 +73,6 @@ $out = Invoke-Command -Session $Session -ScriptBlock {
 $RemoteInterface = $out[0]
 $RemoteMacAddress = $out[1]
 Write-Output "Remote interface: $RemoteInterface, $RemoteMacAddress"
-
-# Generate payload to send to the peer.
-$PktCmd = "artifacts\bin\$($Arch)_$($Config)\pktcmd.exe"
 
 Write-Output "`n====================SET UP====================`n"
 
@@ -162,24 +160,23 @@ Start-Sleep -Seconds 5
 # Run xskbench latency mode and forward traffic on the peer.
 Write-Output "Starting L2FWD on peer (forwarding on UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $LocalInterface)
-    $RxFilter = "$RemoteDir\artifacts\bin\$($Arch)_$($Config)\rxfilter.exe"
+    param ($RemoteDir, $LocalInterface)
+    $RxFilter = "$RemoteDir\$using:ArtifactBinBase\test\rxfilter.exe"
     $RxFilterJob = & $RxFilter -IfIndex $LocalInterface -QueueId * -MatchType UdpDstPort -UdpDstPort 9999 -Action L2Fwd &
     Write-Output "Forwarding for 60 seconds"
     Start-Sleep -Seconds 60
     Stop-Job $RxFilterJob
     Receive-Job -Job $RxFilterJob -ErrorAction 'Continue'
-} -ArgumentList $Config, $Arch, $RemoteDir, $RemoteInterface -AsJob
+} -ArgumentList $RemoteDir, $RemoteInterface -AsJob
 
-$TxBytes = & $PktCmd udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 8
+$TxBytes = & $ArtifactBin\test\pktcmd.exe udp $LocalMacAddress $RemoteMacAddress $LocalAddress $RemoteAddress 9999 9999 8
 Write-Verbose "TX Payload: $TxBytes"
 
 for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
 
     Write-Output "Run $($i+1): Running xskbench locally (sending to and receiving on UDP 9999)..."
-    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench lat -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -ring_size 1
+    & $ArtifactBin\test\xskbench.exe lat -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 -tx_pattern $TxBytes -ring_size 1
 }
 
 Write-Output "Waiting for remote RxFilter..."
@@ -198,8 +195,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
 for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 1 queue..."
-    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams
+    & $ArtifactBin\test\xskbench.exe rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams
 }
 
 Write-Output "Configuring 8 RSS queues"
@@ -212,8 +208,7 @@ if ($LocalVfAdapter) {
 for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
     Write-Output "Run $($i+1): Running xskbench locally (receiving from UDP 9999) on 8 queues..."
-    $XskBench = "artifacts\bin\$($Arch)_$($Config)\xskbench.exe"
-    & $XskBench rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams -q -id 1 $XskQueueParams -q -id 2 $XskQueueParams -q -id 3 $XskQueueParams -q -id 4 $XskQueueParams -q -id 5 $XskQueueParams -q -id 6 $XskQueueParams -q -id 7 $XskQueueParams
+    & $ArtifactBin\test\xskbench.exe rx -i $LowestInterface -d 10 -p 9999 -t -group 1 -ca 0x1 -q -id 0 $XskQueueParams -q -id 1 $XskQueueParams -q -id 2 $XskQueueParams -q -id 3 $XskQueueParams -q -id 4 $XskQueueParams -q -id 5 $XskQueueParams -q -id 6 $XskQueueParams -q -id 7 $XskQueueParams
 }
 
 Write-Output "Waiting for remote wsario..."
@@ -244,7 +239,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         BuiltIn
         {
             Write-Output "Attaching BuiltIn program"
-            $RxFilterJob = & $ArtifactBin\rxfilter.exe -IfIndex $LocalInterface -QueueId * -MatchType All -Action Pass &
+            $RxFilterJob = & $ArtifactBin\test\rxfilter.exe -IfIndex $LocalInterface -QueueId * -MatchType All -Action Pass &
         }
         eBPF
         {
@@ -289,7 +284,7 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue' | Out-Null
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
     Write-Output "Stopping local logs..."
     tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
@@ -303,7 +298,7 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
     # Clean up eBPF
     Write-Output "Removing eBPF locally..."
     tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
@@ -311,5 +306,5 @@ Write-Output "Test Complete!"
     Invoke-Command -Session $Session -ScriptBlock {
         param ($Config, $Arch, $RemoteDir)
         & $RemoteDir\tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir
+    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
 }

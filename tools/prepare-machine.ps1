@@ -26,8 +26,8 @@ This prepares a machine for running XDP.
 .PARAMETER NoReboot
     Does not reboot the machine.
 
-.PARAMETER UseJitEbpf
-    Installs eBPF with JIT mode. Needed for backward compatibility tests.
+.PARAMETER RequireNoReboot
+    Returns an error if a reboot is needed.
 
 .PARAMETER Force
     Forces the installation of the latest dependencies.
@@ -60,13 +60,13 @@ param (
     [switch]$NoReboot = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$RequireNoReboot = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$Force = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Cleanup = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$Cleanup = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -83,6 +83,10 @@ if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and 
 
 # Flag that indicates something required a reboot.
 $Reboot = $false
+
+if ($RequireNoReboot) {
+    $script:NoReboot = $true
+}
 
 # Log the OS version.
 Write-Verbose "Querying OS BuildLabEx"
@@ -104,59 +108,19 @@ function Download-CoreNet-Deps {
     }
 }
 
-function Extract-Ebpf-Msi {
-    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-    $EbpfPackageType = Get-EbpfPackageType
-
-    Write-Debug "Extracting eBPF MSI from Release package"
-
-    # Extract the MSI from the package.
-    pushd $ArtifactsDir
-    Expand-Archive -Path $EbpfPackageFullPath -Force
-    Expand-Archive -Path "$ArtifactsDir\ebpf\build-$EbpfPackageType.zip" -Force
-    xcopy "$ArtifactsDir\build-$EbpfPackageType\$EbpfPackageType\ebpf-for-windows.msi" /F /Y $EbpfMsiDir
-    popd
-}
-
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfPackageUrl = Get-EbpfPackageUrl
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfPackageFullPath = "$ArtifactsDir\ebpf.zip"
-    $EbpfPackageType = Get-EbpfPackageType
-
-    Write-Debug "Downloading eBPF $EbpfPackageType package"
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
+        $EbpfMsiUrl = Get-EbpfMsiUrl
+
         if (!(Test-Path $EbpfMsiDir)) {
             mkdir $EbpfMsiDir | Write-Verbose
         }
 
-        Invoke-WebRequest-WithRetry -Uri $EbpfPackageUrl -OutFile $EbpfPackageFullPath
-
-        # Extract the MSI from the package.
-        Extract-Ebpf-Msi
-    }
-}
-
-function Download-Fn-DevKit {
-    $FnDevKitUrl = Get-FnDevKitUrl
-    $FnDevKitDir = Get-FnDevKitDir
-    $FnDevKitZip = "$FnDevKitDir/devkit.zip"
-
-    if ($Force -and (Test-Path $FnDevKitDir)) {
-        Remove-Item -Recurse -Force $FnDevKitDir
-    }
-    if (!(Test-Path $FnDevKitDir)) {
-        mkdir $FnDevKitDir | Write-Verbose
-
-        Write-Verbose "Downloading Fn dev kit"
-        Invoke-WebRequest-WithRetry -Uri $FnDevKitUrl -OutFile $FnDevKitZip
-        Expand-Archive -Path $FnDevKitZip -DestinationPath $FnDevKitDir -Force
-        Remove-Item -Path $FnDevKitZip
+        Invoke-WebRequest-WithRetry -Uri $EbpfMsiUrl -OutFile $EbpfMsiFullPath
     }
 }
 
@@ -196,22 +160,6 @@ function Setup-TestSigning {
     }
 }
 
-# Installs the XDP certificates.
-function Install-Certs {
-    $CodeSignCertPath = Get-CoreNetCiArtifactPath -Name "CoreNetSignRoot.cer"
-    if (!(Test-Path $CodeSignCertPath)) {
-        Write-Error "$CodeSignCertPath does not exist!"
-    }
-    CertUtil.exe -f -addstore Root $CodeSignCertPath 2>&1 | Write-Verbose
-    CertUtil.exe -f -addstore trustedpublisher $CodeSignCertPath 2>&1 | Write-Verbose
-}
-
-# Uninstalls the XDP certificates.
-function Uninstall-Certs {
-    try { CertUtil.exe -delstore Root "CoreNetTestSigning" } catch { }
-    try { CertUtil.exe -delstore trustedpublisher "CoreNetTestSigning" } catch { }
-}
-
 function Setup-VcRuntime {
     $Installed = $false
     try { $Installed = Get-ChildItem -Path Registry::HKEY_CLASSES_ROOT\Installer\Dependencies | Where-Object { $_.Name -like "*VC,redist*" } } catch {}
@@ -223,7 +171,7 @@ function Setup-VcRuntime {
         Remove-Item -Force "$ArtifactsDir\vc_redist.x64.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/16/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
+        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
         & $ArtifactsDir\vc_redist.x64.exe /install /passive | Write-Verbose
     }
 }
@@ -249,28 +197,31 @@ function Setup-VsTest {
     }
 }
 
-function Install-AzStorageModule {
-    if (!(Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Ignore)) {
-        Write-Host "Installing NuGet package provider"
-        Install-PackageProvider -Name NuGet -Force | Write-Verbose
+function Enable-CrashDumps {
+    $CrashControl = Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl
+
+    if ($CrashControl.CrashDumpEnabled -ne 1) {
+        # Enable complete (kernel + user) system crash dumps
+        Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
+        $script:Reboot = $true
     }
-    if (!(Get-Module -ListAvailable -Name Az.Storage)) {
-        Write-Host "Installing Az.Storage module"
-        Install-Module Az.Storage -Repository PSGallery -Scope CurrentUser -AllowClobber -Force | Write-Verbose
+
+    if (!($CrashControl.PSobject.Properties.name -match "AlwaysKeepMemoryDump") -or $CrashControl.AlwaysKeepMemoryDump -ne 1) {
+        # Always retain crash dumps
+        Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v AlwaysKeepMemoryDump /d 1 /t REG_DWORD /f
+        $script:Reboot = $true
     }
-    # AzureRM is installed by default on some CI images and is incompatible with
-    # Az. Uninstall.
-    Uninstall-AzureRm
 }
 
 if ($Cleanup) {
     if ($ForTest) {
-        Uninstall-Certs
+        # Tests do not fully clean up.
     }
 } else {
     if ($ForBuild) {
-        Download-CoreNet-Deps
-        Download-Fn-DevKit
+        # There are currently no build dependencies required.
     }
 
     if ($ForEbpfBuild) {
@@ -294,13 +245,7 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
-        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).CrashDumpEnabled -ne 1) {
-            # Enable complete (kernel + user) system crash dumps
-            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
-            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
-            $Reboot = $true
-        }
-
+        Enable-CrashDumps
         Download-Fn-Runtime
         Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
         $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
@@ -328,12 +273,7 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
-        if ((Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl).CrashDumpEnabled -ne 1) {
-            # Enable complete (kernel + user) system crash dumps
-            Write-Verbose "reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f"
-            reg.exe add HKLM\System\CurrentControlSet\Control\CrashControl /v CrashDumpEnabled /d 1 /t REG_DWORD /f
-            $Reboot = $true
-        }
+        Enable-CrashDumps
     }
 
     if ($ForPerfTest) {
@@ -344,8 +284,6 @@ if ($Cleanup) {
         if (!$?) {
             $Reboot = $true
         }
-
-        Install-AzStorageModule
     }
 
     if ($ForTest) {
@@ -354,7 +292,6 @@ if ($Cleanup) {
         Download-CoreNet-Deps
         Download-Ebpf-Msi
         Setup-TestSigning
-        Install-Certs
     }
 
     if ($ForLogging) {
@@ -362,10 +299,16 @@ if ($Cleanup) {
     }
 }
 
-if ($Reboot -and !$NoReboot) {
-    # Reboot the machine.
-    Write-Host "Rebooting..."
-    shutdown.exe /f /r /t 0
-} elseif ($Reboot) {
-    Write-Host "Reboot required."
+if ($Reboot) {
+    if ($RequireNoReboot) {
+        Write-Error "Reboot required but disallowed"
+    } elseif ($NoReboot) {
+        Write-Verbose "Reboot required"
+        return @{"RebootRequired" = $true}
+    } else {
+        Write-Host "Rebooting..."
+        shutdown.exe /f /r /t 0
+    }
+} else {
+    return $null
 }

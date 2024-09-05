@@ -1,49 +1,39 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- Use debug libraries in debug mode -->
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
-    <UseDebugLibraries>true</UseDebugLibraries>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
-    <UseDebugLibraries>false</UseDebugLibraries>
-  </PropertyGroup>
-  <!-- Enable static analysis during the build -->
-  <PropertyGroup>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
-    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
-  </PropertyGroup>
-  <!-- Use the 'build' directory for intermediate files -->
-  <PropertyGroup>
-    <IntDir>$(SolutionDir)build\$(Platform)_$(Configuration)\obj\$(ProjectName)\</IntDir>
-  </PropertyGroup>
-  <!-- OneBranch goop -->
-  <PropertyGroup>
-    <UseInternalMSUniCrtPackage>true</UseInternalMSUniCrtPackage>
-  </PropertyGroup>
-  <!-- Define DBG in Debug configurations -->
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
-    <ClCompile>
-      <PreprocessorDefinitions>DBG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.props" />
   <!-- Project-wide compile properties (e.g. defines, includes) -->
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\external;
+        $(SolutionDir)submodules\ndis-driver-library\src\include;
+        $(SolutionDir)submodules\net-offloads\include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
         POOL_NX_OPTIN_AUTO=1;
         POOL_ZERO_DOWN_LEVEL_SUPPORT=1;
+        WIN32_LEAN_AND_MEAN;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
-      <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
       <!-- Disable C26812: The enum type '' is unscoped. Prefer 'enum class' over 'enum' -->
       <DisableSpecificWarnings>26812;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
-    <Link>
-      <CETCompat>true</CETCompat>
-    </Link>
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
+  <!-- Override undocked.props, which does not run analysis on "official" builds. -->
+  <PropertyGroup>
+    <RunCodeAnalysis>true</RunCodeAnalysis>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TestCode)' == 'true'">
+    <OutDir>$(OutDir)test\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SignMode)' != 'Off'">
+    <EnableInf2cat>true</EnableInf2cat>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SignMode)' == 'Off'">
+    <EnableInf2cat>false</EnableInf2cat>
+  </PropertyGroup>
 </Project>

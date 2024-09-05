@@ -22,44 +22,44 @@
 #define TEST_EQUAL(expected, condition) { \
     if ((condition) != (expected)) \
     { \
-        TEST_FAILURE(#condition " not equal to " #expected); \
+        TEST_FAILURE("%s not equal to %s", L#condition, L#expected); \
     } \
 }
 
 #define TEST_NOT_EQUAL(expected, condition) { \
     if ((condition) == (expected)) { \
-        TEST_FAILURE(#condition " equals " #expected); \
+        TEST_FAILURE("%s equals %s", L#condition, L#expected); \
     } \
 }
 
 #define TEST_TRUE(condition) { \
     if (!(condition)) { \
-        TEST_FAILURE(#condition " not true"); \
+        TEST_FAILURE("%s not true", L#condition); \
     } \
 }
 
 #define TEST_FALSE(condition) { \
     if (condition) { \
-        TEST_FAILURE(#condition " not false"); \
+        TEST_FAILURE("%s not false", L#condition); \
     } \
 }
 
 #define TEST_NOT_NULL(condition) { \
     if ((condition) == NULL) { \
-        TEST_FAILURE(#condition " is NULL"); \
+        TEST_FAILURE("%s is NULL", L#condition); \
     } \
 }
 
 #define TEST_HRESULT(condition) { \
     HRESULT hr_ = (condition); \
     if (FAILED(hr_)) { \
-        TEST_FAILURE(#condition " failed, 0x%x", hr_); \
+        TEST_FAILURE("%s failed, 0x%x", L#condition, hr_); \
     } \
 }
 
 #define TEST_NTSTATUS(condition) { \
     HRESULT hr_ = HRESULT_FROM_NT(condition); \
     if (FAILED(hr_)) { \
-        TEST_FAILURE(#condition " failed, 0x%x", hr_); \
+        TEST_FAILURE("%s failed, 0x%x", L#condition, hr_); \
     } \
 }

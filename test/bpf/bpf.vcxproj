@@ -1,47 +1,33 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <PropertyGroup Label="Globals">
-    <VCProjectVersion>16.0</VCProjectVersion>
-    <Keyword>Win32Proj</Keyword>
+  <PropertyGroup>
     <ProjectGuid>{5de7385c-80b3-40cd-97d0-7c24dec2f95c}</ProjectGuid>
-    <RootNamespace>bpf</RootNamespace>
+    <TargetName>bpf</TargetName>
+    <UndockedType>none</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <ConfigurationType>Utility</ConfigurationType>
-    <PlatformToolset>$(XdpPlatformToolset)</PlatformToolset>
-  </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
-  <ImportGroup Label="ExtensionSettings" />
-  <ImportGroup Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>bpf</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\bpf\</OutDir>
+    <OutDir>$(OutDir)bpf\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>
         xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration) /Y
         $(EbpfPackagePath)build\native\bin\export_program_info.exe
-        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe
+        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdpbpfexport.exe
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
-        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe --clear
+        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdpbpfexport.exe --clear
         $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
         del $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\ebpfapi.dll /F
       </Command>
@@ -99,15 +85,5 @@
         popd</Command>
     </CustomBuild>
   </ItemGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <!-- The following lines configure the targets necessary for sourcelink -->
-  <ItemGroup>
-    <None Include="$(SolutionDir)src\xdp\packages.config" />
-  </ItemGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" Text="$([System.String]::Format('$(ErrorText)', '$(EbpfPackagePath)build\native\ebpf-for-windows.props'))" />
-  </Target>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

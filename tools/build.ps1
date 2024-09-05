@@ -14,29 +14,40 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Project = "",
 
+    [ValidateSet("", "Binary", "Catalog", "Package")]
+    [Parameter(Mandatory=$false)]
+    [string]$BuildStage = "",
+
     [Parameter(Mandatory = $false)]
     [switch]$NoClean = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoSign = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$NoInstaller = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$DevKit = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$TestArchive = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$UpdateDeps = $false
+    [switch]$UpdateDeps = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$OneBranch = $false
 )
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
+$SignMode = "TestSign"
+$Sln = "$RootDir\xdp.sln"
+
+if ($OneBranch) {
+    if (![string]::IsNullOrEmpty($Project)) {
+        Write-Error "-OneBranch cannot be set with -Project"
+    }
+
+    $Project = "onebranch"
+    $SignMode = "Off"
+}
 
 $Tasks = @()
 if ([string]::IsNullOrEmpty($Project)) {
@@ -51,14 +62,17 @@ if ([string]::IsNullOrEmpty($Project)) {
         $Clean = ":Rebuild"
     }
     $Tasks += "$Project$Clean"
-    $NoSign = $true
-    $NoInstaller = $true
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
 
-Write-Verbose "Restoring packages [xdp.sln]"
-msbuild.exe $RootDir\xdp.sln `
+$IsAdmin = Test-Admin
+if (!$IsAdmin) {
+    Write-Verbose "MSI installer validation requires admin privileges. Skipping."
+}
+
+Write-Verbose "Restoring packages [$Sln]"
+msbuild.exe $Sln `
     /t:restore `
     /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
@@ -68,31 +82,19 @@ if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
 
-Write-Verbose "Restoring packages [xdpinstaller.sln]"
-nuget.exe restore $RootDir\src\xdpinstaller\xdpinstaller.sln `
-    -ConfigFile $RootDir\src\nuget.config
-
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
 
-msbuild.exe $RootDir\xdp.sln `
+Write-Verbose "Building [$Sln]"
+msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
+    /p:IsAdmin=$IsAdmin `
+    /p:SignMode=$SignMode `
+    /p:BuildStage=$BuildStage `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"
-}
-
-if (!$NoSign) {
-    & $RootDir\tools\sign.ps1 -Config $Config -Arch $Platform
-}
-
-if (!$NoInstaller) {
-    & $RootDir\tools\create-installer.ps1 -Config $Config -Platform $Platform
-}
-
-if ($DevKit) {
-    & $RootDir\tools\create-devkit.ps1 -Config $Config
 }
 
 if ($TestArchive) {

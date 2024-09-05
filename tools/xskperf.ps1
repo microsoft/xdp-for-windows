@@ -132,7 +132,7 @@ function Wait-NetAdapterUpStatus {
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
 $WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 $Mode = $Mode.ToUpper()
 $Adapter = Get-NetAdapter $AdapterName
@@ -191,7 +191,7 @@ try {
                 "udp 22-22-22-22-00-02 22-22-22-22-00-00 192.168.100.2 192.168.100.1 1234 " +
                 "$UdpDstPort $UdpSize"
             Write-Verbose "pktcmd.exe $ArgList"
-            $UdpPattern = & $ArtifactsDir\pktcmd.exe $ArgList.Split(" ")
+            $UdpPattern = & $ArtifactsDir\test\pktcmd.exe $ArgList.Split(" ")
 
             # Since the packet data is set to zero in pktcmd and XDPMP
             # implicitly sets trailing packet data to zero, truncate the string
@@ -345,10 +345,10 @@ try {
 
         Write-Verbose "xskbench.exe $ArgList"
         if ([string]::IsNullOrEmpty($OutFile)) {
-            Start-Process $ArtifactsDir\xskbench.exe -Wait -NoNewWindow $ArgList
+            Start-Process $ArtifactsDir\test\xskbench.exe -Wait -NoNewWindow $ArgList
         } else {
             $StdErrFile = [System.IO.Path]::GetTempFileName()
-            Start-Process $ArtifactsDir\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
+            Start-Process $ArtifactsDir\test\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
                 -RedirectStandardError $StdErrFile $ArgList
             $StdErr = Get-Content $StdErrFile
             if (-not [string]::IsNullOrWhiteSpace($StdErr)) {
