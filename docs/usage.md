@@ -12,7 +12,7 @@ XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sy
 
 ```PowerShell
 Invoke-WebRequest https://aka.ms/xdp-v1.msi -OutFile xdp.msi
-msiexec /i xdp.msi /quiet
+msiexec.exe /i xdp.msi /quiet
 ```
 
 ### Install a Test Version
@@ -29,14 +29,20 @@ bcdedit.exe /set testsigning on
 Install:
 
 ```bat
-msiexec /i xdp-for-windows.msi /quiet
+msiexec.exe /i xdp-for-windows.msi /quiet
 ```
 
 Uninstall:
 
 ```bat
-msiexec /x xdp-for-windows.msi /quiet
+msiexec.exe /x xdp-for-windows.msi /quiet
 ```
+
+### Enable eBPF Support
+
+**Note** eBPF support is experimental and is not officially supported by XDP.
+
+Starting with XDP version 1.1, experimental eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
 
 ### Version Upgrade
 
