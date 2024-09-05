@@ -23,7 +23,9 @@ SPDX-License-Identifier: MIT
         <!-- Define the Product features and installation steps -->
         <Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="INSTALLFOLDER" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >
             <ComponentGroupRef Id="xdp" />
-            <Feature Id="xdp_ebpf" Level="10" AllowAdvertise="no" Title="XDP eBPF" />
+            <Feature Id="xdp_ebpf" Level="10" AllowAdvertise="no" Title="XDP eBPF">
+                <ComponentGroupRef Id="xdp_ebpf" />
+            </Feature>
         </Feature>
 
         <InstallExecuteSequence>
@@ -36,8 +38,8 @@ SPDX-License-Identifier: MIT
             <Custom Action="xdp_ebpf_install" After="xdp_install">(&amp;xdp_ebpf=3) AND NOT(!xdp_ebpf=3) </Custom>
 
             <!--Uninstall sequence-->
-            <Custom Action="xdp_ebpf_uninstall" After="InstallInitialize">REMOVE="ALL"</Custom>
-            <Custom Action="xdp_uninstall" After="xdp_ebpf_uninstall">(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)</Custom>
+            <Custom Action="xdp_ebpf_uninstall" After="InstallInitialize">(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)</Custom>
+            <Custom Action="xdp_uninstall" After="xdp_ebpf_uninstall">REMOVE="ALL"</Custom>
         </InstallExecuteSequence>
 
         <!-- Define the UI style & behavior -->
@@ -64,7 +66,7 @@ SPDX-License-Identifier: MIT
             <Component Id ="xdpPATH" Guid="{0445C769-0841-4FD9-939F-C2E7F514E61A}" KeyPath="yes">
                 <Environment Id="xdpPATH" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" Separator=";" />
             </Component>
-            <Component Id="xdp_setup" Guid="{0D991B56-5C01-4E57-AB33-E81696B73D55}">
+            <Component Id="xdp_setup" Guid="{0D991B56-5C01-4E57-AB33-E81696B73D55}" Location="local" >
                 <File Id="xdp_setup_ps1" Source="$(var.TargetDir)xdp-setup.ps1" KeyPath="yes"/>
             </Component>
             <Component Id="xdppcw.man" Guid="{EDD336F3-5350-4046-AF01-C76B10A3B965}">
@@ -81,12 +83,6 @@ SPDX-License-Identifier: MIT
             </Component>
             <Component Id="xdpcfg.pdb" Guid="{ECA5A361-BF61-443C-8E6F-1CE57C0B19DA}">
                 <File Id="xdpcfg.pdb" Name="xdpcfg.pdb" Source="$(var.TargetDir)xdpcfg.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="xdpbpfexport.exe" Guid="{E190E2ED-566C-424A-83F3-0422EB865FCA}">
-                <File Id="xdpbpfexport.exe" Name="xdpbpfexport.exe" Source="$(var.TargetDir)xdpbpfexport.exe" KeyPath="yes" />
-            </Component>
-            <Component Id="xdpbpfexport.pdb" Guid="{13148622-35D3-4005-AA31-DD9AAE4C9021}">
-                <File Id="xdpbpfexport.pdb" Name="xdpbpfexport.pdb" Source="$(var.TargetDir)xdpbpfexport.pdb" KeyPath="yes" />
             </Component>
             <Component Id="xdp.sys" Guid="{5E1B9729-E58D-4A4D-A845-FB6D2EE0C498}">
                 <File Id="xdp.sys" Name="xdp.sys" Source="$(var.TargetDir)xdp\xdp.sys" KeyPath="yes" />
@@ -105,6 +101,15 @@ SPDX-License-Identifier: MIT
             </Component>
         </ComponentGroup>
 
+        <ComponentGroup Id="xdp_ebpf" Directory="INSTALLFOLDER">
+            <Component Id="xdpbpfexport.exe" Guid="{E190E2ED-566C-424A-83F3-0422EB865FCA}" Location="local">
+                <File Id="xdpbpfexport.exe" Name="xdpbpfexport.exe" Source="$(var.TargetDir)xdpbpfexport.exe" KeyPath="yes" />
+            </Component>
+            <Component Id="xdpbpfexport.pdb" Guid="{13148622-35D3-4005-AA31-DD9AAE4C9021}">
+                <File Id="xdpbpfexport.pdb" Name="xdpbpfexport.pdb" Source="$(var.TargetDir)xdpbpfexport.pdb" KeyPath="yes" />
+            </Component>
+        </ComponentGroup>
+
         <!-- Install/Uninstall/Rollback the XDP driver installation -->
         <SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute"/>
         <CustomAction Id="xdp_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
@@ -116,13 +121,13 @@ SPDX-License-Identifier: MIT
         <CustomAction Id="xdp_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
 
         <!-- Install/Uninstall/Rollback the XDP eBPF installation -->
-        <SetProperty Id="xdp_ebpf_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_ebpf_setup_ps1]' -Install xdpebpf -Verbose&quot;" Before="xdp_ebpf_install" Sequence="execute"/>
+        <SetProperty Id="xdp_ebpf_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdpebpf -Verbose&quot;" Before="xdp_ebpf_install" Sequence="execute"/>
         <CustomAction Id="xdp_ebpf_install" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>
 
-        <SetProperty Id="xdp_ebpf_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_ebpf_setup_ps1]' -Uninstall xdpebpf -Verbose&quot;" Before="xdp_ebpf_uninstall" Sequence="execute"/>
+        <SetProperty Id="xdp_ebpf_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdpebpf -Verbose&quot;" Before="xdp_ebpf_uninstall" Sequence="execute"/>
         <CustomAction Id="xdp_ebpf_uninstall" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no"/>
 
-        <SetProperty Id="xdp_ebpf_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_ebpf_setup_ps1]' -Uninstall xdpebpf -Verbose&quot;" Before="xdp_ebpf_uninstall_rollback" Sequence="execute"/>
+        <SetProperty Id="xdp_ebpf_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdpebpf -Verbose&quot;" Before="xdp_ebpf_uninstall_rollback" Sequence="execute"/>
         <CustomAction Id="xdp_ebpf_uninstall_rollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no"/>
     </Fragment>
 </Wix>

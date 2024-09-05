@@ -14,11 +14,11 @@ This script installs or uninstalls various XDP components.
 param (
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp")]
+    [ValidateSet("", "xdp", "xdpebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp")]
+    [ValidateSet("", "xdp", "xdpebpf")]
     [string]$Uninstall = ""
 )
 
