@@ -11,26 +11,11 @@ Abstract:
 
 #include <ntddk.h>
 #include <wdf.h>
-
+#include "cxplat.h"
 #include "fntrace.h"
 
 #include "driver.tmh"
 
-#ifndef KRTL_INIT_SEGMENT
-#define KRTL_INIT_SEGMENT "INIT"
-#endif
-#ifndef KRTL_PAGE_SEGMENT
-#define KRTL_PAGE_SEGMENT "PAGE"
-#endif
-#ifndef KRTL_NONPAGED_SEGMENT
-#define KRTL_NONPAGED_SEGMENT ".text"
-#endif
-
-// Use on code in the INIT segment. (Code is discarded after DriverEntry returns.)
-#define INITCODE __declspec(code_seg(KRTL_INIT_SEGMENT))
-
-// Use on pageable functions.
-#define PAGEDX __declspec(code_seg(KRTL_PAGE_SEGMENT))
 
 #define TEST_DRV_POOL 'vDsT' // TsDv
 

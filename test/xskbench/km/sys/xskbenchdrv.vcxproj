@@ -15,9 +15,6 @@
     <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\common\lib\platform_kernel\platform_kernel.vcxproj">
-      <Project>{9d6c2600-08b5-4954-bb22-80db923f0d9a}</Project>
-    </ProjectReference>
   </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{1c8f18d3-b7d2-47d0-8ce0-4ed969157eb8}</ProjectGuid>
@@ -34,6 +31,7 @@
         .;
         ..;
         ..\..;
+        $(SolutionDir)submodules\cxplat\inc;
         $(SolutionDir)test\common\inc;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
@@ -48,8 +46,13 @@
       <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</AdditionalLibraryDirectories>
       <AdditionalDependencies>
         netio.lib;
+        onecore.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.kernel\cxplat_winkernel.obj;
         %(AdditionalDependencies)
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
+      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.kernel.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
+  </Target>
 </Project>

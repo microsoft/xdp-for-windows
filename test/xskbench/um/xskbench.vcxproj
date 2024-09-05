@@ -11,9 +11,6 @@
     <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
       <Project>{bdd99a80-0936-47b0-918d-04cf3b472fb0}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)test\common\lib\platform_user\platform_user.vcxproj">
-      <Project>{ee3dd8a1-9903-4f13-bdfb-fa8121861efb}</Project>
-    </ProjectReference>
   </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{d6e512a0-8dbf-4baf-9393-bfa746c9325c}</ProjectGuid>
@@ -26,12 +23,18 @@
       <AdditionalIncludeDirectories>
         .;
         ..;
+        $(SolutionDir)submodules\cxplat\inc;
         $(SolutionDir)test\common\inc;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>
+        ntdll.lib;
+        onecore.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.user\cxplat_winuser.obj;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />

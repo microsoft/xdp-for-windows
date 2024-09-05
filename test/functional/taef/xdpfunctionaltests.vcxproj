@@ -50,7 +50,7 @@
         iphlpapi.lib;
         advapi32.lib;
         $(WntLibPath)\fnsock_um.lib;
-        $(OutDir)\cxplat\bin\$(UndockedPlatConfig)\cxplat.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.user\cxplat_winuser.obj;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

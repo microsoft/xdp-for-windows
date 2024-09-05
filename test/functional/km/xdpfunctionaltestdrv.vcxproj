@@ -28,6 +28,7 @@
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)test\functional\lib;
+        $(SolutionDir)submodules\cxplat\inc;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <WppEnabled>true</WppEnabled>

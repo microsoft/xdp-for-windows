@@ -14,6 +14,7 @@ Abstract:
 #include <ntstrsafe.h>
 #include <netioddk.h>
 #include <ws2def.h>
+#include "cxplat.h"
 
 #include <xdpapi.h>
 
@@ -23,21 +24,6 @@ Abstract:
 
 #include "control.tmh"
 
-#ifndef KRTL_INIT_SEGMENT
-#define KRTL_INIT_SEGMENT "INIT"
-#endif
-#ifndef KRTL_PAGE_SEGMENT
-#define KRTL_PAGE_SEGMENT "PAGE"
-#endif
-#ifndef KRTL_NONPAGED_SEGMENT
-#define KRTL_NONPAGED_SEGMENT ".text"
-#endif
-
-// Use on code in the INIT segment. (Code is discarded after DriverEntry returns.)
-#define INITCODE __declspec(code_seg(KRTL_INIT_SEGMENT))
-
-// Use on pageable functions.
-#define PAGEDX __declspec(code_seg(KRTL_PAGE_SEGMENT))
 
 DECLARE_CONST_UNICODE_STRING(TestDrvCtlDeviceName, L"\\Device\\" FUNCTIONAL_TEST_DRIVER_NAME);
 DECLARE_CONST_UNICODE_STRING(TestDrvCtlDeviceSymLink, L"\\DosDevices\\" FUNCTIONAL_TEST_DRIVER_NAME);

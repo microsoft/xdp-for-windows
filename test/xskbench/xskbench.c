@@ -20,6 +20,7 @@
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
+#include "cxplat.h"
 #include "platform.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
@@ -690,28 +691,6 @@ LatCmp(
     return (*a > *b) - (*a < *b);
 }
 
-INT64
-QpcToUs64(
-    INT64 Qpc,
-    INT64 QpcFrequency
-    )
-{
-    //
-    // Multiply by a big number (1000000, to convert seconds to microseconds)
-    // and divide by a big number (QpcFrequency, to convert counts to secs).
-    //
-    // Avoid overflow with separate multiplication/division of the high and low
-    // bits.
-    //
-    // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
-    //
-    UINT64 High = (Qpc >> 32) * 1000000;
-    UINT64 Low = (Qpc & 0xFFFFFFFF) * 1000000;
-    return
-        ((High / QpcFrequency) << 32) +
-        ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
-}
-
 _Kernel_float_used_
 VOID
 PrintFinalLatStats(
@@ -721,7 +700,7 @@ PrintFinalLatStats(
     qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
 
     for (UINT32 i = 0; i < Queue->latIndex; i++) {
-        Queue->latSamples[i] = QuicTimePlatToUs64(Queue->latSamples[i]);
+        Queue->latSamples[i] = CxPlatTimePlatToUs64(Queue->latSamples[i]);
     }
 
     printf(
@@ -1296,7 +1275,7 @@ ProcessLat(
         RingPairReserve(
             &Queue->rxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
-        UINT64 NowQpc = QuicTimePlat();
+        UINT64 NowQpc = CxPlatTimePlat();
 
         for (UINT32 i = 0; i < available; i++) {
             XSK_BUFFER_DESCRIPTOR *rxDesc = XskRingGetElement(&Queue->rxRing, consumerIndex++);
@@ -1357,7 +1336,7 @@ ProcessLat(
         RingPairReserve(
             &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
-        UINT64 NowQpc = QuicTimePlat();
+        UINT64 NowQpc = CxPlatTimePlat();
 
         for (UINT32 i = 0; i < available; i++) {
             UINT64 *freeDesc = XskRingGetElement(&Queue->freeRing, consumerIndex++);
@@ -1924,7 +1903,7 @@ XskBenchStart(
 
     for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
         MY_THREAD *Thread = &threads[tIndex];
-        CxPlatThreadWait(&Thread->threadHandle);
+        CxPlatThreadWaitForever(&Thread->threadHandle);
         CxPlatThreadDelete(&Thread->threadHandle);
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             MY_QUEUE *Queue = &Thread->queues[qIndex];

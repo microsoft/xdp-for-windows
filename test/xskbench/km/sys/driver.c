@@ -10,7 +10,7 @@
 #include <initguid.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
-#include "platform.h"
+#include "cxplat.h"
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"

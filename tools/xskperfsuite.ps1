@@ -192,7 +192,7 @@ try {
                             $Options += "-FNDIS"
                         }
                         if ($KernelMode) {
-                            $Options += "-KERNEL"
+                            $Options += "-Kernel"
                         }
 
                         $ScenarioName = `

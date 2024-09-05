@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <xdpapi.h>
-#include "platform.h"
+#include "cxplat.h"
 #include "xskbench_user.h"
 #include "xskbench.h"
 
