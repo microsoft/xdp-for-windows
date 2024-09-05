@@ -30,7 +30,7 @@ $InstallDir = $PSScriptRoot
 # Global paths.
 $XdpInf = "$InstallDir\xdp.inf"
 $XdpPcwMan = "$InstallDir\xdppcw.man"
-$XdpBpfExport = "$InstallDir\xdp_bpfexport.exe"
+$XdpBpfExport = "$InstallDir\xdpbpfexport.exe"
 
 # Helper wait for a service to stop and then delete it. Callers are responsible
 # making sure the service is already stopped or stopping.
@@ -125,22 +125,47 @@ if ($Install -eq "xdp") {
         Write-Error "lodctr.exe exit code: $LastExitCode"
     }
 
+    Write-Verbose "xdp.sys install complete!"
+}
+
+# Installs the XDP eBPF feature.
+if ($Install -eq "xdpebpf") {
+    Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+    reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+
+    # XDP needs to be restarted to reload this registry key. Continue past failures.
+    Write-Verbose "Restarting xdp"
+    Restart-Service xdp -ErrorAction 'Continue'
+
     Write-Verbose "$XdpBpfExport"
     & $XdpBpfExport
     if ($LastExitCode) {
         Write-Error "$XdpBpfExport exit code: $LastExitCode"
     }
 
-    Write-Verbose "xdp.sys install complete!"
+    Write-Verbose "XDP eBPF feature install complete!"
 }
 
-# Uninstalls the xdp driver.
-if ($Uninstall -eq "xdp") {
+# Uninstalls the XDP eBPF feature.
+if ($Uninstall -eq "xdpebpf") {
     Write-Verbose "$XdpBpfExport --clear"
     & $XdpBpfExport --clear
     if ($LastExitCode) {
         Write-Error "$XdpBpfExport exit code: $LastExitCode"
     }
+
+    Write-Verbose "reg.exe delete HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /f"
+    reg.exe delete HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /f | Write-Verbose
+
+    # XDP needs to be restarted to reload this registry key. Continue past failures.
+    Write-Verbose "Restarting xdp"
+    Restart-Service xdp -ErrorAction 'Continue'
+
+    Write-Verbose "XDP eBPF feature uninstall complete!"
+}
+
+# Uninstalls the xdp driver.
+if ($Uninstall -eq "xdp") {
 
     Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
     unlodctr.exe /m:$XdpPcwMan | Write-Verbose
