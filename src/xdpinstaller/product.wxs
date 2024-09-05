@@ -23,7 +23,7 @@ SPDX-License-Identifier: MIT
         <!-- Define the Product features and installation steps -->
         <Feature Id="ProductFeature" Title="XDP for Windows Installer" ConfigurableDirectory="INSTALLFOLDER" Display="expand" Level="1" Absent="disallow" AllowAdvertise="no" InstallDefault="local" TypicalDefault="install" >
             <ComponentGroupRef Id="xdp" />
-            <Feature Id="xdp_ebpf" Level="10" AllowAdvertise="no" Title="XDP eBPF">
+            <Feature Id="xdp_ebpf" Level="10" AllowAdvertise="no" Title="XDP eBPF" Description="Experimental eBPF support. NOT officially supported.">
                 <ComponentGroupRef Id="xdp_ebpf" />
             </Feature>
         </Feature>
