@@ -998,6 +998,10 @@ public:
         }
     }
 
+    TEST_METHOD(EbpfNetsh) {
+        ::EbpfNetsh();
+    }
+
     TEST_METHOD_PRERELEASE(GenericRxEbpfAttach) {
         if (!TestingKernelMode) {
             ::GenericRxEbpfAttach();
