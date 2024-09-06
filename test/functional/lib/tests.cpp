@@ -5322,6 +5322,20 @@ SecurityAdjustDeviceAcl()
     }
 }
 
+VOID
+EbpfNetsh()
+{
+    //
+    // Verify XDP metadata is registered with eBPF via store APIs.
+    //
+    CHAR Path[MAX_PATH];
+    CHAR CmdBuff[256] = {0};
+
+    TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
+    sprintf_s(CmdBuff, "netsh ebpf show verification file=%s\\bpf\\pass.o", Path);
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+}
+
 static
 HRESULT
 TryAttachEbpfXdpProgram(

@@ -22,7 +22,7 @@
     </Ctrpp>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
-  <Target Name="CopyFiles" AfterTargets="Build">
+  <Target Name="CopyFiles" BeforeTargets="Build">
     <Copy SourceFiles="xdppcw.man" DestinationFolder="$(OutDir)" />
   </Target>
 </Project>

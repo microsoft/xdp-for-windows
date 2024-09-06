@@ -262,8 +262,14 @@ function Install-Xdp {
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
 
-        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt"
-        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
+        $AddLocal = ""
+
+        if ($EnableEbpf) {
+            $AddLocal = "ADDLOCAL=xdp_ebpf"
+        }
+
+        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt"
+        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
 
         if ($LastExitCode -ne 0) {
             Write-Error "XDP MSI installation failed: $LastExitCode"
@@ -280,12 +286,12 @@ function Install-Xdp {
         if ($LastExitCode) {
             Write-Error "lodctr.exe exit code: $LastExitCode"
         }
-    }
 
-    if ($EnableEbpf) {
-        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
-        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
-        Stop-Service xdp
+        if ($EnableEbpf) {
+            Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+            Stop-Service xdp
+        }
     }
 
     Start-Service-With-Retry xdp
