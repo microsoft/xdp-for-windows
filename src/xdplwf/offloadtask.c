@@ -72,7 +72,7 @@ XdpOffloadChecksumNb(
             // We're at an odd offset into the logical buffer, so we need to
             // swap the bytes that XdpPartialChecksum returns.
             //
-            Checksum += (BufferChecksum >> 8) + ((BufferChecksum & 0xFF) << 8);
+            Checksum += (BufferChecksum >> 8) + ((BufferChecksum & MAXUINT8) << 8);
         }
 
         Offset += BufferLength;
@@ -90,7 +90,7 @@ XdpOffloadChecksumNb(
     //
     // Take ones-complement and replace 0 with 0xffff.
     //
-    if (Checksum != 0xffff) {
+    if (Checksum != MAXUINT16) {
         Checksum = (UINT16)~Checksum;
     }
 

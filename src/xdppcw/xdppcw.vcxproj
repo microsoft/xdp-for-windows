@@ -21,10 +21,8 @@
       <ResourceFileName>$(IntDir)%(Filename)counters.rc</ResourceFileName>
     </Ctrpp>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <Content Include="xdppcw.man">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
+  <Target Name="CopyFiles" AfterTargets="Build">
+    <Copy SourceFiles="xdppcw.man" DestinationFolder="$(OutDir)" />
+  </Target>
 </Project>
