@@ -9,6 +9,10 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
 
+.PARAMETER BinaryDirectory
+    Overrides the binary directory. The default directory is this script's
+    directory.
+
 #>
 
 param (
@@ -19,13 +23,20 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("", "xdp", "xdpebpf")]
-    [string]$Uninstall = ""
+    [string]$Uninstall = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$BinaryDirectory = ""
 )
 
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-$InstallDir = $PSScriptRoot
+if ([string]::IsNullOrWhitespace($BinaryDirectory)) {
+    $script:InstallDir = $PSScriptRoot
+} else {
+    $script:InstallDir = $BinaryDirectory
+}
 
 # Global paths.
 $XdpInf = "$InstallDir\xdp.inf"
