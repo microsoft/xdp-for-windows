@@ -1362,6 +1362,20 @@ Exit:
     return Status;
 }
 
+_Offload_work_routine_
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpLwfOffloadRssPortChanged(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    // TODO!
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
 VOID
 XdpLwfOffloadRssNblTransform(
     _In_ XDP_LWF_FILTER *Filter,

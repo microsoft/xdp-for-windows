@@ -32,6 +32,28 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_SETTINGS {
     XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *TaskOffload;
 } XDP_LWF_INTERFACE_OFFLOAD_SETTINGS;
 
+typedef struct _XDP_LWF_OFFLOAD_WORKITEM XDP_LWF_OFFLOAD_WORKITEM;
+
+//
+// Annotate routines that must be invoked from the serialized offload work
+// queue.
+//
+#define _Offload_work_routine_
+#define _Requires_offload_rundown_ref_
+
+typedef
+_Offload_work_routine_
+VOID
+XDP_LWF_OFFLOAD_WORK_ROUTINE(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    );
+
+typedef struct _XDP_LWF_OFFLOAD_WORKITEM {
+    SINGLE_LIST_ENTRY Link;
+    XDP_LWF_FILTER *Filter;
+    XDP_LWF_OFFLOAD_WORK_ROUTINE *WorkRoutine;
+} XDP_LWF_OFFLOAD_WORKITEM;
+
 //
 // Per LWF filter state.
 //
@@ -43,6 +65,16 @@ typedef struct _XDP_LWF_OFFLOAD {
     // mode requests.
     //
     XDP_WORK_QUEUE *WorkQueue;
+
+    //
+    // Preallocated port change work item.
+    //
+    XDP_LWF_OFFLOAD_WORKITEM PortWorker;
+
+    //
+    // Indicates whether the port worker is currently in the work queue.
+    //
+    BOOLEAN PortWorkerQueued;
 
     //
     // Deactivating an interface reverts all XDP-initiated changes to an
@@ -82,28 +114,6 @@ typedef struct _XDP_LWF_INTERFACE_OFFLOAD_CONTEXT {
     XDP_LWF_INTERFACE_OFFLOAD_SETTINGS Settings;
 } XDP_LWF_INTERFACE_OFFLOAD_CONTEXT;
 
-typedef struct _XDP_LWF_OFFLOAD_WORKITEM XDP_LWF_OFFLOAD_WORKITEM;
-
-//
-// Annotate routines that must be invoked from the serialized offload work
-// queue.
-//
-#define _Offload_work_routine_
-#define _Requires_offload_rundown_ref_
-
-typedef
-_Offload_work_routine_
-VOID
-XDP_LWF_OFFLOAD_WORK_ROUTINE(
-    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
-    );
-
-typedef struct _XDP_LWF_OFFLOAD_WORKITEM {
-    SINGLE_LIST_ENTRY Link;
-    XDP_LWF_FILTER *Filter;
-    XDP_LWF_OFFLOAD_WORK_ROUTINE *WorkRoutine;
-} XDP_LWF_OFFLOAD_WORKITEM;
-
 VOID
 XdpLwfOffloadQueueWorkItem(
     _In_ XDP_LWF_FILTER *Filter,
@@ -123,6 +133,12 @@ VOID
 XdpOffloadFilterStatus(
     _In_ XDP_LWF_FILTER *Filter,
     _In_ const NDIS_STATUS_INDICATION *StatusIndication
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpLwfOffloadPortChanged(
+    _In_ XDP_LWF_FILTER *Filter
     );
 
 VOID

@@ -401,6 +401,37 @@ Exit:
     TraceExitStatus(TRACE_LWF);
 }
 
+static
+_Offload_work_routine_
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpLwfOffloadPortChangedWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    XdpLwfOffloadRssPortChanged(Filter);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpLwfOffloadPortChanged(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    XdpLwfOffloadQueueWorkItem(
+        Filter, &Filter->Offload.PortWorker, XdpLwfOffloadPortChangedWorker);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
 VOID
 XdpLwfOffloadTransformNbls(
     _In_ XDP_LWF_FILTER *Filter,

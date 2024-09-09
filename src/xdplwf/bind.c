@@ -386,9 +386,15 @@ XdpLwfFilterPnpEvent(
     )
 {
     XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)FilterModuleContext;
+    const NET_PNP_EVENT *PnpEvent = &NetPnPEventNotification->NetPnPEvent;
 
-    if (NetPnPEventNotification->NetPnPEvent.NetEvent == NetEventFilterPreDetach) {
+    if (PnpEvent->NetEvent == NetEventFilterPreDetach) {
         XdpLwfFilterPreDetach(Filter);
+    }
+
+    if (PnpEvent->NetEvent == NetEventPortActivation ||
+        PnpEvent->NetEvent == NetEventPortDeactivation) {
+        XdpLwfOffloadPortChanged(Filter);
     }
 
     return NdisFNetPnPEvent(Filter->NdisFilterHandle, NetPnPEventNotification);

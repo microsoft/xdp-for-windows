@@ -56,6 +56,13 @@ XdpLwfOffloadRssInspectOidRequest(
     _Out_ NDIS_STATUS *CompletionStatus
     );
 
+_Offload_work_routine_
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpLwfOffloadRssPortChanged(
+    _In_ XDP_LWF_FILTER *Filter
+    );
+
 VOID
 XdpLwfOffloadRssNblTransform(
     _In_ XDP_LWF_FILTER *Filter,
