@@ -135,7 +135,7 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
-        <EventProvider Id="EP_XdpFnTestDrvWpp" Name="9DF435CB-9EEB-430B-A795-EF2B8845F7F3" Level="5">
+        <EventProvider Id="EP_XdpFnTestDrvWpp" Name="9DF435CB-9EEB-430B-A795-EF2B8845F7F3" Level="5" NonPagedMemory="true">
             <Keywords>
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>

@@ -67,7 +67,6 @@ function CleanupKernelMode {
     sc.exe stop xdpfunctionaltestdrv | Write-Verbose
     sc.exe delete xdpfunctionaltestdrv | Write-Verbose
     Remove-Item -Path "$SystemDriversPath\xdpfunctionaltestdrv.sys" -ErrorAction SilentlyContinue
-    # & "$RootDir\tools\setup.ps1" -Uninstall invokesystemrelay -Config $Config -Arch $Arch -ErrorAction 'Continue'
     [Environment]::SetEnvironmentVariable("xdpfunctionaltests::KernelModeEnabled", $null)
     [Environment]::SetEnvironmentVariable("xdpfunctionaltests::KernelModeDriverPath", $null)
 }
