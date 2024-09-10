@@ -123,7 +123,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch # -UseJitEbpf:$UseJitEbpf
             Write-Verbose "installed ebpf."
         }
 

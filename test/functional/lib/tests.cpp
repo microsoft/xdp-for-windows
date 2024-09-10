@@ -15,6 +15,7 @@
 #include <netiodef.h>
 #include <netioapi.h>
 #include <mstcpip.h>
+#include "xdp_nmr_helper.h"
 #else
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
@@ -60,6 +61,8 @@
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 
+#include "cxplat.h"
+
 #ifndef KERNEL_MODE
 #include <pkthlp.h>
 #include <fnmpapi.h>
@@ -67,7 +70,6 @@
 #include <fnoid.h>
 
 #include "cxplat.hpp"
-#include "cxplat.h"
 #include "cxplatvector.h"
 #include "fnsock.h"
 
@@ -233,6 +235,8 @@ static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
 static XDP_LOAD_API_CONTEXT XdpLoadApiContext;
 static const XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 static const XDP_API_PROVIDER_DISPATCH *XdpApi;
+// extern XDP_API_PROVIDER_DISPATCH *XdpApi;
+
 #else
 static unique_xdp_api XdpApi;
 #endif
@@ -2684,7 +2688,13 @@ OpenApiTest()
 VOID
 LoadApiTest()
 {
+    TraceInfo("=============================> LoadApiTest");
 #ifdef KERNEL_MODE
+    TraceInfo("=============================> LoadApiTest Kernel");
+    // CxPlatXdpApiInitialize();
+    // CxPlatSleep(1000);
+    // CxPlatXdpApiUninitialize();
+
     XDP_LOAD_API_CONTEXT LoadApiContext;
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
@@ -2697,7 +2707,9 @@ LoadApiTest()
     UninitializeApi(LoadApiContext);
 
     TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
+
 #else
+TraceInfo("=============================> LoadApiTest User");
     XDP_LOAD_API_CONTEXT XdpLoadApiContext;
     const XDP_API_TABLE *XdpApiTable;
 
@@ -2706,6 +2718,7 @@ LoadApiTest()
 
     TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
 #endif
+    TraceInfo("=============================> LoadApiTest Done");
 }
 
 #ifndef KERNEL_MODE
