@@ -65,6 +65,7 @@
 #include <fnlwfapi.h>
 #include <fnoid.h>
 
+#include "platform.h"
 #include "cxplat.hpp"
 #include "cxplat.h"
 #include "cxplatvector.h"
@@ -159,6 +160,9 @@ class TestInterface;
 #define ntohl _byteswap_ulong
 #endif
 
+#define CXPLAT_MAX(a,b) (((a) > (b)) ? (a) : (b))
+
+#define CXPLAT_MIN(a,b) (((a) < (b)) ? (a) : (b))
 
 static
 VOID
@@ -221,6 +225,7 @@ MpResetMtu(
 using unique_fnmp_mtu_handle = wil::unique_any<const TestInterface *, decltype(::MpResetMtu), ::MpResetMtu>;
 
 #ifndef KERNEL_MODE
+using unique_umem_ptr = wil::unique_virtualalloc_ptr<UCHAR>;
 using unique_handle = wil::unique_handle;
 
 template <typename T>
@@ -229,6 +234,7 @@ using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_dele
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 
 #else
+using unique_umem_ptr = wistd::unique_ptr<UCHAR>;
 using unique_handle = wistd::unique_ptr<HANDLE>;
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T>;
@@ -377,6 +383,8 @@ GetOSVersion(
     TEST_EQUAL(STATUS_SUCCESS, RtlGetVersion(&OsVersionInfo));
 }
 
+#endif
+
 BOOLEAN
 OsVersionIsVbOrLater()
 {
@@ -413,7 +421,12 @@ GetProcessorCount(
     _In_opt_ UINT16 Group = ALL_PROCESSOR_GROUPS
     )
 {
-    UINT32 Count = GetActiveProcessorCount(Group);
+    UINT32 Count = 
+#ifdef KERNEL_MODE
+        KeQueryActiveProcessorCountEx(Group);
+#else
+        GetActiveProcessorCount(Group);
+#endif
     TEST_NOT_EQUAL(0, Count);
     return Count;
 }
@@ -471,8 +484,6 @@ GetRandomUInt32()
     CxPlatRandom(sizeof(Random), &Random);
     return Random;
 }
-
-#endif
 
 class Stopwatch {
 private:
@@ -973,7 +984,7 @@ TryCreateSocket(
         CxPlatXdpApiGetProviderBindingContext(),
         NULL, NULL, NULL,
 #endif
-        Socket.get());
+        &Socket);
 }
 
 static
@@ -985,31 +996,19 @@ CreateSocket()
     return Socket;
 }
 
-#ifdef KERNEL_MODE
-
 static
-wistd::unique_ptr<UCHAR>
+unique_umem_ptr
 AllocUmemBuffer()
 {
-    wistd::unique_ptr<UCHAR> Buffer(
-        (UCHAR *)CXPLAT_ALLOC_NONPAGED(DEFAULT_UMEM_SIZE, 'tPDX'));
-    TEST_NOT_NULL(Buffer.get());
-    return Buffer;
-}
-#else
-static
-wil::unique_virtualalloc_ptr<UCHAR>
-AllocUmemBuffer()
-{
-    wil::unique_virtualalloc_ptr<UCHAR> Buffer(
-        (UCHAR *)VirtualAlloc(
-            NULL,
+    unique_umem_ptr Buffer(
+        (UCHAR *)CXPLAT_VIRTUAL_ALLOC(
             DEFAULT_UMEM_SIZE,
-            MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_READWRITE, 'tPDX'));
     TEST_NOT_NULL(Buffer.get());
     return Buffer;
 }
-#endif
+// #endif
 
 static
 VOID
@@ -1194,7 +1193,21 @@ NotifySocket(
     TEST_HRESULT(TryNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result));
 }
 
-#ifndef KERNEL_MODE
+#ifdef KERNEL_MODE
+
+static
+XDP_STATUS
+TryNotifyAsync(
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _Inout_ XSK_COMPLETION_CONTEXT CompletionContext,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
+    )
+{
+    return XdpApi->XskNotifyAsync2(Socket, Flags, CompletionContext, Result);
+}
+
+#else
 
 static
 HRESULT
@@ -1206,6 +1219,8 @@ TryNotifyAsync(
 {
     return XdpApi->XskNotifyAsync(Socket, Flags, Overlapped);
 }
+
+#endif
 
 static
 HRESULT
@@ -1234,7 +1249,11 @@ TryInterfaceOpen(
     _Out_ unique_handle &InterfaceHandle
     )
 {
-    return XdpApi->XdpInterfaceOpen(InterfaceIndex, &InterfaceHandle);
+    return XdpApi->XdpInterfaceOpen(
+#ifdef KERNEL_MODE
+        CxPlatXdpApiGetProviderBindingContext(),
+#endif
+        InterfaceIndex, &InterfaceHandle);
 }
 
 static
@@ -1350,8 +1369,6 @@ TryQeoSet(
     return XdpQeoSet(InterfaceHandle, QuicConnections, QuicConnectionsSize);
 }
 
-#endif
-
 static
 HRESULT
 TryCreateXdpProg(
@@ -1365,7 +1382,7 @@ TryCreateXdpProg(
     _In_ XDP_CREATE_PROGRAM_FLAGS Flags = XDP_CREATE_PROGRAM_FLAG_NONE
     )
 {
-    ASSERT(Flags & (XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE) == 0);
+    ASSERT((Flags & (XDP_CREATE_PROGRAM_FLAG_GENERIC | XDP_CREATE_PROGRAM_FLAG_NATIVE)) == 0);
 
     if (XdpMode == XDP_GENERIC) {
         Flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
@@ -1378,7 +1395,7 @@ TryCreateXdpProg(
 #ifdef KERNEL_MODE
             CxPlatXdpApiGetProviderBindingContext(),
 #endif
-            IfIndex, HookId, QueueId, Flags, Rules, RuleCount, ProgramHandle.get());
+            IfIndex, HookId, QueueId, Flags, Rules, RuleCount, &ProgramHandle);
 }
 
 static
@@ -1675,8 +1692,6 @@ SocketProducerCheckNeedPoke(
     TEST_EQUAL(ExpectedState, XskRingProducerNeedPoke(Ring));
 }
 
-#ifndef KERNEL_MODE
-
 static
 VOID
 InitializeOidKey(
@@ -1692,8 +1707,6 @@ InitializeOidKey(
     Key->RequestInterface = RequestInterface;
 }
 
-#endif
-
 static
 unique_fnmp_handle
 MpOpenGeneric(
@@ -1704,8 +1717,6 @@ MpOpenGeneric(
     TEST_HRESULT(FnMpOpenShared(IfIndex, &Handle));
     return Handle;
 }
-
-#ifndef KERNEL_MODE
 
 static
 unique_fnmp_handle
@@ -1759,8 +1770,6 @@ LwfIsDatapathActive(
 
     return IsDatapathActive;
 }
-
-#endif
 
 struct RX_FRAME {
     DATA_FRAME Frame;
@@ -1922,8 +1931,6 @@ MpTxGetFrame(
     return FnMpTxGetFrame(Handle.get(), Index, 0, FrameBufferLength, Frame);
 }
 
-#ifndef KERNEL_MODE
-
 static
 VOID
 MpTxVerifyNoFrame(
@@ -1937,8 +1944,6 @@ MpTxVerifyNoFrame(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
         MpTxGetFrame(Handle, Index, &FrameBufferLength, NULL));
 }
-
-#endif
 
 static
 unique_malloc_ptr<DATA_FRAME>
@@ -2000,8 +2005,6 @@ MpTxFlush(
 {
     TEST_HRESULT(FnMpTxFlush(Handle.get()));
 }
-
-#ifndef KERNEL_MODE
 
 static
 VOID
@@ -2229,6 +2232,8 @@ LwfStatusAllocateAndGetIndication(
     return StatusBuffer;
 }
 
+#ifndef KERNEL_MODE
+
 static
 LARGE_INTEGER
 MpGetLastMiniportPauseTimestamp(
@@ -2254,8 +2259,6 @@ MpSetMtu(
     TEST_HRESULT(FnMpSetMtu(Handle.get(), Mtu));
     return unique_fnmp_mtu_handle(&If);
 }
-
-#ifndef KERNEL_MODE
 
 [[nodiscard]]
 static
@@ -2367,7 +2370,7 @@ InitializeOffloadParameters(
     _Out_ NDIS_OFFLOAD_PARAMETERS *OffloadParameters
     )
 {
-    ZeroMemory(OffloadParameters, sizeof(*OffloadParameters));
+    CxPlatZeroMemory(OffloadParameters, sizeof(*OffloadParameters));
     OffloadParameters->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
 
     if (OsVersionIsVbOrLater()) {
@@ -2422,8 +2425,6 @@ MpTaskOffloadReset(
         Handle, FnOffloadCurrentConfig, &OffloadParams, sizeof(OffloadParams)));
 }
 
-#endif
-
 static
 unique_fnsock
 CreateUdpSocket(
@@ -2458,6 +2459,23 @@ CreateUdpSocket(
     *LocalPort = SS_PORT(&Address);
     return Socket;
 }
+
+#ifdef KERNEL_MODE
+
+static
+unique_fnsock
+CreateTcpSocket(
+    _In_ ADDRESS_FAMILY Af,
+    _In_ const TestInterface *If,
+    _Out_ UINT16 *LocalPort,
+    _In_ UINT16 RemotePort,
+    _Out_ UINT32 *AckNum
+    )
+{
+    return nullptr;
+}
+
+#else
 
 static
 unique_fnsock
@@ -2619,6 +2637,8 @@ CreateTcpSocket(
     return AcceptedSocket;
 }
 
+#endif
+
 static
 VOID
 WaitForWfpQuarantine(
@@ -2733,6 +2753,8 @@ WaitForNdisDatapath(
     TEST_TRUE(TryWaitForNdisDatapath(If, TimeoutInMs));
 }
 
+#endif
+
 static
 VOID
 ClearMaskedBits(
@@ -2751,8 +2773,6 @@ ClearMaskedBits(
         Ip64[1] &= Mask64[1];
     }
 }
-
-#endif
 
 bool
 TestSetup()
@@ -3313,6 +3333,11 @@ GenericRxMatch(
     _In_ BOOLEAN IsUdp
     )
 {
+#ifdef KERNEL_MODE
+    if (!IsUdp) {
+        return;
+    }
+#endif
     auto If = IsUdp ? FnMpIf : FnMp1QIf;
     UINT16 LocalPort;
     UINT16 RemotePort = htons(1234);
@@ -3727,8 +3752,6 @@ GenericRxMatch(
     }
 }
 
-#ifndef KERNEL_MODE
-
 VOID
 GenericRxMatchIpPrefix(
     _In_ ADDRESS_FAMILY Af
@@ -3806,7 +3829,7 @@ GenericRxMatchIpPrefix(
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
 }
 
-#endif
+// #endif
 
 VOID
 GenericRxLowResources()
@@ -4084,8 +4107,6 @@ GenericRxMultiProgram()
         }
     }
 }
-
-#ifndef _KERNEL_MODE
 
 VOID
 GenericRxUdpFragmentQuicShortHeader(
@@ -4393,6 +4414,8 @@ NdisOffloadTxEnabled(
         OffloadValue == NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
 }
 
+#ifndef KERNEL_MODE
+
 static
 VOID
 GenericRxValidateGroToGso(
@@ -4411,9 +4434,9 @@ GenericRxValidateGroToGso(
     const UINT32 IfMtu = Params->IfMtu > 0 ? Params->IfMtu : FNMP_DEFAULT_MTU;
     const UINT16 IfMss = (UINT16)(IfMtu - TotalTcpHdrSize);
     const UINT16 RscMss =
-        (UINT16)((std::max(1ui16, Params->PayloadLength) + Params->GroSegCount - 1) /
+        (UINT16)((CXPLAT_MAX(1ui16, Params->PayloadLength) + Params->GroSegCount - 1) /
             Params->GroSegCount);
-    const UINT16 TxMss = std::min(IfMss, RscMss);
+    const UINT16 TxMss = CXPLAT_MIN(IfMss, RscMss);
     //
     // The following two default properties are hard-coded in FNMP and not
     // defined in API headers.
@@ -4640,7 +4663,7 @@ GenericRxValidateGroToGso(
         TotalSegmentCount += SegmentCount;
     } while (FinalPayload.size() < Params->PayloadLength);
 
-    TEST_EQUAL((std::max(1ui16, Params->PayloadLength) + TxMss - 1) / TxMss, TotalSegmentCount);
+    TEST_EQUAL((CXPLAT_MAX(1ui16, Params->PayloadLength) + TxMss - 1) / TxMss, TotalSegmentCount);
     TEST_TRUE(TotalSegmentCount == Params->GroSegCount || IfMss < RscMss);
     TEST_EQUAL(GroPacketLength - TotalTcpHdrSize - Params->DataTrailer, FinalPayload.size());
     TEST_TRUE(
@@ -4650,6 +4673,8 @@ GenericRxValidateGroToGso(
     MpTxFlush(GenericMp);
     MpTxVerifyNoFrame(GenericMp, 0);
 }
+
+#endif
 
 static
 CxPlatVector<DATA_BUFFER>
@@ -4697,6 +4722,8 @@ GenericRxCreateSplitBuffers(
 
     return Buffers;
 }
+
+#ifndef KERNEL_MODE
 
 static
 VOID
@@ -4913,6 +4940,7 @@ GenericRxFragmentBuffer(
     }
 }
 
+
 VOID
 GenericRxFragmentHeaderData(
     _In_ ADDRESS_FAMILY Af,
@@ -5013,6 +5041,8 @@ GenericRxHeaderFragments(
         GenericRxFragmentBuffer(Af, &Params);
     }
 }
+
+#endif
 
 VOID
 GenericRxFromTxInspect(
@@ -5130,6 +5160,8 @@ GenericRxFromTxInspect(
     }
 }
 
+#ifndef KERNEL_MODE
+
 VOID
 GenericRxForwardGroHelper(
     _In_ ADDRESS_FAMILY Af,
@@ -5168,6 +5200,7 @@ GenericRxForwardGroHelper(
         GenericRxFragmentBuffer(Af, Params);
     }}}
 }
+
 
 VOID
 GenericRxForwardGroSanity(
@@ -5411,7 +5444,7 @@ GenericRxFuzzForwardGro(
         // Fuzz the headers and the first few bytes of payload.
         //
         for (UINT32 j = 0; j < 100; j++) {
-            PacketBuffer[GetRandomUInt32() % std::min(100ui64, PacketBuffer.size() + 1)] =
+            PacketBuffer[GetRandomUInt32() % CXPLAT_MIN(100ui64, PacketBuffer.size() + 1)] =
                 (UINT8)GetRandomUInt32();
         }
 
@@ -5426,7 +5459,7 @@ GenericRxFuzzForwardGro(
         // If there is no backfill, use index one as the minimum.
         //
         UINT8 BackfillOffset = (Params.Backfill > 0) ? 0 : 1;
-        SplitCount = (UINT8)std::min(GetRandomUInt32() % 8ui32, ActualPacketLength - BackfillOffset);
+        SplitCount = (UINT8)CXPLAT_MIN(GetRandomUInt32() % 8ui32, ActualPacketLength - BackfillOffset);
         while (SplitCount-- > 0) {
             if (!SplitIndexes.empty()) {
                 SplitIndexes.push_back(
@@ -5464,6 +5497,8 @@ GenericRxFuzzForwardGro(
     MpRxFlush(GenericMp);
 }
 
+#endif
+
 static
 VOID
 GenerateTestPassword(
@@ -5495,6 +5530,8 @@ GenerateTestPassword(
         Buffer[i] = Characters[r % RTL_NUMBER_OF(Characters)];
     }
 }
+
+#ifndef KERNEL_MODE
 
 VOID
 SecurityAdjustDeviceAcl()
@@ -6422,8 +6459,6 @@ GenericTxMtu()
     TEST_EQUAL(1, Stats.TxInvalidDescriptors);
 }
 
-#ifndef KERNEL_MODE
-
 static
 VOID
 RxIndicate(
@@ -6588,6 +6623,8 @@ GenericXskWait(
         TryNotifySocket(Xsk.Handle.get(), NotifyFlags, WaitTimeoutMs, &NotifyResult));
     Timer.ExpectElapsed(WaitTimeoutMs);
 }
+
+#ifndef KERNEL_MODE
 
 VOID
 GenericXskWaitAsync(
@@ -6851,6 +6888,8 @@ GenericLwfDelayDetach(
     TEST_TRUE(LastMpPauseTime.QuadPart > LowerBoundTime.QuadPart);
     TEST_TRUE(LastMpPauseTime.QuadPart < UpperBoundTime.QuadPart);
 }
+
+#endif
 
 VOID
 GenericLoopback(
@@ -8264,6 +8303,8 @@ OffloadQeoGetExpectedOid()
             OID_QUIC_CONNECTION_ENCRYPTION : OID_QUIC_CONNECTION_ENCRYPTION_PROTOTYPE;
 }
 
+#ifndef KERNEL_MODE
+
 VOID
 OffloadQeoConnection()
 {
@@ -8423,6 +8464,8 @@ OffloadQeoConnection()
         }}}}}}
     }
 }
+
+#endif
 
 VOID
 OffloadQeoRevert(
@@ -8808,5 +8851,3 @@ OidPassthru()
  * - NMR itself can tear down binding between XDP and NIC.
  *
  */
-
-#endif

@@ -9,6 +9,8 @@
 #error "Incorrectly including User Platform Header"
 #endif
 
+#include "cxplat.h"
+
 #define CXPLAT_VIRTUAL_ALLOC(Size, TypeFlags, ProtectionFlags, Tag) \
     VirtualAlloc(NULL, Size, TypeFlags, ProtectionFlags)
 #define CXPLAT_VIRTUAL_FREE(Mem, Size, Type, Tag) VirtualFree(Mem, Size, Type);

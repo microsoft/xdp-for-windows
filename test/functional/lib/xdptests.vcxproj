@@ -38,6 +38,21 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatSpecificWarningsAsErrors>4834</TreatSpecificWarningsAsErrors>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        ntdll.lib;
+        onecore.lib;
+        iphlpapi.lib;
+        advapi32.lib;
+        $(WntLibPath)\fnsock_um.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.user\cxplat_winuser.obj;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
+  <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
+      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
+  </Target>
 </Project>
