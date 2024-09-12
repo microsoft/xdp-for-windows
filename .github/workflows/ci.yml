@@ -241,6 +241,7 @@ jobs:
       with:
         name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/logs
+        if-no-files-found: ignore
 
   perf_tests:
     name: Perf Tests
