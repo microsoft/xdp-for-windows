@@ -2,8 +2,9 @@
 <!-- Copyright (c) Microsoft Corporation -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="15.0">
   <PropertyGroup>
+    <XdpBinPath>$(MSBuildThisFileDirectory)bin\$(Platform)</XdpBinPath>
     <XdpIncludePath>$(MSBuildThisFileDirectory)include</XdpIncludePath>
-    <XdpLibraryPath>$(MSBuildThisFileDirectory)lib</XdpLibraryPath>
+    <XdpLibraryPath>$(MSBuildThisFileDirectory)lib\$(Platform)</XdpLibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

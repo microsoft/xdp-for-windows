@@ -15,5 +15,6 @@ $content = Get-Content $InputFile
 $content = $content.Replace("{commit}", $Commit)
 $content = $content.Replace("{version}", $VersionString)
 $content = $content.Replace("{rootpath}", $RootDir)
-$content = $content.Replace("{binpath}", $(Get-ArtifactBinPath -Arch $Arch -Config $Config))
+$content = $content.Replace("{anyarch}", $Arch)
+$content = $content.Replace("{binpath_anyarch}", $(Get-ArtifactBinPath -Arch $Arch -Config $Config))
 set-content $OutputFile $content
