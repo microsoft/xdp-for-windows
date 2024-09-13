@@ -22,6 +22,7 @@
 #include <sddl.h>
 #include <string.h>
 
+
 #if _MSCVER < 1930
 //
 // WIL causes VS2019 to warn on benign errors.
