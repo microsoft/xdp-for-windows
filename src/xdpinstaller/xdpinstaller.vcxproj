@@ -17,4 +17,9 @@
   <Target Name="SignMsi">
       <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)*.msi &quot;" />
   </Target>
+  <!-- Allow wixproj to take a project reference on this file without chasing non-existent NuGet packages. -->
+  <Target Name="ResolveNuGetPackageAssets"
+          DependsOnTargets="$(ResolveNuGetPackageAssetsDependsOn)"
+          Condition="'$(ResolveNuGetPackages)' == 'true' and exists('$(ProjectLockFile)')">
+  </Target>
 </Project>
