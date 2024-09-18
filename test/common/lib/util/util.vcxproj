@@ -26,7 +26,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <PostBuildEvent>
-      <Command>xcopy "$(VCInstallDir)redist\MSVC\$(VCRedistVersion)\onecore\debug_nonredist\$(PlatformShortName)\Microsoft.VC$(PlatformToolsetVersion).DebugCRT\*.dll" "$(VCOutDir)" /D /Y &amp;&amp; xcopy "$(UniversalDebugCRT_ExecutablePath_x64)\*.dll" "$(VCOutDir)" /D /Y </Command>
+      <Command>xcopy "$(VCInstallDir)redist\MSVC\$(VCRedistVersion)\onecore\debug_nonredist\$(PlatformShortName)\Microsoft.VC$(PlatformToolsetVersion).DebugCRT\*.dll" "$(VCOutDir)" /D /Y &amp;&amp; xcopy "$(UniversalCRTSdkDir)\bin\$(TargetUniversalCRTVersion)\$(Platform)\ucrt\*.dll" "$(VCOutDir)" /D /Y </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
 </Project>

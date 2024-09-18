@@ -3,6 +3,9 @@
 .SYNOPSIS
 This prepares a machine for running XDP.
 
+.PARAMETER Platform
+    The CPU platform to use.
+
 .PARAMETER ForBuild
     Installs all the build-time dependencies.
 
@@ -35,6 +38,10 @@ This prepares a machine for running XDP.
 #>
 
 param (
+    [ValidateSet("x64", "arm64")]
+    [Parameter(Mandatory=$false)]
+    [string]$Platform = "x64",
+
     [Parameter(Mandatory = $false)]
     [switch]$ForBuild = $false,
 
@@ -125,7 +132,7 @@ function Download-Ebpf-Msi {
 }
 
 function Download-Fn-Runtime {
-    $FnRuntimeUrl = Get-FnRuntimeUrl
+    $FnRuntimeUrl = Get-FnRuntimeUrl -Platform $Platform
     $FnRuntimeDir = Get-FnRuntimeDir
     $FnRuntimeZip = "$FnRuntimeDir/runtime.zip"
 
@@ -168,11 +175,11 @@ function Setup-VcRuntime {
         Write-Host "Installing VC++ runtime"
 
         if (!(Test-Path $ArtifactsDir)) { mkdir artifacts }
-        Remove-Item -Force "$ArtifactsDir\vc_redist.x64.exe" -ErrorAction Ignore
+        Remove-Item -Force "$ArtifactsDir\vc_redist.$Platform.exe" -ErrorAction Ignore
 
         # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "$ArtifactsDir\vc_redist.x64.exe"
-        & $ArtifactsDir\vc_redist.x64.exe /install /passive | Write-Verbose
+        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.$Platform.exe" -OutFile "$ArtifactsDir\vc_redist.$Platform.exe"
+        & $ArtifactsDir\vc_redist.$Platform.exe /install /passive | Write-Verbose
     }
 }
 

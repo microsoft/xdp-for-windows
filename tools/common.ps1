@@ -129,7 +129,11 @@ function Get-FnVersion {
 }
 
 function Get-FnRuntimeUrl {
-    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-runtime-x64.zip"
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
+    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-runtime-$Platform.zip"
 }
 
 function Get-FnRuntimeDir {

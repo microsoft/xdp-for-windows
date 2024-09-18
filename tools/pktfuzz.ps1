@@ -47,6 +47,8 @@ try {
     if (!$?) {
         Write-Error "pktfuzz.exe failed: $LastExitCode"
     }
+} catch {
+    Write-Error "pktfuzz failed: $($_ | Out-String)"
 } finally {
     Pop-Location
 }
