@@ -16,7 +16,7 @@
   <PropertyGroup>
     <ProjectGuid>{a1864618-ed3d-43c5-8013-a177f9cf73d9}</ProjectGuid>
     <TargetName>pktfuzz</TargetName>
-    <UndockedType>dll</UndockedType>
+    <UndockedType>exe</UndockedType>
     <ImportWnt>true</ImportWnt>
     <EnableAsan>true</EnableAsan>
     <EnableFuzzer>true</EnableFuzzer>
