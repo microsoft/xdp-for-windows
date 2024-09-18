@@ -4,7 +4,7 @@ param (
     [string]$Config = "Release",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("x64")]
+    [ValidateSet("x64", "arm64")]
     [string]$Arch = "x64",
 
     [Parameter(Mandatory = $false)]
@@ -87,12 +87,12 @@ Copy-Item -ToSession $Session .\tools -Destination $RemoteDir\tools -Recurse
 
 # Prepare the machines for the testing.
 Write-Output "Preparing local machine for testing..."
-tools\prepare-machine.ps1 -ForTest -NoReboot
+tools\prepare-machine.ps1 -ForTest -NoReboot -Platform $Platform
 Write-Output "Preparing remote machine for testing..."
 Invoke-Command -Session $Session -ScriptBlock {
     param ($RemoteDir)
-    & $RemoteDir\tools\prepare-machine.ps1 -ForTest -NoReboot
-} -ArgumentList $RemoteDir
+    & $RemoteDir\tools\prepare-machine.ps1 -ForTest -NoReboot -Platform $Platform
+} -ArgumentList $RemoteDir, $Platform
 
 # Check for any previously drivers.
 Write-Output "Checking local machine state..."

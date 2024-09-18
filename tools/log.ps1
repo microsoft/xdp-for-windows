@@ -83,7 +83,7 @@ $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
 
-& $RootDir/tools/prepare-machine.ps1 -ForLogging
+& $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Platform
 
 if (!$EtlPath) {
     $EtlPath = "$LogsDir\$Name.etl"
