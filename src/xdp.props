@@ -7,7 +7,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <!-- Project-wide properties -->
-    <WntPackagePath>$(SolutionDir)packages\win-net-test.1.1.0\</WntPackagePath>
+    <WntPackagePath>$(SolutionDir)packages\win-net-test.1.2.0\</WntPackagePath>
     <!-- Undocked project properties -->
     <UndockedDir>$(SolutionDir)submodules\cxplat\submodules\undocked\</UndockedDir>
     <UndockedOut>$(SolutionDir)artifacts\</UndockedOut>

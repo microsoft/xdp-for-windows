@@ -33,7 +33,7 @@ jobs:
         # environment, in addition to the default WS 2022.
         os: [2019, 2022]
         config: [Release, Debug]
-        arch: [x64]
+        arch: [x64, arm64]
     permissions:
       actions: read
       contents: read
@@ -52,7 +52,7 @@ jobs:
       fail-fast: false
       matrix:
         config: [Release, Debug]
-        arch: [x64]
+        arch: [x64, arm64]
     permissions:
       actions: read
       contents: read
@@ -253,11 +253,11 @@ jobs:
       matrix:
         windows: [2019, 2022, Prerelease]
         configuration: [Release]
-        platform: [x64]
+        platform: [x64, arm64]
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
-     - "1ES.Pool=xdp-ci-perf-gh"
+     - "1ES.Pool=xdp-ci-perf-${{ matrix.platform }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
@@ -361,7 +361,7 @@ jobs:
       fail-fast: false
       matrix:
         configuration: [Release]
-        platform: [x64]
+        platform: [x64, arm64]
     runs-on: windows-2022
     steps:
     - name: Checkout repository
