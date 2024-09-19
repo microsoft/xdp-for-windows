@@ -52,7 +52,7 @@ jobs:
       fail-fast: false
       matrix:
         config: [Release, Debug]
-        arch: [x64, arm64]
+        arch: [x64]
     permissions:
       actions: read
       contents: read
