@@ -48,11 +48,11 @@
 #include <xdpndisuser.h>
 #include <fntrace.h>
 #include <qeo_ndis.h>
+#include <xdp/ebpfhook.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
-#include "ebpf_nethooks.h"
 #include "cxplat.h"
 #include "cxplatvector.h"
 #include "fnsock.h"

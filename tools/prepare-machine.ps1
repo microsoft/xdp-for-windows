@@ -115,6 +115,33 @@ function Download-CoreNet-Deps {
     }
 }
 
+function Download-eBpf-Nuget {
+    # Download private eBPF Nuget package.
+    $EbpfNugetVersion = "eBPF-for-Windows.arm64.0.20.0"
+    $EbpfNugetBuild = ""
+    $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+    $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+    $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
+
+    $NugetDir = "$ArtifactsDir/nuget"
+    if ($Force -and (Test-Path $NugetDir)) {
+        Remove-Item -Recurse -Force $NugetDir
+    }
+    if (!(Test-Path $NugetDir)) {
+        mkdir $NugetDir | Write-Verbose
+    }
+
+    if (!(Test-Path $NugetDir/$EbpfNuget)) {
+        # Remove any old builds of the package.
+        if (Test-Path $EbpfNugetRestoreDir) {
+            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
+        }
+        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
+
+        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
+    }
+}
+
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
     $EbpfMsiFullPath = Get-EbpfMsiFullPath
@@ -229,6 +256,9 @@ if ($Cleanup) {
 } else {
     if ($ForBuild) {
         # There are currently no build dependencies required.
+        if ($Platform -eq "arm64") {
+            Download-eBpf-Nuget
+        }
     }
 
     if ($ForEbpfBuild) {

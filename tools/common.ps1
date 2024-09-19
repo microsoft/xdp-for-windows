@@ -184,9 +184,11 @@ function Get-XdpBuildVersion {
     $RootDir = Split-Path $PSScriptRoot -Parent
     $XdpBuildVersion = @{}
     [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-    $XdpBuildVersion.Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-    $XdpBuildVersion.Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-    $XdpBuildVersion.Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+    $XdpVersionPropertyGroup = $XdpVersion.Project.PropertyGroup |
+        Where-Object {$_.PSObject.Properties.Name -contains "Label" -and $_.Label -eq "Version"}
+    $XdpBuildVersion.Major = $XdpVersionPropertyGroup.XdpMajorVersion
+    $XdpBuildVersion.Minor = $XdpVersionPropertyGroup.XdpMinorVersion
+    $XdpBuildVersion.Patch = $XdpVersionPropertyGroup.XdpPatchVersion
     return $XdpBuildVersion;
 }
 

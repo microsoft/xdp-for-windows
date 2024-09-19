@@ -1,22 +1,35 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
+  <PropertyGroup Label="Version">
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
     <XdpMinorVersion>1</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
+  </PropertyGroup>
+  <PropertyGroup>
     <!-- Project-wide properties -->
-    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.18.0\</EbpfPackagePath>
     <WntPackagePath>$(SolutionDir)packages\win-net-test.1.1.0\</WntPackagePath>
     <!-- Undocked project properties -->
     <UndockedDir>$(SolutionDir)submodules\cxplat\submodules\undocked\</UndockedDir>
     <UndockedOut>$(SolutionDir)artifacts\</UndockedOut>
     <UndockedSourceLink>true</UndockedSourceLink>
     <UndockedVersioning>false</UndockedVersioning>
+<ResolveNuGetPackages>false</ResolveNuGetPackages>
+
   </PropertyGroup>
-  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="'$(ImportEbpf)' == 'true' AND Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
+  <!-- eBPF currently has separate packages for each architecture. -->
+  <ItemGroup Condition="'$(Platform)' == 'arm64'">
+      <PackageReference Include="eBPF-for-Windows.arm64" Version="0.20.0" GeneratePathProperty="true"/>
+  </ItemGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'x64'">
+    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.18.0\</EbpfPackagePath>
+  </PropertyGroup>
   <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="'$(ImportWnt)' == 'true' AND Exists('$(WntPackagePath)build\native\win-net-test.props')" />
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
   <ItemGroup>
     <None Include="$(SolutionDir)src\xdp\packages.config" />
   </ItemGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'arm64'">
+    <EbpfPackagePath>$(PkgeBPF-for-Windows_ARM64)\</EbpfPackagePath>
+  </PropertyGroup>
+  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="'$(ImportEbpf)' == 'true' AND Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
 </Project>

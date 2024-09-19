@@ -64,7 +64,7 @@ if ([string]::IsNullOrEmpty($Project)) {
     $Tasks += "$Project$Clean"
 }
 
-& $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
+& $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps -Platform $Platform
 
 $IsAdmin = Test-Admin
 if (!$IsAdmin) {
@@ -82,7 +82,7 @@ if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
 
-& $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
+& $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild -Platform $Platform
 
 Write-Verbose "Building [$Sln]"
 msbuild.exe $Sln `

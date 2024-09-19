@@ -33,7 +33,8 @@ Some images are shared across pool types; for example, the `none` configuration 
 | WSPrerelease-Spinxsk    | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
 | WS2019                  | none                 | xdp-ci-perf-gh-rg      |
 | WS2022                  | none                 | xdp-ci-perf-gh-rg      |
-| WSPrerelease            | none                 | xdp-ci-perf-gh-rg      |
+| WSPrerelease            | default.json         | xdp-ci-perf-gh-rg      |
+| WSPrerelease-arm64      | default.json         | xdp-ci-perf-gh-rg      |
 
 ## Updating Image Configurations
 
