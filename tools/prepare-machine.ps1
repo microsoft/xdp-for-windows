@@ -83,6 +83,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = "$RootDir\artifacts"
+$NugetDir = "$ArtifactsDir/nuget"
 
 if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
@@ -123,7 +124,6 @@ function Download-eBpf-Nuget {
     $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
     $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
-    $NugetDir = "$ArtifactsDir/nuget"
     if ($Force -and (Test-Path $NugetDir)) {
         Remove-Item -Recurse -Force $NugetDir
     }
@@ -255,7 +255,10 @@ if ($Cleanup) {
     }
 } else {
     if ($ForBuild) {
-        # There are currently no build dependencies required.
+        if (!(Test-Path $NugetDir)) {
+            mkdir $NugetDir | Write-Verbose
+        }
+
         if ($Platform -eq "arm64") {
             Download-eBpf-Nuget
         }

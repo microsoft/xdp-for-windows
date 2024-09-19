@@ -60,7 +60,7 @@ jobs:
       uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForBuild -Verbose
+      run: tools/prepare-machine.ps1 -ForBuild -Verbose -Platform ${{ inputs.arch }}
     - name: Install LLVM 11.0
       run: |
         choco install -y llvm --version 11.0.1 --allow-downgrade
@@ -68,7 +68,7 @@ jobs:
     - name: Nuget Restore
       run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
     - name: Prepare for compiling eBPF programs
-      run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose
+      run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose -Platform ${{ inputs.arch }}
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.arch }} /p:SignMode=TestSign /p:IsAdmin=true
     - name: Upload Artifacts
