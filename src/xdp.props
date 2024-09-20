@@ -11,25 +11,32 @@
     <!-- Undocked project properties -->
     <UndockedDir>$(SolutionDir)submodules\cxplat\submodules\undocked\</UndockedDir>
     <UndockedOut>$(SolutionDir)artifacts\</UndockedOut>
-    <UndockedSourceLink>true</UndockedSourceLink>
     <UndockedVersioning>false</UndockedVersioning>
-<ResolveNuGetPackages>false</ResolveNuGetPackages>
-
+    <!-- PackageReferences for SourceLink implicitly include all .props and .targets files. -->
+    <UndockedSourceLink>false</UndockedSourceLink>
+    <!-- Work around nuget build error for native projects. -->
+    <ResolveNuGetPackages>false</ResolveNuGetPackages>
   </PropertyGroup>
-  <!-- eBPF currently has separate packages for each architecture. -->
-  <ItemGroup Condition="'$(Platform)' == 'arm64'">
-      <PackageReference Include="eBPF-for-Windows.arm64" Version="0.20.0" GeneratePathProperty="true"/>
-  </ItemGroup>
-  <PropertyGroup Condition="'$(Platform)' == 'x64'">
-    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.18.0\</EbpfPackagePath>
-  </PropertyGroup>
-  <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="'$(ImportWnt)' == 'true' AND Exists('$(WntPackagePath)build\native\win-net-test.props')" />
-  <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
   <ItemGroup>
-    <None Include="$(SolutionDir)src\xdp\packages.config" />
+    <!-- eBPF currently has separate packages for each architecture. -->
+    <PackageReference Include="eBPF-for-Windows" Version="0.18.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
+    <PackageReference Include="eBPF-for-Windows.arm64" Version="0.20.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'arm64'"/>
+    <PackageReference Include="Microsoft.Build.Tasks.Git" Version="1.0.0" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="1.0.0" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.SourceLink.Common" Version="1.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
+    <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
+  <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
+  <!-- eBPF currently has separate packages for each architecture. -->
+  <PropertyGroup Condition="'$(Platform)' == 'x64'">
+    <EbpfPackagePath>$(PkgeBPF-for-Windows)\</EbpfPackagePath>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Platform)' == 'arm64'">
     <EbpfPackagePath>$(PkgeBPF-for-Windows_ARM64)\</EbpfPackagePath>
   </PropertyGroup>
-  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="'$(ImportEbpf)' == 'true' AND Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
+  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'arm64' AND Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
+  <PropertyGroup>
+    <WntPackagePath>$(Pkgwin-net-test)\</WntPackagePath>
+  </PropertyGroup>
 </Project>
