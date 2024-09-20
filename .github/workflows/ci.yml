@@ -258,7 +258,9 @@ jobs:
         configuration: [Release]
         platform: [x64, arm64]
         exclude:
-        - windows: [2019, 2022]
+        - windows: 2019
+          platform: arm64
+        - windows: 2022
           platform: arm64
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
