@@ -264,7 +264,7 @@ jobs:
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf-${{ matrix.platform }}-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}-${{ matrix.platform }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
