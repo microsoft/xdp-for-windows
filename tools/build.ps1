@@ -74,7 +74,6 @@ if (!$IsAdmin) {
 Write-Verbose "Restoring packages [$Sln]"
 msbuild.exe $Sln `
     /t:restore `
-    /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
     /p:Configuration=$Config `
     /p:Platform=$Platform
