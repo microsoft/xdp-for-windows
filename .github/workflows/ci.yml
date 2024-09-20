@@ -263,8 +263,8 @@ jobs:
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
-     - "1ES.Pool=xdp-ci-perf${{ matrix.platform == 'x64' && '' || format('-{0}', matrix.platform) }}-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform == 'x64' && '' || format('-{0}', matrix.platform) }}"
+     - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
