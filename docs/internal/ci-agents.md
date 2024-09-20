@@ -6,14 +6,16 @@ General documentation for how to use 1ES hosted pools: [1es-hosted-pool-for-test
 
 We own several 1ES Hosted Pools in the [`CoreOS_LIOF_WindowsXDP_dev`](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67) subscription. These pools automatically provision VMs as needed for CI tests using managed images. We also have 1ES GitHub Actions pools; the GitHub pools share the same 1ES images as the Azure Pipelines pools.
 
-| Pool Name               | Configuration        | Resource Group                                                                                                                                                                        |
-| ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| XDP-CI-1ES-Functional-2 | functional.json      | [xdp-ci-functional-rg-2](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-functional-rg-2)   |
-| XDP-CI-1ES-Spinxsk-2    | spinxsk.json         | [xdp-ci-spinxsk-rg-2](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-spinxsk-rg-2)         |
-| xdp-ci-functional-gh    | functional.json      | [xdp-ci-functional-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-functional-gh-rg) |
-| xdp-ci-spinxsk-gh       | spinxsk.json         | [xdp-ci-spinxsk-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-spinxsk-gh-rg)       |
-| xdp-ci-fuzz-gh          | none                 | [xdp-ci-fuzz-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-fuzz-gh-rg)             |
-| xdp-ci-perf-gh          | none                 | [xdp-ci-perf-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-perf-gh-rg)             |
+| Pool Name                  | Configuration   | Resource Group                                                                                                                                                                        |
+|----------------------------|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| XDP-CI-1ES-Functional-2    | functional.json | [xdp-ci-functional-rg-2](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-functional-rg-2)   |
+| XDP-CI-1ES-Spinxsk-2       | spinxsk.json    | [xdp-ci-spinxsk-rg-2](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-spinxsk-rg-2)         |
+| xdp-ci-functional-gh       | functional.json | [xdp-ci-functional-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-functional-gh-rg) |
+| xdp-ci-functional-arm64-gh | functional.json | [xdp-ci-functional-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-functional-gh-rg) |
+| xdp-ci-spinxsk-gh          | spinxsk.json    | [xdp-ci-spinxsk-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-spinxsk-gh-rg)       |
+| xdp-ci-fuzz-gh             | none            | [xdp-ci-fuzz-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-fuzz-gh-rg)             |
+| xdp-ci-perf-gh             | none            | [xdp-ci-perf-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-perf-gh-rg)             |
+| xdp-ci-perf-arm64-gh       | none            | [xdp-ci-perf-gh-rg](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/db4b9e5a-88c6-424a-8c94-728d1ce2ec67/resourceGroups/xdp-ci-perf-gh-rg)             |
 
 ## 1ES Images
 
@@ -23,18 +25,19 @@ Some images are shared across Azure Pipelines and GitHub pools; for example, `WS
 
 Some images are shared across pool types; for example, the `none` configuration is used by both `xdp-ci-fuzz-gh` and `xdp-ci-perf-gh`.
 
-| Image Name              | Configuration        | RESOURCE GROUP         |
-| ----------------------- | -------------------- | ---------------------- |
-| WS2019-Functional       | functional.json      | xdp-ci-functional-rg-2 |
-| WS2022-Functional       | functional.json      | xdp-ci-functional-rg-2 |
-| WSPrerelease-Functional | functional.json      | xdp-ci-functional-rg-2 |
-| WS2019-Spinxsk          | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
-| WS2022-Spinxsk          | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
-| WSPrerelease-Spinxsk    | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
-| WS2019                  | none                 | xdp-ci-perf-gh-rg      |
-| WS2022                  | none                 | xdp-ci-perf-gh-rg      |
-| WSPrerelease            | default.json         | xdp-ci-perf-gh-rg      |
-| WSPrerelease-arm64      | default.json         | xdp-ci-perf-gh-rg      |
+| Image Name                    | Configuration        | RESOURCE GROUP         |
+|-------------------------------|----------------------|------------------------|
+| WS2019-Functional             | functional.json      | xdp-ci-functional-rg-2 |
+| WS2022-Functional             | functional.json      | xdp-ci-functional-rg-2 |
+| WSPrerelease-Functional       | functional.json      | xdp-ci-functional-rg-2 |
+| WSPrerelease-arm64-Functional | functional.json      | xdp-ci-functional-rg-2 |
+| WS2019-Spinxsk                | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
+| WS2022-Spinxsk                | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
+| WSPrerelease-Spinxsk          | spinxsk.json         | xdp-ci-spinxsk-rg-2    |
+| WS2019                        | none                 | xdp-ci-perf-gh-rg      |
+| WS2022                        | none                 | xdp-ci-perf-gh-rg      |
+| WSPrerelease                  | default.json         | xdp-ci-perf-gh-rg      |
+| WSPrerelease-arm64            | default.json         | xdp-ci-perf-gh-rg      |
 
 ## Updating Image Configurations
 
