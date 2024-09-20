@@ -70,7 +70,7 @@ jobs:
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
     - name: Nuget Restore
-      run: nuget.exe restore xdp.sln -ConfigFile src/nuget.config
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ matrix.config }} /p:Platform=${{ matrix.arch }}
     - name: Build Binary
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.arch }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Binary
     - name: Build Catalog
