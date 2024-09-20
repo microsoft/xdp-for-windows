@@ -17,6 +17,9 @@
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'arm64'">
+    <RestoreSources>$(SolutionDir)artifacts/nuget</RestoreSources>
+  </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
     <PackageReference Include="eBPF-for-Windows" Version="0.18.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
