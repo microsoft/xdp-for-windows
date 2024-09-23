@@ -7,7 +7,7 @@
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup>
-    <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
+    <OutputName>xdp-for-windows.$(Platform).$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
     <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
     <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\$(OutputName)\</IntermediateOutputPath>
