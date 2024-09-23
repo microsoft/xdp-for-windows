@@ -48,18 +48,6 @@
             </Stacks>
         </SystemProvider>
 
-        <SystemProvider Id="SystemProviderHardwareSampled">
-            <Keywords>
-                <Keyword Value="ProcessThread" />
-                <Keyword Value="Loader" />
-                <Keyword Value="PmcProfile" />
-            </Keywords>
-
-            <Stacks>
-                <Stack Value="PmcInterrupt"/>
-            </Stacks>
-        </SystemProvider>
-
         <!-- Leave the highest keywords bit unset to work around downlevel WPR bug. -->
         <EventProvider Id="EP_XdpEtw" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="5" />
         <EventProvider Id="EP_XdpEtwPerFrame" Name="580bbdea-b364-4369-b291-d3539e35d20b" Level="25" />
@@ -184,15 +172,6 @@
             <Collectors>
                 <SystemCollectorId Value="SystemCollector">
                     <SystemProviderId Value="SystemProviderCpuSampled"/>
-                </SystemCollectorId>
-            </Collectors>
-        </Profile>
-
-        <Profile Id="CpuHardwareSample.Verbose.File" Name="CpuHardwareSample" Description="CPU hardware sampled profile" LoggingMode="File" DetailLevel="Verbose">
-            <Collectors>
-                <SystemCollectorId Value="SystemCollector">
-                    <SystemProviderId Value="SystemProviderHardwareSampled" />
-                    <HardwareCounterId Value="Hardware_Intel_Sampled"/>
                 </SystemCollectorId>
             </Collectors>
         </Profile>
