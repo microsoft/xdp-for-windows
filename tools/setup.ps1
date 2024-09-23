@@ -70,7 +70,7 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
+$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Arch.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
