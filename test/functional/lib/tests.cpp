@@ -2453,7 +2453,7 @@ TryWaitForNdisDatapath(
     do {
         sprintf_s(
             CmdBuff,
-            "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
+            "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \\\"Up\\\"",
             PowershellPrefix, If.GetIfDesc());
         AdapterUp = !!InvokeSystem(CmdBuff);
 
