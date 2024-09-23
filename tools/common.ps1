@@ -132,7 +132,7 @@ function Get-EbpfMsiUrl {
     if ($Platform -eq "x64") {
         return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
     } else {
-        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.0.20.0.$Platform.msi"
+        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.$Platform.0.20.0.msi"
     }
 }
 
