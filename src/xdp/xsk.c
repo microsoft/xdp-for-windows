@@ -351,9 +351,11 @@ XskKernelRingSetError(
     _In_ XSK_ERROR Error
     )
 {
-    if (InterlockedCompareExchange((LONG *)&Ring->Error, Error, XSK_NO_ERROR) == XSK_NO_ERROR) {
+    XSK_ERROR OriginalError =
+        InterlockedCompareExchangeNoFence((LONG *)&Ring->Error, Error, XSK_NO_ERROR);
+    if (OriginalError == XSK_NO_ERROR) {
         if (Ring->Shared != NULL) {
-            InterlockedOr((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_ERROR);
+            InterlockedOrNoFence((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_ERROR);
         }
     }
 }
@@ -377,7 +379,7 @@ XskKernelRingUpdateIdealProcessor(
 
     if (Ring->IdealProcessor != CurrentProcessor) {
         Ring->IdealProcessor = CurrentProcessor;
-        InterlockedOr((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
+        InterlockedOrRelease((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
     }
 }
 
@@ -616,8 +618,9 @@ XskFillTx(
     //
     if (Xsk->Tx.Xdp.PollHandle == NULL &&
         ((XskRingConsPeek(&Xsk->Tx.Ring, 1) == 0 && Xsk->Tx.Xdp.OutstandingFrames == 0) ||
-         (XskGetAvailableTxCompletion(Xsk) == 0))) {
-        InterlockedOr((LONG *)&Xsk->Tx.Ring.Shared->Flags, XSK_RING_FLAG_NEED_POKE);
+         (XskGetAvailableTxCompletion(Xsk) == 0)) &&
+         !(Xsk->Tx.Ring.Shared->Flags & XSK_RING_FLAG_NEED_POKE)) {
+        InterlockedOrAcquire((LONG *)&Xsk->Tx.Ring.Shared->Flags, XSK_RING_FLAG_NEED_POKE);
     }
 
     //
@@ -723,7 +726,7 @@ XskFillTx(
     //
     if (Xsk->Tx.Xdp.PollHandle == NULL && Xsk->Tx.Xdp.OutstandingFrames > 0 &&
         (Xsk->Tx.Ring.Shared->Flags & XSK_RING_FLAG_NEED_POKE)) {
-        InterlockedAnd((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
+        InterlockedAndRelease((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
     }
 
     return FrameCount;
@@ -889,9 +892,9 @@ XskFillTxCompletion(
         //
         // N.B. See comment in XskNotify.
         //
-        KeMemoryBarrier();
+        XdpBarrierBetweenReleaseAndAcquire();
 
-        if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_TX) &&
+        if ((ReadUInt32Acquire(&Xsk->IoWaitFlags) & XSK_NOTIFY_FLAG_WAIT_TX) &&
             (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL)) {
             XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_TX);
         }
@@ -1038,10 +1041,10 @@ XskAcquirePollLock(
     _In_ XSK *Xsk
     )
 {
-    InterlockedIncrement((LONG *)&Xsk->PollWaiters);
+    InterlockedIncrementAcquire((LONG *)&Xsk->PollWaiters);
     XskPollSocketNotify(Xsk);
     RtlAcquirePushLockExclusive(&Xsk->PollLock);
-    InterlockedDecrement((LONG *)&Xsk->PollWaiters);
+    InterlockedDecrementRelease((LONG *)&Xsk->PollWaiters);
 }
 
 static
@@ -3734,7 +3737,7 @@ XskGetIdealProcessor(
     //
     // Reset the affinity flag before reading the affinity value.
     //
-    InterlockedAnd((LONG *)&Ring->Shared->Flags, ~XSK_RING_FLAG_AFFINITY_CHANGED);
+    InterlockedAndAcquire((LONG *)&Ring->Shared->Flags, ~XSK_RING_FLAG_AFFINITY_CHANGED);
 
     ProcIndex = ReadUInt32NoFence(&Ring->IdealProcessor);
     if (ProcIndex == INVALID_PROCESSOR_INDEX) {
@@ -3949,7 +3952,7 @@ XskPoke(
             // flag on the TX ring. The poke routine is required to execute a
             // FlushTransmit, which guarantees the need poke flag can be set.
             //
-            InterlockedAnd((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
+            InterlockedAndNoFence((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
 
             if (Xsk->Tx.Xdp.Flags.QueueActive) {
                 XdpTxQueueInvokeInterfaceNotify(Xsk->Tx.Xdp.Queue, NotifyFlags);
@@ -4139,7 +4142,7 @@ XskNotify(
     // similar race condition when the inverse of these operations are done
     // during IO completion.
     //
-    KeMemoryBarrier();
+    XdpBarrierBetweenReleaseAndAcquire();
 
     //
     // Check for ready IO.
@@ -4357,9 +4360,9 @@ XskReceiveSubmitBatch(
         //
         // N.B. See comment in XskNotify.
         //
-        KeMemoryBarrier();
+        XdpBarrierBetweenReleaseAndAcquire();
 
-        if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_RX) &&
+        if ((ReadUInt32Acquire(&Xsk->IoWaitFlags) & XSK_NOTIFY_FLAG_WAIT_RX) &&
             (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL)) {
             XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_RX);
         }
