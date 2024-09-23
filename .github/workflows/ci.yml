@@ -169,12 +169,17 @@ jobs:
       matrix:
         windows: [2019, 2022, Prerelease]
         configuration: [Release, Debug]
-        platform: [x64]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2019
+          platform: arm64
+        - windows: 2022
+          platform: arm64
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
-     - "1ES.Pool=xdp-ci-spinxsk-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}-Spinxsk"
+     - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
     steps:
     - name: Checkout repository
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
