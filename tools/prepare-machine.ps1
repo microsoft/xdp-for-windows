@@ -144,11 +144,11 @@ function Download-eBpf-Nuget {
 
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-        $EbpfMsiUrl = Get-EbpfMsiUrl
+        $EbpfMsiUrl = Get-EbpfMsiUrl -Platform $Platform
 
         if (!(Test-Path $EbpfMsiDir)) {
             mkdir $EbpfMsiDir | Write-Verbose

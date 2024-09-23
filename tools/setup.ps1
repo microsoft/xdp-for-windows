@@ -546,7 +546,7 @@ function Uninstall-FnSock {
 
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Arch
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -571,7 +571,7 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Arch
     $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {

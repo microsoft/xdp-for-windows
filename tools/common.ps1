@@ -128,7 +128,7 @@ function Get-EbpfMsiUrl {
         [Parameter()]
         [string]$Platform
     )
-    $EbpfVersion = Get-EbpfMsiVersion
+    $EbpfVersion = Get-EbpfMsiVersion -Platform $Platform
     if ($Platform -eq "x64") {
         return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
     } else {
