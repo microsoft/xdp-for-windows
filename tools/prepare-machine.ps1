@@ -117,8 +117,12 @@ function Download-CoreNet-Deps {
 }
 
 function Download-eBpf-Nuget {
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
     # Download private eBPF Nuget package.
-    $EbpfNugetVersion = "eBPF-for-Windows.arm64.0.20.0"
+    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.20.0"
     $EbpfNugetBuild = ""
     $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
     $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
@@ -260,7 +264,10 @@ if ($Cleanup) {
         }
 
         if ($Platform -eq "arm64") {
-            Download-eBpf-Nuget
+            # Download prerelease versions for arm64, and a matching x64 for
+            # local cross-compile (bpf2c) binaries.
+            Download-eBpf-Nuget -Platform arm64
+            Download-eBpf-Nuget -Platform x64
         }
     }
 
