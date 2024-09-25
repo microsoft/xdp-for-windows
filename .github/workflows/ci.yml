@@ -350,7 +350,7 @@ jobs:
       shell: PowerShell
       run: |
         Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.platform }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
-        Expand-Platformive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
+        Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
         tools/merge-artifacts.ps1 -SourcePath artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Run Tests
       shell: PowerShell
@@ -391,7 +391,7 @@ jobs:
         path: artifacts/bin
     - name: Create Test Archive
       shell: PowerShell
-      run: tools/create-test-platformive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+      run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Release Artifacts
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       with:

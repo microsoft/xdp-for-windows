@@ -42,4 +42,4 @@ copy "$ArtifactBin\test\xdpfunctionaltests.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 
-Compress-Platformive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*
+Compress-Archive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*
