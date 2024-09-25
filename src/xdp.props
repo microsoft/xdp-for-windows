@@ -18,7 +18,7 @@
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Platform)' == 'arm64'">
+  <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
   </PropertyGroup>
   <ItemGroup>
