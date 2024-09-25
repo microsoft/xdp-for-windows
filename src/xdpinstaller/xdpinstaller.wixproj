@@ -41,7 +41,7 @@
   </ItemGroup>
   <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
-  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Link">
+  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Build">
     <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
   </Target>
 </Project>
