@@ -1,10 +1,3 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(UndockedDir)vs\windows.undocked.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="'$(ImportEbpf)' == 'true' AND !Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" Text="$([System.String]::Format('$(ErrorText)', '$(EbpfPackagePath)build\native\ebpf-for-windows.props'))" />
-    <Error Condition="'$(ImportWnt)' == 'true' AND !Exists('$(WntPackagePath)build\native\win-net-test.props')" Text="$([System.String]::Format('$(ErrorText)', '$(WntPackagePath)build\native\win-net-test.props'))" />
-  </Target>
 </Project>

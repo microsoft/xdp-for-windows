@@ -83,6 +83,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = "$RootDir\artifacts"
+$NugetDir = "$ArtifactsDir/nuget"
 
 if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
@@ -115,13 +116,43 @@ function Download-CoreNet-Deps {
     }
 }
 
+function Download-eBpf-Nuget {
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
+    # Download private eBPF Nuget package.
+    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.20.0"
+    $EbpfNugetBuild = ""
+    $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+    $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+    $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
+
+    if ($Force -and (Test-Path $NugetDir)) {
+        Remove-Item -Recurse -Force $NugetDir
+    }
+    if (!(Test-Path $NugetDir)) {
+        mkdir $NugetDir | Write-Verbose
+    }
+
+    if (!(Test-Path $NugetDir/$EbpfNuget)) {
+        # Remove any old builds of the package.
+        if (Test-Path $EbpfNugetRestoreDir) {
+            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
+        }
+        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
+
+        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
+    }
+}
+
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-        $EbpfMsiUrl = Get-EbpfMsiUrl
+        $EbpfMsiUrl = Get-EbpfMsiUrl -Platform $Platform
 
         if (!(Test-Path $EbpfMsiDir)) {
             mkdir $EbpfMsiDir | Write-Verbose
@@ -191,7 +222,7 @@ function Setup-VsTest {
         Remove-Item -Recurse -Force "$ArtifactsDir\Microsoft.TestPlatform" -ErrorAction Ignore
 
         # Download and extract.
-        Invoke-WebRequest-WithRetry -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/16.11.0" -OutFile "$ArtifactsDir\Microsoft.TestPlatform.zip"
+        Invoke-WebRequest-WithRetry -Uri "https://www.nuget.org/api/v2/package/Microsoft.TestPlatform/17.11.1" -OutFile "$ArtifactsDir\Microsoft.TestPlatform.zip"
         Expand-Archive -Path "$ArtifactsDir\Microsoft.TestPlatform.zip" -DestinationPath "$ArtifactsDir\Microsoft.TestPlatform" -Force
         Remove-Item -Path "$ArtifactsDir\Microsoft.TestPlatform.zip"
 
@@ -228,7 +259,16 @@ if ($Cleanup) {
     }
 } else {
     if ($ForBuild) {
-        # There are currently no build dependencies required.
+        if (!(Test-Path $NugetDir)) {
+            mkdir $NugetDir | Write-Verbose
+        }
+
+        if ($Platform -eq "arm64") {
+            # Download prerelease versions for arm64, and a matching x64 for
+            # local cross-compile (bpf2c) binaries.
+            Download-eBpf-Nuget -Platform arm64
+            Download-eBpf-Nuget -Platform x64
+        }
     }
 
     if ($ForEbpfBuild) {

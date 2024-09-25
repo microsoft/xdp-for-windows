@@ -5,7 +5,7 @@ SPDX-License-Identifier: MIT
 <?define ProductVersion="{9363C0E3-4DE9-4067-9F5E-6A1A06034B59}"?>
 <?define UpgradeCode="{79F93392-843E-4B85-824B-2CFC7D16F080}"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-    <Package Name="XDP for Windows" Language="1033" Version="$(var.XdpMajorVersion).$(var.XdpMinorVersion).$(var.XdpPatchVersion)" Manufacturer="Microsoft" UpgradeCode="$(var.UpgradeCode)" InstallerVersion="301" ProductCode="$(var.ProductVersion)">
+    <Package Name="XDP for Windows" Language="1033" Version="$(var.XdpMajorVersion).$(var.XdpMinorVersion).$(var.XdpPatchVersion)" Manufacturer="Microsoft" UpgradeCode="$(var.UpgradeCode)" InstallerVersion="500" ProductCode="$(var.ProductVersion)">
         <SummaryInformation Description="XDP for Windows" Manufacturer="Microsoft" />
         <MajorUpgrade AllowSameVersionUpgrades="no" Disallow="yes" DisallowUpgradeErrorMessage="An older version of [ProductName] is already installed. Please remove it first." AllowDowngrades="no" DowngradeErrorMessage="A newer version of [ProductName] is already installed. Please remove it first." Schedule="afterInstallFinalize" />
         <MediaTemplate EmbedCab="yes" />

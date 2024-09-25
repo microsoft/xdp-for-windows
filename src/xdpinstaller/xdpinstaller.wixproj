@@ -7,7 +7,7 @@
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup>
-    <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
+    <OutputName>xdp-for-windows.$(Platform).$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
     <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
     <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\$(OutputName)\</IntermediateOutputPath>
@@ -41,7 +41,7 @@
   </ItemGroup>
   <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
-  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Link">
+  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Build">
     <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
   </Target>
 </Project>

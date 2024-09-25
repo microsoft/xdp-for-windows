@@ -7,6 +7,7 @@
 #include "bpf_helpers.h"
 #include "net/if_ether.h"
 #include "net/ip.h"
+#include "xdp/ebpfhook.h"
 
 SEC("xdp/allow_ipv6")
 int

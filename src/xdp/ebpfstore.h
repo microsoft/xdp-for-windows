@@ -11,6 +11,7 @@
 #include <ebpf_program_types.h>
 #include <ebpf_structs.h>
 #include <ebpf_private_extension.h>
+#include <xdp/ebpfhook.h>
 
 static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .size = sizeof(xdp_md_t),

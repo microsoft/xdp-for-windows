@@ -64,6 +64,10 @@ $VsTestPath = Get-VsTestPath
 if ($VsTestPath -eq $null) {
     Write-Error "Could not find VSTest path"
 }
+$VsTestConsole = "vstest.console"
+if ($Arch -eq "arm64") {
+    $VsTestConsole = "vstest.console.arm64"
+}
 
 if ($Timeout -gt 0) {
     $WatchdogReservedMinutes = 2
@@ -134,12 +138,12 @@ for ($i = 1; $i -le $Iterations; $i++) {
                 . $Using:RootDir\tools\common.ps1
                 Collect-LiveKD -OutFile "$Using:LogsDir\$Using:LogName-livekd.dmp"
                 Collect-ProcessDump -ProcessName "testhost.exe" -OutFile "$Using:LogsDir\$Using:LogName-testhost.dmp"
-                Stop-Process -Name "vstest.console" -Force
+                Stop-Process -Name $VsTestConsole -Force
             }
         }
 
-        Write-Verbose "$VsTestPath\vstest.console.exe $TestArgs"
-        & $VsTestPath\vstest.console.exe $TestArgs
+        Write-Verbose "$VsTestPath\$VsTestConsole.exe $TestArgs"
+        & $VsTestPath\$VsTestConsole.exe $TestArgs
 
         if ($LastExitCode -ne 0) {
             Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction Continue
