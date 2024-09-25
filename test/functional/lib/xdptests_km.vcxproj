@@ -10,6 +10,8 @@
   <PropertyGroup>
     <TargetName>xdptests_km</TargetName>
     <UndockedType>drvlib</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
+    <ImportWnt>true</ImportWnt>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
@@ -17,8 +19,13 @@
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\inc;
+        $(SolutionDir)test\functional\lwf\inc;
+        $(SolutionDir)test\functional\mp\inc;
+        $(SolutionDir)submodules\cxplat\inc;
+        $(SolutionDir)submodules\net-offloads\include;
         $(SolutionDir)submodules\wil\include;
-        $(FnPackagePath)include;
+        $(WntIncPath);
+        $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>
