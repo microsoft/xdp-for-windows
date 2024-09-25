@@ -44,6 +44,8 @@ msiexec.exe /x xdp-for-windows.msi /quiet
 
 Starting with XDP version 1.1, experimental eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
 
+The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development). Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages.
+
 ### Version Upgrade
 
 To upgrade versions of XDP, uninstall the old version and install the new version. If processes have XDP handles open (e.g. sockets, programs) those handles need to be closed for uninstallation to complete.

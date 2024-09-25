@@ -5,6 +5,7 @@
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
+#include "xdp/ebpfhook.h"
 
 // Map configured by user mode to drop packets from a specific interface.
 struct

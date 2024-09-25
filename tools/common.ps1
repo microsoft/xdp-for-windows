@@ -85,7 +85,7 @@ function Get-VsTestPath {
     # Unfortunately CI doesn't add vstest to PATH. Test existence of vstest
     # install paths instead.
 
-    $ManualVsTestPath = "$(Split-Path $PSScriptRoot -Parent)\artifacts\Microsoft.TestPlatform\tools\net451\Common7\IDE\Extensions\TestPlatform"
+    $ManualVsTestPath = "$(Split-Path $PSScriptRoot -Parent)\artifacts\Microsoft.TestPlatform\tools\net462\Common7\IDE\Extensions\TestPlatform"
     if (Test-Path $ManualVsTestPath) {
         return $ManualVsTestPath
     }
@@ -114,18 +114,30 @@ function Get-EbpfMsiVersion {
 
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
     $RootDir = Split-Path $PSScriptRoot -Parent
     $EbpfVersion = Get-EbpfMsiVersion
-    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.msi"
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.$Platform.msi"
 }
 
 function Get-EbpfMsiUrl {
-    $EbpfVersion = Get-EbpfMsiVersion
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
+    $EbpfVersion = Get-EbpfMsiVersion -Platform $Platform
+    if ($Platform -eq "x64") {
+        return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
+    } else {
+        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.$Platform.0.20.0.msi"
+    }
 }
 
 function Get-FnVersion {
-    return "1.1.0"
+    return "1.2.0"
 }
 
 function Get-FnRuntimeUrl {
@@ -184,9 +196,11 @@ function Get-XdpBuildVersion {
     $RootDir = Split-Path $PSScriptRoot -Parent
     $XdpBuildVersion = @{}
     [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-    $XdpBuildVersion.Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-    $XdpBuildVersion.Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-    $XdpBuildVersion.Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+    $XdpVersionPropertyGroup = $XdpVersion.Project.PropertyGroup |
+        Where-Object {$_.PSObject.Properties.Name -contains "Label" -and $_.Label -eq "Version"}
+    $XdpBuildVersion.Major = $XdpVersionPropertyGroup.XdpMajorVersion
+    $XdpBuildVersion.Minor = $XdpVersionPropertyGroup.XdpMinorVersion
+    $XdpBuildVersion.Patch = $XdpVersionPropertyGroup.XdpPatchVersion
     return $XdpBuildVersion;
 }
 
