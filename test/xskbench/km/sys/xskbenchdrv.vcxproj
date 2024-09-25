@@ -46,7 +46,7 @@
       <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</AdditionalLibraryDirectories>
       <AdditionalDependencies>
         netio.lib;
-        onecore.lib;
+        cng.lib;
         $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.kernel\cxplat_winkernel.obj;
         %(AdditionalDependencies)
       </AdditionalDependencies>
