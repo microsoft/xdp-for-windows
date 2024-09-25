@@ -76,10 +76,12 @@
 
 #include <fntrace.h>
 #include <qeo_ndis.h>
+#include <xdp/ebpfhook.h>
 
 #ifndef KERNEL_MODE
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+
 
 #include "ebpf_nethooks.h"
 #endif
@@ -2577,7 +2579,7 @@ TryWaitForNdisDatapath(
     do {
         sprintf_s(
             CmdBuff,
-            "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
+            "%s /c exit (Get-NetAdapter -InterfaceDescription '%s').Status -eq 'Up'",
             PowershellPrefix, If.GetIfDesc());
         AdapterUp = !!InvokeSystem(CmdBuff);
 

@@ -77,7 +77,7 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$XdpFileVersion.msi"
+$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Arch.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
 $XskBenchDrvSys = "$ArtifactsDir\test\xskbenchdrv\xskbenchdrv.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
@@ -560,7 +560,7 @@ function Uninstall-FnSock {
 
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Arch
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -585,7 +585,7 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Arch
     $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {

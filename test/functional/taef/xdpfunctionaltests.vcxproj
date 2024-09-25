@@ -58,6 +58,6 @@
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
   <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
-      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
+      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\;UndockedSourceLink=false"/>
   </Target>
 </Project>

@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{93635a7b-565e-4b41-af67-5b375756b227}</ProjectGuid>
     <ImportUndocked>false</ImportUndocked>
+    <WixVer>5.0.1</WixVer>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup>
-    <ProductVersion>3.10</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>xdp-for-windows.$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
+    <OutputName>xdp-for-windows.$(Platform).$(XdpMajorVersion).$(XdpMinorVersion).$(XdpPatchVersion)</OutputName>
     <OutputType>Package</OutputType>
     <OutputPath>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</OutputPath>
     <IntermediateOutputPath>$(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\$(OutputName)\</IntermediateOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <DefineConstants>
       XdpMajorVersion=$(XdpMajorVersion);
       XdpMinorVersion=$(XdpMinorVersion);
@@ -20,7 +20,7 @@
       $(DefineConstants)
     </DefineConstants>
   </PropertyGroup>
- <ItemGroup Condition="'$(BuildStage)' != 'Package'">
+  <ItemGroup Condition="'$(BuildStage)' != 'Package'">
     <ProjectReference Include="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj">
       <Project>{921ea48b-3d7b-4e5c-892b-6f72f0852714}</Project>
     </ProjectReference>
@@ -28,34 +28,20 @@
   <PropertyGroup Condition=" '$(IsAdmin)' == 'False' ">
     <SuppressValidation>true</SuppressValidation>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(BuildStage)' == 'Binary'">
+    <CopyBuildOutputToOutputDirectory>false</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+  </PropertyGroup>
   <ItemGroup Condition="'$(BuildStage)' != 'Binary'">
     <Compile Include="product.wxs" />
   </ItemGroup>
   <ItemGroup>
-    <WixExtension Include="WixUtilExtension">
-      <Name>WixUtilExtension</Name>
-    </WixExtension>
-    <WixExtension Include="WixUIExtension">
-      <Name>WixUIExtension</Name>
-    </WixExtension>
+    <PackageReference Include="WixToolset.UI.wixext" Version="$(WixVer)" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="$(WixVer)" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="$(SolutionDir)src\xdp\packages.config" />
-  </ItemGroup>
-  <Import Project="$(WixPackagePath)build\wix.props"/>
-  <Import Project="$(WixTargetsPath)" />
-  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Link">
+  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
+  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
+  <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Build">
     <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
-  </Target>
-  <!-- prevents NU1503 -->
-  <Target Name="_IsProjectRestoreSupported"
-          Returns="@(_ValidProjectsForRestore)">
-    <ItemGroup>
-      <_ValidProjectsForRestore Include="$(MSBuildProjectFullPath)" />
-    </ItemGroup>
-  </Target>
-  <Target Name="Restore" />
-  <Target Name="EnsureNuGetPackageBuildImports" Condition=" '$(WixTargetsImported)' != 'true' " BeforeTargets="PrepareForBuild">
-    <Error Text="The WiX Toolset v3 build tools must be installed to build this project. To download the WiX Toolset, see https://wixtoolset.org/releases" />
   </Target>
 </Project>

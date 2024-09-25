@@ -3,7 +3,7 @@
 #
 
 param (
-    [ValidateSet("x64")]
+    [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory=$false)]
     [string]$Platform = "x64",
 
@@ -64,7 +64,7 @@ if ([string]::IsNullOrEmpty($Project)) {
     $Tasks += "$Project$Clean"
 }
 
-& $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps
+& $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps -Platform $Platform
 
 $IsAdmin = Test-Admin
 if (!$IsAdmin) {
@@ -74,7 +74,6 @@ if (!$IsAdmin) {
 Write-Verbose "Restoring packages [$Sln]"
 msbuild.exe $Sln `
     /t:restore `
-    /p:RestorePackagesConfig=true `
     /p:RestoreConfigFile=src\nuget.config `
     /p:Configuration=$Config `
     /p:Platform=$Platform
@@ -82,7 +81,7 @@ if (!$?) {
     Write-Error "Restoring NuGet packages failed: $LastExitCode"
 }
 
-& $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild
+& $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild -Platform $Platform
 
 Write-Verbose "Building [$Sln]"
 msbuild.exe $Sln `

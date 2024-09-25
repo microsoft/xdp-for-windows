@@ -1,6 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(WntPackagePath)build\native\win-net-test.props" Condition="Exists('$(WntPackagePath)build\native\win-net-test.props')" />
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)src\xdp\programinspect.c" />
     <ClCompile Include="pktfuzz.c" />
@@ -16,8 +15,11 @@
   <PropertyGroup>
     <ProjectGuid>{a1864618-ed3d-43c5-8013-a177f9cf73d9}</ProjectGuid>
     <TargetName>pktfuzz</TargetName>
-    <UndockedType>dll</UndockedType>
+    <UndockedType>exe</UndockedType>
     <ImportWnt>true</ImportWnt>
+    <EnableAsan>true</EnableAsan>
+    <EnableFuzzer>true</EnableFuzzer>
+    <CopyAsanBinariesToOutDir>true</CopyAsanBinariesToOutDir>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
@@ -37,11 +39,5 @@
       <AdditionalDependencies>onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <!-- The ASAN runtime cannot be statically linked into the executable, so provide it along with the binary. -->
-  <ItemGroup>
-    <Content Include="$(VCToolsInstallDir)\bin\Hostx64\x64\clang_rt.asan_dynamic-x86_64.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

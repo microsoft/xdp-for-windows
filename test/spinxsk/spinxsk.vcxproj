@@ -37,7 +37,6 @@
       <AdditionalDependencies>
         ntdll.lib;
         onecore.lib;
-        $(EbpfPackagePath)build\native\lib\EbpfApi.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>
     </Link>

@@ -26,7 +26,7 @@
       <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)" />
   </Target>
   <Target Name="SignBinaries" DependsOnTargets="CopyBinaries" BeforeTargets="Build" Condition="$(SignMode) != 'Off' and $(BuildStage) != 'Package'">
-      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(Platform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdp-setup.ps1&quot;" />
+      <Exec Command="powershell.exe /c &quot;&amp; '$(WDKBinRoot)\$(HostPlatform)\signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdp-setup.ps1&quot;" />
   </Target>
   <Target Name="BuildNuget" AfterTargets="Build" Condition="$(BuildStage) != 'Binary'">
       <Exec Command="powershell.exe /c &quot;$(SolutionDir)tools\update-nuspec.ps1 -InputFile xdp-for-windows-runtime.nuspec.in -OutputFile $(IntDir)xdp-for-windows-runtime.nuspec -Arch $(Platform) -Config $(Configuration)&quot;" />

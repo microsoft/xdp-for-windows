@@ -83,7 +83,12 @@ $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
 
-& $RootDir/tools/prepare-machine.ps1 -ForLogging
+& $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Arch
+
+if ($Arch -eq "arm64") {
+    Write-Warning "Not logging on arm64."
+    return
+}
 
 if (!$EtlPath) {
     $EtlPath = "$LogsDir\$Name.etl"
@@ -131,8 +136,9 @@ try {
             $SymbolPath = $ArtifactsDir
         }
 
-        & $TracePdb -f "$SymbolPath\test\*.pdb" -p $TmfPath
-        & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
+
+        & $TracePdb -f "$SymbolPath\test\*.pdb" -p $TmfPath -s
+        & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath -s
 
         $FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"
         if (Test-Path $FnSymbolsDir) {
