@@ -85,7 +85,7 @@ $LogsDir = "$RootDir\artifacts\logs"
 
 & $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Platform
 
-if ($Platform -eq "arm64" -and (@("CpuCswitchSample", "CpuSample") -contains $Profile)) {
+if ($Platform -eq "arm64" -and (@("CpuCswitchSample", "CpuSample") -contains $Profile.Split(".")[0])) {
     Write-Warning "Skipping sampling profile: not currently supported on arm64."
     return
 }
