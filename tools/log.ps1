@@ -85,8 +85,8 @@ $LogsDir = "$RootDir\artifacts\logs"
 
 & $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Platform
 
-if ($Platform -eq "arm64") {
-    Write-Warning "Not logging on arm64."
+if ($Platform -eq "arm64" -and (@("CpuCswitchSample", "CpuSample") -contains $Profile)) {
+    Write-Warning "Skipping sampling profile: not currently supported on arm64."
     return
 }
 
@@ -119,8 +119,12 @@ try {
         Write-Verbose "wpr.exe -stop $EtlPath -instancename $Name"
         cmd /c "wpr.exe -stop $EtlPath -instancename $Name 2>&1"
         if ($LastExitCode -ne 0) {
-            Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-            Write-Error "wpr.exe failed: $LastExitCode"
+            if ($Platform -eq "arm64" -and $LastExitCode -eq -984076288) {
+                Write-Warning "Suppressing failure to stop trace (error code = not running) on arm64"
+            } else {
+                Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
+                Write-Error "wpr.exe failed: $LastExitCode"
+            }
         }
 
         # Enumerate log file sizes.
