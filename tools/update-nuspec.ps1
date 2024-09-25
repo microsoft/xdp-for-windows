@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation
 
-param ($InputFile, $OutputFile, $Arch, $Config)
+param ($InputFile, $OutputFile, $Platform, $Config)
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
@@ -15,6 +15,6 @@ $content = Get-Content $InputFile
 $content = $content.Replace("{commit}", $Commit)
 $content = $content.Replace("{version}", $VersionString)
 $content = $content.Replace("{rootpath}", $RootDir)
-$content = $content.Replace("{anyarch}", $Arch)
-$content = $content.Replace("{binpath_anyarch}", $(Get-ArtifactBinPath -Arch $Arch -Config $Config))
+$content = $content.Replace("{anyarch}", $Platform)
+$content = $content.Replace("{binpath_anyarch}", $(Get-ArtifactBinPath -Platform $Platform -Config $Config))
 set-content $OutputFile $content

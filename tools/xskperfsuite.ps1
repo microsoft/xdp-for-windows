@@ -9,7 +9,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory=$false)]
     [string[]]$AdapterNames = @("XDPMP"),
@@ -146,17 +146,17 @@ try {
             $XdpmpPollProvider = "FNDIS"
 
             Write-Verbose "installing fndis..."
-            & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
+            & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Platform $Platform
             Write-Verbose "installed fndis."
         }
 
         Write-Verbose "installing xdpmp..."
-        & "$RootDir\tools\setup.ps1" -Install xdpmp -Config $Config -Arch $Arch -XdpmpPollProvider $XdpmpPollProvider
+        & "$RootDir\tools\setup.ps1" -Install xdpmp -Config $Config -Platform $Platform -XdpmpPollProvider $XdpmpPollProvider
         Write-Verbose "installed xdpmp."
     }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch
+    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
     Write-Verbose "installed xdp."
 
     $Format = "{0,-73} {1,-14} {2,-14}"
@@ -209,7 +209,7 @@ try {
                                     -RxInject:$RxInject -TxInspect:$TxInspect `
                                     -TxInspectContentionCount $TxInspectContentionCount `
                                     -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
-                                    -Arch $Arch -XperfFile $XperfFile
+                                    -Platform $Platform -XperfFile $XperfFile
 
                                 $kppsList += ExtractKppsStat $TmpFile
                             }
@@ -236,11 +236,11 @@ try {
         }
     }
 } finally {
-    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     if ($AdapterNames.Contains("XDPMP")) {
-        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         if ($Fndis) {
-            & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
     }
 }
