@@ -23,7 +23,7 @@
   <ItemDefinitionGroup>
     <PostBuildEvent>
       <Command>
-        powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update-nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Arch $(Platform) -Config $(Configuration)
+        powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update-nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Platform $(Platform) -Config $(Configuration)
         NuGet.exe pack $(IntDir)xdp-for-windows.nuspec -OutputDirectory $(OutDir) -BasePath $(ProjectDir)
       </Command>
     </PostBuildEvent>
