@@ -8,6 +8,7 @@
 // Internal interface to extend NDIS polling API.
 
 #include <fndispoll.h>
+#include <xdprefcount.h>
 
 #define NDIS_DATAPATH_POLL_ANY_PROCESSOR MAXULONG
 
@@ -49,7 +50,7 @@ typedef struct _NDIS_POLL_QUEUE {
     NDIS_SET_POLL_NOTIFICATION *Interrupt;
     ULONG IdealProcessor;
     KDPC Dpc;
-    LONG ReferenceCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     ULONG BusyReferences;
     EX_PUSH_LOCK Lock;
     BOOLEAN Deleted;

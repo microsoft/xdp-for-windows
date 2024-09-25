@@ -14,7 +14,7 @@ NdisPollReferenceQueue(
     _In_ PNDIS_POLL_QUEUE Q
     )
 {
-    InterlockedIncrement(&Q->ReferenceCount);
+    XdpIncrementReferenceCount(&Q->ReferenceCount);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -23,7 +23,7 @@ NdisPollDereferenceQueue(
     _In_ PNDIS_POLL_QUEUE Q
     )
 {
-    if (InterlockedDecrement(&Q->ReferenceCount) == 0) {
+    if (XdpDecrementReferenceCount(&Q->ReferenceCount)) {
         ExFreePoolWithTag(Q, POOLTAG_POLL);
     }
 }

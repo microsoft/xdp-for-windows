@@ -15,6 +15,7 @@
 #include <fndispoll_p.h>
 #include <xdpassert.h>
 #include <xdppollbackchannel.h>
+#include <xdprefcount.h>
 #include <xdprtl.h>
 
 #include "driver.h"

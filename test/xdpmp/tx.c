@@ -401,7 +401,7 @@ MpSendNetBufferLists(
             NetBufferListHead,
             NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags) ?
                 NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0);
-        InterlockedAdd64((LONG64 *)&Tq->Stats.TxDrops, NblCount);
+        InterlockedAddNoFence64((LONG64 *)&Tq->Stats.TxDrops, NblCount);
         return;
     }
 

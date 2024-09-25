@@ -29,7 +29,7 @@ MpPoll(
     POLL_COMPLETE_HELPER *PollComplete;
 
 #if DBG
-    ASSERT(InterlockedIncrement(&RssQueue->ActivePolls) == 1);
+    ASSERT(InterlockedIncrementAcquire(&RssQueue->ActivePolls) == 1);
 #endif
 
     MpRateSim(RssQueue);
@@ -38,7 +38,7 @@ MpPoll(
     MpTransmit(&RssQueue->Tq, &Poll->Transmit, &XdpPoll.Transmit);
 
 #if DBG
-    ASSERT(InterlockedDecrement(&RssQueue->ActivePolls) == 0);
+    ASSERT(InterlockedDecrementRelease(&RssQueue->ActivePolls) == 0);
 #endif
 
     if (RssQueue->Adapter->PollProvider == PollProviderFndis) {

@@ -261,7 +261,7 @@ XdpEcNotifyEx(
     _In_ BOOLEAN CanInline
     )
 {
-    if (InterlockedExchange8((CHAR *)&Ec->Armed, FALSE)) {
+    if (InterlockedAndRelease8((CHAR *)&Ec->Armed, FALSE)) {
         EventWriteEcStateChange(&MICROSOFT_XDP_PROVIDER, Ec, EcDisarm);
 
         KIRQL OldIrql = KeRaiseIrqlToDpcLevel();
