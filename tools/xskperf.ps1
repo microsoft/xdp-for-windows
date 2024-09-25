@@ -14,7 +14,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory=$true)]
     [string]$AdapterName,
@@ -132,7 +132,7 @@ function Wait-NetAdapterUpStatus {
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 $Mode = $Mode.ToUpper()
 $Adapter = Get-NetAdapter $AdapterName
@@ -330,7 +330,7 @@ try {
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
         & $RootDir\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose `
-            -Config $Config -Arch $Arch
+            -Config $Config -Platform $Platform
     }
 
     if (@("System", "Generic", "Native").Contains($XdpMode)) {
@@ -394,7 +394,7 @@ try {
 } finally {
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
-        & $RootDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch `
+        & $RootDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Platform $Platform `
             -EtlPath $XperfFile
     }
 

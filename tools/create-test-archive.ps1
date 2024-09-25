@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
-$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Platform
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Platform $Platform
 
 $Name = "xdp-tests-$Platform"
 if ($Config -eq "Debug") {
@@ -42,4 +42,4 @@ copy "$ArtifactBin\test\xdpfunctionaltests.pdb" $DstPath\symbols
 
 $VersionString = Get-XdpBuildVersionString
 
-Compress-Archive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*
+Compress-Platformive -DestinationPath "$DstPath\$Name-$VersionString.zip" -Path $DstPath\*

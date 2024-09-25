@@ -9,7 +9,7 @@ more coverage for setup and cleanup.
 .PARAMETER Config
     Specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     The CPU architecture to use.
 
 .PARAMETER Minutes
@@ -48,7 +48,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [Int32]$Minutes = 0,
@@ -92,7 +92,7 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $SpinXsk = "$ArtifactsDir\test\spinxsk.exe"
 $LiveKD = Get-CoreNetCiArtifactPath -Name "livekd64.exe"
@@ -125,28 +125,28 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
 
     try {
         if (!$NoLogs) {
-            & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Arch $Arch
-            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Arch $Arch
-            & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Arch $Arch
+            & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Platform $Platform
+            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
+            & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
             Write-Verbose "installing fndis..."
-            & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Arch $Arch
+            & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Platform $Platform
             Write-Verbose "installed fndis."
         }
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
             Write-Verbose "installed ebpf."
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf:$EnableEbpf
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing xdpmp..."
-        & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
         Write-Verbose "installed xdpmp."
 
         Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
@@ -185,18 +185,18 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             throw "SpinXsk failed with $LastExitCode"
         }
     } finally {
-        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
-            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
-            & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
         if (!$NoLogs) {
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Arch $Arch -ErrorAction 'Continue'
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
     }
 }

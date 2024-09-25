@@ -7,7 +7,7 @@ artifacts directory.
 .PARAMETER Config
     Specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     The CPU architecture to use.
 
 .PARAMETER SourcePath
@@ -22,7 +22,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $true)]
     [string]$SourcePath
@@ -34,6 +34,6 @@ $ErrorActionPreference = 'Stop'
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
-$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 
 Copy-Item -Path $SourcePath -Destination $ArtifactsDir -Recurse -Force

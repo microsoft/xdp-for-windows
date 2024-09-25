@@ -6,7 +6,7 @@ This helps start and stop ETW logging.
 .PARAMETER Config
     When using an artifacts directory, specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     When using an artifacts directory, specifies the CPU architecture to use.
 
 .PARAMETER SymbolPath
@@ -40,7 +40,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [string]$SymbolPath = $null,
@@ -77,15 +77,15 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $TracePdb = Get-CoreNetCiArtifactPath -Name "tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
 
-& $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Arch
+& $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Platform
 
-if ($Arch -eq "arm64") {
+if ($Platform -eq "arm64") {
     Write-Warning "Not logging on arm64."
     return
 }

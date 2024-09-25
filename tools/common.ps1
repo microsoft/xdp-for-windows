@@ -174,10 +174,10 @@ function Get-ArtifactBinPathBase {
         [Parameter()]
         [string]$Config,
         [Parameter()]
-        [string]$Arch
+        [string]$Platform
     )
 
-    return "artifacts\bin\$($Arch)_$($Config)"
+    return "artifacts\bin\$($Platform)_$($Config)"
 }
 
 function Get-ArtifactBinPath {
@@ -185,11 +185,11 @@ function Get-ArtifactBinPath {
         [Parameter()]
         [string]$Config,
         [Parameter()]
-        [string]$Arch
+        [string]$Platform
     )
 
     $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir\$(Get-ArtifactBinPathBase -Config $Config -Arch $Arch)"
+    return "$RootDir\$(Get-ArtifactBinPathBase -Config $Config -Platform $Platform)"
 }
 
 function Get-XdpBuildVersion {
