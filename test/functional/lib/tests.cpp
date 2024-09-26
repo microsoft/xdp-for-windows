@@ -7789,6 +7789,13 @@ GenericXskQueryAffinity()
         //
 
         if (Case.Rx) {
+            UINT8 Enabled = TRUE;
+            Result =
+                TrySetSockopt(
+                    Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &Enabled,
+                    sizeof(Enabled));
+            TEST_TRUE(FAILED(Result));
+
             ProcNumberSize = sizeof(ProcNumber);
             Result =
                 TryGetSockopt(
@@ -7799,6 +7806,13 @@ GenericXskQueryAffinity()
         }
 
         if (Case.Tx) {
+            UINT8 Enabled = TRUE;
+            Result =
+                TrySetSockopt(
+                    Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &Enabled,
+                    sizeof(Enabled));
+            TEST_TRUE(FAILED(Result));
+
             ProcNumberSize = sizeof(ProcNumber);
             Result =
                 TryGetSockopt(
