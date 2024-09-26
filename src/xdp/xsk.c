@@ -3423,7 +3423,7 @@ XskSockoptSetIdealProcessor(
             TRACE_XSK,
             "Xsk=%p Set XSK_SOCKOPT_RX_PROCESSOR_AFFINITY Enabled=%!BOOLEAN!",
             Xsk, Enabled);
-        Xsk->Tx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        Xsk->Rx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
         break;
 
     case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
@@ -3431,7 +3431,7 @@ XskSockoptSetIdealProcessor(
             TRACE_XSK,
             "Xsk=%p Set XSK_SOCKOPT_TX_PROCESSOR_AFFINITY Enabled=%!BOOLEAN!",
             Xsk, Enabled);
-        Xsk->Rx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        Xsk->Tx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
         break;
 
     default:
