@@ -22,6 +22,11 @@
       <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
     </DriverSign>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Platform)'=='ARM64'">
+    <ClCompile>
+      <AdditionalOptions>/arch:armv8.1 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <!-- Override undocked.props, which does not run analysis on "official" builds. -->
   <PropertyGroup>
     <RunCodeAnalysis>true</RunCodeAnalysis>
