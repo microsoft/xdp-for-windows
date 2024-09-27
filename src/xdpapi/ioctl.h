@@ -33,7 +33,7 @@ XdpInitializeEa(
 VOID *
 XdpInitializeEaVersion(
     _In_ XDP_OBJECT_TYPE ObjectType,
-    _In_ UINT16 Version,
+    _In_ UINT32 ApiVersion,
     _Out_ VOID *EaBuffer,
     _In_ ULONG EaLength
     );

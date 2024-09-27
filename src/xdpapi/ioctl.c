@@ -45,7 +45,7 @@ XdpInitializeEa(
     _In_ ULONG EaLength
     )
 {
-    return XdpInitializeEa(ObjectType, EaBuffer, EaLength, 0);
+    return XdpInitializeEaVersion(ObjectType, XDP_API_VERSION_1, EaBuffer, EaLength);
 }
 
 HANDLE
