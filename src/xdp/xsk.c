@@ -330,7 +330,7 @@ XskRingConsRelease(
     _In_ UINT32 Count
     )
 {
-    Ring->Shared->ConsumerIndex += Count;
+    WriteUInt32Release(&Ring->Shared->ConsumerIndex, Ring->Shared->ConsumerIndex + Count);
 }
 
 static

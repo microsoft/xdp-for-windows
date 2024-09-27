@@ -82,7 +82,7 @@ XskRingConsumerRelease(
     _In_ UINT32 Count
     )
 {
-    *Ring->SharedConsumer += Count;
+    WriteUInt32Release(Ring->SharedConsumer, *Ring->SharedConsumer + Count);
 }
 
 inline
