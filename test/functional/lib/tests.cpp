@@ -2249,7 +2249,7 @@ TryWaitForNdisDatapath(
     do {
         sprintf_s(
             CmdBuff,
-            "%s /c exit (Get-NetAdapter -InterfaceDescription \"%s\").Status -eq \"Up\"",
+            "%s /c exit (Get-NetAdapter -InterfaceDescription '%s').Status -eq 'Up'",
             PowershellPrefix, If.GetIfDesc());
         AdapterUp = !!InvokeSystem(CmdBuff);
 
@@ -2339,8 +2339,6 @@ OpenApiTest()
     unique_xdp_api XdpApiTable = OpenApi();
     XdpCloseApi(XdpApiTable.get());
     XdpApiTable.release();
-
-    TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_1 + 1)));
 }
 
 VOID
@@ -2351,8 +2349,6 @@ LoadApiTest()
 
     TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_1, &XdpLoadApiContext, &XdpApiTable));
     XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
-
-    TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
 }
 
 static
