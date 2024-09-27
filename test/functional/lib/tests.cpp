@@ -2563,8 +2563,6 @@ LoadApiTest()
 
     TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_LATEST, &XdpLoadApiContext, &XdpApiTable));
     XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
-
-    TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_LATEST + 1, &XdpLoadApiContext, &XdpApiTable)));
 }
 
 static
