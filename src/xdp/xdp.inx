@@ -17,9 +17,9 @@ xdpapi.dll = 1
 1 = disk
 
 [Manufacturer]
-%Msft% = MSFT,NT$ARCH$
+%Msft% = MSFT,NT$ARCH$.10.0...16299
 
-[MSFT.NT$ARCH$]
+[MSFT.NT$ARCH$.10.0...16299]
 %Xdp% = Install, ms_xdp
 
 [Install]

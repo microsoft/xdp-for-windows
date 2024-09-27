@@ -137,6 +137,14 @@
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(TargetPlatformVersion)' &gt;= '$(TargetPlatformVersion_NI)'">
+    <Link>
+      <AdditionalDependencies>
+        volatileaccessk.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="xdp.inx">
       <CatalogFileName>xdp.cat</CatalogFileName>

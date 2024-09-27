@@ -26,6 +26,7 @@
   <PropertyGroup>
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <InfVerif_AdditionalOptions>/rulever 10.0.17763 $(InfVerif_AdditionalOptions)</InfVerif_AdditionalOptions>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TestCode)' == 'true'">
     <OutDir>$(OutDir)test\</OutDir>

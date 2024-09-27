@@ -10,8 +10,8 @@
  PnpLockdown = 1
 
 [Manufacturer]
-%Msft%=Microsoft, NT$ARCH$
-[Microsoft.NT$ARCH$]
+%Msft%=Microsoft, NT$ARCH$.10.0...16299
+[Microsoft.NT$ARCH$.10.0...16299]
 %xdpmp.DeviceDesc%  = xdpmp.ndi,   ms_xdpmp
 
 [xdpmp.ndi.NT]

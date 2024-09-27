@@ -108,6 +108,8 @@ XdpRtlStop(
     VOID
     );
 
+#if (!defined(NTDDI_WIN10_NI) || (WDK_NTDDI_VERSION < NTDDI_WIN10_NI))
+
 __forceinline
 VOID
 RtlCopyVolatileMemory(
@@ -119,6 +121,8 @@ RtlCopyVolatileMemory(
     RtlCopyMemory(Destination, (const VOID *)Source, Size);
     _ReadWriteBarrier();
 }
+
+#endif
 
 __forceinline
 HANDLE
