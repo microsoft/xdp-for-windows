@@ -137,7 +137,7 @@
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(TargetPlatformVersion)' &gt;= '$(TargetPlatformVersion_NI)'">
+  <ItemDefinitionGroup Condition="'$(TargetPlatformVersion_NI)' != '' AND $(TargetPlatformVersion)' &gt;= '$(TargetPlatformVersion_NI)'">
     <Link>
       <AdditionalDependencies>
         volatileaccessk.lib;
