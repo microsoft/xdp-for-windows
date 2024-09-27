@@ -2546,7 +2546,8 @@ OpenApiTest()
     XdpCloseApi(XdpApiTable.get());
     XdpApiTable.release();
 
-    TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_2 + 1)));
+    XdpApiTable = OpenApi(XDP_API_VERSION_1);
+    XdpApiTable = OpenApi(XDP_API_VERSION_2);
 }
 
 VOID
