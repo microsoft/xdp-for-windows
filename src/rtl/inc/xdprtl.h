@@ -108,7 +108,7 @@ XdpRtlStop(
     VOID
     );
 
-#if (!defined(NTDDI_WIN10_NI) || (WDK_NTDDI_VERSION < NTDDI_WIN10_NI))
+#ifndef _RTL_VOL_MEM_ACCESSORS_
 
 __forceinline
 VOID
