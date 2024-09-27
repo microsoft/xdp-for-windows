@@ -108,6 +108,8 @@ XdpRtlStop(
     VOID
     );
 
+#ifndef _RTL_VOL_MEM_ACCESSORS_
+
 __forceinline
 VOID
 RtlCopyVolatileMemory(
@@ -119,6 +121,8 @@ RtlCopyVolatileMemory(
     RtlCopyMemory(Destination, (const VOID *)Source, Size);
     _ReadWriteBarrier();
 }
+
+#endif
 
 __forceinline
 HANDLE

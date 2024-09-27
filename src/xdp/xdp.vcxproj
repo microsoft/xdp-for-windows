@@ -137,6 +137,15 @@
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(LatestWdkPlatformVersion)' &gt;= '10.0.26100.0'">
+    <!-- volatileaccessk.lib is introduced in WDK version 10.0.22621.0, i.e., ge_release. -->
+    <Link>
+      <AdditionalDependencies>
+        volatileaccessk.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="xdp.inx">
       <CatalogFileName>xdp.cat</CatalogFileName>
