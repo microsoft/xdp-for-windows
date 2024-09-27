@@ -744,7 +744,7 @@ static
 HRESULT
 TryOpenApi(
     _Out_ unique_xdp_api &XdpApiTable,
-    _In_ UINT32 Version = XDP_API_VERSION_1
+    _In_ UINT32 Version = XDP_API_VERSION_LATEST
     )
 {
     return XdpOpenApi(Version, wil::out_param(XdpApiTable));
@@ -753,7 +753,7 @@ TryOpenApi(
 static
 unique_xdp_api
 OpenApi(
-    _In_ UINT32 Version = XDP_API_VERSION_1
+    _In_ UINT32 Version = XDP_API_VERSION_LATEST
     )
 {
     unique_xdp_api XdpApiTable;
@@ -2546,7 +2546,7 @@ OpenApiTest()
     XdpCloseApi(XdpApiTable.get());
     XdpApiTable.release();
 
-    TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_1 + 1)));
+    TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_2 + 1)));
 }
 
 VOID
@@ -2558,7 +2558,13 @@ LoadApiTest()
     TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_1, &XdpLoadApiContext, &XdpApiTable));
     XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
 
-    TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
+    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_2, &XdpLoadApiContext, &XdpApiTable));
+    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+
+    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_LATEST, &XdpLoadApiContext, &XdpApiTable));
+    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+
+    TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_LATEST + 1, &XdpLoadApiContext, &XdpApiTable)));
 }
 
 static
