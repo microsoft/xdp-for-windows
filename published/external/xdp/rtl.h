@@ -67,7 +67,7 @@ WriteUInt32NoFence(
 
 #endif
 
-#ifdef _M_ARM64_
+#ifdef _M_ARM64
 //
 // A pair of acquire and release operations is sufficient on ARM64
 // because they cannot be reordered relative to each other.
