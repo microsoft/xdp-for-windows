@@ -41,6 +41,7 @@ typedef enum _XDP_OBJECT_TYPE {
 typedef struct _XDP_OPEN_PACKET {
     UINT16 MajorVersion;
     UINT16 MinorVersion;
+    UINT16 ApiVersion;
     XDP_OBJECT_TYPE ObjectType;
 } XDP_OPEN_PACKET;
 

@@ -975,6 +975,7 @@ XskIrpCreateSocket(
     _Inout_ IRP* Irp,
     _Inout_ IO_STACK_LOCATION* IrpSp,
     _In_ UCHAR Disposition,
+    _In_ const XDP_OPEN_PACKET *OpenPacket,
     _In_ VOID* InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
@@ -1009,6 +1010,12 @@ XskIrpCreateSocket(
     KeInitializeEvent(&Xsk->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&Xsk->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
+
+    //
+    // XDP_API_VERSION_2 changed the ideal processor option to disabled by default.
+    //
+    Xsk->Rx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
+    Xsk->Tx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
 
     IrpSp->FileObject->FsContext = Xsk;
 

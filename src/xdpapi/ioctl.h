@@ -30,6 +30,14 @@ XdpInitializeEa(
     _In_ ULONG EaLength
     );
 
+VOID *
+XdpInitializeEaVersion(
+    _In_ XDP_OBJECT_TYPE ObjectType,
+    _In_ UINT16 Version,
+    _Out_ VOID *EaBuffer,
+    _In_ ULONG EaLength
+    );
+
 HANDLE
 XdpOpen(
     _In_ ULONG Disposition,

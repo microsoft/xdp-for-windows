@@ -52,9 +52,16 @@ XDP_INTERFACE_OPEN_FN(
 typedef struct _XDP_API_TABLE XDP_API_TABLE;
 
 //
-// The only API version currently supported.
+// The minimum API version currently supported.
 //
 #define XDP_API_VERSION_1 1
+
+//
+// The latest API version currently supported.
+// This version disables XSK socket processor
+// affinity socket options by default.
+//
+#define XDP_API_VERSION_2 2
 
 typedef
 HRESULT
