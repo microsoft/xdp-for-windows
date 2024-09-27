@@ -129,7 +129,7 @@ typedef enum _XSK_ERROR {
 // XSK_SOCKOPT_RX_PROCESSOR_AFFINITY
 //
 // Supports: set/get
-// Optval type: UINT8 (set) / PROCESSOR_NUMBER (get)
+// Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
 // Description: 
 //              For set, enables or disables ideal processor profiling.
 //              This option is disabled by default.
@@ -145,7 +145,7 @@ typedef enum _XSK_ERROR {
 // XSK_SOCKOPT_TX_PROCESSOR_AFFINITY
 //
 // Supports: set/get
-// Optval type: UINT8 (set) / PROCESSOR_NUMBER (get)
+// Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
 // Description: 
 //              For set, enables or disables ideal processor profiling.
 //              This option is disabled by default.

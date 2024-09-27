@@ -7794,7 +7794,7 @@ GenericXskQueryAffinity()
         //
 
         if (Case.Rx) {
-            UINT8 Enabled = TRUE;
+            UINT32 Enabled = TRUE;
             SetSockopt(
                 Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &Enabled,
                 sizeof(Enabled));
@@ -7809,7 +7809,7 @@ GenericXskQueryAffinity()
         }
 
         if (Case.Tx) {
-            UINT8 Enabled = TRUE;
+            UINT32 Enabled = TRUE;
             SetSockopt(
                 Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &Enabled,
                 sizeof(Enabled));

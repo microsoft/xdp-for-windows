@@ -3394,7 +3394,7 @@ XskSockoptSetIdealProcessor(
     NTSTATUS Status;
     const VOID *SockoptIn;
     UINT32 SockoptInSize;
-    UINT8 Enabled;
+    UINT32 Enabled;
     KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
 
@@ -3413,9 +3413,9 @@ XskSockoptSetIdealProcessor(
 
     __try {
         if (RequestorMode != KernelMode) {
-            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT8));
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
         }
-        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(UINT8));
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(UINT32));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
