@@ -62,7 +62,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -114,7 +114,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -182,7 +182,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -237,7 +237,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         sparse-checkout: tools
     - name: Download Artifacts
@@ -279,7 +279,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -332,7 +332,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -383,7 +383,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
     - name: Download Artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
@@ -412,7 +412,7 @@ jobs:
       security-events: write  # For CodeQL
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v3
