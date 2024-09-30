@@ -51,7 +51,6 @@ XDP_INTERFACE_OPEN_FN(
 
 typedef struct _XDP_API_TABLE XDP_API_TABLE;
 
-
 #define XDP_API_VERSION_1 1
 
 #define XDP_API_VERSION_2 2

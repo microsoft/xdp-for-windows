@@ -3415,7 +3415,7 @@ XskSockoptSetIdealProcessor(
         if (RequestorMode != KernelMode) {
             ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
         }
-        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(UINT32));
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         Status = GetExceptionCode();
         goto Exit;
