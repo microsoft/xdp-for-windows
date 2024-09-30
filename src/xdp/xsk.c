@@ -301,7 +301,7 @@ XskRingProdReserve(
     // First, try to satisfy the request using the cached consumer index, since another CPU will
     // often own the uncached consumer field's cache line.
     //
-    Available = Ring->Size - Ring->Shared->ProducerIndex - Ring->CachedConsumerIndex;
+    Available = Ring->Size - (Ring->Shared->ProducerIndex - Ring->CachedConsumerIndex);
     if (Available >= Count) {
         return Count;
     }
@@ -310,8 +310,17 @@ XskRingProdReserve(
     // Update the cached value and return the latest result.
     //
     Ring->CachedConsumerIndex = ReadUInt32Acquire(&Ring->Shared->ConsumerIndex);
-    Available = Ring->Size - Ring->Shared->ProducerIndex - Ring->CachedConsumerIndex;
+    Available = Ring->Size - (Ring->Shared->ProducerIndex - Ring->CachedConsumerIndex);
     return min(Available, Count);
+}
+
+static
+BOOLEAN
+XskRingProdIsEmpty(
+    _Inout_ XSK_KERNEL_RING *Ring
+    )
+{
+    return XskRingProdReserve(Ring, Ring->Size) == Ring->Size;
 }
 
 static
@@ -3457,10 +3466,10 @@ XskQueryReadyIo(
 {
     UINT32 SatisfiedFlags = 0;
 
-    if (InFlags & XSK_NOTIFY_FLAG_WAIT_TX && XskRingConsPeek(&Xsk->Tx.CompletionRing, 1) > 0) {
+    if (InFlags & XSK_NOTIFY_FLAG_WAIT_TX && !XskRingProdIsEmpty(&Xsk->Tx.CompletionRing)) {
         SatisfiedFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
     }
-    if (InFlags & XSK_NOTIFY_FLAG_WAIT_RX && XskRingConsPeek(&Xsk->Rx.Ring, 1) > 0) {
+    if (InFlags & XSK_NOTIFY_FLAG_WAIT_RX && !XskRingProdIsEmpty(&Xsk->Rx.Ring)) {
         SatisfiedFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
     }
 
