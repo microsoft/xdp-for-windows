@@ -23,6 +23,8 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
+    <PackageReference Include="Microsoft.Windows.SDK.CPP.$(Platform)" Version="10.0.26100" />
+    <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="10.0.26100" /> 
     <PackageReference Include="eBPF-for-Windows" Version="0.18.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
     <PackageReference Include="eBPF-for-Windows.arm64" Version="0.20.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' != 'x64'"/>
     <PackageReference Include="eBPF-for-Windows.x64" Version="0.20.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' != 'x64'"/>
