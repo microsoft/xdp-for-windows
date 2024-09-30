@@ -296,7 +296,7 @@ XskRingProdReserve(
     )
 {
     UINT32 Available;
-    
+
     //
     // First, try to satisfy the request using the cached consumer index, since another CPU will
     // often own the uncached consumer field's cache line.
@@ -322,7 +322,7 @@ XskRingConsPeek(
     )
 {
     UINT32 Available;
-    
+
     //
     // First, try to satisfy the request using the cached producer index, since another CPU will
     // often own the uncached producer field's cache line.
@@ -598,7 +598,8 @@ XskGetAvailableTxCompletion(
     _In_ UINT32 Count
     )
 {
-    UINT32 XskCompletionAvailable = XskRingProdReserve(&Xsk->Tx.CompletionRing, Count);
+    UINT32 XskCompletionAvailable =
+        XskRingProdReserve(&Xsk->Tx.CompletionRing, Xsk->Tx.Xdp.OutstandingFrames + Count);
 
     if (!NT_VERIFY(XskCompletionAvailable >= Xsk->Tx.Xdp.OutstandingFrames)) {
         //
