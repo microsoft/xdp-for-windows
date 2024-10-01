@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 //
 
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
 #include <ntddk.h>
 #include <ntintsafe.h>
 #include <ntstrsafe.h>
@@ -60,19 +60,19 @@
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 #include <pkthlp.h>
 #include <fnmpapi.h>
 #include <fnlwfapi.h>
 #include <fnoid.h>
 
 #include <xdpndisuser.h>
-#endif KERNEL_MODE
+#endif _KERNEL_MODE
 
 #include <fntrace.h>
 #include <qeo_ndis.h>
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
@@ -87,7 +87,7 @@
 
 #include "xdptest.h"
 #include "tests.h"
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 #include "util.h"
 #endif
 
@@ -127,7 +127,7 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 // execute.
 //
 #define TEST_TIMEOUT_ASYNC_MS 1000
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 #define TEST_TIMEOUT_ASYNC std::chrono::milliseconds(TEST_TIMEOUT_ASYNC_MS)
 
 //
@@ -141,7 +141,7 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 #endif
 #define POLL_INTERVAL_MS 10
 C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 C_ASSERT(POLL_INTERVAL_MS * 5 <= MP_RESTART_TIMEOUT_MS);
 
 class TestInterface;
@@ -213,7 +213,7 @@ using unique_fnmp_mtu_handle = wil::unique_any<const TestInterface *, decltype(:
 
 #endif
 
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
 #define POOLTAG_TEST 'tsTX' // XTst
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -238,7 +238,7 @@ static const XDP_API_PROVIDER_DISPATCH *XdpApi;
 static unique_xdp_api XdpApi;
 #endif
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
 static FNLWF_LOAD_API_CONTEXT FnLwfLoadApiContext;
@@ -803,7 +803,7 @@ SetDeviceSddl(
 
 #endif
 
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
 
 static
 NTSTATUS
@@ -884,7 +884,7 @@ OpenApi(
 }
 #endif
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 
 static
 HRESULT
@@ -2633,7 +2633,7 @@ ClearMaskedBits(
 bool
 TestSetup()
 {
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatInitialize()));
     GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
@@ -2653,7 +2653,7 @@ TestSetup()
 bool
 TestCleanup()
 {
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
     FnLwfUnloadApi(FnLwfLoadApiContext);
     FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
@@ -2664,7 +2664,7 @@ TestCleanup()
     return true;
 }
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 
 //
 // Tests
@@ -2686,7 +2686,7 @@ OpenApiTest()
 VOID
 LoadApiTest()
 {
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
     XDP_LOAD_API_CONTEXT LoadApiContext;
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
@@ -2714,7 +2714,7 @@ LoadApiTest()
 #endif
 }
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 
 static
 VOID

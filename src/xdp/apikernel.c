@@ -27,6 +27,7 @@ static XDPAPI_PROVIDER XdpApiProvider;
 static const NPI_MODULEID NPI_XDP_MODULEID = {
     sizeof(NPI_MODULEID),
     MIT_GUID,
+    // 521421C2-539B-46DF-A143-8DAC88D0C155
     { 0x521421C2, 0x539B, 0x46DF, { 0xA1, 0x43, 0x8D, 0xAC, 0x88, 0xD0, 0xC1, 0x55 } }
 };
 
@@ -235,7 +236,8 @@ XdpApiKernelXskNotifySocket(
     Notify.Flags = Flags;
     Notify.WaitTimeoutMilliseconds = WaitTimeoutMilliseconds;
 
-    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify), &Information, NULL, KernelMode, FALSE);
+    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify),
+                       &Information, NULL, KernelMode, FALSE);
     *Result = (XSK_NOTIFY_RESULT_FLAGS)Information;
 
     return Status;
@@ -246,7 +248,7 @@ XDP_STATUS
 XdpApiKernelXskNotifyAsync2(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
-    _Inout_ XSK_COMPLETION_CONTEXT CompletionContext,
+    _In_opt_ XSK_COMPLETION_CONTEXT CompletionContext,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
@@ -257,7 +259,8 @@ XdpApiKernelXskNotifyAsync2(
     Notify.Flags = Flags;
     Notify.CompletionContext = CompletionContext;
 
-    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify), &Information, NULL, KernelMode, TRUE);
+    Status = XskNotify((XSK *)Socket, &Notify, sizeof(Notify),
+                       &Information, NULL, KernelMode, TRUE);
     *Result = (XSK_NOTIFY_RESULT_FLAGS)Information;
 
     return Status;
@@ -337,7 +340,9 @@ XdpApiKernelXdpRssGetCapabilities(
     )
 {
     ASSERT(!((RssCapabilities != NULL) ^ (*RssCapabilitiesSize > 0)));
-    return XdpInterfaceOffloadRssGetCapabilities((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssCapabilities, *RssCapabilitiesSize, RssCapabilitiesSize);
+    return XdpInterfaceOffloadRssGetCapabilities(
+            (XDP_INTERFACE_OBJECT *)InterfaceHandle, RssCapabilities,
+            *RssCapabilitiesSize, RssCapabilitiesSize);
 }
 
 static
@@ -348,7 +353,9 @@ XdpApiKernelXdpRssSet(
     _In_ UINT32 RssConfigurationSize
     )
 {
-    return XdpInterfaceOffloadRssSet((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration, RssConfigurationSize);
+    return XdpInterfaceOffloadRssSet(
+            (XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration,
+            RssConfigurationSize);
 }
 
 static
@@ -360,7 +367,9 @@ XdpApiKernelXdpRssGet(
     )
 {
     ASSERT(!((RssConfiguration != NULL) ^ (*RssConfigurationSize > 0)));
-    return XdpInterfaceOffloadRssGet((XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration, *RssConfigurationSize, RssConfigurationSize);
+    return XdpInterfaceOffloadRssGet(
+            (XDP_INTERFACE_OBJECT *)InterfaceHandle, RssConfiguration,
+            *RssConfigurationSize, RssConfigurationSize);
 }
 
 static
@@ -373,7 +382,9 @@ XdpApiKernelXdpQeoSet(
 {
     UINT32 OutputBufferLength = QuicConnectionsSize;
 
-    return XdpInterfaceOffloadQeoSet((XDP_INTERFACE_OBJECT *)InterfaceHandle, QuicConnections, QuicConnectionsSize, &OutputBufferLength);
+    return XdpInterfaceOffloadQeoSet(
+            (XDP_INTERFACE_OBJECT *)InterfaceHandle, QuicConnections,
+            QuicConnectionsSize, &OutputBufferLength);
 }
 
 static
@@ -498,7 +509,10 @@ XdpApiKernelStart(
         Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
         Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_1;
 
-        Status = NmrRegisterProvider(Characteristics, &XdpApiProvider, &XdpApiProvider.NmrProviderHandle);
+        Status = NmrRegisterProvider(
+                Characteristics,
+                &XdpApiProvider,
+                &XdpApiProvider.NmrProviderHandle);
         if (!NT_SUCCESS(Status)) {
             TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
             goto Exit;

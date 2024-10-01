@@ -7,7 +7,7 @@
 #define AFXDP_H
 
 #include <xdp/hookid.h>
-#include <xdpapi_status.h>
+#include <xdp/status.h>
 
 #ifndef XDPAPI
 #define XDPAPI __declspec(dllimport)
@@ -16,7 +16,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 #if defined(_KERNEL_MODE)
 typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
@@ -171,7 +170,7 @@ XSK_NOTIFY_CALLBACK(
 
 #else
 
-typedef OVERLAPPED* XSK_COMPLETION_CONTEXT;
+typedef OVERLAPPED *XSK_COMPLETION_CONTEXT;
 
 typedef
 XDP_STATUS
@@ -195,7 +194,7 @@ XDP_STATUS
 XSK_NOTIFY_ASYNC2_FN(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
-    _Inout_ XSK_COMPLETION_CONTEXT CompletionContext,
+    _In_opt_ XSK_COMPLETION_CONTEXT CompletionContext,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     );
 

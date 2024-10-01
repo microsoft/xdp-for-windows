@@ -24,14 +24,11 @@ Abstract:
 
 #include "control.tmh"
 
-
 DECLARE_CONST_UNICODE_STRING(TestDrvCtlDeviceName, L"\\Device\\" FUNCTIONAL_TEST_DRIVER_NAME);
 DECLARE_CONST_UNICODE_STRING(TestDrvCtlDeviceSymLink, L"\\DosDevices\\" FUNCTIONAL_TEST_DRIVER_NAME);
 
-typedef struct TEST_CLIENT
-{
+typedef struct TEST_CLIENT {
     bool TestFailure;
-
 } TEST_CLIENT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(TEST_CLIENT, TestDrvCtlGetFileContext);
@@ -68,7 +65,7 @@ TestDrvCtlInitialize(
             &SDDL_DEVOBJ_SYS_ALL_ADM_ALL);
     if (DeviceInit == nullptr) {
         TraceError(
-            "[ lib] ERROR, %s.",
+            "[fnkt] %s.",
             "WdfControlDeviceInitAllocate failed");
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Error;
@@ -80,7 +77,7 @@ TestDrvCtlInitialize(
             &TestDrvCtlDeviceName);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             Status,
             "WdfDeviceInitAssignName failed");
         goto Error;
@@ -106,7 +103,7 @@ TestDrvCtlInitialize(
             &Device);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             Status,
             "WdfDeviceCreate failed");
         goto Error;
@@ -115,7 +112,7 @@ TestDrvCtlInitialize(
     Status = WdfDeviceCreateSymbolicLink(Device, &TestDrvCtlDeviceSymLink);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             Status,
             "WdfDeviceCreateSymbolicLink failed");
         goto Error;
@@ -136,7 +133,7 @@ TestDrvCtlInitialize(
 
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             Status,
             "WdfIoQueueCreate failed");
         goto Error;
@@ -147,7 +144,7 @@ TestDrvCtlInitialize(
     WdfControlFinishInitializing(Device);
 
     TraceVerbose(
-        "[test] Control interface initialized");
+        "[fnkt] Control interface initialized");
 
 Error:
 
@@ -164,7 +161,7 @@ TestDrvCtlUninitialize(
     )
 {
     TraceVerbose(
-        "[test] Control interface uninitializing");
+        "[fnkt] Control interface uninitializing");
 
     if (TestDrvCtlDevice != nullptr) {
         WdfObjectDelete(TestDrvCtlDevice);
@@ -172,7 +169,7 @@ TestDrvCtlUninitialize(
     }
 
     TraceVerbose(
-        "[test] Control interface uninitialized");
+        "[fnkt] Control interface uninitialized");
 }
 
 PAGEDX
@@ -195,7 +192,7 @@ TestDrvCtlEvtFileCreate(
         //
         if (InterlockedExchange8(&TestDrvClientActive, TRUE) == TRUE) {
             TraceError(
-                "[ lib] ERROR, %s.",
+                "[fnkt] %s.",
                 "Already have max clients");
             Status = STATUS_TOO_MANY_SESSIONS;
             break;
@@ -204,7 +201,7 @@ TestDrvCtlEvtFileCreate(
         TEST_CLIENT* Client = TestDrvCtlGetFileContext(FileObject);
         if (Client == nullptr) {
             TraceError(
-                "[ lib] ERROR, %s.",
+                "[fnkt] %s.",
                 "nullptr File context in FileCreate");
             Status = STATUS_INVALID_PARAMETER;
             break;
@@ -213,7 +210,7 @@ TestDrvCtlEvtFileCreate(
         RtlZeroMemory(Client, sizeof(TEST_CLIENT));
 
         TraceInfo(
-            "[test] Client %p created",
+            "[fnkt] Client %p created",
             Client);
 
         TestDrvClient = Client;
@@ -223,14 +220,13 @@ TestDrvCtlEvtFileCreate(
         //
         if (!TestSetup()) {
             TraceError(
-                "[ lib] ERROR, %s.",
+                "[fnkt] %s.",
                 "TestSetup failed");
             TestDrvClient = nullptr;
             Status = STATUS_UNSUCCESSFUL;
             break;
         }
-    }
-    while (false);
+    } while (false);
 
     if (!NT_SUCCESS(Status) && Status != STATUS_TOO_MANY_SESSIONS) {
         InterlockedExchange8(&TestDrvClientActive, FALSE);
@@ -262,7 +258,7 @@ TestDrvCtlEvtFileCleanup(
     if (Client != nullptr) {
 
         TraceInfo(
-            "[test] Client %p cleaning up",
+            "[fnkt] Client %p cleaning up",
             Client);
 
         //
@@ -297,7 +293,7 @@ TestDrvCtlEvtIoCanceled(
     }
 
     TraceWarn(
-        "[test] Client %p canceled request %p",
+        "[fnkt] Client %p canceled request %p",
         Client,
         Request);
 
@@ -342,7 +338,7 @@ TestDrvCtlEvtIoDeviceControl(
     if (KeGetCurrentIrql() > PASSIVE_LEVEL) {
         Status = STATUS_NOT_SUPPORTED;
         TraceError(
-            "[ lib] ERROR, %s.",
+            "[fnkt] %s.",
             "IOCTL not supported greater than PASSIVE_LEVEL");
         goto Error;
     }
@@ -351,7 +347,7 @@ TestDrvCtlEvtIoDeviceControl(
     if (FileObject == nullptr) {
         Status = STATUS_DEVICE_NOT_READY;
         TraceError(
-            "[ lib] ERROR, %s.",
+            "[fnkt] %s.",
             "WdfRequestGetFileObject failed");
         goto Error;
     }
@@ -360,7 +356,7 @@ TestDrvCtlEvtIoDeviceControl(
     if (Client == nullptr) {
         Status = STATUS_DEVICE_NOT_READY;
         TraceError(
-            "[ lib] ERROR, %s.",
+            "[fnkt] %s.",
             "TestDrvCtlGetFileContext failed");
         goto Error;
     }
@@ -369,7 +365,7 @@ TestDrvCtlEvtIoDeviceControl(
     if (FunctionCode == 0 || FunctionCode > MAX_IOCTL_FUNC_CODE) {
         Status = STATUS_NOT_IMPLEMENTED;
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             FunctionCode,
             "Invalid FunctionCode");
         goto Error;
@@ -378,7 +374,7 @@ TestDrvCtlEvtIoDeviceControl(
     if (InputBufferLength < IOCTL_BUFFER_SIZES[FunctionCode]) {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             FunctionCode,
             "Invalid buffer size for FunctionCode");
         goto Error;
@@ -394,13 +390,13 @@ TestDrvCtlEvtIoDeviceControl(
                 nullptr);
         if (!NT_SUCCESS(Status)) {
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[fnkt] %u, %s.",
                 Status,
                 "WdfRequestRetrieveInputBuffer failed");
             goto Error;
         } else if (Params == nullptr) {
             TraceError(
-                "[ lib] ERROR, %s.",
+                "[fnkt] %s.",
                 "WdfRequestRetrieveInputBuffer failed to return parameter buffer");
             Status = STATUS_INVALID_PARAMETER;
             goto Error;
@@ -408,7 +404,7 @@ TestDrvCtlEvtIoDeviceControl(
     }
 
     TraceInfo(
-        "[test] Client %p executing IOCTL %u",
+        "[fnkt] Client %p executing IOCTL %u",
         Client,
         FunctionCode);
 
@@ -424,7 +420,7 @@ TestDrvCtlEvtIoDeviceControl(
 Error:
 
     TraceInfo(
-        "[test] Client %p completing request, 0x%x",
+        "[fnkt] Client %p completing request, 0x%x",
         Client,
         Status);
 
@@ -475,12 +471,12 @@ Return Value:
     va_end(Args);
 
     TraceError(
-        "[test] File: %S, Function: %S, Line: %d",
+        "[fnkt] File: %S, Function: %S, Line: %d",
         File,
         Function,
         Line);
     TraceError(
-        "[test] FAIL: %S",
+        "[fnkt] FAIL: %S",
         Buffer);
 
 #if BREAK_TEST

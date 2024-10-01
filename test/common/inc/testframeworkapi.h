@@ -10,13 +10,13 @@
 // use different test frameworks without changing test logic.
 //
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 #include <windows.h>
 #endif
 
 EXTERN_C_START
 
-#ifndef KERNEL_MODE
+#ifndef _KERNEL_MODE
 VOID
 StopTest();
 #endif

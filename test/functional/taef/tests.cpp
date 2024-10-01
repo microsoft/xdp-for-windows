@@ -45,22 +45,26 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 class DriverService {
     SC_HANDLE ScmHandle;
     SC_HANDLE ServiceHandle;
+
 public:
     DriverService() :
         ScmHandle(nullptr),
         ServiceHandle(nullptr) {
     }
-    bool Initialize(
+
+    bool
+    Initialize(
         _In_z_ const char* DriverName,
         _In_opt_z_ const char* DependentFileNames,
         _In_opt_z_ const char* DriverPath
-        ) {
+        )
+    {
         uint32_t Error;
         ScmHandle = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
         if (ScmHandle == nullptr) {
             Error = GetLastError();
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[test] %u, %s.",
                 Error,
                 "GetFullPathName failed");
             return false;
@@ -73,7 +77,7 @@ public:
                 SERVICE_ALL_ACCESS);
         if (ServiceHandle == nullptr) {
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[test] %u, %s.",
                  GetLastError(),
                 "OpenService failed");
             char DriverFilePath[MAX_PATH] = {0};
@@ -83,7 +87,7 @@ public:
             } else {
                 if (GetModuleFileNameA(NULL, DriverFilePath, MAX_PATH) == 0) {
                     TraceError(
-                        "[ lib] ERROR, %s.",
+                        "[test] %s.",
                         "Failed to get currently executing module path");
                     return false;
                 }
@@ -91,7 +95,7 @@ public:
             PathEnd = strrchr(DriverFilePath, '\\');
             if (PathEnd == NULL) {
                 TraceError(
-                    "[ lib] ERROR, %s.",
+                    "[test] %s.",
                     "Failed parsing unexpected module path format");
                 return false;
             }
@@ -105,13 +109,13 @@ public:
                     DriverName);
             if (PathResult <= 0 || (size_t)PathResult > RemainingLength) {
                 TraceError(
-                    "[ lib] ERROR, %s.",
+                    "[test] %s.",
                     "Failed to create driver on disk file path");
                 return false;
             }
             if (GetFileAttributesA(DriverFilePath) == INVALID_FILE_ATTRIBUTES) {
                 TraceError(
-                    "[ lib] ERROR, %s.",
+                    "[test] %s.",
                     "Failed to find driver on disk");
                 return false;
             }
@@ -136,7 +140,7 @@ public:
                     goto QueryService;
                 }
                 TraceError(
-                    "[ lib] ERROR, %u, %s.",
+                    "[test] %u, %s.",
                     Error,
                     "CreateService failed");
                 return false;
@@ -144,7 +148,10 @@ public:
         }
         return true;
     }
-    void Uninitialize() {
+
+    void
+    Uninitialize()
+    {
         if (ServiceHandle != nullptr) {
             CloseServiceHandle(ServiceHandle);
         }
@@ -152,12 +159,15 @@ public:
             CloseServiceHandle(ScmHandle);
         }
     }
-    bool Start() {
+
+    bool
+    Start()
+    {
         if (!StartServiceA(ServiceHandle, 0, nullptr)) {
             uint32_t Error = GetLastError();
             if (Error != ERROR_SERVICE_ALREADY_RUNNING) {
                 TraceError(
-                    "[ lib] ERROR, %u, %s.",
+                    "[test] %u, %s.",
                     Error,
                     "StartService failed");
                 return false;
@@ -169,12 +179,16 @@ public:
 
 class DriverClient {
     HANDLE DeviceHandle;
+
 public:
     DriverClient() : DeviceHandle(INVALID_HANDLE_VALUE) { }
     ~DriverClient() { Uninitialize(); }
-    bool Initialize(
+
+    bool
+    Initialize(
         _In_z_ const char* DriverName
-        ) {
+        )
+    {
         uint32_t Error;
         char IoctlPath[MAX_PATH];
         int PathResult =
@@ -185,7 +199,7 @@ public:
                 DriverName);
         if (PathResult < 0 || PathResult >= sizeof(IoctlPath)) {
             TraceError(
-                "[ lib] ERROR, %s.",
+                "[test] %s.",
                 "Creating Driver File Path failed");
             return false;
         }
@@ -201,33 +215,39 @@ public:
         if (DeviceHandle == INVALID_HANDLE_VALUE) {
             Error = GetLastError();
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[test] %u, %s.",
                 Error,
                 "CreateFile failed");
             return false;
         }
         return true;
     }
-    void Uninitialize() {
+
+    void
+    Uninitialize()
+    {
         if (DeviceHandle != INVALID_HANDLE_VALUE) {
             CloseHandle(DeviceHandle);
             DeviceHandle = INVALID_HANDLE_VALUE;
         }
     }
-    bool Run(
+
+    bool
+    Run(
         _In_ uint32_t IoControlCode,
         _In_reads_bytes_opt_(InBufferSize)
             void* InBuffer,
         _In_ uint32_t InBufferSize,
         _In_ uint32_t TimeoutMs = 30000
-        ) {
+        )
+    {
         uint32_t Error;
         OVERLAPPED Overlapped = { 0 };
         Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
         if (Overlapped.hEvent == nullptr) {
             Error = GetLastError();
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[test] %u, %s.",
                 Error,
                 "CreateEvent failed");
             return false;
@@ -247,7 +267,7 @@ public:
             if (Error != ERROR_IO_PENDING) {
                 CloseHandle(Overlapped.hEvent);
                 TraceError(
-                    "[ lib] ERROR, %u, %s.",
+                    "[test] %u, %s.",
                     Error,
                     "DeviceIoControl Write failed");
                 return false;
@@ -266,7 +286,7 @@ public:
                 CancelIoEx(DeviceHandle, &Overlapped);
             }
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[test] %u, %s.",
                 Error,
                 "GetOverlappedResultEx Write failed");
         } else {
@@ -275,36 +295,45 @@ public:
         CloseHandle(Overlapped.hEvent);
         return Error == ERROR_SUCCESS;
     }
-    bool Run(
+
+    bool
+    Run(
         _In_ uint32_t IoControlCode,
         _In_ uint32_t TimeoutMs = 30000
-        ) {
+        )
+    {
         return Run(IoControlCode, nullptr, 0, TimeoutMs);
     }
+
     template<class T>
-    bool Run(
+    bool
+    Run(
         _In_ uint32_t IoControlCode,
         _In_ const T& Data,
         _In_ uint32_t TimeoutMs = 30000
-        ) {
+        )
+    {
         return Run(IoControlCode, (void*)&Data, sizeof(Data), TimeoutMs);
     }
+
     _Success_(return)
-    bool Read(
+    bool
+    Read(
         _In_ uint32_t IoControlCode,
         _Out_writes_bytes_opt_(OutBufferSize)
             void* OutBuffer,
         _In_ uint32_t OutBufferSize,
         _Out_opt_ uint32_t* OutBufferWritten,
         _In_ uint32_t TimeoutMs = 30000
-        ) {
+        )
+    {
         uint32_t Error;
         OVERLAPPED Overlapped = { 0 };
         Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
         if (!Overlapped.hEvent) {
             Error = GetLastError();
             TraceError(
-                "[ lib] ERROR, %u, %s.",
+                "[test] %u, %s.",
                 Error,
                 "CreateEvent failed");
             return false;
@@ -323,7 +352,7 @@ public:
             if (Error != ERROR_IO_PENDING) {
                 CloseHandle(Overlapped.hEvent);
                 TraceError(
-                    "[ lib] ERROR, %u, %s.",
+                    "[test] %u, %s.",
                     Error,
                     "DeviceIoControl Write failed");
                 return false;
@@ -344,7 +373,7 @@ public:
                 }
             } else {
                 TraceError(
-                    "[ lib] ERROR, %u, %s.",
+                    "[test] %u, %s.",
                     Error,
                     "GetOverlappedResultEx Read failed");
             }
@@ -428,7 +457,7 @@ TEST_MODULE_INITIALIZE(ModuleSetup)
     TestingKernelMode = (RequiredSize != 0);
 
     TraceInfo(
-        "[ lib] INFO, KernelMode=%d",
+        "[test] INFO, KernelMode=%d",
         TestingKernelMode);
     if (TestingKernelMode) {
         char DriverPath[MAX_PATH];

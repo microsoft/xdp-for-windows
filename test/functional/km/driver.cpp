@@ -16,7 +16,6 @@ Abstract:
 
 #include "driver.tmh"
 
-
 #define TEST_DRV_POOL 'vDsT' // TsDv
 
 EVT_WDF_DRIVER_UNLOAD TestDrvDriverUnload;
@@ -94,7 +93,7 @@ Return Value:
             &Driver);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             Status,
             "WdfDriverCreate failed");
         goto Error;
@@ -106,14 +105,14 @@ Return Value:
     Status = TestDrvCtlInitialize(Driver);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            "[ lib] ERROR, %u, %s.",
+            "[fnkt] %u, %s.",
             Status,
             "TestDrvCtlInitialize failed");
         goto Error;
     }
 
     TraceInfo(
-        "[test] Started");
+        "[fnkt] Started");
 
 Error:
 
@@ -146,7 +145,7 @@ Arguments:
     TestDrvCtlUninitialize();
 
     TraceInfo(
-        "[test] Stopped");
+        "[fnkt] Stopped");
 
     WPP_CLEANUP(GlobalDriverObject);
 }

@@ -162,7 +162,7 @@ typedef struct _XSK {
     IRP *IoWaitIrp;
     XSK_NOTIFY_CALLBACK *NotifyCallback;
     VOID *NotifyCallbackCompletionContext;
-    CHAR NotifyCallbackArmed;
+    BOOLEAN NotifyCallbackArmed;
     XSK_STATISTICS Statistics;
     EX_PUSH_LOCK PollLock;
     XSK_POLL_MODE PollMode;
@@ -325,13 +325,15 @@ XskSignalReadyIo(
     return CompletedWait;
 }
 
+#if DBG
+
 static
 BOOLEAN
 XskRingIsSet(
     _In_ const XSK_KERNEL_RING *Ring
     )
 {
-    return Ring->Size != 0 && Ring->Shared != NULL && !((Ring->UserVa != NULL) ^ (Ring->Mdl != NULL));
+    return Ring->Size != 0 && Ring->Shared != NULL && ((Ring->UserVa != NULL) == (Ring->Mdl != NULL));
 }
 
 static
@@ -351,6 +353,8 @@ XskRingIsValid(
 {
     return XskRingIsSet(Ring) || XskRingIsNotSet(Ring);
 }
+
+#endif // DBG
 
 static
 UINT32
@@ -1893,7 +1897,9 @@ XskFreeRing(
     XSK_KERNEL_RING *Ring
     )
 {
+#if DBG
     ASSERT(XskRingIsValid(Ring));
+#endif // DBG
 
     if (Ring->UserVa != NULL) {
         VOID *CurrentProcess = PsGetCurrentProcess();
@@ -3013,7 +3019,9 @@ XskFillRingInfo(
     _Out_ XSK_RING_INFO *Info
     )
 {
+#if DBG
     ASSERT(XskRingIsSet(Ring));
+#endif // DBG
 
     Info->Ring = (Ring->UserVa != NULL) ? Ring->UserVa : Ring->Shared;
     Info->DescriptorsOffset = sizeof(XSK_SHARED_RING);
@@ -3388,7 +3396,9 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
+#if DBG
     ASSERT(XskRingIsValid(Ring));
+#endif // DBG
 
     if (Ring->Size != 0) {
         Status = STATUS_INVALID_DEVICE_STATE;
@@ -3408,7 +3418,7 @@ XskSockoptSetRingSize(
     Ring->Mask = NumDescriptors - 1;
     Ring->ElementStride = DescriptorSize;
     Ring->IdealProcessor = INVALID_PROCESSOR_INDEX;
-    if (UserVa) {
+    if (UserVa != NULL) {
         Ring->OwningProcess = PsGetCurrentProcess();
         ObReferenceObject(Ring->OwningProcess);
     }
@@ -4190,6 +4200,7 @@ XskNotifyValidateParams(
     _Out_ PVOID *CompletionContext
     )
 {
+    UNREFERENCED_PARAMETER(UseCallback);
     if (Xsk->State != XskActive){
         return STATUS_INVALID_DEVICE_STATE;
     }
@@ -4227,10 +4238,7 @@ XskNotifyValidateParams(
         return STATUS_INVALID_PARAMETER;
     }
 
-    if (UseCallback && *TimeoutMilliseconds > 0) {
-        return STATUS_INVALID_PARAMETER;
-    }
-
+    ASSERT(UseCallback && *TimeoutMilliseconds > 0);
     ASSERT(!UseCallback || RequestorMode == KernelMode);
 
     return STATUS_SUCCESS;
@@ -4460,7 +4468,7 @@ XskNotify(
         ASSERT(!Xsk->NotifyCallbackArmed);
         Status = STATUS_PENDING;
         Xsk->NotifyCallbackCompletionContext = CompletionContext;
-        WriteRelease8(&Xsk->NotifyCallbackArmed, TRUE);
+        WriteRelease8((CHAR*)&Xsk->NotifyCallbackArmed, TRUE);
     } else {
         KeClearEvent(&Xsk->IoWaitEvent);
     }

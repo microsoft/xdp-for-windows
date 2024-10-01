@@ -3,12 +3,9 @@
 // Licensed under the MIT License.
 //
 
-#ifndef XDPAPI_STATUS_H
-#define XDPAPI_STATUS_H
+#pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+EXTERN_C_START
 
 #if defined(_KERNEL_MODE)
 
@@ -38,8 +35,4 @@ typedef HRESULT XDP_STATUS;
 
 #endif // defined(_KERNEL_MODE)
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif
+EXTERN_C_END

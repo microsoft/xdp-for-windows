@@ -5,7 +5,6 @@
   </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{3ddfcc4f-61ed-42f2-9a0b-94e1fdea6146}</ProjectGuid>
-    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
   </PropertyGroup>
   <PropertyGroup>
     <TargetName>csdkheaders_km</TargetName>
@@ -14,7 +13,7 @@
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalDependencies>onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
