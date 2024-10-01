@@ -46,7 +46,7 @@ jobs:
     runs-on: windows-${{ inputs.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -61,10 +61,6 @@ jobs:
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose -Platform ${{ inputs.platform }}
-    - name: Install LLVM 11.0
-      run: |
-        choco install -y llvm --version 11.0.1 --allow-downgrade
-        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Nuget Restore
       run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ inputs.config }} /p:Platform=${{ inputs.platform }}
     - name: Prepare for compiling eBPF programs

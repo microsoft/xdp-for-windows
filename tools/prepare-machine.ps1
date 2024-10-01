@@ -275,10 +275,6 @@ if ($Cleanup) {
         if (!(Get-Command clang.exe)) {
             Write-Error "clang.exe is not detected"
         }
-
-        if (!(cmd /c "clang --version 2>&1" | Select-String "clang version 11.")) {
-            Write-Error "Compiling eBPF programs on Windows requires clang version 11"
-        }
     }
 
     if ($ForFunctionalTest) {
