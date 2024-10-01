@@ -51,6 +51,7 @@ jobs:
 
   build_allpackage:
     name: Build AllPackage
+    needs: build
     strategy:
       fail-fast: false
       matrix:
