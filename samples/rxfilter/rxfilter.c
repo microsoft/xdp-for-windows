@@ -199,7 +199,7 @@ main(
     //
     ParseArgs(argc, argv);
 
-    Result = XdpOpenApi(XDP_API_VERSION_1, &XdpApi);
+    Result = XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi);
     if (FAILED(Result)) {
         LOGERR("XdpOpenApi failed: %x", Result);
         return 1;

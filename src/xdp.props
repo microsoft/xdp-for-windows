@@ -1,31 +1,42 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
+  <PropertyGroup Label="Version">
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
     <XdpMinorVersion>1</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
-    <!-- Project-wide properties -->
-    <EbpfPackagePath>$(SolutionDir)packages\eBPF-for-Windows.0.15.1\</EbpfPackagePath>
-    <WiXPackagePath>$(SolutionDir)packages\wix.3.14.1\</WiXPackagePath>
-    <FnPackagePath>$(SolutionDir)artifacts\fn\devkit-0.4.1\</FnPackagePath>
   </PropertyGroup>
-  <!-- The set of (eventually?) supported configurations -->
-  <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|ARM64">
-      <Configuration>Debug</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|ARM64">
-      <Configuration>Release</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
+  <PropertyGroup>
+    <!-- Project-wide properties -->
+    <WntPackagePath>$(SolutionDir)packages\win-net-test.1.2.0\</WntPackagePath>
+    <!-- Undocked project properties -->
+    <UndockedDir>$(SolutionDir)submodules\cxplat\submodules\undocked\</UndockedDir>
+    <UndockedOut>$(SolutionDir)artifacts\</UndockedOut>
+    <UndockedVersioning>false</UndockedVersioning>
+    <!-- PackageReferences for SourceLink implicitly include all .props and .targets files. -->
+    <UndockedSourceLink>false</UndockedSourceLink>
+    <!-- Work around nuget build error for native projects. -->
+    <ResolveNuGetPackages>false</ResolveNuGetPackages>
+    <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' != 'x64'">
+    <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- eBPF currently has separate packages for each architecture. -->
+    <PackageReference Include="eBPF-for-Windows" Version="0.18.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
+    <PackageReference Include="eBPF-for-Windows.arm64" Version="0.20.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' != 'x64'"/>
+    <PackageReference Include="eBPF-for-Windows.x64" Version="0.20.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' != 'x64'"/>
+    <PackageReference Include="Microsoft.Build.Tasks.Git" Version="1.0.0" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="1.0.0" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.SourceLink.Common" Version="1.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
+    <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
+  <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
+  <PropertyGroup>
+    <WntPackagePath>$(Pkgwin-net-test)\</WntPackagePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'x64'">
+    <EbpfHostBinPath>$(EbpfBinPath)</EbpfHostBinPath>
+  </PropertyGroup>
 </Project>

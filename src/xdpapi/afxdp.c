@@ -6,15 +6,17 @@
 #include "precomp.h"
 #include <assert.h>
 
+static
 HRESULT
-XskCreate(
-    _Out_ HANDLE* Socket
+XskCreateVersion(
+    _Out_ HANDLE* Socket,
+    _In_ UINT32 ApiVersion
     )
 {
     BOOL Res;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH];
 
-    XdpInitializeEa(XDP_OBJECT_TYPE_XSK, EaBuffer, sizeof(EaBuffer));
+    XdpInitializeEaVersion(XDP_OBJECT_TYPE_XSK, ApiVersion, EaBuffer, sizeof(EaBuffer));
 
     *Socket = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
     if (*Socket == NULL) {
@@ -29,6 +31,22 @@ XskCreate(
     }
 
     return S_OK;
+}
+
+HRESULT
+XskCreate(
+    _Out_ HANDLE* Socket
+    )
+{
+    return XskCreateVersion(Socket, XDP_API_VERSION_1);
+}
+
+HRESULT
+XskCreateV2(
+    _Out_ HANDLE* Socket
+    )
+{
+    return XskCreateVersion(Socket, XDP_API_VERSION_2);
 }
 
 HRESULT

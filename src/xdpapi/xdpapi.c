@@ -11,9 +11,11 @@
 XDP_OPEN_API_FN XdpOpenApi;
 XDP_CLOSE_API_FN XdpCloseApi;
 XDP_GET_ROUTINE_FN XdpGetRoutine;
+XDP_GET_ROUTINE_FN XdpGetRoutineV2;
 XDP_CREATE_PROGRAM_FN XdpCreateProgram;
 XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
 XSK_CREATE_FN XskCreate;
+XSK_CREATE_FN XskCreateV2;
 XSK_BIND_FN XskBind;
 XSK_ACTIVATE_FN XskActivate;
 XSK_NOTIFY_SOCKET_FN XskNotifySocket;
@@ -37,9 +39,10 @@ typedef struct _XDP_API_ROUTINE {
 } XDP_API_ROUTINE;
 
 #define DECLARE_XDP_API_ROUTINE(_routine) #_routine, (VOID *)_routine
+#define DECLARE_XDP_API_ROUTINE_VERSION(_routine, _ver) #_routine, (VOID *)_routine##_ver
 #define DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(_routine, _name) _name, (VOID *)_routine
 
-static const XDP_API_ROUTINE XdpApiRoutines[] = {
+static const XDP_API_ROUTINE XdpApiRoutinesV1[] = {
     { DECLARE_XDP_API_ROUTINE(XdpOpenApi) },
     { DECLARE_XDP_API_ROUTINE(XdpCloseApi) },
     { DECLARE_XDP_API_ROUTINE(XdpGetRoutine) },
@@ -77,6 +80,44 @@ static const XDP_API_TABLE XdpApiTableV1 = {
     .XskIoctl = XskIoctl,
 };
 
+static const XDP_API_ROUTINE XdpApiRoutinesV2[] = {
+    { DECLARE_XDP_API_ROUTINE(XdpOpenApi) },
+    { DECLARE_XDP_API_ROUTINE(XdpCloseApi) },
+    { DECLARE_XDP_API_ROUTINE_VERSION(XdpGetRoutine, V2) },
+    { DECLARE_XDP_API_ROUTINE(XdpCreateProgram) },
+    { DECLARE_XDP_API_ROUTINE(XdpInterfaceOpen) },
+    { DECLARE_XDP_API_ROUTINE_VERSION(XskCreate, V2) },
+    { DECLARE_XDP_API_ROUTINE(XskBind) },
+    { DECLARE_XDP_API_ROUTINE(XskActivate) },
+    { DECLARE_XDP_API_ROUTINE(XskNotifySocket) },
+    { DECLARE_XDP_API_ROUTINE(XskNotifyAsync) },
+    { DECLARE_XDP_API_ROUTINE(XskGetNotifyAsyncResult) },
+    { DECLARE_XDP_API_ROUTINE(XskSetSockopt) },
+    { DECLARE_XDP_API_ROUTINE(XskGetSockopt) },
+    { DECLARE_XDP_API_ROUTINE(XskIoctl) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGetCapabilities, XDP_RSS_GET_CAPABILITIES_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssSet, XDP_RSS_SET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGet, XDP_RSS_GET_FN_NAME) },
+    { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
+};
+
+static const XDP_API_TABLE XdpApiTableV2 = {
+    .XdpOpenApi = XdpOpenApi,
+    .XdpCloseApi = XdpCloseApi,
+    .XdpGetRoutine = XdpGetRoutine,
+    .XdpCreateProgram = XdpCreateProgram,
+    .XdpInterfaceOpen = XdpInterfaceOpen,
+    .XskCreate = XskCreateV2,
+    .XskBind = XskBind,
+    .XskActivate = XskActivate,
+    .XskNotifySocket = XskNotifySocket,
+    .XskNotifyAsync = XskNotifyAsync,
+    .XskGetNotifyAsyncResult = XskGetNotifyAsyncResult,
+    .XskSetSockopt = XskSetSockopt,
+    .XskGetSockopt = XskGetSockopt,
+    .XskIoctl = XskIoctl,
+};
+
 HRESULT
 XDPAPI
 XdpOpenApi(
@@ -86,7 +127,8 @@ XdpOpenApi(
 {
     *XdpApiTable = NULL;
 
-    if (XdpApiVersion != XDP_API_VERSION_1) {
+    if (XdpApiVersion < XDP_API_VERSION_1 ||
+        XdpApiVersion > XDP_API_VERSION_2) {
         return E_NOINTERFACE;
     }
 
@@ -104,18 +146,37 @@ XdpCloseApi(
     FRE_ASSERT(XdpApiTable == &XdpApiTableV1);
 }
 
+static
+VOID *
+XdpGetRoutineFromTable(
+    _In_ const XDP_API_ROUTINE *Table,
+    _In_ const UINT32 TableSize,
+    _In_z_ const CHAR *RoutineName
+    )
+{
+    for (UINT32 i = 0; i < TableSize; i++) {
+        if (strcmp(Table[i].RoutineName, RoutineName) == 0) {
+            return Table[i].Routine;
+        }
+    }
+
+    return NULL;
+}
+
 VOID *
 XdpGetRoutine(
     _In_z_ const CHAR *RoutineName
     )
 {
-    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpApiRoutines); i++) {
-        if (strcmp(XdpApiRoutines[i].RoutineName, RoutineName) == 0) {
-            return XdpApiRoutines[i].Routine;
-        }
-    }
+    return XdpGetRoutineFromTable(XdpApiRoutinesV1, RTL_NUMBER_OF(XdpApiRoutinesV1), RoutineName);
+}
 
-    return NULL;
+VOID *
+XdpGetRoutineV2(
+    _In_z_ const CHAR *RoutineName
+    )
+{
+    return XdpGetRoutineFromTable(XdpApiRoutinesV2, RTL_NUMBER_OF(XdpApiRoutinesV2), RoutineName);
 }
 
 HRESULT

@@ -1,113 +1,53 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(SolutionDir)src\xdp.props" />
-  <Import Project="$(EbpfPackagePath)build\native\ebpf-for-windows.props" Condition="Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" />
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
       <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
-  <PropertyGroup Label="Globals">
-    <VCProjectVersion>16.0</VCProjectVersion>
-    <Keyword>Win32Proj</Keyword>
+  <PropertyGroup>
     <ProjectGuid>{5de7385c-80b3-40cd-97d0-7c24dec2f95c}</ProjectGuid>
-    <RootNamespace>bpf</RootNamespace>
+    <TargetName>bpf</TargetName>
+    <UndockedType>none</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <Import Project="$(SolutionDir)src\xdp.cpp.default.props" />
-  <PropertyGroup Label="Configuration">
-    <ConfigurationType>Utility</ConfigurationType>
-    <PlatformToolset>$(XdpPlatformToolset)</PlatformToolset>
-  </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
-  <ImportGroup Label="ExtensionSettings" />
-  <ImportGroup Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <TargetName>bpf</TargetName>
-    <OutDir>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\bpf\</OutDir>
+    <OutDir>$(OutDir)bpf\</OutDir>
+    <ExportProgramBaseDir>$(SolutionDir)artifacts\</ExportProgramBaseDir>
   </PropertyGroup>
-  <ItemDefinitionGroup>
-    <PreBuildEvent>
-      <Command>
-        xcopy $(EbpfPackagePath)build\native\bin\EbpfApi.dll $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration) /Y
-        $(EbpfPackagePath)build\native\bin\export_program_info.exe
-        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe
-      </Command>
-    </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>
-        $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\xdp_bpfexport.exe --clear
-        $(EbpfPackagePath)build\native\bin\export_program_info.exe --clear
-        del $(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\ebpfapi.dll /F
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="allow_ipv6.c">
+    <CustomBuild Include="*.c">
       <FileType>CppCode</FileType>
-      <Outputs>$(OutDir)allow_ipv6.sys</Outputs>
+      <Outputs>$(OutDir)%(Filename).sys</Outputs>
       <Command>
-        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
+        clang -g -target bpf -O2 -Werror $(ClangIncludes) -I $(SolutionDir)published\external -c %(Filename).c -o $(OutDir)%(Filename).o
         pushd $(OutDir)
-        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
-        rmdir /s /q $(OutDir)\allow_ipv6_km
-        popd</Command>
-    </CustomBuild>
-    <CustomBuild Include="drop.c">
-      <FileType>CppCode</FileType>
-      <Outputs>$(OutDir)drop.sys</Outputs>
-      <Command>
-        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
-        pushd $(OutDir)
-        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
-        rmdir /s /q $(OutDir)\drop_km
-        popd</Command>
-    </CustomBuild>
-    <CustomBuild Include="selective_drop.c">
-      <FileType>CppCode</FileType>
-      <Outputs>$(OutDir)selective_drop.sys</Outputs>
-      <Command>
-        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
-        pushd $(OutDir)
-        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
-        rmdir /s /q $(OutDir)\selective_drop_km
-        popd</Command>
-    </CustomBuild>
-    <CustomBuild Include="l1fwd.c">
-      <FileType>CppCode</FileType>
-      <Outputs>$(OutDir)l1fwd.sys</Outputs>
-      <Command>
-        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
-        pushd $(OutDir)
-        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
-        rmdir /s /q $(OutDir)\l1fwd_km
-        popd</Command>
-    </CustomBuild>
-    <CustomBuild Include="pass.c">
-      <FileType>CppCode</FileType>
-      <Outputs>$(OutDir)pass.sys</Outputs>
-      <Command>
-        clang -g -target bpf -O2 -Werror $(ClangIncludes) -c %(Filename).c -o $(OutDir)%(Filename).o
-        pushd $(OutDir)
-        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
-        rmdir /s /q $(OutDir)\pass_km
+        powershell -NonInteractive -ExecutionPolicy Unrestricted $(EbpfHostBinPath)\Convert-BpfToNative.ps1 -FileName %(Filename) -IncludeDir $(EbpfIncludePath) -Platform $(Platform) -Configuration $(Configuration) -KernelMode $true
+        rmdir /s /q $(OutDir)\%(Filename)_km
         popd</Command>
     </CustomBuild>
   </ItemGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <!-- The following lines configure the targets necessary for sourcelink -->
-  <ItemGroup>
-    <None Include="$(SolutionDir)src\xdp\packages.config" />
-  </ItemGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('$(EbpfPackagePath)build\native\ebpf-for-windows.props')" Text="$([System.String]::Format('$(ErrorText)', '$(EbpfPackagePath)build\native\ebpf-for-windows.props'))" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+  <!--  If the target platform doesn't match the host's platform, build a copy of
+        xdpbpfexport.exe compatible with the host, isolated within our
+        platform-specific directory. -->
+  <PropertyGroup Condition="'$(HostPlatform)' != '$(Platform)'">
+    <ExportProgramBaseDir>$(IntDir)</ExportProgramBaseDir>
+  </PropertyGroup>
+  <Target Name="BuildHostExportProgramInfo" BeforeTargets="ExportProgramInfo" Condition="'$(HostPlatform)' != '$(Platform)'">
+      <MSBuild Projects="$(SolutionDir)src\bpfexport\bpfexport.vcxproj" Properties="Platform=$(HostPlatform);UndockedOut=$(ExportProgramBaseDir)"/>
+  </Target>
+  <Target Name="ExportProgramInfo" BeforeTargets="CustomBuild">
+      <Exec Command="$(EbpfHostBinPath)\export_program_info.exe"/>
+      <Exec Command="xcopy $(EbpfHostBinPath)\EbpfApi.dll $(ExportProgramBaseDir)bin\$(HostPlatform)_$(Configuration) /Y"/>
+      <Exec Command="$(ExportProgramBaseDir)bin\$(HostPlatform)_$(Configuration)\xdpbpfexport.exe"/>
+  </Target>
+  <Target Name="ExportProgramInfoCleanup" AfterTargets="CustomBuild">
+      <Exec Command="$(ExportProgramBaseDir)bin\$(HostPlatform)_$(Configuration)\xdpbpfexport.exe --clear"/>
+      <Exec Command="del $(ExportProgramBaseDir)bin\$(HostPlatform)_$(Configuration)\ebpfapi.dll /F"/>
+      <Exec Command="$(EbpfHostBinPath)\export_program_info.exe --clear"/>
   </Target>
 </Project>

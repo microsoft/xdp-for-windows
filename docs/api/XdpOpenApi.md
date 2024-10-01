@@ -20,7 +20,16 @@ XDPAPI XDP_OPEN_API_FN XdpOpenApi;
 
 `XdpApiVersion`
 
-The XDP API version required by the caller. Currently only `XDP_API_VERSION_1` is supported.
+The XDP API version required by the caller.
+
+### XDP_API_VERSION_1
+
+This is the minimum version currently supported by XDP.
+
+### XDP_API_VERSION_2
+
+This is the maximum version currently supported by XDP.
+This version disables XSK processor affinity options by default.
 
 `XdpApiTable`
 

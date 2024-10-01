@@ -66,6 +66,8 @@
 #define ntohl _byteswap_ulong
 #endif
 
+#define CONST_HTONS(_x) ((((UINT16)(_x)) >> 8 | (((UINT16)((_x) & MAXUINT8)) << 8)))
+
 #ifdef KERNEL_MODE
 
 _IRQL_requires_max_(APC_LEVEL)
@@ -106,6 +108,8 @@ XdpRtlStop(
     VOID
     );
 
+#ifndef _RTL_VOL_MEM_ACCESSORS_
+
 __forceinline
 VOID
 RtlCopyVolatileMemory(
@@ -117,6 +121,8 @@ RtlCopyVolatileMemory(
     RtlCopyMemory(Destination, (const VOID *)Source, Size);
     _ReadWriteBarrier();
 }
+
+#endif
 
 __forceinline
 HANDLE

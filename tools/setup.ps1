@@ -6,7 +6,7 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Config
     Specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     The CPU architecture to use.
 
 .PARAMETER Install
@@ -17,10 +17,6 @@ This script installs or uninstalls various XDP components.
 
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver.
-
-.PARAMETER UseJitEbpf
-    If true, install JIT mode for eBPF.
-
 #>
 
 param (
@@ -30,14 +26,14 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -49,10 +45,7 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$EnableEbpf = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -63,22 +56,25 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 # Important paths.
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
 
 # File paths.
+$XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
-$XdpFileVersion = (Get-Item "$ArtifactsDir\xdp\xdp.sys").VersionInfo.FileVersion
+$XdpSys = "$ArtifactsDir\xdp\xdp.sys"
+$XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdpinstaller\xdp-for-windows.$XdpFileVersion.msi"
-$FndisSys = "$ArtifactsDir\fndis\fndis.sys"
-$XdpMpSys = "$ArtifactsDir\xdpmp\xdpmp.sys"
-$XdpMpInf = "$ArtifactsDir\xdpmp\xdpmp.inf"
+$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
+$FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
+$XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
+$XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
+$XdpMpCert = "$ArtifactsDir\test\xdpmp.cer"
 $XdpMpComponentId = "ms_xdpmp"
 $XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
@@ -115,18 +111,19 @@ function Start-Service-With-Retry($Name) {
 # fail with ERROR_TRANSACTION_NOT_ACTIVE.
 function Rename-NetAdapter-With-Retry($IfDesc, $Name) {
     Write-Verbose "Rename-NetAdapter $IfDesc $Name"
-    $RenameSuccess = $false
-    for ($i=0; $i -lt 10; $i++) {
+    $Retries = 10
+    for ($i=0; $i -le $Retries; $i++) {
         try {
-            Rename-NetAdapter -InterfaceDescription $IfDesc $Name
-            $RenameSuccess = $true
+            Rename-NetAdapter -InterfaceDescription $IfDesc $Name -ErrorAction 'Stop'
             break
         } catch {
-            Start-Sleep -Milliseconds 100
+            if ($i -lt $Retries) {
+                Start-Sleep -Milliseconds 100
+            } else {
+                Write-Error "Failed to rename $Name" -ErrorAction 'Continue'
+                throw
+            }
         }
-    }
-    if ($RenameSuccess -eq $false) {
-        Write-Error "Failed to rename $Name"
     }
 }
 
@@ -170,6 +167,27 @@ function Cleanup-Service($Name) {
             Uninstall-Failure "cleanup_service_$Name.dmp"
         }
     }
+}
+
+# Installs the certificates for driver package signing.
+function Install-DriverCertificate($CertFileName) {
+    Write-Verbose "Installing driver signing certificate $CertFileName"
+
+    # Resolve the root certificate in the signing certificate's chain, and trust that.
+    $CertRootFileName = "$CertFileName.root.cer"
+    $Chain = New-Object -TypeName System.Security.Cryptography.X509Certificates.X509Chain
+    $Chain.Build($CertFileName) | Write-Verbose
+    $Chain.ChainElements.Certificate | Select-Object -Last 1 | Export-Certificate -Type CERT -FilePath $CertRootFileName | Write-Verbose
+
+    Import-Certificate -FilePath $CertRootFileName -CertStoreLocation 'cert:\localmachine\root' | Write-Verbose
+    Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher' | Write-Verbose
+}
+
+function Install-SignedDriverCertificate($SignedFileName) {
+    $CertFileName = "$SignedFileName.cer"
+    Write-Verbose "Extracting driver signing certificate $CertFileName from $SignedFileName"
+    Get-AuthenticodeSignature $SignedFileName | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName | Write-Verbose
+    Install-DriverCertificate $CertFileName
 }
 
 # Helper to wait for an adapter to start.
@@ -228,13 +246,30 @@ function Uninstall-Driver($Inf) {
     }
 }
 
+function Install-DebugCrt {
+    # The debug CRT does not have an official redistributable, so use our own repackaged version.
+    if ($Config -eq "Debug") {
+        Write-Verbose "Installing debugcrt from $(Get-ArtifactBinPath -Platform $Platform -Config $Config)\test\debugcrt\* to $env:WINDIR\system32"
+        Copy-Item -Recurse -Force "$(Get-ArtifactBinPath -Platform $Platform -Config $Config)\test\debugcrt\*" "$env:WINDIR\system32" | Write-Verbose
+    }
+}
+
 # Installs the xdp driver.
 function Install-Xdp {
+    Install-SignedDriverCertificate $XdpCat
+    Install-DebugCrt
+
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
 
-        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt"
-        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
+        $AddLocal = ""
+
+        if ($EnableEbpf) {
+            $AddLocal = "ADDLOCAL=xdp_ebpf"
+        }
+
+        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt"
+        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
 
         if ($LastExitCode -ne 0) {
             Write-Error "XDP MSI installation failed: $LastExitCode"
@@ -251,15 +286,17 @@ function Install-Xdp {
         if ($LastExitCode) {
             Write-Error "lodctr.exe exit code: $LastExitCode"
         }
-    }
 
-    if ($EnableEbpf) {
-        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
-        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
-        Stop-Service xdp
+        if ($EnableEbpf) {
+            Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+            Stop-Service xdp
+        }
     }
 
     Start-Service-With-Retry xdp
+
+    Refresh-Path
 
     Write-Verbose "xdp.sys install complete!"
 }
@@ -310,6 +347,8 @@ function Uninstall-Xdp {
         Cleanup-Service xdp
     }
 
+    Refresh-Path
+
     Write-Verbose "xdp.sys uninstall complete!"
 }
 
@@ -345,6 +384,8 @@ function Install-XdpMp {
     if (!(Test-Path $XdpMpSys)) {
         Write-Error "$XdpMpSys does not exist!"
     }
+
+    Install-DriverCertificate $XdpMpCert
 
     Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
     pnputil.exe /install /add-driver $XdpMpInf | Write-Verbose
@@ -423,8 +464,8 @@ function Uninstall-XdpMp {
 
 # Installs the fnmp driver.
 function Install-FnMp {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "Renaming adapters"
     Rename-NetAdapter-With-Retry FNMP XDPFNMP
@@ -473,28 +514,39 @@ function Uninstall-FnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "fnmp.sys uninstall complete!"
 }
 
 # Installs the fnlwf driver.
 function Install-FnLwf {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnlwf -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnlwf -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
 # Uninstalls the fnlwf driver.
 function Uninstall-FnLwf {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnlwf -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+}
+
+# Installs fnsock.
+function Install-FnSock {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnsock -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnsock -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+}
+
+# Uninstalls fnsock.
+function Uninstall-FnSock {
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnsock -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnsock -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
 }
 
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
-    $EbpfOptions = ""
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -502,17 +554,11 @@ function Install-Ebpf {
         Write-Error "$EbpfPath is already installed!"
     }
 
-    if ($UseJitEbpf) {
-        $EbpfOptions = "eBPF_Runtime_Components,eBPF_Runtime_Components_JIT"
-    } else {
-        $EbpfOptions = "eBPF_Runtime_Components"
-    }
-
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
     for ($i = 0; $i -lt 100; $i++) {
-        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=$EbpfOptions /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
         if ($?) {
             break;
         }
@@ -525,7 +571,7 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
     $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {
@@ -593,6 +639,9 @@ try {
     if ($Install -eq "ebpf") {
         Install-Ebpf
     }
+    if ($Install -eq "fnsock") {
+        Install-FnSock
+    }
 
     if ($Uninstall -eq "fndis") {
         Uninstall-FakeNdis
@@ -611,6 +660,9 @@ try {
     }
     if ($Uninstall -eq "ebpf") {
         Uninstall-Ebpf
+    }
+    if ($Uninstall -eq "fnsock") {
+        Uninstall-FnSock
     }
 } catch {
     Write-Error $_ -ErrorAction $OriginalErrorActionPreference

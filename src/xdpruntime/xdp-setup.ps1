@@ -9,27 +9,39 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
 
+.PARAMETER BinaryDirectory
+    Overrides the binary directory. The default directory is this script's
+    directory.
+
 #>
 
 param (
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp")]
+    [ValidateSet("", "xdp", "xdpebpf")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp")]
-    [string]$Uninstall = ""
+    [ValidateSet("", "xdp", "xdpebpf")]
+    [string]$Uninstall = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$BinaryDirectory = ""
 )
 
 Set-StrictMode -Version 'Latest'
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-$InstallDir = $PSScriptRoot
+if ([string]::IsNullOrWhitespace($BinaryDirectory)) {
+    $script:InstallDir = $PSScriptRoot
+} else {
+    $script:InstallDir = $BinaryDirectory
+}
 
 # Global paths.
 $XdpInf = "$InstallDir\xdp.inf"
 $XdpPcwMan = "$InstallDir\xdppcw.man"
+$XdpBpfExport = "$InstallDir\xdpbpfexport.exe"
 
 # Helper wait for a service to stop and then delete it. Callers are responsible
 # making sure the service is already stopped or stopping.
@@ -125,6 +137,42 @@ if ($Install -eq "xdp") {
     }
 
     Write-Verbose "xdp.sys install complete!"
+}
+
+# Installs the XDP eBPF feature.
+if ($Install -eq "xdpebpf") {
+    Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+    reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+
+    # XDP needs to be restarted to reload this registry key. Continue past failures.
+    Write-Verbose "Restarting xdp"
+    Restart-Service xdp -ErrorAction 'Continue'
+
+    Write-Verbose "$XdpBpfExport"
+    & $XdpBpfExport
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+    }
+
+    Write-Verbose "XDP eBPF feature install complete!"
+}
+
+# Uninstalls the XDP eBPF feature.
+if ($Uninstall -eq "xdpebpf") {
+    Write-Verbose "$XdpBpfExport --clear"
+    & $XdpBpfExport --clear
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+    }
+
+    Write-Verbose "reg.exe delete HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /f"
+    reg.exe delete HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /f | Write-Verbose
+
+    # XDP needs to be restarted to reload this registry key. Continue past failures.
+    Write-Verbose "Restarting xdp"
+    Restart-Service xdp -ErrorAction 'Continue'
+
+    Write-Verbose "XDP eBPF feature uninstall complete!"
 }
 
 # Uninstalls the xdp driver.

@@ -85,7 +85,7 @@ function Get-VsTestPath {
     # Unfortunately CI doesn't add vstest to PATH. Test existence of vstest
     # install paths instead.
 
-    $ManualVsTestPath = "$(Split-Path $PSScriptRoot -Parent)\artifacts\Microsoft.TestPlatform\tools\net451\Common7\IDE\Extensions\TestPlatform"
+    $ManualVsTestPath = "$(Split-Path $PSScriptRoot -Parent)\artifacts\Microsoft.TestPlatform\tools\net462\Common7\IDE\Extensions\TestPlatform"
     if (Test-Path $ManualVsTestPath) {
         return $ManualVsTestPath
     }
@@ -109,55 +109,43 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.15.1"
-}
-
-# Returns the eBPF package type.
-function Get-EbpfPackageType {
-    if ($UseJitEbpf) {
-        return "Release"
-    }
-
-    return "NativeOnlyRelease"
-}
-
-# Return the eBPF package name.
-function Get-EbpfPackageName {
-    if ($UseJitEbpf) {
-        return "Build-x64-Release.zip"
-    }
-
-    return "Build-x64-native-only-NativeOnlyRelease.zip"
+    return "0.18.0"
 }
 
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfMsiLocation = "$RootDir\artifacts\ebpfmsi"
-    return "$EbpfMsiLocation\ebpf-for-windows.msi"
+    $EbpfVersion = Get-EbpfMsiVersion
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.$Platform.msi"
 }
 
-function Get-EbpfPackageUrl {
-    $EbpfVersion = Get-EbpfMsiVersion
-    $EbpfPackageName = Get-EbpfPackageName
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v" + $EbpfVersion + "/" + $EbpfPackageName
+function Get-EbpfMsiUrl {
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
+    $EbpfVersion = Get-EbpfMsiVersion -Platform $Platform
+    if ($Platform -eq "x64") {
+        return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
+    } else {
+        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.$Platform.0.20.0.msi"
+    }
 }
 
 function Get-FnVersion {
-    return "0.4.1"
-}
-
-function Get-FnDevKitUrl {
-    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-devkit-x64.zip"
-}
-
-function Get-FnDevKitDir {
-    $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir/artifacts/fn/devkit-$(Get-FnVersion)"
+    return "1.2.0"
 }
 
 function Get-FnRuntimeUrl {
-    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-runtime-x64.zip"
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
+    "https://github.com/microsoft/win-net-test/releases/download/v$(Get-FnVersion)/fn-runtime-$Platform.zip"
 }
 
 function Get-FnRuntimeDir {
@@ -166,7 +154,7 @@ function Get-FnRuntimeDir {
 }
 
 function Get-CoreNetCiCommit {
-    return "61af6f56ef187dcedb459bcc56f56e305f98a6e4"
+    return "285f2f66ac3319220c663312e93da28af9e9365e"
 }
 
 function Get-CoreNetCiArtifactPath {
@@ -181,31 +169,50 @@ function Get-CoreNetCiArtifactPath {
     return "$RootDir\artifacts\corenet-ci-$Commit\vm-setup\$Name"
 }
 
+function Get-ArtifactBinPathBase {
+    param (
+        [Parameter()]
+        [string]$Config,
+        [Parameter()]
+        [string]$Platform
+    )
+
+    return "artifacts\bin\$($Platform)_$($Config)"
+}
+
 function Get-ArtifactBinPath {
     param (
         [Parameter()]
         [string]$Config,
         [Parameter()]
-        [string]$Arch
+        [string]$Platform
     )
 
     $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+    return "$RootDir\$(Get-ArtifactBinPathBase -Config $Config -Platform $Platform)"
 }
 
 function Get-XdpBuildVersion {
     $RootDir = Split-Path $PSScriptRoot -Parent
     $XdpBuildVersion = @{}
     [xml]$XdpVersion = Get-Content $RootDir\src\xdp.props
-    $XdpBuildVersion.Major = $XdpVersion.Project.PropertyGroup.XdpMajorVersion
-    $XdpBuildVersion.Minor = $XdpVersion.Project.PropertyGroup.XdpMinorVersion
-    $XdpBuildVersion.Patch = $XdpVersion.Project.PropertyGroup.XdpPatchVersion
+    $XdpVersionPropertyGroup = $XdpVersion.Project.PropertyGroup |
+        Where-Object {$_.PSObject.Properties.Name -contains "Label" -and $_.Label -eq "Version"}
+    $XdpBuildVersion.Major = $XdpVersionPropertyGroup.XdpMajorVersion
+    $XdpBuildVersion.Minor = $XdpVersionPropertyGroup.XdpMinorVersion
+    $XdpBuildVersion.Patch = $XdpVersionPropertyGroup.XdpPatchVersion
     return $XdpBuildVersion;
 }
 
 function Get-XdpBuildVersionString {
     $XdpVersion = Get-XdpBuildVersion
-    return "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+    $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
+
+    if (!(Is-ReleaseBuild)) {
+        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+    }
+
+    return $VersionString;
 }
 
 # Returns whether the script is running as a built-in administrator.
@@ -221,6 +228,15 @@ function Refresh-Path {
         [System.Environment]::GetEnvironmentVariable("Path","Machine"),
         [System.Environment]::GetEnvironmentVariable("Path","User")
     ) -match '.' -join ';'
+}
+
+function Add-Path {
+    param (
+        [Parameter()]
+        [string]$NewPath
+    )
+    [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$NewPath", "Machine")
+    Refresh-Path
 }
 
 function Collect-LiveKD {

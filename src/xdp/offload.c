@@ -363,6 +363,7 @@ XdpIrpCreateInterface(
     _Inout_ IRP *Irp,
     _Inout_ IO_STACK_LOCATION *IrpSp,
     _In_ UCHAR Disposition,
+    _In_ const XDP_OPEN_PACKET *OpenPacket,
     _In_ VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
@@ -379,6 +380,7 @@ XdpIrpCreateInterface(
     };
 
     UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(OpenPacket);
 
     if (Disposition != FILE_CREATE || InputBufferLength < sizeof(*Params)) {
         Status = STATUS_INVALID_PARAMETER;

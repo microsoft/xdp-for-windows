@@ -6,7 +6,7 @@ This helps start and stop ETW logging.
 .PARAMETER Config
     When using an artifacts directory, specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     When using an artifacts directory, specifies the CPU architecture to use.
 
 .PARAMETER SymbolPath
@@ -40,7 +40,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [string]$SymbolPath = $null,
@@ -77,13 +77,18 @@ $ErrorActionPreference = 'Stop'
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $TracePdb = Get-CoreNetCiArtifactPath -Name "tracepdb.exe"
 $WprpFile = "$RootDir\tools\xdptrace.wprp"
 $TmfPath = "$ArtifactsDir\tmfs"
 $LogsDir = "$RootDir\artifacts\logs"
 
-& $RootDir/tools/prepare-machine.ps1 -ForLogging
+& $RootDir/tools/prepare-machine.ps1 -ForLogging -Platform $Platform
+
+if ($Platform -eq "arm64" -and (@("CpuCswitchSample", "CpuSample") -contains $Profile.Split(".")[0])) {
+    Write-Warning "Skipping sampling profile: not currently supported on arm64."
+    return
+}
 
 if (!$EtlPath) {
     $EtlPath = "$LogsDir\$Name.etl"
@@ -114,8 +119,12 @@ try {
         Write-Verbose "wpr.exe -stop $EtlPath -instancename $Name"
         cmd /c "wpr.exe -stop $EtlPath -instancename $Name 2>&1"
         if ($LastExitCode -ne 0) {
-            Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
-            Write-Error "wpr.exe failed: $LastExitCode"
+            if ($Platform -eq "arm64" -and $LastExitCode -eq -984076288) {
+                Write-Warning "Suppressing failure to stop trace (error code = not running) on arm64"
+            } else {
+                Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
+                Write-Error "wpr.exe failed: $LastExitCode"
+            }
         }
 
         # Enumerate log file sizes.
@@ -131,7 +140,7 @@ try {
             $SymbolPath = $ArtifactsDir
         }
 
-        & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath
+        & $TracePdb -f "$SymbolPath\*.pdb" -p $TmfPath -s
 
         $FnSymbolsDir = "$(Get-FnRuntimeDir)\symbols"
         if (Test-Path $FnSymbolsDir) {

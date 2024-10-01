@@ -864,6 +864,7 @@ XdpGenericTxCreateQueue(
     TxCapabilities.OutOfOrderCompletionEnabled = TRUE;
     TxCapabilities.MaximumBufferSize = MAX_TX_BUFFER_LENGTH;
     TxCapabilities.MaximumFrameSize = Generic->Tx.Mtu;
+    TxCapabilities.TransmitFrameCountHint = (UINT16)min(MAXUINT16, TxQueue->FrameCount);
     XdpTxQueueSetCapabilities(Config, &TxCapabilities);
 
     *InterfaceTxQueue = (XDP_INTERFACE_HANDLE)TxQueue;

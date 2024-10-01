@@ -17,9 +17,9 @@ xdpapi.dll = 1
 1 = disk
 
 [Manufacturer]
-%Msft% = MSFT,NT$ARCH$
+%Msft% = MSFT,NT$ARCH$.10.0...17763
 
-[MSFT.NT$ARCH$]
+[MSFT.NT$ARCH$.10.0...17763]
 %Xdp% = Install, ms_xdp
 
 [Install]
@@ -59,9 +59,9 @@ LoadOrderGroup  = NDIS
 AddReg          = AddServiceReg
 
 [AddServiceReg]
-; Enable circular log buffer at verbose level during development.
-HKR, "Parameters", "VerboseOn", %REG_DWORD%, 1
-HKR, "Parameters", "LogPages", %REG_DWORD%, 64
+; Disable circular IFR logging at verbose level by default.
+HKR, "Parameters", "VerboseOn", %REG_DWORD%, 0
+HKR, "Parameters", "LogPages", %REG_DWORD%, 1
 
 ; Register ETW provider
 HKLM,"SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-XDP/Diagnostic","OwningPublisher",0x0,"{580bbdea-b364-4369-b291-d3539e35d20b}"

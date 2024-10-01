@@ -6,7 +6,7 @@ This script runs the XDP functional tests.
 .PARAMETER Config
     Specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     The CPU architecture to use.
 
 .PARAMETER TestCaseFilter
@@ -14,10 +14,6 @@ This script runs the XDP functional tests.
 
 .PARAMETER Iterations
     The number of times to run the test suite.
-
-.PARAMETER UseJitEbpf
-    If true, install JIT mode for eBPF.
-
 #>
 
 param (
@@ -27,7 +23,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [string]$TestCaseFilter = "",
@@ -48,7 +44,7 @@ param (
     [string]$TestBinaryPath = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$UseJitEbpf = $false
+    [switch]$NoPrerelease = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -56,7 +52,8 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+. $RootDir\tools\common.ps1
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $IterationFailureCount = 0
 $IterationTimeout = 0
@@ -66,6 +63,10 @@ $IterationTimeout = 0
 $VsTestPath = Get-VsTestPath
 if ($VsTestPath -eq $null) {
     Write-Error "Could not find VSTest path"
+}
+$VsTestConsole = "vstest.console"
+if ($Platform -eq "arm64") {
+    $VsTestConsole = "vstest.console.arm64"
 }
 
 if ($Timeout -gt 0) {
@@ -88,34 +89,41 @@ for ($i = 1; $i -le $Iterations; $i++) {
             $LogName += "-$i"
         }
 
-        & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
-
-        Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf
-        Write-Verbose "installed xdp."
-
-        Write-Verbose "installing fnmp..."
-        & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Arch $Arch
-        Write-Verbose "installed fnmp."
-
-        Write-Verbose "installing fnlwf..."
-        & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
-        Write-Verbose "installed fnlwf."
+        & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch -UseJitEbpf:$UseJitEbpf
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
             Write-Verbose "installed ebpf."
         }
+
+        Write-Verbose "installing xdp..."
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
+        Write-Verbose "installed xdp."
+
+        Write-Verbose "installing fnmp..."
+        & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
+        Write-Verbose "installed fnmp."
+
+        Write-Verbose "installing fnlwf..."
+        & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Platform $Platform
+        Write-Verbose "installed fnlwf."
+
+        Write-Verbose "installing fnsock..."
+        & "$RootDir\tools\setup.ps1" -Install fnsock -Config $Config -Platform $Platform
+        Write-Verbose "installed fnsock."
 
         $TestArgs = @()
         if (![string]::IsNullOrEmpty($TestBinaryPath)) {
             $TestArgs += $TestBinaryPath
         } else {
-            $TestArgs += "$ArtifactsDir\xdpfunctionaltests.dll"
+            $TestArgs += "$ArtifactsDir\test\xdpfunctionaltests.dll"
         }
         if (![string]::IsNullOrEmpty($TestCaseFilter)) {
             $TestArgs += "/TestCaseFilter:$TestCaseFilter"
+        }
+        if ($NoPrerelease) {
+            $TestArgs += "/TestCaseFilter:Priority!=1"
         }
         if ($ListTestCases) {
             $TestArgs += "/lt"
@@ -130,12 +138,12 @@ for ($i = 1; $i -le $Iterations; $i++) {
                 . $Using:RootDir\tools\common.ps1
                 Collect-LiveKD -OutFile "$Using:LogsDir\$Using:LogName-livekd.dmp"
                 Collect-ProcessDump -ProcessName "testhost.exe" -OutFile "$Using:LogsDir\$Using:LogName-testhost.dmp"
-                Stop-Process -Name "vstest.console" -Force
+                Stop-Process -Name $VsTestConsole -Force
             }
         }
 
-        Write-Verbose "$VsTestPath\vstest.console.exe $TestArgs"
-        & $VsTestPath\vstest.console.exe $TestArgs
+        Write-Verbose "$VsTestPath\$VsTestConsole.exe $TestArgs"
+        & $VsTestPath\$VsTestConsole.exe $TestArgs
 
         if ($LastExitCode -ne 0) {
             Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction Continue
@@ -145,13 +153,14 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if ($Watchdog -ne $null) {
             Remove-Job -Job $Watchdog -Force
         }
+        & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
-            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
-        & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Platform $Platform -ErrorAction 'Continue'
     }
 }
 

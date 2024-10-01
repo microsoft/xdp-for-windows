@@ -4,6 +4,16 @@
 //
 
 #include <winsock2.h>
+
+//
+// Directly include some C++ headers that produce benign compiler warnings.
+//
+#pragma warning(push)
+#pragma warning(disable:5252) // Multiple different types resulted in the same XFG type-hash D275361C54538B70; the PDB will only record information for one of them
+#include <xlocnum>
+#include <xlocale>
+#pragma warning(pop)
+
 #include <CppUnitTest.h>
 #include <xdpapi.h>
 #include <fntrace.h>
@@ -12,6 +22,17 @@
 #include "tests.h"
 #include "util.h"
 #include "tests.tmh"
+
+//
+// Define a test method for a feature not yet officially released.
+// Unfortunately, the vstest.console.exe runner seems unable to filter on
+// arbitrary properties, so mark prerelease as priority 1.
+//
+#define TEST_METHOD_PRERELEASE(_Name) \
+    BEGIN_TEST_METHOD_ATTRIBUTE(_Name) \
+        TEST_PRIORITY(1) \
+    END_TEST_METHOD_ATTRIBUTE() \
+    TEST_METHOD(_Name)
 
 //
 // Test suite(s).
@@ -392,43 +413,120 @@ public:
         GenericRxFromTxInspect(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxForwardGroSanityV4) {
+        GenericRxForwardGroSanity(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroSanityV6) {
+        GenericRxForwardGroSanity(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMdlOffsetsV4) {
+        GenericRxForwardGroMdlOffsets(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMdlOffsetsV6) {
+        GenericRxForwardGroMdlOffsets(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroPureAckV4) {
+        GenericRxForwardGroPureAck(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroPureAckV6) {
+        GenericRxForwardGroPureAck(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroDataTrailerV4) {
+        GenericRxForwardGroDataTrailer(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroDataTrailerV6) {
+        GenericRxForwardGroDataTrailer(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroTcpOptionsV4) {
+        GenericRxForwardGroTcpOptions(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroTcpOptionsV6) {
+        GenericRxForwardGroTcpOptions(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMtuV4) {
+        GenericRxForwardGroMtu(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMtuV6) {
+        GenericRxForwardGroMtu(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMaxOffloadV4) {
+        GenericRxForwardGroMaxOffload(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroMaxOffloadV6) {
+        GenericRxForwardGroMaxOffload(AF_INET6);
+    }
+
+
+    TEST_METHOD(GenericRxForwardGroTcpFlagsV4) {
+        GenericRxForwardGroTcpFlags(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxForwardGroTcpFlagsV6) {
+        GenericRxForwardGroTcpFlags(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxFuzzForwardGroV4) {
+        GenericRxFuzzForwardGro(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxFuzzForwardGroV6) {
+        GenericRxFuzzForwardGro(AF_INET6);
+    }
+
     TEST_METHOD(SecurityAdjustDeviceAcl) {
         ::SecurityAdjustDeviceAcl();
     }
 
-    TEST_METHOD(GenericRxEbpfAttach) {
+    TEST_METHOD(EbpfNetsh) {
+        ::EbpfNetsh();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxEbpfAttach) {
         ::GenericRxEbpfAttach();
     }
 
-    TEST_METHOD(GenericRxEbpfDrop) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfDrop) {
         ::GenericRxEbpfDrop();
     }
 
-    TEST_METHOD(GenericRxEbpfPass) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfPass) {
         ::GenericRxEbpfPass();
     }
 
-    TEST_METHOD(GenericRxEbpfTx) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfTx) {
         ::GenericRxEbpfTx();
     }
 
-    TEST_METHOD(GenericRxEbpfPayload) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfPayload) {
         ::GenericRxEbpfPayload();
     }
 
-    TEST_METHOD(ProgTestRunRxEbpfPayload) {
+    TEST_METHOD_PRERELEASE(ProgTestRunRxEbpfPayload) {
         ::ProgTestRunRxEbpfPayload();
     }
 
-    TEST_METHOD(GenericRxEbpfIfIndex) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfIfIndex) {
         ::GenericRxEbpfIfIndex();
     }
 
-    TEST_METHOD(GenericRxEbpfFragments) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfFragments) {
         ::GenericRxEbpfFragments();
     }
 
-    TEST_METHOD(GenericRxEbpfUnload) {
+    TEST_METHOD_PRERELEASE(GenericRxEbpfUnload) {
         ::GenericRxEbpfUnload();
     }
 
@@ -440,39 +538,39 @@ public:
         GenericLoopback(AF_INET6);
     }
 
-    TEST_METHOD(OffloadRssError) {
+    TEST_METHOD_PRERELEASE(OffloadRssError) {
         ::OffloadRssError();
     }
 
-    TEST_METHOD(OffloadRssReference) {
+    TEST_METHOD_PRERELEASE(OffloadRssReference) {
         ::OffloadRssReference();
     }
 
-    TEST_METHOD(OffloadRssInterfaceRestart) {
+    TEST_METHOD_PRERELEASE(OffloadRssInterfaceRestart) {
         ::OffloadRssInterfaceRestart();
     }
 
-    TEST_METHOD(OffloadRssUnchanged) {
+    TEST_METHOD_PRERELEASE(OffloadRssUnchanged) {
         ::OffloadRssUnchanged();
     }
 
-    TEST_METHOD(OffloadRssUpperSet) {
+    TEST_METHOD_PRERELEASE(OffloadRssUpperSet) {
         ::OffloadRssUpperSet();
     }
 
-    TEST_METHOD(OffloadRssSet) {
+    TEST_METHOD_PRERELEASE(OffloadRssSet) {
         ::OffloadRssSet();
     }
 
-    TEST_METHOD(OffloadRssCapabilities) {
+    TEST_METHOD_PRERELEASE(OffloadRssCapabilities) {
         ::OffloadRssCapabilities();
     }
 
-    TEST_METHOD(OffloadRssReset) {
+    TEST_METHOD_PRERELEASE(OffloadRssReset) {
         ::OffloadRssReset();
     }
 
-    TEST_METHOD(OffloadSetHardwareCapabilities) {
+    TEST_METHOD_PRERELEASE(OffloadSetHardwareCapabilities) {
         ::OffloadSetHardwareCapabilities();
     }
 
@@ -480,19 +578,23 @@ public:
         ::GenericXskQueryAffinity();
     }
 
-    TEST_METHOD(OffloadQeoConnection) {
+    TEST_METHOD_PRERELEASE(OffloadQeoConnection) {
         ::OffloadQeoConnection();
     }
 
-    TEST_METHOD(OffloadQeoRevertInterfaceRemoval) {
+    TEST_METHOD_PRERELEASE(OffloadQeoRevertInterfaceRemoval) {
         ::OffloadQeoRevert(RevertReasonInterfaceRemoval);
     }
 
-    TEST_METHOD(OffloadQeoRevertHandleClosure) {
+    TEST_METHOD_PRERELEASE(OffloadQeoRevertHandleClosure) {
         ::OffloadQeoRevert(RevertReasonHandleClosure);
     }
 
-    TEST_METHOD(OffloadQeoOidFailure) {
+    TEST_METHOD_PRERELEASE(OffloadQeoOidFailure) {
         ::OffloadQeoOidFailure();
+    }
+
+    TEST_METHOD(OidPassthru) {
+        ::OidPassthru();
     }
 };

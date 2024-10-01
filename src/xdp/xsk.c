@@ -38,6 +38,9 @@ typedef struct _XSK_KERNEL_RING {
     VOID *UserVa;
     VOID *OwningProcess;
     UINT32 IdealProcessor;
+    struct {
+        BOOLEAN ProfileIdealProcessor;
+    } Flags;
     XSK_ERROR Error;
 } XSK_KERNEL_RING;
 
@@ -330,7 +333,7 @@ XskRingConsRelease(
     _In_ UINT32 Count
     )
 {
-    Ring->Shared->ConsumerIndex += Count;
+    WriteUInt32Release(&Ring->Shared->ConsumerIndex, Ring->Shared->ConsumerIndex + Count);
 }
 
 static
@@ -351,9 +354,11 @@ XskKernelRingSetError(
     _In_ XSK_ERROR Error
     )
 {
-    if (InterlockedCompareExchange((LONG *)&Ring->Error, Error, XSK_NO_ERROR) == XSK_NO_ERROR) {
+    XSK_ERROR OriginalError =
+        InterlockedCompareExchangeNoFence((LONG *)&Ring->Error, Error, XSK_NO_ERROR);
+    if (OriginalError == XSK_NO_ERROR) {
         if (Ring->Shared != NULL) {
-            InterlockedOr((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_ERROR);
+            InterlockedOrNoFence((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_ERROR);
         }
     }
 }
@@ -364,20 +369,22 @@ XskKernelRingUpdateIdealProcessor(
     _Inout_ XSK_KERNEL_RING *Ring
     )
 {
-    UINT32 CurrentProcessor = KeGetCurrentProcessorIndex();
+    if (Ring->Flags.ProfileIdealProcessor) {
+        UINT32 CurrentProcessor = KeGetCurrentProcessorIndex();
 
-    ASSERT(Ring->Size > 0);
+        ASSERT(Ring->Size > 0);
 
-    //
-    // Set the ideal processor to the current processor. For queues that are not
-    // strongly affinitized (e.g. RSS disabled, not supported, plain buggy) we
-    // might need to add a heuristic to avoid indicating flapping CPUs up to
-    // applications.
-    //
+        //
+        // Set the ideal processor to the current processor. For queues that are not
+        // strongly affinitized (e.g. RSS disabled, not supported, plain buggy) we
+        // might need to add a heuristic to avoid indicating flapping CPUs up to
+        // applications.
+        //
 
-    if (Ring->IdealProcessor != CurrentProcessor) {
-        Ring->IdealProcessor = CurrentProcessor;
-        InterlockedOr((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
+        if (Ring->IdealProcessor != CurrentProcessor) {
+            Ring->IdealProcessor = CurrentProcessor;
+            InterlockedOrRelease((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
+        }
     }
 }
 
@@ -616,8 +623,9 @@ XskFillTx(
     //
     if (Xsk->Tx.Xdp.PollHandle == NULL &&
         ((XskRingConsPeek(&Xsk->Tx.Ring, 1) == 0 && Xsk->Tx.Xdp.OutstandingFrames == 0) ||
-         (XskGetAvailableTxCompletion(Xsk) == 0))) {
-        InterlockedOr((LONG *)&Xsk->Tx.Ring.Shared->Flags, XSK_RING_FLAG_NEED_POKE);
+         (XskGetAvailableTxCompletion(Xsk) == 0)) &&
+         !(Xsk->Tx.Ring.Shared->Flags & XSK_RING_FLAG_NEED_POKE)) {
+        InterlockedOrAcquire((LONG *)&Xsk->Tx.Ring.Shared->Flags, XSK_RING_FLAG_NEED_POKE);
     }
 
     //
@@ -736,7 +744,7 @@ XskFillTx(
     //
     if (Xsk->Tx.Xdp.PollHandle == NULL && Xsk->Tx.Xdp.OutstandingFrames > 0 &&
         (Xsk->Tx.Ring.Shared->Flags & XSK_RING_FLAG_NEED_POKE)) {
-        InterlockedAnd((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
+        InterlockedAndRelease((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
     }
 
     return FrameCount;
@@ -902,9 +910,9 @@ XskFillTxCompletion(
         //
         // N.B. See comment in XskNotify.
         //
-        KeMemoryBarrier();
+        XdpBarrierBetweenReleaseAndAcquire();
 
-        if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_TX) &&
+        if ((ReadUInt32Acquire(&Xsk->IoWaitFlags) & XSK_NOTIFY_FLAG_WAIT_TX) &&
             (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL)) {
             XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_TX);
         }
@@ -980,6 +988,7 @@ XskIrpCreateSocket(
     _Inout_ IRP* Irp,
     _Inout_ IO_STACK_LOCATION* IrpSp,
     _In_ UCHAR Disposition,
+    _In_ const XDP_OPEN_PACKET *OpenPacket,
     _In_ VOID* InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
@@ -1014,6 +1023,12 @@ XskIrpCreateSocket(
     KeInitializeEvent(&Xsk->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&Xsk->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
+
+    //
+    // XDP_API_VERSION_2 changed the ideal processor option to disabled by default.
+    //
+    Xsk->Rx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
+    Xsk->Tx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
 
     IrpSp->FileObject->FsContext = Xsk;
 
@@ -1051,10 +1066,10 @@ XskAcquirePollLock(
     _In_ XSK *Xsk
     )
 {
-    InterlockedIncrement((LONG *)&Xsk->PollWaiters);
+    InterlockedIncrementAcquire((LONG *)&Xsk->PollWaiters);
     XskPollSocketNotify(Xsk);
     RtlAcquirePushLockExclusive(&Xsk->PollLock);
-    InterlockedDecrement((LONG *)&Xsk->PollWaiters);
+    InterlockedDecrementRelease((LONG *)&Xsk->PollWaiters);
 }
 
 static
@@ -3383,6 +3398,82 @@ Exit:
 
 static
 NTSTATUS
+XskSockoptSetIdealProcessor(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    )
+{
+    NTSTATUS Status;
+    const VOID *SockoptIn;
+    UINT32 SockoptInSize;
+    UINT32 Enabled;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    //
+    // This is a nested buffer not copied by IO manager, so it needs special care.
+    //
+    SockoptIn = Sockopt->InputBuffer;
+    SockoptInSize = Sockopt->InputBufferLength;
+
+    if (SockoptInSize < sizeof(Enabled)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    __try {
+        if (RequestorMode != KernelMode) {
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
+        }
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    switch (Sockopt->Option) {
+    case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p Set XSK_SOCKOPT_RX_PROCESSOR_AFFINITY Enabled=%u",
+            Xsk, Enabled);
+        Xsk->Rx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        break;
+
+    case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p Set XSK_SOCKOPT_TX_PROCESSOR_AFFINITY Enabled=%u",
+            Xsk, Enabled);
+        Xsk->Tx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        break;
+
+    default:
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
+NTSTATUS
 XskSockoptGetError(
     _In_ XSK *Xsk,
     _In_ UINT32 Option,
@@ -3747,7 +3838,7 @@ XskGetIdealProcessor(
     //
     // Reset the affinity flag before reading the affinity value.
     //
-    InterlockedAnd((LONG *)&Ring->Shared->Flags, ~XSK_RING_FLAG_AFFINITY_CHANGED);
+    InterlockedAndAcquire((LONG *)&Ring->Shared->Flags, ~XSK_RING_FLAG_AFFINITY_CHANGED);
 
     ProcIndex = ReadUInt32NoFence(&Ring->IdealProcessor);
     if (ProcIndex == INVALID_PROCESSOR_INDEX) {
@@ -3859,6 +3950,10 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_TX_HOOK_ID:
         Status = XskSockoptSetHookId(Xsk, Sockopt, Irp->RequestorMode);
         break;
+    case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
+    case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
+        Status = XskSockoptSetIdealProcessor(Xsk, Sockopt, Irp->RequestorMode);
+        break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
         Status = XskSockoptSetPollMode(Xsk, Sockopt, Irp->RequestorMode);
@@ -3962,7 +4057,7 @@ XskPoke(
             // flag on the TX ring. The poke routine is required to execute a
             // FlushTransmit, which guarantees the need poke flag can be set.
             //
-            InterlockedAnd((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
+            InterlockedAndNoFence((LONG *)&Xsk->Tx.Ring.Shared->Flags, ~XSK_RING_FLAG_NEED_POKE);
 
             if (Xsk->Tx.Xdp.Flags.QueueActive) {
                 XdpTxQueueInvokeInterfaceNotify(Xsk->Tx.Xdp.Queue, NotifyFlags);
@@ -4152,7 +4247,7 @@ XskNotify(
     // similar race condition when the inverse of these operations are done
     // during IO completion.
     //
-    KeMemoryBarrier();
+    XdpBarrierBetweenReleaseAndAcquire();
 
     //
     // Check for ready IO.
@@ -4372,9 +4467,9 @@ XskReceiveSubmitBatch(
         //
         // N.B. See comment in XskNotify.
         //
-        KeMemoryBarrier();
+        XdpBarrierBetweenReleaseAndAcquire();
 
-        if ((Xsk->IoWaitFlags & XSK_NOTIFY_FLAG_WAIT_RX) &&
+        if ((ReadUInt32Acquire(&Xsk->IoWaitFlags) & XSK_NOTIFY_FLAG_WAIT_RX) &&
             (KeReadStateEvent(&Xsk->IoWaitEvent) == 0 || Xsk->IoWaitIrp != NULL)) {
             XskSignalReadyIo(Xsk, XSK_NOTIFY_FLAG_WAIT_RX);
         }

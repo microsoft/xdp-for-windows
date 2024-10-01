@@ -5,6 +5,7 @@
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
+#include "xdp/ebpfhook.h"
 
 SEC("xdp/l1fwd")
 int

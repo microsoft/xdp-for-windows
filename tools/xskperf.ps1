@@ -13,8 +13,8 @@ param (
     [string]$Config = "Release",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("x64")]
-    [string]$Arch = "x64",
+    [ValidateSet("x64", "arm64")]
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory=$true)]
     [string]$AdapterName,
@@ -132,7 +132,7 @@ function Wait-NetAdapterUpStatus {
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 $Mode = $Mode.ToUpper()
 $Adapter = Get-NetAdapter $AdapterName
@@ -191,7 +191,7 @@ try {
                 "udp 22-22-22-22-00-02 22-22-22-22-00-00 192.168.100.2 192.168.100.1 1234 " +
                 "$UdpDstPort $UdpSize"
             Write-Verbose "pktcmd.exe $ArgList"
-            $UdpPattern = & $ArtifactsDir\pktcmd.exe $ArgList.Split(" ")
+            $UdpPattern = & $ArtifactsDir\test\pktcmd.exe $ArgList.Split(" ")
 
             # Since the packet data is set to zero in pktcmd and XDPMP
             # implicitly sets trailing packet data to zero, truncate the string
@@ -330,7 +330,7 @@ try {
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
         & $RootDir\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose `
-            -Config $Config -Arch $Arch
+            -Config $Config -Platform $Platform
     }
 
     if (@("System", "Generic", "Native").Contains($XdpMode)) {
@@ -345,10 +345,10 @@ try {
 
         Write-Verbose "xskbench.exe $ArgList"
         if ([string]::IsNullOrEmpty($OutFile)) {
-            Start-Process $ArtifactsDir\xskbench.exe -Wait -NoNewWindow $ArgList
+            Start-Process $ArtifactsDir\test\xskbench.exe -Wait -NoNewWindow $ArgList
         } else {
             $StdErrFile = [System.IO.Path]::GetTempFileName()
-            Start-Process $ArtifactsDir\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
+            Start-Process $ArtifactsDir\test\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
                 -RedirectStandardError $StdErrFile $ArgList
             $StdErr = Get-Content $StdErrFile
             if (-not [string]::IsNullOrWhiteSpace($StdErr)) {
@@ -394,7 +394,7 @@ try {
 } finally {
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
-        & $RootDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch `
+        & $RootDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Platform $Platform `
             -EtlPath $XperfFile
     }
 

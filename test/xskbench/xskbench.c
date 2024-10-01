@@ -664,7 +664,7 @@ QpcToUs64(
     // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
     //
     UINT64 High = (Qpc >> 32) * 1000000;
-    UINT64 Low = (Qpc & 0xFFFFFFFF) * 1000000;
+    UINT64 Low = (Qpc & MAXUINT32) * 1000000;
     return
         ((High / QpcFrequency) << 32) +
         ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
@@ -781,7 +781,7 @@ NotifyDriver(
         //
         // Ensure poke flags are read after writing producer/consumer indices.
         //
-        MemoryBarrier();
+        XdpBarrierBetweenReleaseAndAcquire();
 
         if ((DirectionFlags & XSK_NOTIFY_FLAG_POKE_RX) && !XskRingProducerNeedPoke(&Queue->fillRing)) {
             DirectionFlags &= ~XSK_NOTIFY_FLAG_POKE_RX;
@@ -1809,7 +1809,7 @@ main(
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
-    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_1, &XdpApi)));
+    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi)));
 
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);

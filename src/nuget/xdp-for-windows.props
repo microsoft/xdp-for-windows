@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) Microsoft Corporation -->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="15.0">
+  <PropertyGroup>
+    <XdpBinPath>$(MSBuildThisFileDirectory)bin\$(Platform)</XdpBinPath>
+    <XdpIncludePath>$(MSBuildThisFileDirectory)include</XdpIncludePath>
+    <XdpLibraryPath>$(MSBuildThisFileDirectory)lib\$(Platform)</XdpLibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(XdpIncludePath)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(XdpLibraryPath)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

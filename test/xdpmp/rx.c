@@ -540,6 +540,8 @@ MpInitializeReceiveQueue(
         CsoInfo->Receive.TcpChecksumSucceeded = TRUE;
         CsoInfo->Receive.UdpChecksumSucceeded = TRUE;
 
+        NET_BUFFER_LIST_COALESCED_SEG_COUNT(NetBufferList) = (UINT16)Adapter->RxRscSegmentCount;
+
         //
         // Initialize packet content.
         //

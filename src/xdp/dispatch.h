@@ -13,6 +13,7 @@ XDP_FILE_CREATE_ROUTINE(
     _Inout_ IRP *Irp,
     _Inout_ IO_STACK_LOCATION *IrpSp,
     _In_ UCHAR Disposition,
+    _In_ const XDP_OPEN_PACKET *OpenPacket,
     _In_ VOID *InputBuffer,
     _In_ SIZE_T InputBufferLength
     );

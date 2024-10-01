@@ -5,7 +5,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [string]$AdapterName = "XDPMP",
@@ -26,12 +26,11 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ArtifactsDir = "$RootDir\artifacts\bin\$($Arch)_$($Config)"
-
 . $RootDir\tools\common.ps1
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 
 for ($i = 0; $i -lt $QueueCount; $i++) {
-    Start-Process $ArtifactsDir\rxfilter.exe -ArgumentList `
+    Start-Process $ArtifactsDir\test\rxfilter.exe -ArgumentList `
         "-IfIndex", (Get-NetAdapter -Name $AdapterName).ifIndex, `
         "-QueueId", $i, "-MatchType" ,"All", "-Action", $Action, `
         "-XdpMode", $XdpMode
