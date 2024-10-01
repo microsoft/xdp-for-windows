@@ -801,7 +801,7 @@ NotifyDriver(
         //
         // Ensure poke flags are read after writing producer/consumer indices.
         //
-        MemoryBarrier();
+        XdpBarrierBetweenReleaseAndAcquire();
 
         if ((DirectionFlags & XSK_NOTIFY_FLAG_POKE_RX) && !XskRingProducerNeedPoke(&Queue->fillRing)) {
             DirectionFlags &= ~XSK_NOTIFY_FLAG_POKE_RX;

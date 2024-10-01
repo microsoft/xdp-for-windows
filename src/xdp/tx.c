@@ -640,7 +640,7 @@ XdpTxQueueNotify(
         // Similar to NetAdapter, changing MTU after a queue is created causes
         // the queue to be torn down, and perhaps re-created.
         //
-        if (!InterlockedExchange8((CHAR *)&TxQueue->DeleteNeeded, 1)) {
+        if (!InterlockedExchangeNoFence8((CHAR *)&TxQueue->DeleteNeeded, 1)) {
             TxQueue->DeleteWorkItem.BindingHandle = TxQueue->Binding;
             TxQueue->DeleteWorkItem.WorkRoutine = XdpTxQueueDeleteWorker;
             XdpTxQueueInterlockedReference(TxQueue);

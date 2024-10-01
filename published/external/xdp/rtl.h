@@ -67,6 +67,20 @@ WriteUInt32NoFence(
 
 #endif
 
+#ifdef _M_ARM64_
+//
+// A pair of acquire and release operations is sufficient on ARM64
+// because they cannot be reordered relative to each other.
+//
+#define XdpBarrierBetweenReleaseAndAcquire()
+#else
+#ifdef _KERNEL_MODE
+#define XdpBarrierBetweenReleaseAndAcquire() KeMemoryBarrier()
+#else
+#define XdpBarrierBetweenReleaseAndAcquire() MemoryBarrier()
+#endif // _KERNEL_MODE
+#endif // _M_ARM64_
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

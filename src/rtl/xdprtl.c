@@ -84,7 +84,7 @@ RtlRandomNumber(
         // (Re)seed. Take the current QPC and add a bit of per-partition entropy.
         //
         LARGE_INTEGER Qpc = KeQueryPerformanceCounter(NULL);
-        InterlockedCompareExchange(RandomState, Qpc.LowPart ^ (PartitionIndex << 16), 0);
+        InterlockedCompareExchangeNoFence(RandomState, Qpc.LowPart ^ (PartitionIndex << 16), 0);
     }
 
     //
@@ -96,7 +96,7 @@ RtlRandomNumber(
     do {
         OldValue = *RandomState;
         NewValue = (1664525 * OldValue) + 1013904223;
-    } while (InterlockedCompareExchange(RandomState, NewValue, OldValue) != OldValue);
+    } while (InterlockedCompareExchangeNoFence(RandomState, NewValue, OldValue) != OldValue);
 
     return (UINT32)NewValue;
 }

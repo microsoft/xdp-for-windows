@@ -23,13 +23,13 @@ XdpLifetimeDpc(
     _In_opt_ VOID *SystemArgument2
     )
 {
-    UINT32 *ReferenceCount = SystemArgument1;
+    XDP_REFERENCE_COUNT *ReferenceCount = SystemArgument1;
     KEVENT *Event = SystemArgument2;
 
     UNREFERENCED_PARAMETER(Dpc);
     UNREFERENCED_PARAMETER(DeferredContext);
 
-    if (InterlockedDecrement((LONG *)ReferenceCount) == 0) {
+    if (XdpDecrementReferenceCount(ReferenceCount)) {
         KeSetEvent(Event, 0, FALSE);
     }
 }
@@ -41,7 +41,7 @@ XdpLifetimeWorker(
     )
 {
     UINT32 ProcessorCount = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
-    UINT32 ReferenceCount = ProcessorCount;
+    XDP_REFERENCE_COUNT ReferenceCount;
     KEVENT Event;
     UINT32 Index;
 
@@ -51,6 +51,7 @@ XdpLifetimeWorker(
     // Before deleting the entries, sweep across all processors, ensuring all
     // DPCs that might hold an active reference to objects finish executing.
     //
+    XdpInitializeReferenceCountEx(&ReferenceCount, ProcessorCount);
     KeInitializeEvent(&Event, NotificationEvent, FALSE);
 
     for (Index = 0; Index < ProcessorCount; Index++) {

@@ -128,7 +128,7 @@ NdisPollCpuNotify(
 
     // A poll has been requested. Ensure the poll is enqueued only once.
 
-    if (InterlockedExchange(&Ec->Armed, FALSE)) {
+    if (InterlockedAndRelease(&Ec->Armed, FALSE)) {
         ULONG CurrentProcessor = KeGetCurrentProcessorIndex();
 
         if (Ec->OwningCpu == CurrentProcessor) {
@@ -245,7 +245,7 @@ NdisPollCpu(
             //
 
             RemoveEntryList(&Ec->Link);
-            NT_VERIFY(InterlockedExchange(&Ec->Armed, TRUE) == FALSE);
+            NT_VERIFY(InterlockedOr(&Ec->Armed, TRUE) == FALSE);
             NdisPollEnableInterrupt(Q);
 
             if (Ec->NeedCleanup) {
@@ -316,7 +316,7 @@ NdisPollCpuInsert(
     KeGetProcessorNumberFromIndex(Ec->OwningCpu, &ProcessorNumber);
     KeSetTargetProcessorDpcEx(&Ec->CrossCpuDpc, &ProcessorNumber);
 
-    InterlockedExchange(&Ec->Armed, TRUE);
+    InterlockedOrRelease(&Ec->Armed, TRUE);
 
     if (Q->MiniportPollContext != NULL) {
         // This is a re-insert, so we must restart our poll loop.

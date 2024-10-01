@@ -16,7 +16,7 @@ MpRateSimInterrupt(
     _In_ ADAPTER_QUEUE *RssQueue
     )
 {
-    if (InterlockedExchange8((CHAR *)&RssQueue->RateSim.HwArmed, FALSE)) {
+    if (InterlockedAndNoFence8((CHAR *)&RssQueue->RateSim.HwArmed, FALSE)) {
         RssQueue->Adapter->PollDispatch.RequestPoll(RssQueue->NdisPollHandle, 0);
     }
 }
@@ -123,7 +123,7 @@ MpRateSimEnableInterrupt(
     //
     // If the timer is already armed, do nothing.
     //
-    if (InterlockedExchange8((CHAR *)&RssQueue->RateSim.HwArmed, TRUE)) {
+    if (InterlockedOrNoFence8((CHAR *)&RssQueue->RateSim.HwArmed, TRUE)) {
         return;
     }
 

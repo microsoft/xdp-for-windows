@@ -102,7 +102,7 @@ XdpGenericRecvInjectReturnNbls(
         ASSERT(NblRxTxContext(Nbl)->RxQueue == RxQueue);
 
         if (ParentNbl != NULL) {
-            if (InterlockedDecrement((LONG *)&Nbl->ParentNetBufferList->ChildRefCount) == 0) {
+            if (InterlockedDecrementRelease(&Nbl->ParentNetBufferList->ChildRefCount) == 0) {
                 NdisAppendSingleNblToNblQueue(&ReturnList, Nbl->ParentNetBufferList);
             }
         } else {

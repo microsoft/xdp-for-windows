@@ -213,7 +213,7 @@ XdpLwfOidRequestWorker(
     UNREFERENCED_PARAMETER(IoWorkItem);
     ASSERT(Context != NULL);
 
-    Request = InterlockedExchangePointer(&Filter->OidWorkerRequest, NULL);
+    Request = InterlockedExchangePointerNoFence(&Filter->OidWorkerRequest, NULL);
     FRE_ASSERT(Request != NULL);
     FRE_ASSERT(XdpLwfOidRequest((NDIS_HANDLE)Filter, Request) == NDIS_STATUS_PENDING);
 
@@ -440,7 +440,8 @@ XdpLwfCommonOidRequest(
             // implementation requires OID inspection to run at passive level, queue
             // a passive level work item and return.
             //
-            FRE_ASSERT(InterlockedExchangePointer(&Filter->OidWorkerRequest, Request) == NULL);
+            FRE_ASSERT(
+                InterlockedExchangePointerNoFence(&Filter->OidWorkerRequest, Request) == NULL);
             IoQueueWorkItemEx(Filter->OidWorker, XdpLwfOidRequestWorker, DelayedWorkQueue, Filter);
             Status = NDIS_STATUS_PENDING;
             goto Exit;

@@ -9,6 +9,30 @@
 
 typedef INT64 XDP_REFERENCE_COUNT;
 
+#if defined(_AMD64_)
+
+#define RtlAcquireFenceAfterReleaseOp(Ptr)
+
+#elif defined(_ARM64_)
+
+//
+// The LDAR instruction has Armv8 Acquire semantics, which prevents
+// it from being reordered before a prior operation with Release
+// semantics. In addition, it prevents all RW operations after it
+// from being reordered before it, so it can be used here as an
+// acquire fence if a prior operation has Release semantics.
+//
+
+#define RtlAcquireFenceAfterReleaseOp(Ptr)            \
+    C_ASSERT(sizeof(*(Ptr)) == 8);                    \
+    __ldar64((volatile unsigned __int64 *)(Ptr))
+
+#else
+
+#error Unsupported architecture.
+
+#endif
+
 inline
 VOID
 XdpInitializeReferenceCount(
@@ -35,7 +59,7 @@ XdpIncrementReferenceCount(
     _Inout_ XDP_REFERENCE_COUNT *RefCount
     )
 {
-    FRE_ASSERT(InterlockedIncrement64(RefCount) > 1);
+    FRE_ASSERT(InterlockedIncrementNoFence64(RefCount) > 1);
 }
 
 inline
@@ -44,8 +68,21 @@ XdpDecrementReferenceCount(
     _Inout_ XDP_REFERENCE_COUNT *RefCount
     )
 {
-    INT64 NewValue = InterlockedDecrement64(RefCount);
-    FRE_ASSERT(NewValue >= 0);
+    INT64 NewValue = InterlockedDecrementRelease64(RefCount);
 
-    return NewValue == 0;
+    if (NewValue > 0) {
+        return FALSE;
+    } else if (NewValue == 0) {
+        //
+        // An acquire fence is required before object destruction to ensure
+        // that the destructor cannot observe values changing on other threads.
+        //
+        RtlAcquireFenceAfterReleaseOp(RefCount);
+        return TRUE;
+    } else {
+        __fastfail(FAST_FAIL_INVALID_REFERENCE_COUNT);
+        return FALSE;
+    }
 }
+
+#undef RtlAcquireFenceAfterReleaseOp

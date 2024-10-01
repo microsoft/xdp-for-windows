@@ -126,7 +126,7 @@ HwRingBoundedMpReserve(
     )
 {
     KeRaiseIrql(DISPATCH_LEVEL, OldIrql);
-    *Head = InterlockedAdd((LONG *)&Ring->ProducerReserved, Count) - Count;
+    *Head = InterlockedAddAcquire((LONG *)&Ring->ProducerReserved, Count) - Count;
 }
 
 //
@@ -151,7 +151,7 @@ HwRingBestEffortMpReserve(
         OldProducerReserved = Ring->ProducerReserved;
         Count = Ring->Mask + 1 - (OldProducerReserved - Ring->ConsumerIndex);
         Count = min(MaxCount, Count);
-    } while (InterlockedCompareExchange(
+    } while (InterlockedCompareExchangeAcquire(
                 (LONG *)&Ring->ProducerReserved, OldProducerReserved + Count, OldProducerReserved)
             != (LONG)OldProducerReserved);
 
