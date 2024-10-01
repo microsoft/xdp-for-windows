@@ -6,7 +6,7 @@ This script runs the XDP functional tests.
 .PARAMETER Config
     Specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     The CPU architecture to use.
 
 .PARAMETER TestCaseFilter
@@ -30,7 +30,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [string]$TestCaseFilter = "",
@@ -74,7 +74,7 @@ function CleanupKernelMode {
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
-$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $IterationFailureCount = 0
 $IterationTimeout = 0
@@ -87,7 +87,7 @@ if ($VsTestPath -eq $null) {
     Write-Error "Could not find VSTest path"
 }
 $VsTestConsole = "vstest.console"
-if ($Arch -eq "arm64") {
+if ($Platform -eq "arm64") {
     $VsTestConsole = "vstest.console.arm64"
 }
 
@@ -123,28 +123,28 @@ for ($i = 1; $i -le $Iterations; $i++) {
             $LogName += "-$i"
         }
 
-        & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Arch $Arch
+        & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Arch $Arch
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
             Write-Verbose "installed ebpf."
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Arch $Arch -EnableEbpf -EnableKmXdpApi:$KernelMode
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -EnableKmXdpApi:$KernelMode
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing fnmp..."
-        & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
         Write-Verbose "installed fnmp."
 
         Write-Verbose "installing fnlwf..."
-        & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install fnlwf -Config $Config -Platform $Platform
         Write-Verbose "installed fnlwf."
 
         Write-Verbose "installing fnsock..."
-        & "$RootDir\tools\setup.ps1" -Install fnsock -Config $Config -Arch $Arch
+        & "$RootDir\tools\setup.ps1" -Install fnsock -Config $Config -Platform $Platform
         Write-Verbose "installed fnsock."
 
         $TestArgs = @()
@@ -187,17 +187,17 @@ for ($i = 1; $i -le $Iterations; $i++) {
         if ($Watchdog -ne $null) {
             Remove-Job -Job $Watchdog -Force
         }
-        & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         if ($KernelMode) {
             CleanupKernelMode
         }
         if (!$EbpfPreinstalled) {
-            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
-        & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Arch $Arch -ErrorAction 'Continue'
+        & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Platform $Platform -ErrorAction 'Continue'
     }
 }
 

@@ -6,7 +6,7 @@ This script installs or uninstalls various XDP components.
 .PARAMETER Config
     Specifies the build configuration to use.
 
-.PARAMETER Arch
+.PARAMETER Platform
     The CPU architecture to use.
 
 .PARAMETER Install
@@ -30,7 +30,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf", "xskbenchdrv")]
@@ -63,7 +63,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 # Important paths.
-$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Arch $Arch
+$ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $DevCon = Get-CoreNetCiArtifactPath -Name "devcon.exe"
 $DswDevice = Get-CoreNetCiArtifactPath -Name "dswdevice.exe"
@@ -77,7 +77,7 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Arch.$XdpFileVersion.msi"
+$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
 $XskBenchDrvSys = "$ArtifactsDir\test\xskbenchdrv\xskbenchdrv.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
@@ -257,8 +257,8 @@ function Uninstall-Driver($Inf) {
 function Install-DebugCrt {
     # The debug CRT does not have an official redistributable, so use our own repackaged version.
     if ($Config -eq "Debug") {
-        Write-Verbose "Installing debugcrt from $(Get-ArtifactBinPath -Arch $Arch -Config $Config)\test\debugcrt\* to $env:WINDIR\system32"
-        Copy-Item -Recurse -Force "$(Get-ArtifactBinPath -Arch $Arch -Config $Config)\test\debugcrt\*" "$env:WINDIR\system32" | Write-Verbose
+        Write-Verbose "Installing debugcrt from $(Get-ArtifactBinPath -Platform $Platform -Config $Config)\test\debugcrt\* to $env:WINDIR\system32"
+        Copy-Item -Recurse -Force "$(Get-ArtifactBinPath -Platform $Platform -Config $Config)\test\debugcrt\*" "$env:WINDIR\system32" | Write-Verbose
     }
 }
 
@@ -478,8 +478,8 @@ function Uninstall-XdpMp {
 
 # Installs the fnmp driver.
 function Install-FnMp {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "Renaming adapters"
     Rename-NetAdapter-With-Retry FNMP XDPFNMP
@@ -528,39 +528,39 @@ function Uninstall-FnMp {
     netsh int ipv6 delete address xdpfnmp1q fc00::201:1 | Out-Null
     netsh int ipv6 delete neighbors xdpfnmp1q | Out-Null
 
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Arch -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "fnmp.sys uninstall complete!"
 }
 
 # Installs the fnlwf driver.
 function Install-FnLwf {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnlwf -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnlwf -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
 # Uninstalls the fnlwf driver.
 function Uninstall-FnLwf {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnlwf -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnlwf -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 }
 
 # Installs fnsock.
 function Install-FnSock {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnsock -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnsock -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnsock -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnsock -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
 }
 
 # Uninstalls fnsock.
 function Uninstall-FnSock {
-    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnsock -Config $Config -Arch $Arch -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
-    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnsock -Config $Config -Arch $Arch -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
+    Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Uninstall fnsock -Config $Config -Arch $Platform -ArtifactsDir $(Get-FnRuntimeDir)/bin/fnsock -LogsDir $LogsDir"
+    & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Uninstall fnsock -Config $Config -Arch $Platform -ArtifactsDir "$(Get-FnRuntimeDir)/bin/fnsock" -LogsDir $LogsDir
 }
 
 function Install-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Arch
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -585,7 +585,7 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Arch
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
     $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {

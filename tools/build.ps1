@@ -97,5 +97,5 @@ if (!$?) {
 }
 
 if ($TestArchive) {
-    & $RootDir\tools\create-test-archive.ps1 -Config $Config
+    & $RootDir\tools\create-test-Archive.ps1 -Config $Config
 }

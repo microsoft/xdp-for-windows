@@ -5,7 +5,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
     [string]$PeerName = "netperf-peer",
@@ -33,8 +33,8 @@ if ($null -eq $Session) {
 
 $RootDir = $pwd
 . $RootDir\tools\common.ps1
-$ArtifactBin = Get-ArtifactBinPath -Config $Config -Arch $Arch
-$ArtifactBinBase = Get-ArtifactBinPatBase -Config $Config -Arch $Arch
+$ArtifactBin = Get-ArtifactBinPath -Config $Config -Platform $Platform
+$ArtifactBinBase = Get-ArtifactBinPatBase -Config $Config -Platform $Platform
 
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
@@ -96,38 +96,38 @@ Invoke-Command -Session $Session -ScriptBlock {
 
 # Check for any previously drivers.
 Write-Output "Checking local machine state..."
-tools\check-drivers.ps1 -Config $Config -Arch $Arch
+tools\check-drivers.ps1 -Config $Config -Platform $Platform
 Write-Output "Checking remote machine state..."
 Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Arch $Arch
-} -ArgumentList $Config, $Arch, $RemoteDir
+    param ($Config, $Platform, $RemoteDir)
+    & $RemoteDir\tools\check-drivers.ps1 -Config $Config -Platform $Platform
+} -ArgumentList $Config, $Platform, $RemoteDir
 
 try {
 # Install eBPF on the machines.
 Write-Output "Installing eBPF locally..."
-tools\setup.ps1 -Install ebpf -Config $Config -Arch $Arch
+tools\setup.ps1 -Install ebpf -Config $Config -Platform $Platform
 Write-Output "Installing eBPF on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\setup.ps1 -Install ebpf -Config $Config -Arch $Arch
-} -ArgumentList $Config, $Arch, $RemoteDir
+    param ($Config, $Platform, $RemoteDir)
+    & $RemoteDir\tools\setup.ps1 -Install ebpf -Config $Config -Platform $Platform
+} -ArgumentList $Config, $Platform, $RemoteDir
 
 # Install XDP on the machines.
 # Set GenericDelayDetachTimeoutSec regkey to zero. This ensures XDP
 # instantly detaches from the LWF data path whenever no programs are plumbed.
 #
 Write-Output "Installing XDP locally..."
-tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+tools\setup.ps1 -Install xdp -Config $Config -Platform $Platform -EnableEbpf
 Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
 reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
 Write-Output "Installing XDP on peer..."
 Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir)
-    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Arch $Arch -EnableEbpf
+    param ($Config, $Platform, $RemoteDir)
+    & $RemoteDir\tools\setup.ps1 -Install xdp -Config $Config -Platform $Platform -EnableEbpf
     Write-Verbose "Setting GenericDelayDetachTimeoutSec = 0"
     reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v GenericDelayDetachTimeoutSec /d 0 /t REG_DWORD /f | Write-Verbose
-} -ArgumentList $Config, $Arch, $RemoteDir
+} -ArgumentList $Config, $Platform, $RemoteDir
 
 # Allow wsario.exe through the remote firewall
 Write-Output "Allowing wsario.exe through firewall..."
@@ -138,13 +138,13 @@ Write-Verbose "Adding firewall rules"
 # Start logging.
 Write-Output "Starting local logs..."
 try { wpr.exe -cancel -instancename xskcpu 2>&1 | Out-Null } catch { }
-tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
+tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Platform $Platform
 Write-Output "Starting remote logs..."
 Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir)
+    param ($Config, $Platform, $RemoteDir)
     try { wpr.exe -cancel -instancename xskcpu 2>&1 | Out-Null } catch { }
-    & $RemoteDir\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Arch $Arch
-} -ArgumentList $Config, $Arch, $RemoteDir
+    & $RemoteDir\tools\log.ps1 -Start -Name xskcpu -Profile CpuSample.Verbose -Config $Config -Platform $Platform
+} -ArgumentList $Config, $Platform, $RemoteDir
 
 Write-Output "`n====================EXECUTION====================`n"
 
@@ -186,11 +186,11 @@ Receive-Job -Job $Job -ErrorAction 'Continue'
 # Run xskbench.
 Write-Output "Generating TX on the peer (sending to UDP 9999)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
+    param ($Config, $Platform, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
     & $WsaRio Winsock Send -Bind $LocalAddress -Target "$RemoteAddress`:9999" -PortOffset 0 -IoCount -1 -MaxDuration 180 -ThreadCount 32 -Group 1 -CPU 0 -OptFlags 0x1 -IoSize 60000 -Uso 1000 -QueueDepth 1
-} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
+} -ArgumentList $Config, $Platform, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 for ($i = 0; $i -lt 5; $i++) {
     Start-Sleep -Seconds 1
@@ -218,7 +218,7 @@ Receive-Job -Job $Job -ErrorAction 'Continue'
 # Run wsario.
 Write-Output "Starting wsario on the peer (sending to UDP 9999, 10000, 10001, ...)..."
 $Job = Invoke-Command -Session $Session -ScriptBlock {
-    param ($Config, $Arch, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
+    param ($Config, $Platform, $RemoteDir, $RemoteAddress, $LocalInterface, $LocalAddress)
     . $RemoteDir\tools\common.ps1
     $WsaRio = Get-CoreNetCiArtifactPath -Name "WsaRio"
     $ThreadCount = 8
@@ -232,7 +232,7 @@ $Job = Invoke-Command -Session $Session -ScriptBlock {
         Wait-Job -Job $Jobs[$i] | Out-Null
         Receive-Job -Job $Jobs[$i] -ErrorAction 'Continue'
     }
-} -ArgumentList $Config, $Arch, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
+} -ArgumentList $Config, $Platform, $RemoteDir, $LocalAddress, $RemoteInterface, $RemoteAddress -AsJob
 
 foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
     switch ($XdpMode) {
@@ -282,29 +282,29 @@ Write-Output "Test Complete!"
     # Grab the logs.
     Write-Output "Stopping remote logs..."
     Invoke-Command -Session $Session -ScriptBlock {
-        param ($Config, $Arch, $RemoteDir)
-        & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue' | Out-Null
-    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
+        param ($Config, $Platform, $RemoteDir)
+        & $RemoteDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Platform $Platform -EtlPath $RemoteDir\artifacts\logs\xskbench-peer.etl -ErrorAction 'Continue' | Out-Null
+    } -ArgumentList $Config, $Platform, $RemoteDir -ErrorAction 'Continue'
     Write-Output "Stopping local logs..."
-    tools\log.ps1 -Stop -Name xskcpu -Config $Config -Arch $Arch -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
+    tools\log.ps1 -Stop -Name xskcpu -Config $Config -Platform $Platform -EtlPath artifacts\logs\xskbench-local.etl -ErrorAction 'Continue' | Out-Null
     Write-Output "Copying remote logs..."
     Copy-Item -FromSession $Session $RemoteDir\artifacts\logs\xskbench-peer.etl -Destination artifacts\logs -ErrorAction 'Continue'
     Write-Output "Removing WsaRio firewall rule"
     & netsh.exe advfirewall firewall del rule name="AllowWsaRio" | Out-Null
     # Clean up XDP driver state.
     Write-Output "Removing XDP locally..."
-    tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    tools\setup.ps1 -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     Write-Output "Removing XDP on peer..."
     Invoke-Command -Session $Session -ScriptBlock {
-        param ($Config, $Arch, $RemoteDir)
-        & $RemoteDir\tools\setup.ps1 -Uninstall xdp -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
+        param ($Config, $Platform, $RemoteDir)
+        & $RemoteDir\tools\setup.ps1 -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    } -ArgumentList $Config, $Platform, $RemoteDir -ErrorAction 'Continue'
     # Clean up eBPF
     Write-Output "Removing eBPF locally..."
-    tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
+    tools\setup.ps1 -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
     Write-Output "Removing eBPF on peer..."
     Invoke-Command -Session $Session -ScriptBlock {
-        param ($Config, $Arch, $RemoteDir)
-        & $RemoteDir\tools\setup.ps1 -Uninstall ebpf -Config $Config -Arch $Arch -ErrorAction 'Continue'
-    } -ArgumentList $Config, $Arch, $RemoteDir -ErrorAction 'Continue'
+        param ($Config, $Platform, $RemoteDir)
+        & $RemoteDir\tools\setup.ps1 -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    } -ArgumentList $Config, $Platform, $RemoteDir -ErrorAction 'Continue'
 }
