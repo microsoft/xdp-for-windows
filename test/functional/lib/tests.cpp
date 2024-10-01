@@ -66,25 +66,24 @@
 #include <fnlwfapi.h>
 #include <fnoid.h>
 
-#include "cxplat.hpp"
-#include "cxplat.h"
-#include "cxplatvector.h"
-#include "fnsock.h"
-
 #include <xdpndisuser.h>
 #endif KERNEL_MODE
 
 #include <fntrace.h>
 #include <qeo_ndis.h>
-#include <xdp/ebpfhook.h>
 
 #ifndef KERNEL_MODE
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
+#include <xdp/ebpfhook.h>
 
-#include "ebpf_nethooks.h"
+#include "cxplat.hpp"
+#include "cxplat.h"
+#include "cxplatvector.h"
+#include "fnsock.h"
 #endif
+
 
 #include "xdptest.h"
 #include "tests.h"

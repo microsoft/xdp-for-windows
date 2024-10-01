@@ -26,6 +26,8 @@
         $(SolutionDir)submodules\cxplat\inc;
         $(SolutionDir)submodules\net-offloads\include;
         $(SolutionDir)submodules\wil\include;
+        $(UserProfile)\.nuget\packages\win-net-test\1.2.0\build\native\include;
+        $(UserProfile)\.nuget\packages\ebpf-for-windows\0.18.0\build\native\include;
         $(WntIncPath);
         $(IntDir);
         %(AdditionalIncludeDirectories)

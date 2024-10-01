@@ -53,6 +53,6 @@
     </Link>
   </ItemDefinitionGroup>
   <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
-      <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.kernel.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\"/>
+    <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.kernel.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\;UndockedSourceLink=false"/>
   </Target>
 </Project>

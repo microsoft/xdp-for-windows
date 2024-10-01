@@ -6,8 +6,6 @@
   <PropertyGroup>
     <ProjectGuid>{c8280a34-02c5-4bde-9f4f-71efa06c8351}</ProjectGuid>
     <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
-  </PropertyGroup>
-  <PropertyGroup>
     <TargetName>xdptests_km</TargetName>
     <UndockedType>drvlib</UndockedType>
   </PropertyGroup>

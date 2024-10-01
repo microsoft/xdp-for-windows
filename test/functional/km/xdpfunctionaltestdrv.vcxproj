@@ -10,7 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests_km.vcxproj">
-      <Project>{3539d1da-2355-4352-865f-5120a59846eb}</Project>
+      <Project>{c8280a34-02c5-4bde-9f4f-71efa06c8351}</Project>
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
       <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
