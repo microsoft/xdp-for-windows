@@ -14,7 +14,7 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Project = "",
 
-    [ValidateSet("", "Binary", "Catalog", "Package")]
+    [ValidateSet("", "Binary", "Catalog", "Package", "AllPackage")]
     [Parameter(Mandatory=$false)]
     [string]$BuildStage = "",
 
