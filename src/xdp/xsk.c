@@ -38,6 +38,9 @@ typedef struct _XSK_KERNEL_RING {
     VOID *UserVa;
     VOID *OwningProcess;
     UINT32 IdealProcessor;
+    struct {
+        BOOLEAN ProfileIdealProcessor;
+    } Flags;
     XSK_ERROR Error;
 } XSK_KERNEL_RING;
 
@@ -428,20 +431,22 @@ XskKernelRingUpdateIdealProcessor(
     _Inout_ XSK_KERNEL_RING *Ring
     )
 {
-    UINT32 CurrentProcessor = KeGetCurrentProcessorIndex();
+    if (Ring->Flags.ProfileIdealProcessor) {
+        UINT32 CurrentProcessor = KeGetCurrentProcessorIndex();
 
-    ASSERT(Ring->Size > 0);
+        ASSERT(Ring->Size > 0);
 
-    //
-    // Set the ideal processor to the current processor. For queues that are not
-    // strongly affinitized (e.g. RSS disabled, not supported, plain buggy) we
-    // might need to add a heuristic to avoid indicating flapping CPUs up to
-    // applications.
-    //
+        //
+        // Set the ideal processor to the current processor. For queues that are not
+        // strongly affinitized (e.g. RSS disabled, not supported, plain buggy) we
+        // might need to add a heuristic to avoid indicating flapping CPUs up to
+        // applications.
+        //
 
-    if (Ring->IdealProcessor != CurrentProcessor) {
-        Ring->IdealProcessor = CurrentProcessor;
-        InterlockedOrRelease((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
+        if (Ring->IdealProcessor != CurrentProcessor) {
+            Ring->IdealProcessor = CurrentProcessor;
+            InterlockedOrRelease((LONG *)&Ring->Shared->Flags, XSK_RING_FLAG_AFFINITY_CHANGED);
+        }
     }
 }
 
@@ -1094,6 +1099,7 @@ XskIrpCreateSocket(
     _Inout_ IRP* Irp,
     _Inout_ IO_STACK_LOCATION* IrpSp,
     _In_ UCHAR Disposition,
+    _In_ const XDP_OPEN_PACKET *OpenPacket,
     _In_ VOID* InputBuffer,
     _In_ SIZE_T InputBufferLength
     )
@@ -1112,6 +1118,12 @@ XskIrpCreateSocket(
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
+
+    //
+    // XDP_API_VERSION_2 changed the ideal processor option to disabled by default.
+    //
+    Xsk->Rx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
+    Xsk->Tx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
 
     IrpSp->FileObject->FsContext = Xsk;
 
@@ -3560,6 +3572,82 @@ Exit:
 
 static
 NTSTATUS
+XskSockoptSetIdealProcessor(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    )
+{
+    NTSTATUS Status;
+    const VOID *SockoptIn;
+    UINT32 SockoptInSize;
+    UINT32 Enabled;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    //
+    // This is a nested buffer not copied by IO manager, so it needs special care.
+    //
+    SockoptIn = Sockopt->InputBuffer;
+    SockoptInSize = Sockopt->InputBufferLength;
+
+    if (SockoptInSize < sizeof(Enabled)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    __try {
+        if (RequestorMode != KernelMode) {
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
+        }
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    switch (Sockopt->Option) {
+    case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p Set XSK_SOCKOPT_RX_PROCESSOR_AFFINITY Enabled=%u",
+            Xsk, Enabled);
+        Xsk->Rx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        break;
+
+    case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p Set XSK_SOCKOPT_TX_PROCESSOR_AFFINITY Enabled=%u",
+            Xsk, Enabled);
+        Xsk->Tx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        break;
+
+    default:
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
+NTSTATUS
 XskSockoptGetError(
     _In_ XSK *Xsk,
     _In_ UINT32 Option,
@@ -4046,6 +4134,10 @@ XskSetSockopt(
     case XSK_SOCKOPT_RX_HOOK_ID:
     case XSK_SOCKOPT_TX_HOOK_ID:
         Status = XskSockoptSetHookId(Xsk, Sockopt, RequestorMode);
+        break;
+    case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
+    case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
+        Status = XskSockoptSetIdealProcessor(Xsk, Sockopt, RequestorMode);
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:

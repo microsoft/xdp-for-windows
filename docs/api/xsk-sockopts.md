@@ -128,10 +128,13 @@ typedef enum _XSK_ERROR {
 //
 // XSK_SOCKOPT_RX_PROCESSOR_AFFINITY
 //
-// Supports: get
-// Optval type: PROCESSOR_NUMBER
-// Description: Returns the ideal processor of the kernel RX data path. This
-//              option may return errors, including but not limited to
+// Supports: set/get
+// Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
+// Description: 
+//              For set, enables or disables ideal processor profiling.
+//              This option is disabled by default.
+//              For get, returns the ideal processor of the kernel RX data path.
+//              This option may return errors, including but not limited to
 //              HRESULT_FROM_WIN32(ERROR_NOT_READY) and
 //              HRESULT_FROM_WIN32(ERROR_NOT_CAPABLE), when the ideal processor
 //              affinity is unknown or unknowable.
@@ -141,10 +144,13 @@ typedef enum _XSK_ERROR {
 //
 // XSK_SOCKOPT_TX_PROCESSOR_AFFINITY
 //
-// Supports: get
-// Optval type: PROCESSOR_NUMBER
-// Description: Returns the ideal processor of the kernel TX data path. This
-//              option may return errors, including but not limited to
+// Supports: set/get
+// Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
+// Description: 
+//              For set, enables or disables ideal processor profiling.
+//              This option is disabled by default.
+//              For get, returns the ideal processor of the kernel TX data path.
+//              This option may return errors, including but not limited to
 //              HRESULT_FROM_WIN32(ERROR_NOT_READY) and
 //              HRESULT_FROM_WIN32(ERROR_NOT_CAPABLE), when the ideal processor
 //              affinity is unknown or unknowable.

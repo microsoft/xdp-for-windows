@@ -19,7 +19,7 @@ CxPlatXdpApiInitialize(
     VOID
     )
 {
-    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_1, &XdpApi)));
+    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi)));
 }
 
 VOID

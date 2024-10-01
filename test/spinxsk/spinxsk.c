@@ -1250,6 +1250,7 @@ InitializeQueue(
 {
     HRESULT res;
     QUEUE_CONTEXT *queue;
+    UINT32 apiVersion = RandUlong() % XDP_API_VERSION_LATEST + XDP_API_VERSION_1;
 
     queue = malloc(sizeof(*queue));
     if (queue == NULL) {
@@ -1264,7 +1265,7 @@ InitializeQueue(
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
 
-    res = XdpOpenApi(XDP_API_VERSION_1, &queue->xdpApi);
+    res = XdpOpenApi(apiVersion, &queue->xdpApi);
     if (FAILED(res)) {
         goto Exit;
     }
