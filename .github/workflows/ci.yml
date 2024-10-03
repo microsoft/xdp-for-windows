@@ -267,7 +267,7 @@ jobs:
         windows: [2019, 2022, Prerelease]
         configuration: [Release]
         platform: [x64, arm64]
-        multiplier: [VM1, VM2, VM3] # run each combination across 3 runners in parallel
+        vm: [VM1, VM2, VM3] # run each combination across 3 runners in parallel
         exclude:
         - windows: 2019
           platform: arm64
@@ -305,12 +305,12 @@ jobs:
       run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Display results
       shell: PowerShell
-      run: Import-Csv "artifacts/logs/xskperfsuite.csv" | Format-Table -AutoSize | Out-String -Width 1000 -Stream
+      run: cat "artifacts/logs/xskperfsuite.csv"
     - name: Upload Logs
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
-        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.vm }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}

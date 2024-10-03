@@ -160,7 +160,7 @@ try {
     Write-Verbose "installed xdp."
 
     $Format = "{0,-73} {1,-14} {2,-14}"
-    Write-Host $($Format -f "Test Case", "Avg (Kpps)", "Std Dev (Kpps)")
+    Write-Output $($Format -f "Test Case", "Avg (Kpps)", "Std Dev (Kpps)")
     foreach ($AdapterName in $AdapterNames) {
         foreach ($XdpMode in $XdpModes) {
             foreach ($Mode in $Modes) {
@@ -216,7 +216,7 @@ try {
 
                             $avg = ($kppsList | Measure-Object -Average).Average
                             $stddev = MeasureStandardDeviation $kppsList
-                            Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
+                            Write-Output $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
 
                             if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
                                 Add-Content -Path $RawResultsFile -Value `
@@ -228,7 +228,7 @@ try {
                             }
                         } catch {
                             Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
-                            Write-Host $($Format -f $ScenarioName, -1, -1)
+                            Write-Output $($Format -f $ScenarioName, -1, -1)
                         }
                     }
                 }
