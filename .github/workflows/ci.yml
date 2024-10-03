@@ -267,6 +267,7 @@ jobs:
         windows: [2019, 2022, Prerelease]
         configuration: [Release]
         platform: [x64, arm64]
+        multiplier: [1, 2, 3] # run each combination across 3 runners in parallel
         exclude:
         - windows: 2019
           platform: arm64
