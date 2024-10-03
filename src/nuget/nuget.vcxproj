@@ -23,6 +23,10 @@
   <PropertyGroup Condition="'$(NugetPlatforms)' == ''">
     <NugetPlatforms>$(Platform)</NugetPlatforms>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(NugetPlatforms)' != '' AND '$(NugetPlatforms)' != '$(Platform)'">
+    <!-- If targetting multiple platforms, use a platform-independent output directory. -->
+    <OutDir>$(UndockedOut)bin\$(Configuration)\</OutDir>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <PostBuildEvent>
       <Command>

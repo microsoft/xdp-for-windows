@@ -14,7 +14,7 @@ param (
     [string]$InputFile = "",
 
     [Parameter(Mandatory=$true)]
-    [string]$OutputFile = ""  
+    [string]$OutputFile = ""
 )
 
 Set-StrictMode -Version 'Latest'
@@ -38,9 +38,9 @@ $ExpandedContent = @()
 foreach ($Line in $content) {
     if ($Line -like "*{anyarch}*" -or $Line -like "*{binpath_anyarch}*") {
         foreach ($PlatformName in $Platform) {
-            $Line = $Line.Replace("{anyarch}", $PlatformName)
-            $Line = $Line.Replace("{binpath_anyarch}", $(Get-ArtifactBinPath -Platform $PlatformName -Config $Config))
-            $ExpandedContent += $Line
+            $PlatformLine = $Line.Replace("{anyarch}", $PlatformName)
+            $PlatformLine = $PlatformLine.Replace("{binpath_anyarch}", $(Get-ArtifactBinPath -Platform $PlatformName -Config $Config))
+            $ExpandedContent += $PlatformLine
         }
     } else {
         $ExpandedContent += $Line
