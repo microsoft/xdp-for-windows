@@ -88,7 +88,7 @@ jobs:
       with:
         name: bin_allpackage_${{ matrix.config }}
         path: |
-          artifacts/bin
+          artifacts/bin/${{ matrix.config }}
           !artifacts/bin/**/*.ilk
           !artifacts/bin/**/*.exp
           !artifacts/bin/**/*.lastcodeanalysissucceeded
