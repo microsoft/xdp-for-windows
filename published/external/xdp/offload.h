@@ -5,6 +5,12 @@
 
 #pragma once
 
+//
+// TODO: remove these and move them to each consumer.
+//
+#include <xdp/framechecksum.h>
+#include <xdp/framelayout.h>
+
 EXTERN_C_START
 
 //

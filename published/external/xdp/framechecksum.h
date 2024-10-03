@@ -24,9 +24,6 @@ typedef enum _XDP_FRAME_RX_CHECKSUM_EVALUATION {
     XdpFrameRxChecksumEvaluationInvalid = 3,
 } XDP_FRAME_RX_CHECKSUM_EVALUATION;
 
-#pragma warning(push)
-#pragma warning(default:4820) // warn if the compiler inserted padding
-
 typedef struct _XDP_FRAME_CHECKSUM {
     // One of XDP_FRAME_TX_CHECKSUM_ACTION or XDP_FRAME_RX_CHECKSUM_EVALUATION
     UINT8 Layer3 : 2;
@@ -44,8 +41,13 @@ C_ASSERT(sizeof(XDP_FRAME_CHECKSUM) == 1);
 #define XDP_FRAME_EXTENSION_CHECKSUM_NAME L"ms_frame_checksum"
 #define XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1 1U
 
-#include <xdp/datapath.h>
 #include <xdp/extension.h>
+
+//
+// TODO: remove forward declaration after removing explicit offload fields from
+// ring descriptors.
+//
+typedef struct _XDP_FRAME XDP_FRAME;
 
 inline
 XDP_FRAME_CHECKSUM *

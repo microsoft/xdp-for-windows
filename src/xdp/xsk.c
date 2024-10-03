@@ -677,14 +677,16 @@ XskFillTx(
         }
 
         //
-        // TODO: use proper volatile memcopies.
+        // Review: we may be able to optimize the frame descriptor layout such
+        // that offloads are adjacent and can be copied in a single operation.
         //
-        Frame->Layout = XskFrame->Layout;
-        Frame->Checksum = XskFrame->Checksum;
-        Frame->Gso = XskFrame->Gso;
+        RtlCopyVolatileMemory(&Frame->Layout, &XskFrame->Layout, sizeof(Frame->Layout));
+        RtlCopyVolatileMemory(&Frame->Checksum, &XskFrame->Checksum, sizeof(Frame->Checksum));
+        RtlCopyVolatileMemory(&Frame->Gso, &XskFrame->Gso, sizeof(Frame->Gso));
 
         //
-        // TODO: enforce hardware LSO/USO limit.
+        // TODO: enforce hardware LSO/USO limit here? Or do interfaces need to
+        // drop?
         //
         MaxFrameLength = Frame->Gso.UDP.Mss > 0 ? MAXUINT16 : Xsk->Tx.Xdp.MaxFrameLength;
         if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, MaxFrameLength)) {
