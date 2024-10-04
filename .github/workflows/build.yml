@@ -29,6 +29,7 @@ on:
         type: string
         # options:
         #   - x64
+        #   - arm64
       codeql:
         required: false
         default: false

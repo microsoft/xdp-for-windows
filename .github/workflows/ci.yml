@@ -305,8 +305,6 @@ jobs:
   perf_tests:
     name: Perf Tests
     needs: build
-    env:
-      ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
     strategy:
       fail-fast: false
       matrix:
@@ -318,46 +316,11 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
-    runs-on:
-     - self-hosted
-     - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
-      with:
-        sparse-checkout: tools
-    - name: Check Drivers
-      shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
-    - name: Prepare Machine
-      shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
-    - name: Download Artifacts
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
-      with:
-        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/bin
-    - name: Run xskperfsuite (Generic, Native)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Run xskperfsuite (TX-inspect, RX-inject)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Run xskperfsuite (Winsock, RIO)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
-      if: ${{ always() }}
-      with:
-        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/logs
-    - name: Check Drivers
-      if: ${{ always() }}
-      shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+    uses: ./.github/workflows/perf.yml
+    with:
+      config: ${{ matrix.config }}
+      os: ${{ matrix.os }}
+      platform: ${{ matrix.platform }}
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
