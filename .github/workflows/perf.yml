@@ -58,31 +58,31 @@ jobs:
         path: ./${{ inputs.id }}/
     - name: Check Drivers
       shell: PowerShell
-      run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.configuration }} -Platform ${{ inputs.platform }} -Verbose
+      run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose
     - name: Prepare Machine
       shell: PowerShell
       run: ./${{ inputs.id }}/tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ inputs.platform }} -RequireNoReboot -Verbose
     - name: Download Artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
-        name: bin_${{ inputs.configuration }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
+        name: bin_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
         path: ./${{ inputs.id }}/artifacts/bin
     - name: Run xskperfsuite (Generic, Native)
       shell: PowerShell
-      run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.configuration }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Run xskperfsuite (TX-inspect, RX-inject)
       shell: PowerShell
-      run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.configuration }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Run xskperfsuite (Winsock, RIO)
       shell: PowerShell
-      run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.configuration }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
+      run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
     - name: Upload Logs
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
-        name: logs_perf_win${{ inputs.os }}_${{ inputs.configuration }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
+        name: logs_perf_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
         path: ./${{ inputs.id }}/artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.configuration }} -Platform ${{ inputs.platform }} -Verbose
+      run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose

@@ -310,26 +310,35 @@ jobs:
   perf_tests_compare:
     name: Perf Tests Comparison
     needs: [perf_tests, perf_tests_base]
+    if: ${{ github.base_ref != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022, Prerelease]
+        configuration: [Release]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2019
+          platform: arm64
+        - windows: 2022
+          platform: arm64
     runs-on: windows-2022
     steps:
     - name: Checkout repository
       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
-    # TODO
-    # - name: Download Artifacts
-    #   uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
-    #   with:
-    #     name: logs_perf_${{ matrix.configuration }}_${{ matrix.platform }}
-    #     path: artifacts/bin
-    # - name: Create Test Archive
-    #   shell: PowerShell
-    #   run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
-    # - name: Upload Release Artifacts
-    #   uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
-    #   with:
-    #     name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
-    #     path: |
-    #       artifacts/kit/**/*.zip
-    #       artifacts/testarchive/**/*.zip
+    - name: Download Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: logs_perf_win${{ matrix.os }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs/${{ github.ref }}
+    - name: Download Artifacts (${{ github.base_ref }})
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: logs_perf_win${{ matrix.os }}_${{ matrix.configuration }}_${{ matrix.platform }}_baseref
+        path: artifacts/logs/${{ github.base_ref }}
+    - name: Compare Results
+      shell: PowerShell
+      run: tools\xskperfcompare.ps1 -DataFile1 artifacts/logs/${{ github.base_ref }}/xskperfsuite.csv -DataFile2 artifacts/logs/${{ github.ref }}/xskperfsuite.csv
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
