@@ -49,7 +49,7 @@ jobs:
       platform: ${{ matrix.platform }}
       ref: ${{ matrix.ref }}
       codeql: ${{ github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && "bin_${{ inputs.config }}_${{ inputs.platform }}" || "" }}
+      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}', matrix.config, matrix.platform) || "" }}
 
   build_allpackage:
     name: Build AllPackage
