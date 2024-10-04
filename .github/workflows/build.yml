@@ -34,7 +34,7 @@ on:
         required: false
         default: false
         type: boolean
-      id:
+      artifact_path:
         required: false
         default: ''
         type: string
