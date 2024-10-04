@@ -319,13 +319,15 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
-        sparse-checkout: tools
-    - uses: ./.github/actions/perf/
+        sparse-checkout: |
+          .github
+          tools
+    - uses: ./.github/actions/perf
       with:
         config: ${{ matrix.configuration }}
         os: ${{ matrix.windows }}
         platform: ${{ matrix.platform }}
-    - uses: ./.github/actions/perf/
+    - uses: ./.github/actions/perf
       if: ${{ github.base_ref != '' }}
       with:
         config: ${{ matrix.configuration }}
