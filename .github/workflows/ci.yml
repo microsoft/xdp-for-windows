@@ -316,10 +316,10 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    uses: ./.github/workflows/perf.yml
+    uses: microsoft/xdp-for-windows/.github/workflows/perf.yml@${{ github.ref }}
     with:
       config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
+      os: ${{ matrix.windows }}
       platform: ${{ matrix.platform }}
 
   downlevel_functional_tests:
