@@ -316,7 +316,7 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    uses: microsoft/xdp-for-windows/.github/workflows/perf.yml@${{GITHUB_SHA}}
+    uses: ./.github/workflows/perf.yml
     with:
       config: ${{ matrix.config }}
       os: ${{ matrix.windows }}
