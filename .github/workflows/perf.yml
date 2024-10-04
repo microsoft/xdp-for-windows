@@ -37,15 +37,6 @@ on:
         default: ''
         # An optional unique ID
 
-    runs-on: windows-${{ inputs.os }}
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
-      with:
-        repository: microsoft/xdp-for-windows
-        submodules: recursive
-        ref: ${{ inputs.ref }}
-
 jobs:
   perf_tests:
     name: Perf Tests
