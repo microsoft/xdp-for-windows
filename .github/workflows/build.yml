@@ -41,7 +41,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build ${{ inputs.platform}}_${{ inputs.config }}_${{ inputs.os }} ${{ inputs.ref }}
     strategy:
       fail-fast: false
     runs-on: windows-${{ inputs.os }}
