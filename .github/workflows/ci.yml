@@ -310,6 +310,7 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
+    runs-on: windows-latest
     # runs-on:
     #  - self-hosted
     #  - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
