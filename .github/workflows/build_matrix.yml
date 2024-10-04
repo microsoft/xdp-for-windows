@@ -33,10 +33,6 @@ jobs:
         exclude:
         - os: 2019
           platform: arm64
-    permissions:
-      actions: read
-      contents: read
-      security-events: ${{ inputs.codeql && 'write' || 'none' }} # For CodeQL
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}

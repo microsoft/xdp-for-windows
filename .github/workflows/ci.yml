@@ -26,14 +26,14 @@ jobs:
   build:
     name: Build
     permissions:
-      actions: read
-      contents: read
       security-events: write  # For CodeQL
     uses: ./.github/workflows/build_matrix.yml
 
   build_base:
     name: Build Base
     if: ${{ github.base_ref != '' }}
+    permissions:
+      security-events: write  # For CodeQL (even though it is not enabled)
     uses: ./.github/workflows/build_matrix.yml
     with:
       ref: ${{ github.base_ref }}
