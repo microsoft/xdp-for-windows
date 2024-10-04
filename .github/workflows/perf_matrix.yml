@@ -1,0 +1,37 @@
+name: Perf Test Matrix
+
+# The caller is responsible for making sure all options passed to this workflow are valid and compatible with each other.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        default: ''
+        type: string
+      id:
+        required: false
+        type: string
+        default: ''
+        # An optional unique ID
+
+jobs:
+  perf_tests_matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022, Prerelease]
+        configuration: [Release]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2019
+          platform: arm64
+        - windows: 2022
+          platform: arm64
+    uses: ./.github/workflows/perf.yml
+    with:
+      config: ${{ matrix.configuration }}
+      os: ${{ matrix.windows }}
+      platform: ${{ matrix.platform }}
+      ref: ${{ inputs.ref }}
+      id: ${{ inputs.id }}
