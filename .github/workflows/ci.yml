@@ -295,22 +295,10 @@ jobs:
 
   perf_tests:
     name: Perf Tests
-    needs: build
-    uses: ./.github/workflows/perf_matrix.yml
-
-  perf_tests_base:
-    name: Perf Tests (${{ github.base_ref }})
-    needs: build_base
-    if: ${{ github.base_ref != '' }}
-    uses: ./.github/workflows/perf_matrix.yml
-    with:
-      ref: ${{ github.base_ref }}
-      id: "baseref"
-
-  perf_tests_compare:
-    name: Perf Tests Comparison
-    needs: [perf_tests, perf_tests_base]
-    if: ${{ github.base_ref != '' }}
+    needs: [build, build_base]
+    env:
+      ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
+    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     strategy:
       fail-fast: false
       matrix:
@@ -322,21 +310,26 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    runs-on: windows-2022
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
-    - name: Download Artifacts
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+    - uses: ./.github/workflows/perf.yml
       with:
-        name: logs_perf_win${{ matrix.os }}_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/logs/${{ github.ref }}
-    - name: Download Artifacts (${{ github.base_ref }})
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        config: ${{ matrix.configuration }}
+        os: ${{ matrix.windows }}
+        platform: ${{ matrix.platform }}
+    - uses: ./.github/workflows/perf.yml
+      if: ${{ github.base_ref != '' }}
       with:
-        name: logs_perf_win${{ matrix.os }}_${{ matrix.configuration }}_${{ matrix.platform }}_baseref
-        path: artifacts/logs/${{ github.base_ref }}
+        config: ${{ matrix.configuration }}
+        os: ${{ matrix.windows }}
+        platform: ${{ matrix.platform }}
+        ref: ${{ github.base_ref }}
+        id: "baseref"
     - name: Compare Results
+      if: ${{ github.base_ref != '' }}
       shell: PowerShell
       run: tools\xskperfcompare.ps1 -DataFile1 artifacts/logs/${{ github.base_ref }}/xskperfsuite.csv -DataFile2 artifacts/logs/${{ github.ref }}/xskperfsuite.csv
 
