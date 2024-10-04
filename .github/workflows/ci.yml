@@ -34,7 +34,7 @@ jobs:
         os: [2019, 2022]
         config: [Release, Debug]
         platform: [x64, arm64]
-        ref: ["", "${{ github.ref }}"]
+        ref: ["", "${{ github.base_ref }}", ""] # TODO: remove dummy dup
         exclude:
         - os: 2019
           platform: arm64
@@ -49,7 +49,7 @@ jobs:
       platform: ${{ matrix.platform }}
       ref: ${{ matrix.ref }}
       codeql: ${{ github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}', matrix.config, matrix.platform) || '' }}
+      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}', matrix.config, matrix.platform) || '' }}${{ matrix.ref != '' && '_base_ref' || ''}}
 
   build_allpackage:
     name: Build AllPackage
