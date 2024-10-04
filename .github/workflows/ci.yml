@@ -49,6 +49,50 @@ jobs:
       codeql: ${{ github.event_name == 'schedule' }}
       upload_artifacts: ${{ matrix.os == 2022 }}
 
+  build_allpackage:
+    name: Build AllPackage
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Release, Debug]
+    permissions:
+      actions: read
+      contents: read
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+        ref: ${{ inputs.ref }}
+    - name: Download x64 Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.config }}_x64
+        path: artifacts/bin
+    - name: Download arm64 Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.config }}_arm64
+        path: artifacts/bin
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+    - name: Nuget Restore
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ matrix.config }} /p:Platform=x64
+    - name: Build AllPackage
+      run: msbuild xdp.sln /m  /t:onebranch /p:Configuration=${{ matrix.config }} /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      with:
+        name: bin_allpackage_${{ matrix.config }}
+        path: |
+          artifacts/bin/${{ matrix.config }}
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
+
   onebranch_build_validation:
     name: OneBranch Build Validation
     strategy:
@@ -77,6 +121,8 @@ jobs:
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Catalog
     - name: Build Package
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
+    - name: Build AllPackage
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=AllPackage
     - name: Upload Artifacts
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       with:
@@ -455,7 +501,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
