@@ -295,7 +295,7 @@ jobs:
 
   perf_tests:
     name: Perf Tests
-    # needs: [build, build_base]
+    needs: [build, build_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
@@ -310,11 +310,10 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    runs-on: windows-latest
-    # runs-on:
-    #  - self-hosted
-    #  - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
-    #  - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
