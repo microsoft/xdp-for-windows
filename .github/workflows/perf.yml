@@ -31,7 +31,7 @@ on:
         #   - 2019
         #   - 2022
         #   - Prerelease
-      name:
+      id:
         required: false
         type: string
         default: ''
@@ -65,7 +65,7 @@ jobs:
     - name: Download Artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
-        name: bin_${{ inputs.configuration }}_${{ inputs.platform }}
+        name: bin_${{ inputs.configuration }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
         path: ./${{ inputs.id }}/artifacts/bin
     - name: Run xskperfsuite (Generic, Native)
       shell: PowerShell
@@ -80,7 +80,7 @@ jobs:
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       if: ${{ always() }}
       with:
-        name: logs_perf_win${{ inputs.os }}_${{ inputs.configuration }}_${{ inputs.platform }}${{ (inputs.id != '') && format('_{0}', inputs.id) || '' }}
+        name: logs_perf_win${{ inputs.os }}_${{ inputs.configuration }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
         path: ./${{ inputs.id }}/artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}

@@ -30,14 +30,14 @@ jobs:
     uses: ./.github/workflows/build_matrix.yml
 
   build_base:
-    name: Build Base Ref (${{ github.base_ref }}
+    name: Build (${{ github.base_ref }})
     if: ${{ github.base_ref != '' }}
     permissions:
       security-events: write  # For CodeQL (even though it is not enabled)
     uses: ./.github/workflows/build_matrix.yml
     with:
       ref: ${{ github.base_ref }}
-      artifact_path_suffix: "_base"
+      id: "baseref"
       codeql: false
 
   build_allpackage:
@@ -296,23 +296,40 @@ jobs:
   perf_tests:
     name: Perf Tests
     needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        windows: [2019, 2022, Prerelease]
-        configuration: [Release]
-        platform: [x64, arm64]
-        ref: ["", "${{github.ref}}"]
-        exclude:
-        - windows: 2019
-          platform: arm64
-        - windows: 2022
-          platform: arm64
-    uses: ./.github/workflows/perf.yml
+    uses: ./.github/workflows/perf_matrix.yml
+
+  perf_tests_base:
+    name: Perf Tests (${{ github.base_ref }})
+    needs: build_base
+    if: ${{ github.base_ref != '' }}
+    uses: ./.github/workflows/perf_matrix.yml
     with:
-      config: ${{ matrix.config }}
-      os: ${{ matrix.windows }}
-      platform: ${{ matrix.platform }}
+      ref: ${{ github.base_ref }}
+      id: "baseref"
+
+  perf_tests_compare:
+    name: Perf Tests Comparison
+    needs: [perf_tests, perf_tests_base]
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+    # TODO
+    # - name: Download Artifacts
+    #   uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+    #   with:
+    #     name: logs_perf_${{ matrix.configuration }}_${{ matrix.platform }}
+    #     path: artifacts/bin
+    # - name: Create Test Archive
+    #   shell: PowerShell
+    #   run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    # - name: Upload Release Artifacts
+    #   uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+    #   with:
+    #     name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
+    #     path: |
+    #       artifacts/kit/**/*.zip
+    #       artifacts/testarchive/**/*.zip
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests

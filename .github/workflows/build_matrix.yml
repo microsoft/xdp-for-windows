@@ -9,7 +9,7 @@ on:
         required: false
         default: ''
         type: string
-      artifact_path_suffix:
+      id:
         required: false
         default: ''
         type: string
@@ -19,7 +19,7 @@ on:
         type: boolean
 
 jobs:
-  build:
+  build_matrix:
     name: Build ${{ inputs.ref }}
     strategy:
       fail-fast: false
@@ -40,4 +40,4 @@ jobs:
       platform: ${{ matrix.platform }}
       ref: ${{ matrix.ref }}
       codeql: ${{ inputs.codeql && github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, inputs.artifact_path_suffix) || '' }}
+      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
