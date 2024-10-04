@@ -145,7 +145,6 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    name: Functional Tests ${{ matrix.platform}}_${{ matrix.configuration }}_${{ matrix.windows }}
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -214,7 +213,6 @@ jobs:
         - windows: 2022
           platform: arm64
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
-    name: Stress Tests ${{ matrix.platform}}_${{ matrix.configuration }}_${{ matrix.windows }}
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -274,7 +272,6 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-fuzz-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
-    name: Fuzz Packet Parsing ${{ matrix.platform}}_${{ matrix.configuration }}_${{ matrix.windows }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
@@ -313,7 +310,6 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    name: Perf Tests ${{ matrix.platform}}_${{ matrix.configuration }}_${{ matrix.windows }}
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -409,7 +405,6 @@ jobs:
       matrix:
         configuration: [Release]
         platform: [x64, arm64]
-    name: Stress Tests ${{ matrix.platform}}_${{ matrix.configuration }}
     runs-on: windows-2022
     steps:
     - name: Checkout repository
