@@ -34,10 +34,10 @@ on:
         required: false
         default: false
         type: boolean
-      upload_artifacts:
+      artifact_path:
         required: false
-        default: true
-        type: boolean
+        default: ''
+        type: string
 
 jobs:
   build:
@@ -72,7 +72,7 @@ jobs:
       if: inputs.upload_artifacts
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       with:
-        name: bin_${{ inputs.config }}_${{ inputs.platform }}
+        name: ${{inputs.artifact_path}}
         path: |
           artifacts/bin
           !artifacts/bin/**/*.ilk

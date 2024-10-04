@@ -34,6 +34,7 @@ jobs:
         os: [2019, 2022]
         config: [Release, Debug]
         platform: [x64, arm64]
+        ref: ["", "${{ github.ref }}"]
         exclude:
         - os: 2019
           platform: arm64
@@ -46,8 +47,9 @@ jobs:
       config: ${{ matrix.config }}
       os: ${{ matrix.os }}
       platform: ${{ matrix.platform }}
+      ref: ${{ matrix.ref }}
       codeql: ${{ github.event_name == 'schedule' }}
-      upload_artifacts: ${{ matrix.os == 2022 }}
+      artifact_path: ${{ ${{ matrix.os == 2022 }} && "bin_${{ inputs.config }}_${{ inputs.platform }}" || "" }}
 
   build_allpackage:
     name: Build AllPackage
