@@ -25,31 +25,15 @@ permissions: read-all
 jobs:
   build:
     name: Build
-    strategy:
-      fail-fast: false
-      matrix:
-        # Some driver developers are building for WS2022 LTSC targets using VS2019 +
-        # the Windows Server 2022 WDK, so validate our project still builds in that
-        # environment, in addition to the default WS 2022.
-        os: [2019, 2022]
-        config: [Release, Debug]
-        platform: [x64, arm64]
-        ref: ["", "${{ github.base_ref }}", ""] # TODO: remove dummy dup
-        exclude:
-        - os: 2019
-          platform: arm64
-    permissions:
-      actions: read
-      contents: read
-      security-events: write  # For CodeQL
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/build_matrix.yml
+
+  build_base:
+    name: Build Base
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: ./.github/workflows/build_matrix.yml
     with:
-      config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
-      platform: ${{ matrix.platform }}
-      ref: ${{ matrix.ref }}
-      codeql: ${{ github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}', matrix.config, matrix.platform) || '' }}${{ matrix.ref != '' && '_base_ref' || ''}}
+      ref: ${{ github.base_ref }}
+      artifact_path_suffix: "_base"
 
   build_allpackage:
     name: Build AllPackage
