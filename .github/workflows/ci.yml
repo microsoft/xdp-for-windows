@@ -350,7 +350,6 @@ jobs:
         windows: [2019, 2022, Prerelease]
         configuration: [Release]
         platform: [x64]
-    name: Downlevel Functional Tests ${{ matrix.platform}}_${{ matrix.configuration }}_${{ matrix.windows }}
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional-gh"
