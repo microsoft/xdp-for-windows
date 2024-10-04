@@ -13,6 +13,10 @@ on:
         required: false
         default: ''
         type: string
+      codeql:
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   build:
@@ -32,12 +36,12 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write  # For CodeQL
+      security-events: ${{ inputs.codeql && 'write' || 'none' }} # For CodeQL
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}
       os: ${{ matrix.os }}
       platform: ${{ matrix.platform }}
       ref: ${{ matrix.ref }}
-      codeql: ${{ github.event_name == 'schedule' }}
+      codeql: ${{ inputs.codeql && github.event_name == 'schedule' }}
       artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}', matrix.config, matrix.platform) || '' }}${{ inputs.artifact_path_suffix }}

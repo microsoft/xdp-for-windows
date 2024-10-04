@@ -25,15 +25,20 @@ permissions: read-all
 jobs:
   build:
     name: Build
+    permissions:
+      actions: read
+      contents: read
+      security-events: write  # For CodeQL
     uses: ./.github/workflows/build_matrix.yml
 
   build_base:
     name: Build Base
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.base_ref != '' }}
     uses: ./.github/workflows/build_matrix.yml
     with:
       ref: ${{ github.base_ref }}
       artifact_path_suffix: "_base"
+      codeql: false
 
   build_allpackage:
     name: Build AllPackage
