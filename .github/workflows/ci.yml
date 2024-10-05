@@ -297,7 +297,7 @@ jobs:
     name: Perf Tests
     needs: [build, build_base]
     env:
-      ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
+      ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '5' }}
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     strategy:
       fail-fast: false
