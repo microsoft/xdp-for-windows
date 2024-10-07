@@ -133,7 +133,7 @@ XdpOpenApi(
         *XdpApiTable = &XdpApiTableV2;
         return S_OK;
     default:
-
+        *XdpApiTable = NULL;
         return E_NOINTERFACE;
     }
 }
