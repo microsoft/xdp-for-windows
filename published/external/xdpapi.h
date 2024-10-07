@@ -239,7 +239,7 @@ XdpUnloadApi(
 #include <netioddk.h>
 #include <xdp/guid.h>
 
-#define POOLTAG_NMR_CLIENT      'cNdX'   // XdNc
+#define _POOLTAG_NMR_CLIENT      'cNdX'   // XdNc
 
 typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
 
@@ -398,7 +398,7 @@ XdpLoadApi(
 
     _Client =
         (XDP_API_CLIENT *)ExAllocatePoolZero(
-            NonPagedPoolNx, sizeof(*_Client), POOLTAG_NMR_CLIENT);
+            NonPagedPoolNx, sizeof(*_Client), _POOLTAG_NMR_CLIENT);
     if (_Client == NULL) {
         _Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -449,7 +449,7 @@ Exit:
     if (!NT_SUCCESS(_Status)) {
         if (_Client != NULL) {
             XdpCleanupClientRegistration(_Client, _ResourceInitialized);
-            ExFreePoolWithTag(_Client, POOLTAG_NMR_CLIENT);
+            ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
         }
     }
 
@@ -465,7 +465,7 @@ XdpUnloadApi(
     XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_XdpLoadApiContext;
 
     XdpCleanupClientRegistration(_Client, TRUE);
-    ExFreePoolWithTag(_Client, POOLTAG_NMR_CLIENT);
+    ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
 }
 
 inline
