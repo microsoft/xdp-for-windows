@@ -2700,17 +2700,17 @@ LoadApiTest()
 
     TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
 #else
-    XDP_LOAD_API_CONTEXT XdpLoadApiContext;
+    XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;
 
-    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_1, &XdpLoadApiContext, &XdpApiTable));
-    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_1, &XdpApiClient, &XdpApiTable));
+    XdpUnloadApi(XdpApiClient, XdpApiTable);
 
-    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_2, &XdpLoadApiContext, &XdpApiTable));
-    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_2, &XdpApiClient, &XdpApiTable));
+    XdpUnloadApi(XdpApiClient, XdpApiTable);
 
-    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_LATEST, &XdpLoadApiContext, &XdpApiTable));
-    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
+    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_LATEST, &XdpApiClient, &XdpApiTable));
+    XdpUnloadApi(XdpApiClient, XdpApiTable);
 #endif
 }
 

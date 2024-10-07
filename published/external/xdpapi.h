@@ -174,13 +174,13 @@ typedef struct _XDP_API_TABLE {
     XSK_IOCTL_FN *XskIoctl;
 } XDP_API_TABLE;
 
-typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
+typedef struct _XDP_API_CLIENT *XDP_API_CLIENT;
 
 inline
 HRESULT
 XdpLoadApi(
     _In_ UINT32 XdpApiVersion,
-    _Out_ XDP_LOAD_API_CONTEXT *XdpLoadApiContext,
+    _Out_ XDP_API_CLIENT *XdpLoadApiContext,
     _Out_ const XDP_API_TABLE **XdpApiTable
     )
 {
@@ -208,7 +208,7 @@ XdpLoadApi(
 Exit:
 
     if (SUCCEEDED(Result)) {
-        *XdpLoadApiContext = (XDP_LOAD_API_CONTEXT)XdpHandle;
+        *XdpLoadApiContext = (XDP_API_CLIENT)XdpHandle;
     } else {
         if (XdpHandle != NULL) {
             FreeLibrary(XdpHandle);
@@ -221,7 +221,7 @@ Exit:
 inline
 VOID
 XdpUnloadApi(
-    _In_ XDP_LOAD_API_CONTEXT XdpLoadApiContext,
+    _In_ XDP_API_CLIENT XdpLoadApiContext,
     _In_ const XDP_API_TABLE *XdpApiTable
     )
 {
