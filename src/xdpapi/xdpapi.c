@@ -133,7 +133,7 @@ XdpOpenApi(
         *XdpApiTable = &XdpApiTableV2;
         return S_OK;
     default:
-        *XdpApiTable = NULL;
+
         return E_NOINTERFACE;
     }
 }
@@ -144,7 +144,7 @@ XdpCloseApi(
     _In_ const XDP_API_TABLE *XdpApiTable
     )
 {
-    FRE_ASSERT(XdpApiTable == &XdpApiTableV1);
+    FRE_ASSERT(XdpApiTable == &XdpApiTableV1 || XdpApiTable == &XdpApiTableV2);
 }
 
 static
