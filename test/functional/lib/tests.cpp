@@ -231,7 +231,7 @@ XdpFuncXskNotifyCallback(
 static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
     XdpFuncXskNotifyCallback
 };
-static XDP_LOAD_API_CONTEXT XdpLoadApiContext;
+// static XDP_LOAD_API_CONTEXT XdpLoadApiContext;
 static const XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 static const XDP_API_PROVIDER_DISPATCH *XdpApi;
 #else
@@ -808,7 +808,7 @@ SetDeviceSddl(
 static
 NTSTATUS
 InitializeApi(
-    _Out_ XDP_LOAD_API_CONTEXT *LoadApiContext,
+    _Out_ XDP_API_CLIENT *LoadApiContext,
     _Out_ const XDP_API_PROVIDER_DISPATCH **ProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **ProviderBindingContext,
     _In_ const XDP_API_CLIENT_DISPATCH *ClientDispatch,
@@ -831,7 +831,7 @@ InitializeApi(
 
         Status =
             XdpOpenApi(
-                *LoadApiContext,
+                LoadApiContext,
                 ProviderDispatch,
                 ProviderBindingContext);
         if (NT_SUCCESS(Status)) {
@@ -845,7 +845,7 @@ InitializeApi(
     } while (TimeoutMs > 0);
 
     if (!NT_SUCCESS(Status)) {
-        XdpUnloadApi(*LoadApiContext);
+        XdpUnloadApi(LoadApiContext);
     }
 
     return Status;
@@ -854,7 +854,7 @@ InitializeApi(
 static
 VOID
 UninitializeApi(
-    _In_ XDP_LOAD_API_CONTEXT LoadApiContext
+    _In_ XDP_API_CLIENT *LoadApiContext
     )
 {
     XdpUnloadApi(LoadApiContext);
@@ -2686,8 +2686,11 @@ OpenApiTest()
 VOID
 LoadApiTest()
 {
+    TraceInfo("==========================> LoadApiTest");
 #ifdef _KERNEL_MODE
-    XDP_LOAD_API_CONTEXT LoadApiContext;
+    TraceInfo("==========================> LoadApiTest (kernel mode)");
+    // XDP_API_CLIENT *LoadApiContext = NULL;
+    XDP_API_CLIENT LoadApiContext = {0};
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
 
@@ -2696,10 +2699,11 @@ LoadApiTest()
     if (!NT_SUCCESS(Status)) {
         return;
     }
-    UninitializeApi(LoadApiContext);
+    UninitializeApi(&LoadApiContext);
 
     TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&LoadApiContext, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
 #else
+    TraceInfo("==========================> LoadApiTest (user mode)");
     XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;
 
@@ -2712,6 +2716,7 @@ LoadApiTest()
     TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_LATEST, &XdpApiClient, &XdpApiTable));
     XdpUnloadApi(XdpApiClient, XdpApiTable);
 #endif
+    TraceInfo("==========================> LoadApiTest Done");
 }
 
 #ifndef _KERNEL_MODE

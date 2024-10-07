@@ -241,8 +241,6 @@ XdpUnloadApi(
 
 #define _POOLTAG_NMR_CLIENT      'cNdX'   // XdNc
 
-typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
-
 typedef
 VOID
 XDP_API_ATTACH_FN(
@@ -382,10 +380,10 @@ XdpLoadApi(
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
     _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
     _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
-    _Out_ XDP_LOAD_API_CONTEXT *_XdpLoadApiContext
+    _Out_ XDP_API_CLIENT *_Client
     )
 {
-    XDP_API_CLIENT *_Client = NULL;
+    // XDP_API_CLIENT *_Client = NULL;
     NTSTATUS _Status;
     NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *_NpiInstance;
@@ -396,13 +394,13 @@ XdpLoadApi(
         goto Exit;
     }
 
-    _Client =
-        (XDP_API_CLIENT *)ExAllocatePoolZero(
-            NonPagedPoolNx, sizeof(*_Client), _POOLTAG_NMR_CLIENT);
-    if (_Client == NULL) {
-        _Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
+    // _Client =
+    //     (XDP_API_CLIENT *)ExAllocatePoolZero(
+    //         NonPagedPoolNx, sizeof(*_Client), _POOLTAG_NMR_CLIENT);
+    // if (_Client == NULL) {
+    //     _Status = STATUS_NO_MEMORY;
+    //     goto Exit;
+    // }
 
     //
     // Use resources instead of push locks for downlevel compatibility.
@@ -441,16 +439,20 @@ XdpLoadApi(
         goto Exit;
     }
 
-    *_XdpLoadApiContext = (XDP_LOAD_API_CONTEXT)_Client;
+    // *_XdpLoadApiContext = _Client;
     _Status = STATUS_SUCCESS;
 
 Exit:
 
     if (!NT_SUCCESS(_Status)) {
-        if (_Client != NULL) {
-            XdpCleanupClientRegistration(_Client, _ResourceInitialized);
-            ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
-        }
+        // if (_Client != NULL) {
+// supress 6001
+#pragma push
+#pragma warning(suppress:6001)
+        XdpCleanupClientRegistration(_Client, _ResourceInitialized);
+#pragma pop
+            // ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
+        // }
     }
 
     return _Status;
@@ -459,19 +461,19 @@ Exit:
 inline
 VOID
 XdpUnloadApi(
-    _In_ XDP_LOAD_API_CONTEXT _XdpLoadApiContext
+    _In_ XDP_API_CLIENT *_XdpLoadApiContext
     )
 {
     XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_XdpLoadApiContext;
 
     XdpCleanupClientRegistration(_Client, TRUE);
-    ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
+    // ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
 }
 
 inline
 NTSTATUS
 XdpOpenApi(
-    _In_ XDP_LOAD_API_CONTEXT _XdpLoadApiContext,
+    _In_ XDP_API_CLIENT *_XdpLoadApiContext,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
     )
