@@ -239,8 +239,6 @@ XdpUnloadApi(
 #include <netioddk.h>
 #include <xdp/guid.h>
 
-#define _POOLTAG_NMR_CLIENT      'cNdX'   // XdNc
-
 typedef
 VOID
 XDP_API_ATTACH_FN(
@@ -383,24 +381,17 @@ XdpLoadApi(
     _Out_ XDP_API_CLIENT *_Client
     )
 {
-    // XDP_API_CLIENT *_Client = NULL;
     NTSTATUS _Status;
     NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *_NpiInstance;
     BOOLEAN _ResourceInitialized = FALSE;
 
-    if (_XdpApiVersion != XDP_API_VERSION_1) {
+    if (_XdpApiVersion != XDP_API_VERSION_1 ||
+        _Client == NULL ||
+        _ClientDetach == NULL) {
         _Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
-
-    // _Client =
-    //     (XDP_API_CLIENT *)ExAllocatePoolZero(
-    //         NonPagedPoolNx, sizeof(*_Client), _POOLTAG_NMR_CLIENT);
-    // if (_Client == NULL) {
-    //     _Status = STATUS_NO_MEMORY;
-    //     goto Exit;
-    // }
 
     //
     // Use resources instead of push locks for downlevel compatibility.
@@ -436,24 +427,21 @@ XdpLoadApi(
         NmrRegisterClient(
             &_Client->NpiClientCharacteristics, _Client, &_Client->NmrClientHandle);
     if (!NT_SUCCESS(_Status)) {
-        goto Exit;
+        goto Error;
     }
 
-    // *_XdpLoadApiContext = _Client;
     _Status = STATUS_SUCCESS;
 
-Exit:
+Error:
 
     if (!NT_SUCCESS(_Status)) {
-        // if (_Client != NULL) {
-// supress 6001
 #pragma push
 #pragma warning(suppress:6001)
         XdpCleanupClientRegistration(_Client, _ResourceInitialized);
 #pragma pop
-            // ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
-        // }
     }
+
+Exit:
 
     return _Status;
 }
@@ -461,24 +449,20 @@ Exit:
 inline
 VOID
 XdpUnloadApi(
-    _In_ XDP_API_CLIENT *_XdpLoadApiContext
+    _In_ XDP_API_CLIENT *_Client
     )
 {
-    XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_XdpLoadApiContext;
-
     XdpCleanupClientRegistration(_Client, TRUE);
-    // ExFreePoolWithTag(_Client, _POOLTAG_NMR_CLIENT);
 }
 
 inline
 NTSTATUS
 XdpOpenApi(
-    _In_ XDP_API_CLIENT *_XdpLoadApiContext,
+    _In_ XDP_API_CLIENT *_Client,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
     )
 {
-    XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_XdpLoadApiContext;
     NTSTATUS _Status;
 
     ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
