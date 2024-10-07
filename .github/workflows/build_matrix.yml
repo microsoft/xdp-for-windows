@@ -1,0 +1,43 @@
+name: Build XDP Matrix
+
+# The caller is responsible for making sure all options passed to this workflow are valid and compatible with each other.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        default: ''
+        type: string
+      id:
+        required: false
+        default: ''
+        type: string
+      codeql:
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build_matrix:
+    name: Build ${{ inputs.ref }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Some driver developers are building for WS2022 LTSC targets using VS2019 +
+        # the Windows Server 2022 WDK, so validate our project still builds in that
+        # environment, in addition to the default WS 2022.
+        os: [2019, 2022]
+        config: [Release, Debug]
+        platform: [x64, arm64]
+        exclude:
+        - os: 2019
+          platform: arm64
+    uses: ./.github/workflows/build.yml
+    with:
+      config: ${{ matrix.config }}
+      os: ${{ matrix.os }}
+      platform: ${{ matrix.platform }}
+      ref: ${{ matrix.ref }}
+      codeql: ${{ inputs.codeql && github.event_name == 'schedule' }}
+      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
