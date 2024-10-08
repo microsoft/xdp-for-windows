@@ -4238,7 +4238,14 @@ XskNotifyValidateParams(
         return STATUS_INVALID_PARAMETER;
     }
 
-    ASSERT(UseCallback && *TimeoutMilliseconds > 0);
+    if (RequestorMode == KernelMode) {
+        ASSERT(!(UseCallback && *TimeoutMilliseconds > 0));
+    } else {
+        if (UseCallback && *TimeoutMilliseconds > 0) {
+            return STATUS_INVALID_PARAMETER;
+        }
+    }
+
     ASSERT(!UseCallback || RequestorMode == KernelMode);
 
     return STATUS_SUCCESS;
