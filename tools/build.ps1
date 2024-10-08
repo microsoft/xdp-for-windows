@@ -14,7 +14,7 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Project = "",
 
-    [ValidateSet("", "Binary", "Catalog", "Package")]
+    [ValidateSet("", "Binary", "Catalog", "Package", "AllPackage")]
     [Parameter(Mandatory=$false)]
     [string]$BuildStage = "",
 
@@ -28,7 +28,11 @@ param (
     [switch]$UpdateDeps = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$OneBranch = $false
+    [switch]$OneBranch = $false,
+
+    [ValidateSet("x64", "arm64")]
+    [Parameter(Mandatory=$false)]
+    [string[]]$NugetPlatforms = $Platform
 )
 
 Set-StrictMode -Version 'Latest'
@@ -90,6 +94,7 @@ msbuild.exe $Sln `
     /p:IsAdmin=$IsAdmin `
     /p:SignMode=$SignMode `
     /p:BuildStage=$BuildStage `
+    /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `
     /t:$($Tasks -join ",") `
     /maxCpuCount
 if (!$?) {

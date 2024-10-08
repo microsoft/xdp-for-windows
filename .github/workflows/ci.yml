@@ -25,29 +25,64 @@ permissions: read-all
 jobs:
   build:
     name: Build
+    permissions:
+      security-events: write  # For CodeQL
+    uses: ./.github/workflows/build_matrix.yml
+
+  build_base:
+    name: Build (${{ github.base_ref }})
+    if: ${{ github.base_ref != '' }}
+    permissions:
+      security-events: write  # For CodeQL (even though it is not enabled)
+    uses: ./.github/workflows/build_matrix.yml
+    with:
+      ref: ${{ github.base_ref }}
+      id: "baseref"
+      codeql: false
+
+  build_allpackage:
+    name: Build AllPackage
+    needs: build
     strategy:
       fail-fast: false
       matrix:
-        # Some driver developers are building for WS2022 LTSC targets using VS2019 +
-        # the Windows Server 2022 WDK, so validate our project still builds in that
-        # environment, in addition to the default WS 2022.
-        os: [2019, 2022]
         config: [Release, Debug]
-        platform: [x64, arm64]
-        exclude:
-        - os: 2019
-          platform: arm64
     permissions:
       actions: read
       contents: read
-      security-events: write  # For CodeQL
-    uses: ./.github/workflows/build.yml
-    with:
-      config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
-      platform: ${{ matrix.platform }}
-      codeql: ${{ github.event_name == 'schedule' }}
-      upload_artifacts: ${{ matrix.os == 2022 }}
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+        ref: ${{ inputs.ref }}
+    - name: Download x64 Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.config }}_x64
+        path: artifacts/bin
+    - name: Download arm64 Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.config }}_arm64
+        path: artifacts/bin
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+    - name: Nuget Restore
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ matrix.config }} /p:Platform=x64
+    - name: Build AllPackage
+      run: msbuild xdp.sln /m  /t:onebranch /p:Configuration=${{ matrix.config }} /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      with:
+        name: bin_allpackage_${{ matrix.config }}
+        path: |
+          artifacts/bin/${{ matrix.config }}
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
 
   onebranch_build_validation:
     name: OneBranch Build Validation
@@ -77,6 +112,8 @@ jobs:
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Catalog
     - name: Build Package
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
+    - name: Build AllPackage
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=AllPackage
     - name: Upload Artifacts
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
       with:
@@ -258,9 +295,10 @@ jobs:
 
   perf_tests:
     name: Perf Tests
-    needs: build
+    needs: [build, build_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
+    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     strategy:
       fail-fast: false
       matrix:
@@ -273,7 +311,6 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -282,40 +319,27 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
-        sparse-checkout: tools
-    - name: Check Drivers
-      shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
-    - name: Prepare Machine
-      shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
-    - name: Download Artifacts
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        sparse-checkout: |
+          .github
+          tools
+    - uses: ./.github/actions/perf
       with:
-        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/bin
-    - name: Run xskperfsuite (Generic, Native)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Run xskperfsuite (TX-inspect, RX-inject)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Run xskperfsuite (Winsock, RIO)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Display results
-      shell: PowerShell
-      run: cat "artifacts/logs/xskperfsuite.csv"
-    - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
-      if: ${{ always() }}
+        config: ${{ matrix.configuration }}
+        os: ${{ matrix.windows }}
+        platform: ${{ matrix.platform }}
+        id: _${{ matrix.vm }}
+    - uses: ./.github/actions/perf
+      if: ${{ github.base_ref != '' }}
       with:
-        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.vm }}
-        path: artifacts/logs
-    - name: Check Drivers
-      if: ${{ always() }}
+        config: ${{ matrix.configuration }}
+        os: ${{ matrix.windows }}
+        platform: ${{ matrix.platform }}
+        ref: ${{ github.base_ref }}
+        id: baseref_${{ matrix.vm }}
+    - name: Compare Results
+      if: ${{ github.base_ref != '' }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools\xskperfcompare.ps1 -DataFile1 baseref_${{ matrix.vm }}/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
@@ -459,7 +483,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
