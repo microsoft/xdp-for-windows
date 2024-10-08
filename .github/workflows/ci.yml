@@ -339,7 +339,7 @@ jobs:
     - name: Compare Results
       if: ${{ github.base_ref != '' }}
       shell: PowerShell
-      run: tools\xskperfcompare.ps1 -DataFile1 baseref_${{ matrix.vm }}/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv
+      run: tools\xskperfcompare.ps1 -DataFile1 baseref_${{ matrix.vm }}/artifacts/logs/xskperfsuite.csv -DataFile2 _${{ matrix.vm }}/artifacts/logs/xskperfsuite.csv
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
