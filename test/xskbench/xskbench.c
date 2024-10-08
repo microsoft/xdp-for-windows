@@ -1809,7 +1809,7 @@ main(
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
-    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_1, &XdpApi)));
+    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi)));
 
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);

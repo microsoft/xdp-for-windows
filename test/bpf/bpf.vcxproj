@@ -1,11 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
-      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
-      <Private>false</Private>
-    </ProjectReference>
-  </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{5de7385c-80b3-40cd-97d0-7c24dec2f95c}</ProjectGuid>
     <TargetName>bpf</TargetName>
@@ -13,6 +7,12 @@
     <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\bpfexport\bpfexport.vcxproj">
+      <Project>{8f8830ff-1648-4772-87ed-f5da091fc931}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup>
     <TargetName>bpf</TargetName>
     <OutDir>$(OutDir)bpf\</OutDir>
@@ -38,7 +38,8 @@
     <ExportProgramBaseDir>$(IntDir)</ExportProgramBaseDir>
   </PropertyGroup>
   <Target Name="BuildHostExportProgramInfo" BeforeTargets="ExportProgramInfo" Condition="'$(HostPlatform)' != '$(Platform)'">
-      <MSBuild Projects="$(SolutionDir)src\bpfexport\bpfexport.vcxproj" Properties="Platform=$(HostPlatform);UndockedOut=$(ExportProgramBaseDir)"/>
+      <!-- MSBuildProjectExtensionsPath must be set to the $(Platform)'s path, because nuget restore doesn't follow this msbuild target. -->
+      <MSBuild Projects="$(SolutionDir)src\bpfexport\bpfexport.vcxproj" Properties="Platform=$(HostPlatform);UndockedOut=$(ExportProgramBaseDir);MSBuildProjectExtensionsPath=$(IntDir)..\bpfexport\"/>
   </Target>
   <Target Name="ExportProgramInfo" BeforeTargets="CustomBuild">
       <Exec Command="$(EbpfHostBinPath)\export_program_info.exe"/>

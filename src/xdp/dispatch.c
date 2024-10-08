@@ -136,7 +136,7 @@ XdpIrpCreate(
 
     Status =
         CreateRoutine(
-            Irp, IrpSp, Disposition, OpenPacket + 1,
+            Irp, IrpSp, Disposition, OpenPacket, OpenPacket + 1,
             EaBuffer->EaValueLength - sizeof(XDP_OPEN_PACKET));
 
     if (NT_SUCCESS(Status)) {

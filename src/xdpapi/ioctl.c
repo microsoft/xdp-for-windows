@@ -10,8 +10,9 @@
 //
 
 VOID *
-XdpInitializeEa(
+XdpInitializeEaVersion(
     _In_ XDP_OBJECT_TYPE ObjectType,
+    _In_ UINT32 ApiVersion,
     _Out_ VOID *EaBuffer,
     _In_ ULONG EaLength
     )
@@ -31,9 +32,20 @@ XdpInitializeEa(
     OpenPacket = (XDP_OPEN_PACKET *)(EaHeader->EaName + sizeof(XDP_OPEN_PACKET_NAME));
     OpenPacket->MajorVersion = 1;
     OpenPacket->MinorVersion = 0;
+    OpenPacket->ApiVersion = ApiVersion;
     OpenPacket->ObjectType = ObjectType;
 
     return OpenPacket + 1;
+}
+
+VOID *
+XdpInitializeEa(
+    _In_ XDP_OBJECT_TYPE ObjectType,
+    _Out_ VOID *EaBuffer,
+    _In_ ULONG EaLength
+    )
+{
+    return XdpInitializeEaVersion(ObjectType, XDP_API_VERSION_1, EaBuffer, EaLength);
 }
 
 HANDLE
