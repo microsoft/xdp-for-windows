@@ -1,0 +1,19 @@
+name: approver_count
+description: Approver count policy for microsoft/undock/xdp-for-windows repository
+resource: repository
+where: 
+configuration:
+  approverCountPolicySettings:
+    isBlocking: true
+    requireMinimumApproverCount: 1
+    creatorVoteCounts: false
+    allowDownvotes: false
+    sourcePushOptions:
+      resetOnSourcePush: false
+      requireVoteOnLastIteration: true
+      requireVoteOnEachIteration: false
+      resetRejectionsOnSourcePush: false
+    blockLastPusherVote: true
+    branchNames:
+    - refs/heads/main
+    displayName: microsoft/undock/xdp-for-windows Approver Count Policy
