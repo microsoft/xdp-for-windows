@@ -650,6 +650,7 @@ XskFillTx(
         XSK_BUFFER_ADDRESS AddressDescriptor;
         UMEM_MAPPING *Mapping;
         XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
+        UINT32 MaxFrameLength;
 
         TxIndex =
             (ReadUInt32NoFence(&Xsk->Tx.Ring.Shared->ConsumerIndex) + i) & (Xsk->Tx.Ring.Mask);
@@ -675,7 +676,20 @@ XskFillTx(
             continue;
         }
 
-        if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, Xsk->Tx.Xdp.MaxFrameLength)) {
+        //
+        // Review: we may be able to optimize the frame descriptor layout such
+        // that offloads are adjacent and can be copied in a single operation.
+        //
+        RtlCopyVolatileMemory(&Frame->Layout, &XskFrame->Layout, sizeof(Frame->Layout));
+        RtlCopyVolatileMemory(&Frame->Checksum, &XskFrame->Checksum, sizeof(Frame->Checksum));
+        RtlCopyVolatileMemory(&Frame->Gso, &XskFrame->Gso, sizeof(Frame->Gso));
+
+        //
+        // TODO: enforce hardware LSO/USO limit here? Or do interfaces need to
+        // drop?
+        //
+        MaxFrameLength = Frame->Gso.UDP.Mss > 0 ? MAXUINT16 : Xsk->Tx.Xdp.MaxFrameLength;
+        if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, MaxFrameLength)) {
             Xsk->Statistics.TxInvalidDescriptors++;
             STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
@@ -710,6 +724,7 @@ XskFillTx(
                     Frame, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
             CompletionContext->Context = &Xsk->Tx.Xdp.DatapathClientEntry;
         }
+
 
         EventWriteXskTxEnqueue(
             &MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Ring.Shared->ConsumerIndex + i,
@@ -4415,6 +4430,8 @@ XskReceiveSingleFrame(
     ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
     XskBuffer->Address.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
     XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
+    XskFrame->Layout = Frame->Layout;
+    XskFrame->Checksum = Frame->Checksum;
 
     ++*CompletionOffset;
 }
