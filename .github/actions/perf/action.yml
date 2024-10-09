@@ -27,6 +27,10 @@ inputs:
     #   - 2019
     #   - 2022
     #   - Prerelease
+  artifact_bin_path:
+    required: false
+    type: string
+    default: ''
   id:
     required: false
     type: string
@@ -54,7 +58,7 @@ runs:
   - name: Download Artifacts
     uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
     with:
-      name: bin_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
+      name: ${{ inputs.artifact_bin_path != '' && inputs.artifact_bin_path || format('bin_{0}_{1}', inputs.config, inputs.platform) }}
       path: ./${{ inputs.id }}/artifacts/bin
   - name: Run xskperfsuite (Generic, Native)
     shell: PowerShell

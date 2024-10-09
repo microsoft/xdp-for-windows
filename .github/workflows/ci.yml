@@ -327,6 +327,7 @@ jobs:
         config: ${{ matrix.configuration }}
         os: ${{ matrix.windows }}
         platform: ${{ matrix.platform }}
+        artifact_bin_path: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         id: _${{ matrix.vm }}
     - uses: ./.github/actions/perf
       if: ${{ github.base_ref != '' }}
@@ -335,6 +336,7 @@ jobs:
         os: ${{ matrix.windows }}
         platform: ${{ matrix.platform }}
         ref: ${{ github.base_ref }}
+        artifact_bin_path: bin_${{ matrix.configuration }}_${{ matrix.platform }}_baseref
         id: baseref_${{ matrix.vm }}
     - name: Compare Results
       if: ${{ github.base_ref != '' }}
