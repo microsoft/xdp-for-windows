@@ -15,6 +15,7 @@
         $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)submodules\wil\include;
+        $(SolutionDir)submodules\cxplat\inc;
         $(FnPackagePath)include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>

@@ -40,6 +40,7 @@
         $(SolutionDir)src\rtl\inc;
         $(SolutionDir)src\xdp\inc;
         $(SolutionDir)src\xdppcw\inc;
+        $(SolutionDir)submodules\cxplat\inc;
         $(IntDir);
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdpetw\;
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdppcw\;

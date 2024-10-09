@@ -106,6 +106,7 @@
         $(SolutionDir)src\xdplwf\inc;
         $(SolutionDir)src\xdppcw\inc;
         $(SolutionDir)published\private;
+        $(SolutionDir)submodules\cxplat\inc;
         $(IntDir);
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdpetw\;
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdppcw\;

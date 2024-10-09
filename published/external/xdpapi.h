@@ -238,6 +238,7 @@ XdpUnloadApi(
 
 #include <netioddk.h>
 #include <xdp/guid.h>
+#include "cxplat.h"
 
 typedef
 VOID
@@ -252,7 +253,7 @@ XDP_API_DETACH_FN(
     );
 
 typedef struct _XDP_API_CLIENT {
-    ERESOURCE Resource;
+    CXPLAT_LOCK Lock;
 
     //
     // NMR client registration.
@@ -295,7 +296,7 @@ XdpNmrClientAttachProvider(
     // all remaining binding logic to the NMR provider.
     //
 
-    ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
+    CxPlatLockAcquire(&_Client->Lock);
 
     if (_Client->BindingHandle != NULL) {
         _Status = STATUS_DEVICE_NOT_READY;
@@ -314,7 +315,7 @@ XdpNmrClientAttachProvider(
         }
     }
 
-    ExReleaseResourceAndLeaveCriticalRegion(&_Client->Resource);
+    CxPlatLockRelease(&_Client->Lock);
 
     if (NT_SUCCESS(_Status) && _Client->Attach != NULL) {
         _Client->Attach(_Client->Context);
@@ -335,11 +336,11 @@ XdpNmrClientDetachProvider(
         _Client->Detach(_Client->Context);
     }
 
-    ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
+    CxPlatLockAcquire(&_Client->Lock);
 
     _Client->BindingHandle = NULL;
 
-    ExReleaseResourceAndLeaveCriticalRegion(&_Client->Resource);
+    CxPlatLockRelease(&_Client->Lock);
 
     return STATUS_SUCCESS;
 }
@@ -347,8 +348,7 @@ XdpNmrClientDetachProvider(
 inline
 VOID
 XdpCleanupClientRegistration(
-    _In_ XDP_API_CLIENT *_Client,
-    _In_ BOOLEAN _ResourceInitialized
+    _In_ XDP_API_CLIENT *_Client
     )
 {
     NTSTATUS _Status;
@@ -365,9 +365,7 @@ XdpCleanupClientRegistration(
         }
     }
 
-    if (_ResourceInitialized) {
-        NT_VERIFY(NT_SUCCESS(ExDeleteResourceLite(&_Client->Resource)));
-    }
+    CxPlatLockUninitialize(&_Client->Lock);
 }
 
 inline
@@ -384,7 +382,6 @@ XdpLoadApi(
     NTSTATUS _Status;
     NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *_NpiInstance;
-    BOOLEAN _ResourceInitialized = FALSE;
 
     if (_XdpApiVersion != XDP_API_VERSION_1 ||
         _Client == NULL ||
@@ -393,14 +390,7 @@ XdpLoadApi(
         goto Exit;
     }
 
-    //
-    // Use resources instead of push locks for downlevel compatibility.
-    //
-    _Status = ExInitializeResourceLite(&_Client->Resource);
-    if (!NT_SUCCESS(_Status)) {
-        goto Exit;
-    }
-    _ResourceInitialized = TRUE;
+    CxPlatLockInitialize(&_Client->Lock);
 
     _Client->ModuleId.Length = sizeof(_Client->ModuleId);
     _Client->ModuleId.Type = MIT_GUID;
@@ -437,7 +427,7 @@ Error:
     if (!NT_SUCCESS(_Status)) {
 #pragma push
 #pragma warning(suppress:6001)
-        XdpCleanupClientRegistration(_Client, _ResourceInitialized);
+        XdpCleanupClientRegistration(_Client);
 #pragma pop
     }
 
@@ -452,7 +442,7 @@ XdpUnloadApi(
     _In_ XDP_API_CLIENT *_Client
     )
 {
-    XdpCleanupClientRegistration(_Client, TRUE);
+    XdpCleanupClientRegistration(_Client);
 }
 
 inline
@@ -465,7 +455,7 @@ XdpOpenApi(
 {
     NTSTATUS _Status;
 
-    ExEnterCriticalRegionAndAcquireResourceExclusive(&_Client->Resource);
+    CxPlatLockAcquire(&_Client->Lock);
 
     if (_Client->BindingHandle == NULL) {
         _Status = STATUS_DEVICE_NOT_READY;
@@ -475,7 +465,7 @@ XdpOpenApi(
         _Status = STATUS_SUCCESS;
     }
 
-    ExReleaseResourceAndLeaveCriticalRegion(&_Client->Resource);
+    CxPlatLockRelease(&_Client->Lock);
 
     return _Status;
 }
