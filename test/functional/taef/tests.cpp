@@ -24,6 +24,7 @@
 #include "tests.h"
 #include "util.h"
 #include "tests.tmh"
+#include <wil/resource.h>
 
 //
 // Define a test method for a feature not yet officially released.
@@ -42,15 +43,14 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
+using unique_schandle = wil::unique_any<SC_HANDLE, decltype(&CloseServiceHandle), CloseServiceHandle>;//, nullptr>;
+
 class DriverService {
-    SC_HANDLE ScmHandle;
-    SC_HANDLE ServiceHandle;
+    unique_schandle ScmHandle;
+    unique_schandle ServiceHandle;
 
 public:
-    DriverService() :
-        ScmHandle(nullptr),
-        ServiceHandle(nullptr) {
-    }
+    DriverService() = default;
 
     bool
     Initialize(
@@ -60,7 +60,7 @@ public:
         )
     {
         uint32_t Error;
-        ScmHandle = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
+        ScmHandle.reset(OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS));
         if (ScmHandle == nullptr) {
             Error = GetLastError();
             TraceError(
@@ -70,11 +70,11 @@ public:
             return false;
         }
     QueryService:
-        ServiceHandle =
+        ServiceHandle.reset(
             OpenServiceA(
-                ScmHandle,
+                ScmHandle.get(),
                 DriverName,
-                SERVICE_ALL_ACCESS);
+                SERVICE_ALL_ACCESS));
         if (ServiceHandle == nullptr) {
             TraceError(
                 "[test] %u, %s.",
@@ -119,9 +119,9 @@ public:
                     "Failed to find driver on disk");
                 return false;
             }
-            ServiceHandle =
+            ServiceHandle.reset(
                 CreateServiceA(
-                    ScmHandle,
+                    ScmHandle.get(),
                     DriverName,
                     DriverName,
                     SC_MANAGER_ALL_ACCESS,
@@ -133,7 +133,7 @@ public:
                     nullptr,
                     DependentFileNames,
                     nullptr,
-                    nullptr);
+                    nullptr));
             if (ServiceHandle == nullptr) {
                 Error = GetLastError();
                 if (Error == ERROR_SERVICE_EXISTS) {
@@ -149,21 +149,10 @@ public:
         return true;
     }
 
-    void
-    Uninitialize()
-    {
-        if (ServiceHandle != nullptr) {
-            CloseServiceHandle(ServiceHandle);
-        }
-        if (ScmHandle != nullptr) {
-            CloseServiceHandle(ScmHandle);
-        }
-    }
-
     bool
     Start()
     {
-        if (!StartServiceA(ServiceHandle, 0, nullptr)) {
+        if (!StartServiceA(ServiceHandle.get(), 0, nullptr)) {
             uint32_t Error = GetLastError();
             if (Error != ERROR_SERVICE_ALREADY_RUNNING) {
                 TraceError(
@@ -179,10 +168,10 @@ public:
 
 class DriverClient {
     HANDLE DeviceHandle;
+    wil::unique_handle m_handle;
 
 public:
-    DriverClient() : DeviceHandle(INVALID_HANDLE_VALUE) { }
-    ~DriverClient() { Uninitialize(); }
+    DriverClient() = default;
 
     bool
     Initialize(
@@ -220,16 +209,8 @@ public:
                 "CreateFile failed");
             return false;
         }
+        m_handle.reset(DeviceHandle);
         return true;
-    }
-
-    void
-    Uninitialize()
-    {
-        if (DeviceHandle != INVALID_HANDLE_VALUE) {
-            CloseHandle(DeviceHandle);
-            DeviceHandle = INVALID_HANDLE_VALUE;
-        }
     }
 
     bool
@@ -478,10 +459,7 @@ TEST_MODULE_INITIALIZE(ModuleSetup)
 
 TEST_MODULE_CLEANUP(ModuleCleanup)
 {
-    if (TestingKernelMode) {
-        TestDriverClient.Uninitialize();
-        TestDriverService.Uninitialize();
-    } else {
+    if (!TestingKernelMode) {
         Assert::IsTrue(TestCleanup());
     }
     WPP_CLEANUP();

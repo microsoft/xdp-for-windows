@@ -38,6 +38,7 @@
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)test\functional\km;
         $(SolutionDir)test\functional\lib;
+        $(SolutionDir)submodules\wil\include;
         $(VCInstallDir)UnitTest\include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
