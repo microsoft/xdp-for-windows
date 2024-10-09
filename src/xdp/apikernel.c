@@ -404,7 +404,7 @@ XdpApiKernelProviderAttachClient(
     XDPAPI_CLIENT *Client = NULL;
     const XDP_API_CLIENT_DISPATCH *ClientDispatch = ClientNpiDispatch;
 
-    TraceEnter(TRACE_CORE, "ProviderContext=%p", ProviderContext);
+    TraceEnter(TRACE_CORE, "ProviderContext=%p ClientBindingContext=%p", ProviderContext, ClientBindingContext);
 
     if ((ProviderBindingContext == NULL) || (ProviderDispatch == NULL) || (Provider == NULL)) {
         Status = STATUS_INVALID_PARAMETER;
