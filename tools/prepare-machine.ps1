@@ -205,7 +205,7 @@ function Setup-VcRuntime {
     if (!$Installed -or $Force) {
         Write-Host "Installing VC++ runtime"
 
-        if (!(Test-Path $ArtifactsDir)) { mkdir artifacts }
+        if (!(Test-Path $ArtifactsDir)) { mkdir $ArtifactsDir }
         Remove-Item -Force "$ArtifactsDir\vc_redist.$Platform.exe" -ErrorAction Ignore
 
         # Download and install.
