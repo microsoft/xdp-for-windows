@@ -43,8 +43,10 @@ jobs:
     - name: Resolve base commit reference
       id: resolve_base_ref
       shell: PowerShell
+      # For PR runs, this returns essentially returns "main", or the target branch.
+      # For non-PR runs, this returns the first parent of the current commit.
       run: |
-        $BaseRef = "" #TODO: pass github.base_ref here
+        $BaseRef = "${{ github.base_ref }}"
         if ([string]::IsNullOrEmpty($BaseRef)) {
           $BaseRef = git log --pretty=%P -n 1 ${{ github.sha }}
         }
@@ -52,7 +54,7 @@ jobs:
           Write-Warning "BaseRef has multiple parents. Choosing first of $BaseRef"
           $BaseRef = ($BaseRef -split " ")[0]
         }
-        echo "base_ref=$BaseRef"
+        Write-Output "base_ref=$BaseRef"
         Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "base_ref=$BaseRef"
 
   build_base:
