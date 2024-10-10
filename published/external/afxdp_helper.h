@@ -21,6 +21,8 @@ typedef struct _XSK_RING {
     UINT32 Mask;
     UINT32 Size;
     UINT32 ElementStride;
+    UINT32 CachedProducer;
+    UINT32 CachedConsumer;
 } XSK_RING;
 
 inline
@@ -40,6 +42,8 @@ XskRingInitialize(
     Ring->Mask = RingInfo->Size - 1;
     Ring->Size = RingInfo->Size;
     Ring->ElementStride = RingInfo->ElementStride;
+    Ring->CachedProducer = ReadUInt32Acquire(Ring->SharedProducer);
+    Ring->CachedConsumer = ReadUInt32Acquire(Ring->SharedConsumer);
 }
 
 inline
@@ -70,8 +74,16 @@ XskRingConsumerReserve(
     )
 {
     UINT32 Consumer = *Ring->SharedConsumer;
-    UINT32 Available = ReadUInt32Acquire(Ring->SharedProducer) - Consumer;
+    UINT32 Available;
+    
     *Index = Consumer;
+    Available =  Ring->CachedProducer - Consumer;
+    if (Available >= MaxCount) {
+        return MaxCount;
+    }
+
+    Ring->CachedProducer = ReadUInt32Acquire(Ring->SharedProducer);
+    Available =  Ring->CachedProducer - Consumer;
     return Available < MaxCount ? Available : MaxCount;
 }
 
@@ -94,8 +106,16 @@ XskRingProducerReserve(
     )
 {
     UINT32 Producer = *Ring->SharedProducer;
-    UINT32 Available = Ring->Size - (Producer - ReadUInt32Acquire(Ring->SharedConsumer));
+    UINT32 Available;
+
     *Index = Producer;
+    Available = Ring->Size - (Producer - Ring->CachedConsumer);
+    if (Available >= MaxCount) {
+        return MaxCount;
+    }
+
+    Ring->CachedConsumer = ReadUInt32Acquire(Ring->SharedConsumer);
+    Available = Ring->Size - (Producer - Ring->CachedConsumer);
     return Available < MaxCount ? Available : MaxCount;
 }
 
