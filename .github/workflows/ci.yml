@@ -47,6 +47,7 @@ jobs:
         if ([string]::IsNullOrEmpty($BaseRef)) {
           $BaseRef = git log --pretty=%P -n 1 ${{ github.sha }}
         }
+        echo "base_ref=$BaseRef"
         echo "base_ref=$BaseRef" >> $env:GITHUB_OUTPUT
 
   build_base:
