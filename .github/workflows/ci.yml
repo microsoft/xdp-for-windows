@@ -49,7 +49,7 @@ jobs:
           $BaseRef = git log --pretty=%P -n 1 ${{ github.sha }}
         #}
         echo "base_ref=$BaseRef"
-        echo "base_ref=$BaseRef" >> $env:GITHUB_OUTPUT
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "base_ref=$BaseRef"
 
   build_base:
     name: Build (Base Ref)
