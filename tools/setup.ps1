@@ -17,6 +17,10 @@ This script installs or uninstalls various XDP components.
 
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver.
+
+.PARAMETER EnableKmXdpApi
+    Enable kernel-mode XDPAPI in the XDP driver.
+
 #>
 
 param (
@@ -29,11 +33,11 @@ param (
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf", "xskbenchdrv")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf", "xskbenchdrv")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -45,7 +49,10 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false
+    [switch]$EnableEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableKmXdpApi = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -72,6 +79,7 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
+$XskBenchDrvSys = "$ArtifactsDir\test\xskbenchdrv\xskbenchdrv.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
 $XdpMpCert = "$ArtifactsDir\test\xdpmp.cer"
@@ -292,6 +300,12 @@ function Install-Xdp {
             reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
             Stop-Service xdp
         }
+    }
+
+    if ($EnableKmXdpApi) {
+        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v EnableKmXdpApi /d 1 /t REG_DWORD /f"
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v EnableKmXdpApi /d 1 /t REG_DWORD /f | Write-Verbose
+        Stop-Service xdp
     }
 
     Start-Service-With-Retry xdp
@@ -620,6 +634,33 @@ function Uninstall-Ebpf {
     Refresh-Path
 }
 
+# Installs the xskbenchdrv driver.
+function Install-XskBenchDrv {
+    if (!(Test-Path $XskBenchDrvSys)) {
+        Write-Error "$XskBenchDrvSys does not exist!"
+    }
+
+    Write-Verbose "sc.exe create xskbenchdrv type= kernel start= demand binpath= $XskBenchDrvSys"
+    sc.exe create xskbenchdrv type= kernel start= demand binpath= $XskBenchDrvSys | Write-Verbose
+    if ($LastExitCode) {
+        Write-Error "sc.exe exit code: $LastExitCode"
+    }
+
+    Start-Service-With-Retry xskbenchdrv
+
+    Write-Verbose "xskbenchdrv.sys install complete!"
+}
+
+# Uninstalls the xskbenchdrv driver.
+function Uninstall-XskBenchDrv {
+    Write-Verbose "Stop-Service xskbenchdrv"
+    try { Stop-Service xskbenchdrv -NoWait } catch { }
+
+    Cleanup-Service xskbenchdrv
+
+    Write-Verbose "xskbenchdrv.sys uninstall complete!"
+}
+
 try {
     if ($Install -eq "fndis") {
         Install-FakeNdis
@@ -638,6 +679,9 @@ try {
     }
     if ($Install -eq "ebpf") {
         Install-Ebpf
+    }
+    if ($Install -eq "xskbenchdrv") {
+        Install-XskBenchDrv
     }
     if ($Install -eq "fnsock") {
         Install-FnSock
@@ -660,6 +704,9 @@ try {
     }
     if ($Uninstall -eq "ebpf") {
         Uninstall-Ebpf
+    }
+    if ($Uninstall -eq "xskbenchdrv") {
+        Uninstall-XskBenchDrv
     }
     if ($Uninstall -eq "fnsock") {
         Uninstall-FnSock

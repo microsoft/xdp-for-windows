@@ -135,6 +135,11 @@
                 <Keyword Value="0x7FFFFFFFFFFFFFFF" />
             </Keywords>
         </EventProvider>
+        <EventProvider Id="EP_XdpFnTestDrvWpp" Name="9DF435CB-9EEB-430B-A795-EF2B8845F7F3" Level="5" NonPagedMemory="true">
+            <Keywords>
+                <Keyword Value="0x7FFFFFFFFFFFFFFF" />
+            </Keywords>
+        </EventProvider>
 
         <!-- Windows OS providers -->
         <EventProvider Id="EP_MicrosoftWindowsTcpipPerPacket" Name="2F07E2EE-15DB-40F1-90EF-9D7BA282188A" Level="17" />
@@ -163,6 +168,7 @@
                         <EventProviderId Value="EP_FnLwfWpp" />
                         <EventProviderId Value="EP_FnSockWpp" />
                         <EventProviderId Value="EP_XdpFnTestWpp" />
+                        <EventProviderId Value="EP_XdpFnTestDrvWpp" />
 
                         <EventProviderId Value="EP_MicrosoftWindowsTcpipPerPacket" />
                         <EventProviderId Value="EP_MicrosoftWindowsWinsockAfd" />

@@ -58,6 +58,7 @@ Check-And-Remove-Driver "fnlwf.sys" "fnlwf"
 Check-And-Remove-Driver "xdpmp.sys" "xdpmp"
 Check-And-Remove-Driver "xdp.sys" "xdp"
 Check-And-Remove-Driver "fndis.sys" "fndis"
+Check-And-Remove-Driver "xskbenchdrv.sys" "xskbenchdrv"
 
 # Check for any eBPF drivers.
 if (!$IgnoreEbpf) {

@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="apikernel.c" />
     <ClCompile Include="bind.c" />
     <ClCompile Include="dispatch.c" />
     <ClCompile Include="ebpfextension.c" />
@@ -105,6 +106,7 @@
         $(SolutionDir)src\xdplwf\inc;
         $(SolutionDir)src\xdppcw\inc;
         $(SolutionDir)published\private;
+        $(SolutionDir)submodules\cxplat\inc;
         $(IntDir);
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdpetw\;
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdppcw\;

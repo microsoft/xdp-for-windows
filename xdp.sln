@@ -25,9 +25,15 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpmp", "test\xdpmp\xdpmp.v
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdptests", "test\functional\lib\xdptests.vcxproj", "{B7C007DA-B437-4CA5-896E-5CB5A5006D01}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdptests_km", "test\functional\lib\xdptests_km.vcxproj", "{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltests", "test\functional\taef\xdpfunctionaltests.vcxproj", "{02D631DF-E2E7-4A6E-9773-94A45B19C367}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench", "test\xskbench\um\xskbench.vcxproj", "{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbench_km", "test\xskbench\km\xskbench_km.vcxproj", "{ABAD83C5-E44D-485B-A356-635C0C155E9A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskbenchdrv", "test\xskbench\km\sys\xskbenchdrv.vcxproj", "{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktcmd", "test\pktcmd\pktcmd.vcxproj", "{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}"
 EndProject
@@ -35,9 +41,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cddkheaders", "test\build_h
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cppddkheaders", "test\build_headers\ddk\cpp\cppddkheaders.vcxproj", "{2E04098E-2D9D-48AE-B962-4C681F0897C7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "csdkheaders", "test\build_headers\sdk\c\csdkheaders.vcxproj", "{F092F711-04ED-443E-9978-4D270F89A2CB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "csdkheaders", "test\build_headers\sdk\um\c\csdkheaders.vcxproj", "{F092F711-04ED-443E-9978-4D270F89A2CB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cppsdkheaders", "test\build_headers\sdk\cpp\cppsdkheaders.vcxproj", "{1EC347F7-A95F-49F3-B35F-77443A601F53}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cppsdkheaders", "test\build_headers\sdk\um\cpp\cppsdkheaders.vcxproj", "{1EC347F7-A95F-49F3-B35F-77443A601F53}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rssconfig", "test\rssconfig\rssconfig.vcxproj", "{798300CD-0D26-4FCD-843B-30A9585B102C}"
 EndProject
@@ -56,6 +62,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktfuzz", "test\pktfuzz\pktfuzz.vcxproj", "{A1864618-ED3D-43C5-8013-A177F9CF73D9}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bpfexport", "src\bpfexport\bpfexport.vcxproj", "{8F8830FF-1648-4772-87ED-F5DA091FC931}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpfunctionaltestdrv", "test\functional\km\xdpfunctionaltestdrv.vcxproj", "{BDF5EF66-403A-4D96-95D5-871689F76C4F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nuget", "src\nuget\nuget.vcxproj", "{FBF60D12-183D-42D1-B884-8B9FA4F1273F}"
 EndProject
@@ -189,6 +197,14 @@ Global
 		{B7C007DA-B437-4CA5-896E-5CB5A5006D01}.Release|ARM64.Build.0 = Release|ARM64
 		{B7C007DA-B437-4CA5-896E-5CB5A5006D01}.Release|x64.ActiveCfg = Release|x64
 		{B7C007DA-B437-4CA5-896E-5CB5A5006D01}.Release|x64.Build.0 = Release|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|ARM64.Build.0 = Debug|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|x64.ActiveCfg = Debug|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Debug|x64.Build.0 = Debug|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|ARM64.ActiveCfg = Release|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|ARM64.Build.0 = Release|ARM64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|x64.ActiveCfg = Release|x64
+		{C8280A34-02C5-4BDE-9F4F-71EFA06C8351}.Release|x64.Build.0 = Release|x64
 		{02D631DF-E2E7-4A6E-9773-94A45B19C367}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{02D631DF-E2E7-4A6E-9773-94A45B19C367}.Debug|ARM64.Build.0 = Debug|ARM64
 		{02D631DF-E2E7-4A6E-9773-94A45B19C367}.Debug|x64.ActiveCfg = Debug|x64
@@ -205,6 +221,22 @@ Global
 		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|ARM64.Build.0 = Release|ARM64
 		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|x64.ActiveCfg = Release|x64
 		{D6E512A0-8DBF-4BAF-9393-BFA746C9325C}.Release|x64.Build.0 = Release|x64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Debug|ARM64.Build.0 = Debug|ARM64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Debug|x64.ActiveCfg = Debug|x64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Debug|x64.Build.0 = Debug|x64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Release|ARM64.ActiveCfg = Release|ARM64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Release|ARM64.Build.0 = Release|ARM64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Release|x64.ActiveCfg = Release|x64
+		{ABAD83C5-E44D-485B-A356-635C0C155E9A}.Release|x64.Build.0 = Release|x64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Debug|ARM64.Build.0 = Debug|ARM64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Debug|x64.ActiveCfg = Debug|x64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Debug|x64.Build.0 = Debug|x64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Release|ARM64.ActiveCfg = Release|ARM64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Release|ARM64.Build.0 = Release|ARM64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Release|x64.ActiveCfg = Release|x64
+		{1C8F18D3-B7D2-47D0-8CE0-4ED969157EB8}.Release|x64.Build.0 = Release|x64
 		{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}.Debug|ARM64.Build.0 = Debug|ARM64
 		{6FA0FEF2-5947-4D11-8DDA-A0968852EDAB}.Debug|x64.ActiveCfg = Debug|x64
@@ -353,6 +385,14 @@ Global
 		{8F8830FF-1648-4772-87ED-F5DA091FC931}.Release|ARM64.Build.0 = Release|ARM64
 		{8F8830FF-1648-4772-87ED-F5DA091FC931}.Release|x64.ActiveCfg = Release|x64
 		{8F8830FF-1648-4772-87ED-F5DA091FC931}.Release|x64.Build.0 = Release|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|ARM64.Build.0 = Debug|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|x64.ActiveCfg = Debug|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Debug|x64.Build.0 = Debug|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|ARM64.ActiveCfg = Release|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|ARM64.Build.0 = Release|ARM64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|x64.ActiveCfg = Release|x64
+		{BDF5EF66-403A-4D96-95D5-871689F76C4F}.Release|x64.Build.0 = Release|x64
 		{FBF60D12-183D-42D1-B884-8B9FA4F1273F}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{FBF60D12-183D-42D1-B884-8B9FA4F1273F}.Debug|ARM64.Build.0 = Debug|ARM64
 		{FBF60D12-183D-42D1-B884-8B9FA4F1273F}.Debug|x64.ActiveCfg = Debug|x64

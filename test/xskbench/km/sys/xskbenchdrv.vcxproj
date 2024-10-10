@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="driver.c" />
+    <ClCompile Include="..\..\xskbench.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="xskbench_kernel.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
+      <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{1c8f18d3-b7d2-47d0-8ce0-4ed969157eb8}</ProjectGuid>
+    <UndockedType>sys</UndockedType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+  <PropertyGroup>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        .;
+        ..;
+        $(SolutionDir)test\xskbench;
+        $(SolutionDir)submodules\cxplat\inc;
+        $(SolutionDir)test\common\inc;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
+      <WppRecorderEnabled>true</WppRecorderEnabled>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(SolutionDir)artifacts\bin\$(Platform)_$(Configuration)\</AdditionalLibraryDirectories>
+      <AdditionalDependencies>
+        netio.lib;
+        cng.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.kernel\cxplat_winkernel.obj;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
+    <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.kernel.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\;UndockedSourceLink=false"/>
+  </Target>
+</Project>

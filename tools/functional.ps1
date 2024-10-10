@@ -14,6 +14,13 @@ This script runs the XDP functional tests.
 
 .PARAMETER Iterations
     The number of times to run the test suite.
+
+.PARAMETER UserMode
+    Run user mode tests.
+
+.PARAMETER KernelMode
+    Run kernel mode tests.
+
 #>
 
 param (
@@ -44,11 +51,25 @@ param (
     [string]$TestBinaryPath = "",
 
     [Parameter(Mandatory = $false)]
+    [switch]$UserMode = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$KernelMode = $false,
+
+    [Parameter(Mandatory = $false)]
     [switch]$NoPrerelease = $false
 )
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
+
+function CleanupKernelMode {
+    sc.exe stop xdpfunctionaltestdrv | Write-Verbose
+    sc.exe delete xdpfunctionaltestdrv | Write-Verbose
+    Remove-Item -Path "$SystemDriversPath\xdpfunctionaltestdrv.sys" -ErrorAction SilentlyContinue
+    [Environment]::SetEnvironmentVariable("xdpfunctionaltests::KernelModeEnabled", $null)
+    [Environment]::SetEnvironmentVariable("xdpfunctionaltests::KernelModeDriverPath", $null)
+}
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
@@ -57,6 +78,7 @@ $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $IterationFailureCount = 0
 $IterationTimeout = 0
+$SystemDriversPath = Join-Path $([Environment]::GetEnvironmentVariable("SystemRoot")) "System32\drivers"
 
 . $RootDir\tools\common.ps1
 
@@ -69,6 +91,10 @@ if ($Platform -eq "arm64") {
     $VsTestConsole = "vstest.console.arm64"
 }
 
+if ($UserMode -and $KernelMode) {
+    Write-Error "Only one of -UserMode and -KernelMode is supported"
+}
+
 if ($Timeout -gt 0) {
     $WatchdogReservedMinutes = 2
     $IterationTimeout = $Timeout / $Iterations - $WatchdogReservedMinutes
@@ -76,6 +102,14 @@ if ($Timeout -gt 0) {
     if ($IterationTimeout -le 0) {
         Write-Error "Timeout must allow at least $WatchdogReservedMinutes minutes per iteration"
     }
+}
+
+if ($KernelMode) {
+    # Ensure clean slate.
+    CleanupKernelMode
+    [System.Environment]::SetEnvironmentVariable('xdpfunctionaltests::KernelModeEnabled', '1')
+    [System.Environment]::SetEnvironmentVariable('xdpfunctionaltests::KernelModeDriverPath', "$SystemDriversPath\")
+    Copy-Item -Path "$ArtifactsDir\test\xdpfunctionaltestdrv\xdpfunctionaltestdrv.sys" $SystemDriversPath
 }
 
 # Ensure the output path exists.
@@ -98,7 +132,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -EnableKmXdpApi:$KernelMode
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing fnmp..."
@@ -157,6 +191,9 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        if ($KernelMode) {
+            CleanupKernelMode
+        }
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }

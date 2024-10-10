@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="main.c" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{abad83c5-e44d-485b-a356-635c0c155e9a}</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetName>xskbench_km</TargetName>
+    <UndockedType>exe</UndockedType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        ..;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>ntdll.lib;onecore.lib;tdh.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+</Project>
