@@ -29,14 +29,34 @@ jobs:
       security-events: write  # For CodeQL
     uses: ./.github/workflows/build_matrix.yml
 
+  resolve_base:
+    name: Resolve base commit reference
+    runs-on: windows-2022
+    outputs:
+      base_ref: ${{ steps.resolve_base_ref.outputs.base_ref }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      with:
+        repository: microsoft/xdp-for-windows
+    - name: Resolve base commit reference
+      id: resolve_base_ref
+      shell: PowerShell
+      run: |
+        $BaseRef = "" TODO: pass github.base_ref here
+        if ([string]::IsNullOrEmpty($BaseRef)) {
+          $BaseRef = git log --pretty=%P -n 1 ${{ github.sha }}
+        }
+        echo "base_ref=$BaseRef >> $env:GITHUB_OUTPUT"
+
   build_base:
-    name: Build (${{ github.base_ref }})
-    if: ${{ github.base_ref != '' }}
+    name: Build (${{ needs.resolve_base.outputs.base_ref }})
+    needs: resolve_base
     permissions:
       security-events: write  # For CodeQL (even though it is not enabled)
     uses: ./.github/workflows/build_matrix.yml
     with:
-      ref: ${{ github.base_ref }}
+      ref: ${{ needs.resolve_base.outputs.base_ref }}
       id: "baseref"
       codeql: false
 
@@ -295,7 +315,7 @@ jobs:
 
   perf_tests:
     name: Perf Tests
-    needs: [build, build_base]
+    needs: [build, build_base, resolve_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
@@ -327,15 +347,13 @@ jobs:
         os: ${{ matrix.windows }}
         platform: ${{ matrix.platform }}
     - uses: ./.github/actions/perf
-      if: ${{ github.base_ref != '' }}
       with:
         config: ${{ matrix.configuration }}
         os: ${{ matrix.windows }}
         platform: ${{ matrix.platform }}
-        ref: ${{ github.base_ref }}
+        ref: ${{ needs.resolve_base.outputs.base_ref }}
         id: "baseref"
     - name: Compare Results
-      if: ${{ github.base_ref != '' }}
       shell: PowerShell
       run: tools\xskperfcompare.ps1 -DataFile1 baseref/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv
 
