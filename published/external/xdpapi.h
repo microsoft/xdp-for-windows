@@ -36,6 +36,7 @@ C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 #if defined(_KERNEL_MODE)
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
@@ -49,6 +50,7 @@ XDP_CREATE_PROGRAM_FN(
     );
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_INTERFACE_OPEN_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
@@ -82,6 +84,7 @@ XDP_INTERFACE_OPEN_FN(
 #include "afxdp.h"
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID *
 XDP_GET_ROUTINE_FN(
     _In_z_ const CHAR *RoutineName
@@ -99,12 +102,14 @@ XDP_GET_ROUTINE_FN(
 #if defined(_KERNEL_MODE)
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_DELETE_PROGRAM_FN(
     _In_ HANDLE Program
     );
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_INTERFACE_CLOSE_FN(
     _In_ HANDLE InterfaceHandle
@@ -241,12 +246,14 @@ XdpUnloadApi(
 #include "cxplat.h"
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_API_ATTACH_FN(
     _In_ VOID *ClientContext
     );
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_API_DETACH_FN(
     _In_ VOID *ClientContext
@@ -279,6 +286,7 @@ typedef struct _XDP_API_CLIENT {
 } XDP_API_CLIENT;
 
 inline
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpNmrClientAttachProvider(
     _In_ HANDLE _NmrBindingHandle,
@@ -325,6 +333,7 @@ XdpNmrClientAttachProvider(
 }
 
 inline
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpNmrClientDetachProvider(
     _In_ VOID *_ClientBindingContext
@@ -346,6 +355,7 @@ XdpNmrClientDetachProvider(
 }
 
 inline
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpCleanupClientRegistration(
     _In_ XDP_API_CLIENT *_Client
@@ -369,6 +379,7 @@ XdpCleanupClientRegistration(
 }
 
 inline
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpLoadApi(
     _In_ UINT32 _XdpApiVersion,
@@ -437,6 +448,7 @@ Exit:
 }
 
 inline
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpUnloadApi(
     _In_ XDP_API_CLIENT *_Client
@@ -446,6 +458,7 @@ XdpUnloadApi(
 }
 
 inline
+_IRQL_requires_max_(APC_LEVEL)
 NTSTATUS
 XdpOpenApi(
     _In_ XDP_API_CLIENT *_Client,

@@ -65,6 +65,7 @@ C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 #if defined(_KERNEL_MODE)
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_CREATE_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
@@ -96,6 +97,7 @@ DEFINE_ENUM_FLAG_OPERATORS(XSK_BIND_FLAGS)
 C_ASSERT(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32));
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_BIND_FN(
     _In_ HANDLE Socket,
@@ -112,6 +114,7 @@ DEFINE_ENUM_FLAG_OPERATORS(XSK_ACTIVATE_FLAGS)
 C_ASSERT(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32));
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_ACTIVATE_FN(
     _In_ HANDLE Socket,
@@ -140,6 +143,7 @@ C_ASSERT(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32));
 
 typedef
 XDP_STATUS
+_IRQL_requires_(PASSIVE_LEVEL)
 XSK_NOTIFY_SOCKET_FN(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
@@ -190,6 +194,7 @@ XSK_GET_NOTIFY_ASYNC_RESULT_FN(
 #endif // defined(_KERNEL_MODE)
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_NOTIFY_ASYNC2_FN(
     _In_ HANDLE Socket,
@@ -199,6 +204,7 @@ XSK_NOTIFY_ASYNC2_FN(
     );
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_SET_SOCKOPT_FN(
     _In_ HANDLE Socket,
@@ -208,6 +214,7 @@ XSK_SET_SOCKOPT_FN(
     );
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_GET_SOCKOPT_FN(
     _In_ HANDLE Socket,
@@ -217,6 +224,7 @@ XSK_GET_SOCKOPT_FN(
     );
 
 typedef
+_IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_IOCTL_FN(
     _In_ HANDLE Socket,
