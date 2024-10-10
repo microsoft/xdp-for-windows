@@ -167,8 +167,7 @@ public:
 };
 
 class DriverClient {
-    HANDLE DeviceHandle;
-    wil::unique_handle m_handle;
+    wil::unique_handle DeviceHandle;
 
 public:
     DriverClient() = default;
@@ -192,7 +191,7 @@ public:
                 "Creating Driver File Path failed");
             return false;
         }
-        DeviceHandle =
+        DeviceHandle.reset(
             CreateFileA(
                 IoctlPath,
                 GENERIC_READ | GENERIC_WRITE,
@@ -200,8 +199,8 @@ public:
                 nullptr,                // no SECURITY_ATTRIBUTES structure
                 OPEN_EXISTING,          // No special create flags
                 FILE_FLAG_OVERLAPPED,   // Allow asynchronous requests
-                nullptr);
-        if (DeviceHandle == INVALID_HANDLE_VALUE) {
+                nullptr));
+        if (DeviceHandle.get() == INVALID_HANDLE_VALUE) {
             Error = GetLastError();
             TraceError(
                 "[test] %u, %s.",
@@ -209,7 +208,6 @@ public:
                 "CreateFile failed");
             return false;
         }
-        m_handle.reset(DeviceHandle);
         return true;
     }
 
@@ -238,7 +236,7 @@ public:
             IoControlCode,
             InBufferSize);
         if (!DeviceIoControl(
-                DeviceHandle,
+                DeviceHandle.get(),
                 IoControlCode,
                 InBuffer, InBufferSize,
                 nullptr, 0,
@@ -256,7 +254,7 @@ public:
         }
         DWORD dwBytesReturned;
         if (!GetOverlappedResultEx(
-                DeviceHandle,
+                DeviceHandle.get(),
                 &Overlapped,
                 &dwBytesReturned,
                 TimeoutMs,
@@ -264,7 +262,7 @@ public:
             Error = GetLastError();
             if (Error == WAIT_TIMEOUT) {
                 Error = ERROR_TIMEOUT;
-                CancelIoEx(DeviceHandle, &Overlapped);
+                CancelIoEx(DeviceHandle.get(), &Overlapped);
             }
             TraceError(
                 "[test] %u, %s.",
@@ -323,7 +321,7 @@ public:
             "[test] Sending Read IOCTL %u.",
             IoControlCode);
         if (!DeviceIoControl(
-                DeviceHandle,
+                DeviceHandle.get(),
                 IoControlCode,
                 nullptr, 0,
                 OutBuffer, OutBufferSize,
@@ -341,7 +339,7 @@ public:
         }
         DWORD dwBytesReturned;
         if (!GetOverlappedResultEx(
-                DeviceHandle,
+                DeviceHandle.get(),
                 &Overlapped,
                 &dwBytesReturned,
                 TimeoutMs,
@@ -349,8 +347,8 @@ public:
             Error = GetLastError();
             if (Error == WAIT_TIMEOUT) {
                 Error = ERROR_TIMEOUT;
-                if (CancelIoEx(DeviceHandle, &Overlapped)) {
-                    GetOverlappedResult(DeviceHandle, &Overlapped, &dwBytesReturned, true);
+                if (CancelIoEx(DeviceHandle.get(), &Overlapped)) {
+                    GetOverlappedResult(DeviceHandle.get(), &Overlapped, &dwBytesReturned, true);
                 }
             } else {
                 TraceError(
