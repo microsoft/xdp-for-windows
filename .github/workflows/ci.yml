@@ -43,7 +43,7 @@ jobs:
       id: resolve_base_ref
       shell: PowerShell
       run: |
-        $BaseRef = "" TODO: pass github.base_ref here
+        $BaseRef = "" #TODO: pass github.base_ref here
         if ([string]::IsNullOrEmpty($BaseRef)) {
           $BaseRef = git log --pretty=%P -n 1 ${{ github.sha }}
         }
