@@ -39,6 +39,7 @@ jobs:
       uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
       with:
         repository: microsoft/xdp-for-windows
+        fetch-depth: 2
     - name: Resolve base commit reference
       id: resolve_base_ref
       shell: PowerShell
@@ -51,7 +52,7 @@ jobs:
         echo "base_ref=$BaseRef" >> $env:GITHUB_OUTPUT
 
   build_base:
-    name: Build (${{ needs.resolve_base.outputs.base_ref }})
+    name: Build (Base Ref)
     needs: resolve_base
     permissions:
       security-events: write  # For CodeQL (even though it is not enabled)
