@@ -34,7 +34,7 @@ if ($null -eq $Session) {
 $RootDir = $pwd
 . $RootDir\tools\common.ps1
 $ArtifactBin = Get-ArtifactBinPath -Config $Config -Platform $Platform
-$ArtifactBinBase = Get-ArtifactBinPatBase -Config $Config -Platform $Platform
+$ArtifactBinBase = Get-ArtifactBinPathBase -Config $Config -Platform $Platform
 
 # Find all the local and remote IP and MAC addresses.
 $RemoteAddress = [System.Net.Dns]::GetHostAddresses($Session.ComputerName)[0].IPAddressToString
