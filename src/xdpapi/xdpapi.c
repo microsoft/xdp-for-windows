@@ -125,16 +125,17 @@ XdpOpenApi(
     _Out_ const XDP_API_TABLE **XdpApiTable
     )
 {
-    *XdpApiTable = NULL;
-
-    if (XdpApiVersion < XDP_API_VERSION_1 ||
-        XdpApiVersion > XDP_API_VERSION_2) {
+    switch (XdpApiVersion) {
+    case XDP_API_VERSION_1:
+        *XdpApiTable = &XdpApiTableV1;
+        return S_OK;
+    case XDP_API_VERSION_2:
+        *XdpApiTable = &XdpApiTableV2;
+        return S_OK;
+    default:
+        *XdpApiTable = NULL;
         return E_NOINTERFACE;
     }
-
-    *XdpApiTable = &XdpApiTableV1;
-
-    return S_OK;
 }
 
 VOID
@@ -143,7 +144,7 @@ XdpCloseApi(
     _In_ const XDP_API_TABLE *XdpApiTable
     )
 {
-    FRE_ASSERT(XdpApiTable == &XdpApiTableV1);
+    FRE_ASSERT(XdpApiTable == &XdpApiTableV1 || XdpApiTable == &XdpApiTableV2);
 }
 
 static

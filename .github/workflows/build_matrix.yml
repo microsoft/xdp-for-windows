@@ -38,6 +38,6 @@ jobs:
       config: ${{ matrix.config }}
       os: ${{ matrix.os }}
       platform: ${{ matrix.platform }}
-      ref: ${{ matrix.ref }}
+      ref: ${{ inputs.ref }}
       codeql: ${{ inputs.codeql && github.event_name == 'schedule' }}
       artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
