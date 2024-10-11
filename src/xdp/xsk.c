@@ -19,10 +19,9 @@ typedef enum _XSK_STATE {
 } XSK_STATE;
 
 typedef struct _XSK_SHARED_RING {
-    UINT32 ProducerIndex;
-    UINT32 ConsumerIndex;
-    UINT32 Flags;
-    UINT32 Reserved;
+    DECLSPEC_CACHEALIGN UINT32 ProducerIndex;
+    DECLSPEC_CACHEALIGN UINT32 ConsumerIndex;
+    DECLSPEC_CACHEALIGN UINT32 Flags;
     //
     // Followed by power-of-two array of ring elements, starting on 8-byte alignment.
     // XSK_FRAME_DESCRIPTOR[] for rx/tx, UINT64[] for fill/completion
@@ -31,6 +30,8 @@ typedef struct _XSK_SHARED_RING {
 
 typedef struct _XSK_KERNEL_RING {
     XSK_SHARED_RING *Shared;
+    UINT32 CachedProducerIndex;
+    UINT32 CachedConsumerIndex;
     MDL *Mdl;
     UINT32 Size;
     UINT32 Mask;
@@ -297,10 +298,32 @@ XskRingProdReserve(
     _In_ UINT32 Count
     )
 {
-    UINT32 Available =
-        Ring->Size - (ReadUInt32NoFence(&Ring->Shared->ProducerIndex) -
-            ReadUInt32NoFence(&Ring->Shared->ConsumerIndex));
+    UINT32 Available;
+
+    //
+    // First, try to satisfy the request using the cached consumer index, since another CPU will
+    // often own the uncached consumer field's cache line.
+    //
+    Available = Ring->Size - (Ring->Shared->ProducerIndex - Ring->CachedConsumerIndex);
+    if (Available >= Count) {
+        return Count;
+    }
+
+    //
+    // Update the cached value and return the latest result.
+    //
+    Ring->CachedConsumerIndex = ReadUInt32Acquire(&Ring->Shared->ConsumerIndex);
+    Available = Ring->Size - (Ring->Shared->ProducerIndex - Ring->CachedConsumerIndex);
     return min(Available, Count);
+}
+
+static
+BOOLEAN
+XskRingProdIsEmpty(
+    _Inout_ XSK_KERNEL_RING *Ring
+    )
+{
+    return XskRingProdReserve(Ring, Ring->Size) == Ring->Size;
 }
 
 static
@@ -310,9 +333,19 @@ XskRingConsPeek(
     _In_ UINT32 Count
     )
 {
-    UINT32 Available =
-        ReadUInt32Acquire(&Ring->Shared->ProducerIndex) -
-            ReadUInt32NoFence(&Ring->Shared->ConsumerIndex);
+    UINT32 Available;
+
+    //
+    // First, try to satisfy the request using the cached producer index, since another CPU will
+    // often own the uncached producer field's cache line.
+    //
+    Available = Ring->CachedProducerIndex - Ring->Shared->ConsumerIndex;
+    if (Available >= Count) {
+        return Count;
+    }
+
+    Ring->CachedProducerIndex = ReadUInt32Acquire(&Ring->Shared->ProducerIndex);
+    Available = Ring->CachedProducerIndex - Ring->Shared->ConsumerIndex;
     return min(Available, Count);
 }
 
@@ -575,10 +608,12 @@ static
 FORCEINLINE
 UINT32
 XskGetAvailableTxCompletion(
-    _In_ XSK *Xsk
+    _In_ XSK *Xsk,
+    _In_ UINT32 Count
     )
 {
-    UINT32 XskCompletionAvailable = XskRingProdReserve(&Xsk->Tx.CompletionRing, MAXUINT32);
+    UINT32 XskCompletionAvailable =
+        XskRingProdReserve(&Xsk->Tx.CompletionRing, Xsk->Tx.Xdp.OutstandingFrames + Count);
 
     if (!NT_VERIFY(XskCompletionAvailable >= Xsk->Tx.Xdp.OutstandingFrames)) {
         //
@@ -623,7 +658,7 @@ XskFillTx(
     //
     if (Xsk->Tx.Xdp.PollHandle == NULL &&
         ((XskRingConsPeek(&Xsk->Tx.Ring, 1) == 0 && Xsk->Tx.Xdp.OutstandingFrames == 0) ||
-         (XskGetAvailableTxCompletion(Xsk) == 0)) &&
+         (XskGetAvailableTxCompletion(Xsk, 1) == 0)) &&
          !(Xsk->Tx.Ring.Shared->Flags & XSK_RING_FLAG_NEED_POKE)) {
         InterlockedOrAcquire((LONG *)&Xsk->Tx.Ring.Shared->Flags, XSK_RING_FLAG_NEED_POKE);
     }
@@ -638,11 +673,11 @@ XskFillTx(
     //    - XSK TX operations outstanding
     //
 
-    XskTxAvailable = XskRingConsPeek(&Xsk->Tx.Ring, MAXUINT32);
+    XskTxAvailable = XskRingConsPeek(&Xsk->Tx.Ring, XdpTxAvailable);
+    XskCompletionAvailable = XskGetAvailableTxCompletion(Xsk, XskTxAvailable);
+    Count = XskCompletionAvailable;
 
-    XskCompletionAvailable = XskGetAvailableTxCompletion(Xsk);
-
-    Count = min(min(XdpTxAvailable, XskTxAvailable), XskCompletionAvailable);
+    ASSERT(Count == min(min(XdpTxAvailable, XskTxAvailable), XskCompletionAvailable));
 
     for (ULONG i = 0; i < Count; i++) {
         XDP_FRAME *Frame;
@@ -3137,7 +3172,7 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
-    Shared = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, POOLTAG_RING);
+    Shared = ExAllocatePoolZero(NonPagedPoolNxCacheAligned, AllocationSize, POOLTAG_RING);
     if (Shared == NULL) {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
@@ -3519,10 +3554,10 @@ XskQueryReadyIo(
 {
     UINT32 SatisfiedFlags = 0;
 
-    if (InFlags & XSK_NOTIFY_FLAG_WAIT_TX && XskRingConsPeek(&Xsk->Tx.CompletionRing, 1) > 0) {
+    if (InFlags & XSK_NOTIFY_FLAG_WAIT_TX && !XskRingProdIsEmpty(&Xsk->Tx.CompletionRing)) {
         SatisfiedFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
     }
-    if (InFlags & XSK_NOTIFY_FLAG_WAIT_RX && XskRingConsPeek(&Xsk->Rx.Ring, 1) > 0) {
+    if (InFlags & XSK_NOTIFY_FLAG_WAIT_RX && !XskRingProdIsEmpty(&Xsk->Rx.Ring)) {
         SatisfiedFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
     }
 
