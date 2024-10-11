@@ -33,6 +33,8 @@
 
 #if defined (_KERNEL_MODE)
 extern XDP_API_PROVIDER_DISPATCH *XdpApi;
+extern XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
+
 #else
 extern XDP_API_TABLE *XdpApi;
 #endif // defined (_KERNEL_MODE)
@@ -310,7 +312,7 @@ AttachXdpProgram(
     res =
         XdpApi->XdpCreateProgram(
 #if defined(_KERNEL_MODE)
-            CxPlatXdpApiGetProviderBindingContext(),
+            XdpApiProviderBindingContext,
 #endif
             ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
@@ -413,7 +415,7 @@ SetupSock(
     res =
         XdpApi->XskCreate(
 #if defined(_KERNEL_MODE)
-            CxPlatXdpApiGetProviderBindingContext(),
+            XdpApiProviderBindingContext,
             NULL, NULL, NULL,
 #endif
             &Queue->sock);

@@ -22,11 +22,6 @@
 #define ASSERT_FRE(expr) \
     if (!(expr)) { ABORT("(%s) failed line %d\n", #expr, __LINE__);}
 
-XDP_API_PROVIDER_BINDING_CONTEXT *
-CxPlatXdpApiGetProviderBindingContext(
-    VOID
-    );
-
 VOID
 CxPlatXdpApiInitialize(
     VOID
