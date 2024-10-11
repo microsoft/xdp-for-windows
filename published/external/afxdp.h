@@ -8,18 +8,11 @@
 
 #include <xdp/hookid.h>
 #include <xdp/status.h>
-
-#ifndef XDPAPI
-#define XDPAPI __declspec(dllimport)
-#endif
+#include <xdp/apitype.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#if defined(_KERNEL_MODE)
-typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
-#endif // defined(_KERNEL_MODE)
 
 #pragma warning(push)
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union

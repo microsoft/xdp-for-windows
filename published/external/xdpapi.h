@@ -14,14 +14,7 @@ extern "C" {
 #include <xdp/objectheader.h>
 #include <xdp/program.h>
 #include <xdp/status.h>
-
-#ifndef XDPAPI
-#define XDPAPI __declspec(dllimport)
-#endif
-
-#if defined(_KERNEL_MODE)
-typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
-#endif // defined(_KERNEL_MODE)
+#include <xdp/apitype.h>
 
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {
     XDP_CREATE_PROGRAM_FLAG_NONE = 0x0,
