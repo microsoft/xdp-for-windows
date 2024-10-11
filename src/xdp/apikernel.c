@@ -34,31 +34,31 @@ static const NPI_MODULEID NPI_XDP_MODULEID = {
 //
 // API routines.
 //
-static XDP_GET_ROUTINE_FN XdpApiKernelXdpGetRoutine;
-static XDP_CREATE_PROGRAM_FN XdpApiKernelXdpCreateProgram;
-static XDP_DELETE_PROGRAM_FN XdpApiKernelXdpDeleteProgram;
-static XDP_INTERFACE_OPEN_FN XdpApiKernelXdpInterfaceOpen;
-static XDP_INTERFACE_CLOSE_FN XdpApiKernelXdpInterfaceClose;
-static XSK_CREATE_FN XdpApiKernelXskCreate;
-static XSK_DELETE_FN XdpApiKernelXskDelete;
-static XSK_BIND_FN XdpApiKernelXskBind;
-static XSK_ACTIVATE_FN XdpApiKernelXskActivate;
-static XSK_NOTIFY_SOCKET_FN XdpApiKernelXskNotifySocket;
-static XSK_NOTIFY_ASYNC2_FN XdpApiKernelXskNotifyAsync2;
-static XSK_SET_SOCKOPT_FN XdpApiKernelXskSetSockopt;
-static XSK_GET_SOCKOPT_FN XdpApiKernelXskGetSockopt;
-static XSK_IOCTL_FN XdpApiKernelXskIoctl;
+static XDP_GET_ROUTINE_FN XdpGetRoutineKernel;
+static XDP_CREATE_PROGRAM_FN XdpCreateProgramKernel;
+static XDP_DELETE_PROGRAM_FN XdpDeleteProgramKernel;
+static XDP_INTERFACE_OPEN_FN XdpInterfaceOpenKernel;
+static XDP_INTERFACE_CLOSE_FN XdpInterfaceCloseKernel;
+static XSK_CREATE_FN XskCreateKernel;
+static XSK_DELETE_FN XskDeleteKernel;
+static XSK_BIND_FN XskBindKernel;
+static XSK_ACTIVATE_FN XskActivateKernel;
+static XSK_NOTIFY_SOCKET_FN XskNotifySocketKernel;
+static XSK_NOTIFY_ASYNC2_FN XskNotifyAsync2Kernel;
+static XSK_SET_SOCKOPT_FN XskSetSockoptKernel;
+static XSK_GET_SOCKOPT_FN XskGetSockoptKernel;
+static XSK_IOCTL_FN XskIoctlKernel;
 
 //
 // Experimental APIs, subject to removal in a minor release.
 //
-static XDP_RSS_GET_CAPABILITIES_FN XdpApiKernelXdpRssGetCapabilities;
-static XDP_RSS_SET_FN XdpApiKernelXdpRssSet;
-static XDP_RSS_GET_FN XdpApiKernelXdpRssGet;
-static XDP_QEO_SET_FN XdpApiKernelXdpQeoSet;
+static XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilitiesKernel;
+static XDP_RSS_SET_FN XdpRssSetKernel;
+static XDP_RSS_GET_FN XdpRssGetKernel;
+static XDP_QEO_SET_FN XdpQeoSetKernel;
 
-#define DECLARE_XDP_API_ROUTINE(_routine) #_routine, (VOID *)XdpApiKernel##_routine
-#define DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(_routine, _name) _name, (VOID *)XdpApiKernel##_routine
+#define DECLARE_XDP_API_ROUTINE(_routine) #_routine, (VOID *)_routine##Kernel
+#define DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(_routine, _name) _name, (VOID *)_routine##Kernel
 
 static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XdpGetRoutine) },
@@ -82,25 +82,25 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
 };
 
 static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
-    .XdpGetRoutine = XdpApiKernelXdpGetRoutine,
-    .XdpCreateProgram = XdpApiKernelXdpCreateProgram,
-    .XdpDeleteProgram = XdpApiKernelXdpDeleteProgram,
-    .XdpInterfaceOpen = XdpApiKernelXdpInterfaceOpen,
-    .XdpInterfaceClose = XdpApiKernelXdpInterfaceClose,
-    .XskCreate = XdpApiKernelXskCreate,
-    .XskDelete = XdpApiKernelXskDelete,
-    .XskBind = XdpApiKernelXskBind,
-    .XskActivate = XdpApiKernelXskActivate,
-    .XskNotifySocket = XdpApiKernelXskNotifySocket,
-    .XskNotifyAsync2 = XdpApiKernelXskNotifyAsync2,
-    .XskSetSockopt = XdpApiKernelXskSetSockopt,
-    .XskGetSockopt = XdpApiKernelXskGetSockopt,
-    .XskIoctl = XdpApiKernelXskIoctl
+    .XdpGetRoutine = XdpGetRoutineKernel,
+    .XdpCreateProgram = XdpCreateProgramKernel,
+    .XdpDeleteProgram = XdpDeleteProgramKernel,
+    .XdpInterfaceOpen = XdpInterfaceOpenKernel,
+    .XdpInterfaceClose = XdpInterfaceCloseKernel,
+    .XskCreate = XskCreateKernel,
+    .XskDelete = XskDeleteKernel,
+    .XskBind = XskBindKernel,
+    .XskActivate = XskActivateKernel,
+    .XskNotifySocket = XskNotifySocketKernel,
+    .XskNotifyAsync2 = XskNotifyAsync2Kernel,
+    .XskSetSockopt = XskSetSockoptKernel,
+    .XskGetSockopt = XskGetSockoptKernel,
+    .XskIoctl = XskIoctlKernel
 };
 
 static
 XDP_STATUS
-XdpApiKernelXdpCreateProgram(
+XdpCreateProgramKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
@@ -127,7 +127,7 @@ XdpApiKernelXdpCreateProgram(
 
 static
 VOID
-XdpApiKernelXdpDeleteProgram(
+XdpDeleteProgramKernel(
     _In_ HANDLE Program
     )
 {
@@ -136,7 +136,7 @@ XdpApiKernelXdpDeleteProgram(
 
 static
 XDP_STATUS
-XdpApiKernelXdpInterfaceOpen(
+XdpInterfaceOpenKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
@@ -153,7 +153,7 @@ XdpApiKernelXdpInterfaceOpen(
 
 static
 VOID
-XdpApiKernelXdpInterfaceClose(
+XdpInterfaceCloseKernel(
     _In_ HANDLE InterfaceHandle
     )
 {
@@ -162,7 +162,7 @@ XdpApiKernelXdpInterfaceClose(
 
 static
 XDP_STATUS
-XdpApiKernelXskCreate(
+XskCreateKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
@@ -180,7 +180,7 @@ XdpApiKernelXskCreate(
 
 static
 VOID
-XdpApiKernelXskDelete(
+XskDeleteKernel(
     _In_ HANDLE Socket
     )
 {
@@ -190,7 +190,7 @@ XdpApiKernelXskDelete(
 
 static
 XDP_STATUS
-XdpApiKernelXskBind(
+XskBindKernel(
     _In_ HANDLE Socket,
     _In_ UINT32 IfIndex,
     _In_ UINT32 QueueId,
@@ -208,7 +208,7 @@ XdpApiKernelXskBind(
 
 static
 XDP_STATUS
-XdpApiKernelXskActivate(
+XskActivateKernel(
     _In_ HANDLE Socket,
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
@@ -222,7 +222,7 @@ XdpApiKernelXskActivate(
 
 static
 XDP_STATUS
-XdpApiKernelXskNotifySocket(
+XskNotifySocketKernel(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_ UINT32 WaitTimeoutMilliseconds,
@@ -245,7 +245,7 @@ XdpApiKernelXskNotifySocket(
 
 static
 XDP_STATUS
-XdpApiKernelXskNotifyAsync2(
+XskNotifyAsync2Kernel(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_opt_ XSK_COMPLETION_CONTEXT CompletionContext,
@@ -268,7 +268,7 @@ XdpApiKernelXskNotifyAsync2(
 
 static
 XDP_STATUS
-XdpApiKernelXskSetSockopt(
+XskSetSockoptKernel(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
@@ -286,7 +286,7 @@ XdpApiKernelXskSetSockopt(
 
 static
 XDP_STATUS
-XdpApiKernelXskGetSockopt(
+XskGetSockoptKernel(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
@@ -298,7 +298,7 @@ XdpApiKernelXskGetSockopt(
 
 static
 XDP_STATUS
-XdpApiKernelXskIoctl(
+XskIoctlKernel(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
@@ -318,7 +318,7 @@ XdpApiKernelXskIoctl(
 
 static
 VOID *
-XdpApiKernelXdpGetRoutine(
+XdpGetRoutineKernel(
     _In_z_ const CHAR *RoutineName
     )
 {
@@ -333,7 +333,7 @@ XdpApiKernelXdpGetRoutine(
 
 static
 XDP_STATUS
-XdpApiKernelXdpRssGetCapabilities(
+XdpRssGetCapabilitiesKernel(
     _In_ HANDLE InterfaceHandle,
     _Out_writes_bytes_opt_(*RssCapabilitiesSize) XDP_RSS_CAPABILITIES *RssCapabilities,
     _Inout_ UINT32 *RssCapabilitiesSize
@@ -347,7 +347,7 @@ XdpApiKernelXdpRssGetCapabilities(
 
 static
 XDP_STATUS
-XdpApiKernelXdpRssSet(
+XdpRssSetKernel(
     _In_ HANDLE InterfaceHandle,
     _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
     _In_ UINT32 RssConfigurationSize
@@ -360,7 +360,7 @@ XdpApiKernelXdpRssSet(
 
 static
 XDP_STATUS
-XdpApiKernelXdpRssGet(
+XdpRssGetKernel(
     _In_ HANDLE InterfaceHandle,
     _Out_writes_bytes_opt_(*RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
     _Inout_ UINT32 *RssConfigurationSize
@@ -374,7 +374,7 @@ XdpApiKernelXdpRssGet(
 
 static
 XDP_STATUS
-XdpApiKernelXdpQeoSet(
+XdpQeoSetKernel(
     _In_ HANDLE InterfaceHandle,
     _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
     _In_ UINT32 QuicConnectionsSize
@@ -389,7 +389,7 @@ XdpApiKernelXdpQeoSet(
 
 static
 NTSTATUS
-XdpApiKernelProviderAttachClient(
+ProviderAttachClientKernel(
     _In_ HANDLE NmrBindingHandle,
     _In_ const VOID *ProviderContext,
     _In_ const NPI_REGISTRATION_INSTANCE *ClientRegistrationInstance,
@@ -448,7 +448,7 @@ Exit:
 
 static
 NTSTATUS
-XdpApiKernelProviderDetachClient(
+ProviderDetachClientKernel(
     _In_ const VOID *ProviderBindingContext
     )
 {
@@ -470,7 +470,7 @@ Exit:
 
 static
 VOID
-XdpApiKernelProviderCleanup(
+ProviderCleanupKernel(
     _Frees_ptr_ VOID *ProviderBindingContext
     )
 {
@@ -501,9 +501,9 @@ XdpApiKernelStart(
 
         Characteristics = &XdpApiProvider.Characteristics;
         Characteristics->Length = sizeof(NPI_PROVIDER_CHARACTERISTICS);
-        Characteristics->ProviderAttachClient = XdpApiKernelProviderAttachClient;
-        Characteristics->ProviderDetachClient = XdpApiKernelProviderDetachClient;
-        Characteristics->ProviderCleanupBindingContext = XdpApiKernelProviderCleanup;
+        Characteristics->ProviderAttachClient = ProviderAttachClientKernel;
+        Characteristics->ProviderDetachClient = ProviderDetachClientKernel;
+        Characteristics->ProviderCleanupBindingContext = ProviderCleanupKernel;
         Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
         Characteristics->ProviderRegistrationInstance.NpiId = &NPI_XDPAPI_INTERFACE_ID;
         Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
