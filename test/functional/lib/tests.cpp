@@ -15,6 +15,7 @@
 #include <netiodef.h>
 #include <netioapi.h>
 #include <mstcpip.h>
+#include "xdpapi_helper.h"
 #else
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
@@ -802,74 +803,7 @@ SetDeviceSddl(
 
 #endif
 
-#ifdef _KERNEL_MODE
-
-VOID
-XdpDetach(
-    _In_ VOID *ClientContext
-    )
-{
-    UNREFERENCED_PARAMETER(ClientContext);
-    TraceInfo("XdpDetach %p", ClientContext);
-}
-
-
-static
-NTSTATUS
-InitializeApi(
-    _Out_ XDP_API_CLIENT *ApiContext,
-    _Out_ const XDP_API_PROVIDER_DISPATCH **ProviderDispatch,
-    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **ProviderBindingContext,
-    _In_ const XDP_API_CLIENT_DISPATCH *ClientDispatch,
-    _In_ UINT32 Version = XDP_API_VERSION_1
-    )
-{
-    NTSTATUS Status;
-    KEVENT Event;
-    INT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
-
-    Status = XdpLoadApi(Version, NULL, NULL, &XdpDetach, ClientDispatch, ApiContext);
-    if (!NT_SUCCESS(Status)) {
-        return Status;
-    }
-
-    KeInitializeEvent(&Event, NotificationEvent, FALSE);
-
-    do {
-        LARGE_INTEGER Timeout100Ns;
-
-        Status =
-            XdpOpenApi(
-                ApiContext,
-                ProviderDispatch,
-                ProviderBindingContext);
-        if (NT_SUCCESS(Status)) {
-            break;
-        }
-
-        Timeout100Ns.QuadPart = -1 * Int32x32To64(POLL_INTERVAL_MS, 10000);
-        KeResetEvent(&Event);
-        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
-        TimeoutMs = TimeoutMs - POLL_INTERVAL_MS;
-    } while (TimeoutMs > 0);
-
-    if (!NT_SUCCESS(Status)) {
-        XdpUnloadApi(ApiContext);
-    }
-
-    return Status;
-}
-
-static
-VOID
-UninitializeApi(
-    _In_ XDP_API_CLIENT *ApiContext
-    )
-{
-    XdpUnloadApi(ApiContext);
-}
-
-#else
+#ifndef _KERNEL_MODE
 
 static
 HRESULT
@@ -891,9 +825,6 @@ OpenApi(
     TEST_HRESULT(TryOpenApi(XdpApiTable, Version));
     return XdpApiTable;
 }
-#endif
-
-#ifndef _KERNEL_MODE
 
 static
 HRESULT
@@ -2700,14 +2631,14 @@ LoadApiTest()
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
 
-    NTSTATUS Status = InitializeApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
+    NTSTATUS Status = InitializeXdpApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
     }
-    UninitializeApi(&XdpApiClient);
+    UninitializeXdpApi(&XdpApiClient);
 
-    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
+    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeXdpApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
 #else
     XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;

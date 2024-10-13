@@ -22,6 +22,7 @@
 #include <xdpapi.h>
 #include "cxplat.h"
 #include "platform.h"
+#include "xskbench_common.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
@@ -33,8 +34,6 @@
 
 #if defined (_KERNEL_MODE)
 extern XDP_API_PROVIDER_DISPATCH *XdpApi;
-extern XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
-
 #else
 extern XDP_API_TABLE *XdpApi;
 #endif // defined (_KERNEL_MODE)
@@ -52,13 +51,6 @@ extern XDP_API_TABLE *XdpApi;
 #define DEFAULT_TX_IO_SIZE 64
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
-
-#define POOLTAG_TXPATTERN           'pTbX' // XbTp
-#define POOLTAG_LATSAMPLES          'sLbX' // XbLs
-#define POOLTAG_FREERING            'rFbX' // XbFr
-#define POOLTAG_QUEUES              'sQbX' // XbQs
-#define POOLTAG_THREADS             'sTbX' // XbTs
-#define POOLTAG_UMEM                'mUbX' // XbUm
 
 CHAR *HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -142,7 +134,6 @@ CHAR *HELP =
 #define Usage() { PrintUsage(__LINE__); goto Fail; }
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
-#define STATS_ARRAY_SIZE 60
 
 typedef enum {
     ModeRx,
@@ -150,60 +141,6 @@ typedef enum {
     ModeFwd,
     ModeLat,
 } MODE;
-
-typedef enum {
-    XdpModeSystem,
-    XdpModeGeneric,
-    XdpModeNative,
-} XDP_MODE;
-
-typedef struct {
-    INT queueId;
-    HANDLE sock;
-    HANDLE rxProgram;
-    XDP_MODE xdpMode;
-    ULONG umemsize;
-    ULONG umemchunksize;
-    ULONG umemheadroom;
-    ULONG txiosize;
-    ULONG iobatchsize;
-    UINT32 ringsize;
-    UCHAR *txPattern;
-    UINT32 txPatternLength;
-    INT64 *latSamples;
-    UINT32 latSamplesCount;
-    UINT32 latIndex;
-    XSK_POLL_MODE pollMode;
-    VOID *freeRingLayout;
-
-    struct {
-        BOOLEAN periodicStats : 1;
-        BOOLEAN rx : 1;
-        BOOLEAN tx : 1;
-        BOOLEAN optimizePoking: 1;
-        BOOLEAN rxInject : 1;
-        BOOLEAN txInspect : 1;
-    } flags;
-
-    double statsArray[STATS_ARRAY_SIZE];
-    ULONG currStatsArrayIdx;
-
-    ULONGLONG lastTick;
-    ULONGLONG packetCount;
-    ULONGLONG lastPacketCount;
-    ULONGLONG lastRxDropCount;
-    ULONGLONG pokesRequestedCount;
-    ULONGLONG lastPokesRequestedCount;
-    ULONGLONG pokesPerformedCount;
-    ULONGLONG lastPokesPerformedCount;
-
-    XSK_RING rxRing;
-    XSK_RING txRing;
-    XSK_RING fillRing;
-    XSK_RING compRing;
-    XSK_RING freeRing;
-    XSK_UMEM_REG umemReg;
-} MY_QUEUE;
 
 typedef struct {
     CXPLAT_THREAD threadHandle;
@@ -309,57 +246,13 @@ AttachXdpProgram(
     ASSERT_FRE(XDP_SUCCEEDED(res));
     ASSERT_FRE(hookSize == sizeof(hookId));
 
-    res =
-        XdpApi->XdpCreateProgram(
-#if defined(_KERNEL_MODE)
-            XdpApiProviderBindingContext,
-#endif
-            ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
+    res = CxPlatXdpCreateProgram(ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
         printf_error("XdpCreateProgram failed: %d\n", res);
         return FALSE;
     }
 
     return TRUE;
-}
-
-BOOLEAN
-EnableLargePages(
-    VOID
-    )
-{
-#if defined(_KERNEL_MODE)
-    return TRUE;
-#else
-    HANDLE Token = NULL;
-    TOKEN_PRIVILEGES TokenPrivileges;
-
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token)) {
-        goto Failure;
-    }
-
-    TokenPrivileges.PrivilegeCount = 1;
-    TokenPrivileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    if (!LookupPrivilegeValue(NULL, SE_LOCK_MEMORY_NAME, &TokenPrivileges.Privileges[0].Luid)) {
-        goto Failure;
-    }
-    if (!AdjustTokenPrivileges(Token, FALSE, &TokenPrivileges, 0, NULL, 0)) {
-        goto Failure;
-    }
-    if (GetLastError() != ERROR_SUCCESS) {
-        goto Failure;
-    }
-
-    CloseHandle(Token);
-
-    return TRUE;
-
-Failure:
-
-    printf_error("Failed to acquire large page privileges. See \"Assigning Privileges to an Account\"\n");
-
-    return FALSE;
-#endif // defined(_KERNEL_MODE)
 }
 
 UCHAR
@@ -412,13 +305,7 @@ SetupSock(
     UINT32 bindFlags = 0;
 
     printf_verbose("creating sock\n");
-    res =
-        XdpApi->XskCreate(
-#if defined(_KERNEL_MODE)
-            XdpApiProviderBindingContext,
-            NULL, NULL, NULL,
-#endif
-            &Queue->sock);
+    res = CxPlatXskCreate(Queue->sock);
     if (XDP_FAILED(res)) {
         printf_error("XskCreate failed: %d\n", res);
         return FALSE;
@@ -431,13 +318,7 @@ SetupSock(
     Queue->umemReg.TotalSize = Queue->umemsize;
 
     if (largePages) {
-#if !defined(_KERNEL_MODE)
-        //
-        // The memory subsystem requires allocations and mappings be aligned to
-        // the large page size. XDP ignores the final chunk, if truncated.
-        //
-        Queue->umemReg.TotalSize = ALIGN_UP_BY(Queue->umemReg.TotalSize, GetLargePageMinimum());
-#endif // !defined(_KERNEL_MODE)
+        CxPlatAlignMemory(&Queue->umemReg);
     }
 
     Queue->umemReg.Address =
@@ -1730,7 +1611,7 @@ ParseArgs(
             verbose = TRUE;
         } else if (!_stricmp(argv[i], "-lp")) {
             largePages = TRUE;
-            if (!EnableLargePages()) {
+            if (!CxPlatEnableLargePages()) {
                 goto Fail;
             }
         } else if (threadCount == 0) {
@@ -1887,15 +1768,7 @@ XskBenchStart(
             for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
                 MY_THREAD *Thread = &threads[tIndex];
                 for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-    #if defined(_KERNEL_MODE)
-                    KFLOATING_SAVE FloatingSave;
-                    if (KeSaveFloatingPointState(&FloatingSave) == STATUS_SUCCESS) {
-    #endif
-                        ProcessPeriodicStats(&Thread->queues[qIndex]);
-    #if defined(_KERNEL_MODE)
-                        KeRestoreFloatingPointState(&FloatingSave);
-                    }
-    #endif
+                    CxPlatPrintStats(&Thread->queues[qIndex]);
                 }
             }
         }
@@ -1909,34 +1782,8 @@ XskBenchStart(
         CxPlatThreadDelete(&Thread->threadHandle);
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             MY_QUEUE *Queue = &Thread->queues[qIndex];
-#if defined(_KERNEL_MODE)
-            KFLOATING_SAVE FloatingSave;
-            if (KeSaveFloatingPointState(&FloatingSave) == STATUS_SUCCESS) {
-#endif
-                PrintFinalStats(Queue);
-#if defined(_KERNEL_MODE)
-                KeRestoreFloatingPointState(&FloatingSave);
-            }
-#endif
-
-#if defined(_KERNEL_MODE)
-            if (Queue->rxProgram != NULL) {
-                XdpApi->XdpDeleteProgram(Queue->rxProgram);
-                Queue->rxProgram = NULL;
-            }
-            if (Queue->sock != NULL) {
-                XdpApi->XskDelete(Queue->sock);
-                Queue->sock = NULL;
-            }
-#endif
-            if (Queue->umemReg.Address != NULL) {
-                CXPLAT_VIRTUAL_FREE(Queue->umemReg.Address, 0, MEM_RELEASE, POOLTAG_UMEM);
-                Queue->umemReg.Address = NULL;
-            }
-            if (Queue->freeRingLayout != NULL) {
-                CXPLAT_FREE(Queue->freeRingLayout, POOLTAG_FREERING);
-                Queue->freeRingLayout = NULL;
-            }
+            CxPlatPrintStats(Queue);
+            CxPlatQueueCleanup(Queue);
         }
     }
 

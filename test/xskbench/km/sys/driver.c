@@ -11,9 +11,12 @@
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 #include "cxplat.h"
+#include "platform_kernel.h"
+#include "xskbench_common.h"
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
+#include "xdpapi_helper.h"
 #include "driver.tmh"
 
 XDP_API_PROVIDER_DISPATCH *XdpApi;
@@ -25,7 +28,6 @@ static BOOLEAN IsSessionActive;
 static HANDLE MainThread;
 static int Argc;
 static char **Argv;
-static KEVENT BoundToProvider;
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_STATUS
@@ -43,14 +45,6 @@ static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
     XdpFuncXskNotifyCallback
 };
 
-VOID
-XdpDetach(
-    _In_ VOID *ClientContext
-    )
-{
-    UNREFERENCED_PARAMETER(ClientContext);
-}
-
 static XDP_API_CLIENT XdpApiContext = {0};
 #define TEST_TIMEOUT_ASYNC_MS 1000
 #define POLL_INTERVAL_MS 10
@@ -60,37 +54,12 @@ CxPlatXdpApiInitialize(
     VOID
     )
 {
-    NTSTATUS Status;
-    KEVENT Event;
-    INT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    NTSTATUS Status = STATUS_SUCCESS;
+    TraceEnter(TRACE_CONTROL, "-");
 
-    Status = XdpLoadApi(XDP_API_VERSION_1, NULL, NULL, &XdpDetach, &XdpFuncXdpApiClientDispatch, &XdpApiContext);
+    Status = InitializeXdpApi(&XdpApiContext, &XdpApi, &XdpApiProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
     if (!NT_SUCCESS(Status)) {
         goto Done;
-    }
-
-    KeInitializeEvent(&Event, NotificationEvent, FALSE);
-
-    do {
-        LARGE_INTEGER Timeout100Ns;
-
-        Status =
-            XdpOpenApi(
-                &XdpApiContext,
-                &XdpApi,
-                &XdpApiProviderBindingContext);
-        if (NT_SUCCESS(Status)) {
-            break;
-        }
-
-        Timeout100Ns.QuadPart = -1 * Int32x32To64(POLL_INTERVAL_MS, 10000);
-        KeResetEvent(&Event);
-        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
-        TimeoutMs = TimeoutMs - POLL_INTERVAL_MS;
-    } while (TimeoutMs > 0);
-
-    if (!NT_SUCCESS(Status)) {
-        XdpUnloadApi(&XdpApiContext);
     }
 
 Done:
@@ -109,11 +78,96 @@ CxPlatXdpApiUninitialize(
 
     TraceEnter(TRACE_CONTROL, "-");
 
-    XdpUnloadApi(&XdpApiContext);
+    UninitializeXdpApi(&XdpApiContext);
 
     TraceExitStatus(TRACE_CONTROL);
 
     return;
+}
+
+XDP_STATUS
+CxPlatXskCreate(
+    _Out_ HANDLE *Socket
+    )
+{
+    return XdpApi->XskCreate(
+                XdpApiProviderBindingContext,
+                NULL, NULL, NULL,
+                Socket);
+}
+
+XDP_STATUS
+CxPlatXdpCreateProgram(
+    _In_ UINT32 InterfaceIndex,
+    _In_ const XDP_HOOK_ID *HookId,
+    _In_ UINT32 QueueId,
+    _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
+    _In_ UINT32 RuleCount,
+    _Out_ HANDLE *Program
+    )
+{
+    return XdpApi->XdpCreateProgram(
+        XdpApiProviderBindingContext,
+        InterfaceIndex,
+        HookId,
+        QueueId,
+        Flags,
+        Rules,
+        RuleCount,
+        Program);
+}
+
+VOID
+CxPlatPrintStats(
+    MY_QUEUE *Queue
+    )
+{
+    KFLOATING_SAVE FloatingSave;
+    if (KeSaveFloatingPointState(&FloatingSave) == STATUS_SUCCESS) {
+        PrintFinalStats(Queue);
+        KeRestoreFloatingPointState(&FloatingSave);
+    }
+}
+
+VOID
+CxPlatQueueCleanup(
+    MY_QUEUE *Queue
+    )
+{
+    if (Queue->rxProgram != NULL) {
+        XdpApi->XdpDeleteProgram(Queue->rxProgram);
+        Queue->rxProgram = NULL;
+    }
+    if (Queue->sock != NULL) {
+        XdpApi->XskDelete(Queue->sock);
+        Queue->sock = NULL;
+    }
+
+    if (Queue->umemReg.Address != NULL) {
+        CXPLAT_VIRTUAL_FREE(Queue->umemReg.Address, 0, MEM_RELEASE, POOLTAG_UMEM);
+        Queue->umemReg.Address = NULL;
+    }
+    if (Queue->freeRingLayout != NULL) {
+        CXPLAT_FREE(Queue->freeRingLayout, POOLTAG_FREERING);
+        Queue->freeRingLayout = NULL;
+    }
+}
+
+BOOLEAN
+CxPlatEnableLargePages(
+    VOID
+    )
+{
+    return TRUE;
+}
+
+VOID
+CxPlatAlignMemory(
+    _Inout_ XSK_UMEM_REG *UmemReg
+    )
+{
+    UNREFERENCED_PARAMETER(UmemReg);
 }
 
 VOID
@@ -388,8 +442,6 @@ DriverEntry(
     WPP_INIT_TRACING(DriverObject, RegistryPath);
 
     TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
-
-    KeInitializeEvent(&BoundToProvider, NotificationEvent, FALSE);
 
     CxPlatInitialize();
 
