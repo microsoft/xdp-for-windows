@@ -1923,7 +1923,7 @@ XskBenchStart(
                 Queue->rxProgram = NULL;
             }
             if (Queue->sock != NULL) {
-                XdpApi->XskDelete(Queue->sock);
+                XdpApi->XdpCloseHandle(Queue->sock);
                 Queue->sock = NULL;
             }
 #endif

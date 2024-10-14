@@ -38,9 +38,7 @@ static XDP_GET_ROUTINE_FN XdpGetRoutineKernel;
 static XDP_CREATE_PROGRAM_FN XdpCreateProgramKernel;
 static XDP_DELETE_PROGRAM_FN XdpDeleteProgramKernel;
 static XDP_INTERFACE_OPEN_FN XdpInterfaceOpenKernel;
-static XDP_INTERFACE_CLOSE_FN XdpInterfaceCloseKernel;
 static XSK_CREATE_FN XskCreateKernel;
-static XSK_DELETE_FN XskDeleteKernel;
 static XSK_BIND_FN XskBindKernel;
 static XSK_ACTIVATE_FN XskActivateKernel;
 static XSK_NOTIFY_SOCKET_FN XskNotifySocketKernel;
@@ -48,6 +46,7 @@ static XSK_NOTIFY_ASYNC2_FN XskNotifyAsync2Kernel;
 static XSK_SET_SOCKOPT_FN XskSetSockoptKernel;
 static XSK_GET_SOCKOPT_FN XskGetSockoptKernel;
 static XSK_IOCTL_FN XskIoctlKernel;
+static XDP_CLOSE_HANDLE_FN XdpCloseHandleKernel;
 
 //
 // Experimental APIs, subject to removal in a minor release.
@@ -65,9 +64,7 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XdpCreateProgram) },
     { DECLARE_XDP_API_ROUTINE(XdpDeleteProgram) },
     { DECLARE_XDP_API_ROUTINE(XdpInterfaceOpen) },
-    { DECLARE_XDP_API_ROUTINE(XdpInterfaceClose) },
     { DECLARE_XDP_API_ROUTINE(XskCreate) },
-    { DECLARE_XDP_API_ROUTINE(XskDelete) },
     { DECLARE_XDP_API_ROUTINE(XskBind) },
     { DECLARE_XDP_API_ROUTINE(XskActivate) },
     { DECLARE_XDP_API_ROUTINE(XskNotifySocket) },
@@ -75,6 +72,7 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XskSetSockopt) },
     { DECLARE_XDP_API_ROUTINE(XskGetSockopt) },
     { DECLARE_XDP_API_ROUTINE(XskIoctl) },
+    { DECLARE_XDP_API_ROUTINE(XdpCloseHandle) },
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGetCapabilities, XDP_RSS_GET_CAPABILITIES_FN_NAME) },
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssSet, XDP_RSS_SET_FN_NAME) },
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpRssGet, XDP_RSS_GET_FN_NAME) },
@@ -86,16 +84,15 @@ static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
     .XdpCreateProgram = XdpCreateProgramKernel,
     .XdpDeleteProgram = XdpDeleteProgramKernel,
     .XdpInterfaceOpen = XdpInterfaceOpenKernel,
-    .XdpInterfaceClose = XdpInterfaceCloseKernel,
     .XskCreate = XskCreateKernel,
-    .XskDelete = XskDeleteKernel,
     .XskBind = XskBindKernel,
     .XskActivate = XskActivateKernel,
     .XskNotifySocket = XskNotifySocketKernel,
     .XskNotifyAsync2 = XskNotifyAsync2Kernel,
     .XskSetSockopt = XskSetSockoptKernel,
     .XskGetSockopt = XskGetSockoptKernel,
-    .XskIoctl = XskIoctlKernel
+    .XskIoctl = XskIoctlKernel,
+    .XdpCloseHandle = XdpCloseHandleKernel
 };
 
 static
@@ -149,15 +146,6 @@ XdpInterfaceOpenKernel(
     InterfaceOpen.IfIndex = InterfaceIndex;
 
     return XdpInterfaceCreate((XDP_INTERFACE_OBJECT **)InterfaceHandle, &InterfaceOpen);
-}
-
-static
-VOID
-XdpInterfaceCloseKernel(
-    _In_ HANDLE InterfaceHandle
-    )
-{
-    XdpInterfaceDelete((XDP_INTERFACE_OBJECT *)InterfaceHandle);
 }
 
 static
@@ -314,6 +302,30 @@ XskIoctlKernel(
     UNREFERENCED_PARAMETER(OutputValue);
     UNREFERENCED_PARAMETER(OutputLength);
     return STATUS_NOT_SUPPORTED;
+}
+
+static
+XDP_STATUS
+XdpCloseHandleKernel(
+    _In_ HANDLE Handle
+    )
+{
+    XDP_FILE_OBJECT_HEADER *FileObjectHeader = (XDP_FILE_OBJECT_HEADER *)Handle;
+    switch (FileObjectHeader->ObjectType) {
+    case XDP_OBJECT_TYPE_PROGRAM:
+        XdpProgramClose((XDP_PROGRAM_OBJECT *)Handle);
+        break;
+    case XDP_OBJECT_TYPE_XSK:
+        XskCleanup((XSK *)Handle);
+        XskClose((XSK *)Handle);
+        break;
+    case XDP_OBJECT_TYPE_INTERFACE:
+        XdpInterfaceDelete((XDP_INTERFACE_OBJECT *)Handle);
+        break;
+    default:
+        return STATUS_INVALID_HANDLE;
+    }
+    return STATUS_SUCCESS;
 }
 
 static
