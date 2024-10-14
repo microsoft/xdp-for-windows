@@ -203,11 +203,12 @@ static XDP_REG_WATCHER_CLIENT_ENTRY XskRegWatcherEntry;
 static XDP_FILE_IRP_ROUTINE XskIrpDeviceIoControl;
 static XDP_FILE_IRP_ROUTINE XskIrpCleanup;
 static XDP_FILE_IRP_ROUTINE XskIrpClose;
+static XDP_CLOSE_HANDLE_ROUTINE XskCloseHandle;
 static XDP_FILE_DISPATCH XskFileDispatch = {
     .IoControl   = XskIrpDeviceIoControl,
     .Cleanup     = XskIrpCleanup,
     .Close       = XskIrpClose,
-    .CloseHandle = XskClose,
+    .CloseHandle = XskCloseHandle,
 };
 
 static
@@ -1828,6 +1829,7 @@ XskCanBypass(
     return TRUE;
 }
 
+static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
@@ -2508,6 +2510,7 @@ XskDereferenceUmem(
     }
 }
 
+static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
@@ -2599,6 +2602,18 @@ XskIrpClose(
     TraceExitSuccess(TRACE_XSK);
 
     return STATUS_SUCCESS;
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XskCloseHandle(
+    _In_ HANDLE Handle
+    )
+{
+    XskCleanup((XSK *)Handle);
+    XskClose((XSK *)Handle);
 }
 
 NTSTATUS

@@ -115,7 +115,6 @@ DEFINE_GUID(
 typedef struct _XDP_API_PROVIDER_DISPATCH {
     XDP_GET_ROUTINE_FN *XdpGetRoutine;
     XDP_CREATE_PROGRAM_FN *XdpCreateProgram;
-    XDP_DELETE_PROGRAM_FN *XdpDeleteProgram;
     XDP_INTERFACE_OPEN_FN *XdpInterfaceOpen;
     XSK_CREATE_FN *XskCreate;
     XSK_BIND_FN *XskBind;

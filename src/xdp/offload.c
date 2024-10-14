@@ -12,6 +12,7 @@
 
 static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceDeviceIoControl;
 static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceClose;
+static XDP_CLOSE_HANDLE_ROUTINE XdpInterfaceDelete;
 static XDP_FILE_DISPATCH XdpInterfaceFileDispatch = {
     .IoControl   = XdpIrpInterfaceDeviceIoControl,
     .Close       = XdpIrpInterfaceClose,
@@ -560,13 +561,15 @@ XdpOffloadRevertSettings(
     XdpOffloadQeoRevertSettings(IfSetHandle, InterfaceOffloadHandle);
 }
 
+static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
 XdpInterfaceDelete(
-    _In_ XDP_INTERFACE_OBJECT *InterfaceObject
+    _In_ HANDLE Handle
     )
 {
+    XDP_INTERFACE_OBJECT *InterfaceObject = (XDP_INTERFACE_OBJECT *)Handle;
     TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
 
     ASSERT(InterfaceObject->IfSetHandle != NULL);

@@ -65,20 +65,6 @@ XskCreate(
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor
     );
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-VOID
-XskCleanup(
-    _In_ XSK *Xsk
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-VOID
-XskClose(
-    _In_ XSK *Xsk
-    );
-
 NTSTATUS
 XskSetSockopt(
     _In_ XSK *Xsk,

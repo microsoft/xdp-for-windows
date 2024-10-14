@@ -36,7 +36,6 @@ static const NPI_MODULEID NPI_XDP_MODULEID = {
 //
 static XDP_GET_ROUTINE_FN XdpGetRoutineKernel;
 static XDP_CREATE_PROGRAM_FN XdpCreateProgramKernel;
-static XDP_DELETE_PROGRAM_FN XdpDeleteProgramKernel;
 static XDP_INTERFACE_OPEN_FN XdpInterfaceOpenKernel;
 static XSK_CREATE_FN XskCreateKernel;
 static XSK_BIND_FN XskBindKernel;
@@ -62,7 +61,6 @@ static XDP_QEO_SET_FN XdpQeoSetKernel;
 static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_XDP_API_ROUTINE(XdpGetRoutine) },
     { DECLARE_XDP_API_ROUTINE(XdpCreateProgram) },
-    { DECLARE_XDP_API_ROUTINE(XdpDeleteProgram) },
     { DECLARE_XDP_API_ROUTINE(XdpInterfaceOpen) },
     { DECLARE_XDP_API_ROUTINE(XskCreate) },
     { DECLARE_XDP_API_ROUTINE(XskBind) },
@@ -82,7 +80,6 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
 static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
     .XdpGetRoutine = XdpGetRoutineKernel,
     .XdpCreateProgram = XdpCreateProgramKernel,
-    .XdpDeleteProgram = XdpDeleteProgramKernel,
     .XdpInterfaceOpen = XdpInterfaceOpenKernel,
     .XskCreate = XskCreateKernel,
     .XskBind = XskBindKernel,
@@ -123,15 +120,6 @@ XdpCreateProgramKernel(
 }
 
 static
-VOID
-XdpDeleteProgramKernel(
-    _In_ HANDLE Program
-    )
-{
-    XdpProgramClose((XDP_PROGRAM_OBJECT *)Program);
-}
-
-static
 XDP_STATUS
 XdpInterfaceOpenKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
@@ -164,16 +152,6 @@ XskCreateKernel(
         XskCreate(
             (XSK **)Socket, Client->ClientDispatch->XskNotifyCallback,
             OwningProcess, OwningThread, SecurityDescriptor);
-}
-
-static
-VOID
-XskDeleteKernel(
-    _In_ HANDLE Socket
-    )
-{
-    XskCleanup((XSK *)Socket);
-    XskClose((XSK *)Socket);
 }
 
 static
