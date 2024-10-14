@@ -103,7 +103,7 @@ XDP_DELETE_PROGRAM_FN(
 
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
-XDP_STATUS
+VOID
 XDP_CLOSE_HANDLE_FN(
     _In_ HANDLE Handle
     );

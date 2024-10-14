@@ -406,7 +406,8 @@ typedef struct _XDP_PROGRAM_WORKITEM {
 
 static XDP_FILE_IRP_ROUTINE XdpIrpProgramClose;
 static XDP_FILE_DISPATCH XdpProgramFileDispatch = {
-    .Close = XdpIrpProgramClose,
+    .Close       = XdpIrpProgramClose,
+    .CloseHandle = XdpProgramClose,
 };
 
 static

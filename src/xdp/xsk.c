@@ -204,9 +204,10 @@ static XDP_FILE_IRP_ROUTINE XskIrpDeviceIoControl;
 static XDP_FILE_IRP_ROUTINE XskIrpCleanup;
 static XDP_FILE_IRP_ROUTINE XskIrpClose;
 static XDP_FILE_DISPATCH XskFileDispatch = {
-    .IoControl  = XskIrpDeviceIoControl,
-    .Cleanup    = XskIrpCleanup,
-    .Close      = XskIrpClose,
+    .IoControl   = XskIrpDeviceIoControl,
+    .Cleanup     = XskIrpCleanup,
+    .Close       = XskIrpClose,
+    .CloseHandle = XskClose,
 };
 
 static

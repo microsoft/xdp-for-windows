@@ -305,27 +305,13 @@ XskIoctlKernel(
 }
 
 static
-XDP_STATUS
+VOID
 XdpCloseHandleKernel(
     _In_ HANDLE Handle
     )
 {
     XDP_FILE_OBJECT_HEADER *FileObjectHeader = (XDP_FILE_OBJECT_HEADER *)Handle;
-    switch (FileObjectHeader->ObjectType) {
-    case XDP_OBJECT_TYPE_PROGRAM:
-        XdpProgramClose((XDP_PROGRAM_OBJECT *)Handle);
-        break;
-    case XDP_OBJECT_TYPE_XSK:
-        XskCleanup((XSK *)Handle);
-        XskClose((XSK *)Handle);
-        break;
-    case XDP_OBJECT_TYPE_INTERFACE:
-        XdpInterfaceDelete((XDP_INTERFACE_OBJECT *)Handle);
-        break;
-    default:
-        return STATUS_INVALID_HANDLE;
-    }
-    return STATUS_SUCCESS;
+    FileObjectHeader->Dispatch->CloseHandle(Handle);
 }
 
 static

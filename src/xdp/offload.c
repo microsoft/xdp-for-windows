@@ -13,8 +13,9 @@
 static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceDeviceIoControl;
 static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceClose;
 static XDP_FILE_DISPATCH XdpInterfaceFileDispatch = {
-    .IoControl  = XdpIrpInterfaceDeviceIoControl,
-    .Close = XdpIrpInterfaceClose,
+    .IoControl   = XdpIrpInterfaceDeviceIoControl,
+    .Close       = XdpIrpInterfaceClose,
+    .CloseHandle = XdpInterfaceDelete,
 };
 
 NTSTATUS
