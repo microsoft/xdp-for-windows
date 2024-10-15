@@ -483,8 +483,7 @@ XdpGetProviderContexts(
     return _Status;
 }
 
-#define TEST_TIMEOUT_ASYNC_MS 1000
-#define POLL_INTERVAL_MS 10
+#define _POLL_INTERVAL_MS 10
 
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -495,6 +494,7 @@ XdpOpenApi(
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
     _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
     _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
+    _In_ const INT64 _TimeoutMs,
     _Out_ XDP_API_CLIENT *_ApiContext,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
@@ -502,7 +502,10 @@ XdpOpenApi(
 {
     NTSTATUS Status;
     KEVENT Event;
-    INT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    INT64 TimeoutMs = INT64_MAX; // forever
+    if (_TimeoutMs > 0) {
+        TimeoutMs = _TimeoutMs;
+    }
 
     Status = XdpRegister(_XdpApiVersion, _ClientContext, _ClientAttach, _ClientDetach, _XdpApiClientDispatch, _ApiContext);
     if (!NT_SUCCESS(Status)) {
@@ -523,10 +526,10 @@ XdpOpenApi(
             break;
         }
 
-        Timeout100Ns.QuadPart = -1 * Int32x32To64(POLL_INTERVAL_MS, 10000);
+        Timeout100Ns.QuadPart = -1 * Int32x32To64(_POLL_INTERVAL_MS, 10000);
         KeResetEvent(&Event);
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
-        TimeoutMs = TimeoutMs - POLL_INTERVAL_MS;
+        TimeoutMs = TimeoutMs - _POLL_INTERVAL_MS;
     } while (TimeoutMs > 0);
 
     if (!NT_SUCCESS(Status)) {

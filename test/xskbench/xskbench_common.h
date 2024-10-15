@@ -1,4 +1,13 @@
+//
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+//
+
 #pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <xdpapi.h>
 #include "afxdp_helper.h"
@@ -120,3 +129,8 @@ VOID
 CxPlatAlignMemory(
     _Inout_ XSK_UMEM_REG *UmemReg
     );
+
+
+#ifdef __cplusplus
+}
+#endif
