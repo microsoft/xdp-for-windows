@@ -381,7 +381,7 @@ XdpCleanupClientRegistration(
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpLoadApi(
+XdpRegister(
     _In_ UINT32 _XdpApiVersion,
     _In_opt_ VOID *_ClientContext,
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
@@ -460,7 +460,7 @@ XdpUnloadApi(
 inline
 _IRQL_requires_max_(APC_LEVEL)
 NTSTATUS
-XdpOpenApi(
+XdpGetProviderContexts(
     _In_ XDP_API_CLIENT *_Client,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
@@ -481,6 +481,59 @@ XdpOpenApi(
     CxPlatLockRelease(&_Client->Lock);
 
     return _Status;
+}
+
+#define TEST_TIMEOUT_ASYNC_MS 1000
+#define POLL_INTERVAL_MS 10
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+XdpOpenApi(
+    _In_ UINT32 _XdpApiVersion,
+    _In_opt_ VOID *_ClientContext,
+    _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
+    _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
+    _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
+    _Out_ XDP_API_CLIENT *_ApiContext,
+    _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
+    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
+    )
+{
+    NTSTATUS Status;
+    KEVENT Event;
+    INT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+
+    Status = XdpRegister(_XdpApiVersion, _ClientContext, _ClientAttach, _ClientDetach, _XdpApiClientDispatch, _ApiContext);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    do {
+        LARGE_INTEGER Timeout100Ns;
+
+        Status =
+            XdpGetProviderContexts(
+                _ApiContext,
+                _XdpApiProviderDispatch,
+                _XdpApiProviderContext);
+        if (NT_SUCCESS(Status)) {
+            break;
+        }
+
+        Timeout100Ns.QuadPart = -1 * Int32x32To64(POLL_INTERVAL_MS, 10000);
+        KeResetEvent(&Event);
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
+        TimeoutMs = TimeoutMs - POLL_INTERVAL_MS;
+    } while (TimeoutMs > 0);
+
+    if (!NT_SUCCESS(Status)) {
+        XdpUnloadApi(_ApiContext);
+    }
+
+    return Status;
 }
 
 #endif

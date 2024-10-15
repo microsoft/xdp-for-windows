@@ -16,7 +16,6 @@
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
-#include "xdpapi_helper.h"
 #include "driver.tmh"
 
 XDP_API_PROVIDER_DISPATCH *XdpApi;
@@ -50,6 +49,14 @@ static XDP_API_CLIENT XdpApiContext = {0};
 #define POLL_INTERVAL_MS 10
 
 VOID
+DetachCallback(
+    _In_ VOID *ClientContext
+    )
+{
+    UNREFERENCED_PARAMETER(ClientContext);
+}
+
+VOID
 CxPlatXdpApiInitialize(
     VOID
     )
@@ -57,7 +64,8 @@ CxPlatXdpApiInitialize(
     NTSTATUS Status = STATUS_SUCCESS;
     TraceEnter(TRACE_CONTROL, "-");
 
-    Status = InitializeXdpApi(&XdpApiContext, &XdpApi, &XdpApiProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
+    Status = XdpOpenApi(XDP_API_VERSION_1, NULL, NULL, &DetachCallback, &XdpFuncXdpApiClientDispatch, &XdpApiContext, &XdpApi, &XdpApiProviderBindingContext);
+
     if (!NT_SUCCESS(Status)) {
         goto Done;
     }
@@ -78,7 +86,7 @@ CxPlatXdpApiUninitialize(
 
     TraceEnter(TRACE_CONTROL, "-");
 
-    UninitializeXdpApi(&XdpApiContext);
+    XdpUnloadApi(&XdpApiContext);
 
     TraceExitStatus(TRACE_CONTROL);
 

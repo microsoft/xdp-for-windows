@@ -15,7 +15,6 @@
 #include <netiodef.h>
 #include <netioapi.h>
 #include <mstcpip.h>
-#include "xdpapi_helper.h"
 #else
 #pragma warning(disable:26495)  // Always initialize a variable
 #pragma warning(disable:26812)  // The enum type '_XDP_MODE' is unscoped.
@@ -2623,6 +2622,19 @@ OpenApiTest()
 
 #endif
 
+#ifdef _KERNEL_MODE
+
+VOID
+XdpDetach(
+    _In_ VOID *ClientContext
+    )
+{
+    UNREFERENCED_PARAMETER(ClientContext);
+    TraceInfo("XdpDetach %p", ClientContext);
+}
+
+#endif
+
 VOID
 LoadApiTest()
 {
@@ -2631,14 +2643,14 @@ LoadApiTest()
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
 
-    NTSTATUS Status = InitializeXdpApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
+    NTSTATUS Status = XdpOpenApi(XDP_API_VERSION_1, NULL, NULL, &XdpDetach, &XdpFuncXdpApiClientDispatch, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
     }
-    UninitializeXdpApi(&XdpApiClient);
+    XdpUnloadApi(&XdpApiClient);
 
-    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeXdpApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
+    TEST_NOT_EQUAL(STATUS_SUCCESS,  XdpOpenApi(XDP_API_VERSION_1 + 1, NULL, NULL, &XdpDetach, &XdpFuncXdpApiClientDispatch, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext));
 #else
     XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;
