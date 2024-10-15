@@ -276,6 +276,8 @@ typedef struct _XDP_API_CLIENT {
     HANDLE BindingHandle;
     XDP_API_PROVIDER_DISPATCH *XdpApiProviderDispatch;
     XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
+
+    LONG InProgressCallCount;
 } XDP_API_CLIENT;
 
 inline
@@ -333,6 +335,9 @@ XdpNmrClientDetachProvider(
     )
 {
     XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_ClientBindingContext;
+    if (_Client->InProgressCallCount > 0) {
+        return STATUS_PENDING;
+    }
 
     if (_Client->Detach != NULL) {
         _Client->Detach(_Client->Context);
@@ -404,6 +409,7 @@ XdpLoadApi(
     _Client->Attach = _ClientAttach;
     _Client->Detach = _ClientDetach;
     _Client->XdpApiClientDispatch = _XdpApiClientDispatch;
+    _Client->InProgressCallCount = 0;
 
     _NpiCharacteristics = &_Client->NpiClientCharacteristics;
     _NpiCharacteristics->Length = sizeof(*_NpiCharacteristics);

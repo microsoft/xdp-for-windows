@@ -59,6 +59,7 @@
 #include <afxdp_helper.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
+#include <xdpapi_helper.h>
 
 #ifndef _KERNEL_MODE
 #include <pkthlp.h>
@@ -233,8 +234,11 @@ static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
 };
 static const XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 static const XDP_API_PROVIDER_DISPATCH *XdpApi;
+XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext = NULL;
+XDP_API_PROVIDER_DISPATCH *XdpApiTest = NULL;
 #else
-static unique_xdp_api XdpApi;
+unique_xdp_api XdpApi = nullptr;
+XDP_API_TABLE *XdpApiTest = nullptr;
 #endif
 
 #ifndef _KERNEL_MODE
@@ -819,7 +823,7 @@ NTSTATUS
 InitializeApi(
     _Out_ XDP_API_CLIENT *ApiContext,
     _Out_ const XDP_API_PROVIDER_DISPATCH **ProviderDispatch,
-    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **ProviderBindingContext,
+    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_ProviderBindingContext,
     _In_ const XDP_API_CLIENT_DISPATCH *ClientDispatch,
     _In_ UINT32 Version = XDP_API_VERSION_1
     )
@@ -842,7 +846,7 @@ InitializeApi(
             XdpOpenApi(
                 ApiContext,
                 ProviderDispatch,
-                ProviderBindingContext);
+                _ProviderBindingContext);
         if (NT_SUCCESS(Status)) {
             break;
         }
@@ -2698,16 +2702,16 @@ LoadApiTest()
 #ifdef _KERNEL_MODE
     XDP_API_CLIENT XdpApiClient = {0};
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
-    const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
+    const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
-    NTSTATUS Status = InitializeApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
+    NTSTATUS Status = InitializeApi(&XdpApiClient, &ProviderDispatch, &_ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
     }
     UninitializeApi(&XdpApiClient);
 
-    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&XdpApiClient, &ProviderDispatch, &ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
+    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&XdpApiClient, &ProviderDispatch, &_ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
 #else
     XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;
