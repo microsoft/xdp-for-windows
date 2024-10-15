@@ -13,7 +13,7 @@
 #undef ASSERT
 #endif
 
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
 #if DBG
 // Ensure the system bugchecks if KD is disabled.
 #define ASSERT(e) \
@@ -39,7 +39,7 @@
 #endif
 #endif
 
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
 #define FRE_ASSERT(e) \
     (NT_VERIFY(e) ? TRUE : (RtlFailFast(FAST_FAIL_INVALID_ARG), FALSE))
 #elif DBG

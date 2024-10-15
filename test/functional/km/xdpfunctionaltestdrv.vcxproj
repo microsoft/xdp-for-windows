@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="control.cpp" />
+    <ClCompile Include="driver.cpp" />
+    <ResourceCompile Include="xdpfunctionaltestdrv.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests_km.vcxproj">
+      <Project>{c8280a34-02c5-4bde-9f4f-71efa06c8351}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\nmr\nmr.vcxproj">
+      <Project>{f389859e-1d0c-4f30-baec-6a5e44b8190e}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{bdf5ef66-403a-4d96-95d5-871689f76c4f}</ProjectGuid>
+    <UndockedType>sys</UndockedType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)test\functional\inc;
+        $(SolutionDir)test\functional\lib;
+        $(SolutionDir)submodules\cxplat\inc;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
+      <WppRecorderEnabled>true</WppRecorderEnabled>
+      <WppAdditionalOptions>-p:xdpfntestdrv</WppAdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        netio.lib;
+        uuid.lib;
+        wdmsec.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

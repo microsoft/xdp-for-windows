@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="tests.cpp" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{c8280a34-02c5-4bde-9f4f-71efa06c8351}</ProjectGuid>
+    <TargetName>xdptests_km</TargetName>
+    <UndockedType>drvlib</UndockedType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\inc;
+        $(SolutionDir)submodules\wil\include;
+        $(SolutionDir)submodules\cxplat\inc;
+        $(FnPackagePath)include;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        NDIS684=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>$(ProjectDir)..\km\trace.h</WppScanConfigurationData>
+      <WppRecorderEnabled>true</WppRecorderEnabled>
+      <WppAdditionalOptions>-p:xdpfntestdrv</WppAdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+</Project>

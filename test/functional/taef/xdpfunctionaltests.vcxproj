@@ -19,6 +19,9 @@
     <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
       <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\functional\km\xdpfunctionaltestdrv.vcxproj">
+      <Project>{bdf5ef66-403a-4d96-95d5-871689f76c4f}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tests.cpp" />
@@ -33,7 +36,9 @@
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\inc;
+        $(SolutionDir)test\functional\km;
         $(SolutionDir)test\functional\lib;
+        $(SolutionDir)submodules\wil\include;
         $(VCInstallDir)UnitTest\include;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
@@ -46,7 +51,7 @@
         iphlpapi.lib;
         advapi32.lib;
         $(WntLibPath)\fnsock_um.lib;
-        $(OutDir)\cxplat\bin\$(UndockedPlatConfig)\cxplat.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.user\cxplat_winuser.obj;
         %(AdditionalDependencies)
       </AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

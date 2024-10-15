@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="xskbench.c" />
+    <ClCompile Include="main.c" />
+    <ClCompile Include="..\xskbench.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
@@ -18,9 +19,26 @@
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        .;
+        ..;
+        $(SolutionDir)submodules\cxplat\inc;
+        $(SolutionDir)test\common\inc;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
     <Link>
-      <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>
+        ntdll.lib;
+        onecore.lib;
+        $(OutDir)\cxplat\obj\$(UndockedPlatConfig)\cxplat.user\cxplat_winuser.obj;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
+  <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
+    <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\;UndockedSourceLink=false"/>
+  </Target>
 </Project>

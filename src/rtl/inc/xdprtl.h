@@ -68,7 +68,7 @@
 
 #define CONST_HTONS(_x) ((((UINT16)(_x)) >> 8 | (((UINT16)((_x) & MAXUINT8)) << 8)))
 
-#ifdef KERNEL_MODE
+#ifdef _KERNEL_MODE
 
 _IRQL_requires_max_(APC_LEVEL)
 _Acquires_exclusive_lock_(Lock)
