@@ -405,8 +405,10 @@ typedef struct _XDP_PROGRAM_WORKITEM {
 } XDP_PROGRAM_WORKITEM;
 
 static XDP_FILE_IRP_ROUTINE XdpIrpProgramClose;
+static XDP_CLOSE_HANDLE_ROUTINE XdpProgramClose;
 static XDP_FILE_DISPATCH XdpProgramFileDispatch = {
-    .Close = XdpIrpProgramClose,
+    .Close       = XdpIrpProgramClose,
+    .CloseHandle = XdpProgramClose,
 };
 
 static
@@ -1570,11 +1572,15 @@ Exit:
     return Status;
 }
 
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 VOID
 XdpProgramClose(
-    _In_ XDP_PROGRAM_OBJECT *ProgramObject
+    _In_ HANDLE Handle
     )
 {
+    XDP_PROGRAM_OBJECT *ProgramObject = (XDP_PROGRAM_OBJECT *)Handle;
     XDP_PROGRAM_WORKITEM WorkItem = {0};
 
     TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);

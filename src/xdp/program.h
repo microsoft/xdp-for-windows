@@ -84,11 +84,6 @@ XdpProgramCreate(
     _In_ KPROCESSOR_MODE RequestorMode
     );
 
-VOID
-XdpProgramClose(
-    _In_ XDP_PROGRAM_OBJECT *ProgramObject
-    );
-
 XDP_FILE_CREATE_ROUTINE XdpIrpCreateProgram;
 
 NTSTATUS
