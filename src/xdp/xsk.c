@@ -48,7 +48,7 @@ typedef struct _UMEM_MAPPING {
     MDL *Mdl;
     UCHAR *SystemAddress;
     DMA_LOGICAL_ADDRESS DmaAddress;
-    BOOLEAN DoNotUnlockMdlPages;
+    BOOLEAN MdlPagesLocked;
 } UMEM_MAPPING;
 
 typedef struct _UMEM {
@@ -2501,7 +2501,7 @@ XskDereferenceUmem(
                 MmFreeMappingAddress(Umem->ReservedMapping, POOLTAG_UMEM);
             }
             if (Umem->Mapping.Mdl->MdlFlags & MDL_PAGES_LOCKED &&
-                !Umem->Mapping.DoNotUnlockMdlPages) {
+                !Umem->Mapping.MdlPagesLocked) {
                 MmUnlockPages(Umem->Mapping.Mdl);
             }
             IoFreeMdl(Umem->Mapping.Mdl);
@@ -3216,7 +3216,7 @@ XskSockoptSetUmem(
         // Kernel mode clients already provide memory that is nonpageable and
         // mapped to system address space.
         //
-        Umem->Mapping.DoNotUnlockMdlPages = TRUE;
+        Umem->Mapping.MdlPagesLocked = TRUE;
     }
 
     if (Umem->Reg.TotalSize % Umem->Reg.ChunkSize != 0) {
