@@ -1400,19 +1400,20 @@ XdpProgramDetach(
     )
 {
     XDP_PROGRAM_WORKITEM *Item = (XDP_PROGRAM_WORKITEM *)WorkItem;
+    XDP_PROGRAM_OBJECT *ProgramObject = Item->ProgramObject;
     XDP_PROGRAM *Program = &Item->ProgramObject->Program;
     EBPF_EXTENSION_CLIENT *Client = NULL;
     KEVENT *CompletionEvent = Item->CompletionEvent;
 
-    TraceEnter(TRACE_CORE, "ProgramObject=%p", Item->ProgramObject);
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
     if (XdpProgramIsEbpf(Program)) {
         Client = XdpGetEbpfExtensionClientFromProgram(Program);
     }
 
-    XdpIfDereferenceBinding(Item->ProgramObject->IfHandle);
-    XdpProgramDelete(Item->ProgramObject);
-    TraceInfo(TRACE_CORE, "Detached ProgramObject=%p", Item->ProgramObject);
+    XdpIfDereferenceBinding(ProgramObject->IfHandle);
+    XdpProgramDelete(ProgramObject);
+    TraceInfo(TRACE_CORE, "Detached ProgramObject=%p", ProgramObject);
 
     if (Client != NULL) {
         EbpfExtensionDetachClientCompletion(Client);
