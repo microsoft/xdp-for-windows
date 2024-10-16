@@ -283,6 +283,11 @@ typedef struct _XDP_API_CLIENT {
     HANDLE BindingHandle;
     XDP_API_PROVIDER_DISPATCH *XdpApiProviderDispatch;
     XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
+
+    //
+    // Unblock registering thread when binding is complete.
+    //
+    KEVENT AttachEvent;
 } XDP_API_CLIENT;
 
 inline
@@ -320,6 +325,9 @@ XdpNmrClientAttachProvider(
             _Client->BindingHandle = _NmrBindingHandle;
             _Client->XdpApiProviderDispatch = (XDP_API_PROVIDER_DISPATCH *)_ProviderBindingDispatch;
             _Client->XdpApiProviderContext = _ProviderBindingContext;
+            KeSetEvent(&_Client->AttachEvent, 2, FALSE);
+        } else {
+            KePulseEvent(&_Client->AttachEvent, 2, FALSE);
         }
     }
 
@@ -364,6 +372,8 @@ XdpCleanupClientRegistration(
     NTSTATUS _Status;
 
     if (_Client->NmrClientHandle != NULL) {
+        KeSetEvent(&_Client->AttachEvent, 2, FALSE);
+
         _Status = NmrDeregisterClient(_Client->NmrClientHandle);
         if (!NT_VERIFY(_Status == STATUS_PENDING)) {
             RtlFailFast(FAST_FAIL_INVALID_ARG);
@@ -501,18 +511,17 @@ XdpOpenApi(
     )
 {
     NTSTATUS Status;
-    KEVENT Event;
-    INT64 TimeoutMs = INT64_MAX; // forever
+    INT64 TimeoutMs = MAXLONGLONG; // forever
     if (_TimeoutMs > 0) {
         TimeoutMs = _TimeoutMs;
     }
+
+    KeInitializeEvent(&_ApiContext->AttachEvent, NotificationEvent, FALSE);
 
     Status = XdpRegister(_XdpApiVersion, _ClientContext, _ClientAttach, _ClientDetach, _XdpApiClientDispatch, _ApiContext);
     if (!NT_SUCCESS(Status)) {
         return Status;
     }
-
-    KeInitializeEvent(&Event, NotificationEvent, FALSE);
 
     do {
         LARGE_INTEGER Timeout100Ns;
@@ -527,8 +536,8 @@ XdpOpenApi(
         }
 
         Timeout100Ns.QuadPart = -1 * Int32x32To64(_POLL_INTERVAL_MS, 10000);
-        KeResetEvent(&Event);
-        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
+        KeResetEvent(&_ApiContext->AttachEvent);
+        KeWaitForSingleObject(&_ApiContext->AttachEvent, Executive, KernelMode, FALSE, &Timeout100Ns);
         TimeoutMs = TimeoutMs - _POLL_INTERVAL_MS;
     } while (TimeoutMs > 0);
 
