@@ -48,7 +48,7 @@ typedef struct _UMEM_MAPPING {
     MDL *Mdl;
     UCHAR *SystemAddress;
     DMA_LOGICAL_ADDRESS DmaAddress;
-    BOOLEAN DoNotUnlockMdlPages;
+    BOOLEAN MdlPagesLocked;
 } UMEM_MAPPING;
 
 typedef struct _UMEM {
@@ -203,10 +203,12 @@ static XDP_REG_WATCHER_CLIENT_ENTRY XskRegWatcherEntry;
 static XDP_FILE_IRP_ROUTINE XskIrpDeviceIoControl;
 static XDP_FILE_IRP_ROUTINE XskIrpCleanup;
 static XDP_FILE_IRP_ROUTINE XskIrpClose;
+static XDP_CLOSE_HANDLE_ROUTINE XskCloseHandle;
 static XDP_FILE_DISPATCH XskFileDispatch = {
-    .IoControl  = XskIrpDeviceIoControl,
-    .Cleanup    = XskIrpCleanup,
-    .Close      = XskIrpClose,
+    .IoControl   = XskIrpDeviceIoControl,
+    .Cleanup     = XskIrpCleanup,
+    .Close       = XskIrpClose,
+    .CloseHandle = XskCloseHandle,
 };
 
 static
@@ -1827,6 +1829,7 @@ XskCanBypass(
     return TRUE;
 }
 
+static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
@@ -2498,7 +2501,7 @@ XskDereferenceUmem(
                 MmFreeMappingAddress(Umem->ReservedMapping, POOLTAG_UMEM);
             }
             if (Umem->Mapping.Mdl->MdlFlags & MDL_PAGES_LOCKED &&
-                !Umem->Mapping.DoNotUnlockMdlPages) {
+                !Umem->Mapping.MdlPagesLocked) {
                 MmUnlockPages(Umem->Mapping.Mdl);
             }
             IoFreeMdl(Umem->Mapping.Mdl);
@@ -2507,6 +2510,7 @@ XskDereferenceUmem(
     }
 }
 
+static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 VOID
@@ -2598,6 +2602,18 @@ XskIrpClose(
     TraceExitSuccess(TRACE_XSK);
 
     return STATUS_SUCCESS;
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XskCloseHandle(
+    _In_ HANDLE Handle
+    )
+{
+    XskCleanup((XSK *)Handle);
+    XskClose((XSK *)Handle);
 }
 
 NTSTATUS
@@ -3200,7 +3216,7 @@ XskSockoptSetUmem(
         // Kernel mode clients already provide memory that is nonpageable and
         // mapped to system address space.
         //
-        Umem->Mapping.DoNotUnlockMdlPages = TRUE;
+        Umem->Mapping.MdlPagesLocked = TRUE;
     }
 
     if (Umem->Reg.TotalSize % Umem->Reg.ChunkSize != 0) {

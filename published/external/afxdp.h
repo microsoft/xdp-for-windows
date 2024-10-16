@@ -8,18 +8,11 @@
 
 #include <xdp/hookid.h>
 #include <xdp/status.h>
-
-#ifndef XDPAPI
-#define XDPAPI __declspec(dllimport)
-#endif
+#include <xdp/apitype.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#if defined(_KERNEL_MODE)
-typedef VOID XDP_API_PROVIDER_BINDING_CONTEXT;
-#endif // defined(_KERNEL_MODE)
 
 #pragma warning(push)
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
@@ -154,13 +147,6 @@ XSK_NOTIFY_SOCKET_FN(
 typedef struct _OVERLAPPED OVERLAPPED;
 
 #if defined(_KERNEL_MODE)
-
-typedef
-_IRQL_requires_(PASSIVE_LEVEL)
-VOID
-XSK_DELETE_FN(
-    _In_ HANDLE Socket
-    );
 
 typedef VOID* XSK_COMPLETION_CONTEXT;
 

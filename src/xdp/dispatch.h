@@ -27,10 +27,19 @@ XDP_FILE_IRP_ROUTINE(
     _Inout_ IO_STACK_LOCATION *IrpSp
     );
 
+typedef
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID
+XDP_CLOSE_HANDLE_ROUTINE(
+    _In_ HANDLE Handle
+    );
+
 typedef struct _XDP_FILE_DISPATCH {
     XDP_FILE_IRP_ROUTINE *IoControl;
     XDP_FILE_IRP_ROUTINE *Cleanup;
     XDP_FILE_IRP_ROUTINE *Close;
+    XDP_CLOSE_HANDLE_ROUTINE *CloseHandle;
 } XDP_FILE_DISPATCH;
 
 typedef struct _XDP_FILE_OBJECT_HEADER {
