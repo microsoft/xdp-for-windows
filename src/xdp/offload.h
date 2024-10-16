@@ -33,13 +33,6 @@ XdpInterfaceCreate(
     _In_ const XDP_INTERFACE_OPEN *Params
     );
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-VOID
-XdpInterfaceDelete(
-    _In_ XDP_INTERFACE_OBJECT *InterfaceObject
-    );
-
 VOID
 XdpOffloadInitializeIfSettings(
     _Out_ XDP_OFFLOAD_IF_SETTINGS *OffloadIfSettings

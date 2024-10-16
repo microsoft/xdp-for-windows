@@ -104,8 +104,8 @@ XDP_DELETE_PROGRAM_FN(
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XDP_INTERFACE_CLOSE_FN(
-    _In_ HANDLE InterfaceHandle
+XDP_CLOSE_HANDLE_FN(
+    _In_ HANDLE Handle
     );
 
 DEFINE_GUID(
@@ -115,11 +115,8 @@ DEFINE_GUID(
 typedef struct _XDP_API_PROVIDER_DISPATCH {
     XDP_GET_ROUTINE_FN *XdpGetRoutine;
     XDP_CREATE_PROGRAM_FN *XdpCreateProgram;
-    XDP_DELETE_PROGRAM_FN *XdpDeleteProgram;
     XDP_INTERFACE_OPEN_FN *XdpInterfaceOpen;
-    XDP_INTERFACE_CLOSE_FN *XdpInterfaceClose;
     XSK_CREATE_FN *XskCreate;
-    XSK_DELETE_FN *XskDelete;
     XSK_BIND_FN *XskBind;
     XSK_ACTIVATE_FN *XskActivate;
     XSK_NOTIFY_SOCKET_FN *XskNotifySocket;
@@ -127,6 +124,7 @@ typedef struct _XDP_API_PROVIDER_DISPATCH {
     XSK_SET_SOCKOPT_FN *XskSetSockopt;
     XSK_GET_SOCKOPT_FN *XskGetSockopt;
     XSK_IOCTL_FN *XskIoctl;
+    XDP_CLOSE_HANDLE_FN *XdpCloseHandle;
 } XDP_API_PROVIDER_DISPATCH;
 
 typedef struct _XDP_API_CLIENT_DISPATCH {

@@ -1919,11 +1919,11 @@ XskBenchStart(
 
 #if defined(_KERNEL_MODE)
             if (Queue->rxProgram != NULL) {
-                XdpApi->XdpDeleteProgram(Queue->rxProgram);
+                XdpApi->XdpCloseHandle(Queue->rxProgram);
                 Queue->rxProgram = NULL;
             }
             if (Queue->sock != NULL) {
-                XdpApi->XskDelete(Queue->sock);
+                XdpApi->XdpCloseHandle(Queue->sock);
                 Queue->sock = NULL;
             }
 #endif

@@ -148,13 +148,6 @@ typedef struct _OVERLAPPED OVERLAPPED;
 
 #if defined(_KERNEL_MODE)
 
-typedef
-_IRQL_requires_(PASSIVE_LEVEL)
-VOID
-XSK_DELETE_FN(
-    _In_ HANDLE Socket
-    );
-
 typedef VOID* XSK_COMPLETION_CONTEXT;
 
 typedef
