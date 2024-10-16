@@ -6,6 +6,7 @@
 #pragma once
 
 #include <xdpapi.h>
+#include "xskbench_common.h"
 
 #define printf(format, ...) \
     KmPlatPrint(__FUNCTION__, __LINE__, 4, format, __VA_ARGS__)
@@ -21,21 +22,6 @@
 
 #define ASSERT_FRE(expr) \
     if (!(expr)) { ABORT("(%s) failed line %d\n", #expr, __LINE__);}
-
-XDP_API_PROVIDER_BINDING_CONTEXT *
-CxPlatXdpApiGetProviderBindingContext(
-    VOID
-    );
-
-VOID
-CxPlatXdpApiInitialize(
-    VOID
-    );
-
-VOID
-CxPlatXdpApiUninitialize(
-    VOID
-    );
 
 VOID
 KmPlatPrint(
