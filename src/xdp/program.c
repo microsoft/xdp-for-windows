@@ -312,6 +312,17 @@ XdpInspectEbpf(
             FragmentExtension, FragmentIndex, VirtualAddressExtension);
 }
 
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+EBPF_EXTENSION_CLIENT *
+XdpGetEbpfExtensionClientFromProgram(
+    _In_ XDP_PROGRAM *Program
+    )
+{
+    ASSERT(XdpProgramIsEbpf(Program));
+    return (EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+}
+
 _IRQL_requires_max_(DISPATCH_LEVEL)
 _Success_(return)
 BOOLEAN
@@ -320,12 +331,8 @@ XdpInspectEbpfStartBatch(
     _Inout_ XDP_INSPECTION_CONTEXT *InspectionContext
     )
 {
-    const EBPF_EXTENSION_CLIENT *Client;
     ebpf_result_t EbpfResult;
-
-    ASSERT(XdpProgramIsEbpf(Program));
-
-    Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+    const EBPF_EXTENSION_CLIENT *Client = XdpGetEbpfExtensionClientFromProgram(Program);
 
     ebpf_program_batch_begin_invoke_function_t EbpfBatchBegin =
         EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_begin_invoke_function;
@@ -342,12 +349,8 @@ XdpInspectEbpfEndBatch(
     _Inout_ XDP_INSPECTION_CONTEXT *InspectionContext
     )
 {
-    const EBPF_EXTENSION_CLIENT *Client;
     ebpf_result_t EbpfResult;
-
-    ASSERT(XdpProgramIsEbpf(Program));
-
-    Client = (const EBPF_EXTENSION_CLIENT *)Program->Rules[0].Ebpf.Target;
+    const EBPF_EXTENSION_CLIENT *Client = XdpGetEbpfExtensionClientFromProgram(Program);
 
     ebpf_program_batch_end_invoke_function_t EbpfBatchEnd =
             EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_end_invoke_function;
@@ -383,15 +386,6 @@ typedef struct _XDP_PROGRAM_BINDING {
     XDP_PROGRAM_OBJECT *OwningProgram;
 } XDP_PROGRAM_BINDING;
 
-typedef struct _XDP_PROGRAM_OBJECT {
-    XDP_FILE_OBJECT_HEADER Header;
-    XDP_BINDING_HANDLE IfHandle;
-    LIST_ENTRY ProgramBindings;
-    ULONG_PTR CreatedByPid;
-
-    XDP_PROGRAM Program;
-} XDP_PROGRAM_OBJECT;
-
 typedef struct _XDP_PROGRAM_WORKITEM {
     XDP_BINDING_WORKITEM Bind;
     XDP_HOOK_ID HookId;
@@ -400,9 +394,19 @@ typedef struct _XDP_PROGRAM_WORKITEM {
     XDP_PROGRAM_OBJECT *ProgramObject;
     BOOLEAN BindToAllQueues;
 
-    KEVENT CompletionEvent;
+    KEVENT *CompletionEvent;
     NTSTATUS CompletionStatus;
 } XDP_PROGRAM_WORKITEM;
+
+typedef struct _XDP_PROGRAM_OBJECT {
+    XDP_FILE_OBJECT_HEADER Header;
+    XDP_BINDING_HANDLE IfHandle;
+    LIST_ENTRY ProgramBindings;
+    ULONG_PTR CreatedByPid;
+    XDP_PROGRAM_WORKITEM CloseWorkItem;
+
+    XDP_PROGRAM Program;
+} XDP_PROGRAM_OBJECT;
 
 static XDP_FILE_IRP_ROUTINE XdpIrpProgramClose;
 static XDP_FILE_DISPATCH XdpProgramFileDispatch = {
@@ -1384,7 +1388,7 @@ Exit:
     }
 
     Item->CompletionStatus = Status;
-    KeSetEvent(&Item->CompletionEvent, 0, FALSE);
+    KeSetEvent(Item->CompletionEvent, 0, FALSE);
 
     TraceExitStatus(TRACE_CORE);
 }
@@ -1396,15 +1400,28 @@ XdpProgramDetach(
     )
 {
     XDP_PROGRAM_WORKITEM *Item = (XDP_PROGRAM_WORKITEM *)WorkItem;
+    XDP_PROGRAM_OBJECT *ProgramObject = Item->ProgramObject;
+    XDP_PROGRAM *Program = &Item->ProgramObject->Program;
+    EBPF_EXTENSION_CLIENT *Client = NULL;
+    KEVENT *CompletionEvent = Item->CompletionEvent;
 
-    TraceEnter(TRACE_CORE, "ProgramObject=%p", Item->ProgramObject);
+    TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
-    XdpIfDereferenceBinding(Item->ProgramObject->IfHandle);
-    XdpProgramDelete(Item->ProgramObject);
-    TraceInfo(TRACE_CORE, "Detached ProgramObject=%p", Item->ProgramObject);
+    if (XdpProgramIsEbpf(Program)) {
+        Client = XdpGetEbpfExtensionClientFromProgram(Program);
+    }
 
-    Item->CompletionStatus = STATUS_SUCCESS;
-    KeSetEvent(&Item->CompletionEvent, 0, FALSE);
+    XdpIfDereferenceBinding(ProgramObject->IfHandle);
+    XdpProgramDelete(ProgramObject);
+    TraceInfo(TRACE_CORE, "Detached ProgramObject=%p", ProgramObject);
+
+    if (Client != NULL) {
+        EbpfExtensionDetachClientCompletion(Client);
+    }
+
+    if (CompletionEvent != NULL) {
+        KeSetEvent(CompletionEvent, 0, FALSE);
+    }
 
     TraceExitSuccess(TRACE_CORE);
 }
@@ -1421,6 +1438,7 @@ XdpProgramCreate(
     XDP_INTERFACE_MODE *RequiredMode = NULL;
     XDP_BINDING_HANDLE BindingHandle = NULL;
     XDP_PROGRAM_WORKITEM WorkItem = {0};
+    KEVENT CompletionEvent;
     XDP_PROGRAM_OBJECT *ProgramObject = NULL;
     NTSTATUS Status;
     const UINT32 ValidFlags =
@@ -1465,7 +1483,8 @@ RetryBinding:
         goto Exit;
     }
 
-    KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
+    KeInitializeEvent(&CompletionEvent, NotificationEvent, FALSE);
+    WorkItem.CompletionEvent = &CompletionEvent;
     WorkItem.QueueId = Params->QueueId;
     WorkItem.HookId = Params->HookId;
     WorkItem.IfIndex = Params->IfIndex;
@@ -1478,7 +1497,7 @@ RetryBinding:
     // Attach the program using the interface's work queue.
     //
     XdpIfQueueWorkItem(&WorkItem.Bind);
-    KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    KeWaitForSingleObject(&CompletionEvent, Executive, KernelMode, FALSE, NULL);
 
     Status = WorkItem.CompletionStatus;
 
@@ -1574,25 +1593,32 @@ Exit:
 static
 VOID
 XdpProgramClose(
-    _In_ XDP_PROGRAM_OBJECT *ProgramObject
+    _In_ XDP_PROGRAM_OBJECT *ProgramObject,
+    _In_ BOOLEAN Wait
     )
 {
-    XDP_PROGRAM_WORKITEM WorkItem = {0};
+    KEVENT CompletionEvent;
 
     TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
     TraceInfo(TRACE_CORE, "Closing ProgramObject=%p", ProgramObject);
 
-    KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
-    WorkItem.ProgramObject = ProgramObject;
-    WorkItem.Bind.BindingHandle = ProgramObject->IfHandle;
-    WorkItem.Bind.WorkRoutine = XdpProgramDetach;
+    if (Wait) {
+        KeInitializeEvent(&CompletionEvent, NotificationEvent, FALSE);
+        ProgramObject->CloseWorkItem.CompletionEvent = &CompletionEvent;
+    }
+
+    ProgramObject->CloseWorkItem.ProgramObject = ProgramObject;
+    ProgramObject->CloseWorkItem.Bind.BindingHandle = ProgramObject->IfHandle;
+    ProgramObject->CloseWorkItem.Bind.WorkRoutine = XdpProgramDetach;
 
     //
     // Perform the detach on the interface's work queue.
     //
-    XdpIfQueueWorkItem(&WorkItem.Bind);
-    KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
-    ASSERT(NT_SUCCESS(WorkItem.CompletionStatus));
+    XdpIfQueueWorkItem(&ProgramObject->CloseWorkItem.Bind);
+
+    if (Wait) {
+        KeWaitForSingleObject(&CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    }
 
     TraceExitSuccess(TRACE_CORE);
 }
@@ -1611,7 +1637,7 @@ XdpIrpProgramClose(
 
     UNREFERENCED_PARAMETER(Irp);
 
-    XdpProgramClose(ProgramObject);
+    XdpProgramClose(ProgramObject, TRUE);
 
     TraceExitSuccess(TRACE_CORE);
 
@@ -1708,15 +1734,17 @@ EbpfProgramOnClientDetach(
     )
 {
     XDP_PROGRAM_OBJECT *ProgramObject = EbpfExtensionClientGetProviderData(DetachingClient);
+    NTSTATUS Status = STATUS_PENDING;
 
     TraceEnter(TRACE_CORE, "ProgramObject=%p", ProgramObject);
 
     ASSERT(ProgramObject != NULL);
 
-    XdpProgramClose(ProgramObject);
+    XdpProgramClose(ProgramObject, FALSE);
 
-    TraceExitSuccess(TRACE_CORE);
-    return STATUS_SUCCESS;
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 NTSTATUS

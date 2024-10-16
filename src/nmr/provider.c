@@ -12,7 +12,7 @@ typedef struct _XDP_PROVIDER {
     VOID *ProviderContext;
     XDP_PROVIDER_DETACH_HANDLER *DetachHandler;
 
-    EX_PUSH_LOCK Lock;
+    KSPIN_LOCK Lock;
     BOOLEAN Closed;
     HANDLE BindingHandle;
     const XDP_NPI_CLIENT *NpiClient;
@@ -53,6 +53,7 @@ XdpNmrProviderAttachClient(
     const NPI_REGISTRATION_INSTANCE *ProviderRegistrationInstance =
         &Provider->NpiProviderCharacteristics.ProviderRegistrationInstance;
     const XDP_NPI_CLIENT *NpiClient = ClientDispatch;
+    KIRQL OldIrql;
     NTSTATUS Status;
 
     UNREFERENCED_PARAMETER(ClientBindingContext);
@@ -94,7 +95,7 @@ XdpNmrProviderAttachClient(
     // the lifetime of the provider.
     //
 
-    RtlAcquirePushLockExclusive(&Provider->Lock);
+    KeAcquireSpinLock(&Provider->Lock, &OldIrql);
 
     if (Provider->BindingHandle != NULL || Provider->Closed) {
         Status = STATUS_DEVICE_NOT_READY;
@@ -104,7 +105,7 @@ XdpNmrProviderAttachClient(
         Status = STATUS_SUCCESS;
     }
 
-    RtlReleasePushLockExclusive(&Provider->Lock);
+    KeReleaseSpinLock(&Provider->Lock, OldIrql);
 
 Exit:
 
@@ -123,18 +124,19 @@ XdpNmrDetach(
     )
 {
     BOOLEAN NeedDetach = FALSE;
+    KIRQL OldIrql;
 
     //
     // This routine ensure the provider's detach callback is invoked exactly
     // once.
     //
 
-    RtlAcquirePushLockExclusive(&Provider->Lock);
+    KeAcquireSpinLock(&Provider->Lock, &OldIrql);
 
     NeedDetach = !Provider->Closed;
     Provider->Closed = TRUE;
 
-    RtlReleasePushLockExclusive(&Provider->Lock);
+    KeReleaseSpinLock(&Provider->Lock, OldIrql);
 
     if (NeedDetach) {
         Provider->DetachHandler(Provider->ProviderContext);
@@ -193,6 +195,7 @@ XdpOpenProvider(
     XDP_PROVIDER *Provider;
     NPI_PROVIDER_CHARACTERISTICS *NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *NpiInstance;
+    KIRQL OldIrql;
 
     Provider = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Provider), POOLTAG_NMR_PROVIDER);
     if (Provider == NULL) {
@@ -200,7 +203,7 @@ XdpOpenProvider(
         goto Exit;
     }
 
-    ExInitializePushLock(&Provider->Lock);
+    KeInitializeSpinLock(&Provider->Lock);
 
     Provider->ProviderContext = ProviderContext;
     Provider->DetachHandler = DetachHandler;
@@ -228,7 +231,7 @@ XdpOpenProvider(
         goto Exit;
     }
 
-    RtlAcquirePushLockExclusive(&Provider->Lock);
+    KeAcquireSpinLock(&Provider->Lock, &OldIrql);
 
     if (Provider->BindingHandle != NULL) {
         *NpiGetInterfaceContext = Provider->NpiClient->GetInterfaceContext;
@@ -239,7 +242,7 @@ XdpOpenProvider(
         Status = STATUS_NOINTERFACE;
     }
 
-    RtlReleasePushLockExclusive(&Provider->Lock);
+    KeReleaseSpinLock(&Provider->Lock, OldIrql);
 
     if (!NT_SUCCESS(Status)) {
         goto Exit;

@@ -9,50 +9,6 @@ EX_RUNDOWN_REF XdpRtlRundown = {
     .Count = EX_RUNDOWN_ACTIVE
 };
 
-_IRQL_requires_max_(APC_LEVEL)
-_Acquires_exclusive_lock_(Lock)
-VOID
-RtlAcquirePushLockExclusive(
-    _Inout_ EX_PUSH_LOCK *Lock
-    )
-{
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(Lock);
-}
-
-_IRQL_requires_max_(APC_LEVEL)
-_Releases_exclusive_lock_(Lock)
-VOID
-RtlReleasePushLockExclusive(
-    _Inout_ EX_PUSH_LOCK *Lock
-    )
-{
-    ExReleasePushLockExclusive(Lock);
-    KeLeaveCriticalRegion();
-}
-
-_IRQL_requires_max_(APC_LEVEL)
-_Acquires_shared_lock_(Lock)
-VOID
-RtlAcquirePushLockShared(
-    _Inout_ EX_PUSH_LOCK *Lock
-    )
-{
-    KeEnterCriticalRegion();
-    ExAcquirePushLockShared(Lock);
-}
-
-_IRQL_requires_max_(APC_LEVEL)
-_Releases_shared_lock_(Lock)
-VOID
-RtlReleasePushLockShared(
-    _Inout_ EX_PUSH_LOCK *Lock
-    )
-{
-    ExReleasePushLockShared(Lock);
-    KeLeaveCriticalRegion();
-}
-
 UINT32
 RtlRandomNumber(
     VOID
