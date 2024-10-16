@@ -65,7 +65,7 @@ CxPlatXdpApiInitialize(
     TraceEnter(TRACE_CONTROL, "-");
 
     Status =
-        XdpOpenApi(XDP_API_VERSION_1, NULL, NULL, &DetachCallback, &XdpFuncXdpApiClientDispatch,
+        XdpOpenApi(XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback, &XdpFuncXdpApiClientDispatch,
                    1000, &XdpApiContext, &XdpApi, &XdpApiProviderBindingContext);
 
     if (!NT_SUCCESS(Status)) {

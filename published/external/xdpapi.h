@@ -304,7 +304,8 @@ XdpNmrClientAttachProvider(
 
     if (_Client->BindingHandle != NULL) {
         _Status = STATUS_DEVICE_NOT_READY;
-    } else if (_ProviderRegistrationInstance->Number != XDP_API_VERSION_1) {
+    } else if (_ProviderRegistrationInstance->Number < XDP_API_VERSION_1 ||
+               _ProviderRegistrationInstance->Number > XDP_API_VERSION_LATEST) {
         _Status = STATUS_NOINTERFACE;
     } else {
         _Status =
@@ -395,7 +396,8 @@ XdpRegister(
     NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *_NpiInstance;
 
-    if (_XdpApiVersion != XDP_API_VERSION_1 ||
+    if (_XdpApiVersion < XDP_API_VERSION_1 ||
+        _XdpApiVersion > XDP_API_VERSION_LATEST ||
         _Client == NULL ||
         _ClientDetach == NULL) {
         _Status = STATUS_INVALID_PARAMETER;
@@ -423,7 +425,7 @@ XdpRegister(
     _NpiInstance->Version = 0;
     _NpiInstance->NpiId = &NPI_XDPAPI_INTERFACE_ID;
     _NpiInstance->ModuleId = &_Client->ModuleId;
-    _NpiInstance->Number = XDP_API_VERSION_1;
+    _NpiInstance->Number = _XdpApiVersion;
 
     _Status =
         NmrRegisterClient(
