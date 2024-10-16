@@ -246,7 +246,10 @@ AttachXdpProgram(
     ASSERT_FRE(XDP_SUCCEEDED(res));
     ASSERT_FRE(hookSize == sizeof(hookId));
 
-    res = CxPlatXdpCreateProgram(ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
+    res =
+        CxPlatXdpCreateProgram(
+            ifindex, &hookId, Queue->queueId,
+            flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
         printf_error("XdpCreateProgram failed: %d\n", res);
         return FALSE;

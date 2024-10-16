@@ -62,14 +62,15 @@ CxPlatXdpCreateProgram(
     _Out_ HANDLE *Program
     )
 {
-    return XdpApi->XdpCreateProgram(
-        InterfaceIndex,
-        HookId,
-        QueueId,
-        Flags,
-        Rules,
-        RuleCount,
-        Program);
+    return
+        XdpApi->XdpCreateProgram(
+            InterfaceIndex,
+            HookId,
+            QueueId,
+            Flags,
+            Rules,
+            RuleCount,
+            Program);
 }
 
 VOID
