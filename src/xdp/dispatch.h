@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <xdp/object.h>
+
 typedef
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
@@ -41,12 +43,6 @@ typedef struct _XDP_FILE_DISPATCH {
     XDP_FILE_IRP_ROUTINE *Close;
     XDP_CLOSE_HANDLE_ROUTINE *CloseHandle;
 } XDP_FILE_DISPATCH;
-
-typedef struct _XDP_FILE_OBJECT_HEADER {
-    XDP_OBJECT_TYPE ObjectType;
-    XDP_FILE_DISPATCH *Dispatch;
-    PEX_RUNDOWN_REF_CACHE_AWARE RundownRef;
-} XDP_FILE_OBJECT_HEADER;
 
 NTSTATUS
 XdpReferenceObjectByHandle(

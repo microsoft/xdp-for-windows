@@ -14,9 +14,7 @@ extern "C" {
 #if defined(_KERNEL_MODE)
 
 #include <wdm.h>
-#include <xdpregistry.h>
-#include <xdpioctl.h>
-#include "dispatch.h"
+#include <xdp/object.h>
 
 extern XDP_API_PROVIDER_DISPATCH *XdpApiTest;
 extern XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
@@ -73,6 +71,24 @@ CxPlatXdpCloseHandle(
     ExReleaseRundownProtectionCacheAware(((XDP_FILE_OBJECT_HEADER *)Handle)->RundownRef);
 }
 
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+CxPlatXskCreate(
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+    _Out_ HANDLE *Socket
+    )
+{
+    XDP_CREATE_HANDLE_WITH_RUNDOWN(
+        XdpApiTest->XskCreate,
+        Socket,
+        OwningProcess,
+        OwningThread,
+        SecurityDescriptor,
+        Socket);
+}
+
 #else
 
 // TODO: change name
@@ -90,6 +106,15 @@ CxPlatXdpGet(
     )
 {
     return XdpApiTest->XdpGetRoutine(RoutineName);
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+CxPlatXskCreate(
+    _Out_ HANDLE *Socket
+    )
+{
+    return XdpApiTest->XskCreate(Socket);
 }
 
 #endif // defined(_KERNEL_MODE)
@@ -130,26 +155,6 @@ CxPlatXdpInterfaceOpen(
         InterfaceHandle,
         InterfaceIndex,
         InterfaceHandle);
-}
-
-_IRQL_requires_(PASSIVE_LEVEL)
-XDP_STATUS
-CxPlatXskCreate(
-#if defined(_KERNEL_MODE)
-    _In_opt_ PEPROCESS OwningProcess,
-    _In_opt_ PETHREAD OwningThread,
-    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
-#endif
-    _Out_ HANDLE *Socket
-    )
-{
-    XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XskCreate,
-        Socket,
-        OwningProcess,
-        OwningThread,
-        SecurityDescriptor,
-        Socket);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
