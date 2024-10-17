@@ -280,7 +280,7 @@ typedef struct _XDP_API_CLIENT {
     //
     // Rundown protection for API calls.
     //
-    EX_RUNDOWN_REF_CACHE_AWARE *RundownRef;
+    PEX_RUNDOWN_REF_CACHE_AWARE RundownRef;
 } XDP_API_CLIENT;
 
 inline
@@ -412,12 +412,11 @@ XdpLoadApi(
         goto Exit;
     }
 
-    _Client->RundownRef = ExAllocateCacheAwareRundownProtection();
+    _Client->RundownRef = ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, 'dpX');
     if (_Client->RundownRef == NULL) {
         _Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
-    ExInitializeRundownProtectionCacheAware(_Client->RundownRef);
 
     CxPlatLockInitialize(&_Client->Lock);
 

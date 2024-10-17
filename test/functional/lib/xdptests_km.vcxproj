@@ -12,6 +12,9 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>
+        $(SolutionDir)src\xdp;
+        $(SolutionDir)published\private;
+        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\common\inc;
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)submodules\wil\include;

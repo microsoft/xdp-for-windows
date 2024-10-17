@@ -5,23 +5,32 @@
 
 #pragma once
 
-#include "xdpapi.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <xdpapi.h>
 
 #if defined(_KERNEL_MODE)
+
+#include <wdm.h>
+#include <xdpregistry.h>
+#include <xdpioctl.h>
+#include "dispatch.h"
 
 extern XDP_API_PROVIDER_DISPATCH *XdpApiTest;
 extern XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
 
-#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Program) \
+#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...) \
     do { \
         XDP_STATUS Status; \
         XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(ProviderBindingContext); \
         if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) { \
             return STATUS_DEVICE_NOT_READY; \
         } else { \
-            Status = FunctionCall; \
+            Status = FunctionCall(ProviderBindingContext, __VA_ARGS__); \
             if (NT_SUCCESS(Status)) { \
-                ((XDP_FILE_OBJECT_HEADER *)(*Program))->RundownRef = Client->RundownRef; \
+                ((XDP_FILE_OBJECT_HEADER *)(Object))->RundownRef = Client->RundownRef; \
             } else { \
                 ExReleaseRundownProtectionCacheAware(Client->RundownRef); \
             } \
@@ -69,9 +78,9 @@ CxPlatXdpCloseHandle(
 // TODO: change name
 extern XDP_API_TABLE *XdpApiTest;
 
-#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Program) \
+#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...) \
     do { \
-        return FunctionCall; \
+        return FunctionCall(__VA_ARGS__); \
     } while (0)
 
 
@@ -98,17 +107,14 @@ CxPlatCreateProgram(
     )
 {
     XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XdpCreateProgram(
-#if defined(_KERNEL_MODE)
-            ProviderBindingContext,
-#endif
-            InterfaceIndex,
-            HookId,
-            QueueId,
-            Flags,
-            Rules,
-            RuleCount,
-            Program),
+        XdpApiTest->XdpCreateProgram,
+        Program,
+        InterfaceIndex,
+        HookId,
+        QueueId,
+        Flags,
+        Rules,
+        RuleCount,
         Program);
 }
 
@@ -120,12 +126,9 @@ CxPlatXdpInterfaceOpen(
     )
 {
     XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XdpInterfaceOpen(
-#if defined(_KERNEL_MODE)
-            ProviderBindingContext,
-#endif
-            InterfaceIndex,
-            InterfaceHandle),
+        XdpApiTest->XdpInterfaceOpen,
+        InterfaceHandle,
+        InterfaceIndex,
         InterfaceHandle);
 }
 
@@ -141,14 +144,11 @@ CxPlatXskCreate(
     )
 {
     XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XskCreate(
-#if defined(_KERNEL_MODE)
-            ProviderBindingContext,
-#endif
-            OwningProcess,
-            OwningThread,
-            SecurityDescriptor,
-            Socket),
+        XdpApiTest->XskCreate,
+        Socket,
+        OwningProcess,
+        OwningThread,
+        SecurityDescriptor,
         Socket);
 }
 
@@ -223,3 +223,7 @@ CxPlatXskIoctl(
 {
     return XdpApiTest->XskIoctl(Socket, OptionName, InputValue, InputLength, OutputValue, OutputLength);
 }
+
+#ifdef __cplusplus
+}
+#endif

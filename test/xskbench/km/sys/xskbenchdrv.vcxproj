@@ -29,6 +29,9 @@
       <AdditionalIncludeDirectories>
         .;
         ..;
+        $(SolutionDir)src\xdp;
+        $(SolutionDir)published\private;
+        $(SolutionDir)src\rtl\inc;
         $(SolutionDir)test\xskbench;
         $(SolutionDir)submodules\cxplat\inc;
         $(SolutionDir)test\common\inc;
