@@ -275,8 +275,6 @@ typedef struct _XDP_API_CLIENT {
     XDP_API_PROVIDER_DISPATCH *XdpApiProviderDispatch;
     XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
 
-    LONG InProgressCallCount;
-
     //
     // Rundown protection for API calls.
     //
@@ -338,10 +336,6 @@ XdpNmrClientDetachProvider(
     )
 {
     XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_ClientBindingContext;
-    if (_Client->InProgressCallCount > 0) {
-        return STATUS_PENDING;
-    }
-
     if (_Client->RundownRef != NULL) {
         ExWaitForRundownProtectionReleaseCacheAware(_Client->RundownRef);
     }
@@ -428,7 +422,6 @@ XdpLoadApi(
     _Client->Attach = _ClientAttach;
     _Client->Detach = _ClientDetach;
     _Client->XdpApiClientDispatch = _XdpApiClientDispatch;
-    _Client->InProgressCallCount = 0;
 
     _NpiCharacteristics = &_Client->NpiClientCharacteristics;
     _NpiCharacteristics->Length = sizeof(*_NpiCharacteristics);
