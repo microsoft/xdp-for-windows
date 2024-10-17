@@ -10,6 +10,7 @@
 #include <initguid.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
+#include <xdpapi_helper.h>
 #include "cxplat.h"
 #include "xskbench.h"
 #include "trace.h"
@@ -20,6 +21,9 @@ typedef struct _XBDRV_NMR_CLIENT_BINDING_CONTEXT {
     NPI Npi;
     HANDLE NmrBindingHandle;
 } XBDRV_NMR_CLIENT_BINDING_CONTEXT;
+
+XDP_API_PROVIDER_DISPATCH *XdpApiTest = NULL;
+XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
 
 XDP_API_PROVIDER_DISPATCH *XdpApi;
 XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;

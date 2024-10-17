@@ -274,6 +274,11 @@ typedef struct _XDP_API_CLIENT {
     HANDLE BindingHandle;
     XDP_API_PROVIDER_DISPATCH *XdpApiProviderDispatch;
     XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
+
+    //
+    // Rundown protection for API calls.
+    //
+    PEX_RUNDOWN_REF_CACHE_AWARE RundownRef;
 } XDP_API_CLIENT;
 
 inline
@@ -331,6 +336,9 @@ XdpNmrClientDetachProvider(
     )
 {
     XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_ClientBindingContext;
+    if (_Client->RundownRef != NULL) {
+        ExWaitForRundownProtectionReleaseCacheAware(_Client->RundownRef);
+    }
 
     if (_Client->Detach != NULL) {
         _Client->Detach(_Client->Context);
@@ -366,6 +374,12 @@ XdpCleanupClientRegistration(
         }
     }
 
+    if (_Client->RundownRef != NULL) {
+        ExWaitForRundownProtectionReleaseCacheAware(_Client->RundownRef);
+        ExFreeCacheAwareRundownProtection(_Client->RundownRef);
+        _Client->RundownRef = NULL;
+    }
+
     CxPlatLockUninitialize(&_Client->Lock);
 }
 
@@ -389,6 +403,12 @@ XdpLoadApi(
         _Client == NULL ||
         _ClientDetach == NULL) {
         _Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    _Client->RundownRef = ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, 'dpX');
+    if (_Client->RundownRef == NULL) {
+        _Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
 
