@@ -10,11 +10,11 @@
 #include <initguid.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
+#include <xdpapi_helper.h>
 #include "cxplat.h"
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
-#include "xdpapi_helper.h"
 #include "driver.tmh"
 
 typedef struct _XBDRV_NMR_CLIENT_BINDING_CONTEXT {
