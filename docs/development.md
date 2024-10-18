@@ -19,7 +19,7 @@ git submodule update --init --recursive
 ### Prerequisites
 
 - [Visual Studio](https://visualstudio.microsoft.com/downloads/)
-  - Visual Studio 2022 is recommended; Visual Studio 2019 or newer is required.
+  - Visual Studio 2022 or newer is required.
 
   during installation, ensure the following packages/components are installed:
     - "Desktop development with C++" (via "Workload")

@@ -22,21 +22,10 @@
 #include <sddl.h>
 #include <string.h>
 
-#if _MSCVER < 1930
-//
-// WIL causes VS2019 to warn on benign errors.
-//
-#pragma warning(push)
-#pragma warning(disable:6001)
-#pragma warning(disable:6387)
-#endif
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
 #pragma warning(pop)
-#if _MSCVER < 1930
-#pragma warning(pop)
-#endif
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
