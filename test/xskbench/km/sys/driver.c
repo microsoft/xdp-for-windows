@@ -18,6 +18,7 @@
 #include "xskbenchdrvioctl.h"
 #include "driver.tmh"
 
+static XDP_API_CLIENT XdpApiContext = {0};
 XDP_API_PROVIDER_DISPATCH *XdpApi;
 XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 
@@ -43,10 +44,6 @@ XdpFuncXskNotifyCallback(
 static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
     XdpFuncXskNotifyCallback
 };
-
-static XDP_API_CLIENT XdpApiContext = {0};
-#define TEST_TIMEOUT_ASYNC_MS 1000
-#define POLL_INTERVAL_MS 10
 
 VOID
 DetachCallback(
