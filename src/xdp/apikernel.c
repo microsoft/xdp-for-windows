@@ -387,7 +387,8 @@ ProviderAttachClientKernel(
         goto Exit;
     }
 
-    if (ClientRegistrationInstance->Number != XDP_API_VERSION_1) {
+    if (ClientRegistrationInstance->Number < XDP_API_VERSION_1 ||
+        ClientRegistrationInstance->Number > XDP_API_VERSION_LATEST) {
         Status = STATUS_NOINTERFACE;
         goto Exit;
     }
@@ -483,7 +484,7 @@ XdpApiKernelStart(
         Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
         Characteristics->ProviderRegistrationInstance.NpiId = &NPI_XDPAPI_INTERFACE_ID;
         Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
-        Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_1;
+        Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_LATEST;
 
         Status = NmrRegisterProvider(
                 Characteristics,

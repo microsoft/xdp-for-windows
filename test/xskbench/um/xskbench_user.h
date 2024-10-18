@@ -5,6 +5,9 @@
 
 #pragma once
 
+#include "xskbench_common.h"
+#include "platform_user.h"
+
 #define printf_error(...) \
     fprintf(stderr, __VA_ARGS__)
 
@@ -24,13 +27,3 @@
     ((ULONG_PTR)(length)& ~(alignment - 1))
 #define ALIGN_UP_BY(length, alignment) \
     (ALIGN_DOWN_BY(((ULONG_PTR)(length)+alignment - 1), alignment))
-
-VOID
-CxPlatXdpApiInitialize(
-    VOID
-    );
-
-VOID
-CxPlatXdpApiUninitialize(
-    VOID
-    );
