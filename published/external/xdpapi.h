@@ -336,9 +336,6 @@ XdpNmrClientDetachProvider(
     )
 {
     XDP_API_CLIENT *_Client = (XDP_API_CLIENT *)_ClientBindingContext;
-    if (_Client->RundownRef != NULL) {
-        ExWaitForRundownProtectionReleaseCacheAware(_Client->RundownRef);
-    }
 
     if (_Client->Detach != NULL) {
         _Client->Detach(_Client->Context);
