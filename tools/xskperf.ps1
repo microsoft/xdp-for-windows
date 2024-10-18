@@ -180,10 +180,15 @@ try {
             Write-Verbose "Setting XDPMP RX buffer size to $BufferSize"
             Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword RxBufferLength -RegistryValue $BufferSize -NoRestart
         }
-
-        if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
             Write-Verbose "Setting XDPMP RX data length to $IoSize"
             Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword RxDataLength -RegistryValue $IoSize -NoRestart
+
+            $XdpmpNumRxBuffers = 65536 # This consumes 128MB for 2048-byte frames.
+            if ($BufferSize -gt 2048) {
+                $XdpmpNumRxBuffers = 2048 # This consumes 128MB for 64KB frames.
+            }
+            Write-Verbose "Setting XDPMP RX buffer count to $XdpmpNumRxBuffers"
+            Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword NumRxBuffers -RegistryValue $XdpmpNumRxBuffers -NoRestart
         }
 
         if ($UdpDstPort -ne 0 -and -not $TxInspect) {

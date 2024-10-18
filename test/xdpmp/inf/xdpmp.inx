@@ -90,7 +90,7 @@
  HKR, Ndi\Params\NumRxBuffers,          default,           0, "256"
  HKR, Ndi\Params\NumRxBuffers,          type,              0, "int"
  HKR, Ndi\Params\NumRxBuffers,          min,               0, "1"
- HKR, Ndi\Params\NumRxBuffers,          max,               0, "8192"
+ HKR, Ndi\Params\NumRxBuffers,          max,               0, "65536"
  HKR, Ndi\Params\NumRxBuffers,          step,              0, "1"
  HKR, Ndi\Params\NumRxBuffers,          Optional,          0, "0"
 
