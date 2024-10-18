@@ -179,7 +179,7 @@ try {
         if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
             Write-Verbose "Setting XDPMP RX buffer size to $BufferSize"
             Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword RxBufferLength -RegistryValue $BufferSize -NoRestart
-        }
+
             Write-Verbose "Setting XDPMP RX data length to $IoSize"
             Set-NetAdapterAdvancedProperty -Name $AdapterName -RegistryKeyword RxDataLength -RegistryValue $IoSize -NoRestart
 
