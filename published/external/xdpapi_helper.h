@@ -121,7 +121,7 @@ CxPlatXskCreate(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatCreateProgram(
+CxPlatXdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
