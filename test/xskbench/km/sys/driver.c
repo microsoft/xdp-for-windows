@@ -10,21 +10,16 @@
 #include <initguid.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
-#include <xdpapi_helper.h>
+// #include <xdpapi_helper.h>
 #include "cxplat.h"
+#include "platform_kernel.h"
+#include "xskbench_common.h"
 #include "xskbench.h"
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
 #include "driver.tmh"
 
-typedef struct _XBDRV_NMR_CLIENT_BINDING_CONTEXT {
-    NPI Npi;
-    HANDLE NmrBindingHandle;
-} XBDRV_NMR_CLIENT_BINDING_CONTEXT;
-
-XDP_API_PROVIDER_DISPATCH *XdpApiTest = NULL;
-XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
-
+static XDP_API_CLIENT XdpApiContext = {0};
 XDP_API_PROVIDER_DISPATCH *XdpApi;
 XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 
@@ -34,184 +29,29 @@ static BOOLEAN IsSessionActive;
 static HANDLE MainThread;
 static int Argc;
 static char **Argv;
-static HANDLE NmrRegistrationHandle;
-static KEVENT BoundToProvider;
-
-const NPI_MODULEID NPI_XBDRV_MODULEID = {
-    sizeof(NPI_MODULEID),
-    MIT_GUID,
-    { 0x00000000, 0x0000, 0x0000, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
-};
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_STATUS
-XbDrvXskNotifyCallback(
+XdpFuncXskNotifyCallback(
     _In_ VOID* ClientContext,
     _In_ XSK_NOTIFY_RESULT_FLAGS Result
     )
 {
     UNREFERENCED_PARAMETER(ClientContext);
     UNREFERENCED_PARAMETER(Result);
-    return STATUS_SUCCESS;
+    return XDP_STATUS_SUCCESS;
 }
 
-static const XDP_API_CLIENT_DISPATCH NmrXdpApiClientDispatch = {
-    XbDrvXskNotifyCallback
+static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
+    XdpFuncXskNotifyCallback
 };
-
-//
-// Notify provider attach code.
-//
-NTSTATUS
-XbDrvNmrAttachXdpApiProvider(
-    HANDLE NmrBindingHandle,
-    PVOID ClientContext,
-    PNPI_REGISTRATION_INSTANCE ProviderRegistrationInstance
-    )
-{
-    NTSTATUS Status;
-    XBDRV_NMR_CLIENT_BINDING_CONTEXT* BindingContext = NULL;
-
-    UNREFERENCED_PARAMETER(ClientContext);
-
-    TraceEnter(TRACE_CONTROL, "-");
-
-    //
-    // Check if this provider interface is suitable.
-    //
-    if (ProviderRegistrationInstance->Number != XDP_API_VERSION_1) {
-        Status = STATUS_NOINTERFACE;
-        goto Exit;
-    }
-
-    // Only support a single provider
-    if (XdpApi != NULL) {
-        Status = STATUS_NOINTERFACE;
-        goto Exit;
-    }
-
-    //
-    // Allocate memory for this binding.
-    //
-    BindingContext =
-        (XBDRV_NMR_CLIENT_BINDING_CONTEXT*)ExAllocatePool2(
-            POOL_FLAG_NON_PAGED, sizeof(*BindingContext), 'vDbX');
-    if (BindingContext == NULL) {
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        goto Exit;
-    }
-
-    BindingContext->NmrBindingHandle = NmrBindingHandle;
-
-    //
-    // Attach to the provider.
-    //
-    Status =
-        NmrClientAttachProvider(
-            NmrBindingHandle,
-            BindingContext,                 // ClientBindingContext
-            &NmrXdpApiClientDispatch,       // ClientDispatch
-            &BindingContext->Npi.Handle,    // ProviderBindingContext
-            &BindingContext->Npi.Dispatch); // ProviderDispatch
-    if (!NT_SUCCESS(Status)) {
-        ExFreePool(BindingContext);
-        goto Exit;
-    }
-
-    //
-    // The client can now make calls into the provider.
-    //
-    XdpApi = (XDP_API_PROVIDER_DISPATCH *)BindingContext->Npi.Dispatch;
-    XdpApiProviderBindingContext = (XDP_API_PROVIDER_BINDING_CONTEXT *)BindingContext->Npi.Handle;
-    KeSetEvent(&BoundToProvider, 0, FALSE);
-
-Exit:
-
-    TraceExitStatus(TRACE_CONTROL);
-
-    return Status;
-}
-
-//
-// Notify provider detach code.
-//
-NTSTATUS
-XbDrvNmrDetachXdpApiProvider(
-    PVOID ClientBindingContext
-    )
-{
-    // XBDRV_NMR_CLIENT_BINDING_CONTEXT *BindingContext =
-    //     (XBDRV_NMR_CLIENT_BINDING_CONTEXT *) ClientBindingContext;
-    UNREFERENCED_PARAMETER(ClientBindingContext);
-
-    TraceEnter(TRACE_CONTROL, "-");
-
-    //
-    // Initiate the closure of all XDPAPI handles.
-    //
-
-    // return STATUS_PENDING;
-
-    XdpApiProviderBindingContext = NULL;
-    XdpApi = NULL;
-    KeResetEvent(&BoundToProvider);
-
-    TraceExitSuccess(TRACE_CONTROL);
-
-    return STATUS_SUCCESS;
-}
-
-// VOID
-// XbDrvAllXdpApiHandlesAreClosed(
-//     XBDRV_NMR_CLIENT_BINDING_CONTEXT* BindingContext
-//     )
-// {
-//     //
-//     // Indicate detach completion.
-//     //
-//     NmrClientDetachProviderComplete(BindingContext->NmrBindingHandle);
-// }
 
 VOID
-XbDrvNmrCleanupXdpApiBindingContext(
-    PVOID ClientBindingContext
+DetachCallback(
+    _In_ VOID *ClientContext
     )
 {
-    XBDRV_NMR_CLIENT_BINDING_CONTEXT* BindingContext =
-        (XBDRV_NMR_CLIENT_BINDING_CONTEXT*)ClientBindingContext;
-
-    TraceEnter(TRACE_CONTROL, "-");
-
-    //
-    // Free memory for this binding.
-    //
-    ExFreePool(BindingContext);
-
-    TraceExitSuccess(TRACE_CONTROL);
-}
-
-const NPI_CLIENT_CHARACTERISTICS XbDrvNmrXdpApiClientCharacteristics = {
-    0, // Version
-    sizeof(NPI_CLIENT_CHARACTERISTICS),
-    (PNPI_CLIENT_ATTACH_PROVIDER_FN)XbDrvNmrAttachXdpApiProvider,
-    (PNPI_CLIENT_DETACH_PROVIDER_FN)XbDrvNmrDetachXdpApiProvider,
-    (PNPI_CLIENT_CLEANUP_BINDING_CONTEXT_FN)XbDrvNmrCleanupXdpApiBindingContext,
-    {
-        0, // Version
-        sizeof(NPI_REGISTRATION_INSTANCE),
-        &NPI_XDPAPI_INTERFACE_ID,
-        &NPI_XBDRV_MODULEID,
-        XDP_API_VERSION_1, // Number
-        NULL // NpiSpecificCharacteristics
-    } // ClientRegistrationInstance
-};
-
-XDP_API_PROVIDER_BINDING_CONTEXT *
-CxPlatXdpApiGetProviderBindingContext(
-    VOID
-    )
-{
-    return XdpApiProviderBindingContext;
+    UNREFERENCED_PARAMETER(ClientContext);
 }
 
 VOID
@@ -219,20 +59,16 @@ CxPlatXdpApiInitialize(
     VOID
     )
 {
-    NTSTATUS Status;
-
+    NTSTATUS Status = STATUS_SUCCESS;
     TraceEnter(TRACE_CONTROL, "-");
 
     Status =
-        NmrRegisterClient(
-            &XbDrvNmrXdpApiClientCharacteristics,
-            NULL,
-            &NmrRegistrationHandle);
+        XdpOpenApi(XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback, &XdpFuncXdpApiClientDispatch,
+                   1000, &XdpApiContext, &XdpApi, &XdpApiProviderBindingContext);
+
     if (!NT_SUCCESS(Status)) {
         goto Done;
     }
-
-    KeWaitForSingleObject(&BoundToProvider, Executive, KernelMode, FALSE, NULL);
 
 Done:
 
@@ -250,21 +86,74 @@ CxPlatXdpApiUninitialize(
 
     TraceEnter(TRACE_CONTROL, "-");
 
-    if (NmrRegistrationHandle != NULL) {
-        Status = NmrDeregisterClient(NmrRegistrationHandle);
-        ASSERT(Status == STATUS_PENDING);
-
-        if (Status == STATUS_PENDING) {
-            Status = NmrWaitForClientDeregisterComplete(NmrRegistrationHandle);
-            ASSERT(Status == STATUS_SUCCESS);
-        }
-
-        NmrRegistrationHandle = NULL;
-    }
+    XdpUnloadApi(&XdpApiContext);
 
     TraceExitStatus(TRACE_CONTROL);
 
     return;
+}
+
+XDP_STATUS
+CxPlatXskCreateEx(
+    _Out_ HANDLE *Socket
+    )
+{
+    return XdpApi->XskCreate(
+                XdpApiProviderBindingContext,
+                NULL, NULL, NULL,
+                Socket);
+}
+
+VOID
+CxPlatPrintStats(
+    MY_QUEUE *Queue
+    )
+{
+    KFLOATING_SAVE FloatingSave;
+    if (KeSaveFloatingPointState(&FloatingSave) == STATUS_SUCCESS) {
+        PrintFinalStats(Queue);
+        KeRestoreFloatingPointState(&FloatingSave);
+    }
+}
+
+VOID
+CxPlatQueueCleanup(
+    MY_QUEUE *Queue
+    )
+{
+    if (Queue->rxProgram != NULL) {
+        XdpApi->XdpCloseHandle(Queue->rxProgram);
+        Queue->rxProgram = NULL;
+    }
+    if (Queue->sock != NULL) {
+        XdpApi->XdpCloseHandle(Queue->sock);
+        Queue->sock = NULL;
+    }
+
+    if (Queue->umemReg.Address != NULL) {
+        CXPLAT_VIRTUAL_FREE(Queue->umemReg.Address, 0, MEM_RELEASE, POOLTAG_UMEM);
+        Queue->umemReg.Address = NULL;
+    }
+    if (Queue->freeRingLayout != NULL) {
+        CXPLAT_FREE(Queue->freeRingLayout, POOLTAG_FREERING);
+        Queue->freeRingLayout = NULL;
+    }
+}
+
+BOOLEAN
+CxPlatEnableLargePages(
+    VOID
+    )
+{
+    return TRUE;
+}
+
+VOID
+CxPlatAlignMemory(
+    _Inout_ XSK_UMEM_REG *UmemReg
+    )
+{
+    UNREFERENCED_PARAMETER(UmemReg);
 }
 
 VOID
@@ -539,8 +428,6 @@ DriverEntry(
     WPP_INIT_TRACING(DriverObject, RegistryPath);
 
     TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
-
-    KeInitializeEvent(&BoundToProvider, NotificationEvent, FALSE);
 
     CxPlatInitialize();
 

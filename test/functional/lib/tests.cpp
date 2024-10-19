@@ -234,11 +234,8 @@ static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
 };
 static const XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 static const XDP_API_PROVIDER_DISPATCH *XdpApi;
-XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext = NULL;
-XDP_API_PROVIDER_DISPATCH *XdpApiTest = NULL;
 #else
 unique_xdp_api XdpApi = nullptr;
-XDP_API_TABLE *XdpApiTest = nullptr;
 #endif
 
 #ifndef _KERNEL_MODE
@@ -804,77 +801,6 @@ SetDeviceSddl(
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
-#endif
-
-#ifdef _KERNEL_MODE
-
-VOID
-XdpDetach(
-    _In_ VOID *ClientContext
-    )
-{
-    UNREFERENCED_PARAMETER(ClientContext);
-    TraceInfo("XdpDetach %p", ClientContext);
-}
-
-
-static
-NTSTATUS
-InitializeApi(
-    _Out_ XDP_API_CLIENT *ApiContext,
-    _Out_ const XDP_API_PROVIDER_DISPATCH **ProviderDispatch,
-    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_ProviderBindingContext,
-    _In_ const XDP_API_CLIENT_DISPATCH *ClientDispatch,
-    _In_ UINT32 Version = XDP_API_VERSION_1
-    )
-{
-    NTSTATUS Status;
-    KEVENT Event;
-    INT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
-
-    Status = XdpLoadApi(Version, NULL, NULL, &XdpDetach, ClientDispatch, ApiContext);
-    if (!NT_SUCCESS(Status)) {
-        return Status;
-    }
-
-    KeInitializeEvent(&Event, NotificationEvent, FALSE);
-
-    do {
-        LARGE_INTEGER Timeout100Ns;
-
-        Status =
-            XdpOpenApi(
-                ApiContext,
-                ProviderDispatch,
-                _ProviderBindingContext);
-        if (NT_SUCCESS(Status)) {
-            break;
-        }
-
-        Timeout100Ns.QuadPart = -1 * Int32x32To64(POLL_INTERVAL_MS, 10000);
-        KeResetEvent(&Event);
-        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &Timeout100Ns);
-        TimeoutMs = TimeoutMs - POLL_INTERVAL_MS;
-    } while (TimeoutMs > 0);
-
-    if (!NT_SUCCESS(Status)) {
-        XdpUnloadApi(ApiContext);
-    }
-
-    return Status;
-}
-
-static
-VOID
-UninitializeApi(
-    _In_ XDP_API_CLIENT *ApiContext
-    )
-{
-    XdpUnloadApi(ApiContext);
-}
-
-#else
-
 static
 HRESULT
 TryOpenApi(
@@ -895,9 +821,6 @@ OpenApi(
     TEST_HRESULT(TryOpenApi(XdpApiTable, Version));
     return XdpApiTable;
 }
-#endif
-
-#ifndef _KERNEL_MODE
 
 static
 HRESULT
@@ -2696,22 +2619,62 @@ OpenApiTest()
 
 #endif
 
+#ifdef _KERNEL_MODE
+
+VOID
+TestDetach(
+    _In_ VOID *ClientContext
+    )
+{
+    UNREFERENCED_PARAMETER(ClientContext);
+    TraceInfo("XdpDetach %p", ClientContext);
+}
+
+#endif
+
 VOID
 LoadApiTest()
 {
 #ifdef _KERNEL_MODE
     XDP_API_CLIENT XdpApiClient = {0};
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
-    const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
+    const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
 
-    NTSTATUS Status = InitializeApi(&XdpApiClient, &ProviderDispatch, &_ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1);
+    NTSTATUS Status =
+        XdpOpenApi(
+            XDP_API_VERSION_1, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
+            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
     }
-    UninitializeApi(&XdpApiClient);
+    XdpUnloadApi(&XdpApiClient);
 
-    TEST_NOT_EQUAL(STATUS_SUCCESS, InitializeApi(&XdpApiClient, &ProviderDispatch, &_ProviderBindingContext, &XdpFuncXdpApiClientDispatch, XDP_API_VERSION_1 + 1));
+    Status =
+        XdpOpenApi(
+            XDP_API_VERSION_2, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
+            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
+    TEST_NTSTATUS(Status);
+    if (!NT_SUCCESS(Status)) {
+        return;
+    }
+    XdpUnloadApi(&XdpApiClient);
+
+    Status =
+        XdpOpenApi(
+            XDP_API_VERSION_LATEST, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
+            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
+    TEST_NTSTATUS(Status);
+    if (!NT_SUCCESS(Status)) {
+        return;
+    }
+    XdpUnloadApi(&XdpApiClient);
+
+    TEST_NOT_EQUAL(
+        STATUS_SUCCESS,
+        XdpOpenApi(
+            XDP_API_VERSION_LATEST + 1, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
+            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext));
 #else
     XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;

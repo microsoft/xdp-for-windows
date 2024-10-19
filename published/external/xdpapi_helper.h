@@ -16,17 +16,17 @@ extern "C" {
 #include <wdm.h>
 #include <xdp/object.h>
 
-extern XDP_API_PROVIDER_DISPATCH *XdpApiTest;
-extern XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
+static XDP_API_PROVIDER_DISPATCH *_XdpApi;
+static XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
 #define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...) \
     do { \
         XDP_STATUS Status; \
-        XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(ProviderBindingContext); \
+        XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(_ProviderBindingContext); \
         if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) { \
             return STATUS_DEVICE_NOT_READY; \
         } else { \
-            Status = FunctionCall(ProviderBindingContext, __VA_ARGS__); \
+            Status = FunctionCall(_ProviderBindingContext, __VA_ARGS__); \
             if (NT_SUCCESS(Status)) { \
                 ((XDP_FILE_OBJECT_HEADER *)(Object))->RundownRef = Client->RundownRef; \
             } else { \
@@ -42,11 +42,11 @@ CxPlatXdpGet(
     _In_z_ const CHAR* RoutineName
     )
 {
-    XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(ProviderBindingContext);
+    XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(_ProviderBindingContext);
     if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) {
         return NULL;
     }
-    return XdpApiTest->XdpGetRoutine(RoutineName);
+    return _XdpApi->XdpGetRoutine(RoutineName);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -58,7 +58,7 @@ CxPlatXskNotifyAsync2(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    return XdpApiTest->XskNotifyAsync2(Socket, Flags, CompletionContext, Result);
+    return _XdpApi->XskNotifyAsync2(Socket, Flags, CompletionContext, Result);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -67,7 +67,7 @@ CxPlatXdpCloseHandle(
     _In_ HANDLE Handle
     )
 {
-    XdpApiTest->XdpCloseHandle(Handle);
+    _XdpApi->XdpCloseHandle(Handle);
     ExReleaseRundownProtectionCacheAware(((XDP_FILE_OBJECT_HEADER *)Handle)->RundownRef);
 }
 
@@ -81,7 +81,7 @@ CxPlatXskCreate(
     )
 {
     XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XskCreate,
+        _XdpApi->XskCreate,
         Socket,
         OwningProcess,
         OwningThread,
@@ -91,8 +91,7 @@ CxPlatXskCreate(
 
 #else
 
-// TODO: change name
-extern XDP_API_TABLE *XdpApiTest;
+static XDP_API_TABLE *_XdpApi;
 
 #define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...) \
     do { \
@@ -105,7 +104,7 @@ CxPlatXdpGet(
     _In_z_ const CHAR* RoutineName
     )
 {
-    return XdpApiTest->XdpGetRoutine(RoutineName);
+    return _XdpApi->XdpGetRoutine(RoutineName);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -114,7 +113,7 @@ CxPlatXskCreate(
     _Out_ HANDLE *Socket
     )
 {
-    return XdpApiTest->XskCreate(Socket);
+    return _XdpApi->XskCreate(Socket);
 }
 
 #endif // defined(_KERNEL_MODE)
@@ -132,7 +131,7 @@ CxPlatXdpCreateProgram(
     )
 {
     XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XdpCreateProgram,
+        _XdpApi->XdpCreateProgram,
         Program,
         InterfaceIndex,
         HookId,
@@ -151,7 +150,7 @@ CxPlatXdpInterfaceOpen(
     )
 {
     XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        XdpApiTest->XdpInterfaceOpen,
+        _XdpApi->XdpInterfaceOpen,
         InterfaceHandle,
         InterfaceIndex,
         InterfaceHandle);
@@ -166,7 +165,7 @@ CxPlatXskBind(
     _In_ XSK_BIND_FLAGS Flags
     )
 {
-    return XdpApiTest->XskBind(Socket, IfIndex, QueueId, Flags);
+    return _XdpApi->XskBind(Socket, IfIndex, QueueId, Flags);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -176,7 +175,7 @@ CxPlatXskActivate(
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
 {
-    return XdpApiTest->XskActivate(Socket, Flags);
+    return _XdpApi->XskActivate(Socket, Flags);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -188,7 +187,7 @@ CxPlatXskNotifySocket(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    return XdpApiTest->XskNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result);
+    return _XdpApi->XskNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -200,7 +199,7 @@ CxPlatXskSetSockopt(
     _In_ UINT32 OptionLength
     )
 {
-    return XdpApiTest->XskSetSockopt(Socket, OptionName, OptionValue, OptionLength);
+    return _XdpApi->XskSetSockopt(Socket, OptionName, OptionValue, OptionLength);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -212,7 +211,7 @@ CxPlatXskGetSockopt(
     _Inout_ UINT32 *OptionLength
     )
 {
-    return XdpApiTest->XskGetSockopt(Socket, OptionName, OptionValue, OptionLength);
+    return _XdpApi->XskGetSockopt(Socket, OptionName, OptionValue, OptionLength);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -226,7 +225,7 @@ CxPlatXskIoctl(
     _Inout_ UINT32 *OutputLength
     )
 {
-    return XdpApiTest->XskIoctl(Socket, OptionName, InputValue, InputLength, OutputValue, OutputLength);
+    return _XdpApi->XskIoctl(Socket, OptionName, InputValue, InputLength, OutputValue, OutputLength);
 }
 
 #ifdef __cplusplus
