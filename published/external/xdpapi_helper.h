@@ -16,25 +16,72 @@ extern "C" {
 #include <wdm.h>
 #include <xdp/object.h>
 
-static XDP_API_PROVIDER_DISPATCH *_XdpApi;
-static XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
+static XDP_API_CLIENT _XdpApiContext = {0};
+static const XDP_API_PROVIDER_DISPATCH *_XdpApi;
+static const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
-#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...) \
-    do { \
-        XDP_STATUS Status; \
-        XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(_ProviderBindingContext); \
-        if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) { \
-            return STATUS_DEVICE_NOT_READY; \
-        } else { \
-            Status = FunctionCall(_ProviderBindingContext, __VA_ARGS__); \
-            if (NT_SUCCESS(Status)) { \
-                ((XDP_FILE_OBJECT_HEADER *)(Object))->RundownRef = Client->RundownRef; \
-            } else { \
-                ExReleaseRundownProtectionCacheAware(Client->RundownRef); \
-            } \
-            return Status; \
-        } \
+#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...)                               \
+    do {                                                                                        \
+        XDP_STATUS Status;                                                                      \
+        if (!ExAcquireRundownProtectionCacheAware(_XdpApiContext.RundownRef)) {                 \
+            return STATUS_DEVICE_NOT_READY;                                                     \
+        } else {                                                                                \
+            XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext =                          \
+                (XDP_API_PROVIDER_BINDING_CONTEXT *)_ProviderBindingContext;                    \
+            Status = FunctionCall(ProviderBindingContext, __VA_ARGS__);                         \
+            if (NT_SUCCESS(Status)) {                                                           \
+                ((XDP_FILE_OBJECT_HEADER *)(Object))->RundownRef = _XdpApiContext.RundownRef;   \
+            } else {                                                                            \
+                ExReleaseRundownProtectionCacheAware(_XdpApiContext.RundownRef);                \
+            }                                                                                   \
+            return Status;                                                                      \
+        }                                                                                       \
     } while (0)
+
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+CxPlatXdpOpenApi(
+    _In_ UINT32 _XdpApiVersion,
+    _In_opt_ VOID *_ClientContext,
+    _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
+    _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
+    _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
+    _In_ const INT64 _TimeoutMs
+    )
+{
+    NTSTATUS Status;
+    const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
+    const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderContext;
+
+    Status =
+        XdpOpenApi(
+            _XdpApiVersion,
+            _ClientContext,
+            _ClientAttach,
+            _ClientDetach,
+            _XdpApiClientDispatch,
+            _TimeoutMs,
+            &_XdpApiContext,
+            &ProviderDispatch,
+            &ProviderContext);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    _XdpApi = (XDP_API_PROVIDER_DISPATCH *)ProviderDispatch;
+    _ProviderBindingContext = (XDP_API_PROVIDER_BINDING_CONTEXT *)ProviderContext;
+
+    return STATUS_SUCCESS;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+CxPlatXdpCloseApi(
+    VOID
+    )
+{
+    XdpUnloadApi(&_XdpApiContext);
+}
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID*
@@ -42,8 +89,7 @@ CxPlatXdpGet(
     _In_z_ const CHAR* RoutineName
     )
 {
-    XDP_API_CLIENT *Client = (XDP_API_CLIENT *)(_ProviderBindingContext);
-    if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) {
+    if (!ExAcquireRundownProtectionCacheAware(_XdpApiContext.RundownRef)) {
         return NULL;
     }
     return _XdpApi->XdpGetRoutine(RoutineName);
@@ -93,9 +139,9 @@ CxPlatXskCreate(
 
 static XDP_API_TABLE *_XdpApi;
 
-#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...) \
-    do { \
-        return FunctionCall(__VA_ARGS__); \
+#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...)   \
+    do {                                                            \
+        return FunctionCall(__VA_ARGS__);                           \
     } while (0)
 
 
