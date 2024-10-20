@@ -23,7 +23,6 @@
 #include "cxplat.h"
 #include "platform.h"
 #include "xskbench_common.h"
-#include <xdpapi_helper.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
@@ -248,7 +247,7 @@ AttachXdpProgram(
     ASSERT_FRE(hookSize == sizeof(hookId));
 
     res =
-        CxPlatXdpCreateProgram(
+        CxPlatXdpCreateProgramEx(
             ifindex, &hookId, Queue->queueId,
             flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
