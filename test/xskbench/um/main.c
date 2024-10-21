@@ -44,15 +44,7 @@ ConsoleCtrlHandler(
 }
 
 XDP_STATUS
-CxPlatXskCreate(
-    _Out_ HANDLE *Socket
-    )
-{
-    return XdpApi->XskCreate(Socket);
-}
-
-XDP_STATUS
-CxPlatXdpCreateProgram(
+CxPlatXdpCreateProgramEx(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -64,13 +56,16 @@ CxPlatXdpCreateProgram(
 {
     return
         XdpApi->XdpCreateProgram(
-            InterfaceIndex,
-            HookId,
-            QueueId,
-            Flags,
-            Rules,
-            RuleCount,
-            Program);
+            InterfaceIndex, HookId, QueueId,
+            Flags, Rules, RuleCount, Program);
+}
+
+XDP_STATUS
+CxPlatXskCreateEx(
+    _Out_ HANDLE *Socket
+    )
+{
+    return XdpApi->XskCreate(Socket);
 }
 
 VOID

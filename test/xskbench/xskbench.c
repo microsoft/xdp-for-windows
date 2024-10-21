@@ -247,7 +247,7 @@ AttachXdpProgram(
     ASSERT_FRE(hookSize == sizeof(hookId));
 
     res =
-        CxPlatXdpCreateProgram(
+        CxPlatXdpCreateProgramEx(
             ifindex, &hookId, Queue->queueId,
             flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
@@ -308,7 +308,7 @@ SetupSock(
     UINT32 bindFlags = 0;
 
     printf_verbose("creating sock\n");
-    res = CxPlatXskCreate(Queue->sock);
+    res = CxPlatXskCreateEx(Queue->sock);
     if (XDP_FAILED(res)) {
         printf_error("XskCreate failed: %d\n", res);
         return FALSE;

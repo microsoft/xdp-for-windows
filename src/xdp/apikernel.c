@@ -96,6 +96,7 @@ static
 XDP_STATUS
 XdpCreateProgramKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -106,6 +107,7 @@ XdpCreateProgramKernel(
     )
 {
     XDP_PROGRAM_OPEN ProgramOpen;
+    XDP_STATUS Status;
 
     UNREFERENCED_PARAMETER(ProviderBindingContext);
 
@@ -116,30 +118,53 @@ XdpCreateProgramKernel(
     ProgramOpen.RuleCount = RuleCount;
     ProgramOpen.Rules = Rules;
 
-    return XdpProgramCreate((XDP_PROGRAM_OBJECT **)Program, &ProgramOpen, KernelMode);
+    if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) {
+        return STATUS_DEVICE_NOT_READY;
+    } else {
+        Status = XdpProgramCreate((XDP_PROGRAM_OBJECT **)Program, &ProgramOpen, KernelMode);
+        if (NT_SUCCESS(Status)) {
+            ((XDP_FILE_OBJECT_HEADER *)(*Program))->RundownRef = Client->RundownRef;
+        } else {
+            ExReleaseRundownProtectionCacheAware(Client->RundownRef);
+        }
+    }
+    return Status;
 }
 
 static
 XDP_STATUS
 XdpInterfaceOpenKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     )
 {
     XDP_INTERFACE_OPEN InterfaceOpen;
+    XDP_STATUS Status;
 
     UNREFERENCED_PARAMETER(ProviderBindingContext);
 
     InterfaceOpen.IfIndex = InterfaceIndex;
 
-    return XdpInterfaceCreate((XDP_INTERFACE_OBJECT **)InterfaceHandle, &InterfaceOpen);
+    if (!ExAcquireRundownProtectionCacheAware(Client->RundownRef)) {
+        return STATUS_DEVICE_NOT_READY;
+    } else {
+        Status = XdpInterfaceCreate((XDP_INTERFACE_OBJECT **)InterfaceHandle, &InterfaceOpen);
+        if (NT_SUCCESS(Status)) {
+            ((XDP_FILE_OBJECT_HEADER *)(*InterfaceHandle))->RundownRef = Client->RundownRef;
+        } else {
+            ExReleaseRundownProtectionCacheAware(Client->RundownRef);
+        }
+    }
+    return Status;
 }
 
 static
 XDP_STATUS
 XskCreateKernel(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *ApiClient,
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -147,11 +172,20 @@ XskCreateKernel(
     )
 {
     XDPAPI_CLIENT *Client = ProviderBindingContext;
+    XDP_STATUS Status;
 
-    return
-        XskCreate(
-            (XSK **)Socket, Client->ClientDispatch->XskNotifyCallback,
-            OwningProcess, OwningThread, SecurityDescriptor);
+    if (!ExAcquireRundownProtectionCacheAware(ApiClient->RundownRef)) {
+        return STATUS_DEVICE_NOT_READY;
+    } else {
+        Status = XskCreate((XSK **)Socket, Client->ClientDispatch->XskNotifyCallback,
+                           OwningProcess, OwningThread, SecurityDescriptor);
+        if (NT_SUCCESS(Status)) {
+            ((XDP_FILE_OBJECT_HEADER *)(*Socket))->RundownRef = ApiClient->RundownRef;
+        } else {
+            ExReleaseRundownProtectionCacheAware(ApiClient->RundownRef);
+        }
+    }
+    return Status;
 }
 
 static
@@ -290,6 +324,7 @@ XdpCloseHandleKernel(
 {
     XDP_FILE_OBJECT_HEADER *FileObjectHeader = (XDP_FILE_OBJECT_HEADER *)Handle;
     FileObjectHeader->Dispatch->CloseHandle(Handle);
+    ExReleaseRundownProtectionCacheAware(((XDP_FILE_OBJECT_HEADER *)Handle)->RundownRef);
 }
 
 static

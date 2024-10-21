@@ -57,11 +57,14 @@ C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 
 #if defined(_KERNEL_MODE)
 
+typedef struct _XDP_API_CLIENT XDP_API_CLIENT;
+
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_CREATE_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *ApiClient,
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,

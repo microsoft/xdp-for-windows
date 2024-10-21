@@ -88,12 +88,7 @@ CxPlatXdpApiUninitialize(
     );
 
 XDP_STATUS
-CxPlatXskCreate(
-    _Out_ HANDLE *Socket
-    );
-
-XDP_STATUS
-CxPlatXdpCreateProgram(
+CxPlatXdpCreateProgramEx(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -103,6 +98,10 @@ CxPlatXdpCreateProgram(
     _Out_ HANDLE *Program
     );
 
+XDP_STATUS
+CxPlatXskCreateEx(
+    _Out_ HANDLE *Socket
+    );
 
 _Kernel_float_used_
 VOID

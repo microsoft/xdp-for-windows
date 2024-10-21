@@ -28,11 +28,15 @@ C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
 #if defined(_KERNEL_MODE)
 
+#define _XDP_POOLTAG_RUNDOWN 'RpdX'
+typedef struct _XDP_API_CLIENT XDP_API_CLIENT;
+
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -47,6 +51,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_INTERFACE_OPEN_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );
@@ -276,6 +281,10 @@ typedef struct _XDP_API_CLIENT {
     XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
 
     //
+    // Rundown protection for API calls.
+    //
+    PEX_RUNDOWN_REF_CACHE_AWARE RundownRef;
+
     // Unblock registering thread when binding is complete.
     //
     KEVENT AttachEvent;
@@ -377,6 +386,12 @@ XdpCleanupClientRegistration(
         }
     }
 
+    if (_Client->RundownRef != NULL) {
+        ExWaitForRundownProtectionReleaseCacheAware(_Client->RundownRef);
+        ExFreeCacheAwareRundownProtection(_Client->RundownRef);
+        _Client->RundownRef = NULL;
+    }
+
     CxPlatLockUninitialize(&_Client->Lock);
 }
 
@@ -401,6 +416,12 @@ XdpRegister(
         _Client == NULL ||
         _ClientDetach == NULL) {
         _Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    _Client->RundownRef = ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, _XDP_POOLTAG_RUNDOWN);
+    if (_Client->RundownRef == NULL) {
+        _Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
 
