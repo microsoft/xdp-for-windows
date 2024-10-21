@@ -23,7 +23,7 @@ static const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-CxPlatXdpOpenApi(
+XdpOpenApi(
     _In_ UINT32 _XdpApiVersion,
     _In_opt_ VOID *_ClientContext,
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
@@ -59,7 +59,7 @@ CxPlatXdpOpenApi(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-CxPlatXdpCloseApi(
+XdpCloseApi(
     VOID
     )
 {
@@ -68,7 +68,7 @@ CxPlatXdpCloseApi(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID*
-CxPlatXdpGetRoutine(
+XdpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
@@ -82,7 +82,7 @@ CxPlatXdpGetRoutine(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskNotifyAsync2(
+XskNotifyAsync2(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_opt_ XSK_COMPLETION_CONTEXT CompletionContext,
@@ -94,7 +94,7 @@ CxPlatXskNotifyAsync2(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-CxPlatXdpCloseHandle(
+XdpCloseHandle(
     _In_ HANDLE Handle
     )
 {
@@ -103,7 +103,7 @@ CxPlatXdpCloseHandle(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskCreate(
+XskCreate(
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -127,7 +127,7 @@ static XDP_API_TABLE *_XdpApi;
 
 
 VOID*
-CxPlatXdpGetRoutine(
+XdpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
@@ -136,7 +136,7 @@ CxPlatXdpGetRoutine(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskCreate(
+XskCreate(
     _Out_ HANDLE *Socket
     )
 {
@@ -147,7 +147,7 @@ CxPlatXskCreate(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXdpCreateProgram(
+XdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -171,7 +171,7 @@ CxPlatXdpCreateProgram(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXdpInterfaceOpen(
+XdpInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     )
@@ -185,7 +185,7 @@ CxPlatXdpInterfaceOpen(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskBind(
+XskBind(
     _In_ HANDLE Socket,
     _In_ UINT32 IfIndex,
     _In_ UINT32 QueueId,
@@ -197,7 +197,7 @@ CxPlatXskBind(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskActivate(
+XskActivate(
     _In_ HANDLE Socket,
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
@@ -207,7 +207,7 @@ CxPlatXskActivate(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskNotifySocket(
+XskNotifySocket(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_ UINT32 WaitTimeoutMilliseconds,
@@ -219,7 +219,7 @@ CxPlatXskNotifySocket(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskSetSockopt(
+XskSetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
@@ -231,7 +231,7 @@ CxPlatXskSetSockopt(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskGetSockopt(
+XskGetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
@@ -243,7 +243,7 @@ CxPlatXskGetSockopt(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-CxPlatXskIoctl(
+XskIoctl(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(InputLength) const VOID *InputValue,

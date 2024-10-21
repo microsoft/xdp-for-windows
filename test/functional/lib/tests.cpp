@@ -59,7 +59,6 @@
 #include <afxdp_helper.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
-#include <xdpapi_helper.h>
 
 #ifndef _KERNEL_MODE
 #include <pkthlp.h>
