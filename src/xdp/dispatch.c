@@ -524,10 +524,10 @@ DriverEntry(
 
     TraceEnter(TRACE_CORE, "DriverObject=%p", DriverObject);
 
-    LONG64 i64;
+    LONG64 i64 = 0;
     LONG *i32 = RTL_PTR_ADD(&i64, 1); // this is an intentionally misaligned 32-bit integer.
 #if DBG
-    ReadNoFence(i32);
+    FRE_ASSERT(ReadNoFence(i32) == 0);
 #else
     InterlockedIncrement(i32);
 #endif
