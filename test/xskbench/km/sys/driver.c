@@ -106,9 +106,9 @@ CxPlatXdpCreateProgramEx(
 {
     return
         XdpApi->XdpCreateProgram(
-            XdpApiProviderBindingContext,
-            InterfaceIndex, HookId, QueueId,
-            Flags, Rules, RuleCount, Program);
+            XdpApiProviderBindingContext, &XdpApiContext,
+            InterfaceIndex, HookId, QueueId, Flags,
+            Rules, RuleCount, Program);
 }
 
 XDP_STATUS
@@ -118,7 +118,7 @@ CxPlatXskCreateEx(
 {
     return
         XdpApi->XskCreate(
-            XdpApiProviderBindingContext,
+            XdpApiProviderBindingContext, &XdpApiContext,
             NULL, NULL, NULL, Socket);
 }
 

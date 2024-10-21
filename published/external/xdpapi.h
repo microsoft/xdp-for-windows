@@ -29,12 +29,14 @@ C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 #if defined(_KERNEL_MODE)
 
 #define _XDP_POOLTAG_RUNDOWN 'RpdX'
+typedef struct _XDP_API_CLIENT XDP_API_CLIENT;
 
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -49,6 +51,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_INTERFACE_OPEN_FN(
     _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
+    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );

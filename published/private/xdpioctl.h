@@ -13,7 +13,6 @@
 #include <xdpapi.h>
 #include <xdpifmode.h>
 #include <xdp/program.h>
-#include <xdp/object.h>
 
 #define XDP_DEVICE_NAME L"\\Device\\xdp"
 
@@ -26,6 +25,14 @@ CONST GUID DECLSPEC_SELECTANY XDP_DEVICE_CLASS_GUID = { /* 28f93d3f-4c0a-4a7c-8f
     {0x8f, 0xf1, 0x96, 0xb2, 0x4e, 0x19, 0xb8, 0x56}
 };
 
+//
+// Type of XDP object to create or open.
+//
+typedef enum _XDP_OBJECT_TYPE {
+    XDP_OBJECT_TYPE_PROGRAM,
+    XDP_OBJECT_TYPE_XSK,
+    XDP_OBJECT_TYPE_INTERFACE,
+} XDP_OBJECT_TYPE;
 
 //
 // XDP open packet, which is our common header for NtCreateFile extended

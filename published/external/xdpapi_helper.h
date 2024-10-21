@@ -13,30 +13,13 @@ extern "C" {
 
 #if defined(_KERNEL_MODE)
 
-#include <wdm.h>
-#include <xdp/object.h>
-
 static XDP_API_CLIENT _XdpApiContext = {0};
 static const XDP_API_PROVIDER_DISPATCH *_XdpApi;
 static const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
-#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...)                               \
-    do {                                                                                        \
-        XDP_STATUS Status;                                                                      \
-        if (!ExAcquireRundownProtectionCacheAware(_XdpApiContext.RundownRef)) {                 \
-            return STATUS_DEVICE_NOT_READY;                                                     \
-        } else {                                                                                \
-            XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext =                          \
-                (XDP_API_PROVIDER_BINDING_CONTEXT *)_ProviderBindingContext;                    \
-            Status = FunctionCall(ProviderBindingContext, __VA_ARGS__);                         \
-            if (NT_SUCCESS(Status)) {                                                           \
-                ((XDP_FILE_OBJECT_HEADER *)(Object))->RundownRef = _XdpApiContext.RundownRef;   \
-            } else {                                                                            \
-                ExReleaseRundownProtectionCacheAware(_XdpApiContext.RundownRef);                \
-            }                                                                                   \
-            return Status;                                                                      \
-        }                                                                                       \
-    } while (0)
+#define API_ABSTRACTION(FunctionCall, ...)  \
+        _XdpApi->FunctionCall((XDP_API_PROVIDER_BINDING_CONTEXT *)_ProviderBindingContext, \
+                               &_XdpApiContext, __VA_ARGS__)
 
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
@@ -92,7 +75,9 @@ CxPlatXdpGetRoutine(
     if (!ExAcquireRundownProtectionCacheAware(_XdpApiContext.RundownRef)) {
         return NULL;
     }
-    return _XdpApi->XdpGetRoutine(RoutineName);
+    VOID* Routine = _XdpApi->XdpGetRoutine(RoutineName);
+    ExReleaseRundownProtectionCacheAware(_XdpApiContext.RundownRef);
+    return Routine;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -114,7 +99,6 @@ CxPlatXdpCloseHandle(
     )
 {
     _XdpApi->XdpCloseHandle(Handle);
-    ExReleaseRundownProtectionCacheAware(((XDP_FILE_OBJECT_HEADER *)Handle)->RundownRef);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -126,27 +110,24 @@ CxPlatXskCreate(
     _Out_ HANDLE *Socket
     )
 {
-    XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        _XdpApi->XskCreate,
-        Socket,
-        OwningProcess,
-        OwningThread,
-        SecurityDescriptor,
-        Socket);
+    return
+        API_ABSTRACTION(
+            XskCreate,
+            OwningProcess,
+            OwningThread,
+            SecurityDescriptor,
+            Socket);
 }
 
 #else
 
 static XDP_API_TABLE *_XdpApi;
 
-#define XDP_CREATE_HANDLE_WITH_RUNDOWN(FunctionCall, Object, ...)   \
-    do {                                                            \
-        return FunctionCall(__VA_ARGS__);                           \
-    } while (0)
+#define API_ABSTRACTION(FunctionCall, ...) _XdpApi->FunctionCall(__VA_ARGS__)
 
 
 VOID*
-CxPlatXdpGet(
+CxPlatXdpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
@@ -176,16 +157,16 @@ CxPlatXdpCreateProgram(
     _Out_ HANDLE *Program
     )
 {
-    XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        _XdpApi->XdpCreateProgram,
-        Program,
-        InterfaceIndex,
-        HookId,
-        QueueId,
-        Flags,
-        Rules,
-        RuleCount,
-        Program);
+    return
+        API_ABSTRACTION(
+            XdpCreateProgram,
+            InterfaceIndex,
+            HookId,
+            QueueId,
+            Flags,
+            Rules,
+            RuleCount,
+            Program);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -195,11 +176,11 @@ CxPlatXdpInterfaceOpen(
     _Out_ HANDLE *InterfaceHandle
     )
 {
-    XDP_CREATE_HANDLE_WITH_RUNDOWN(
-        _XdpApi->XdpInterfaceOpen,
-        InterfaceHandle,
-        InterfaceIndex,
-        InterfaceHandle);
+    return
+        API_ABSTRACTION(
+            XdpInterfaceOpen,
+            InterfaceIndex,
+            InterfaceHandle);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -271,7 +252,14 @@ CxPlatXskIoctl(
     _Inout_ UINT32 *OutputLength
     )
 {
-    return _XdpApi->XskIoctl(Socket, OptionName, InputValue, InputLength, OutputValue, OutputLength);
+    return
+        _XdpApi->XskIoctl(
+            Socket,
+            OptionName,
+            InputValue,
+            InputLength,
+            OutputValue,
+            OutputLength);
 }
 
 #ifdef __cplusplus
