@@ -88,7 +88,7 @@
 ; NumRxBuffers
  HKR, Ndi\Params\NumRxBuffers,          ParamDesc,         0, "NumRxBuffers"
  HKR, Ndi\Params\NumRxBuffers,          default,           0, "256"
- HKR, Ndi\Params\NumRxBuffers,          type,              0, "int"
+ HKR, Ndi\Params\NumRxBuffers,          type,              0, "dword"
  HKR, Ndi\Params\NumRxBuffers,          min,               0, "1"
  HKR, Ndi\Params\NumRxBuffers,          max,               0, "65536"
  HKR, Ndi\Params\NumRxBuffers,          step,              0, "1"
