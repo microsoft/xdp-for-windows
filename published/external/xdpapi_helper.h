@@ -85,7 +85,7 @@ CxPlatXdpCloseApi(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID*
-CxPlatXdpGet(
+CxPlatXdpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {

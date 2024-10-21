@@ -28,6 +28,8 @@ C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
 #if defined(_KERNEL_MODE)
 
+#define _XDP_POOLTAG_RUNDOWN 'RpdX'
+
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
@@ -414,7 +416,7 @@ XdpRegister(
         goto Exit;
     }
 
-    _Client->RundownRef = ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, 'dpX');
+    _Client->RundownRef = ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, _XDP_POOLTAG_RUNDOWN);
     if (_Client->RundownRef == NULL) {
         _Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
