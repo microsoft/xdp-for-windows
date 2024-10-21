@@ -50,7 +50,7 @@ RtlRandomNumber(
     // in order to get the mod operation for free.
     //
     do {
-        OldValue = *RandomState;
+        OldValue = ReadNoFence(RandomState);
         NewValue = (1664525 * OldValue) + 1013904223;
     } while (InterlockedCompareExchangeNoFence(RandomState, NewValue, OldValue) != OldValue);
 
