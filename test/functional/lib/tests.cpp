@@ -2646,7 +2646,7 @@ LoadApiTest()
     NTSTATUS Status =
         XdpOpenApi(
             XDP_API_VERSION_1, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
-            &TimeoutMs, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
+            NULL, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;

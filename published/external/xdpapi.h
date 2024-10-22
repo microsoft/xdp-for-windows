@@ -495,7 +495,7 @@ XdpOpenApi(
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
     _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
     _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
-    _In_ const INT64 *_TimeoutMs,
+    _In_opt_ const INT64 *_TimeoutMs,
     _Out_ XDP_API_CLIENT *_ApiContext,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
@@ -510,13 +510,13 @@ XdpOpenApi(
     }
 
     KeInitializeEvent(&_ApiContext->AttachEvent, NotificationEvent, FALSE);
+    KeResetEvent(&_ApiContext->AttachEvent);
 
     Status = XdpRegister(_XdpApiVersion, _ClientContext, _ClientAttach, _ClientDetach, _XdpApiClientDispatch, _ApiContext);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
-    KeResetEvent(&_ApiContext->AttachEvent);
     Status = KeWaitForSingleObject(&_ApiContext->AttachEvent, Executive, KernelMode, FALSE, Timeout100NsPtr);
     if (!NT_SUCCESS(Status)) {
         XdpUnloadApi(_ApiContext);
