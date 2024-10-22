@@ -92,6 +92,22 @@ XDP_GET_ROUTINE_FN(
 //
 #define XDP_API_VERSION_LATEST XDP_API_VERSION_2
 
+inline
+BOOLEAN
+XdpIsApiVersionSupported(
+    _In_ BYTE ApiVersion
+    )
+{
+    static const BYTE XDP_API_VERSIONS[] = { XDP_API_VERSION_1, XDP_API_VERSION_2 };
+    for (int i = 0; i < ARRAYSIZE(XDP_API_VERSIONS); i++) {
+        if (ApiVersion == XDP_API_VERSIONS[i]) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 #if defined(_KERNEL_MODE)
 
 typedef
@@ -304,8 +320,7 @@ XdpNmrClientAttachProvider(
 
     if (_Client->BindingHandle != NULL) {
         _Status = STATUS_DEVICE_NOT_READY;
-    } else if (_ProviderRegistrationInstance->Number < XDP_API_VERSION_1 ||
-               _ProviderRegistrationInstance->Number > XDP_API_VERSION_LATEST) {
+    } else if (!XdpIsApiVersionSupported((BYTE)_ProviderRegistrationInstance->Number)) {
         _Status = STATUS_NOINTERFACE;
     } else {
         _Status =
@@ -396,8 +411,7 @@ XdpRegister(
     NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *_NpiInstance;
 
-    if (_XdpApiVersion < XDP_API_VERSION_1 ||
-        _XdpApiVersion > XDP_API_VERSION_LATEST ||
+    if (!XdpIsApiVersionSupported((BYTE)_XdpApiVersion) ||
         _Client == NULL ||
         _ClientDetach == NULL) {
         _Status = STATUS_INVALID_PARAMETER;
