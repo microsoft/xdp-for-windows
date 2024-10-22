@@ -149,7 +149,7 @@ HwRingBestEffortMpReserve(
     KeRaiseIrql(DISPATCH_LEVEL, OldIrql);
     do {
         OldProducerReserved = ReadUInt32NoFence(&Ring->ProducerReserved);
-        Count = Ring->Mask + 1 - (OldProducerReserved - Ring->ConsumerIndex);
+        Count = Ring->Mask + 1 - (OldProducerReserved - ReadUInt32NoFence(&Ring->ConsumerIndex));
         Count = min(MaxCount, Count);
     } while (InterlockedCompareExchangeAcquire(
                 (LONG *)&Ring->ProducerReserved, OldProducerReserved + Count, OldProducerReserved)
