@@ -18,6 +18,7 @@
 #include "xskbench_user.h"
 #endif
 #include <afxdp_helper.h>
+#include <xdpapi_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
 #include "cxplat.h"
@@ -31,12 +32,6 @@
 
 #define STRUCT_FIELD_OFFSET(structPtr, field) \
     ((UCHAR *)&(structPtr)->field - (UCHAR *)(structPtr))
-
-#if defined (_KERNEL_MODE)
-extern XDP_API_PROVIDER_DISPATCH *XdpApi;
-#else
-extern XDP_API_TABLE *XdpApi;
-#endif // defined (_KERNEL_MODE)
 
 #define DEFAULT_UMEM_SIZE 65536
 #define DEFAULT_UMEM_CHUNK_SIZE 4096
@@ -242,12 +237,13 @@ AttachXdpProgram(
         flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
     }
 
-    res = XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);
+    res = XdpHlpXskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);
     ASSERT_FRE(XDP_SUCCEEDED(res));
     ASSERT_FRE(hookSize == sizeof(hookId));
 
     res =
-        CxPlatXdpCreateProgramEx(
+        // CxPlatXdpCreateProgramEx(
+        XdpHlpCreateProgram(
             ifindex, &hookId, Queue->queueId,
             flags, &rule, 1, &Queue->rxProgram);
     if (XDP_FAILED(res)) {
@@ -336,21 +332,21 @@ SetupSock(
     }
 
     res =
-        XdpApi->XskSetSockopt(
+        XdpHlpXskSetSockopt(
             Queue->sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg,
             sizeof(Queue->umemReg));
     ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("configuring fill ring with size %d\n", Queue->ringsize);
     res =
-        XdpApi->XskSetSockopt(
+        XdpHlpXskSetSockopt(
             Queue->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &Queue->ringsize,
             sizeof(Queue->ringsize));
     ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("configuring completion ring with size %d\n", Queue->ringsize);
     res =
-        XdpApi->XskSetSockopt(
+        XdpHlpXskSetSockopt(
             Queue->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &Queue->ringsize,
             sizeof(Queue->ringsize));
     ASSERT_FRE(XDP_SUCCEEDED(res));
@@ -358,7 +354,7 @@ SetupSock(
     if (Queue->flags.rx) {
         printf_verbose("configuring rx ring with size %d\n", Queue->ringsize);
         res =
-            XdpApi->XskSetSockopt(
+            XdpHlpXskSetSockopt(
                 Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
         ASSERT_FRE(XDP_SUCCEEDED(res));
@@ -367,7 +363,7 @@ SetupSock(
     if (Queue->flags.tx) {
         printf_verbose("configuring tx ring with size %d\n", Queue->ringsize);
         res =
-            XdpApi->XskSetSockopt(
+            XdpHlpXskSetSockopt(
                 Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
         ASSERT_FRE(XDP_SUCCEEDED(res));
@@ -387,7 +383,7 @@ SetupSock(
         hookId.SubLayer = XDP_HOOK_INJECT;
 
         printf_verbose("configuring tx inject to rx\n");
-        res = XdpApi->XskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
+        res = XdpHlpXskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
         ASSERT_FRE(XDP_SUCCEEDED(res));
     }
 
@@ -398,26 +394,26 @@ SetupSock(
         hookId.SubLayer = XDP_HOOK_INSPECT;
 
         printf_verbose("configuring rx from tx inspect\n");
-        res = XdpApi->XskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
+        res = XdpHlpXskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
         ASSERT_FRE(XDP_SUCCEEDED(res));
     }
 
     printf_verbose(
         "binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
-    res = XdpApi->XskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags);
+    res = XdpHlpXskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags);
     if (XDP_FAILED(res)) {
         printf_error("XskBind failed: %d\n", res);
         return FALSE;
     }
 
     printf_verbose("activating sock\n");
-    res = XdpApi->XskActivate(Queue->sock, 0);
+    res = XdpHlpXskActivate(Queue->sock, 0);
     ASSERT_FRE(XDP_SUCCEEDED(res));
 
     printf_verbose("XSK_SOCKOPT_RING_INFO\n");
     XSK_RING_INFO_SET infoSet = { 0 };
     UINT32 ringInfoSize = sizeof(infoSet);
-    res = XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_RING_INFO, &infoSet, &ringInfoSize);
+    res = XdpHlpXskGetSockopt(Queue->sock, XSK_SOCKOPT_RING_INFO, &infoSet, &ringInfoSize);
     ASSERT_FRE(XDP_SUCCEEDED(res));
     ASSERT_FRE(ringInfoSize == sizeof(infoSet));
     PrintRingInfo(infoSet);
@@ -433,7 +429,7 @@ SetupSock(
     }
 
     res =
-        XdpApi->XskSetSockopt(
+        XdpHlpXskSetSockopt(
             Queue->sock, XSK_SOCKOPT_POLL_MODE, &Queue->pollMode, sizeof(Queue->pollMode));
     ASSERT_FRE(XDP_SUCCEEDED(res));
 
@@ -543,7 +539,7 @@ ProcessPeriodicStats(
         }
 
         XDP_STATUS res =
-            XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
+            XdpHlpXskGetSockopt(Queue->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
         ASSERT_FRE(XDP_SUCCEEDED(res));
         ASSERT_FRE(optSize == sizeof(stats));
 
@@ -702,7 +698,7 @@ NotifyDriver(
     if (DirectionFlags != 0) {
         Queue->pokesPerformedCount++;
         res =
-            XdpApi->XskNotifySocket(
+            XdpHlpXskNotifySocket(
                 Queue->sock, DirectionFlags, WAIT_DRIVER_TIMEOUT_MS, &notifyResult);
 
         if (DirectionFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {

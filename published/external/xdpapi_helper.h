@@ -13,17 +13,18 @@ extern "C" {
 
 #if defined(_KERNEL_MODE)
 
-static XDP_API_CLIENT _XdpApiContext = {0};
+static const XDP_API_CLIENT _XdpApiContext = {0};
 static const XDP_API_PROVIDER_DISPATCH *_XdpApi;
 static const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
 #define API_ABSTRACTION(FunctionCall, ...)  \
         _XdpApi->FunctionCall((XDP_API_PROVIDER_BINDING_CONTEXT *)_ProviderBindingContext, \
-                               &_XdpApiContext, __VA_ARGS__)
+                              (XDP_API_CLIENT *)&_XdpApiContext, __VA_ARGS__)
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpOpenApi(
+XdpHlpOpenApi(
     _In_ UINT32 _XdpApiVersion,
     _In_opt_ VOID *_ClientContext,
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
@@ -32,11 +33,7 @@ XdpOpenApi(
     _In_ const INT64 _TimeoutMs
     )
 {
-    NTSTATUS Status;
-    const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
-    const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderContext;
-
-    Status =
+    return
         XdpOpenApi(
             _XdpApiVersion,
             _ClientContext,
@@ -44,31 +41,25 @@ XdpOpenApi(
             _ClientDetach,
             _XdpApiClientDispatch,
             _TimeoutMs,
-            &_XdpApiContext,
-            &ProviderDispatch,
-            &ProviderContext);
-    if (!NT_SUCCESS(Status)) {
-        return Status;
-    }
-
-    _XdpApi = (XDP_API_PROVIDER_DISPATCH *)ProviderDispatch;
-    _ProviderBindingContext = (XDP_API_PROVIDER_BINDING_CONTEXT *)ProviderContext;
-
-    return STATUS_SUCCESS;
+            (XDP_API_CLIENT *)&_XdpApiContext,
+            (XDP_API_PROVIDER_DISPATCH **)&_XdpApi,
+            (XDP_API_PROVIDER_BINDING_CONTEXT **)&_ProviderBindingContext);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XdpCloseApi(
+XdpHlpCloseApi(
     VOID
     )
 {
-    XdpUnloadApi(&_XdpApiContext);
+    XdpUnloadApi((XDP_API_CLIENT *)&_XdpApiContext);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID*
-XdpGetRoutine(
+XdpHlpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
@@ -80,9 +71,10 @@ XdpGetRoutine(
     return Routine;
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskNotifyAsync2(
+XdpHlpXskNotifyAsync2(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_opt_ XSK_COMPLETION_CONTEXT CompletionContext,
@@ -92,18 +84,20 @@ XskNotifyAsync2(
     return _XdpApi->XskNotifyAsync2(Socket, Flags, CompletionContext, Result);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XdpCloseHandle(
+XdpHlpCloseHandle(
     _In_ HANDLE Handle
     )
 {
     _XdpApi->XdpCloseHandle(Handle);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskCreate(
+XdpHlpXskCreate(
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -121,22 +115,42 @@ XskCreate(
 
 #else
 
-static XDP_API_TABLE *_XdpApi;
+static const XDP_API_TABLE *_XdpApi;
 
 #define API_ABSTRACTION(FunctionCall, ...) _XdpApi->FunctionCall(__VA_ARGS__)
 
 
+inline
+HRESULT
+XdpHlpOpenApi(
+    _In_ UINT32 XdpApiVersion
+    )
+{
+    return XdpOpenApi(XdpApiVersion, &_XdpApi);
+}
+
+inline
+VOID
+XdpHlpCloseApi(
+    VOID
+    )
+{
+    XdpCloseApi(_XdpApi);
+}
+
+inline
 VOID*
-XdpGetRoutine(
+XdpHlpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
     return _XdpApi->XdpGetRoutine(RoutineName);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskCreate(
+XdpHlpXskCreate(
     _Out_ HANDLE *Socket
     )
 {
@@ -145,9 +159,10 @@ XskCreate(
 
 #endif // defined(_KERNEL_MODE)
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XdpCreateProgram(
+XdpHlpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -169,9 +184,10 @@ XdpCreateProgram(
             Program);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XdpInterfaceOpen(
+XdpHlpInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     )
@@ -183,9 +199,10 @@ XdpInterfaceOpen(
             InterfaceHandle);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskBind(
+XdpHlpXskBind(
     _In_ HANDLE Socket,
     _In_ UINT32 IfIndex,
     _In_ UINT32 QueueId,
@@ -195,9 +212,10 @@ XskBind(
     return _XdpApi->XskBind(Socket, IfIndex, QueueId, Flags);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskActivate(
+XdpHlpXskActivate(
     _In_ HANDLE Socket,
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
@@ -205,9 +223,10 @@ XskActivate(
     return _XdpApi->XskActivate(Socket, Flags);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskNotifySocket(
+XdpHlpXskNotifySocket(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_ UINT32 WaitTimeoutMilliseconds,
@@ -217,9 +236,10 @@ XskNotifySocket(
     return _XdpApi->XskNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskSetSockopt(
+XdpHlpXskSetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
@@ -229,9 +249,10 @@ XskSetSockopt(
     return _XdpApi->XskSetSockopt(Socket, OptionName, OptionValue, OptionLength);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskGetSockopt(
+XdpHlpXskGetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
@@ -241,9 +262,10 @@ XskGetSockopt(
     return _XdpApi->XskGetSockopt(Socket, OptionName, OptionValue, OptionLength);
 }
 
+inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
-XskIoctl(
+XdpHlpXskIoctl(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
