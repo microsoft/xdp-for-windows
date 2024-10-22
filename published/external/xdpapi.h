@@ -317,9 +317,9 @@ XdpNmrClientAttachProvider(
             _Client->BindingHandle = _NmrBindingHandle;
             _Client->XdpApiProviderDispatch = (XDP_API_PROVIDER_DISPATCH *)_ProviderBindingDispatch;
             _Client->XdpApiProviderContext = _ProviderBindingContext;
-            KeSetEvent(&_Client->AttachEvent, 2, FALSE);
+            KeSetEvent(&_Client->AttachEvent, 0, FALSE);
         } else {
-            KePulseEvent(&_Client->AttachEvent, 2, FALSE);
+            KePulseEvent(&_Client->AttachEvent, 0, FALSE);
         }
     }
 
@@ -364,7 +364,7 @@ XdpCleanupClientRegistration(
     NTSTATUS _Status;
 
     if (_Client->NmrClientHandle != NULL) {
-        KeSetEvent(&_Client->AttachEvent, 2, FALSE);
+        KeSetEvent(&_Client->AttachEvent, 0, FALSE);
 
         _Status = NmrDeregisterClient(_Client->NmrClientHandle);
         if (!NT_VERIFY(_Status == STATUS_PENDING)) {
@@ -486,8 +486,6 @@ XdpGetProviderContexts(
     return _Status;
 }
 
-#define _POLL_INTERVAL_MS 10
-
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
@@ -497,46 +495,40 @@ XdpOpenApi(
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
     _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
     _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
-    _In_ const INT64 _TimeoutMs,
+    _In_ const INT64 *_TimeoutMs,
     _Out_ XDP_API_CLIENT *_ApiContext,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
     )
 {
     NTSTATUS Status;
-    INT64 TimeoutMs = MAXLONGLONG; // forever
-    if (_TimeoutMs > 0) {
-        TimeoutMs = _TimeoutMs;
+    LARGE_INTEGER Timeout100Ns;
+    LARGE_INTEGER *Timeout100NsPtr = NULL;
+    if (_TimeoutMs && *_TimeoutMs > 0) {
+        Timeout100Ns.QuadPart = -1 * Int32x32To64((UINT32)*_TimeoutMs, 10000);
+        Timeout100NsPtr = &Timeout100Ns;
     }
 
     KeInitializeEvent(&_ApiContext->AttachEvent, NotificationEvent, FALSE);
 
     Status = XdpRegister(_XdpApiVersion, _ClientContext, _ClientAttach, _ClientDetach, _XdpApiClientDispatch, _ApiContext);
     if (!NT_SUCCESS(Status)) {
-        return Status;
+        goto Exit;
     }
 
-    do {
-        LARGE_INTEGER Timeout100Ns;
+    KeResetEvent(&_ApiContext->AttachEvent);
+    Status = KeWaitForSingleObject(&_ApiContext->AttachEvent, Executive, KernelMode, FALSE, Timeout100NsPtr);
+    if (!NT_SUCCESS(Status)) {
+        XdpUnloadApi(_ApiContext);
+        goto Exit;
+    }
 
-        Status =
-            XdpGetProviderContexts(
-                _ApiContext,
-                _XdpApiProviderDispatch,
-                _XdpApiProviderContext);
-        if (NT_SUCCESS(Status)) {
-            break;
-        }
-
-        Timeout100Ns.QuadPart = -1 * Int32x32To64(_POLL_INTERVAL_MS, 10000);
-        KeResetEvent(&_ApiContext->AttachEvent);
-        KeWaitForSingleObject(&_ApiContext->AttachEvent, Executive, KernelMode, FALSE, &Timeout100Ns);
-        TimeoutMs = TimeoutMs - _POLL_INTERVAL_MS;
-    } while (TimeoutMs > 0);
-
+    Status = XdpGetProviderContexts(_ApiContext, _XdpApiProviderDispatch, _XdpApiProviderContext);
     if (!NT_SUCCESS(Status)) {
         XdpUnloadApi(_ApiContext);
     }
+
+Exit:
 
     return Status;
 }

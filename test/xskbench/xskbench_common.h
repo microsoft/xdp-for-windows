@@ -10,8 +10,8 @@ extern "C" {
 #endif
 
 #include <xdpapi.h>
-#include "afxdp_helper.h"
-#include "afxdp_experimental.h"
+#include <afxdp_helper.h>
+#include <afxdp_experimental.h>
 #include "cxplat.h"
 
 #define POOLTAG_TXPATTERN           'pTbX' // XbTp
