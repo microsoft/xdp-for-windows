@@ -56,13 +56,12 @@ CxPlatXdpApiInitialize(
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    const INT64 TimeoutMs = 1000;
     TraceEnter(TRACE_CONTROL, "-");
+    const INT64 TimeoutMs = 1000;
 
     Status =
-        XdpHlpOpenApi(
-            XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback,
-            &XdpFuncXdpApiClientDispatch, TimeoutMs);
+        XdpHlpOpenApi(XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback,
+                      &XdpFuncXdpApiClientDispatch, &TimeoutMs);
 
     if (!NT_SUCCESS(Status)) {
         goto Done;

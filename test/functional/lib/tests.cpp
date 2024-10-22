@@ -2625,8 +2625,7 @@ TestDetach(
     _In_ VOID *ClientContext
     )
 {
-    UNREFERENCED_PARAMETER(ClientContext);
-    TraceInfo("XdpDetach %p", ClientContext);
+    TraceInfo("TestDetach %p", ClientContext);
 }
 
 #endif
@@ -2638,11 +2637,12 @@ LoadApiTest()
     XDP_API_CLIENT XdpApiClient = {0};
     const XDP_API_PROVIDER_DISPATCH *ProviderDispatch;
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
+    const INT64 TimeoutMs = 1000;
 
     NTSTATUS Status =
         XdpOpenApi(
             XDP_API_VERSION_1, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
-            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
+            NULL, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
@@ -2652,7 +2652,7 @@ LoadApiTest()
     Status =
         XdpOpenApi(
             XDP_API_VERSION_2, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
-            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
+            &TimeoutMs, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
@@ -2662,7 +2662,7 @@ LoadApiTest()
     Status =
         XdpOpenApi(
             XDP_API_VERSION_LATEST, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
-            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
+            &TimeoutMs, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
     TEST_NTSTATUS(Status);
     if (!NT_SUCCESS(Status)) {
         return;
@@ -2673,7 +2673,7 @@ LoadApiTest()
         STATUS_SUCCESS,
         XdpOpenApi(
             XDP_API_VERSION_LATEST + 1, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
-            1000, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext));
+            &TimeoutMs, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext));
 #else
     XDP_API_CLIENT XdpApiClient;
     const XDP_API_TABLE *XdpApiTable;

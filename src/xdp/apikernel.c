@@ -8,7 +8,7 @@
 
 typedef struct _XDPAPI_PROVIDER {
     NPI_PROVIDER_CHARACTERISTICS Characteristics;
-    HANDLE NmrProviderHandle;
+    HANDLE NmrProviderHandles[XDP_API_VERSION_LATEST];
 } XDPAPI_PROVIDER;
 
 typedef struct _XDPAPI_CLIENT {
@@ -422,8 +422,7 @@ ProviderAttachClientKernel(
         goto Exit;
     }
 
-    if (ClientRegistrationInstance->Number < XDP_API_VERSION_1 ||
-        ClientRegistrationInstance->Number > XDP_API_VERSION_LATEST) {
+    if (!XdpIsApiVersionSupported((BYTE)ClientRegistrationInstance->Number)) {
         Status = STATUS_NOINTERFACE;
         goto Exit;
     }
@@ -519,15 +518,28 @@ XdpApiKernelStart(
         Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
         Characteristics->ProviderRegistrationInstance.NpiId = &NPI_XDPAPI_INTERFACE_ID;
         Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
-        Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_LATEST;
 
-        Status = NmrRegisterProvider(
-                Characteristics,
-                &XdpApiProvider,
-                &XdpApiProvider.NmrProviderHandle);
-        if (!NT_SUCCESS(Status)) {
-            TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
-            goto Exit;
+        // Assume all API versions are supported.
+        BYTE Version = XDP_API_VERSION_1;
+        int HandleIdx = 0;
+        for (; HandleIdx < ARRAYSIZE(XdpApiProvider.NmrProviderHandles); Version++, HandleIdx++) {
+            Characteristics->ProviderRegistrationInstance.Number = Version;
+
+            Status = NmrRegisterProvider(
+                    Characteristics,
+                    &XdpApiProvider,
+                    &XdpApiProvider.NmrProviderHandles[HandleIdx]);
+            if (!NT_SUCCESS(Status)) {
+                TraceError(
+                    TRACE_CORE,
+                    "NmrRegisterProvider failed for API version %d Status=%!STATUS!",
+                    Version, Status);
+                while (Version > 1) {
+                    Version--;
+                    NmrDeregisterProvider(&XdpApiProvider.NmrProviderHandles[HandleIdx]);
+                }
+                goto Exit;
+            }
         }
     }
 
@@ -549,16 +561,18 @@ XdpApiKernelStop(
 
     TraceEnter(TRACE_CORE, "-");
 
-    if (XdpApiProvider.NmrProviderHandle != NULL) {
-        Status = NmrDeregisterProvider(XdpApiProvider.NmrProviderHandle);
-        ASSERT(Status == STATUS_PENDING);
+    for (int i = 0; i < ARRAYSIZE(XdpApiProvider.NmrProviderHandles); i++) {
+        if (XdpApiProvider.NmrProviderHandles[i] != NULL) {
+            Status = NmrDeregisterProvider(XdpApiProvider.NmrProviderHandles[i]);
+            ASSERT(Status == STATUS_PENDING);
 
-        if (Status == STATUS_PENDING) {
-            Status = NmrWaitForProviderDeregisterComplete(XdpApiProvider.NmrProviderHandle);
-            ASSERT(Status == STATUS_SUCCESS);
+            if (Status == STATUS_PENDING) {
+                Status = NmrWaitForProviderDeregisterComplete(XdpApiProvider.NmrProviderHandles[i]);
+                ASSERT(Status == STATUS_SUCCESS);
+            }
+
+            XdpApiProvider.NmrProviderHandles[i] = NULL;
         }
-
-        XdpApiProvider.NmrProviderHandle = NULL;
     }
 
     TraceExitSuccess(TRACE_CORE);
