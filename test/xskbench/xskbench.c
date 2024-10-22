@@ -159,7 +159,7 @@ typedef struct {
     HANDLE sock;
     HANDLE rxProgram;
     XDP_MODE xdpMode;
-    ULONG umemsize;
+    UINT64 umemsize;
     ULONG umemchunksize;
     ULONG umemheadroom;
     ULONG txiosize;
@@ -385,6 +385,47 @@ GetDescriptorPattern(
     }
 }
 
+_Success_(return)
+BOOLEAN
+ParseUInt64A(
+    _In_z_ const CHAR *Arg,
+    _Out_ UINT64 *Result
+    )
+{
+    // detect hex
+    const CHAR *Fmt = (Arg[0] == '0' && Arg[1] == 'x') ? "%llx%n" : "%llu%n";
+    INT End = 0;
+
+    if (1 != sscanf_s(Arg, Fmt, Result, &End) || Arg[End] != L'\0') {
+        printf_verbose("Invalid integer value: %s\n", Arg);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+_Success_(return)
+BOOLEAN
+ParseUInt32A(
+    _In_z_ const CHAR *Arg,
+    _Out_ UINT32 *Result
+    )
+{
+    UINT64 Tmp;
+
+    if (!ParseUInt64A(Arg, &Tmp)) {
+        return FALSE;
+    }
+
+    if (Tmp > MAXUINT32) {
+        printf_verbose("Invalid integer value: %s\n", Arg);
+        return FALSE;
+    }
+
+    *Result = (UINT32)Tmp;
+    return TRUE;
+}
+
 VOID
 SetupSock(
     INT IfIndex,
@@ -522,7 +563,9 @@ SetupSock(
     //
     // Free ring starts off with all UMEM descriptors.
     //
-    UINT32 numDescriptors = Queue->umemsize / Queue->umemchunksize;
+    UINT64 numDescriptors64 = Queue->umemsize / Queue->umemchunksize;
+    ASSERT_FRE(numDescriptors64 <= MAXUINT32);
+    UINT32 numDescriptors = (UINT32)numDescriptors64;
     struct {
         UINT32 Producer;
         UINT32 Consumer;
@@ -1453,7 +1496,9 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            Queue->umemsize = atoi(argv[i]);
+            if (!ParseUInt64A(argv[i], &Queue->umemsize)) {
+                Usage();
+            }
         } else if (!strcmp(argv[i], "-b")) {
             if (++i >= argc) {
                 Usage();
@@ -1523,7 +1568,9 @@ ParseQueueArgs(
     }
 
     if (Queue->ringsize == 0) {
-        Queue->ringsize = Queue->umemsize / Queue->umemchunksize;
+        UINT64 RingSize64 = Queue->umemsize / Queue->umemchunksize;
+        ASSERT_FRE(RingSize64 <= MAXUINT32);
+        Queue->ringsize = (UINT32)RingSize64;
     }
 
     ASSERT_FRE(Queue->umemsize >= Queue->umemchunksize);
