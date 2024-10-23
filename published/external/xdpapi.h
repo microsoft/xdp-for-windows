@@ -94,6 +94,8 @@ XDP_GET_ROUTINE_FN(
 
 #if defined(_KERNEL_MODE)
 
+#define XDP_API_VERSION_KERNEL_INITIAL XDP_API_VERSION_2
+
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
@@ -267,6 +269,7 @@ typedef struct _XDP_API_CLIENT {
     XDP_API_ATTACH_FN *Attach;
     XDP_API_DETACH_FN *Detach;
     const XDP_API_CLIENT_DISPATCH *XdpApiClientDispatch;
+    UINT32 Number;
 
     //
     // XDPAPI provider.
@@ -274,6 +277,11 @@ typedef struct _XDP_API_CLIENT {
     HANDLE BindingHandle;
     XDP_API_PROVIDER_DISPATCH *XdpApiProviderDispatch;
     XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderContext;
+
+    //
+    // Unblock registering thread when binding is complete.
+    //
+    KEVENT AttachEvent;
 } XDP_API_CLIENT;
 
 inline
@@ -299,7 +307,7 @@ XdpNmrClientAttachProvider(
 
     if (_Client->BindingHandle != NULL) {
         _Status = STATUS_DEVICE_NOT_READY;
-    } else if (_ProviderRegistrationInstance->Number != XDP_API_VERSION_1) {
+    } else if (_ProviderRegistrationInstance->Number != _Client->Number) {
         _Status = STATUS_NOINTERFACE;
     } else {
         _Status =
@@ -309,8 +317,10 @@ XdpNmrClientAttachProvider(
 
         if (NT_SUCCESS(_Status)) {
             _Client->BindingHandle = _NmrBindingHandle;
-            _Client->XdpApiProviderDispatch = (XDP_API_PROVIDER_DISPATCH *)_ProviderBindingDispatch;
+            _Client->XdpApiProviderDispatch =
+                (XDP_API_PROVIDER_DISPATCH *)_ProviderBindingDispatch;
             _Client->XdpApiProviderContext = _ProviderBindingContext;
+            KeSetEvent(&_Client->AttachEvent, 0, FALSE);
         }
     }
 
@@ -355,6 +365,8 @@ XdpCleanupClientRegistration(
     NTSTATUS _Status;
 
     if (_Client->NmrClientHandle != NULL) {
+        KeSetEvent(&_Client->AttachEvent, 0, FALSE);
+
         _Status = NmrDeregisterClient(_Client->NmrClientHandle);
         if (!NT_VERIFY(_Status == STATUS_PENDING)) {
             RtlFailFast(FAST_FAIL_INVALID_ARG);
@@ -372,7 +384,7 @@ XdpCleanupClientRegistration(
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpLoadApi(
+XdpRegister(
     _In_ UINT32 _XdpApiVersion,
     _In_opt_ VOID *_ClientContext,
     _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
@@ -385,7 +397,8 @@ XdpLoadApi(
     NPI_CLIENT_CHARACTERISTICS *_NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *_NpiInstance;
 
-    if (_XdpApiVersion != XDP_API_VERSION_1 ||
+    if (_XdpApiVersion < XDP_API_VERSION_KERNEL_INITIAL ||
+        _XdpApiVersion > XDP_API_VERSION_LATEST ||
         _Client == NULL ||
         _ClientDetach == NULL) {
         _Status = STATUS_INVALID_PARAMETER;
@@ -402,6 +415,7 @@ XdpLoadApi(
     _Client->Attach = _ClientAttach;
     _Client->Detach = _ClientDetach;
     _Client->XdpApiClientDispatch = _XdpApiClientDispatch;
+    _Client->Number = _XdpApiVersion;
 
     _NpiCharacteristics = &_Client->NpiClientCharacteristics;
     _NpiCharacteristics->Length = sizeof(*_NpiCharacteristics);
@@ -413,7 +427,7 @@ XdpLoadApi(
     _NpiInstance->Version = 0;
     _NpiInstance->NpiId = &NPI_XDPAPI_INTERFACE_ID;
     _NpiInstance->ModuleId = &_Client->ModuleId;
-    _NpiInstance->Number = XDP_API_VERSION_1;
+    _NpiInstance->Number = _XdpApiVersion;
 
     _Status =
         NmrRegisterClient(
@@ -451,7 +465,7 @@ XdpUnloadApi(
 inline
 _IRQL_requires_max_(APC_LEVEL)
 NTSTATUS
-XdpOpenApi(
+XdpGetProviderContexts(
     _In_ XDP_API_CLIENT *_Client,
     _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
     _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
@@ -472,6 +486,59 @@ XdpOpenApi(
     CxPlatLockRelease(&_Client->Lock);
 
     return _Status;
+}
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+XdpOpenApi(
+    _In_ UINT32 _XdpApiVersion,
+    _In_opt_ VOID *_ClientContext,
+    _In_opt_ XDP_API_ATTACH_FN *_ClientAttach,
+    _In_opt_ XDP_API_DETACH_FN *_ClientDetach,
+    _In_ const XDP_API_CLIENT_DISPATCH *_XdpApiClientDispatch,
+    _In_opt_ const INT64 *_TimeoutMs,
+    _Out_ XDP_API_CLIENT *_ApiContext,
+    _Out_ const XDP_API_PROVIDER_DISPATCH **_XdpApiProviderDispatch,
+    _Out_ const XDP_API_PROVIDER_BINDING_CONTEXT **_XdpApiProviderContext
+    )
+{
+    NTSTATUS Status;
+    LARGE_INTEGER Timeout100Ns;
+    LARGE_INTEGER *Timeout100NsPtr = NULL;
+    if (_TimeoutMs && *_TimeoutMs >= 0) {
+        Timeout100Ns.QuadPart = -1 * Int32x32To64((UINT32)*_TimeoutMs, 10000);
+        Timeout100NsPtr = &Timeout100Ns;
+    }
+
+    KeInitializeEvent(&_ApiContext->AttachEvent, NotificationEvent, FALSE);
+
+    Status =
+        XdpRegister(
+            _XdpApiVersion, _ClientContext, _ClientAttach,
+            _ClientDetach, _XdpApiClientDispatch, _ApiContext);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        KeWaitForSingleObject(
+            &_ApiContext->AttachEvent, Executive,
+            KernelMode, FALSE, Timeout100NsPtr);
+    if (!NT_SUCCESS(Status)) {
+        XdpUnloadApi(_ApiContext);
+        goto Exit;
+    }
+
+    Status =
+        XdpGetProviderContexts(_ApiContext, _XdpApiProviderDispatch, _XdpApiProviderContext);
+    if (!NT_SUCCESS(Status)) {
+        XdpUnloadApi(_ApiContext);
+    }
+
+Exit:
+
+    return Status;
 }
 
 #endif

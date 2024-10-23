@@ -23,7 +23,10 @@ typedef struct _XDP_API_ROUTINE {
     VOID *Routine;
 } XDP_API_ROUTINE;
 
-static XDPAPI_PROVIDER XdpApiProvider;
+static
+XDPAPI_PROVIDER
+XdpApiProvider[XDP_API_VERSION_LATEST - XDP_API_VERSION_KERNEL_INITIAL + 1] = {0};
+
 static const NPI_MODULEID NPI_XDP_MODULEID = {
     sizeof(NPI_MODULEID),
     MIT_GUID,
@@ -77,7 +80,12 @@ static const XDP_API_ROUTINE XdpApiRoutines[] = {
     { DECLARE_EXPERIMENTAL_XDP_API_ROUTINE(XdpQeoSet, XDP_QEO_SET_FN_NAME) },
 };
 
-static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV1 = {
+// Kernel API starts from version 2
+static const UINT32 XDP_API_SUPPORTED_VERSIONS[] = {
+    XDP_API_VERSION_2
+};
+
+static const XDP_API_PROVIDER_DISPATCH XdpApiProviderDispatchV2 = {
     .XdpGetRoutine = XdpGetRoutineKernel,
     .XdpCreateProgram = XdpCreateProgramKernel,
     .XdpInterfaceOpen = XdpInterfaceOpenKernel,
@@ -387,7 +395,8 @@ ProviderAttachClientKernel(
         goto Exit;
     }
 
-    if (ClientRegistrationInstance->Number != XDP_API_VERSION_1) {
+    if (ClientRegistrationInstance->Number < XDP_API_VERSION_KERNEL_INITIAL ||
+        ClientRegistrationInstance->Number > XDP_API_VERSION_LATEST) {
         Status = STATUS_NOINTERFACE;
         goto Exit;
     }
@@ -406,9 +415,17 @@ ProviderAttachClientKernel(
 Exit:
 
     if (NT_SUCCESS(Status)) {
+        switch (ClientRegistrationInstance->Number) {
+        case XDP_API_VERSION_2:
+            *ProviderDispatch = &XdpApiProviderDispatchV2;
+            break;
+        default:
+            // Should never happen.
+            Status = STATUS_NOINTERFACE;
+            break;
+        }
         *ProviderBindingContext = Client;
         Client = NULL;
-        *ProviderDispatch = &XdpApiProviderDispatchV1;
     } else {
         if (Client != NULL) {
             ExFreePoolWithTag(Client, XDP_POOLTAG_KERNEL_API_NMR);
@@ -473,25 +490,37 @@ XdpApiKernelStart(
 
     Status = XdpRegQueryDwordValue(XDP_PARAMETERS_KEY, L"EnableKmXdpApi", &EnableKmXdpApi);
     if (NT_SUCCESS(Status) && EnableKmXdpApi) {
-        NPI_PROVIDER_CHARACTERISTICS *Characteristics;
+        NPI_PROVIDER_CHARACTERISTICS Characteristics = {
+            .Length = sizeof(NPI_PROVIDER_CHARACTERISTICS),
+            .ProviderAttachClient = ProviderAttachClientKernel,
+            .ProviderDetachClient = ProviderDetachClientKernel,
+            .ProviderCleanupBindingContext = ProviderCleanupKernel,
+            .ProviderRegistrationInstance = {
+                .Size = sizeof(NPI_REGISTRATION_INSTANCE),
+                .NpiId = &NPI_XDPAPI_INTERFACE_ID,
+                .ModuleId = &NPI_XDP_MODULEID
+            }
+        };
 
-        Characteristics = &XdpApiProvider.Characteristics;
-        Characteristics->Length = sizeof(NPI_PROVIDER_CHARACTERISTICS);
-        Characteristics->ProviderAttachClient = ProviderAttachClientKernel;
-        Characteristics->ProviderDetachClient = ProviderDetachClientKernel;
-        Characteristics->ProviderCleanupBindingContext = ProviderCleanupKernel;
-        Characteristics->ProviderRegistrationInstance.Size = sizeof(NPI_REGISTRATION_INSTANCE);
-        Characteristics->ProviderRegistrationInstance.NpiId = &NPI_XDPAPI_INTERFACE_ID;
-        Characteristics->ProviderRegistrationInstance.ModuleId = &NPI_XDP_MODULEID;
-        Characteristics->ProviderRegistrationInstance.Number = XDP_API_VERSION_1;
+        for (int i = 0; i < ARRAYSIZE(XdpApiProvider); i++) {
+            Characteristics.ProviderRegistrationInstance.Number = XDP_API_SUPPORTED_VERSIONS[i];
+            RtlCopyMemory(&XdpApiProvider[i].Characteristics, &Characteristics, sizeof(NPI_PROVIDER_CHARACTERISTICS));
 
-        Status = NmrRegisterProvider(
-                Characteristics,
-                &XdpApiProvider,
-                &XdpApiProvider.NmrProviderHandle);
-        if (!NT_SUCCESS(Status)) {
-            TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
-            goto Exit;
+            Status = NmrRegisterProvider(
+                    &XdpApiProvider[i].Characteristics,
+                    &XdpApiProvider[i],
+                    &XdpApiProvider[i].NmrProviderHandle);
+            if (!NT_SUCCESS(Status)) {
+                TraceError(
+                    TRACE_CORE,
+                    "NmrRegisterProvider failed for API version %d Status=%!STATUS!",
+                    i + XDP_API_VERSION_KERNEL_INITIAL, Status);
+                while (i > 0) {
+                    i--;
+                    NmrDeregisterProvider(&XdpApiProvider[i].NmrProviderHandle);
+                }
+                goto Exit;
+            }
         }
     }
 
@@ -513,16 +542,18 @@ XdpApiKernelStop(
 
     TraceEnter(TRACE_CORE, "-");
 
-    if (XdpApiProvider.NmrProviderHandle != NULL) {
-        Status = NmrDeregisterProvider(XdpApiProvider.NmrProviderHandle);
-        ASSERT(Status == STATUS_PENDING);
+    for (int i = 0; i < ARRAYSIZE(XdpApiProvider); i++) {
+        if (XdpApiProvider[i].NmrProviderHandle != NULL) {
+            Status = NmrDeregisterProvider(XdpApiProvider[i].NmrProviderHandle);
+            ASSERT(Status == STATUS_PENDING);
 
-        if (Status == STATUS_PENDING) {
-            Status = NmrWaitForProviderDeregisterComplete(XdpApiProvider.NmrProviderHandle);
-            ASSERT(Status == STATUS_SUCCESS);
+            if (Status == STATUS_PENDING) {
+                Status = NmrWaitForProviderDeregisterComplete(XdpApiProvider[i].NmrProviderHandle);
+                ASSERT(Status == STATUS_SUCCESS);
+            }
+
+            XdpApiProvider[i].NmrProviderHandle = NULL;
         }
-
-        XdpApiProvider.NmrProviderHandle = NULL;
     }
 
     TraceExitSuccess(TRACE_CORE);

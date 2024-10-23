@@ -128,7 +128,7 @@ XdpOpenApi(
     *XdpApiTable = NULL;
 
     if (XdpApiVersion < XDP_API_VERSION_1 ||
-        XdpApiVersion > XDP_API_VERSION_2) {
+        XdpApiVersion > XDP_API_VERSION_LATEST) {
         return E_NOINTERFACE;
     }
 
