@@ -2643,17 +2643,13 @@ LoadApiTest()
     const XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext;
     const INT64 TimeoutMs = 1000;
 
-    NTSTATUS Status =
+    TEST_NOT_EQUAL(
+        STATUS_SUCCESS,
         XdpOpenApi(
             XDP_API_VERSION_1, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
-            NULL, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
-    TEST_NTSTATUS(Status);
-    if (!NT_SUCCESS(Status)) {
-        return;
-    }
-    XdpUnloadApi(&XdpApiClient);
+            &TimeoutMs, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext));
 
-    Status =
+    NTSTATUS Status =
         XdpOpenApi(
             XDP_API_VERSION_2, NULL, NULL, &TestDetach, &XdpFuncXdpApiClientDispatch,
             &TimeoutMs, &XdpApiClient, &ProviderDispatch, &ProviderBindingContext);
