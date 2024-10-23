@@ -170,12 +170,14 @@ CxPlatEnableLargePages(
     return TRUE;
 }
 
+static const UINT32 _XDP_LARGE_PAGE_SIZE = 2 * 1024 * 1024;
+
 VOID
 CxPlatAlignMemory(
     _Inout_ XSK_UMEM_REG *UmemReg
     )
 {
-    UNREFERENCED_PARAMETER(UmemReg);
+    UmemReg->TotalSize = ALIGN_UP_BY(UmemReg->TotalSize, _XDP_LARGE_PAGE_SIZE);
 }
 
 VOID
