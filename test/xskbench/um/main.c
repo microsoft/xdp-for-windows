@@ -8,18 +8,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <xdpapi.h>
+#include <xdpapi_helper.h>
 #include "cxplat.h"
 #include "xskbench_user.h"
 #include "xskbench.h"
-
-CONST XDP_API_TABLE *XdpApi;
 
 VOID
 CxPlatXdpApiInitialize(
     VOID
     )
 {
-    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi)));
+    ASSERT_FRE(SUCCEEDED(XdpHlpOpenApi(XDP_API_VERSION_LATEST)));
 }
 
 VOID
@@ -27,7 +26,7 @@ CxPlatXdpApiUninitialize(
     VOID
     )
 {
-    XdpCloseApi(XdpApi);
+    XdpHlpCloseApi();
 }
 
 BOOL
@@ -44,15 +43,7 @@ ConsoleCtrlHandler(
 }
 
 XDP_STATUS
-CxPlatXskCreate(
-    _Out_ HANDLE *Socket
-    )
-{
-    return XdpApi->XskCreate(Socket);
-}
-
-XDP_STATUS
-CxPlatXdpCreateProgram(
+CxPlatXdpCreateProgramEx(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -63,14 +54,17 @@ CxPlatXdpCreateProgram(
     )
 {
     return
-        XdpApi->XdpCreateProgram(
-            InterfaceIndex,
-            HookId,
-            QueueId,
-            Flags,
-            Rules,
-            RuleCount,
-            Program);
+        XdpHlpCreateProgram(
+            InterfaceIndex, HookId, QueueId,
+            Flags, Rules, RuleCount, Program);
+}
+
+XDP_STATUS
+CxPlatXskCreateEx(
+    _Out_ HANDLE *Socket
+    )
+{
+    return XdpHlpXskCreate(Socket);
 }
 
 VOID

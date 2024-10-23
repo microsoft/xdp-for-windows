@@ -10,6 +10,7 @@
 #include <initguid.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
+#include <xdpapi_helper.h>
 #include "cxplat.h"
 #include "platform_kernel.h"
 #include "xskbench_common.h"
@@ -17,10 +18,6 @@
 #include "trace.h"
 #include "xskbenchdrvioctl.h"
 #include "driver.tmh"
-
-static XDP_API_CLIENT XdpApiContext = {0};
-XDP_API_PROVIDER_DISPATCH *XdpApi;
-XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 
 static DEVICE_OBJECT *XskBenchDrvDeviceObject;
 static BOOLEAN IsDeviceOpened;
@@ -63,8 +60,8 @@ CxPlatXdpApiInitialize(
     const INT64 TimeoutMs = 1000;
 
     Status =
-        XdpOpenApi(XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback, &XdpFuncXdpApiClientDispatch,
-                   &TimeoutMs, &XdpApiContext, &XdpApi, &XdpApiProviderBindingContext);
+        XdpHlpOpenApi(XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback,
+                      &XdpFuncXdpApiClientDispatch, &TimeoutMs);
 
     if (!NT_SUCCESS(Status)) {
         goto Done;
@@ -86,7 +83,7 @@ CxPlatXdpApiUninitialize(
 
     TraceEnter(TRACE_CONTROL, "-");
 
-    XdpUnloadApi(&XdpApiContext);
+    XdpHlpCloseApi();
 
     TraceExitStatus(TRACE_CONTROL);
 
@@ -94,18 +91,7 @@ CxPlatXdpApiUninitialize(
 }
 
 XDP_STATUS
-CxPlatXskCreate(
-    _Out_ HANDLE *Socket
-    )
-{
-    return XdpApi->XskCreate(
-                XdpApiProviderBindingContext,
-                NULL, NULL, NULL,
-                Socket);
-}
-
-XDP_STATUS
-CxPlatXdpCreateProgram(
+CxPlatXdpCreateProgramEx(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -115,15 +101,18 @@ CxPlatXdpCreateProgram(
     _Out_ HANDLE *Program
     )
 {
-    return XdpApi->XdpCreateProgram(
-        XdpApiProviderBindingContext,
-        InterfaceIndex,
-        HookId,
-        QueueId,
-        Flags,
-        Rules,
-        RuleCount,
-        Program);
+    return
+        XdpHlpCreateProgram(
+            InterfaceIndex, HookId, QueueId,
+            Flags, Rules, RuleCount, Program);
+}
+
+XDP_STATUS
+CxPlatXskCreateEx(
+    _Out_ HANDLE *Socket
+    )
+{
+    return XdpHlpXskCreate(NULL, NULL, NULL, Socket);
 }
 
 VOID
@@ -144,11 +133,11 @@ CxPlatQueueCleanup(
     )
 {
     if (Queue->rxProgram != NULL) {
-        XdpApi->XdpCloseHandle(Queue->rxProgram);
+        XdpHlpCloseHandle(Queue->rxProgram);
         Queue->rxProgram = NULL;
     }
     if (Queue->sock != NULL) {
-        XdpApi->XdpCloseHandle(Queue->sock);
+        XdpHlpCloseHandle(Queue->sock);
         Queue->sock = NULL;
     }
 

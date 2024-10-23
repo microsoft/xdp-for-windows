@@ -234,7 +234,7 @@ static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
 static const XDP_API_PROVIDER_BINDING_CONTEXT *XdpApiProviderBindingContext;
 static const XDP_API_PROVIDER_DISPATCH *XdpApi;
 #else
-static unique_xdp_api XdpApi;
+unique_xdp_api XdpApi = nullptr;
 #endif
 
 #ifndef _KERNEL_MODE
@@ -799,10 +799,6 @@ SetDeviceSddl(
     sprintf_s(CmdBuff, "xdpcfg.exe SetDeviceSddl \"%s\"", Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
-
-#endif
-
-#ifndef _KERNEL_MODE
 
 static
 HRESULT
