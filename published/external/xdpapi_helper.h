@@ -14,12 +14,10 @@ extern "C" {
 #if defined(_KERNEL_MODE)
 
 static const XDP_API_CLIENT _XdpApiContext = {0};
-static const XDP_API_PROVIDER_DISPATCH *_XdpApi;
-static const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext;
 
+#define _XdpApi _XdpApiContext.XdpApiProviderDispatch
 #define API_ABSTRACTION(FunctionCall, ...)  \
-        _XdpApi->FunctionCall((XDP_API_PROVIDER_BINDING_CONTEXT *)_ProviderBindingContext, \
-                              (XDP_API_CLIENT *)&_XdpApiContext, __VA_ARGS__)
+        _XdpApi->FunctionCall((XDP_API_CLIENT *)&_XdpApiContext, __VA_ARGS__)
 
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -33,6 +31,8 @@ XdpHlpOpenApi(
     _In_ const INT64 *_TimeoutMs
     )
 {
+    static const XDP_API_PROVIDER_DISPATCH *_XdpApiDispatch; // dummy
+    static const XDP_API_PROVIDER_BINDING_CONTEXT *_ProviderBindingContext; // dummy
     return
         XdpOpenApi(
             _XdpApiVersion,
@@ -42,7 +42,7 @@ XdpHlpOpenApi(
             _XdpApiClientDispatch,
             _TimeoutMs,
             (XDP_API_CLIENT *)&_XdpApiContext,
-            (XDP_API_PROVIDER_DISPATCH **)&_XdpApi,
+            (XDP_API_PROVIDER_DISPATCH **)&_XdpApiDispatch,
             (XDP_API_PROVIDER_BINDING_CONTEXT **)&_ProviderBindingContext);
 }
 
@@ -63,11 +63,11 @@ XdpHlpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
-    if (!ExAcquireRundownProtectionCacheAware(_XdpApiContext.RundownRef)) {
+    if (!ExAcquireRundownProtection(_XdpApiContext.RundownRef)) {
         return NULL;
     }
     VOID* Routine = _XdpApi->XdpGetRoutine(RoutineName);
-    ExReleaseRundownProtectionCacheAware(_XdpApiContext.RundownRef);
+    ExReleaseRundownProtection(_XdpApiContext.RundownRef);
     return Routine;
 }
 
@@ -91,7 +91,7 @@ XdpHlpCloseHandle(
     _In_ HANDLE Handle
     )
 {
-    _XdpApi->XdpCloseHandle(Handle);
+    _XdpApi->XdpCloseHandle(Handle, (XDP_API_CLIENT *)&_XdpApiContext);
 }
 
 inline

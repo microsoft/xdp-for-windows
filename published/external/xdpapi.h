@@ -28,14 +28,12 @@ C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
 #if defined(_KERNEL_MODE)
 
-#define _XDP_POOLTAG_RUNDOWN 'RpdX'
 typedef struct _XDP_API_CLIENT XDP_API_CLIENT;
 
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
-    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
@@ -50,7 +48,6 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_INTERFACE_OPEN_FN(
-    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
@@ -126,7 +123,8 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_CLOSE_HANDLE_FN(
-    _In_ HANDLE Handle
+    _In_ HANDLE Handle,
+    _In_ XDP_API_CLIENT *Client
     );
 
 DEFINE_GUID(
@@ -299,7 +297,7 @@ typedef struct _XDP_API_CLIENT {
     //
     // Rundown protection for API calls.
     //
-    PEX_RUNDOWN_REF_CACHE_AWARE RundownRef;
+    PEX_RUNDOWN_REF RundownRef;
 
     // Unblock registering thread when binding is complete.
     //
@@ -387,6 +385,11 @@ XdpCleanupClientRegistration(
 {
     NTSTATUS _Status;
 
+    if (_Client->RundownRef != NULL) {
+        ExWaitForRundownProtectionRelease(_Client->RundownRef);
+        _Client->RundownRef = NULL;
+    }
+
     if (_Client->NmrClientHandle != NULL) {
         KeSetEvent(&_Client->AttachEvent, 0, FALSE);
 
@@ -399,12 +402,6 @@ XdpCleanupClientRegistration(
         if (!NT_VERIFY(_Status == STATUS_SUCCESS)) {
             RtlFailFast(FAST_FAIL_INVALID_ARG);
         }
-    }
-
-    if (_Client->RundownRef != NULL) {
-        ExWaitForRundownProtectionReleaseCacheAware(_Client->RundownRef);
-        ExFreeCacheAwareRundownProtection(_Client->RundownRef);
-        _Client->RundownRef = NULL;
     }
 
     CxPlatLockUninitialize(&_Client->Lock);
@@ -433,7 +430,7 @@ XdpRegister(
         goto Exit;
     }
 
-    _Client->RundownRef = ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, _XDP_POOLTAG_RUNDOWN);
+    ExInitializeRundownProtection(_Client->RundownRef);
     if (_Client->RundownRef == NULL) {
         _Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;

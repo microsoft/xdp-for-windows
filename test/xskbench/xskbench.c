@@ -242,7 +242,6 @@ AttachXdpProgram(
     ASSERT_FRE(hookSize == sizeof(hookId));
 
     res =
-        // CxPlatXdpCreateProgramEx(
         XdpHlpCreateProgram(
             ifindex, &hookId, Queue->queueId,
             flags, &rule, 1, &Queue->rxProgram);
