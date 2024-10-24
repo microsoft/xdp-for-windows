@@ -69,7 +69,11 @@
 #include <xdpndisuser.h>
 #endif _KERNEL_MODE
 
+#ifdef _KERNEL_MODE
+#include <trace.h>
+#else
 #include <fntrace.h>
+#endif
 #include <qeo_ndis.h>
 
 #ifndef _KERNEL_MODE

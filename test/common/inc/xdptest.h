@@ -15,10 +15,10 @@
 #ifdef _KERNEL_MODE
 #define TEST_FAILURE(Format, ...) LogTestFailure(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__)
 #else
-#define TEST_FAILURE(Format, ...) { \
+#define TEST_FAILURE(Format, ...) do { \
     LogTestFailure(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__); \
     StopTest(); \
-}
+} while (0)
 #endif
 
 #define TEST_WARNING(Format, ...) LogTestWarning(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__)

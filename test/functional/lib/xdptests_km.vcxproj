@@ -13,6 +13,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\km;
         $(SolutionDir)test\functional\inc;
         $(SolutionDir)submodules\wil\include;
         $(SolutionDir)submodules\cxplat\inc;
