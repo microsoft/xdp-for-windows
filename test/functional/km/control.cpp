@@ -9,6 +9,7 @@ Abstract:
 
 --*/
 
+#include <ntifs.h>
 #include <ntddk.h>
 #include <wdf.h>
 #include <ntstrsafe.h>
@@ -20,7 +21,7 @@ Abstract:
 
 #include "tests.h"
 #include "xdpfunctionaltestdrvioctl.h"
-#include "fntrace.h"
+#include "trace.h"
 
 #include "control.tmh"
 
@@ -478,6 +479,13 @@ Return Value:
     TraceError(
         "[fnkt] FAIL: %S",
         Buffer);
+
+
+    PVOID Stack[16];
+    USHORT Frames = RtlCaptureStackBackTrace(0, 16, Stack, NULL);
+    for (USHORT i = 0; i < Frames; i++) {
+        DoTraceMessage(TRACE_FUNCTIONAL, "Stack frame %d: %p", i, Stack[i]);
+    }
 
 #if BREAK_TEST
     NT_FRE_ASSERT(FALSE);

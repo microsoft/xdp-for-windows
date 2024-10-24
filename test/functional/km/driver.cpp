@@ -12,7 +12,7 @@ Abstract:
 #include <ntddk.h>
 #include <wdf.h>
 #include "cxplat.h"
-#include "fntrace.h"
+#include "trace.h"
 
 #include "driver.tmh"
 
