@@ -15,18 +15,18 @@
 
 VOID
 CxPlatXdpApiInitialize(
-    VOID
+    _Out_ const XDP_API_TABLE **XdpApi
     )
 {
-    ASSERT_FRE(SUCCEEDED(XdpHlpOpenApi(XDP_API_VERSION_LATEST)));
+    ASSERT_FRE(SUCCEEDED(XdpHlpOpenApi(XDP_API_VERSION_LATEST, XdpApi)));
 }
 
 VOID
 CxPlatXdpApiUninitialize(
-    VOID
+    _In_ XDP_API_TABLE *XdpApi
     )
 {
-    XdpHlpCloseApi();
+    XdpHlpCloseApi(XdpApi);
 }
 
 BOOL
@@ -44,10 +44,11 @@ ConsoleCtrlHandler(
 
 XDP_STATUS
 CxPlatXskCreateEx(
+    _In_ XDP_API_CLIENT *XdpApi,
     _Out_ HANDLE *Socket
     )
 {
-    return XdpHlpXskCreate(Socket);
+    return XdpHlpXskCreate(XdpApi, Socket);
 }
 
 VOID
@@ -60,9 +61,11 @@ CxPlatPrintStats(
 
 VOID
 CxPlatQueueCleanup(
+    _In_ XDP_API_CLIENT *XdpApi,
     MY_QUEUE *Queue
     )
 {
+    UNREFERENCED_PARAMETER(XdpApi);
     if (Queue->umemReg.Address != NULL) {
         CXPLAT_VIRTUAL_FREE(Queue->umemReg.Address, 0, MEM_RELEASE, POOLTAG_UMEM);
         Queue->umemReg.Address = NULL;

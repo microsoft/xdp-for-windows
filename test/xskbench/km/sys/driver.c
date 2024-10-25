@@ -26,6 +26,7 @@ static HANDLE MainThread;
 static int Argc;
 static char **Argv;
 
+static
 _IRQL_requires_max_(DISPATCH_LEVEL)
 XDP_STATUS
 XdpFuncXskNotifyCallback(
@@ -42,6 +43,7 @@ static const XDP_API_CLIENT_DISPATCH XdpFuncXdpApiClientDispatch = {
     XdpFuncXskNotifyCallback
 };
 
+static
 VOID
 DetachCallback(
     _In_ VOID *ClientContext
@@ -52,21 +54,29 @@ DetachCallback(
 
 VOID
 CxPlatXdpApiInitialize(
-    VOID
+    _Out_ const XDP_API_CLIENT **Client
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;
     TraceEnter(TRACE_CONTROL, "-");
     const INT64 TimeoutMs = 1000;
 
+    *Client = NULL;
+
+    XDP_API_CLIENT *_Client = ExAllocatePool2(NonPagedPoolNx, sizeof(XDP_API_CLIENT), POOLTAG_API);
+    if (_Client == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Done;
+    }
+
     Status =
         XdpHlpOpenApi(XDP_API_VERSION_LATEST, NULL, NULL, &DetachCallback,
-                      &XdpFuncXdpApiClientDispatch, &TimeoutMs);
-
+                      &XdpFuncXdpApiClientDispatch, &TimeoutMs, _Client);
     if (!NT_SUCCESS(Status)) {
         goto Done;
     }
 
+    *Client = _Client;
 Done:
 
     TraceExitStatus(TRACE_CONTROL);
@@ -76,14 +86,15 @@ Done:
 
 VOID
 CxPlatXdpApiUninitialize(
-    VOID
+    _In_ XDP_API_CLIENT *Client
     )
 {
     NTSTATUS Status = STATUS_SUCCESS;
 
     TraceEnter(TRACE_CONTROL, "-");
 
-    XdpHlpCloseApi();
+    XdpHlpCloseApi(Client);
+    ExFreePool(Client);
 
     TraceExitStatus(TRACE_CONTROL);
 
@@ -92,10 +103,11 @@ CxPlatXdpApiUninitialize(
 
 XDP_STATUS
 CxPlatXskCreateEx(
+    _In_ XDP_API_CLIENT *Client,
     _Out_ HANDLE *Socket
     )
 {
-    return XdpHlpXskCreate(NULL, NULL, NULL, Socket);
+    return XdpHlpXskCreate(Client, NULL, NULL, NULL, Socket);
 }
 
 VOID
@@ -112,15 +124,16 @@ CxPlatPrintStats(
 
 VOID
 CxPlatQueueCleanup(
+    _In_ XDP_API_CLIENT *Client,
     MY_QUEUE *Queue
     )
 {
     if (Queue->rxProgram != NULL) {
-        XdpHlpCloseHandle(Queue->rxProgram);
+        XdpHlpCloseHandle(Queue->rxProgram, Client);
         Queue->rxProgram = NULL;
     }
     if (Queue->sock != NULL) {
-        XdpHlpCloseHandle(Queue->sock);
+        XdpHlpCloseHandle(Queue->sock, Client);
         Queue->sock = NULL;
     }
 

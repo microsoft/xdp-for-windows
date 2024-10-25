@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 #include <xdpapi.h>
+#include <xdpapi_helper.h>
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include "cxplat.h"
@@ -20,6 +21,7 @@ extern "C" {
 #define POOLTAG_QUEUES              'sQbX' // XbQs
 #define POOLTAG_THREADS             'sTbX' // XbTs
 #define POOLTAG_UMEM                'mUbX' // XbUm
+#define POOLTAG_API                 'pAbX' // XbAp
 
 #define STATS_ARRAY_SIZE 60
 
@@ -79,16 +81,17 @@ typedef struct _MY_QUEUE {
 
 VOID
 CxPlatXdpApiInitialize(
-    VOID
+    _Out_ const XDP_API_CLIENT **XdpApi
     );
 
 VOID
 CxPlatXdpApiUninitialize(
-    VOID
+    _In_ XDP_API_CLIENT *XdpApi
     );
 
 XDP_STATUS
 CxPlatXskCreateEx(
+    _In_ XDP_API_CLIENT *Client,
     _Out_ HANDLE *Socket
     );
 
@@ -105,6 +108,7 @@ CxPlatPrintStats(
 
 VOID
 CxPlatQueueCleanup(
+    _In_ XDP_API_CLIENT *Client,
     MY_QUEUE *Queue
     );
 
