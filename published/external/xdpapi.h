@@ -34,7 +34,6 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_CREATE_PROGRAM_FN(
-    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -48,7 +47,6 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XDP_INTERFACE_OPEN_FN(
-    _In_ XDP_API_CLIENT *Client,
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );
@@ -123,8 +121,7 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_CLOSE_HANDLE_FN(
-    _In_ HANDLE Handle,
-    _In_ XDP_API_CLIENT *Client
+    _In_ HANDLE Handle
     );
 
 DEFINE_GUID(

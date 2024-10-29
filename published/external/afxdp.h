@@ -63,7 +63,7 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XSK_CREATE_FN(
-    _In_ XDP_API_CLIENT *ApiClient,
+    _In_ XDP_API_PROVIDER_BINDING_CONTEXT *ProviderBindingContext,
     _In_opt_ PEPROCESS OwningProcess,
     _In_opt_ PETHREAD OwningThread,
     _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,

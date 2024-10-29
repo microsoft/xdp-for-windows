@@ -14,8 +14,6 @@ extern "C" {
 #if defined(_KERNEL_MODE)
 
 #define XDPHLP_API_TABLE XdpApi->XdpApiProviderDispatch
-#define API_ABSTRACTION(FunctionCall, ...)  \
-        XDPHLP_API_TABLE->FunctionCall((XDP_API_CLIENT *)XdpApi, __VA_ARGS__)
 
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -57,18 +55,70 @@ XdpHlpCloseApi(
 
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpHlpXskCreate(
+    _In_ const XDP_API_CLIENT *XdpApi,
+    _In_opt_ PEPROCESS OwningProcess,
+    _In_opt_ PETHREAD OwningThread,
+    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+    _Out_ HANDLE *Socket
+    );
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpHlpCreateProgram(
+    _In_ const XDP_API_CLIENT *XdpApi,
+    _In_ UINT32 InterfaceIndex,
+    _In_ const XDP_HOOK_ID *HookId,
+    _In_ UINT32 QueueId,
+    _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
+    _In_ UINT32 RuleCount,
+    _Out_ HANDLE *Program
+    );
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpHlpInterfaceOpen(
+    _In_ const XDP_API_CLIENT *XdpApi,
+    _In_ UINT32 InterfaceIndex,
+    _Out_ HANDLE *InterfaceHandle
+    );
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpHlpCloseHandle(
+    _In_ const XDP_API_CLIENT *XdpApi,
+    _In_ HANDLE Handle
+    );
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID*
 XdpHlpGetRoutine(
     _In_ const XDP_API_CLIENT *XdpApi,
     _In_z_ const CHAR* RoutineName
     )
 {
-    if (!ExAcquireRundownProtection(XdpApi->RundownRef)) {
-        return NULL;
+    static const struct {
+        const CHAR *RoutineName;
+        VOID *Routine;
+    } XdpHlpRoutines[] = {
+        { "XskCreate", (VOID*)XdpHlpXskCreate },
+        { "XdpCreateProgram", (VOID*)XdpHlpCreateProgram },
+        { "XdpInterfaceOpen", (VOID*)XdpHlpInterfaceOpen },
+        { "XdpCloseHandle", (VOID*)XdpHlpCloseHandle },
+    };
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpHlpRoutines); i++) {
+        if (strcmp(XdpHlpRoutines[i].RoutineName, RoutineName) == 0) {
+            return XdpHlpRoutines[i].Routine;
+        }
     }
-    VOID* Routine = XDPHLP_API_TABLE->XdpGetRoutine(RoutineName);
-    ExReleaseRundownProtection(XdpApi->RundownRef);
-    return Routine;
+
+    return XDPHLP_API_TABLE->XdpGetRoutine(RoutineName);
 }
 
 inline
@@ -93,7 +143,8 @@ XdpHlpCloseHandle(
     _In_ HANDLE Handle
     )
 {
-    XDPHLP_API_TABLE->XdpCloseHandle(Handle, (XDP_API_CLIENT *)XdpApi);
+    XDPHLP_API_TABLE->XdpCloseHandle(Handle);
+    ExReleaseRundownProtection(XdpApi->RundownRef);
 }
 
 inline
@@ -107,26 +158,89 @@ XdpHlpXskCreate(
     _Out_ HANDLE *Socket
     )
 {
-    return
-        API_ABSTRACTION(
-            XskCreate,
-            OwningProcess,
-            OwningThread,
-            SecurityDescriptor,
-            Socket);
+    XDP_STATUS Status;
+    if (!ExAcquireRundownProtection(XdpApi->RundownRef)) {
+        return STATUS_DEVICE_NOT_READY;
+    } else {
+        Status =
+            XDPHLP_API_TABLE->XskCreate(
+                XdpApi->XdpApiProviderContext,
+                OwningProcess,
+                OwningThread,
+                SecurityDescriptor,
+                Socket);
+        if (!NT_SUCCESS(Status)) {
+            ExReleaseRundownProtection(XdpApi->RundownRef);
+        }
+    }
+    return Status;
+}
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpHlpCreateProgram(
+    _In_ const XDP_API_CLIENT *XdpApi,
+    _In_ UINT32 InterfaceIndex,
+    _In_ const XDP_HOOK_ID *HookId,
+    _In_ UINT32 QueueId,
+    _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
+    _In_reads_(RuleCount) const XDP_RULE *Rules,
+    _In_ UINT32 RuleCount,
+    _Out_ HANDLE *Program
+    )
+{
+    XDP_STATUS Status;
+    if (!ExAcquireRundownProtection(XdpApi->RundownRef)) {
+        return STATUS_DEVICE_NOT_READY;
+    } else {
+        Status =
+            XDPHLP_API_TABLE->XdpCreateProgram(
+                InterfaceIndex,
+                HookId,
+                QueueId,
+                Flags,
+                Rules,
+                RuleCount,
+                Program);
+        if (!NT_SUCCESS(Status)) {
+            ExReleaseRundownProtection(XdpApi->RundownRef);
+        }
+    }
+    return Status;
+}
+
+inline
+_IRQL_requires_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpHlpInterfaceOpen(
+    _In_ const XDP_API_CLIENT *XdpApi,
+    _In_ UINT32 InterfaceIndex,
+    _Out_ HANDLE *InterfaceHandle
+    )
+{
+    XDP_STATUS Status;
+    if (!ExAcquireRundownProtection(XdpApi->RundownRef)) {
+        return STATUS_DEVICE_NOT_READY;
+    } else {
+        Status = XDPHLP_API_TABLE->XdpInterfaceOpen(InterfaceIndex, InterfaceHandle);
+        if (!NT_SUCCESS(Status)) {
+            ExReleaseRundownProtection(XdpApi->RundownRef);
+        }
+    }
+    return Status;
 }
 
 #else
 
 #define XDP_API_CLIENT XDP_API_TABLE
 #define XDPHLP_API_TABLE XdpApi
-#define API_ABSTRACTION(FunctionCall, ...) XDPHLP_API_TABLE->FunctionCall(__VA_ARGS__)
 
 inline
 HRESULT
 XdpHlpOpenApi(
     _In_ UINT32 XdpApiVersion,
-    _Out_ const XDP_API_TABLE **XdpApi
+    _Out_ const XDP_API_CLIENT **XdpApi
     )
 {
     return XdpOpenApi(XdpApiVersion, XdpApi);
@@ -135,7 +249,7 @@ XdpHlpOpenApi(
 inline
 VOID
 XdpHlpCloseApi(
-    _In_ const XDP_API_TABLE *XdpApi
+    _In_ const XDP_API_CLIENT *XdpApi
     )
 {
     XdpCloseApi(XdpApi);
@@ -144,7 +258,7 @@ XdpHlpCloseApi(
 inline
 VOID*
 XdpHlpGetRoutine(
-    _In_ const XDP_API_TABLE *XdpApi,
+    _In_ const XDP_API_CLIENT *XdpApi,
     _In_z_ const CHAR* RoutineName
     )
 {
@@ -155,14 +269,12 @@ inline
 _IRQL_requires_(PASSIVE_LEVEL)
 XDP_STATUS
 XdpHlpXskCreate(
-    _In_ const XDP_API_TABLE *XdpApi,
+    _In_ const XDP_API_CLIENT *XdpApi,
     _Out_ HANDLE *Socket
     )
 {
     return XDPHLP_API_TABLE->XskCreate(Socket);
 }
-
-#endif // defined(_KERNEL_MODE)
 
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -179,8 +291,7 @@ XdpHlpCreateProgram(
     )
 {
     return
-        API_ABSTRACTION(
-            XdpCreateProgram,
+        XDPHLP_API_TABLE->XdpCreateProgram(
             InterfaceIndex,
             HookId,
             QueueId,
@@ -200,11 +311,12 @@ XdpHlpInterfaceOpen(
     )
 {
     return
-        API_ABSTRACTION(
-            XdpInterfaceOpen,
+        XDPHLP_API_TABLE->XdpInterfaceOpen(
             InterfaceIndex,
             InterfaceHandle);
 }
+
+#endif // defined(_KERNEL_MODE)
 
 inline
 _IRQL_requires_(PASSIVE_LEVEL)
