@@ -103,21 +103,8 @@ XdpHlpGetRoutine(
     _In_z_ const CHAR* RoutineName
     )
 {
-    static const struct {
-        const CHAR *RoutineName;
-        VOID *Routine;
-    } XdpHlpRoutines[] = {
-        { "XskCreate", (VOID*)XdpHlpXskCreate },
-        { "XdpCreateProgram", (VOID*)XdpHlpCreateProgram },
-        { "XdpInterfaceOpen", (VOID*)XdpHlpInterfaceOpen },
-        { "XdpCloseHandle", (VOID*)XdpHlpCloseHandle },
-    };
-    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpHlpRoutines); i++) {
-        if (strcmp(XdpHlpRoutines[i].RoutineName, RoutineName) == 0) {
-            return XdpHlpRoutines[i].Routine;
-        }
-    }
-
+    // WARN: calling routines (XskCreate XdpCreateProgram XdpInterfaceOpen and XdpCloseHandle)
+    //       must be protected by ExAcquireRundownProtection from the caller
     return XDPHLP_API_TABLE->XdpGetRoutine(RoutineName);
 }
 
