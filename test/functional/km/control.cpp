@@ -25,6 +25,8 @@ Abstract:
 
 #include "control.tmh"
 
+extern PDRIVER_OBJECT GlobalDriverObject;
+
 DECLARE_CONST_UNICODE_STRING(TestDrvCtlDeviceName, L"\\Device\\" FUNCTIONAL_TEST_DRIVER_NAME);
 DECLARE_CONST_UNICODE_STRING(TestDrvCtlDeviceSymLink, L"\\DosDevices\\" FUNCTIONAL_TEST_DRIVER_NAME);
 
@@ -481,10 +483,15 @@ Return Value:
         Buffer);
 
 
-    PVOID Stack[16];
-    USHORT Frames = RtlCaptureStackBackTrace(0, 16, Stack, NULL);
+    static const FrameDepth = 16;
+    PVOID Stack[FrameDepth];
+    USHORT Frames = RtlCaptureStackBackTrace(0, FrameDepth, Stack, NULL);
     for (USHORT i = 0; i < Frames; i++) {
-        DoTraceMessage(TRACE_FUNCTIONAL, "Stack frame %d: %p", i, Stack[i]);
+#pragma push
+#pragma warning(suppress:28175)
+        DoTraceMessage(TRACE_FUNCTIONAL, "xdpfntest.sys+%p",
+            (PVOID)((UINT64)Stack[i] - (UINT64)GlobalDriverObject->DriverStart));
+#pragma pop
     }
 
 #if BREAK_TEST
