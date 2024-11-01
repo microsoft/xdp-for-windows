@@ -45,6 +45,7 @@ XDP_OPEN_API_FN(
     _Out_ const XDP_API_TABLE **XdpApiTable
     );
 
+__declspec(deprecated("Use XDP_API_VERSION_3 or greater"))
 XDPAPI XDP_OPEN_API_FN XdpOpenApi;
 
 typedef
@@ -83,6 +84,7 @@ typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
 #if !defined(_KERNEL_MODE)
 
 inline
+__declspec(deprecated("Use XDP_API_VERSION_3 or greater"))
 HRESULT
 XdpLoadApi(
     _In_ UINT32 XdpApiVersion,
