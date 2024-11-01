@@ -16,11 +16,11 @@ XskCreateVersion(
     BOOL Res;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH];
 
-    XdpInitializeEaVersion(XDP_OBJECT_TYPE_XSK, ApiVersion, EaBuffer, sizeof(EaBuffer));
+    _XdpInitializeEaVersion(XDP_OBJECT_TYPE_XSK, ApiVersion, EaBuffer, sizeof(EaBuffer));
 
-    *Socket = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (*Socket == NULL) {
-        return HRESULT_FROM_WIN32(GetLastError());
+    Res = _XdpOpen(Socket, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    if (FAILED(Res)) {
+        return Res;
     }
 
     Res =
@@ -57,15 +57,14 @@ XskBind(
     _In_ XSK_BIND_FLAGS Flags
     )
 {
-    BOOL Res;
     XSK_BIND_IN Bind = {0};
 
     Bind.IfIndex = IfIndex;
     Bind.QueueId = QueueId;
     Bind.Flags = Flags;
 
-    Res =
-        XdpIoctl(
+    return
+        _XdpIoctl(
             Socket,
             IOCTL_XSK_BIND,
             &Bind,
@@ -75,11 +74,6 @@ XskBind(
             NULL,
             NULL,
             TRUE);
-    if (Res == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
 }
 
 HRESULT
@@ -88,13 +82,12 @@ XskActivate(
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
 {
-    BOOL Res;
     XSK_ACTIVATE_IN Activate = {0};
 
     Activate.Flags = Flags;
 
-    Res =
-        XdpIoctl(
+    return
+        _XdpIoctl(
             Socket,
             IOCTL_XSK_ACTIVATE,
             &Activate,
@@ -104,11 +97,6 @@ XskActivate(
             NULL,
             NULL,
             TRUE);
-    if (Res == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
 }
 
 HRESULT
@@ -119,15 +107,14 @@ XskSetSockopt(
     _In_ UINT32 OptionLength
     )
 {
-    BOOL Res;
     XSK_SET_SOCKOPT_IN Sockopt = {0};
 
     Sockopt.Option = OptionName;
     Sockopt.InputBuffer = OptionValue;
     Sockopt.InputBufferLength = OptionLength;
 
-    Res =
-        XdpIoctl(
+    return
+        _XdpIoctl(
             Socket,
             IOCTL_XSK_SET_SOCKOPT,
             &Sockopt,
@@ -137,11 +124,6 @@ XskSetSockopt(
             NULL,
             NULL,
             FALSE);
-    if (Res == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
 }
 
 HRESULT
@@ -152,11 +134,11 @@ XskGetSockopt(
     _Inout_ UINT32 *OptionLength
     )
 {
-    BOOL Res;
+    HRESULT Res;
     DWORD BytesReturned;
 
     Res =
-        XdpIoctl(
+        _XdpIoctl(
             Socket,
             IOCTL_XSK_GET_SOCKOPT,
             &OptionName,
@@ -166,8 +148,8 @@ XskGetSockopt(
             &BytesReturned,
             NULL,
             FALSE);
-    if (Res == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
+    if (FAILED(Res)) {
+        return Res;
     }
 
     *OptionLength = BytesReturned;
@@ -203,7 +185,7 @@ XskNotifySocket(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    BOOL Res;
+    HRESULT Res;
     DWORD BytesReturned;
     XSK_NOTIFY_IN Notify = {0};
 
@@ -211,7 +193,7 @@ XskNotifySocket(
     Notify.WaitTimeoutMilliseconds = WaitTimeoutMilliseconds;
 
     Res =
-        XdpIoctl(
+        _XdpIoctl(
             Socket,
             IOCTL_XSK_NOTIFY,
             &Notify,
@@ -221,8 +203,8 @@ XskNotifySocket(
             &BytesReturned,
             NULL,
             FALSE);
-    if (Res == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
+    if (FAILED(Res)) {
+        return Res;
     }
 
     *Result = BytesReturned;
@@ -237,15 +219,14 @@ XskNotifyAsync(
     _Inout_ OVERLAPPED *Overlapped
     )
 {
-    BOOL Res;
     DWORD BytesReturned;
     XSK_NOTIFY_IN Notify = {0};
 
     Notify.Flags = Flags;
     Notify.WaitTimeoutMilliseconds = INFINITE;
 
-    Res =
-        XdpIoctl(
+    return
+        _XdpIoctl(
             Socket,
             IOCTL_XSK_NOTIFY_ASYNC,
             &Notify,
@@ -255,11 +236,6 @@ XskNotifyAsync(
             &BytesReturned,
             Overlapped,
             TRUE);
-    if (Res == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
 }
 
 HRESULT

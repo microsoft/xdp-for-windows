@@ -193,8 +193,9 @@ XdpCreateProgram(
 {
     XDP_PROGRAM_OPEN *ProgramOpen;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*ProgramOpen)];
+    HRESULT Res;
 
-    ProgramOpen = XdpInitializeEa(XDP_OBJECT_TYPE_PROGRAM, EaBuffer, sizeof(EaBuffer));
+    ProgramOpen = _XdpInitializeEa(XDP_OBJECT_TYPE_PROGRAM, EaBuffer, sizeof(EaBuffer));
     ProgramOpen->IfIndex = InterfaceIndex;
     ProgramOpen->HookId = *HookId;
     ProgramOpen->QueueId = QueueId;
@@ -202,9 +203,9 @@ XdpCreateProgram(
     ProgramOpen->RuleCount = RuleCount;
     ProgramOpen->Rules = Rules;
 
-    *Program = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (*Program == NULL) {
-        return HRESULT_FROM_WIN32(GetLastError());
+    Res = _XdpOpen(Program, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    if (FAILED(Res)) {
+        return Res;
     }
 
     return S_OK;
@@ -218,14 +219,15 @@ XdpInterfaceOpen(
 {
     XDP_INTERFACE_OPEN *InterfaceOpen;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*InterfaceOpen)];
+    HRESULT Res;
 
     InterfaceOpen =
-        XdpInitializeEa(XDP_OBJECT_TYPE_INTERFACE, EaBuffer, sizeof(EaBuffer));
+        _XdpInitializeEa(XDP_OBJECT_TYPE_INTERFACE, EaBuffer, sizeof(EaBuffer));
     InterfaceOpen->IfIndex = InterfaceIndex;
 
-    *InterfaceHandle = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (*InterfaceHandle == NULL) {
-        return HRESULT_FROM_WIN32(GetLastError());
+    Res = _XdpOpen(InterfaceHandle, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    if (FAILED(Res)) {
+        return Res;
     }
 
     return S_OK;
@@ -239,7 +241,7 @@ XdpRssGetCapabilities(
     )
 {
     BOOL Success =
-        XdpIoctl(
+        _XdpIoctl(
             InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_GET_CAPABILITIES,
             NULL, 0, RssCapabilities, *RssCapabilitiesSize,
             (ULONG *)RssCapabilitiesSize, NULL, TRUE);
@@ -258,7 +260,7 @@ XdpRssSet(
     )
 {
     BOOL Success =
-        XdpIoctl(
+        _XdpIoctl(
             InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_SET,
             (XDP_RSS_CONFIGURATION *)RssConfiguration, RssConfigurationSize,
             NULL, 0, NULL, NULL, TRUE);
@@ -277,7 +279,7 @@ XdpRssGet(
     )
 {
     BOOL Success =
-        XdpIoctl(
+        _XdpIoctl(
             InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_GET, NULL, 0, RssConfiguration,
             *RssConfigurationSize, (ULONG *)RssConfigurationSize, NULL, TRUE);
     if (!Success) {
@@ -295,7 +297,7 @@ XdpQeoSet(
     )
 {
     BOOL Success =
-        XdpIoctl(
+        _XdpIoctl(
             InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_QEO_SET,
             QuicConnections, QuicConnectionsSize,
             QuicConnections, QuicConnectionsSize,

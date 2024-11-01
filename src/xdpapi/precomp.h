@@ -10,16 +10,16 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <winternl.h>
+#include <ntstatus.h>
 #include <crtdbg.h>
 #include <ifdef.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 #include <xdpassert.h>
-#include <xdpioctl.h>
 #include <xdprtl.h>
 
-#include "ioctl.h"
-
-#ifndef STATUS_SUCCESS
-#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
-#endif
+//
+// Set the implicit API version to the original API version (v1).
+//
+#define XDP_API_VERSION XDP_API_VERSION_1
+#include <xdp/details/apiioctl.h>

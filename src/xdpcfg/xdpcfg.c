@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <xdpioctl.h>
+#include <xdp/details/apiioctl.h>
 
 static
 VOID

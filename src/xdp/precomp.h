@@ -61,7 +61,6 @@
 #include <xdpassert.h>
 #include <xdpetw.h>
 #include <xdpif.h>
-#include <xdpioctl.h>
 #include <xdplwf.h>
 #include <xdppcw.h>
 #include <xdpnmrprovider.h>
@@ -75,6 +74,8 @@
 #include <xdptxqueue_internal.h>
 #include <xdpversion.h>
 #include <xdpworkqueue.h>
+
+#include <xdp/details/apiioctl.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 

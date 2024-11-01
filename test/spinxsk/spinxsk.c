@@ -17,7 +17,6 @@
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
-#include <xdpapi_internal.h>
 #include <xdprtl.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
