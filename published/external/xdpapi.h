@@ -15,6 +15,7 @@ extern "C" {
 //
 #include <xdp/wincommon.h>
 
+#include <xdp/apiversion.h>
 #include <xdp/hookid.h>
 #include <xdp/objectheader.h>
 #include <xdp/program.h>
@@ -23,17 +24,6 @@ extern "C" {
 #ifndef XDPAPI
 #define XDPAPI __declspec(dllimport)
 #endif
-
-#define XDP_API_VERSION_1 1
-#define XDP_API_VERSION_2 2
-#define XDP_API_VERSION_3 3
-
-//
-// This version is always the latest supported version.
-//
-// TODO: Update to XDP_API_VERSION_3 once it is stable.
-//
-#define XDP_API_VERSION_LATEST XDP_API_VERSION_2
 
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {
     XDP_CREATE_PROGRAM_FLAG_NONE = 0x0,
@@ -45,7 +35,7 @@ typedef enum _XDP_CREATE_PROGRAM_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XDP_CREATE_PROGRAM_FLAGS);
 C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
-#if !defined(XDP_API_VERSION) || (XDP_API_VERSION < XDP_API_VERSION_3)
+#if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
 #include <xdp/xdpapi_v1.h>
 #else
 

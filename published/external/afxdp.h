@@ -11,6 +11,7 @@
 //
 #include <xdp/wincommon.h>
 
+#include <xdp/apiversion.h>
 #include <xdp/hookid.h>
 
 #ifndef XDPAPI

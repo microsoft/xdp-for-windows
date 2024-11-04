@@ -241,7 +241,7 @@ XdpInitializeQuicConnection(
     XdpQuicConnection->Header.Size = XDP_SIZEOF_QUIC_CONNECTION_REVISION_1;
 }
 
-#if !defined(XDP_API_VERSION) || (XDP_API_VERSION < XDP_API_VERSION_3)
+#if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
 #include <xdp/xdpapi_experimental_v1.h>
 #else
 
