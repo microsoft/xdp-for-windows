@@ -98,9 +98,7 @@ _XdpInitializeEaVersion(
     FILE_FULL_EA_INFORMATION *EaHeader = EaBuffer;
     XDP_OPEN_PACKET *OpenPacket;
 
-    if (EaLength < XDP_OPEN_EA_LENGTH) {
-        __fastfail(FAST_FAIL_INVALID_ARG);
-    }
+    XDPAPI_ASSERT(EaLength < XDP_OPEN_EA_LENGTH);
 
     RtlZeroMemory(EaHeader, sizeof(*EaHeader));
     EaHeader->EaNameLength = sizeof(XDP_OPEN_PACKET_NAME) - 1;
