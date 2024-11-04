@@ -14,6 +14,7 @@ extern "C" {
 // This header declares the IOCTL interface for the XDP driver.
 //
 
+#include <xdp/details/apiassert.h>
 #include <xdp/details/ioctldef.h>
 #include <xdp/overlapped.h>
 #include <xdp/status.h>
@@ -41,9 +42,9 @@ _XdpConvertNtStatusToXdpStatus(
 #ifdef _KERNEL_MODE
     return Status;
 #else
-    if (Status != STATUS_SUCCESS) {
-        return HRESULT_FROM_WIN32(RtlNtStatusToDosError(Status));
-    }
+    return
+        (Status == STATUS_SUCCESS) ?
+            XDP_STATUS_SUCCESS : HRESULT_FROM_WIN32(RtlNtStatusToDosError(Status));
 #endif
 }
 
@@ -59,6 +60,8 @@ _XdpCreateEvent(
     *EventHandle = CreateEventW(NULL, FALSE, FALSE, NULL);
     if (*EventHandle == NULL) {
         return HRESULT_FROM_WIN32(RtlNtStatusToDosError(GetLastError()));
+    } else {
+        return XDP_STATUS_SUCCESS;
     }
 #endif
 }
@@ -212,7 +215,7 @@ _XdpIoctl(
                 XdpHandle, *Event, NULL, Overlapped, IoStatusBlock, Operation, InBuffer,
                 InBufferSize, OutBuffer, OutputBufferSize));
 
-    ASSERT(XdpStatus != XDP_STATUS_PENDING || MayPend);
+    XDPAPI_ASSERT(XdpStatus != XDP_STATUS_PENDING || MayPend);
 
     if (Event == &LocalEvent && XdpStatus == XDP_STATUS_PENDING) {
         XdpStatus = _XdpWaitInfinite(Event);

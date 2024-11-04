@@ -34,7 +34,7 @@ extern "C" {
 //
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN_XDP // Remember this header set WIN32_LEAN_AND_MEAN.
+#define WIN32_LEAN_AND_MEAN_XDP /* Remember this header set WIN32_LEAN_AND_MEAN. */
 #endif
 
 //

@@ -13,7 +13,7 @@ XskCreateVersion(
     _In_ UINT32 ApiVersion
     )
 {
-    BOOL Res;
+    HRESULT Res;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH];
 
     _XdpInitializeEaVersion(XDP_OBJECT_TYPE_XSK, ApiVersion, EaBuffer, sizeof(EaBuffer));
@@ -23,10 +23,8 @@ XskCreateVersion(
         return Res;
     }
 
-    Res =
-        SetFileCompletionNotificationModes(
-            *Socket, FILE_SKIP_SET_EVENT_ON_HANDLE);
-    if (Res == 0) {
+    if (!SetFileCompletionNotificationModes(*Socket, FILE_SKIP_SET_EVENT_ON_HANDLE)) {
+        _XdpCloseHandle(*Socket);
         return HRESULT_FROM_WIN32(GetLastError());
     }
 

@@ -29,9 +29,8 @@ XdpCreateProgram(
 {
     XDP_PROGRAM_OPEN *ProgramOpen;
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*ProgramOpen)];
-    XDP_STATUS Res;
 
-    ProgramOpen = XdpInitializeEa(XDP_OBJECT_TYPE_PROGRAM, EaBuffer, sizeof(EaBuffer));
+    ProgramOpen = _XdpInitializeEa(XDP_OBJECT_TYPE_PROGRAM, EaBuffer, sizeof(EaBuffer));
     ProgramOpen->IfIndex = InterfaceIndex;
     ProgramOpen->HookId = *HookId;
     ProgramOpen->QueueId = QueueId;
@@ -53,7 +52,7 @@ XdpInterfaceOpen(
     CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*InterfaceOpen)];
 
     InterfaceOpen =
-        XdpInitializeEa(XDP_OBJECT_TYPE_INTERFACE, EaBuffer, sizeof(EaBuffer));
+        _XdpInitializeEa(XDP_OBJECT_TYPE_INTERFACE, EaBuffer, sizeof(EaBuffer));
     InterfaceOpen->IfIndex = InterfaceIndex;
 
     return _XdpOpen(InterfaceHandle, FILE_CREATE, EaBuffer, sizeof(EaBuffer));

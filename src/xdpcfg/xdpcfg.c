@@ -3,9 +3,8 @@
 // Licensed under the MIT License.
 //
 
+#include <xdp/wincommon.h>
 #include <xdp/details/ioctldef.h>
-
-#include <windows.h>
 #include <setupapi.h>
 #include <stdio.h>
 #include <stdlib.h>

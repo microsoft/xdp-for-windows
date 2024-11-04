@@ -18,6 +18,10 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="xdpmp.rc">
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)published\external;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemGroup>

@@ -8,8 +8,8 @@
 
 // Windows and WIL includes need to be ordered in a certain way.
 #define NOMINMAX
-#include <winsock2.h>
 #include <xdp/wincommon.h>
+#include <winsock2.h>
 #pragma warning(push)
 #pragma warning(disable:4324) // structure was padded due to alignment specifier
 #include <ntddndis.h>

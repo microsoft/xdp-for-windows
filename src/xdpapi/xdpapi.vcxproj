@@ -43,6 +43,7 @@
   <ItemGroup>
     <ResourceCompile Include="xdpapi.rc">
       <AdditionalIncludeDirectories>
+          $(SolutionDir)published\external;
           $(SolutionDir)published\private;
           %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>

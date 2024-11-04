@@ -18,6 +18,7 @@ extern "C" {
 #include <xdp/hookid.h>
 #include <xdp/objectheader.h>
 #include <xdp/program.h>
+#include <xdp/status.h>
 
 #ifndef XDPAPI
 #define XDPAPI __declspec(dllimport)

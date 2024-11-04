@@ -20,7 +20,6 @@
 #define XDP_API_VERSION XDP_API_VERSION_1
 #include <xdp/details/ioctlfn.h>
 
-#include <winioctl.h>
 #include <winternl.h>
 #include <crtdbg.h>
 #include <ifdef.h>

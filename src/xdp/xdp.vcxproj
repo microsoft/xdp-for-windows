@@ -55,6 +55,7 @@
   <ItemGroup>
     <ResourceCompile Include="xdp.rc">
       <AdditionalIncludeDirectories>
+        $(SolutionDir)published\external;
         $(SolutionDir)published\private;
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdpetw\;
         $(SolutionDir)artifacts\obj\$(Platform)_$(Configuration)\xdppcw\;
