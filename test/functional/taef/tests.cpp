@@ -3,6 +3,8 @@
 // Licensed under the MIT License.
 //
 
+#include <xdpapi.h>
+
 #include <winsock2.h>
 
 //
@@ -15,7 +17,6 @@
 #pragma warning(pop)
 
 #include <CppUnitTest.h>
-#include <xdpapi.h>
 #include <fntrace.h>
 
 #include "xdptest.h"
