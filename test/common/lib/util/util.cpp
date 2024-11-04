@@ -3,8 +3,8 @@
 // Licensed under the MIT License.
 //
 
+#include <xdp/wincommon.h>
 #include <stdlib.h>
-#include <windows.h>
 #include <iphlpapi.h>
 #include <pathcch.h>
 #include <stdio.h>

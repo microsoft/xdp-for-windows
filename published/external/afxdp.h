@@ -6,6 +6,11 @@
 #ifndef AFXDP_H
 #define AFXDP_H
 
+//
+// Include all necessary Windows headers first.
+//
+#include <xdp/wincommon.h>
+
 #include <xdp/hookid.h>
 
 #ifndef XDPAPI

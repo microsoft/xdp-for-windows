@@ -3,14 +3,14 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <afxdp_helper.h>
+#include <afxdp_experimental.h>
+#include <xdpapi.h>
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <afxdp_helper.h>
-#include <afxdp_experimental.h>
-#include <xdpapi.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 

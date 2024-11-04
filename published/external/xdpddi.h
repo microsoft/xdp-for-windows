@@ -9,6 +9,11 @@
 // This top-level header includes all XDP headers for driver developers.
 //
 
+//
+// Include all necessary Windows headers first.
+//
+#include <xdp/wincommon.h>
+
 #include <xdp/apiversion.h>
 #include <xdp/bufferinterfacecontext.h>
 #include <xdp/bufferlogicaladdress.h>

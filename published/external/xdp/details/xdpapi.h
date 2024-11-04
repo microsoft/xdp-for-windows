@@ -8,7 +8,8 @@
 
 #include <xdpapi.h>
 #include <xdp/status.h>
-#include <xdp/details/apiioctl.h>
+#include <xdp/details/ioctldef.h>
+#include <xdp/details/ioctlfn.h>
 
 #ifdef __cplusplus
 extern "C" {

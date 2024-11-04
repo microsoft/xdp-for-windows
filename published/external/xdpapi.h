@@ -10,6 +10,11 @@
 extern "C" {
 #endif
 
+//
+// Include all necessary Windows headers first.
+//
+#include <xdp/wincommon.h>
+
 #include <xdp/hookid.h>
 #include <xdp/objectheader.h>
 #include <xdp/program.h>

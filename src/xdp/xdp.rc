@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <xdp/wincommon.h>
 #include <xdpversion.h>
 
 #define VER_FILEVERSION             XDP_MAJOR_VERSION, XDP_MINOR_VERSION, XDP_PATCH_VERSION, 0

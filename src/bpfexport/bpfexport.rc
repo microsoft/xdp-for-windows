@@ -7,7 +7,7 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <xdp/wincommon.h>
 #include <xdpversion.h>
 
 #define	VER_FILETYPE                VFT_APP

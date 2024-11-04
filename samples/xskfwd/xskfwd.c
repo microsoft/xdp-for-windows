@@ -3,11 +3,11 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <xdpapi.h>
 #include <afxdp_helper.h>
+
+#include <stdio.h>
+#include <stdlib.h>
 
 const CHAR *UsageText =
 "xskfwd.exe <IfIndex>"

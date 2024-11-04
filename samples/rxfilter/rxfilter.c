@@ -3,15 +3,14 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+// TODO: update to XDP_API_VERSION_LATEST
+#define XDP_API_VERSION XDP_API_VERSION_3
+#include <xdpapi.h>
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-// TODO: update to XDP_API_VERSION_LATEST
-#define XDP_API_VERSION XDP_API_VERSION_3
-#include <xdpapi.h>
 
 CONST CHAR *UsageText =
 "rxfilter.exe -IfIndex <IfIndex> -QueueId <QueueId> [OPTIONS] RULE_PARAMS\n"

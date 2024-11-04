@@ -9,13 +9,12 @@
 // application closes. No XSK sockets are used in this application.
 //
 
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 #include <xdp/rtl.h>
+
+#include <stdio.h>
+#include <stdlib.h>
 
 typedef struct _INTERFACE_CONFIG_ENTRY {
     struct _INTERFACE_CONFIG_ENTRY *Next;

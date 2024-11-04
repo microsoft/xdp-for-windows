@@ -6,18 +6,18 @@
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
 
-#include <windows.h>
+#include <afxdp_helper.h>
+#include <afxdp_experimental.h>
+#include <xdpapi.h>
+#include <xdpapi_experimental.h>
+#include <xdprtl.h>
+
 #include <iphlpapi.h>
 #include <assert.h>
 #include <crtdbg.h>
 #include <stdio.h>
 #define _CRT_RAND_S
 #include <stdlib.h>
-#include <afxdp_helper.h>
-#include <afxdp_experimental.h>
-#include <xdpapi.h>
-#include <xdpapi_experimental.h>
-#include <xdprtl.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
