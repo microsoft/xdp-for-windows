@@ -1360,7 +1360,11 @@ XdpProgramAttach(
             TRACE_CORE, "Attaching ProgramObject=%p to all %u queues",
             ProgramObject, RssCapabilities.NumberOfReceiveQueues);
         QueueIdStart = 0;
-        QueueIdEnd = RssCapabilities.NumberOfReceiveQueues;
+
+        //
+        // Ensure the implicit 0th queue is bound when RSS is not supported.
+        //
+        QueueIdEnd = max(1, RssCapabilities.NumberOfReceiveQueues);
     }
 
     for (UINT32 QueueId = QueueIdStart; QueueId < QueueIdEnd; ++QueueId) {
