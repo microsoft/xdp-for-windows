@@ -9,9 +9,8 @@ typedef enum _XSK_ACTIVATE_FLAGS {
     XSK_ACTIVATE_FLAG_NONE = 0x0,
 } XSK_ACTIVATE_FLAGS;
 
-typedef
-HRESULT
-XSK_ACTIVATE_FN(
+XDP_STATUS
+XskActivate(
     _In_ HANDLE Socket,
     _In_ XSK_ACTIVATE_FLAGS Flags
     );

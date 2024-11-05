@@ -5,9 +5,8 @@ Gets an AF_XDP [socket option](xsk-sockopts.md).
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XSK_GET_SOCKOPT_FN(
+XDP_STATUS
+XskGetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _Out_writes_bytes_(*OptionLength) VOID *OptionValue,

@@ -2,6 +2,8 @@
 
 Releases the reference to the API returned by [`XdpOpenApi`](XdpOpenApi.md). This routine is exported by the `xdpapi` DLL.
 
+** This API is deprecated. **
+
 ## Syntax
 
 ```C

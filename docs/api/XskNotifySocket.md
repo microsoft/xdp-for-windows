@@ -8,9 +8,8 @@ The purpose of this API is two-fold:
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XSK_NOTIFY_SOCKET_FN(
+XDP_STATUS
+XskNotifySocket(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
     _In_ UINT32 WaitTimeoutMilliseconds,
