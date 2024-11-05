@@ -3,11 +3,6 @@
   <ItemGroup>
     <ClCompile Include="xskfwd.c" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
-    </ProjectReference>
-  </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{238cd65b-59d5-4ec5-ba23-630f567395fa}</ProjectGuid>
     <TargetName>xskfwd</TargetName>

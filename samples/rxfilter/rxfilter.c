@@ -3,8 +3,6 @@
 // Licensed under the MIT License.
 //
 
-// TODO: update to XDP_API_VERSION_LATEST
-#define XDP_API_VERSION XDP_API_VERSION_3
 #include <xdpapi.h>
 
 #include <assert.h>
