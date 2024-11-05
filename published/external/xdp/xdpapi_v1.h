@@ -15,6 +15,10 @@
 extern "C" {
 #endif
 
+#ifndef XDPAPI
+#define XDPAPI __declspec(dllimport)
+#endif
+
 typedef
 HRESULT
 XDP_CREATE_PROGRAM_FN(

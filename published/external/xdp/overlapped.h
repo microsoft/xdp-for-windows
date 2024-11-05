@@ -12,6 +12,8 @@ extern "C" {
 
 #ifdef _KERNEL_MODE
 
+typedef struct _OVERLAPPED OVERLAPPED;
+
 typedef struct _XDP_OVERLAPPED {
     IO_STATUS_BLOCK Internal;
     HANDLE hEvent;

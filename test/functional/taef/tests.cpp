@@ -110,14 +110,6 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 TEST_CLASS(xdpfunctionaltests)
 {
 public:
-    TEST_METHOD(OpenApi) {
-        ::OpenApiTest();
-    }
-
-    TEST_METHOD(LoadApi) {
-        ::LoadApiTest();
-    }
-
     TEST_METHOD(GenericBinding) {
         ::GenericBinding();
     }

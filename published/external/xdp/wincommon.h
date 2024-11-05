@@ -14,12 +14,12 @@ extern "C" {
 // This file includes all Windows headers necessary for XDP APIs.
 //
 // Since it is notoriously difficult to include Windows headers without
-// introducing compiler errors, this file can be disabled by defining
-// NOXDPWINCOMMON and including all Windows dependencies before including XDP
-// headers.
+// introducing compiler errors, this file shows an example of including all
+// necessary headers, and can optionally actually include the headers by
+// defining XDP_INCLUDE_WINCOMMON.
 //
 
-#ifndef NOXDPWINCOMMON
+#ifdef XDP_INCLUDE_WINCOMMON
 
 #ifdef _KERNEL_MODE
 

@@ -21,10 +21,6 @@ extern "C" {
 #include <xdp/program.h>
 #include <xdp/status.h>
 
-#ifndef XDPAPI
-#define XDPAPI __declspec(dllimport)
-#endif
-
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {
     XDP_CREATE_PROGRAM_FLAG_NONE = 0x0,
     XDP_CREATE_PROGRAM_FLAG_GENERIC = 0x1,

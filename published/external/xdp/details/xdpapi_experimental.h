@@ -3,8 +3,8 @@
 // Licensed under the MIT License.
 //
 
-#ifndef XDP_DETAILS_XDPAPI_H
-#define XDP_DETAILS_XDPAPI_H
+#ifndef XDP_DETAILS_XDPAPI_EXPERIMENTAL_H
+#define XDP_DETAILS_XDPAPI_EXPERIMENTAL_H
 
 #include <xdpapi_experimental.h>
 #include <xdp/status.h>

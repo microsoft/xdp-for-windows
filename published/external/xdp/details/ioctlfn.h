@@ -87,6 +87,35 @@ _XdpWaitInfinite(
 }
 
 inline
+XDP_STATUS
+_XdpSetFileCompletionModes(
+    _In_ HANDLE Handle,
+    _In_ UCHAR Flags
+    )
+{
+#ifdef _KERNEL_MODE
+    FILE_IO_COMPLETION_NOTIFICATION_INFORMATION IoCompletion = {0};
+    IO_STATUS_BLOCK IoStatusBlock;
+
+    IoCompletion.Flags = Flags;
+
+    //
+    // TODO: this is not publicly documented yet.
+    //
+    return
+        ZwSetInformationFile(
+            Handle, &IoStatusBlock, &IoCompletion, sizeof(IoCompletion),
+            FileIoCompletionNotificationInformation);
+#else
+    if (SetFileCompletionNotificationModes(Handle, Flags)) {
+        return XDP_STATUS_SUCCESS;
+    } else {
+        return HRESULT_FROM_WIN32(RtlNtStatusToDosError(GetLastError()));
+    }
+#endif
+}
+
+inline
 VOID *
 _XdpInitializeEaVersion(
     _In_ XDP_OBJECT_TYPE ObjectType,
@@ -95,7 +124,7 @@ _XdpInitializeEaVersion(
     _In_ ULONG EaLength
     )
 {
-    FILE_FULL_EA_INFORMATION *EaHeader = EaBuffer;
+    XDP_FILE_FULL_EA_INFORMATION *EaHeader = (XDP_FILE_FULL_EA_INFORMATION *)EaBuffer;
     XDP_OPEN_PACKET *OpenPacket;
 
     XDPAPI_ASSERT(EaLength < XDP_OPEN_EA_LENGTH);
