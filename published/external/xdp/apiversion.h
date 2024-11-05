@@ -17,9 +17,7 @@ extern "C" {
 //
 // This version is always the latest supported version.
 //
-// TODO: Update to XDP_API_VERSION_3 once it is stable.
-//
-#define XDP_API_VERSION_LATEST XDP_API_VERSION_2
+#define XDP_API_VERSION_LATEST XDP_API_VERSION_3
 
 //
 // This major.minor.patch version structure is used by native XDP kernel drivers.

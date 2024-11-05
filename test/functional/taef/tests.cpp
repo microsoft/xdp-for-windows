@@ -39,6 +39,11 @@
 // Test suite(s).
 //
 
+//
+// Ensure our build system is defaulting to the latest supported API version.
+//
+C_ASSERT(XDP_API_VERSION == XDP_API_VERSION_LATEST);
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 VOID
