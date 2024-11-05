@@ -5,6 +5,8 @@
 
 #include "precomp.h"
 
+#pragma warning(disable:4996) // Using deprecated APIs - by design.
+
 //
 // API routines.
 //

@@ -23,9 +23,7 @@ extern "C" {
 
 #ifdef _KERNEL_MODE
 
-//
-// TODO
-//
+#include <wdm.h>
 
 #else
 

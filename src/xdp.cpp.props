@@ -20,8 +20,6 @@
       </PreprocessorDefinitions>
       <!-- Disable C26812: The enum type '' is unscoped. Prefer 'enum class' over 'enum' -->
       <DisableSpecificWarnings>26812;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <!-- TODO: remove before merge: this disables deprecated API warnings. Instead, suppress at locations intentionally testing the old APIs, and upgrade the rest. -->
-      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <DriverSign>
       <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
