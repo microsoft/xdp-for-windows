@@ -99,9 +99,6 @@ _XdpSetFileCompletionModes(
 
     IoCompletion.Flags = Flags;
 
-    //
-    // TODO: this is not publicly documented yet.
-    //
     return
         ZwSetInformationFile(
             Handle, &IoStatusBlock, &IoCompletion, sizeof(IoCompletion),

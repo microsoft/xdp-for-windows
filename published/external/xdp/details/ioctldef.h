@@ -51,10 +51,6 @@ extern CONST GUID DECLSPEC_SELECTANY XDP_DEVICE_CLASS_GUID = { /* 28f93d3f-4c0a-
 };
 
 //
-// TODO: mangle/prefix all internal typedefs/macros with _
-//
-
-//
 // Type of XDP object to create or open.
 //
 typedef enum _XDP_OBJECT_TYPE {
