@@ -2996,12 +2996,6 @@ XskSockoptSetUmem(
         goto Exit;
     }
 
-    //
-    // If support is needed for kernel mode AF_XDP sockets, UMEM MDL setup
-    // needs more thought.
-    //
-    ASSERT(RequestorMode == UserMode);
-
     Umem->Mapping.Mdl =
         IoAllocateMdl(
             Umem->Reg.Address,
@@ -3709,7 +3703,7 @@ XskPollSocket(
             } else {
                 Status =
                     KeWaitForSingleObject(
-                        &Xsk->PollRequested, UserRequest, UserMode, FALSE, WaitTimePtr);
+                        &Xsk->PollRequested, UserRequest, ExGetPreviousMode(), FALSE, WaitTimePtr);
                 if (Status != STATUS_SUCCESS) {
                     return Status;
                 }
@@ -4293,7 +4287,7 @@ XskNotify(
         Timeout.QuadPart = -1 * RTL_MILLISEC_TO_100NANOSEC(TimeoutMilliseconds);
         Status =
             KeWaitForSingleObject(
-                &Xsk->IoWaitEvent, UserRequest, UserMode, FALSE,
+                &Xsk->IoWaitEvent, UserRequest, ExGetPreviousMode(), FALSE,
                 (TimeoutMilliseconds == XDP_INFINITE) ? NULL : &Timeout);
     } else {
         ASSERT(Status == STATUS_PENDING);
