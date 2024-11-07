@@ -3,11 +3,11 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <xdpapi.h>
 #include <afxdp_helper.h>
+
+#include <stdio.h>
+#include <stdlib.h>
 
 const CHAR *UsageText =
 "xskfwd.exe <IfIndex>"
@@ -56,7 +56,6 @@ main(
     CHAR **argv
     )
 {
-    const XDP_API_TABLE *XdpApi;
     HRESULT Result;
     HANDLE Socket;
     HANDLE Program;
@@ -81,18 +80,9 @@ main(
     IfIndex = atoi(argv[1]);
 
     //
-    // Retrieve the XDP API dispatch table.
-    //
-    Result = XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi);
-    if (FAILED(Result)) {
-        LOGERR("XdpOpenApi failed: %x", Result);
-        return EXIT_FAILURE;
-    }
-
-    //
     // Create an AF_XDP socket. The newly created socket is not connected.
     //
-    Result = XdpApi->XskCreate(&Socket);
+    Result = XskCreate(&Socket);
     if (FAILED(Result)) {
         LOGERR("XskCreate failed: %x", Result);
         return EXIT_FAILURE;
@@ -108,7 +98,7 @@ main(
     UmemReg.ChunkSize = sizeof(Frame);
     UmemReg.Address = Frame;
 
-    Result = XdpApi->XskSetSockopt(Socket, XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg));
+    Result = XskSetSockopt(Socket, XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg));
     if (FAILED(Result)) {
         LOGERR("XSK_UMEM_REG failed: %x", Result);
         return EXIT_FAILURE;
@@ -118,7 +108,7 @@ main(
     // Bind the AF_XDP socket to the specified interface and 0th data path
     // queue, and indicate the intent to perform RX and TX actions.
     //
-    Result = XdpApi->XskBind(Socket, IfIndex, 0, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX);
+    Result = XskBind(Socket, IfIndex, 0, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX);
     if (FAILED(Result)) {
         LOGERR("XskBind failed: %x", Result);
         return EXIT_FAILURE;
@@ -131,25 +121,25 @@ main(
     // the XskActivate step further below.
     //
 
-    Result = XdpApi->XskSetSockopt(Socket, XSK_SOCKOPT_RX_RING_SIZE, &RingSize, sizeof(RingSize));
+    Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_RING_SIZE, &RingSize, sizeof(RingSize));
     if (FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RX_RING_SIZE failed: %x", Result);
         return EXIT_FAILURE;
     }
 
-    Result = XdpApi->XskSetSockopt(Socket, XSK_SOCKOPT_RX_FILL_RING_SIZE, &RingSize, sizeof(RingSize));
+    Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_FILL_RING_SIZE, &RingSize, sizeof(RingSize));
     if (FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RX_FILL_RING_SIZE failed: %x", Result);
         return EXIT_FAILURE;
     }
 
-    Result = XdpApi->XskSetSockopt(Socket, XSK_SOCKOPT_TX_RING_SIZE, &RingSize, sizeof(RingSize));
+    Result = XskSetSockopt(Socket, XSK_SOCKOPT_TX_RING_SIZE, &RingSize, sizeof(RingSize));
     if (FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_TX_RING_SIZE failed: %x", Result);
         return EXIT_FAILURE;
     }
 
-    Result = XdpApi->XskSetSockopt(Socket, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &RingSize, sizeof(RingSize));
+    Result = XskSetSockopt(Socket, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &RingSize, sizeof(RingSize));
     if (FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_TX_COMPLETION_RING_SIZE failed: %x", Result);
         return EXIT_FAILURE;
@@ -159,7 +149,7 @@ main(
     // Activate the AF_XDP socket. Once activated, descriptor rings are
     // available and RX and TX can occur.
     //
-    Result = XdpApi->XskActivate(Socket, XSK_ACTIVATE_FLAG_NONE);
+    Result = XskActivate(Socket, XSK_ACTIVATE_FLAG_NONE);
     if (FAILED(Result)) {
         LOGERR("XskActivate failed: %x", Result);
         return EXIT_FAILURE;
@@ -169,7 +159,7 @@ main(
     // Retrieve the RX, RX fill, TX, and TX completion ring info from AF_XDP.
     //
     OptionLength = sizeof(RingInfo);
-    Result = XdpApi->XskGetSockopt(Socket, XSK_SOCKOPT_RING_INFO, &RingInfo, &OptionLength);
+    Result = XskGetSockopt(Socket, XSK_SOCKOPT_RING_INFO, &RingInfo, &OptionLength);
     if (FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RING_INFO failed: %x", Result);
         return EXIT_FAILURE;
@@ -213,7 +203,7 @@ main(
     Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     Rule.Redirect.Target = Socket;
 
-    Result = XdpApi->XdpCreateProgram(IfIndex, &XdpInspectRxL2, 0, 0, &Rule, 1, &Program);
+    Result = XdpCreateProgram(IfIndex, &XdpInspectRxL2, 0, 0, &Rule, 1, &Program);
     if (FAILED(Result)) {
         LOGERR("XdpCreateProgram failed: %x", Result);
         return EXIT_FAILURE;
@@ -270,7 +260,7 @@ main(
             // XDP isn't continuously checking the shared ring. This can be
             // optimized further using the XskRingProducerNeedPoke helper.
             //
-            Result = XdpApi->XskNotifySocket(Socket, XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
+            Result = XskNotifySocket(Socket, XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
             if (FAILED(Result)) {
                 LOGERR("XskNotifySocket failed: %x", Result);
                 return EXIT_FAILURE;

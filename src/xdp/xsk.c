@@ -193,7 +193,6 @@ XskPoke(
 #define POOLTAG_RING   'RksX' // XskR
 #define POOLTAG_UMEM   'UksX' // XskU
 #define POOLTAG_XSK    'kksX' // Xskk
-#define INFINITE 0xFFFFFFFF
 
 static XSK_GLOBALS XskGlobals;
 static XDP_REG_WATCHER_CLIENT_ENTRY XskRegWatcherEntry;
@@ -3639,7 +3638,7 @@ XskPollSocket(
 
     WaitFlags = Flags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
 
-    if (TimeoutMs != INFINITE) {
+    if (TimeoutMs != XDP_INFINITE) {
         WaitTimePtr = &WaitTime;
         DueTime = KeQueryInterruptTime();
         DueTime += RTL_MILLISEC_TO_100NANOSEC(TimeoutMs);
@@ -3690,7 +3689,7 @@ XskPollSocket(
         // Check if the wait interval has timed out.
         // Review: should we use a higher precision time source?
         //
-        if (TimeoutMs != INFINITE) {
+        if (TimeoutMs != XDP_INFINITE) {
             CurrentTime = KeQueryInterruptTime();
             if (CurrentTime >= DueTime) {
                 return STATUS_TIMEOUT;
@@ -4295,7 +4294,7 @@ XskNotify(
         Status =
             KeWaitForSingleObject(
                 &Xsk->IoWaitEvent, UserRequest, UserMode, FALSE,
-                (TimeoutMilliseconds == INFINITE) ? NULL : &Timeout);
+                (TimeoutMilliseconds == XDP_INFINITE) ? NULL : &Timeout);
     } else {
         ASSERT(Status == STATUS_PENDING);
         goto Exit;

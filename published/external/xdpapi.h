@@ -10,13 +10,16 @@
 extern "C" {
 #endif
 
+//
+// Include all necessary Windows headers first.
+//
+#include <xdp/wincommon.h>
+
+#include <xdp/apiversion.h>
 #include <xdp/hookid.h>
 #include <xdp/objectheader.h>
 #include <xdp/program.h>
-
-#ifndef XDPAPI
-#define XDPAPI __declspec(dllimport)
-#endif
+#include <xdp/status.h>
 
 typedef enum _XDP_CREATE_PROGRAM_FLAGS {
     XDP_CREATE_PROGRAM_FLAG_NONE = 0x0,
@@ -28,9 +31,12 @@ typedef enum _XDP_CREATE_PROGRAM_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XDP_CREATE_PROGRAM_FLAGS);
 C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
-typedef
-HRESULT
-XDP_CREATE_PROGRAM_FN(
+#if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
+#include <xdp/xdpapi_v1.h>
+#else
+
+XDP_STATUS
+XdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -40,127 +46,14 @@ XDP_CREATE_PROGRAM_FN(
     _Out_ HANDLE *Program
     );
 
-typedef
-HRESULT
-XDP_INTERFACE_OPEN_FN(
+XDP_STATUS
+XdpInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );
 
-#include "afxdp.h"
-
-typedef struct _XDP_API_TABLE XDP_API_TABLE;
-
-#define XDP_API_VERSION_1 1
-
-#define XDP_API_VERSION_2 2
-
-//
-// This version is always the latest supported version.
-//
-#define XDP_API_VERSION_LATEST XDP_API_VERSION_2
-
-typedef
-HRESULT
-XDP_OPEN_API_FN(
-    _In_ UINT32 XdpApiVersion,
-    _Out_ const XDP_API_TABLE **XdpApiTable
-    );
-
-XDPAPI XDP_OPEN_API_FN XdpOpenApi;
-
-typedef
-VOID
-XDP_CLOSE_API_FN(
-    _In_ const XDP_API_TABLE *XdpApiTable
-    );
-
-XDPAPI XDP_CLOSE_API_FN XdpCloseApi;
-
-typedef
-VOID *
-XDP_GET_ROUTINE_FN(
-    _In_z_ const CHAR *RoutineName
-    );
-
-typedef struct _XDP_API_TABLE {
-    XDP_OPEN_API_FN *XdpOpenApi;
-    XDP_CLOSE_API_FN *XdpCloseApi;
-    XDP_GET_ROUTINE_FN *XdpGetRoutine;
-    XDP_CREATE_PROGRAM_FN *XdpCreateProgram;
-    XDP_INTERFACE_OPEN_FN *XdpInterfaceOpen;
-    XSK_CREATE_FN *XskCreate;
-    XSK_BIND_FN *XskBind;
-    XSK_ACTIVATE_FN *XskActivate;
-    XSK_NOTIFY_SOCKET_FN *XskNotifySocket;
-    XSK_NOTIFY_ASYNC_FN *XskNotifyAsync;
-    XSK_GET_NOTIFY_ASYNC_RESULT_FN *XskGetNotifyAsyncResult;
-    XSK_SET_SOCKOPT_FN *XskSetSockopt;
-    XSK_GET_SOCKOPT_FN *XskGetSockopt;
-    XSK_IOCTL_FN *XskIoctl;
-} XDP_API_TABLE;
-
-typedef struct _XDP_LOAD_CONTEXT *XDP_LOAD_API_CONTEXT;
-
-#if !defined(_KERNEL_MODE)
-
-inline
-HRESULT
-XdpLoadApi(
-    _In_ UINT32 XdpApiVersion,
-    _Out_ XDP_LOAD_API_CONTEXT *XdpLoadApiContext,
-    _Out_ const XDP_API_TABLE **XdpApiTable
-    )
-{
-    HRESULT Result;
-    HMODULE XdpHandle;
-    XDP_OPEN_API_FN *OpenApi;
-
-    *XdpLoadApiContext = NULL;
-    *XdpApiTable = NULL;
-
-    XdpHandle = LoadLibraryA("xdpapi.dll");
-    if (XdpHandle == NULL) {
-        Result = E_NOINTERFACE;
-        goto Exit;
-    }
-
-    OpenApi = (XDP_OPEN_API_FN *)GetProcAddress(XdpHandle, "XdpOpenApi");
-    if (OpenApi == NULL) {
-        Result = E_NOINTERFACE;
-        goto Exit;
-    }
-
-    Result = OpenApi(XdpApiVersion, XdpApiTable);
-
-Exit:
-
-    if (SUCCEEDED(Result)) {
-        *XdpLoadApiContext = (XDP_LOAD_API_CONTEXT)XdpHandle;
-    } else {
-        if (XdpHandle != NULL) {
-            FreeLibrary(XdpHandle);
-        }
-    }
-
-    return Result;
-}
-
-inline
-VOID
-XdpUnloadApi(
-    _In_ XDP_LOAD_API_CONTEXT XdpLoadApiContext,
-    _In_ const XDP_API_TABLE *XdpApiTable
-    )
-{
-    HMODULE XdpHandle = (HMODULE)XdpLoadApiContext;
-
-    XdpApiTable->XdpCloseApi(XdpApiTable);
-
-    FreeLibrary(XdpHandle);
-}
-
-#endif // !defined(_KERNEL_MODE)
+#include <xdp/details/xdpapi.h>
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

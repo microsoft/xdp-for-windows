@@ -61,7 +61,6 @@
 #include <xdpassert.h>
 #include <xdpetw.h>
 #include <xdpif.h>
-#include <xdpioctl.h>
 #include <xdplwf.h>
 #include <xdppcw.h>
 #include <xdpnmrprovider.h>

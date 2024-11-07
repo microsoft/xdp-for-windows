@@ -17,12 +17,11 @@ The purpose of this API is two-fold:
 //
 //
 
-typedef
-HRESULT
-XSK_NOTIFY_ASYNC_FN(
+XDP_STATUS
+XskNotifyAsync(
     _In_ HANDLE Socket,
     _In_ XSK_NOTIFY_FLAGS Flags,
-    _Inout_ OVERLAPPED *Overlapped
+    _Inout_ XDP_OVERLAPPED *Overlapped
     );
 ```
 

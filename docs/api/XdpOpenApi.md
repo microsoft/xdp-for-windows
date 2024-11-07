@@ -3,6 +3,8 @@
 Opens the API and returns an API function table with the rest of the API's
 functions. This function is exported by the `xdpapi` DLL.
 
+** This API is deprecated. **
+
 ## Syntax
 
 ```C

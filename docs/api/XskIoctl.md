@@ -5,9 +5,8 @@ Performs an AF_XDP [socket option](xsk-sockopts.md) IOCTL.
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XSK_IOCTL_FN(
+XDP_STATUS
+XskIoctl(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(InputLength) const VOID *InputValue,

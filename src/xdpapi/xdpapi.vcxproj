@@ -2,7 +2,6 @@
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="afxdp.c" />
-    <ClCompile Include="ioctl.c" />
     <ClCompile Include="xdpapi.c" />
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +43,7 @@
   <ItemGroup>
     <ResourceCompile Include="xdpapi.rc">
       <AdditionalIncludeDirectories>
+          $(SolutionDir)published\external;
           $(SolutionDir)published\private;
           %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>

@@ -12,12 +12,6 @@ bool
 TestCleanup();
 
 VOID
-OpenApiTest();
-
-VOID
-LoadApiTest();
-
-VOID
 GenericBinding();
 
 VOID

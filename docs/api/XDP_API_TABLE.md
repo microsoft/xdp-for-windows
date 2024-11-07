@@ -2,6 +2,8 @@
 
 A structure containing XDP API functions.
 
+** This structure is deprecated. **
+
 ## Syntax
 
 ```C
@@ -33,7 +35,7 @@ TODO
 
 ## See Also
 
-[`XdpOpenApi`](XdpOpenApi.md)  
-[`XdpLoadApi`](XdpLoadApi.md)  
-[`XdpCloseApi`](XdpCloseApi.md)  
-[`XdpUnloadApi`](XdpUnloadApi.md)  
+[`XdpOpenApi`](XdpOpenApi.md)
+[`XdpLoadApi`](XdpLoadApi.md)
+[`XdpCloseApi`](XdpCloseApi.md)
+[`XdpUnloadApi`](XdpUnloadApi.md)

@@ -5,9 +5,8 @@ Open a handle to get/set offloads/configurations/properties on an interface.
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XDP_INTERFACE_OPEN_FN(
+XDP_STATUS
+XdpInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
     );

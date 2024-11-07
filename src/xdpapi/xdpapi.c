@@ -5,6 +5,8 @@
 
 #include "precomp.h"
 
+#pragma warning(disable:4996) // Using deprecated APIs - by design.
+
 //
 // API routines.
 //
@@ -12,26 +14,7 @@ XDP_OPEN_API_FN XdpOpenApi;
 XDP_CLOSE_API_FN XdpCloseApi;
 XDP_GET_ROUTINE_FN XdpGetRoutine;
 XDP_GET_ROUTINE_FN XdpGetRoutineV2;
-XDP_CREATE_PROGRAM_FN XdpCreateProgram;
-XDP_INTERFACE_OPEN_FN XdpInterfaceOpen;
-XSK_CREATE_FN XskCreate;
 XSK_CREATE_FN XskCreateV2;
-XSK_BIND_FN XskBind;
-XSK_ACTIVATE_FN XskActivate;
-XSK_NOTIFY_SOCKET_FN XskNotifySocket;
-XSK_NOTIFY_ASYNC_FN XskNotifyAsync;
-XSK_GET_NOTIFY_ASYNC_RESULT_FN XskGetNotifyAsyncResult;
-XSK_SET_SOCKOPT_FN XskSetSockopt;
-XSK_GET_SOCKOPT_FN XskGetSockopt;
-XSK_IOCTL_FN XskIoctl;
-
-//
-// Experimental APIs, subject to removal in a minor release.
-//
-XDP_RSS_GET_CAPABILITIES_FN XdpRssGetCapabilities;
-XDP_RSS_SET_FN XdpRssSet;
-XDP_RSS_GET_FN XdpRssGet;
-XDP_QEO_SET_FN XdpQeoSet;
 
 typedef struct _XDP_API_ROUTINE {
     _Null_terminated_ const CHAR *RoutineName;
@@ -178,133 +161,6 @@ XdpGetRoutineV2(
     )
 {
     return XdpGetRoutineFromTable(XdpApiRoutinesV2, RTL_NUMBER_OF(XdpApiRoutinesV2), RoutineName);
-}
-
-HRESULT
-XdpCreateProgram(
-    _In_ UINT32 InterfaceIndex,
-    _In_ const XDP_HOOK_ID *HookId,
-    _In_ UINT32 QueueId,
-    _In_ XDP_CREATE_PROGRAM_FLAGS Flags,
-    _In_reads_(RuleCount) const XDP_RULE *Rules,
-    _In_ UINT32 RuleCount,
-    _Out_ HANDLE *Program
-    )
-{
-    XDP_PROGRAM_OPEN *ProgramOpen;
-    CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*ProgramOpen)];
-
-    ProgramOpen = XdpInitializeEa(XDP_OBJECT_TYPE_PROGRAM, EaBuffer, sizeof(EaBuffer));
-    ProgramOpen->IfIndex = InterfaceIndex;
-    ProgramOpen->HookId = *HookId;
-    ProgramOpen->QueueId = QueueId;
-    ProgramOpen->Flags = Flags;
-    ProgramOpen->RuleCount = RuleCount;
-    ProgramOpen->Rules = Rules;
-
-    *Program = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (*Program == NULL) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
-}
-
-HRESULT
-XdpInterfaceOpen(
-    _In_ UINT32 InterfaceIndex,
-    _Out_ HANDLE *InterfaceHandle
-    )
-{
-    XDP_INTERFACE_OPEN *InterfaceOpen;
-    CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*InterfaceOpen)];
-
-    InterfaceOpen =
-        XdpInitializeEa(XDP_OBJECT_TYPE_INTERFACE, EaBuffer, sizeof(EaBuffer));
-    InterfaceOpen->IfIndex = InterfaceIndex;
-
-    *InterfaceHandle = XdpOpen(FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (*InterfaceHandle == NULL) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
-}
-
-HRESULT
-XdpRssGetCapabilities(
-    _In_ HANDLE InterfaceHandle,
-    _Out_writes_bytes_opt_(*RssCapabilitiesSize) XDP_RSS_CAPABILITIES *RssCapabilities,
-    _Inout_ UINT32 *RssCapabilitiesSize
-    )
-{
-    BOOL Success =
-        XdpIoctl(
-            InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_GET_CAPABILITIES,
-            NULL, 0, RssCapabilities, *RssCapabilitiesSize,
-            (ULONG *)RssCapabilitiesSize, NULL, TRUE);
-    if (!Success) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
-}
-
-HRESULT
-XdpRssSet(
-    _In_ HANDLE InterfaceHandle,
-    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
-    _In_ UINT32 RssConfigurationSize
-    )
-{
-    BOOL Success =
-        XdpIoctl(
-            InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_SET,
-            (XDP_RSS_CONFIGURATION *)RssConfiguration, RssConfigurationSize,
-            NULL, 0, NULL, NULL, TRUE);
-    if (!Success) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
-}
-
-HRESULT
-XdpRssGet(
-    _In_ HANDLE InterfaceHandle,
-    _Out_writes_bytes_opt_(*RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
-    _Inout_ UINT32 *RssConfigurationSize
-    )
-{
-    BOOL Success =
-        XdpIoctl(
-            InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_RSS_GET, NULL, 0, RssConfiguration,
-            *RssConfigurationSize, (ULONG *)RssConfigurationSize, NULL, TRUE);
-    if (!Success) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
-}
-
-HRESULT
-XdpQeoSet(
-    _In_ HANDLE InterfaceHandle,
-    _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
-    _In_ UINT32 QuicConnectionsSize
-    )
-{
-    BOOL Success =
-        XdpIoctl(
-            InterfaceHandle, IOCTL_INTERFACE_OFFLOAD_QEO_SET,
-            QuicConnections, QuicConnectionsSize,
-            QuicConnections, QuicConnectionsSize,
-            (ULONG *)&QuicConnectionsSize, NULL, TRUE);
-    if (!Success) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    return S_OK;
 }
 
 BOOL

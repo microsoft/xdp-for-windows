@@ -31,9 +31,8 @@ typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NATIVE = 0x8,
 } XSK_BIND_FLAGS;
 
-typedef
-HRESULT
-XSK_BIND_FN(
+XDP_STATUS
+XskBind(
     _In_ HANDLE Socket,
     _In_ UINT32 IfIndex,
     _In_ UINT32 QueueId,

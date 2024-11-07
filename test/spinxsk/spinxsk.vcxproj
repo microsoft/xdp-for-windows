@@ -4,9 +4,6 @@
     <ClCompile Include="spinxsk.c" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
       <Project>{bdd99a80-0936-47b0-918d-04cf3b472fb0}</Project>
     </ProjectReference>

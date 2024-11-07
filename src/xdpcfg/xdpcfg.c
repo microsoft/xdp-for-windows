@@ -3,12 +3,11 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <xdp/wincommon.h>
+#include <xdp/details/ioctldef.h>
 #include <setupapi.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <xdpioctl.h>
 
 static
 VOID
