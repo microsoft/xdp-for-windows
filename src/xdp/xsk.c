@@ -166,6 +166,7 @@ typedef struct _XSK {
     BOOLEAN PollBusy;
     ULONG PollWaiters;
     KEVENT PollRequested;
+    KPROCESSOR_MODE CreatorMode;
 } XSK;
 
 typedef struct _XSK_BINDING_WORKITEM {
@@ -440,10 +441,12 @@ XskRequiresTxBounceBuffer(
     //
     // Only the NDIS6 data path requires immutable buffers.
     // In the future, TX inspection programs may have similar requirements.
+    // Kernel mode sockets are exempt because they are trusted not to mutate.
     //
     return
         !XskGlobals.DisableTxBounce &&
-        (XdpIfGetCapabilities(Xsk->Tx.Xdp.IfHandle)->Mode == XDP_INTERFACE_MODE_GENERIC);
+        (XdpIfGetCapabilities(Xsk->Tx.Xdp.IfHandle)->Mode == XDP_INTERFACE_MODE_GENERIC) &&
+        (Xsk->CreatorMode != KernelMode);
 }
 
 static
@@ -1044,6 +1047,7 @@ XskIrpCreateSocket(
     KeInitializeEvent(&Xsk->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&Xsk->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
+    Xsk->CreatorMode = Irp->RequestorMode;
 
     //
     // XDP_API_VERSION_2 changed the ideal processor option to disabled by default.
