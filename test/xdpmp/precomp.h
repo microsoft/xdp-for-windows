@@ -5,10 +5,11 @@
 
 #pragma once
 
+#include <xdp/wincommon.h>
+#include <ndis.h>
 #include <xdpddi.h>
 #include <xdpassert.h>
 #include <xdprtl.h>
-#include <ndis.h>
 #include <netiodef.h>
 #include <pkthlp.h>
 #include <fndispoll.h>

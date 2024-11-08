@@ -60,8 +60,8 @@ XskFwd(
     )
 {
     HRESULT Result;
-    HANDLE Socket;
-    HANDLE Program;
+    HANDLE Socket = NULL;
+    HANDLE Program = NULL;
     XDP_RULE Rule = {0};
     UCHAR Frame[1514];
     XSK_UMEM_REG UmemReg = {0};
@@ -80,7 +80,7 @@ XskFwd(
     Result = XskCreate(&Socket);
     if (XDP_FAILED(Result)) {
         LOGERR("XskCreate failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -96,7 +96,7 @@ XskFwd(
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg));
     if (XDP_FAILED(Result)) {
         LOGERR("XSK_UMEM_REG failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -106,7 +106,7 @@ XskFwd(
     Result = XskBind(Socket, IfIndex, 0, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX);
     if (XDP_FAILED(Result)) {
         LOGERR("XskBind failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -119,25 +119,25 @@ XskFwd(
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_RING_SIZE, &RingSize, sizeof(RingSize));
     if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RX_RING_SIZE failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_FILL_RING_SIZE, &RingSize, sizeof(RingSize));
     if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RX_FILL_RING_SIZE failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_TX_RING_SIZE, &RingSize, sizeof(RingSize));
     if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_TX_RING_SIZE failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &RingSize, sizeof(RingSize));
     if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_TX_COMPLETION_RING_SIZE failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -147,7 +147,7 @@ XskFwd(
     Result = XskActivate(Socket, XSK_ACTIVATE_FLAG_NONE);
     if (XDP_FAILED(Result)) {
         LOGERR("XskActivate failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -157,7 +157,7 @@ XskFwd(
     Result = XskGetSockopt(Socket, XSK_SOCKOPT_RING_INFO, &RingInfo, &OptionLength);
     if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RING_INFO failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -201,7 +201,7 @@ XskFwd(
     Result = XdpCreateProgram(IfIndex, &XdpInspectRxL2, 0, 0, &Rule, 1, &Program);
     if (XDP_FAILED(Result)) {
         LOGERR("XdpCreateProgram failed: %x", Result);
-        return Result;
+        goto Exit;
     }
 
     //
@@ -258,7 +258,7 @@ XskFwd(
             Result = XskNotifySocket(Socket, XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
             if (XDP_FAILED(Result)) {
                 LOGERR("XskNotifySocket failed: %x", Result);
-                return Result;
+                goto Exit;
             }
         }
 
@@ -296,17 +296,25 @@ XskFwd(
         }
     }
 
+    Result = XDP_STATUS_SUCCESS;
+
+Exit:
+
     //
     // Close the XDP program. Traffic will no longer be intercepted by XDP.
     //
-    CxPlatCloseHandle(Program);
+    if (Program != NULL) {
+        CxPlatCloseHandle(Program);
+    }
 
     //
     // Close the AF_XDP socket. All socket resources will be cleaned up by XDP.
     //
-    CxPlatCloseHandle(Socket);
+    if (Socket != NULL) {
+        CxPlatCloseHandle(Socket);
+    }
 
-    return XDP_STATUS_SUCCESS;
+    return Result;
 }
 
 #ifdef _KERNEL_MODE

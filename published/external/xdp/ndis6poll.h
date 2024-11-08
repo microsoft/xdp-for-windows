@@ -12,12 +12,9 @@
 
 EXTERN_C_START
 
-#pragma warning(push)
-#pragma warning(disable:4201) // (nonstandard extension used : nameless struct/union)
-#include <ndis.h>
-#pragma warning(pop)
-
 #if NDIS_SUPPORT_NDIS685
+
+#include <ndis/poll.h>
 
 typedef struct _XDP_POLL_TRANSMIT_DATA {
     //
