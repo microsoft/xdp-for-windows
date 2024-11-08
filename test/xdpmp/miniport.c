@@ -393,7 +393,7 @@ MpInitialize(
     }
 
     Adapter->MdlSize = (UINT32)MmSizeOfMdl((VOID *)(PAGE_SIZE - 1), Adapter->RxBufferLength);
-    Adapter->MdlSize = ALIGN_UP(Adapter->MdlSize, MEMORY_ALLOCATION_ALIGNMENT);
+    Adapter->MdlSize = ALIGN_UP_BY(Adapter->MdlSize, MEMORY_ALLOCATION_ALIGNMENT);
     if (Adapter->MdlSize > MAXUSHORT) {
         TraceError(
             TRACE_CONTROL, "NdisMiniportHandle=%p Error: MdlSize too large MdlSize=%lu",
