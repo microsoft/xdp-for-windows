@@ -23,7 +23,10 @@ extern "C" {
 
 #ifdef _KERNEL_MODE
 
-#include <wdm.h>
+#include <ntdef.h>
+#include <ntstatus.h>
+#include <ntifs.h>
+#include <ntintsafe.h>
 
 #else
 

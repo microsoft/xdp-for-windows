@@ -243,7 +243,7 @@ _XdpIoctl(
 
     if (Event == &LocalEvent && XdpStatus == XDP_STATUS_PENDING) {
         XdpStatus = _XdpWaitInfinite(Event);
-        if (FAILED(XdpStatus)) {
+        if (XDP_FAILED(XdpStatus)) {
             goto Exit;
         }
 

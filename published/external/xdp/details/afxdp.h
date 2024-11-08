@@ -28,7 +28,7 @@ _XskCreateVersion(
     _XdpInitializeEaVersion(XDP_OBJECT_TYPE_XSK, ApiVersion, EaBuffer, sizeof(EaBuffer));
 
     Res = _XdpOpen(Socket, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
-    if (FAILED(Res)) {
+    if (XDP_FAILED(Res)) {
         return Res;
     }
 
@@ -36,7 +36,7 @@ _XskCreateVersion(
     // Performance optimization: skip setting the file handle upon each IO completion.
     //
     Res = _XdpSetFileCompletionModes(*Socket, FILE_SKIP_SET_EVENT_ON_HANDLE);
-    if (FAILED(Res)) {
+    if (XDP_FAILED(Res)) {
         _XdpCloseHandle(*Socket);
     }
 
@@ -198,7 +198,7 @@ XskGetSockopt(
             &BytesReturned,
             NULL,
             FALSE);
-    if (FAILED(Res)) {
+    if (XDP_FAILED(Res)) {
         return Res;
     }
 
@@ -263,7 +263,7 @@ XskNotifySocket(
             &BytesReturned,
             NULL,
             FALSE);
-    if (FAILED(Res)) {
+    if (XDP_FAILED(Res)) {
         return Res;
     }
 
@@ -311,8 +311,8 @@ XskGetNotifyAsyncResult(
     if (!NT_SUCCESS(Iosb->Status)) {
         XDP_STATUS Status;
         Status = _XdpConvertNtStatusToXdpStatus(Iosb->Status);
-        XDPAPI_ASSERT(FAILED(Status));
-        _Analysis_assume_(FAILED(Status));
+        XDPAPI_ASSERT(XDP_FAILED(Status));
+        _Analysis_assume_(XDP_FAILED(Status));
         return Status;
     }
 

@@ -5,14 +5,12 @@
 
 #pragma once
 
-#include <ntddk.h>
-#include <ndis.h>
-#include <ntintsafe.h>
-#include <netiodef.h>
-#include <pkthlp.h>
 #include <xdpddi.h>
 #include <xdpassert.h>
 #include <xdprtl.h>
+#include <ndis.h>
+#include <netiodef.h>
+#include <pkthlp.h>
 #include <fndispoll.h>
 #include <fndisnpi.h>
 

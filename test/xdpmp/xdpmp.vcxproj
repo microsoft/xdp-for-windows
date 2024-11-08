@@ -10,7 +10,6 @@
     <ClCompile Include="tx.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="poll.h" />
     <ClInclude Include="precomp.h" />
   </ItemGroup>
   <ItemGroup>
