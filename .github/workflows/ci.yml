@@ -423,6 +423,60 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
 
+  xskfwdkm_test:
+    name: XskFwdKm Test
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022, Prerelease]
+        configuration: [Release, Debug]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2019
+          platform: arm64
+        - windows: 2022
+          platform: arm64
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        sparse-checkout: tools
+    - name: Check Drivers
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run XskFwdKm
+      shell: PowerShell
+      timeout-minutes: 25
+      run: tools/xskfwdkm.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Convert Logs
+      if: ${{ always() }}
+      timeout-minutes: 15
+      shell: PowerShell
+      run: tools/log.ps1 -Convert -Name xskfwdkm -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+      if: ${{ always() }}
+      with:
+        name: logs_xskfwdkm_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+
   create_artifacts:
     name: Create Release Artifacts
     needs: build
@@ -506,7 +560,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:

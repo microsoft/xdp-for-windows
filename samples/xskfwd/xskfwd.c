@@ -210,7 +210,7 @@ XskFwd(
     // be optimized further by consuming, reserving, and submitting batches of
     // frames across each XskRing* function.
     //
-    while (!ReadBooleanNoFence(Stop)) {
+    do {
         if (XskRingConsumerReserve(&RxRing, 1, &RingIndex) == 1) {
             XSK_BUFFER_DESCRIPTOR *RxBuffer;
             XSK_BUFFER_DESCRIPTOR *TxBuffer;
@@ -294,7 +294,7 @@ XskFwd(
             XskRingConsumerRelease(&TxCompRing, 1);
             XskRingProducerSubmit(&RxFillRing, 1);
         }
-    }
+    } while (!ReadBooleanNoFence(Stop));
 
     Result = XDP_STATUS_SUCCESS;
 
@@ -348,9 +348,11 @@ DriverUnload(
 {
     UNREFERENCED_PARAMETER(DriverObject);
 
-    WriteBooleanNoFence(&Stop, TRUE);
-    CxPlatThreadWaitForever(&WorkerThread);
-    CxPlatThreadDelete(&WorkerThread);
+    if (WorkerThread != NULL) {
+        WriteBooleanNoFence(&Stop, TRUE);
+        CxPlatThreadWaitForever(&WorkerThread);
+        CxPlatThreadDelete(&WorkerThread);
+    }
 }
 
 _Use_decl_annotations_
@@ -368,6 +370,7 @@ DriverEntry(
     UCHAR InformationBuffer[512] = {0};
     KEY_VALUE_FULL_INFORMATION *Information = (KEY_VALUE_FULL_INFORMATION *) InformationBuffer;
     ULONG ResultLength;
+    BOOLEAN RunInline = FALSE;
 
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
@@ -404,13 +407,49 @@ DriverEntry(
         }
     }
 
+    //
+    // Read the configured IfIndex from HKLM\SYSTEM\CurrentControlSet\Services\xskfwd\RunInline
+    //
+    RtlInitUnicodeString(&UnicodeName, L"RunInline");
+    Status =
+        ZwQueryValueKey(
+            KeyHandle,
+            &UnicodeName,
+            KeyValueFullInformation,
+            Information,
+            sizeof(InformationBuffer),
+            &ResultLength);
+    if (NT_SUCCESS(Status)) {
+        if (Information->Type != REG_DWORD) {
+            Status = STATUS_INVALID_PARAMETER_MIX;
+        } else {
+            RunInline = !!*((DWORD UNALIGNED *)((CHAR *)Information + Information->DataOffset));
+        }
+    }
+
     ZwClose(KeyHandle);
 
-    ThreadConfig.Callback = XskFwdWorker;
-    Status = CxPlatThreadCreate(&ThreadConfig, &WorkerThread);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
+    if (RunInline) {
+        BOOLEAN AlwaysStop = TRUE;
+
+        //
+        // Run a single iteration and return the result.
+        //
+        Status = XskFwd(IfIndex, &AlwaysStop);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    } else {
+        //
+        // Start a system worker thread to run until the driver is unloaded.
+        //
+        ThreadConfig.Callback = XskFwdWorker;
+        Status = CxPlatThreadCreate(&ThreadConfig, &WorkerThread);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
     }
+
 
 Exit:
 
