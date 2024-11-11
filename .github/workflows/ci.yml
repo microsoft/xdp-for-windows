@@ -459,7 +459,6 @@ jobs:
         path: artifacts/bin
     - name: Run XskFwdKm
       shell: PowerShell
-      timeout-minutes: 25
       run: tools/xskfwdkm.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Convert Logs
       if: ${{ always() }}
