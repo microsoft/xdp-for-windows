@@ -52,6 +52,26 @@ XdpInterfaceOpen(
     _Out_ HANDLE *InterfaceHandle
     );
 
+#ifdef _KERNEL_MODE
+
+DECLARE_HANDLE(XDP_CALLBACK_HANDLE);
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpRegisterDriverStartCallback(
+    _Out_ XDP_CALLBACK_HANDLE *CallbackRegistration,
+    _In_ PCALLBACK_FUNCTION CallbackFunction,
+    _In_opt_ VOID *CallbackContext
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpDeregisterDriverStartCallback(
+    _In_ XDP_CALLBACK_HANDLE CallbackRegistration
+    );
+
+#endif
+
 #include <xdp/details/xdpapi.h>
 #endif
 

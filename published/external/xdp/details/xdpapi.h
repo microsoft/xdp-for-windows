@@ -90,6 +90,67 @@ XdpInterfaceOpen(
 #define IOCTL_INTERFACE_OFFLOAD_QEO_SET \
     CTL_CODE(FILE_DEVICE_NETWORK, 3, METHOD_BUFFERED, FILE_WRITE_ACCESS)
 
+#ifdef _KERNEL_MODE
+
+#define XDP_DRIVER_START_CALLBACK_NAME L"\\Callback\\XdpDriverStart"
+
+inline
+_IRQL_requires_max_(PASSIVE_LEVEL)
+XDP_STATUS
+XdpRegisterDriverStartCallback(
+    _Out_ XDP_CALLBACK_HANDLE *CallbackRegistration,
+    _In_ PCALLBACK_FUNCTION CallbackFunction,
+    _In_opt_ VOID *CallbackContext
+    )
+{
+    XDP_STATUS Status;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING CallbackObjectName;
+    PCALLBACK_OBJECT CallbackObject = NULL;
+
+    RtlInitUnicodeString(&CallbackObjectName, XDP_DRIVER_START_CALLBACK_NAME);
+    InitializeObjectAttributes(
+        &ObjectAttributes, &CallbackObjectName,
+        OBJ_CASE_INSENSITIVE | OBJ_PERMANENT | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    Status = ExCreateCallback(&CallbackObject, &ObjectAttributes, TRUE, TRUE);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    *CallbackRegistration = ExRegisterCallback(CallbackObject, CallbackFunction, CallbackContext);
+    if (*CallbackRegistration == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+Exit:
+
+    if (CallbackObject != NULL) {
+        //
+        // The callback registration holds an implicit reference on the callback
+        // object, so release the initial reference. The callback will finally
+        // be cleaned up when no registrations remain.
+        //
+        ObDereferenceObject(CallbackObject);
+    }
+
+    return Status;
+}
+
+inline
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpDeregisterDriverStartCallback(
+    _In_ XDP_CALLBACK_HANDLE CallbackRegistration
+    )
+{
+    XDPAPI_ASSERT(CallbackRegistration != NULL);
+    ExUnregisterCallback(CallbackRegistration);
+}
+
+#endif // _KERNEL_MODE
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
