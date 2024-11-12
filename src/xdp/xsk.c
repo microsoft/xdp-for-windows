@@ -1810,35 +1810,49 @@ XskFreeRing(
     )
 {
     ASSERT(
-        (Ring->Size != 0 && Ring->Mdl != NULL && Ring->Shared != NULL) ||
-        (Ring->Size == 0 && Ring->Mdl == NULL && Ring->Shared == NULL));
+        (Ring->Size != 0 && Ring->Shared != NULL) ||
+        (Ring->Size == 0 && Ring->Shared == NULL && Ring->Mdl == NULL && Ring->UserVa == NULL));
 
-    if (Ring->UserVa != NULL) {
-        VOID *CurrentProcess = PsGetCurrentProcess();
-        KAPC_STATE ApcState;
+    if (Ring->Mdl != NULL) {
+        if (Ring->UserVa != NULL) {
+            VOID *CurrentProcess = PsGetCurrentProcess();
+            KAPC_STATE ApcState;
 
-        ASSERT(Ring->OwningProcess != NULL);
+            ASSERT(Ring->OwningProcess != NULL);
+            ASSERT(Ring->Mdl != NULL);
 
-        if (CurrentProcess != Ring->OwningProcess) {
-            KeStackAttachProcess(Ring->OwningProcess, &ApcState);
-        }
+            if (CurrentProcess != Ring->OwningProcess) {
+                KeStackAttachProcess(Ring->OwningProcess, &ApcState);
+            }
 
-        ASSERT(Ring->Mdl);
-        MmUnmapLockedPages(Ring->UserVa, Ring->Mdl);
+            MmUnmapLockedPages(Ring->UserVa, Ring->Mdl);
 
-        if (CurrentProcess != Ring->OwningProcess) {
+            if (CurrentProcess != Ring->OwningProcess) {
 #pragma prefast(suppress:6001, "ApcState is correctly initialized in KeStackAttachProcess above.")
-            KeUnstackDetachProcess(&ApcState);
+                KeUnstackDetachProcess(&ApcState);
+            }
+
+            Ring->UserVa = NULL;
         }
 
+        IoFreeMdl(Ring->Mdl);
+        Ring->Mdl = NULL;
+    }
+    if (Ring->UserVa != NULL) {
+        //
+        // If the UserVa was set without an MDL, then it must be a direct kernel
+        // mapping.
+        //
+        ASSERT(Ring->UserVa == Ring->Shared);
+        Ring->UserVa = NULL;
+    }
+    if (Ring->OwningProcess != NULL) {
         ObDereferenceObject(Ring->OwningProcess);
         Ring->OwningProcess = NULL;
     }
-    if (Ring->Mdl != NULL) {
-        IoFreeMdl(Ring->Mdl);
-    }
     if (Ring->Shared != NULL) {
         ExFreePoolWithTag(Ring->Shared, POOLTAG_RING);
+        Ring->Shared = NULL;
     }
 }
 
@@ -2868,7 +2882,6 @@ XskFillRingInfo(
     _Out_ XSK_RING_INFO *Info
     )
 {
-    ASSERT(Ring->Mdl != NULL);
     ASSERT(Ring->Shared != NULL);
     ASSERT(Ring->Size != 0);
     ASSERT(Ring->UserVa != NULL);
@@ -3175,35 +3188,41 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
-    Mdl =
-        IoAllocateMdl(
-            Shared,
-            AllocationSize,
-            FALSE, // SecondaryBuffer
-            FALSE, // ChargeQuota
-            NULL); // Irp
-    if (Mdl == NULL) {
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        goto Exit;
-    }
-    MmBuildMdlForNonPagedPool(Mdl);
+    ASSERT(ALIGN_DOWN_POINTER_BY(Shared, PAGE_SIZE) == Shared);
 
-    __try {
-        UserVa =
-            MmMapLockedPagesSpecifyCache(
-                Mdl,
-                RequestorMode,
-                MmCached,
-                NULL, // RequestedAddress
-                FALSE,// BugCheckOnFailure
-                NormalPagePriority | MdlMappingNoExecute);
-        if (UserVa == NULL) {
+    if (RequestorMode == KernelMode) {
+        UserVa = Shared;
+    } else {
+        Mdl =
+            IoAllocateMdl(
+                Shared,
+                AllocationSize,
+                FALSE, // SecondaryBuffer
+                FALSE, // ChargeQuota
+                NULL); // Irp
+        if (Mdl == NULL) {
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Exit;
         }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        Status = GetExceptionCode();
-        goto Exit;
+        MmBuildMdlForNonPagedPool(Mdl);
+
+        __try {
+            UserVa =
+                MmMapLockedPagesSpecifyCache(
+                    Mdl,
+                    RequestorMode,
+                    MmCached,
+                    NULL, // RequestedAddress
+                    FALSE,// BugCheckOnFailure
+                    NormalPagePriority | MdlMappingNoExecute);
+            if (UserVa == NULL) {
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                goto Exit;
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            Status = GetExceptionCode();
+            goto Exit;
+        }
     }
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
@@ -3234,8 +3253,8 @@ XskSockoptSetRingSize(
     }
 
     ASSERT(
-        (Ring->Size != 0 && Ring->Mdl != NULL && Ring->Shared != NULL) ||
-        (Ring->Size == 0 && Ring->Mdl == NULL && Ring->Shared == NULL));
+        (Ring->Size != 0 && Ring->Shared != NULL) ||
+        (Ring->Size == 0 && Ring->Shared == NULL && Ring->Mdl == NULL && Ring->UserVa == NULL));
 
     if (Ring->Size != 0) {
         Status = STATUS_INVALID_DEVICE_STATE;
@@ -3267,10 +3286,11 @@ Exit:
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
     }
-    if (UserVa != NULL) {
-        MmUnmapLockedPages(UserVa, Mdl);
-    }
     if (Mdl != NULL) {
+        if (UserVa != NULL) {
+            ASSERT(RequestorMode != KernelMode);
+            MmUnmapLockedPages(UserVa, Mdl);
+        }
         IoFreeMdl(Mdl);
     }
     if (Shared != NULL) {

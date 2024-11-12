@@ -163,13 +163,19 @@ _XdpOpen(
     UNICODE_STRING DeviceName;
     OBJECT_ATTRIBUTES ObjectAttributes;
     IO_STATUS_BLOCK IoStatusBlock;
+#ifdef _KERNEL_MODE
+#define _XDP_OPEN_KERNEL_OBJ_FLAGS OBJ_KERNEL_HANDLE
+#else
+#define _XDP_OPEN_KERNEL_OBJ_FLAGS 0
+#endif
 
     //
     // Open a handle to the XDP device.
     //
     RtlInitUnicodeString(&DeviceName, XDP_DEVICE_NAME);
     InitializeObjectAttributes(
-        &ObjectAttributes, &DeviceName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+        &ObjectAttributes, &DeviceName, OBJ_CASE_INSENSITIVE | _XDP_OPEN_KERNEL_OBJ_FLAGS,
+        NULL, NULL);
 
     return
         _XdpConvertNtStatusToXdpStatus(
@@ -243,7 +249,7 @@ _XdpIoctl(
 
     if (Event == &LocalEvent && XdpStatus == XDP_STATUS_PENDING) {
         XdpStatus = _XdpWaitInfinite(Event);
-        if (FAILED(XdpStatus)) {
+        if (XDP_FAILED(XdpStatus)) {
             goto Exit;
         }
 

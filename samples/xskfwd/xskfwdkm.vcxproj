@@ -4,9 +4,9 @@
     <ClCompile Include="xskfwd.c" />
   </ItemGroup>
   <PropertyGroup>
-    <ProjectGuid>{238cd65b-59d5-4ec5-ba23-630f567395fa}</ProjectGuid>
-    <TargetName>xskfwd</TargetName>
-    <UndockedType>exe</UndockedType>
+    <ProjectGuid>{f722da97-3252-42f1-92d3-215c99935607}</ProjectGuid>
+    <TargetName>xskfwdkm</TargetName>
+    <UndockedType>sys</UndockedType>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
@@ -16,9 +16,6 @@
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

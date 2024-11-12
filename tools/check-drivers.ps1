@@ -53,6 +53,7 @@ function Check-And-Remove-Driver($Driver, $Component) {
 }
 
 # Check for any XDP drivers.
+Check-And-Remove-Driver "xskfwdkm.sys" "xskfwdkm"
 Check-And-Remove-Driver "fnmp.sys" "fnmp"
 Check-And-Remove-Driver "fnlwf.sys" "fnlwf"
 Check-And-Remove-Driver "xdpmp.sys" "xdpmp"

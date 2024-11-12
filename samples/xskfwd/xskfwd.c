@@ -5,9 +5,16 @@
 
 #include <xdpapi.h>
 #include <afxdp_helper.h>
+#include <cxplat.h>
 
+#ifdef _KERNEL_MODE
+#define LOGERR(...)
+#else
 #include <stdio.h>
 #include <stdlib.h>
+#define LOGERR(...) \
+    fprintf(stderr, "ERR: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n")
+#endif
 
 const CHAR *UsageText =
 "xskfwd.exe <IfIndex>"
@@ -23,9 +30,6 @@ const XDP_HOOK_ID XdpInspectRxL2 = {
     .Direction = XDP_HOOK_RX,
     .SubLayer = XDP_HOOK_INSPECT,
 };
-
-#define LOGERR(...) \
-    fprintf(stderr, "ERR: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n")
 
 static
 VOID
@@ -49,17 +53,15 @@ TranslateRxToTx(
     }
 }
 
-INT
-__cdecl
-main(
-    INT argc,
-    CHAR **argv
+XDP_STATUS
+XskFwd(
+    _In_ UINT32 IfIndex,
+    _In_ volatile BOOLEAN *Stop
     )
 {
     HRESULT Result;
-    HANDLE Socket;
-    HANDLE Program;
-    UINT32 IfIndex;
+    HANDLE Socket = NULL;
+    HANDLE Program = NULL;
     XDP_RULE Rule = {0};
     UCHAR Frame[1514];
     XSK_UMEM_REG UmemReg = {0};
@@ -72,20 +74,13 @@ main(
     XSK_RING TxCompRing;
     UINT32 RingIndex;
 
-    if (argc < 2) {
-        fprintf(stderr, UsageText);
-        return EXIT_FAILURE;
-    }
-
-    IfIndex = atoi(argv[1]);
-
     //
     // Create an AF_XDP socket. The newly created socket is not connected.
     //
     Result = XskCreate(&Socket);
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XskCreate failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -99,9 +94,9 @@ main(
     UmemReg.Address = Frame;
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg));
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XSK_UMEM_REG failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -109,9 +104,9 @@ main(
     // queue, and indicate the intent to perform RX and TX actions.
     //
     Result = XskBind(Socket, IfIndex, 0, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX);
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XskBind failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -122,27 +117,27 @@ main(
     //
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_RING_SIZE, &RingSize, sizeof(RingSize));
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RX_RING_SIZE failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_FILL_RING_SIZE, &RingSize, sizeof(RingSize));
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RX_FILL_RING_SIZE failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_TX_RING_SIZE, &RingSize, sizeof(RingSize));
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_TX_RING_SIZE failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &RingSize, sizeof(RingSize));
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_TX_COMPLETION_RING_SIZE failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -150,9 +145,9 @@ main(
     // available and RX and TX can occur.
     //
     Result = XskActivate(Socket, XSK_ACTIVATE_FLAG_NONE);
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XskActivate failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -160,9 +155,9 @@ main(
     //
     OptionLength = sizeof(RingInfo);
     Result = XskGetSockopt(Socket, XSK_SOCKOPT_RING_INFO, &RingInfo, &OptionLength);
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XSK_SOCKOPT_RING_INFO failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -204,9 +199,9 @@ main(
     Rule.Redirect.Target = Socket;
 
     Result = XdpCreateProgram(IfIndex, &XdpInspectRxL2, 0, 0, &Rule, 1, &Program);
-    if (FAILED(Result)) {
+    if (XDP_FAILED(Result)) {
         LOGERR("XdpCreateProgram failed: %x", Result);
-        return EXIT_FAILURE;
+        goto Exit;
     }
 
     //
@@ -215,7 +210,7 @@ main(
     // be optimized further by consuming, reserving, and submitting batches of
     // frames across each XskRing* function.
     //
-    while (TRUE) {
+    do {
         if (XskRingConsumerReserve(&RxRing, 1, &RingIndex) == 1) {
             XSK_BUFFER_DESCRIPTOR *RxBuffer;
             XSK_BUFFER_DESCRIPTOR *TxBuffer;
@@ -261,9 +256,9 @@ main(
             // optimized further using the XskRingProducerNeedPoke helper.
             //
             Result = XskNotifySocket(Socket, XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
-            if (FAILED(Result)) {
+            if (XDP_FAILED(Result)) {
                 LOGERR("XskNotifySocket failed: %x", Result);
-                return EXIT_FAILURE;
+                goto Exit;
             }
         }
 
@@ -299,17 +294,192 @@ main(
             XskRingConsumerRelease(&TxCompRing, 1);
             XskRingProducerSubmit(&RxFillRing, 1);
         }
-    }
+    } while (!ReadBooleanNoFence(Stop));
+
+    Result = XDP_STATUS_SUCCESS;
+
+Exit:
 
     //
     // Close the XDP program. Traffic will no longer be intercepted by XDP.
     //
-    CloseHandle(Program);
+    if (Program != NULL) {
+        CxPlatCloseHandle(Program);
+    }
 
     //
     // Close the AF_XDP socket. All socket resources will be cleaned up by XDP.
     //
-    CloseHandle(Socket);
+    if (Socket != NULL) {
+        CxPlatCloseHandle(Socket);
+    }
 
-    return EXIT_SUCCESS;
+    return Result;
 }
+
+#ifdef _KERNEL_MODE
+
+DRIVER_INITIALIZE DriverEntry;
+static DRIVER_UNLOAD DriverUnload;
+static KSTART_ROUTINE XskFwdWorker;
+
+static UINT32 IfIndex;
+static BOOLEAN Stop;
+static CXPLAT_THREAD WorkerThread;
+
+static
+_Use_decl_annotations_
+VOID
+XskFwdWorker(
+    VOID *Context
+    )
+{
+    UNREFERENCED_PARAMETER(Context);
+
+    XskFwd(IfIndex, &Stop);
+}
+
+static
+_Use_decl_annotations_
+VOID
+DriverUnload(
+    DRIVER_OBJECT *DriverObject
+    )
+{
+    UNREFERENCED_PARAMETER(DriverObject);
+
+    if (WorkerThread != NULL) {
+        WriteBooleanNoFence(&Stop, TRUE);
+        CxPlatThreadWaitForever(&WorkerThread);
+        CxPlatThreadDelete(&WorkerThread);
+    }
+}
+
+_Use_decl_annotations_
+NTSTATUS
+DriverEntry(
+    DRIVER_OBJECT *DriverObject,
+    UNICODE_STRING *RegistryPath
+    )
+{
+    NTSTATUS Status;
+    CXPLAT_THREAD_CONFIG ThreadConfig = {0};
+    HANDLE KeyHandle;
+    UNICODE_STRING UnicodeName;
+    OBJECT_ATTRIBUTES ObjectAttributes = {0};
+    UCHAR InformationBuffer[512] = {0};
+    KEY_VALUE_FULL_INFORMATION *Information = (KEY_VALUE_FULL_INFORMATION *) InformationBuffer;
+    ULONG ResultLength;
+    BOOLEAN RunInline = FALSE;
+
+#pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
+    ExInitializeDriverRuntime(0);
+    DriverObject->DriverUnload = DriverUnload;
+
+    InitializeObjectAttributes(
+        &ObjectAttributes,
+        RegistryPath,
+        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+        NULL,
+        NULL);
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    //
+    // Read the configured IfIndex from HKLM\SYSTEM\CurrentControlSet\Services\xskfwd\IfIndex
+    //
+    RtlInitUnicodeString(&UnicodeName, L"IfIndex");
+    Status =
+        ZwQueryValueKey(
+            KeyHandle,
+            &UnicodeName,
+            KeyValueFullInformation,
+            Information,
+            sizeof(InformationBuffer),
+            &ResultLength);
+    if (NT_SUCCESS(Status)) {
+        if (Information->Type != REG_DWORD) {
+            Status = STATUS_INVALID_PARAMETER_MIX;
+        } else {
+            IfIndex = *((DWORD UNALIGNED *)((CHAR *)Information + Information->DataOffset));
+        }
+    }
+
+    //
+    // Read the configured IfIndex from HKLM\SYSTEM\CurrentControlSet\Services\xskfwd\RunInline
+    //
+    RtlInitUnicodeString(&UnicodeName, L"RunInline");
+    Status =
+        ZwQueryValueKey(
+            KeyHandle,
+            &UnicodeName,
+            KeyValueFullInformation,
+            Information,
+            sizeof(InformationBuffer),
+            &ResultLength);
+    if (NT_SUCCESS(Status)) {
+        if (Information->Type != REG_DWORD) {
+            Status = STATUS_INVALID_PARAMETER_MIX;
+        } else {
+            RunInline = !!*((DWORD UNALIGNED *)((CHAR *)Information + Information->DataOffset));
+        }
+    }
+
+    ZwClose(KeyHandle);
+
+    if (RunInline) {
+        BOOLEAN AlwaysStop = TRUE;
+
+        //
+        // Run a single iteration and return the result.
+        //
+        Status = XskFwd(IfIndex, &AlwaysStop);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    } else {
+        //
+        // Start a system worker thread to run until the driver is unloaded.
+        //
+        ThreadConfig.Callback = XskFwdWorker;
+        Status = CxPlatThreadCreate(&ThreadConfig, &WorkerThread);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    }
+
+
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        DriverUnload(DriverObject);
+    }
+
+    return Status;
+}
+
+#else // _KERNEL_MODE
+
+INT
+__cdecl
+main(
+    INT argc,
+    CHAR **argv
+    )
+{
+    UINT32 IfIndex;
+    BOOLEAN Stop = FALSE; // Run until the process is terminated.
+
+    if (argc < 2) {
+        LOGERR(UsageText);
+        return EXIT_FAILURE;
+    }
+
+    IfIndex = atoi(argv[1]);
+
+    return XskFwd(IfIndex, &Stop);
+}
+
+#endif // _KERNEL_MODE

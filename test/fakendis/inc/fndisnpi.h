@@ -25,7 +25,7 @@ FNdisClientOpen(
 
     RtlZeroMemory(FndisClient, sizeof(*FndisClient));
     RtlInitUnicodeString(&Name, FNDIS_DEVICE_NAME);
-    InitializeObjectAttributes(&Oa, &Name, OBJ_CASE_INSENSITIVE, NULL, NULL);
+    InitializeObjectAttributes(&Oa, &Name, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
     Status =
         ZwCreateFile(
