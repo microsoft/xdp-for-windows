@@ -18,11 +18,11 @@ This script installs or uninstalls various XDP components.
 param (
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp", "xdpebpf")]
+    [ValidateSet("", "xdp", "xdpebpf", "xdppa")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp", "xdpebpf")]
+    [ValidateSet("", "xdp", "xdpebpf", "xdppa")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -118,14 +118,13 @@ function Uninstall-Driver($Inf) {
     }
 }
 
-# Installs the xdp driver.
-if ($Install -eq "xdp") {
+function Install-XdpComponent($ComponentId) {
     if (!(Test-Path "$XdpInf")) {
         Write-Error "$XdpInf does not exist!"
     }
 
-    Write-Verbose "netcfg.exe -v -l '$XdpInf' -c s -i ms_xdp"
-    netcfg.exe -v -l "$XdpInf" -c s -i ms_xdp | Write-Verbose
+    Write-Verbose "netcfg.exe -v -l '$XdpInf' -c s -i ms_$ComponentId"
+    netcfg.exe -v -l "$XdpInf" -c s -i ms_$ComponentId | Write-Verbose
     if ($LastExitCode) {
         Write-Error "netcfg.exe exit code: $LastExitCode"
     }
@@ -137,6 +136,51 @@ if ($Install -eq "xdp") {
     }
 
     Write-Verbose "xdp.sys install complete!"
+}
+
+function Uninstall-XdpComponent($ComponentId) {
+    Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
+    unlodctr.exe /m:$XdpPcwMan | Write-Verbose
+    if ($LastExitCode) {
+        Write-Error "unlodctr.exe exit code: $LastExitCode"
+    }
+
+    Write-Verbose "netcfg.exe -u ms_$ComponentId"
+    cmd.exe /c "netcfg.exe -u ms_$ComponentId 2>&1" | Write-Verbose
+    if (!$?) {
+        Write-Host "netcfg.exe failed: $LastExitCode"
+    }
+
+    Uninstall-Driver "xdp.inf"
+
+    Cleanup-Service xdp
+
+    Remove-Item $env:WINDIR\system32\xdpapi.dll -Force
+    Remove-Item $env:WINDIR\system32\drivers\xdp.sys -Force
+
+    Write-Verbose "xdp.sys uninstall complete!"
+}
+
+# Installs the xdp driver.
+if ($Install -eq "xdp") {
+    Install-XdpComponent "xdp"
+}
+
+# Installs the xdp driver in PA mode. Implicitly uninstalls regular xdp.
+if ($Install -eq "xdppa") {
+    Uninstall-XdpComponent "xdp"
+    Install-XdpComponent "xdp_pa"
+}
+
+# Uninstalls the xdp driver from PA mode. Implicitly installs regular xdp.
+if ($Uninstall -eq "xdppa") {
+    Uninstall-XdpComponent "xdp_pa"
+    Install-XdpComponent "xdp"
+}
+
+# Uninstalls the xdp driver.
+if ($Uninstall -eq "xdp") {
+    Uninstall-XdpComponent "xdp"
 }
 
 # Installs the XDP eBPF feature.
@@ -173,29 +217,4 @@ if ($Uninstall -eq "xdpebpf") {
     Restart-Service xdp -ErrorAction 'Continue'
 
     Write-Verbose "XDP eBPF feature uninstall complete!"
-}
-
-# Uninstalls the xdp driver.
-if ($Uninstall -eq "xdp") {
-
-    Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
-    unlodctr.exe /m:$XdpPcwMan | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "unlodctr.exe exit code: $LastExitCode"
-    }
-
-    Write-Verbose "netcfg.exe -u ms_xdp"
-    cmd.exe /c "netcfg.exe -u ms_xdp 2>&1" | Write-Verbose
-    if (!$?) {
-        Write-Host "netcfg.exe failed: $LastExitCode"
-    }
-
-    Uninstall-Driver "xdp.inf"
-
-    Cleanup-Service xdp
-
-    Remove-Item $env:WINDIR\system32\xdpapi.dll -Force
-    Remove-Item $env:WINDIR\system32\drivers\xdp.sys -Force
-
-    Write-Verbose "xdp.sys uninstall complete!"
 }

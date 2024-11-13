@@ -23,19 +23,25 @@ SPDX-License-Identifier: MIT
             <Feature Id="xdp_ebpf" Level="10" AllowAdvertise="no" Title="XDP eBPF" Description="Experimental eBPF support. NOT officially supported.">
                 <ComponentGroupRef Id="xdp_ebpf" />
             </Feature>
+            <Feature Id="xdp_pa" Level="10" AllowAdvertise="no" Title="XDP PA Layer" Description="Bind XDP lower in the NDIS filter stack.">
+                <ComponentGroupRef Id="xdp_pa" />
+            </Feature>
         </Feature>
 
         <InstallExecuteSequence>
             <!--Rollback sequence-->
             <Custom Action="xdp_uninstall_rollback" Before="xdp_install" Condition="NOT Installed" />
             <Custom Action="xdp_ebpf_uninstall_rollback" Before="xdp_ebpf_install" Condition="NOT Installed" />
+            <Custom Action="xdp_pa_uninstall_rollback" Before="xdp_pa_install" Condition="NOT Installed" />
 
             <!--Install sequence-->
             <Custom Action="xdp_install" After="InstallFiles" Condition="NOT Installed" />
             <Custom Action="xdp_ebpf_install" After="xdp_install" Condition="(&amp;xdp_ebpf=3) AND NOT(!xdp_ebpf=3)" />
+            <Custom Action="xdp_pa_install" After="xdp_install" Condition="(&amp;xdp_pa=3) AND NOT(!xdp_pa=3)" />
 
             <!--Uninstall sequence-->
-            <Custom Action="xdp_ebpf_uninstall" After="InstallInitialize" Condition="(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)" />
+            <Custom Action="xdp_pa_uninstall" After="InstallInitialize" Condition="(&amp;xdp_pa=2) AND (!xdp_pa=3)" />
+            <Custom Action="xdp_ebpf_uninstall" After="xdp_pa_uninstall" Condition="(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)" />
             <Custom Action="xdp_uninstall" After="xdp_ebpf_uninstall" Condition="REMOVE=&quot;ALL&quot;" />
         </InstallExecuteSequence>
 
@@ -105,6 +111,10 @@ SPDX-License-Identifier: MIT
             </Component>
         </ComponentGroup>
 
+        <ComponentGroup Id="xdp_pa" Directory="INSTALLFOLDER">
+            <ComponentGroupRef Id="xdp" />
+        </ComponentGroup>
+
         <!-- Install/Uninstall/Rollback the XDP driver installation -->
         <SetProperty Id="xdp_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdp -Verbose&quot;" Before="xdp_install" Sequence="execute" />
         <CustomAction Id="xdp_install" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no" BinaryRef="Wix4UtilCA_X86" />
@@ -124,5 +134,15 @@ SPDX-License-Identifier: MIT
 
         <SetProperty Id="xdp_ebpf_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdpebpf -Verbose&quot;" Before="xdp_ebpf_uninstall_rollback" Sequence="execute" />
         <CustomAction Id="xdp_ebpf_uninstall_rollback" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no" BinaryRef="Wix4UtilCA_X86" />
+
+        <!-- Install/Uninstall/Rollback the XDP PA driver installation -->
+        <SetProperty Id="xdp_pa_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdppa -Verbose&quot;" Before="xdp_pa_install" Sequence="execute" />
+        <CustomAction Id="xdp_pa_install" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no" BinaryRef="Wix4UtilCA_X86" />
+
+        <SetProperty Id="xdp_pa_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdppa -Verbose&quot;" Before="xdp_pa_uninstall" Sequence="execute" />
+        <CustomAction Id="xdp_pa_uninstall" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="no" BinaryRef="Wix4UtilCA_X86" />
+
+        <SetProperty Id="xdp_pa_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdppa -Verbose&quot;" Before="xdp_pa_uninstall_rollback" Sequence="execute" />
+        <CustomAction Id="xdp_pa_uninstall_rollback" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no" BinaryRef="Wix4UtilCA_X86" />
     </Fragment>
 </Wix>
