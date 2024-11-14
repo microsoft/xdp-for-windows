@@ -45,7 +45,10 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false
+    [switch]$EnableEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$PaLayer = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -263,10 +266,16 @@ function Install-Xdp {
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
 
-        $AddLocal = ""
+        $AddLocal = @()
 
         if ($EnableEbpf) {
-            $AddLocal = "ADDLOCAL=xdp_ebpf"
+            $AddLocal += "xdp_ebpf"
+        }
+        if ($PaLayer) {
+            $AddLocal += "xdp_pa"
+        }
+        if ($AddLocal) {
+            $AddLocal = "ADDLOCAL=$($AddLocal -join ",")"
         }
 
         Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt"

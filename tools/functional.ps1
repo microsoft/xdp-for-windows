@@ -149,6 +149,18 @@ for ($i = 1; $i -le $Iterations; $i++) {
             Write-Error "[$i/$Iterations] xdpfunctionaltests failed with $LastExitCode" -ErrorAction Continue
             $IterationFailureCount++
         }
+
+        # Sanity test the XDP_PA installer.
+
+        Write-Verbose "Reinstalling XDP at PA layer..."
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -PaLayer
+        Write-Verbose "Installed XDP PA layer."
+
+        if (!(Get-NetAdapterBinding -ComponentID ms_xdp_pa)) {
+            Write-Error "[$i/$Iterations] XDP_PA failed to install" -ErrorAction Continue
+            $IterationFailureCount++
+        }
     } finally {
         if ($Watchdog -ne $null) {
             Remove-Job -Job $Watchdog -Force

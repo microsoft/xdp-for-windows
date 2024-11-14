@@ -20,7 +20,8 @@ xdpapi.dll = 1
 %Msft% = MSFT,NT$ARCH$.10.0...17763
 
 [MSFT.NT$ARCH$.10.0...17763]
-%Xdp% = Install, ms_xdp
+XDP = Install, ms_xdp
+XDP_PA = Install_PA, ms_xdp_pa
 
 [Install]
 Characteristics     = %NCF_LW_FILTER%
@@ -28,6 +29,13 @@ NetCfgInstanceId    = "{c0be1ebc-74b8-4ba9-8c1e-ecd227e2be3b}"
 CopyFiles           = Drivers_Dir
 CopyFiles           = System_Dir
 AddReg              = XDP.NDI
+
+[Install_PA]
+Characteristics     = %NCF_LW_FILTER%
+NetCfgInstanceId    = "{c0be1ebc-74b8-4ba9-8c1e-ecd227e2be3b}"
+CopyFiles           = Drivers_Dir
+CopyFiles           = System_Dir
+AddReg              = XDP_PA.NDI
 
 [Drivers_Dir]
 xdp.sys
@@ -46,7 +54,21 @@ HKR, Ndi\Interfaces, UpperRange,, "noupper"
 HKR, Ndi\Interfaces, LowerRange,, "ndisvf"
 HKR, Ndi\Interfaces, FilterMediaTypes,, "ethernet, ndisvf"
 
+[XDP_PA.NDI]
+HKR, Ndi, Service,, "xdp"
+HKR, Ndi, CoServices, %REG_MULTI_SZ%, "xdp"
+HKR, Ndi, HelpText,, "%XdpDescription%"
+HKR, Ndi, FilterClass,, provider_address
+HKR, Ndi, FilterType, %REG_DWORD%, %FILTER_TYPE_MODIFYING%
+HKR, Ndi, FilterRunType, %REG_DWORD%, %FILTER_RUN_TYPE_OPTIONAL%
+HKR, Ndi\Interfaces, UpperRange,, "noupper"
+HKR, Ndi\Interfaces, LowerRange,, "ndisvf"
+HKR, Ndi\Interfaces, FilterMediaTypes,, "ethernet, ndisvf"
+
 [Install.Services]
+AddService=xdp,, AddService
+
+[Install_PA.Services]
 AddService=xdp,, AddService
 
 [AddService]
@@ -84,7 +106,6 @@ DelService = xdp, %SPSVCINST_STOPSERVICE%
 [Strings]
 ; localizable strings
 Msft                = "Microsoft Corporation"
-Xdp                 = "XDP"
 XdpDescription      = "Microsoft XDP Platform Driver"
 
 ; non-localizable strings
