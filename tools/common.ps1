@@ -35,14 +35,10 @@ function Invoke-WebRequest-WithRetry {
 
 function Get-CurrentBranch {
     $env:GIT_REDIRECT_STDERR = '2>&1'
-    $CurrentBranch = $null
-    try {
-        $CurrentBranch = git branch --show-current
-        if ([string]::IsNullOrWhiteSpace($CurrentBranch)) {
-            throw
-        }
-    } catch {
-        Write-Error "Failed to get branch from git"
+    $CurrentBranch = git branch --show-current
+    if ([string]::IsNullOrWhiteSpace($CurrentBranch)) {
+        Write-Warning "Failed to get branch from git"
+        return $null
     }
     return $CurrentBranch
 }
