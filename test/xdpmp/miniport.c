@@ -37,7 +37,7 @@ UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 
 #define MIN_NUM_RX_BUFFERS 1
 #define DEFAULT_NUM_RX_BUFFERS 256
-#define MAX_NUM_RX_BUFFERS 8192
+#define MAX_NUM_RX_BUFFERS 65536
 
 #define MIN_RX_BUFFER_LENGTH 64
 #define DEFAULT_RX_BUFFER_LENGTH 2048
@@ -393,7 +393,7 @@ MpInitialize(
     }
 
     Adapter->MdlSize = (UINT32)MmSizeOfMdl((VOID *)(PAGE_SIZE - 1), Adapter->RxBufferLength);
-    Adapter->MdlSize = ALIGN_UP(Adapter->MdlSize, MEMORY_ALLOCATION_ALIGNMENT);
+    Adapter->MdlSize = ALIGN_UP_BY(Adapter->MdlSize, MEMORY_ALLOCATION_ALIGNMENT);
     if (Adapter->MdlSize > MAXUSHORT) {
         TraceError(
             TRACE_CONTROL, "NdisMiniportHandle=%p Error: MdlSize too large MdlSize=%lu",

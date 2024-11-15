@@ -5,8 +5,8 @@
 
 #pragma once
 
+#include <xdp/wincommon.h>
 #include <winsock2.h>
-#include <windows.h>
 #include <winternl.h>
 #include <netiodef.h>
 #include <ws2def.h>

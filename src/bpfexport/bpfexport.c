@@ -2,8 +2,8 @@
 // Copyright (c) Microsoft Corporation.
 //
 
+#include <xdp/wincommon.h>
 #include <stdio.h>
-#include <windows.h>
 //
 // Work around various eBPF compilation bugs.
 //

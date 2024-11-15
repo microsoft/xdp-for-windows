@@ -8,8 +8,8 @@
 
 // Windows and WIL includes need to be ordered in a certain way.
 #define NOMINMAX
+#include <xdp/wincommon.h>
 #include <winsock2.h>
-#include <windows.h>
 #pragma warning(push)
 #pragma warning(disable:4324) // structure was padded due to alignment specifier
 #include <ntddndis.h>
@@ -22,21 +22,10 @@
 #include <sddl.h>
 #include <string.h>
 
-#if _MSCVER < 1930
-//
-// WIL causes VS2019 to warn on benign errors.
-//
-#pragma warning(push)
-#pragma warning(disable:6001)
-#pragma warning(disable:6387)
-#endif
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
 #include <wil/resource.h>
 #pragma warning(pop)
-#if _MSCVER < 1930
-#pragma warning(pop)
-#endif
 
 #include <afxdp_helper.h>
 #include <xdpapi.h>
@@ -161,7 +150,6 @@ FreeMem(
 
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
-using unique_xdp_api = wistd::unique_ptr<const XDP_API_TABLE, wil::function_deleter<decltype(&::XdpCloseApi), ::XdpCloseApi>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
@@ -178,7 +166,6 @@ MpResetMtu(
 
 using unique_fnmp_mtu_handle = wil::unique_any<const TestInterface *, decltype(::MpResetMtu), ::MpResetMtu>;
 
-static unique_xdp_api XdpApi;
 static FNMP_LOAD_API_CONTEXT FnMpLoadApiContext;
 static FNLWF_LOAD_API_CONTEXT FnLwfLoadApiContext;
 
@@ -742,32 +729,11 @@ SetDeviceSddl(
 
 static
 HRESULT
-TryOpenApi(
-    _Out_ unique_xdp_api &XdpApiTable,
-    _In_ UINT32 Version = XDP_API_VERSION_1
-    )
-{
-    return XdpOpenApi(Version, wil::out_param(XdpApiTable));
-}
-
-static
-unique_xdp_api
-OpenApi(
-    _In_ UINT32 Version = XDP_API_VERSION_1
-    )
-{
-    unique_xdp_api XdpApiTable;
-    TEST_HRESULT(TryOpenApi(XdpApiTable, Version));
-    return XdpApiTable;
-}
-
-static
-HRESULT
 TryCreateSocket(
     _Inout_ wil::unique_handle &Socket
     )
 {
-    return XdpApi->XskCreate(&Socket);
+    return XskCreate(&Socket);
 }
 
 static
@@ -814,7 +780,7 @@ TryGetSockopt(
     _Inout_ UINT32 *OptionLength
     )
 {
-    return XdpApi->XskGetSockopt(Socket, OptionName, OptionValue, OptionLength);
+    return XskGetSockopt(Socket, OptionName, OptionValue, OptionLength);
 }
 
 static
@@ -838,7 +804,7 @@ TrySetSockopt(
     _In_ UINT32 OptionLength
     )
 {
-    return XdpApi->XskSetSockopt(Socket, OptionName, OptionValue, OptionLength);
+    return XskSetSockopt(Socket, OptionName, OptionValue, OptionLength);
 }
 
 static
@@ -960,7 +926,7 @@ TryNotifySocket(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    return XdpApi->XskNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result);
+    return XskNotifySocket(Socket, Flags, WaitTimeoutMilliseconds, Result);
 }
 
 static
@@ -983,7 +949,7 @@ TryNotifyAsync(
     _Inout_ OVERLAPPED *Overlapped
     )
 {
-    return XdpApi->XskNotifyAsync(Socket, Flags, Overlapped);
+    return XskNotifyAsync(Socket, Flags, Overlapped);
 }
 
 static
@@ -993,7 +959,7 @@ TryGetNotifyAsyncResult(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     )
 {
-    return XdpApi->XskGetNotifyAsyncResult(Overlapped, Result);
+    return XskGetNotifyAsyncResult(Overlapped, Result);
 }
 
 static
@@ -1013,7 +979,7 @@ TryInterfaceOpen(
     _Out_ wil::unique_handle &InterfaceHandle
     )
 {
-    return XdpApi->XdpInterfaceOpen(InterfaceIndex, &InterfaceHandle);
+    return XdpInterfaceOpen(InterfaceIndex, &InterfaceHandle);
 }
 
 static
@@ -1035,13 +1001,6 @@ TryRssGetCapabilities(
     _Inout_ UINT32 *RssCapabilitiesSize
     )
 {
-    XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities =
-        (XDP_RSS_GET_CAPABILITIES_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_CAPABILITIES_FN_NAME);
-
-    if (XdpRssGetCapabilities == NULL) {
-        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-    }
-
     return XdpRssGetCapabilities(InterfaceHandle, RssCapabilities, RssCapabilitiesSize);
 }
 
@@ -1064,12 +1023,6 @@ TryRssSet(
     _In_ UINT32 RssConfigurationSize
     )
 {
-    XDP_RSS_SET_FN *XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
-
-    if (XdpRssSet == NULL) {
-        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-    }
-
     return XdpRssSet(InterfaceHandle, RssConfiguration, RssConfigurationSize);
 }
 
@@ -1092,12 +1045,6 @@ TryRssGet(
     _Inout_ UINT32 *RssConfigurationSize
     )
 {
-    XDP_RSS_GET_FN *XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
-
-    if (XdpRssGet == NULL) {
-        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-    }
-
     return XdpRssGet(InterfaceHandle, RssConfiguration, RssConfigurationSize);
 }
 
@@ -1120,12 +1067,6 @@ TryQeoSet(
     _In_ UINT32 QuicConnectionsSize
     )
 {
-    XDP_QEO_SET_FN *XdpQeoSet = (XDP_QEO_SET_FN *)XdpApi->XdpGetRoutine(XDP_QEO_SET_FN_NAME);
-
-    if (XdpQeoSet == NULL) {
-        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
-    }
-
     return XdpQeoSet(InterfaceHandle, QuicConnections, QuicConnectionsSize);
 }
 
@@ -1151,7 +1092,7 @@ TryCreateXdpProg(
     }
 
     return
-        XdpApi->XdpCreateProgram(IfIndex, HookId, QueueId, Flags, Rules, RuleCount, &ProgramHandle);
+        XdpCreateProgram(IfIndex, HookId, QueueId, Flags, Rules, RuleCount, &ProgramHandle);
 }
 
 static
@@ -1298,14 +1239,14 @@ CreateAndBindSocket(
     Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     HRESULT BindResult;
     do {
-        BindResult = XdpApi->XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags);
+        BindResult = XskBind(Socket.Handle.get(), IfIndex, QueueId, BindFlags);
         if (SUCCEEDED(BindResult)) {
             break;
         }
     } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
-    TEST_HRESULT(XdpApi->XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
+    TEST_HRESULT(XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
 
     XskSetupPostBind(&Socket, Rx, Tx);
 
@@ -2510,7 +2451,6 @@ TestSetup()
     TEST_TRUE(CXPLAT_SUCCEEDED(CxPlatInitialize()));
     GetOSVersion();
     PowershellPrefix = GetPowershellPrefix();
-    XdpApi = OpenApi();
     TEST_HRESULT(FnSockInitialize());
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall add rule name=xdpfntest dir=in action=allow protocol=any remoteip=any localip=any"));
     TEST_EQUAL(FnMpLoadApi(&FnMpLoadApiContext), FNMPAPI_STATUS_SUCCESS);
@@ -2529,7 +2469,6 @@ TestCleanup()
     FnMpUnloadApi(FnMpLoadApiContext);
     TEST_EQUAL(0, InvokeSystem("netsh advfirewall firewall delete rule name=xdpfntest"));
     FnSockUninitialize();
-    XdpApi.reset();
     CxPlatUninitialize();
     WPP_CLEANUP();
     return true;
@@ -2538,28 +2477,6 @@ TestCleanup()
 //
 // Tests
 //
-
-VOID
-OpenApiTest()
-{
-    unique_xdp_api XdpApiTable = OpenApi();
-    XdpCloseApi(XdpApiTable.get());
-    XdpApiTable.release();
-
-    TEST_FALSE(SUCCEEDED(TryOpenApi(XdpApiTable, XDP_API_VERSION_1 + 1)));
-}
-
-VOID
-LoadApiTest()
-{
-    XDP_LOAD_API_CONTEXT XdpLoadApiContext;
-    const XDP_API_TABLE *XdpApiTable;
-
-    TEST_HRESULT(XdpLoadApi(XDP_API_VERSION_1, &XdpLoadApiContext, &XdpApiTable));
-    XdpUnloadApi(XdpLoadApiContext, XdpApiTable);
-
-    TEST_FALSE(SUCCEEDED(XdpLoadApi(XDP_API_VERSION_1 + 1, &XdpLoadApiContext, &XdpApiTable)));
-}
 
 static
 VOID
@@ -7789,6 +7706,11 @@ GenericXskQueryAffinity()
         //
 
         if (Case.Rx) {
+            UINT32 Enabled = TRUE;
+            SetSockopt(
+                Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &Enabled,
+                sizeof(Enabled));
+
             ProcNumberSize = sizeof(ProcNumber);
             Result =
                 TryGetSockopt(
@@ -7799,6 +7721,11 @@ GenericXskQueryAffinity()
         }
 
         if (Case.Tx) {
+            UINT32 Enabled = TRUE;
+            SetSockopt(
+                Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &Enabled,
+                sizeof(Enabled));
+
             ProcNumberSize = sizeof(ProcNumber);
             Result =
                 TryGetSockopt(

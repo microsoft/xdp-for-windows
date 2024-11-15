@@ -9,13 +9,12 @@
 // application closes. No XSK sockets are used in this application.
 //
 
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 #include <xdp/rtl.h>
+
+#include <stdio.h>
+#include <stdlib.h>
 
 typedef struct _INTERFACE_CONFIG_ENTRY {
     struct _INTERFACE_CONFIG_ENTRY *Next;
@@ -26,11 +25,6 @@ typedef struct _INTERFACE_CONFIG_ENTRY {
 #define XDP_RSS_INDIRECTION_TABLE_SIZE 128
 
 INTERFACE_CONFIG_ENTRY *InterfaceConfigList = NULL;
-
-CONST XDP_API_TABLE *XdpApi;
-XDP_RSS_SET_FN *XdpRssSet;
-XDP_RSS_GET_FN *XdpRssGet;
-XDP_RSS_GET_CAPABILITIES_FN *XdpRssGetCapabilities;
 
 CONST CHAR *UsageText =
 "Usage:"
@@ -130,7 +124,7 @@ AddInterfaceConfig(
 
     RtlZeroMemory(InterfaceConfig, sizeof(*InterfaceConfig));
 
-    Result = XdpApi->XdpInterfaceOpen(IfIndex, &InterfaceConfig->InterfaceHandle);
+    Result = XdpInterfaceOpen(IfIndex, &InterfaceConfig->InterfaceHandle);
     if (FAILED(Result)) {
         printf("Error: Failed to open RSS handle on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -194,7 +188,7 @@ ProcessCommandGet(
         goto Exit;
     }
 
-    Result = XdpApi->XdpInterfaceOpen(IfIndex, &InterfaceHandle);
+    Result = XdpInterfaceOpen(IfIndex, &InterfaceHandle);
     if (FAILED(Result)) {
         printf("Error: Failed to open RSS handle on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -357,7 +351,7 @@ ProcessCommandCap(
         goto Exit;
     }
 
-    Result = XdpApi->XdpInterfaceOpen(IfIndex, &InterfaceHandle);
+    Result = XdpInterfaceOpen(IfIndex, &InterfaceHandle);
     if (FAILED(Result)) {
         printf("Error: Failed to open RSS handle on IfIndex=%u Result=%d\n", IfIndex, Result);
         goto Exit;
@@ -394,31 +388,6 @@ main()
     CHAR *Str;
     CHAR *StrTokContext = NULL;
 
-    Result = XdpOpenApi(XDP_API_VERSION_1, &XdpApi);
-    if (FAILED(Result)) {
-        printf("Error: Failed to load XDP API Result=%d\n", Result);
-        goto Exit;
-    }
-
-    XdpRssSet = (XDP_RSS_SET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_SET_FN_NAME);
-    if (XdpRssSet == NULL) {
-        printf("Error: Failed to load XdpRssSet Result=%d\n", Result);
-        goto Exit;
-    }
-
-    XdpRssGet = (XDP_RSS_GET_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_FN_NAME);
-    if (XdpRssGet == NULL) {
-        printf("Error: Failed to load XdpRssGet Result=%d\n", Result);
-        goto Exit;
-    }
-
-    XdpRssGetCapabilities =
-        (XDP_RSS_GET_CAPABILITIES_FN *)XdpApi->XdpGetRoutine(XDP_RSS_GET_CAPABILITIES_FN_NAME);
-    if (XdpRssGetCapabilities == NULL) {
-        printf("Error: Failed to load XdpRssGetCapabilities Result=%d\n", Result);
-        goto Exit;
-    }
-
     while (TRUE) {
         printf(">> ");
         if (fgets(Buffer, sizeof(Buffer), stdin) == NULL) {
@@ -441,12 +410,6 @@ main()
     }
 
 Exit:
-
-    if (XdpApi != NULL) {
-        XdpRssGet = NULL;
-        XdpRssSet = NULL;
-        XdpCloseApi(XdpApi);
-    }
 
     return FAILED(Result);
 }

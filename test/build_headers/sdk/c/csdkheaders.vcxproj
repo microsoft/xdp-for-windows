@@ -3,11 +3,6 @@
   <ItemGroup>
     <ClCompile Include="sdkheaders.c" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
-    </ProjectReference>
-  </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{f092f711-04ed-443e-9978-4d270f89a2cb}</ProjectGuid>
     <TargetName>csdkheaders</TargetName>

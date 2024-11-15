@@ -5,9 +5,8 @@ Creates an AF_XDP socket.
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XSK_CREATE_FN(
+XDP_STATUS
+XskCreate(
     _Out_ HANDLE* Socket
     );
 ```

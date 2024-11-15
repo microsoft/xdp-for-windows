@@ -2,6 +2,8 @@
 
 Dynamically loads XDP, then opens the API and returns an API function table with the rest of the API's functions. This function is provided inline in XDP headers.
 
+** This API is deprecated. **
+
 ## Syntax
 
 ```C

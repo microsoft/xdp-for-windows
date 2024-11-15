@@ -261,6 +261,7 @@ XdpIfpDereferenceNmr(
 }
 
 static
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpIfpDetachNmrInterface(
     _In_ VOID *ProviderContext

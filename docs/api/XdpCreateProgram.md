@@ -5,9 +5,8 @@ Creates a new XDP program.
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XDP_CREATE_PROGRAM_FN(
+XDP_STATUS
+XdpCreateProgram(
     _In_ UINT32 InterfaceIndex,
     _In_ const XDP_HOOK_ID *HookId,
     _In_ UINT32 QueueId,
@@ -36,13 +35,13 @@ The ID specifying the [queue](../queues.md) the program is to be attached to.
 
 One or more of the `XDP_CREATE_PROGRAM_FLAGS` flags:
 
-- `XDP_CREATE_PROGRAM_FLAG_NONE`  
+- `XDP_CREATE_PROGRAM_FLAG_NONE`
     The flag has no effect.
-- `XDP_CREATE_PROGRAM_FLAG_GENERIC`  
+- `XDP_CREATE_PROGRAM_FLAG_GENERIC`
     Attach to the interface using the generic XDP provider. The generic provider is always supported.
-- `XDP_CREATE_PROGRAM_FLAG_NATIVE`  
+- `XDP_CREATE_PROGRAM_FLAG_NATIVE`
     Attach to the interface using the native XDP provider. If the interface does not support native XDP, the attach will fail.
-- `XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES`  
+- `XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES`
     Attach to all XDP queues on the interface.
 
 `Rules`
@@ -65,5 +64,5 @@ N.B. The current implementation supports only L2 inspect programs.
 
 ## See Also
 
-[`XDP_RULE`](XDP_RULE.md)  
-[Queues](../queues.md)  
+[`XDP_RULE`](XDP_RULE.md)
+[Queues](../queues.md)

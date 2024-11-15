@@ -93,21 +93,6 @@ XdpInitializeRssCapabilities(
 }
 
 //
-// Query RSS capabilities on an interface. If the input RssCapabilitiesSize is
-// too small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned.
-// Call with a NULL RssCapabilities to get the length.
-//
-typedef
-HRESULT
-XDP_RSS_GET_CAPABILITIES_FN(
-    _In_ HANDLE InterfaceHandle,
-    _Out_writes_bytes_opt_(*RssCapabilitiesSize) XDP_RSS_CAPABILITIES *RssCapabilities,
-    _Inout_ UINT32 *RssCapabilitiesSize
-    );
-
-#define XDP_RSS_GET_CAPABILITIES_FN_NAME "XdpRssGetCapabilitiesExperimental"
-
-//
 // Upon set, indicates XDP_RSS_CONFIGURATION.HashType should not be ignored.
 //
 #define XDP_RSS_FLAG_SET_HASH_TYPE         0x0001
@@ -189,36 +174,6 @@ XdpInitializeRssConfiguration(
     RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
 }
 
-//
-// Set RSS settings on an interface. Configured settings will remain valid until
-// the handle is closed. Upon handle closure, RSS settings will revert back to
-// their original state.
-//
-typedef
-HRESULT
-XDP_RSS_SET_FN(
-    _In_ HANDLE InterfaceHandle,
-    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
-    _In_ UINT32 RssConfigurationSize
-    );
-
-#define XDP_RSS_SET_FN_NAME "XdpRssSetExperimental"
-
-//
-// Query RSS settings on an interface. If the input RssConfigurationSize is too
-// small, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) will be returned. Call
-// with a NULL RssConfiguration to get the length.
-//
-typedef
-HRESULT
-XDP_RSS_GET_FN(
-    _In_ HANDLE InterfaceHandle,
-    _Out_writes_bytes_opt_(*RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
-    _Inout_ UINT32 *RssConfigurationSize
-    );
-
-#define XDP_RSS_GET_FN_NAME "XdpRssGetExperimental"
-
 typedef enum _XDP_QUIC_OPERATION {
     XDP_QUIC_OPERATION_ADD,     // Add (or modify) a QUIC connection offload
     XDP_QUIC_OPERATION_REMOVE,  // Remove a QUIC connection offload
@@ -286,19 +241,45 @@ XdpInitializeQuicConnection(
     XdpQuicConnection->Header.Size = XDP_SIZEOF_QUIC_CONNECTION_REVISION_1;
 }
 
-//
-// Set QEO settings on an interface. Configured settings will remain valid until
-// the handle is closed. Upon handle closure, QEO settings will revert back to
-// their original state.
-//
-typedef HRESULT
-XDP_QEO_SET_FN(
+#if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
+#include <xdp/xdpapi_experimental_v1.h>
+#else
+
+inline
+XDP_STATUS
+XdpRssGetCapabilities(
+    _In_ HANDLE InterfaceHandle,
+    _Out_writes_bytes_opt_(*RssCapabilitiesSize) XDP_RSS_CAPABILITIES *RssCapabilities,
+    _Inout_ UINT32 *RssCapabilitiesSize
+    );
+
+inline
+XDP_STATUS
+XdpRssSet(
+    _In_ HANDLE InterfaceHandle,
+    _In_ const XDP_RSS_CONFIGURATION *RssConfiguration,
+    _In_ UINT32 RssConfigurationSize
+    );
+
+inline
+XDP_STATUS
+XdpRssGet(
+    _In_ HANDLE InterfaceHandle,
+    _Out_writes_bytes_opt_(*RssConfigurationSize) XDP_RSS_CONFIGURATION *RssConfiguration,
+    _Inout_ UINT32 *RssConfigurationSize
+    );
+
+inline
+XDP_STATUS
+XdpQeoSet(
     _In_ HANDLE InterfaceHandle,
     _Inout_ XDP_QUIC_CONNECTION *QuicConnections,
     _In_ UINT32 QuicConnectionsSize
     );
 
-#define XDP_QEO_SET_FN_NAME "XdpQeoSetExperimental"
+#include <xdp/details/xdpapi_experimental.h>
+
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

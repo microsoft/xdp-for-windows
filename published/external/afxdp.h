@@ -6,11 +6,15 @@
 #ifndef AFXDP_H
 #define AFXDP_H
 
-#include <xdp/hookid.h>
+//
+// Include all necessary Windows headers first.
+//
+#include <xdp/wincommon.h>
 
-#ifndef XDPAPI
-#define XDPAPI __declspec(dllimport)
-#endif
+#include <xdp/apiversion.h>
+#include <xdp/hookid.h>
+#include <xdp/overlapped.h>
+#include <xdp/status.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,12 +61,6 @@ typedef enum _XSK_RING_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XSK_RING_FLAGS);
 C_ASSERT(sizeof(XSK_RING_FLAGS) == sizeof(UINT32));
 
-typedef
-HRESULT
-XSK_CREATE_FN(
-    _Out_ HANDLE* Socket
-    );
-
 typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NONE = 0x0,
     XSK_BIND_FLAG_RX = 0x1,
@@ -74,28 +72,12 @@ typedef enum _XSK_BIND_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XSK_BIND_FLAGS)
 C_ASSERT(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32));
 
-typedef
-HRESULT
-XSK_BIND_FN(
-    _In_ HANDLE Socket,
-    _In_ UINT32 IfIndex,
-    _In_ UINT32 QueueId,
-    _In_ XSK_BIND_FLAGS Flags
-    );
-
 typedef enum _XSK_ACTIVATE_FLAGS {
     XSK_ACTIVATE_FLAG_NONE = 0x0,
 } XSK_ACTIVATE_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_ACTIVATE_FLAGS)
 C_ASSERT(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32));
-
-typedef
-HRESULT
-XSK_ACTIVATE_FN(
-    _In_ HANDLE Socket,
-    _In_ XSK_ACTIVATE_FLAGS Flags
-    );
 
 typedef enum _XSK_NOTIFY_FLAGS {
     XSK_NOTIFY_FLAG_NONE = 0x0,
@@ -116,61 +98,6 @@ typedef enum _XSK_NOTIFY_RESULT_FLAGS {
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_RESULT_FLAGS)
 C_ASSERT(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32));
-
-typedef
-HRESULT
-XSK_NOTIFY_SOCKET_FN(
-    _In_ HANDLE Socket,
-    _In_ XSK_NOTIFY_FLAGS Flags,
-    _In_ UINT32 WaitTimeoutMilliseconds,
-    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
-    );
-
-typedef struct _OVERLAPPED OVERLAPPED;
-
-typedef
-HRESULT
-XSK_NOTIFY_ASYNC_FN(
-    _In_ HANDLE Socket,
-    _In_ XSK_NOTIFY_FLAGS Flags,
-    _Inout_ OVERLAPPED *Overlapped
-    );
-
-typedef
-HRESULT
-XSK_GET_NOTIFY_ASYNC_RESULT_FN(
-    _In_ OVERLAPPED *Overlapped,
-    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
-    );
-
-typedef
-HRESULT
-XSK_SET_SOCKOPT_FN(
-    _In_ HANDLE Socket,
-    _In_ UINT32 OptionName,
-    _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
-    _In_ UINT32 OptionLength
-    );
-
-typedef
-HRESULT
-XSK_GET_SOCKOPT_FN(
-    _In_ HANDLE Socket,
-    _In_ UINT32 OptionName,
-    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
-    _Inout_ UINT32 *OptionLength
-    );
-
-typedef
-HRESULT
-XSK_IOCTL_FN(
-    _In_ HANDLE Socket,
-    _In_ UINT32 OptionName,
-    _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
-    _In_ UINT32 InputLength,
-    _Out_writes_bytes_(*OutputLength) VOID *OutputValue,
-    _Inout_ UINT32 *OutputLength
-    );
 
 //
 // Socket options
@@ -235,6 +162,80 @@ typedef enum _XSK_ERROR {
 
 #define XSK_SOCKOPT_RX_PROCESSOR_AFFINITY 14
 #define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 15
+
+#if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
+#include <xdp/afxdp_v1.h>
+#else
+
+XDP_STATUS
+XskCreate(
+    _Out_ HANDLE* Socket
+    );
+
+XDP_STATUS
+XskBind(
+    _In_ HANDLE Socket,
+    _In_ UINT32 IfIndex,
+    _In_ UINT32 QueueId,
+    _In_ XSK_BIND_FLAGS Flags
+    );
+
+XDP_STATUS
+XskActivate(
+    _In_ HANDLE Socket,
+    _In_ XSK_ACTIVATE_FLAGS Flags
+    );
+
+XDP_STATUS
+XskSetSockopt(
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,
+    _In_ UINT32 OptionLength
+    );
+
+XDP_STATUS
+XskGetSockopt(
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
+    _Inout_ UINT32 *OptionLength
+    );
+
+XDP_STATUS
+XskIoctl(
+    _In_ HANDLE Socket,
+    _In_ UINT32 OptionName,
+    _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
+    _In_ UINT32 InputLength,
+    _Out_writes_bytes_(*OutputLength) VOID *OutputValue,
+    _Inout_ UINT32 *OutputLength
+    );
+
+XDP_STATUS
+XskNotifySocket(
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _In_ UINT32 WaitTimeoutMilliseconds,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
+    );
+
+XDP_STATUS
+XskNotifyAsync(
+    _In_ HANDLE Socket,
+    _In_ XSK_NOTIFY_FLAGS Flags,
+    _Inout_ XDP_OVERLAPPED *Overlapped
+    );
+
+XDP_STATUS
+XskGetNotifyAsyncResult(
+    _In_ XDP_OVERLAPPED *Overlapped,
+    _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
+    );
+
+#include <xdp/details/afxdp.h>
+
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

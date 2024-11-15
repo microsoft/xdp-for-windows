@@ -10,7 +10,7 @@
 // use different test frameworks without changing test logic.
 //
 
-#include <windows.h>
+#include <xdp/wincommon.h>
 
 VOID
 StopTest();

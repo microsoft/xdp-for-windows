@@ -19,17 +19,15 @@ git submodule update --init --recursive
 ### Prerequisites
 
 - [Visual Studio](https://visualstudio.microsoft.com/downloads/)
-  - Visual Studio 2022 is recommended; Visual Studio 2019 or newer is required.
+  - Visual Studio 2022 or newer is required.
 
   during installation, ensure the following packages/components are installed:
     - "Desktop development with C++" (via "Workload")
     - Latest Spectre-mitigated libs (via "Individual components")
     - C++ Address Sanitizer (via "Individual components")
+    - C++ Clang Compiler for Windows
 - [Windows Driver Kit](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
   - WDK for Windows 11, version 22H2 (version 10.0.22621.x) is recommended; WDK for Windows Server 2022 LTSC or newer is required.
-- [LLVM 11.0.1](https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/LLVM-11.0.1-win64.exe)
-  - This is required to build eBPF programs. XDP drivers do not require LLVM.
-  - The eBPF project is currently [incompatible](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#prerequisites) with newer LLVM versions.
 - [NuGet Windows x86 Commandline](https://www.nuget.org/downloads)
   - Version 6.3.1 or higher is required by the eBPF-for-Windows project.
 

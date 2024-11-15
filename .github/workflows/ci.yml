@@ -25,29 +25,91 @@ permissions: read-all
 jobs:
   build:
     name: Build
+    permissions:
+      security-events: write  # For CodeQL
+    uses: ./.github/workflows/build_matrix.yml
+
+  resolve_base:
+    name: Resolve base commit reference
+    runs-on: windows-2022
+    outputs:
+      base_ref: ${{ steps.resolve_base_ref.outputs.base_ref }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 2
+    - name: Resolve base commit reference
+      id: resolve_base_ref
+      shell: PowerShell
+      # For PR runs, this returns essentially returns "main", or the target branch.
+      # For non-PR runs, this returns the first parent of the current commit.
+      run: |
+        $BaseRef = "${{ github.base_ref }}"
+        if ([string]::IsNullOrEmpty($BaseRef)) {
+          $BaseRef = git log --pretty=%P -n 1 ${{ github.sha }}
+        }
+        if (($BaseRef -split " ").Count -gt 1) {
+          Write-Warning "BaseRef has multiple parents. Choosing first of $BaseRef"
+          $BaseRef = ($BaseRef -split " ")[0]
+        }
+        Write-Output "base_ref=$BaseRef"
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "base_ref=$BaseRef"
+
+  build_base:
+    name: Build (Base Ref)
+    needs: resolve_base
+    permissions:
+      security-events: write  # For CodeQL (even though it is not enabled)
+    uses: ./.github/workflows/build_matrix.yml
+    with:
+      ref: ${{ needs.resolve_base.outputs.base_ref }}
+      id: "baseref"
+      codeql: false
+
+  build_allpackage:
+    name: Build AllPackage
+    needs: build
     strategy:
       fail-fast: false
       matrix:
-        # Some driver developers are building for WS2022 LTSC targets using VS2019 +
-        # the Windows Server 2022 WDK, so validate our project still builds in that
-        # environment, in addition to the default WS 2022.
-        os: [2019, 2022]
         config: [Release, Debug]
-        platform: [x64, arm64]
-        exclude:
-        - os: 2019
-          platform: arm64
     permissions:
       actions: read
       contents: read
-      security-events: write  # For CodeQL
-    uses: ./.github/workflows/build.yml
-    with:
-      config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
-      platform: ${{ matrix.platform }}
-      codeql: ${{ github.event_name == 'schedule' }}
-      upload_artifacts: ${{ matrix.os == 2022 }}
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+    - name: Download x64 Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.config }}_x64
+        path: artifacts/bin
+    - name: Download arm64 Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.config }}_arm64
+        path: artifacts/bin
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+    - name: Nuget Restore
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ matrix.config }} /p:Platform=x64
+    - name: Build AllPackage
+      run: msbuild xdp.sln /m  /t:onebranch /p:Configuration=${{ matrix.config }} /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+      with:
+        name: bin_allpackage_${{ matrix.config }}
+        path: |
+          artifacts/bin/${{ matrix.config }}
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
 
   onebranch_build_validation:
     name: OneBranch Build Validation
@@ -62,7 +124,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -77,8 +139,10 @@ jobs:
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Catalog
     - name: Build Package
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=Package
+    - name: Build AllPackage
+      run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=AllPackage
     - name: Upload Artifacts
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: onebranch_bin_${{ matrix.config }}_${{ matrix.platform }}
         path: |
@@ -114,7 +178,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -144,7 +208,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       if: ${{ always() }}
       with:
         name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -182,7 +246,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -212,7 +276,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       if: ${{ always() }}
       with:
         name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -237,7 +301,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         sparse-checkout: tools
     - name: Download Artifacts
@@ -249,7 +313,7 @@ jobs:
       shell: PowerShell
       run: tools/pktfuzz.ps1 -Minutes 10 -Workers 8 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
     - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       if: ${{ always() }}
       with:
         name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -258,9 +322,10 @@ jobs:
 
   perf_tests:
     name: Perf Tests
-    needs: build
+    needs: [build, build_base, resolve_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request') && '8' || '3' }}
+    timeout-minutes: 90 # Ideally this would be only 30 min for PR runs, but GitHub Actions don't support that.
     strategy:
       fail-fast: false
       matrix:
@@ -272,46 +337,32 @@ jobs:
           platform: arm64
         - windows: 2022
           platform: arm64
-    timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
-        sparse-checkout: tools
-    - name: Check Drivers
-      shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
-    - name: Prepare Machine
-      shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
-    - name: Download Artifacts
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        sparse-checkout: |
+          .github
+          tools
+    - uses: ./.github/actions/perf
       with:
-        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/bin
-    - name: Run xskperfsuite (Generic, Native)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Run xskperfsuite (TX-inspect, RX-inject)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Run xskperfsuite (Winsock, RIO)
-      shell: PowerShell
-      run: tools/xskperfsuite.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "artifacts/logs/xskperfsuite.csv" -XperfDirectory "artifacts/logs" -CommitHash ${{ github.sha }}
-    - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
-      if: ${{ always() }}
+        config: ${{ matrix.configuration }}
+        os: ${{ matrix.windows }}
+        platform: ${{ matrix.platform }}
+    - uses: ./.github/actions/perf
       with:
-        name: logs_perf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/logs
-    - name: Check Drivers
-      if: ${{ always() }}
+        config: ${{ matrix.configuration }}
+        os: ${{ matrix.windows }}
+        platform: ${{ matrix.platform }}
+        ref: ${{ needs.resolve_base.outputs.base_ref }}
+        id: "baseref"
+    - name: Compare Results
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools\xskperfcompare.ps1 -DataFile1 baseref/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
@@ -332,7 +383,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -362,10 +413,63 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       if: ${{ always() }}
       with:
         name: logs_downlevel_${{ matrix.downlevel_release }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+
+  xskfwdkm_test:
+    name: XskFwdKm Test
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2019, 2022, Prerelease]
+        configuration: [Release, Debug]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2019
+          platform: arm64
+        - windows: 2022
+          platform: arm64
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        sparse-checkout: tools
+    - name: Check Drivers
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run XskFwdKm
+      shell: PowerShell
+      run: tools/xskfwdkm.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Convert Logs
+      if: ${{ always() }}
+      timeout-minutes: 15
+      shell: PowerShell
+      run: tools/log.ps1 -Convert -Name xskfwdkm -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+      if: ${{ always() }}
+      with:
+        name: logs_xskfwdkm_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
@@ -383,7 +487,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
     - name: Download Artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
@@ -393,7 +497,7 @@ jobs:
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Release Artifacts
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
@@ -412,14 +516,14 @@ jobs:
       security-events: write  # For CodeQL
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
     - name: Initialize CodeQL
       if: ${{ github.event_name == 'schedule' }}
       uses: github/codeql-action/init@v3
       with:
         languages: csharp
     - name: Setup .NET
-      uses: actions/setup-dotnet@6bd8b7f7774af54e05809fcc5431931b3eb1ddee
+      uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25
       with:
         dotnet-version: 6.0.x
     - name: Prepare Machine
@@ -427,7 +531,7 @@ jobs:
       run: tools/prepare-machine.ps1 -ForBuild -Verbose
     - name: Build
       run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
-    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+    - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: etw_${{ matrix.configuration }}
         path: artifacts/bin
@@ -455,7 +559,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
