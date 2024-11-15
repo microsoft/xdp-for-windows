@@ -30,6 +30,9 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$OneBranch = $false,
 
+    [Parameter(Mandatory = $false)]
+    [switch]$NoRestore = $false,
+
     [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory=$false)]
     [string[]]$NugetPlatforms = $Platform
@@ -75,14 +78,16 @@ if (!$IsAdmin) {
     Write-Verbose "MSI installer validation requires admin privileges. Skipping."
 }
 
-Write-Verbose "Restoring packages [$Sln]"
-msbuild.exe $Sln `
-    /t:restore `
-    /p:RestoreConfigFile=src\nuget.config `
-    /p:Configuration=$Config `
-    /p:Platform=$Platform
-if (!$?) {
-    Write-Error "Restoring NuGet packages failed: $LastExitCode"
+if (!$NoRestore) {
+    Write-Verbose "Restoring packages [$Sln]"
+    msbuild.exe $Sln `
+        /t:restore `
+        /p:RestoreConfigFile=src\nuget.config `
+        /p:Configuration=$Config `
+        /p:Platform=$Platform
+    if (!$?) {
+        Write-Error "Restoring NuGet packages failed: $LastExitCode"
+    }
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild -Platform $Platform

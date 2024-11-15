@@ -35,11 +35,11 @@
         xdpbpfexport.exe compatible with the host, isolated within our
         platform-specific directory. -->
   <PropertyGroup Condition="'$(HostPlatform)' != '$(Platform)'">
-    <ExportProgramBaseDir>$(IntDir)</ExportProgramBaseDir>
+    <ExportProgramBaseDir>$(IntDir)host\</ExportProgramBaseDir>
   </PropertyGroup>
   <Target Name="BuildHostExportProgramInfo" BeforeTargets="ExportProgramInfo" Condition="'$(HostPlatform)' != '$(Platform)'">
       <!-- MSBuildProjectExtensionsPath must be set to the $(Platform)'s path, because nuget restore doesn't follow this msbuild target. -->
-      <MSBuild Projects="$(SolutionDir)src\bpfexport\bpfexport.vcxproj" Properties="Platform=$(HostPlatform);UndockedOut=$(ExportProgramBaseDir);MSBuildProjectExtensionsPath=$(IntDir)..\bpfexport\"/>
+      <MSBuild Projects="$(SolutionDir)src\bpfexport\bpfexport.vcxproj" Properties="Platform=$(HostPlatform);UndockedOut=$(ExportProgramBaseDir);MSBuildProjectExtensionsPath=$(MSBuildProjectExtensionsPath)..\bpfexport\"/>
   </Target>
   <Target Name="ExportProgramInfo" BeforeTargets="CustomBuild">
       <Exec Command="$(EbpfHostBinPath)\export_program_info.exe"/>

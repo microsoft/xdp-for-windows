@@ -30,7 +30,8 @@
     <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="1.0.0" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.SourceLink.Common" Version="1.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
-    <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="10.0.26100.1591" /> 
+    <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="10.0.26100.1591" Condition="'$(ImportWdk)' != 'false'" />
+    <PackageReference Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="10.0.26100.1591" Condition="'$(ImportWdk)' != 'false' AND '$(HostPlatform)' != '$(Platform)'" />
     <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
