@@ -20,13 +20,4 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <VCRedistVersion Condition="exists('$(VCInstallDir)Auxiliary\Build\Microsoft.VCRedistVersion.default.txt')">$([System.IO.File]::ReadAllText($(VCInstallDir)Auxiliary\Build\Microsoft.VCRedistVersion.default.txt).Trim())</VCRedistVersion>
-    <VCOutDir>$(OutDir)debugcrt\</VCOutDir>
-  </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
-    <PostBuildEvent>
-      <Command>xcopy "$(VCInstallDir)redist\MSVC\$(VCRedistVersion)\onecore\debug_nonredist\$(PlatformShortName)\Microsoft.VC$(PlatformToolsetVersion).DebugCRT\*.dll" "$(VCOutDir)" /D /Y &amp;&amp; xcopy "$(UniversalCRTSdkDir)\bin\$(TargetUniversalCRTVersion)\$(Platform)\ucrt\*.dll" "$(VCOutDir)" /D /Y </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
 </Project>
