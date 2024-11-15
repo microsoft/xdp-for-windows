@@ -26,8 +26,6 @@ git submodule update --init --recursive
     - Latest Spectre-mitigated libs (via "Individual components")
     - C++ Address Sanitizer (via "Individual components")
     - C++ Clang Compiler for Windows
-- [Windows Driver Kit](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
-  - WDK for Windows 11, version 22H2 (version 10.0.22621.x) is recommended; WDK for Windows Server 2022 LTSC or newer is required.
 - [NuGet Windows x86 Commandline](https://www.nuget.org/downloads)
   - Version 6.3.1 or higher is required by the eBPF-for-Windows project.
 
