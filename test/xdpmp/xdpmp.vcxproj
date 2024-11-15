@@ -42,7 +42,6 @@
   <ItemGroup>
     <Mofcomp Include="xdpmp.mof">
       <CreateBinaryMOFFile>$(IntDir)xdpmp.bmf</CreateBinaryMOFFile>
-      <WMISyntaxCheck>true</WMISyntaxCheck>
     </Mofcomp>
     <Wmimofck Include="$(IntDir)xdpmp.bmf">
       <HeaderOutputFile>$(IntDir)xdpmpwmi.h</HeaderOutputFile>
