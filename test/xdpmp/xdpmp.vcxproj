@@ -41,8 +41,10 @@
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
     <PreBuildEvent>
-      <Command>mofcomp.exe -WMI -B:"$(IntDir)xdpmp.bmf" xdpmp.mof
-wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
+      <Command>
+        mofcomp.exe -WMI -B:"$(IntDir)xdpmp.bmf" xdpmp.mof
+        $(WmimofckToolPath)wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf
+      </Command>
     </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
