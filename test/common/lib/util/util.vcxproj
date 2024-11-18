@@ -20,4 +20,12 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <VCOutDir>$(OutDir)debugcrt\</VCOutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <PostBuildEvent>
+      <Command>xcopy "$(UniversalCRTSdkDir)\bin\$(TargetUniversalCRTVersion)\$(Platform)\ucrt\*.dll" "$(VCOutDir)" /D /Y </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
 </Project>

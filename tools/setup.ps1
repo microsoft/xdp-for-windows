@@ -247,9 +247,18 @@ function Uninstall-Driver($Inf) {
     }
 }
 
+function Install-DebugCrt {
+    # The debug CRT does not have an official redistributable, so use our own repackaged version.
+    if ($Config -eq "Debug") {
+        Write-Verbose "Installing debugcrt from $(Get-ArtifactBinPath -Platform $Platform -Config $Config)\test\debugcrt\* to $env:WINDIR\system32"
+        Copy-Item -Recurse -Force "$(Get-ArtifactBinPath -Platform $Platform -Config $Config)\test\debugcrt\*" "$env:WINDIR\system32" | Write-Verbose
+    }
+}
+
 # Installs the xdp driver.
 function Install-Xdp {
     Install-SignedDriverCertificate $XdpCat
+    Install-DebugCrt
 
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
