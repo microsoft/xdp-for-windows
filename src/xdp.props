@@ -17,7 +17,7 @@
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
-    <XdpWdkVersion>10.0.26100.1591</XdpWdkVersion>
+    <XdpWdkVersion>10.0.26100.2161</XdpWdkVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
