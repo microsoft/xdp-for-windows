@@ -17,6 +17,7 @@
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
+    <XdpWdkVersion>10.0.26100.1591</XdpWdkVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
@@ -30,8 +31,8 @@
     <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="1.0.0" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.SourceLink.Common" Version="1.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
-    <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="10.0.26100.1591" Condition="'$(ImportWdk)' != 'false'" />
-    <PackageReference Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="10.0.26100.1591" Condition="'$(ImportWdk)' != 'false' AND '$(HostPlatform)' != '$(Platform)'" />
+    <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="$(XdpWdkVersion)" Condition="'$(ImportWdk)' != 'false'" />
+    <PackageReference Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="$(XdpWdkVersion)" Condition="'$(ImportWdk)' != 'false' AND '$(HostPlatform)' != '$(Platform)'" />
     <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
