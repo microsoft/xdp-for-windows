@@ -245,9 +245,8 @@ _XdpIoctl(
                 XdpHandle, *Event, NULL, Overlapped, IoStatusBlock, Operation, InBuffer,
                 InBufferSize, OutBuffer, OutputBufferSize));
 
-// Implicit conversion from 'HRESULT' to 'XDP_STATUS'
 #pragma warning(push)
-#pragma warning(disable: 6221)
+#pragma warning(disable: 6221) // Implicit conversion from 'HRESULT' to 'XDP_STATUS'
     XDPAPI_ASSERT(XdpStatus != XDP_STATUS_PENDING || MayPend);
 
     if (Event == &LocalEvent && XdpStatus == XDP_STATUS_PENDING) {
