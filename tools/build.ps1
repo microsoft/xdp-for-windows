@@ -92,29 +92,25 @@ if (!$NoRestore) {
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild -Platform $Platform
 
-try {
-    # Unfortunately, global state cached by MsBuild.exe combined with WDK bugs
-    # causes unreliable builds. Specifically, the Telemetry task implemented by
-    # WDK's Microsoft.DriverKit.Build.Tasks.17.0.dll has breaking API changes
-    # that are not invalidated by loading different WDKs.
-    $Original_MSBUILDDISABLENODEREUSE = $env:MSBUILDDISABLENODEREUSE
-    $env:MSBUILDDISABLENODEREUSE = 1
+# Unfortunately, global state cached by MsBuild.exe combined with WDK bugs
+# causes unreliable builds. Specifically, the Telemetry task implemented by
+# WDK's Microsoft.DriverKit.Build.Tasks.17.0.dll has breaking API changes
+# that are not invalidated by loading different WDKs. Therefore we disable
+# MsBuild.exe reuse with /nodeReuse:false.
 
-    Write-Verbose "Building [$Sln]"
-    msbuild.exe $Sln `
-        /p:Configuration=$Config `
-        /p:Platform=$Platform `
-        /p:IsAdmin=$IsAdmin `
-        /p:SignMode=$SignMode `
-        /p:BuildStage=$BuildStage `
-        /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `
-        /t:$($Tasks -join ",") `
-        /maxCpuCount
-    if (!$?) {
-        Write-Error "Build failed: $LastExitCode"
-    }
-} finally {
-    $env:MSBUILDDISABLENODEREUSE = $Original_MSBUILDDISABLENODEREUSE
+Write-Verbose "Building [$Sln]"
+msbuild.exe $Sln `
+    /p:Configuration=$Config `
+    /p:Platform=$Platform `
+    /p:IsAdmin=$IsAdmin `
+    /p:SignMode=$SignMode `
+    /p:BuildStage=$BuildStage `
+    /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `
+    /t:$($Tasks -join ",") `
+    /nodeReuse:false `
+    /maxCpuCount
+if (!$?) {
+    Write-Error "Build failed: $LastExitCode"
 }
 
 if ($TestArchive) {
