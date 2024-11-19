@@ -9,7 +9,7 @@ EXTERN_C_START
 
 #if defined(_KERNEL_MODE)
 
-typedef NTSTATUS XDP_STATUS;
+#define XDP_STATUS NTSTATUS
 
 #define XDP_FAILED(X)                      (!NT_SUCCESS(X))
 #define XDP_SUCCEEDED(X)                   NT_SUCCESS(X)
@@ -23,7 +23,7 @@ typedef NTSTATUS XDP_STATUS;
 
 #else
 
-typedef HRESULT XDP_STATUS;
+#define XDP_STATUS HRESULT
 
 #define XDP_FAILED(X)                      FAILED(X)
 #define XDP_SUCCEEDED(X)                   SUCCEEDED(X)

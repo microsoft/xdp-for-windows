@@ -245,8 +245,6 @@ _XdpIoctl(
                 XdpHandle, *Event, NULL, Overlapped, IoStatusBlock, Operation, InBuffer,
                 InBufferSize, OutBuffer, OutputBufferSize));
 
-#pragma warning(push)
-#pragma warning(disable: 6221) // Implicit conversion from 'HRESULT' to 'XDP_STATUS'
     XDPAPI_ASSERT(XdpStatus != XDP_STATUS_PENDING || MayPend);
 
     if (Event == &LocalEvent && XdpStatus == XDP_STATUS_PENDING) {
@@ -257,7 +255,6 @@ _XdpIoctl(
 
         XdpStatus = _XdpConvertNtStatusToXdpStatus(IoStatusBlock->Status);
     }
-#pragma warning(pop)
 
     if (BytesReturned != NULL) {
         *BytesReturned = (ULONG)IoStatusBlock->Information;
