@@ -39,11 +39,15 @@
     <ImportWnt>true</ImportWnt>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemGroup>
+    <Mofcomp Include="xdpmp.mof">
+      <CreateBinaryMOFFile>$(IntDir)xdpmp.bmf</CreateBinaryMOFFile>
+    </Mofcomp>
+    <Wmimofck Include="$(IntDir)xdpmp.bmf">
+      <HeaderOutputFile>$(IntDir)xdpmpwmi.h</HeaderOutputFile>
+    </Wmimofck>
+  </ItemGroup>
   <ItemDefinitionGroup>
-    <PreBuildEvent>
-      <Command>mofcomp.exe -WMI -B:"$(IntDir)xdpmp.bmf" xdpmp.mof
-wmimofck.exe -h$(IntDir)xdpmpwmi.h $(IntDir)xdpmp.bmf</Command>
-    </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>
         $(SolutionDir)published\private;

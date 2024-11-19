@@ -25,7 +25,7 @@ main(
     ebpf_result_t result;
     int exit_code = 0;
 
-    if (argc == 2 && !_strcmpi("--clear", argv[1])) {
+    if (argc == 2 && !_stricmp("--clear", argv[1])) {
         for (uint32_t i = 0; i < RTL_NUMBER_OF(EbpfXdpSectionInfo); i++) {
             result = ebpf_store_delete_section_information(&EbpfXdpSectionInfo[i]);
             if (result != EBPF_SUCCESS) {
