@@ -566,6 +566,12 @@ XdpProgramTrace(
                 Program, i, ntohs(Rule->Pattern.Port));
             break;
 
+        case XDP_MATCH_IP_NEXT_HEADER:
+            TraceInfo(
+                TRACE_CORE, "Program=%p Rule[%u]=XDP_MATCH_IP_NEXT_HEADER NextHeader=%u",
+                Program, i, ntohs(Rule->Pattern.NextHeader));
+            break;
+
         default:
             ASSERT(FALSE);
             break;

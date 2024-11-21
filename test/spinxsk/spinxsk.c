@@ -683,6 +683,14 @@ AttachXdpProgram(
     } else {
         rule.Match = XDP_MATCH_ALL;
 
+        if (!(RandUlong() % 2)) {
+            rule.Match = RandUlong() % (XDP_MATCH_IP_NEXT_HEADER + 1);
+        }
+
+        if (!(RandUlong() % 128)) {
+            rule.Match = (XDP_MATCH_TYPE)RandUlong();
+        }
+
         switch (RandUlong() % 4) {
         case 0:
             rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
