@@ -4349,7 +4349,7 @@ GenericRxFragmentBuffer(
     unique_fnmp_mtu_handle MtuReset;
     const UINT8 ThFlags = Params->TcpFlags != 0 ? Params->TcpFlags : TH_ACK;
     auto If = FnMpIf;
-    static const UINT8 TestNextHeaderValue = IPPROTO_GGP; // 0x03, obsolete.
+    static const UINT8 TestNextHeaderValue = 0xFD; // Reserved for testing in RFC 3692.
 
     LocalPort = htons(1234);
     RemotePort = htons(4321);
