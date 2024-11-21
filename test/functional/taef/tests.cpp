@@ -403,6 +403,14 @@ public:
         GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, TRUE);
     }
 
+    TEST_METHOD(GenericRxIpNextHeaderV4) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxIpNextHeaderV6) {
+        GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, TRUE);
+    }
+
     TEST_METHOD(GenericRxFromTxInspectV4) {
         GenericRxFromTxInspect(AF_INET);
     }

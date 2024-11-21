@@ -97,6 +97,11 @@ typedef enum _XDP_MATCH_TYPE {
     // Port in XDP_MATCH_PATTERN.
     //
     XDP_MATCH_TCP_CONTROL_DST,
+    //
+    // Match frames with a specific IPv4 Protocol / IPv6 NextHeader field.
+    // The port number is specified by field NextHeader in XDP_MATCH_PATTERN.
+    //
+    XDP_MATCH_IP_NEXT_HEADER,
 } XDP_MATCH_TYPE;
 ```
 

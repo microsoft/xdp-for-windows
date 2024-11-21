@@ -4008,6 +4008,7 @@ typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ BOOLEAN LowResources;
     _In_ UINT16 GroSegCount;
     _In_opt_ UINT32 IfMtu;
+    _In_ BOOLEAN UseIpNextHeaderMatch;
     _In_ XDP_RULE_ACTION Action;
     _In_opt_ const NDIS_OFFLOAD_PARAMETERS *OffloadParams;
     _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions;
@@ -4348,6 +4349,7 @@ GenericRxFragmentBuffer(
     unique_fnmp_mtu_handle MtuReset;
     const UINT8 ThFlags = Params->TcpFlags != 0 ? Params->TcpFlags : TH_ACK;
     auto If = FnMpIf;
+    static const UINT8 TestNextHeaderValue = IPPROTO_GGP; // 0x03, obsolete.
 
     LocalPort = htons(1234);
     RemotePort = htons(4321);
@@ -4379,8 +4381,13 @@ GenericRxFragmentBuffer(
     }
 
     XDP_RULE Rule;
-    Rule.Match = Params->IsUdp ? XDP_MATCH_UDP_DST : XDP_MATCH_TCP_DST;
-    Rule.Pattern.Port = LocalPort;
+    if (Params->UseIpNextHeaderMatch) {
+        Rule.Match = XDP_MATCH_IP_NEXT_HEADER;
+        Rule.Pattern.NextHeader = TestNextHeaderValue;
+    } else {
+        Rule.Match = Params->IsUdp ? XDP_MATCH_UDP_DST : XDP_MATCH_TCP_DST;
+        Rule.Pattern.Port = LocalPort;
+    }
     Rule.Action = Params->Action;
 
     if (Params->Action == XDP_PROGRAM_ACTION_REDIRECT) {
@@ -4422,6 +4429,23 @@ GenericRxFragmentBuffer(
                 Params->PayloadLength, Params->TcpOptions, Params->TcpOptionsLength, 0xabcd4321,
                 0x567890fe, ThFlags, 65535, &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
                 RemotePort));
+    }
+    if (Params->UseIpNextHeaderMatch) {
+        VOID *IpHeader =
+            RTL_PTR_ADD(PacketBuffer.data() + Params->Backfill, sizeof(ETHERNET_HEADER));
+
+        //
+        // Rewrite the IP next header field to be a unique value unused by the
+        // local stack. Do not fix up checksums. Not compatible with offloads.
+        //
+        if (Af == AF_INET) {
+            IPV4_HEADER *Ipv4 = (IPV4_HEADER *)IpHeader;
+            Ipv4->Protocol = TestNextHeaderValue;
+        } else {
+            TEST_EQUAL(AF_INET6, Af);
+            IPV6_HEADER *Ipv6 = (IPV6_HEADER *)IpHeader;
+            Ipv6->NextHeader = TestNextHeaderValue;
+        }
     }
 
     ActualPacketLength += Params->DataTrailer;
@@ -4589,7 +4613,8 @@ GenericRxHeaderMultipleFragments(
     _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp,
     _In_ BOOLEAN IsTxInspect,
-    _In_ BOOLEAN IsLowResources
+    _In_ BOOLEAN IsLowResources,
+    _In_ BOOLEAN UseIpNextHeaderMatch
     )
 {
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
@@ -4610,6 +4635,7 @@ GenericRxHeaderMultipleFragments(
         Params.SplitCount = RTL_NUMBER_OF(SplitIndexes) - i;
         Params.IsTxInspect = IsTxInspect;
         Params.LowResources = IsLowResources;
+        Params.UseIpNextHeaderMatch = UseIpNextHeaderMatch;
         GenericRxFragmentBuffer(Af, &Params);
     }
 }
@@ -4620,7 +4646,8 @@ GenericRxHeaderFragments(
     _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp,
     _In_ BOOLEAN IsTxInspect,
-    _In_ BOOLEAN IsLowResources
+    _In_ BOOLEAN IsLowResources,
+    _In_ BOOLEAN UseIpNextHeaderMatch
     )
 {
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
@@ -4629,20 +4656,26 @@ GenericRxHeaderFragments(
     Params.PayloadLength = 43;
     Params.Backfill = 13;
     Params.Trailer = 17;
+    Params.IsTxInspect = IsTxInspect;
+    Params.LowResources = IsLowResources;
+    Params.UseIpNextHeaderMatch = UseIpNextHeaderMatch;
     UINT16 HeadersLength =
         sizeof(ETHERNET_HEADER) +
             ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)) +
             (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR));
 
-    GenericRxHeaderMultipleFragments(Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources);
+    GenericRxHeaderMultipleFragments(
+        Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources, UseIpNextHeaderMatch);
 
     for (UINT32 i = 1; i < HeadersLength; i++) {
         Params.SplitIndexes = &i;
         Params.SplitCount = 1;
-        Params.IsTxInspect = IsTxInspect;
-        Params.LowResources = IsLowResources;
         GenericRxFragmentBuffer(Af, &Params);
     }
+
+    Params.SplitIndexes = NULL;
+    Params.SplitCount = 0;
+    GenericRxFragmentBuffer(Af, &Params);
 }
 
 VOID

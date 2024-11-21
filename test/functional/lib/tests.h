@@ -86,7 +86,8 @@ GenericRxHeaderFragments(
     _In_ XDP_RULE_ACTION ProgramAction,
     _In_ BOOLEAN IsUdp,
     _In_ BOOLEAN IsTxInspect = FALSE,
-    _In_ BOOLEAN IsLowResources = FALSE
+    _In_ BOOLEAN IsLowResources = FALSE,
+    _In_ BOOLEAN UseIpNextHeaderMatch = FALSE
     );
 
 VOID
