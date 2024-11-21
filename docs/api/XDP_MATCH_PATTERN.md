@@ -74,6 +74,10 @@ typedef union _XDP_MATCH_PATTERN {
     // Match on destination IP address and port.
     //
     XDP_IP_PORT_SET IpPortSet;
+    //
+    // Match on destination IPv4 Protocol / IPv6 NextHeader field.
+    //
+    UINT8 NextHeader;
 } XDP_MATCH_PATTERN;
 ```
 
