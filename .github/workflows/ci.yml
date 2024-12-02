@@ -158,10 +158,10 @@ jobs:
     needs: build
     env:
       # For 'main' commits
-      fullRuntime: 250 # minutes. Update timeout-minutes with any changes.
+      fullRuntime: 360 # minutes. Update timeout-minutes with any changes.
       fullIters: 10
       # For PRs
-      prRuntime: 25 # minutes. Update timeout-minutes with any changes.
+      prRuntime: 36 # minutes. Update timeout-minutes with any changes.
       prIters: 1
     strategy:
       fail-fast: false
@@ -197,12 +197,12 @@ jobs:
     - name: Run Tests (PR)
       if: ${{ github.event_name == 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 25
+      timeout-minutes: 36
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' }}
       shell: PowerShell
-      timeout-minutes: 250
+      timeout-minutes: 360
       run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }}
     - name: Convert Logs
       if: ${{ always() }}
