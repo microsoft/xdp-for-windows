@@ -506,43 +506,6 @@ jobs:
           artifacts/kit/**/*.zip
           artifacts/testarchive/**/*.zip
 
-  etw:
-    name: ETW Plugin
-    needs: []
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        configuration: [Release, Debug]
-    permissions:
-      security-events: write  # For CodeQL
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-    - name: Initialize CodeQL
-      if: ${{ github.event_name == 'schedule' }}
-      uses: github/codeql-action/init@v3
-      with:
-        languages: csharp
-    - name: Setup .NET
-      uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25
-      with:
-        dotnet-version: 6.0.x
-    - name: Prepare Machine
-      shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForBuild -Verbose
-    - name: Build
-      run: dotnet build src\xdpetwplugin\xdpetwplugin.sln -c ${{ matrix.configuration }}
-    - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
-      with:
-        name: etw_${{ matrix.configuration }}
-        path: artifacts/bin
-    - name: Perform CodeQL Analysis
-      if: ${{ github.event_name == 'schedule' }}
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: "/language:csharp"
-
   # netperf:
   #   name: Run Perf
   #   needs: []
@@ -561,7 +524,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
