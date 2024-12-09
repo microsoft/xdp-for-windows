@@ -105,7 +105,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfMsiVersion {
-    return "0.18.0"
+    return "0.20.0"
 }
 
 # Returns the eBPF MSI full path
@@ -116,7 +116,7 @@ function Get-EbpfMsiFullPath {
     )
     $RootDir = Split-Path $PSScriptRoot -Parent
     $EbpfVersion = Get-EbpfMsiVersion
-    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.$Platform.msi"
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$Platform.$EbpfVersion.msi"
 }
 
 function Get-EbpfMsiUrl {
@@ -125,11 +125,7 @@ function Get-EbpfMsiUrl {
         [string]$Platform
     )
     $EbpfVersion = Get-EbpfMsiVersion -Platform $Platform
-    if ($Platform -eq "x64") {
-        return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
-    } else {
-        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.$Platform.0.20.0.msi"
-    }
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$Platform.$EbpfVersion.msi"
 }
 
 function Get-FnVersion {
