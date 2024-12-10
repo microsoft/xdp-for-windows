@@ -3,11 +3,6 @@
   <ItemGroup>
     <ClCompile Include="rssconfig.c" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)src\xdpapi\xdpapi.vcxproj">
-      <Project>{0ccecb60-0538-4252-8c8e-23a92199cbe0}</Project>
-    </ProjectReference>
-  </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{798300cd-0d26-4fcd-843b-30a9585b102c}</ProjectGuid>
     <TargetName>rssconfig</TargetName>
@@ -23,6 +18,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>
+        ntdll.lib;
         onecore.lib;
         %(AdditionalDependencies)
       </AdditionalDependencies>

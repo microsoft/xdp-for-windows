@@ -127,7 +127,10 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if (!$NoLogs) {
             & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Platform $Platform
             & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
-            & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
+            if ($Platform -ne "arm64") {
+                # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
+                & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
+            }
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
             Write-Verbose "installing fndis..."
@@ -194,7 +197,10 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
         if (!$NoLogs) {
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            if ($Platform -ne "arm64") {
+                # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
+                & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            }
             & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }

@@ -13,6 +13,7 @@
   <ItemGroup>
     <ResourceCompile Include="bpfexport.rc">
       <AdditionalIncludeDirectories>
+        $(SolutionDir)published\external;
         $(SolutionDir)published\private;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>

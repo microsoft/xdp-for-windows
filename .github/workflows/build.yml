@@ -29,24 +29,25 @@ on:
         type: string
         # options:
         #   - x64
+        #   - arm64
       codeql:
         required: false
         default: false
         type: boolean
-      upload_artifacts:
+      artifact_path:
         required: false
-        default: true
-        type: boolean
+        default: ''
+        type: string
 
 jobs:
   build:
-    name: Build
+    name: Build ${{ inputs.platform}}_${{ inputs.config }}_${{ inputs.os }}
     strategy:
       fail-fast: false
     runs-on: windows-${{ inputs.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -58,6 +59,8 @@ jobs:
         languages: c-cpp
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      with:
+        msbuild-architecture: x64
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose -Platform ${{ inputs.platform }}
@@ -68,10 +71,10 @@ jobs:
     - name: Build
       run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.platform }} /p:SignMode=TestSign /p:IsAdmin=true
     - name: Upload Artifacts
-      if: inputs.upload_artifacts
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+      if: inputs.artifact_path != ''
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
-        name: bin_${{ inputs.config }}_${{ inputs.platform }}
+        name: ${{inputs.artifact_path}}
         path: |
           artifacts/bin
           !artifacts/bin/**/*.ilk

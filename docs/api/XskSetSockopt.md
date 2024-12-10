@@ -5,9 +5,8 @@ Sets an AF_XDP [socket option](xsk-sockopts.md).
 ## Syntax
 
 ```C
-typedef
-HRESULT
-XSK_SET_SOCKOPT_FN(
+XDP_STATUS
+XskSetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(OptionLength) const VOID *OptionValue,

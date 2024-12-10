@@ -35,6 +35,7 @@ typedef enum _XDP_MATCH_TYPE {
     XDP_MATCH_TCP_QUIC_FLOW_SRC_CID,
     XDP_MATCH_TCP_QUIC_FLOW_DST_CID,
     XDP_MATCH_TCP_CONTROL_DST,
+    XDP_MATCH_IP_NEXT_HEADER,
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {
@@ -82,6 +83,7 @@ typedef union _XDP_MATCH_PATTERN {
     XDP_QUIC_FLOW QuicFlow;
     XDP_PORT_SET PortSet;
     XDP_IP_PORT_SET IpPortSet;
+    UINT8 NextHeader;
 } XDP_MATCH_PATTERN;
 
 typedef enum _XDP_RULE_ACTION {

@@ -7,19 +7,25 @@
 
 #define XDPAPI __declspec(dllexport)
 
-#include <windows.h>
-#include <winioctl.h>
-#include <winternl.h>
-#include <crtdbg.h>
-#include <ifdef.h>
+//
+// Set the implicit API version to the original API version (v1).
+//
+#ifdef XDP_API_VERSION
+#undef XDP_API_VERSION
+#endif
+#define XDP_API_VERSION XDP_API_VERSION_1
+
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
 #include <xdpassert.h>
-#include <xdpioctl.h>
 #include <xdprtl.h>
 
-#include "ioctl.h"
+#include <xdp/details/afxdp.h>
+#include <xdp/details/ioctldef.h>
+#include <xdp/details/ioctlfn.h>
+#include <xdp/details/xdpapi.h>
+#include <xdp/details/xdpapi_experimental.h>
 
-#ifndef STATUS_SUCCESS
-#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
-#endif
+#include <winternl.h>
+#include <crtdbg.h>
+#include <ifdef.h>

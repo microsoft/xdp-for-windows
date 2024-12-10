@@ -505,6 +505,42 @@ Exit:
     return Status;
 }
 
+static
+NTSTATUS
+XdpNotifyDriverStart(
+    VOID
+    )
+{
+    NTSTATUS Status;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING CallbackObjectName;
+    PCALLBACK_OBJECT CallbackObject = NULL;
+
+    TraceEnter(TRACE_CORE, "-");
+
+    RtlInitUnicodeString(&CallbackObjectName, XDP_DRIVER_START_CALLBACK_NAME);
+    InitializeObjectAttributes(
+        &ObjectAttributes, &CallbackObjectName,
+        OBJ_CASE_INSENSITIVE | OBJ_PERMANENT | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    Status = ExCreateCallback(&CallbackObject, &ObjectAttributes, TRUE, TRUE);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    ExNotifyCallback(CallbackObject, NULL, NULL);
+
+Exit:
+
+    if (CallbackObject != NULL) {
+        ObDereferenceObject(CallbackObject);
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
 _Use_decl_annotations_
 NTSTATUS
 DriverEntry(
@@ -548,6 +584,15 @@ DriverEntry(
     }
 
     Status = XdpLwfStart(XdpDriverObject, XDP_PARAMETERS_KEY);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    //
+    // Indicate the driver has been loaded to any registered callbacks. This
+    // should be done after the driver is ready to handle API requests.
+    //
+    Status = XdpNotifyDriverStart();
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

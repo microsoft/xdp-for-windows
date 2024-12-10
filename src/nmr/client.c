@@ -12,7 +12,8 @@ typedef struct _XDP_CLIENT {
     const XDP_CAPABILITIES_EX *CapabilitiesEx;
     XDP_NPI_CLIENT NpiClient;
 
-    ERESOURCE Resource;
+    KSPIN_LOCK SpinLock;
+    EX_PUSH_LOCK PushLock;
     HANDLE BindingHandle;
 } XDP_CLIENT;
 
@@ -26,8 +27,7 @@ typedef struct _XDP_CLIENT_SINGLE_VERSION {
 static
 VOID
 XdpCleanupInterfaceRegistration(
-    _In_ XDP_CLIENT *Client,
-    _In_ BOOLEAN ResourceInitialized
+    _In_ XDP_CLIENT *Client
     )
 {
     NTSTATUS Status;
@@ -38,10 +38,6 @@ XdpCleanupInterfaceRegistration(
 
         Status = NmrWaitForClientDeregisterComplete(Client->NmrClientHandle);
         FRE_ASSERT(Status == STATUS_SUCCESS);
-    }
-
-    if (ResourceInitialized) {
-        NT_VERIFY(NT_SUCCESS(ExDeleteResourceLite(&Client->Resource)));
     }
 }
 
@@ -54,6 +50,7 @@ XdpNmrClientAttachProvider(
     )
 {
     XDP_CLIENT *Client = ClientContext;
+    KIRQL OldIrql;
     NTSTATUS Status;
     VOID *ProviderBindingContext;
     const VOID *ProviderBindingDispatch;
@@ -65,22 +62,29 @@ XdpNmrClientAttachProvider(
     // all remaining binding logic to the NMR provider.
     //
 
-    ExEnterCriticalRegionAndAcquireResourceExclusive(&Client->Resource);
+    RtlAcquirePushLockExclusive(&Client->PushLock);
+    KeAcquireSpinLock(&Client->SpinLock, &OldIrql);
 
     if (Client->BindingHandle != NULL) {
         Status = STATUS_DEVICE_NOT_READY;
     } else {
+        KeReleaseSpinLock(&Client->SpinLock, OldIrql);
+
         Status =
             NmrClientAttachProvider(
                 NmrBindingHandle, Client, &Client->NpiClient,
                 &ProviderBindingContext, &ProviderBindingDispatch);
 
+        KeAcquireSpinLock(&Client->SpinLock, &OldIrql);
+
         if (NT_SUCCESS(Status)) {
+            ASSERT(Client->BindingHandle == NULL);
             Client->BindingHandle = NmrBindingHandle;
         }
     }
 
-    ExReleaseResourceAndLeaveCriticalRegion(&Client->Resource);
+    KeReleaseSpinLock(&Client->SpinLock, OldIrql);
+    RtlReleasePushLockExclusive(&Client->PushLock);
 
     return Status;
 }
@@ -92,12 +96,14 @@ XdpNmrClientDetachProvider(
     )
 {
     XDP_CLIENT *Client = ClientBindingContext;
+    KIRQL OldIrql;
 
-    ExEnterCriticalRegionAndAcquireResourceExclusive(&Client->Resource);
+    KeAcquireSpinLock(&Client->SpinLock, &OldIrql);
 
+    ASSERT(Client->BindingHandle != NULL);
     Client->BindingHandle = NULL;
 
-    ExReleaseResourceAndLeaveCriticalRegion(&Client->Resource);
+    KeReleaseSpinLock(&Client->SpinLock, OldIrql);
 
     return STATUS_SUCCESS;
 }
@@ -116,16 +122,9 @@ XdpRegisterInterfaceInternal(
     NTSTATUS Status;
     NPI_CLIENT_CHARACTERISTICS *NpiCharacteristics;
     NPI_REGISTRATION_INSTANCE *NpiInstance;
-    BOOLEAN ResourceInitialized = FALSE;
 
-    //
-    // Use resources instead of push locks for downlevel compatibility.
-    //
-    Status = ExInitializeResourceLite(&Client->Resource);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-    ResourceInitialized = TRUE;
+    KeInitializeSpinLock(&Client->SpinLock);
+    ExInitializePushLock(&Client->PushLock);
 
     Client->CapabilitiesEx = CapabilitiesEx;
     Client->NpiClient.Header.Revision = XDP_NPI_CLIENT_REVISION_1;
@@ -164,7 +163,7 @@ Exit:
 
     if (!NT_SUCCESS(Status)) {
         if (Client != NULL) {
-            XdpCleanupInterfaceRegistration(Client, ResourceInitialized);
+            XdpCleanupInterfaceRegistration(Client);
         }
     }
 
@@ -177,7 +176,7 @@ XdpDeregisterInterfaceInternal(
     _In_ XDP_CLIENT *Client
     )
 {
-    XdpCleanupInterfaceRegistration(Client, TRUE);
+    XdpCleanupInterfaceRegistration(Client);
 }
 
 static

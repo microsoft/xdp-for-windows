@@ -3,6 +3,8 @@
 Releases the reference to the API returned by XdpOpenApi, then dynamically
 unloads XDP. This function is provided inline in XDP headers.
 
+** This API is deprecated. **
+
 ## Syntax
 
 ```C

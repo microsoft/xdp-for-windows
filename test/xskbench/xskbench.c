@@ -3,14 +3,14 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <afxdp_helper.h>
+#include <afxdp_experimental.h>
+#include <xdpapi.h>
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <afxdp_helper.h>
-#include <afxdp_experimental.h>
-#include <xdpapi.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
@@ -159,7 +159,7 @@ typedef struct {
     HANDLE sock;
     HANDLE rxProgram;
     XDP_MODE xdpMode;
-    ULONG umemsize;
+    UINT64 umemsize;
     ULONG umemchunksize;
     ULONG umemheadroom;
     ULONG txiosize;
@@ -215,7 +215,6 @@ typedef struct {
     MY_QUEUE *queues;
 } MY_THREAD;
 
-CONST XDP_API_TABLE *XdpApi;
 INT ifindex = -1;
 UINT16 udpDestPort = DEFAULT_UDP_DEST_PORT;
 ULONG duration = DEFAULT_DURATION;
@@ -300,12 +299,12 @@ AttachXdpProgram(
         flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
     }
 
-    res = XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);
+    res = XskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);
     ASSERT_FRE(SUCCEEDED(res));
     ASSERT_FRE(hookSize == sizeof(hookId));
 
     res =
-        XdpApi->XdpCreateProgram(
+        XdpCreateProgram(
             ifindex, &hookId, Queue->queueId, flags, &rule, 1, &Queue->rxProgram);
     if (FAILED(res)) {
         ABORT("XdpCreateProgram failed: %d\n", res);
@@ -385,6 +384,47 @@ GetDescriptorPattern(
     }
 }
 
+_Success_(return)
+BOOLEAN
+ParseUInt64A(
+    _In_z_ const CHAR *Arg,
+    _Out_ UINT64 *Result
+    )
+{
+    // detect hex
+    const CHAR *Fmt = (Arg[0] == '0' && Arg[1] == 'x') ? "%llx%n" : "%llu%n";
+    INT End = 0;
+
+    if (1 != sscanf_s(Arg, Fmt, Result, &End) || Arg[End] != L'\0') {
+        printf_verbose("Invalid integer value: %s\n", Arg);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+_Success_(return)
+BOOLEAN
+ParseUInt32A(
+    _In_z_ const CHAR *Arg,
+    _Out_ UINT32 *Result
+    )
+{
+    UINT64 Tmp;
+
+    if (!ParseUInt64A(Arg, &Tmp)) {
+        return FALSE;
+    }
+
+    if (Tmp > MAXUINT32) {
+        printf_verbose("Invalid integer value: %s\n", Arg);
+        return FALSE;
+    }
+
+    *Result = (UINT32)Tmp;
+    return TRUE;
+}
+
 VOID
 SetupSock(
     INT IfIndex,
@@ -395,7 +435,7 @@ SetupSock(
     UINT32 bindFlags = 0;
 
     printf_verbose("creating sock\n");
-    res = XdpApi->XskCreate(&Queue->sock);
+    res = XskCreate(&Queue->sock);
     if (res != S_OK) {
         ABORT("err: XskCreate returned %d\n", res);
     }
@@ -421,21 +461,21 @@ SetupSock(
     ASSERT_FRE(Queue->umemReg.Address != NULL);
 
     res =
-        XdpApi->XskSetSockopt(
+        XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg,
             sizeof(Queue->umemReg));
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("configuring fill ring with size %d\n", Queue->ringsize);
     res =
-        XdpApi->XskSetSockopt(
+        XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &Queue->ringsize,
             sizeof(Queue->ringsize));
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("configuring completion ring with size %d\n", Queue->ringsize);
     res =
-        XdpApi->XskSetSockopt(
+        XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &Queue->ringsize,
             sizeof(Queue->ringsize));
     ASSERT_FRE(res == S_OK);
@@ -443,7 +483,7 @@ SetupSock(
     if (Queue->flags.rx) {
         printf_verbose("configuring rx ring with size %d\n", Queue->ringsize);
         res =
-            XdpApi->XskSetSockopt(
+            XskSetSockopt(
                 Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
         ASSERT_FRE(res == S_OK);
@@ -452,7 +492,7 @@ SetupSock(
     if (Queue->flags.tx) {
         printf_verbose("configuring tx ring with size %d\n", Queue->ringsize);
         res =
-            XdpApi->XskSetSockopt(
+            XskSetSockopt(
                 Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
                 sizeof(Queue->ringsize));
         ASSERT_FRE(res == S_OK);
@@ -472,7 +512,7 @@ SetupSock(
         hookId.SubLayer = XDP_HOOK_INJECT;
 
         printf_verbose("configuring tx inject to rx\n");
-        res = XdpApi->XskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
+        res = XskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
         ASSERT_FRE(res == S_OK);
     }
 
@@ -483,23 +523,23 @@ SetupSock(
         hookId.SubLayer = XDP_HOOK_INSPECT;
 
         printf_verbose("configuring rx from tx inspect\n");
-        res = XdpApi->XskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
+        res = XskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
         ASSERT_FRE(res == S_OK);
     }
 
     printf_verbose(
         "binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
-    res = XdpApi->XskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags);
+    res = XskBind(Queue->sock, IfIndex, Queue->queueId, bindFlags);
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("activating sock\n");
-    res = XdpApi->XskActivate(Queue->sock, 0);
+    res = XskActivate(Queue->sock, 0);
     ASSERT_FRE(res == S_OK);
 
     printf_verbose("XSK_SOCKOPT_RING_INFO\n");
     XSK_RING_INFO_SET infoSet = { 0 };
     UINT32 ringInfoSize = sizeof(infoSet);
-    res = XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_RING_INFO, &infoSet, &ringInfoSize);
+    res = XskGetSockopt(Queue->sock, XSK_SOCKOPT_RING_INFO, &infoSet, &ringInfoSize);
     ASSERT_FRE(res == S_OK);
     ASSERT_FRE(ringInfoSize == sizeof(infoSet));
     PrintRingInfo(infoSet);
@@ -515,14 +555,16 @@ SetupSock(
     }
 
     res =
-        XdpApi->XskSetSockopt(
+        XskSetSockopt(
             Queue->sock, XSK_SOCKOPT_POLL_MODE, &Queue->pollMode, sizeof(Queue->pollMode));
     ASSERT_FRE(res == S_OK);
 
     //
     // Free ring starts off with all UMEM descriptors.
     //
-    UINT32 numDescriptors = Queue->umemsize / Queue->umemchunksize;
+    UINT64 numDescriptors64 = Queue->umemsize / Queue->umemchunksize;
+    ASSERT_FRE(numDescriptors64 <= MAXUINT32);
+    UINT32 numDescriptors = (UINT32)numDescriptors64;
     struct {
         UINT32 Producer;
         UINT32 Consumer;
@@ -614,7 +656,7 @@ ProcessPeriodicStats(
         }
 
         HRESULT res =
-            XdpApi->XskGetSockopt(Queue->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
+            XskGetSockopt(Queue->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
         ASSERT_FRE(res == S_OK);
         ASSERT_FRE(optSize == sizeof(stats));
 
@@ -796,7 +838,7 @@ NotifyDriver(
     if (DirectionFlags != 0) {
         Queue->pokesPerformedCount++;
         res =
-            XdpApi->XskNotifySocket(
+            XskNotifySocket(
                 Queue->sock, DirectionFlags, WAIT_DRIVER_TIMEOUT_MS, &notifyResult);
 
         if (DirectionFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
@@ -1453,7 +1495,9 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            Queue->umemsize = atoi(argv[i]);
+            if (!ParseUInt64A(argv[i], &Queue->umemsize)) {
+                Usage();
+            }
         } else if (!strcmp(argv[i], "-b")) {
             if (++i >= argc) {
                 Usage();
@@ -1523,7 +1567,9 @@ ParseQueueArgs(
     }
 
     if (Queue->ringsize == 0) {
-        Queue->ringsize = Queue->umemsize / Queue->umemchunksize;
+        UINT64 RingSize64 = Queue->umemsize / Queue->umemchunksize;
+        ASSERT_FRE(RingSize64 <= MAXUINT32);
+        Queue->ringsize = (UINT32)RingSize64;
     }
 
     ASSERT_FRE(Queue->umemsize >= Queue->umemchunksize);
@@ -1809,8 +1855,6 @@ main(
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
-    ASSERT_FRE(SUCCEEDED(XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi)));
-
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);
 
@@ -1844,8 +1888,6 @@ main(
             PrintFinalStats(&Thread->queues[qIndex]);
         }
     }
-
-    XdpCloseApi(XdpApi);
 
     return 0;
 }

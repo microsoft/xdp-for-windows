@@ -3,6 +3,8 @@
 // Licensed under the MIT License.
 //
 
+#include <xdpapi.h>
+
 #include <winsock2.h>
 
 //
@@ -15,7 +17,6 @@
 #pragma warning(pop)
 
 #include <CppUnitTest.h>
-#include <xdpapi.h>
 #include <fntrace.h>
 
 #include "xdptest.h"
@@ -37,6 +38,11 @@
 //
 // Test suite(s).
 //
+
+//
+// Ensure our build system is defaulting to the latest supported API version.
+//
+C_ASSERT(XDP_API_VERSION == XDP_API_VERSION_LATEST);
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -109,14 +115,6 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 TEST_CLASS(xdpfunctionaltests)
 {
 public:
-    TEST_METHOD(OpenApi) {
-        ::OpenApiTest();
-    }
-
-    TEST_METHOD(LoadApi) {
-        ::LoadApiTest();
-    }
-
     TEST_METHOD(GenericBinding) {
         ::GenericBinding();
     }
@@ -403,6 +401,14 @@ public:
 
     TEST_METHOD(GenericRxL2FwdTxInspect) {
         GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxIpNextHeaderV4) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxIpNextHeaderV6) {
+        GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, TRUE);
     }
 
     TEST_METHOD(GenericRxFromTxInspectV4) {

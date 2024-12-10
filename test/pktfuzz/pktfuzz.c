@@ -212,16 +212,3 @@ Exit:
 
     return Result;
 }
-
-#if _MSC_VER < 1930
-int
-__cdecl
-main()
-{
-    //
-    // Provide a dummy main() function for the VS2019 compiler; it does not
-    // support LibFuzzer.
-    //
-    return 1;
-}
-#endif

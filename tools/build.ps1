@@ -14,7 +14,7 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$Project = "",
 
-    [ValidateSet("", "Binary", "Catalog", "Package")]
+    [ValidateSet("", "Binary", "Catalog", "Package", "AllPackage")]
     [Parameter(Mandatory=$false)]
     [string]$BuildStage = "",
 
@@ -28,7 +28,14 @@ param (
     [switch]$UpdateDeps = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$OneBranch = $false
+    [switch]$OneBranch = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoRestore = $false,
+
+    [ValidateSet("x64", "arm64")]
+    [Parameter(Mandatory=$false)]
+    [string[]]$NugetPlatforms = $Platform
 )
 
 Set-StrictMode -Version 'Latest'
@@ -71,17 +78,25 @@ if (!$IsAdmin) {
     Write-Verbose "MSI installer validation requires admin privileges. Skipping."
 }
 
-Write-Verbose "Restoring packages [$Sln]"
-msbuild.exe $Sln `
-    /t:restore `
-    /p:RestoreConfigFile=src\nuget.config `
-    /p:Configuration=$Config `
-    /p:Platform=$Platform
-if (!$?) {
-    Write-Error "Restoring NuGet packages failed: $LastExitCode"
+if (!$NoRestore) {
+    Write-Verbose "Restoring packages [$Sln]"
+    msbuild.exe $Sln `
+        /t:restore `
+        /p:RestoreConfigFile=src\nuget.config `
+        /p:Configuration=$Config `
+        /p:Platform=$Platform
+    if (!$?) {
+        Write-Error "Restoring NuGet packages failed: $LastExitCode"
+    }
 }
 
 & $RootDir\tools\prepare-machine.ps1 -ForEbpfBuild -Platform $Platform
+
+# Unfortunately, global state cached by MsBuild.exe combined with WDK bugs
+# causes unreliable builds. Specifically, the Telemetry task implemented by
+# WDK's Microsoft.DriverKit.Build.Tasks.17.0.dll has breaking API changes
+# that are not invalidated by loading different WDKs. Therefore we disable
+# MsBuild.exe reuse with /nodeReuse:false.
 
 Write-Verbose "Building [$Sln]"
 msbuild.exe $Sln `
@@ -90,7 +105,9 @@ msbuild.exe $Sln `
     /p:IsAdmin=$IsAdmin `
     /p:SignMode=$SignMode `
     /p:BuildStage=$BuildStage `
+    /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `
     /t:$($Tasks -join ",") `
+    /nodeReuse:false `
     /maxCpuCount
 if (!$?) {
     Write-Error "Build failed: $LastExitCode"

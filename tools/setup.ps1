@@ -29,11 +29,11 @@ param (
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf", "xskfwdkm")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf")]
+    [ValidateSet("", "fndis", "xdp", "xdpmp", "fnmp", "fnlwf", "fnsock", "ebpf", "xskfwdkm")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -45,7 +45,10 @@ param (
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false
+    [switch]$EnableEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$PaLayer = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -78,6 +81,7 @@ $XdpMpCert = "$ArtifactsDir\test\xdpmp.cer"
 $XdpMpComponentId = "ms_xdpmp"
 $XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
+$XskFwdKmSys = "$ArtifactsDir\test\xskfwdkm.sys"
 
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
@@ -262,10 +266,16 @@ function Install-Xdp {
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
 
-        $AddLocal = ""
+        $AddLocal = @()
 
         if ($EnableEbpf) {
-            $AddLocal = "ADDLOCAL=xdp_ebpf"
+            $AddLocal += "xdp_ebpf"
+        }
+        if ($PaLayer) {
+            $AddLocal += "xdp_pa"
+        }
+        if ($AddLocal) {
+            $AddLocal = "ADDLOCAL=$($AddLocal -join ",")"
         }
 
         Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt"
@@ -620,6 +630,33 @@ function Uninstall-Ebpf {
     Refresh-Path
 }
 
+# Installs the xskfwdkm driver.
+function Install-XskFwdKm {
+    if (!(Test-Path $XskFwdKmSys)) {
+        Write-Error "$XskFwdKmSys does not exist!"
+    }
+
+    Write-Verbose "sc.exe create xskfwdkm type= kernel start= demand binpath= $XskFwdKmSys"
+    sc.exe create xskfwdkm type= kernel start= demand binpath= $XskFwdKmSys | Write-Verbose
+    if ($LastExitCode) {
+        Write-Error "sc.exe exit code: $LastExitCode"
+    }
+
+    Start-Service-With-Retry xskfwdkm
+
+    Write-Verbose "xskfwdkm.sys install complete!"
+}
+
+# Uninstalls the xskfwdkm driver.
+function Uninstall-XskFwdKm {
+    Write-Verbose "Stop-Service xskfwdkm"
+    try { Stop-Service xskfwdkm -NoWait } catch { }
+
+    Cleanup-Service xskfwdkm
+
+    Write-Verbose "xskfwdkm.sys uninstall complete!"
+}
+
 try {
     if ($Install -eq "fndis") {
         Install-FakeNdis
@@ -642,6 +679,9 @@ try {
     if ($Install -eq "fnsock") {
         Install-FnSock
     }
+    if ($Install -eq "xskfwdkm") {
+        Install-XskFwdKm
+    }
 
     if ($Uninstall -eq "fndis") {
         Uninstall-FakeNdis
@@ -663,6 +703,9 @@ try {
     }
     if ($Uninstall -eq "fnsock") {
         Uninstall-FnSock
+    }
+    if ($Uninstall -eq "xskfwdkm") {
+        Uninstall-XskFwdKm
     }
 } catch {
     Write-Error $_ -ErrorAction $OriginalErrorActionPreference

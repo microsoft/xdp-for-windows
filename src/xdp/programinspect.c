@@ -391,7 +391,7 @@ XdpParseFrame(
     UINT32 Offset = 0;
 
     //
-    // This routine always attempts to parse Ethernet through UDP headers.
+    // This routine always attempts to parse Ethernet through TCP/UDP headers.
     //
     Cache->EthCached = TRUE;
     Cache->Ip4Cached = TRUE;
@@ -1004,6 +1004,18 @@ XdpInspect(
             }
             break;
 
+        case XDP_MATCH_IP_NEXT_HEADER:
+            if (!(FrameCache.Ip4Cached || FrameCache.Ip6Cached)) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if ((FrameCache.Ip4Valid && FrameCache.Ip4Hdr->Protocol == Rule->Pattern.NextHeader) ||
+                (FrameCache.Ip6Valid && FrameCache.Ip6Hdr->NextHeader == Rule->Pattern.NextHeader)) {
+                Matched = TRUE;
+            }
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -1154,7 +1166,7 @@ XdpProgramValidateRule(
     //
     RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
 
-    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_TCP_CONTROL_DST) {
+    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_IP_NEXT_HEADER) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }

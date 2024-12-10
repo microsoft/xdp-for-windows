@@ -2,12 +2,10 @@
   <PropertyGroup Label="Version">
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
-    <XdpMinorVersion>1</XdpMinorVersion>
+    <XdpMinorVersion>2</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
   </PropertyGroup>
   <PropertyGroup>
-    <!-- Project-wide properties -->
-    <WntPackagePath>$(SolutionDir)packages\win-net-test.1.2.0\</WntPackagePath>
     <!-- Undocked project properties -->
     <UndockedDir>$(SolutionDir)submodules\cxplat\submodules\undocked\</UndockedDir>
     <UndockedOut>$(SolutionDir)artifacts\</UndockedOut>
@@ -17,6 +15,7 @@
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
+    <XdpWdkVersion>10.0.26100.2161</XdpWdkVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
@@ -30,6 +29,8 @@
     <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="1.0.0" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.SourceLink.Common" Version="1.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="$(XdpWdkVersion)" Condition="'$(ImportWdk)' != 'false'" />
+    <PackageReference Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="$(XdpWdkVersion)" Condition="'$(ImportWdk)' != 'false' AND '$(HostPlatform)' != '$(Platform)'" />
     <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />

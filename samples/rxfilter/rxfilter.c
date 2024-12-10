@@ -3,12 +3,12 @@
 // Licensed under the MIT License.
 //
 
-#include <windows.h>
+#include <xdpapi.h>
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <xdpapi.h>
 
 CONST CHAR *UsageText =
 "rxfilter.exe -IfIndex <IfIndex> -QueueId <QueueId> [OPTIONS] RULE_PARAMS\n"
@@ -185,8 +185,7 @@ main(
     CHAR **argv
     )
 {
-    const XDP_API_TABLE *XdpApi;
-    HRESULT Result;
+    XDP_STATUS XdpStatus;
     HANDLE Program;
     const XDP_HOOK_ID XdpInspectRxL2 = {
         XDP_HOOK_L2,
@@ -199,20 +198,14 @@ main(
     //
     ParseArgs(argc, argv);
 
-    Result = XdpOpenApi(XDP_API_VERSION_LATEST, &XdpApi);
-    if (FAILED(Result)) {
-        LOGERR("XdpOpenApi failed: %x", Result);
-        return 1;
-    }
-
     //
     // Create an XDP program using the parsed rule at the L2 inspect hook point.
     //
-    Result =
-        XdpApi->XdpCreateProgram(
+    XdpStatus =
+        XdpCreateProgram(
             IfIndex, &XdpInspectRxL2, QueueId, ProgramFlags, &Rule, 1, &Program);
-    if (FAILED(Result)) {
-        LOGERR("XdpCreateProgram failed: %x", Result);
+    if (FAILED(XdpStatus)) {
+        LOGERR("XdpCreateProgram failed: %x", XdpStatus);
         return 1;
     }
 
