@@ -15,6 +15,9 @@
 extern "C" {
 #endif
 
+#include <xdp/framechecksum.h>
+#include <xdp/framelayout.h>
+
 //
 // XSK_SOCKOPT_POLL_MODE
 //
@@ -52,11 +55,12 @@ typedef enum _XSK_POLL_MODE {
 // XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION
 //
 // Supports: get
-// Optval type: XDP_EXTENSION
+// Optval type: UINT16
 // Description: Gets the XDP_FRAME_LAYOUT descriptor extension for the TX frame
 //              ring. This requires the socket is bound, the TX ring size is
 //              set, and at least one socket option has enabled the frame layout
-//              extension.
+//              extension. The returned value is the offset of the
+//              XDP_FRAME_LAYOUT structure from the start of each TX descriptor.
 //
 #define XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION 1001
 
@@ -64,39 +68,26 @@ typedef enum _XSK_POLL_MODE {
 // XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION
 //
 // Supports: get
-// Optval type: XDP_EXTENSION
+// Optval type: UINT16
 // Description: Gets the XDP_FRAME_CHECKSUM descriptor extension for the TX
 //              frame ring. This requires the socket is bound, the TX ring size
-//              is set, and at least one socket option has enabled the frame
-//              layout extension.
+//              is set, and at least one socket option has enabled the checksum
+//              extension. The returned value is the offset of the
+//              XDP_FRAME_CHECKSUM structure from the start of each TX descriptor.
 //
 #define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 1002
 
 //
-// XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX
+// XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM
 //
 // Supports: set
-// Optval type: BOOLEAN
-// Description: Sets whether UDP checksum transmit offload is enabled. This
+// Optval type: UINT32
+// Description: Sets whether checksum transmit offload is enabled. This
 //              option requires the socket is bound and the TX frame ring size
 //              is not set. This option enables the XDP_FRAME_LAYOUT and
 //              XDP_FRAME_CHECKSUM extensions on the TX frame ring.
 //
-#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX 1003
-
-//
-// XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES
-//
-// Supports: get
-// Optval type: XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES
-// Description: Returns the UDP checksum transmit offload capabilities. This
-//              option requires the socket is bound.
-//
-#define XSK_SOCKOPT_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES 1004
-
-typedef struct _XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES {
-    BOOLEAN Supported;
-} XSK_OFFLOAD_UDP_CHECKSUM_TX_CAPABILITIES;
+#define XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM 1003
 
 #ifdef __cplusplus
 } // extern "C"

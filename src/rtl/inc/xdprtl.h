@@ -128,22 +128,6 @@ XdpRtlStop(
     VOID
     );
 
-#ifndef _RTL_VOL_MEM_ACCESSORS_
-
-__forceinline
-VOID
-RtlCopyVolatileMemory(
-    _Out_writes_bytes_(Size) VOID *Destination,
-    _In_reads_bytes_(Size) volatile const VOID *Source,
-    _In_ SIZE_T Size
-    )
-{
-    RtlCopyMemory(Destination, (const VOID *)Source, Size);
-    _ReadWriteBarrier();
-}
-
-#endif
-
 __forceinline
 HANDLE
 ReadHandleNoFence(
@@ -184,6 +168,22 @@ RtlFindLeastSignificantBit(
     } else {
         return -1;
     }
+}
+
+#endif
+
+#ifndef _RTL_VOL_MEM_ACCESSORS_
+
+__forceinline
+VOID
+RtlCopyVolatileMemory(
+    _Out_writes_bytes_(Size) VOID *Destination,
+    _In_reads_bytes_(Size) volatile const VOID *Source,
+    _In_ SIZE_T Size
+    )
+{
+    RtlCopyMemory(Destination, (const VOID *)Source, Size);
+    _ReadWriteBarrier();
 }
 
 #endif
