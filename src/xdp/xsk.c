@@ -115,6 +115,8 @@ typedef struct _XSK_TX_XDP {
     XDP_EXTENSION MdlExtension;
     XDP_EXTENSION FrameTxCompletionExtension;
     XDP_EXTENSION TxCompletionExtension;
+    XDP_EXTENSION LayoutExtension;
+    XDP_EXTENSION ChecksumExtension;
     UINT32 OutstandingFrames;
     UINT32 MaxBufferLength;
     UINT32 MaxFrameLength;
@@ -145,6 +147,14 @@ typedef struct _XSK_TX {
     XSK_KERNEL_RING CompletionRing;
     UMEM_BOUNCE Bounce;
     XSK_TX_XDP Xdp;
+    union {
+        struct {
+            UINT8 Checksum : 1;
+        };
+        UINT8 Value;
+    } OffloadFlags;
+    UINT16 LayoutExtensionOffset;
+    UINT16 ChecksumExtensionOffset;
     DMA_ADAPTER *DmaAdapter;
 } XSK_TX;
 
@@ -687,7 +697,6 @@ XskFillTx(
         XSK_BUFFER_ADDRESS AddressDescriptor;
         UMEM_MAPPING *Mapping;
         XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
-        UINT32 MaxFrameLength;
 
         TxIndex =
             (ReadUInt32NoFence(&Xsk->Tx.Ring.Shared->ConsumerIndex) + i) & (Xsk->Tx.Ring.Mask);
@@ -713,20 +722,8 @@ XskFillTx(
             continue;
         }
 
-        //
-        // Review: we may be able to optimize the frame descriptor layout such
-        // that offloads are adjacent and can be copied in a single operation.
-        //
-        RtlCopyVolatileMemory(&Frame->Layout, &XskFrame->Layout, sizeof(Frame->Layout));
-        RtlCopyVolatileMemory(&Frame->Checksum, &XskFrame->Checksum, sizeof(Frame->Checksum));
-        RtlCopyVolatileMemory(&Frame->Gso, &XskFrame->Gso, sizeof(Frame->Gso));
 
-        //
-        // TODO: enforce hardware LSO/USO limit here? Or do interfaces need to
-        // drop?
-        //
-        MaxFrameLength = Frame->Gso.UDP.Mss > 0 ? MAXUINT16 : Xsk->Tx.Xdp.MaxFrameLength;
-        if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, MaxFrameLength)) {
+        if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, Xsk->Tx.Xdp.MaxFrameLength)) {
             Xsk->Statistics.TxInvalidDescriptors++;
             STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);
             continue;
@@ -761,7 +758,44 @@ XskFillTx(
                     Frame, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
             CompletionContext->Context = &Xsk->Tx.Xdp.DatapathClientEntry;
         }
+        if (Xsk->Tx.OffloadFlags.Value != 0) {
+            //
+            // Gate all offload features behind a single flag union, to minimize
+            // code complexity for the common case of non-offloading sockets.
+            //
 
+            if (Xsk->Tx.LayoutExtensionOffset != 0) {
+                XDP_FRAME_LAYOUT *XdpLayout =
+                    XdpGetLayoutExtension(Frame, &Xsk->Tx.Xdp.LayoutExtension);
+                const XDP_FRAME_LAYOUT *XskLayout =
+                    RTL_PTR_ADD(XskFrame, Xsk->Tx.LayoutExtensionOffset);
+
+                C_ASSERT(sizeof(*XdpLayout) == sizeof(*XskLayout));
+                ASSERT(Xsk->Tx.Xdp.LayoutExtension.Reserved != 0);
+
+                //
+                // Copy the offload structure directly into the XDP ring. The
+                // XSK layer does not perform even perfunctory validation.
+                //
+                RtlCopyVolatileMemory(XdpLayout, XskLayout, sizeof(*XdpLayout));
+            }
+
+            if (Xsk->Tx.ChecksumExtensionOffset != 0) {
+                XDP_FRAME_CHECKSUM *XdpChecksum =
+                    XdpGetChecksumExtension(Frame, &Xsk->Tx.Xdp.ChecksumExtension);
+                const XDP_FRAME_CHECKSUM *XskChecksum =
+                    RTL_PTR_ADD(XskFrame, Xsk->Tx.ChecksumExtensionOffset);
+
+                C_ASSERT(sizeof(*XdpChecksum) == sizeof(*XskChecksum));
+                ASSERT(Xsk->Tx.Xdp.ChecksumExtension.Reserved != 0);
+
+                //
+                // Copy the offload structure directly into the XDP ring. The
+                // XSK layer does not perform even perfunctory validation.
+                //
+                RtlCopyVolatileMemory(XdpChecksum, XskChecksum, sizeof(*XdpChecksum));
+            }
+        }
 
         EventWriteXskTxEnqueue(
             &MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Ring.Shared->ConsumerIndex + i,
@@ -3528,6 +3562,82 @@ Exit:
 
 static
 NTSTATUS
+XskSockoptSetOffloadTxChecksum(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    )
+{
+    NTSTATUS Status;
+    const VOID *SockoptIn;
+    UINT32 SockoptInSize;
+    UINT32 Enabled;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    //
+    // This is a nested buffer not copied by IO manager, so it needs special care.
+    //
+    SockoptIn = Sockopt->InputBuffer;
+    SockoptInSize = Sockopt->InputBufferLength;
+
+    if (SockoptInSize < sizeof(Enabled)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    __try {
+        if (RequestorMode != KernelMode) {
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
+        }
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    switch (Sockopt->Option) {
+    case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p Set XSK_SOCKOPT_RX_PROCESSOR_AFFINITY Enabled=%u",
+            Xsk, Enabled);
+        Xsk->Rx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        break;
+
+    case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p Set XSK_SOCKOPT_TX_PROCESSOR_AFFINITY Enabled=%u",
+            Xsk, Enabled);
+        Xsk->Tx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
+        break;
+
+    default:
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
+NTSTATUS
 XskSockoptGetError(
     _In_ XSK *Xsk,
     _In_ UINT32 Option,
@@ -4007,6 +4117,9 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
     case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
         Status = XskSockoptSetIdealProcessor(Xsk, Sockopt, Irp->RequestorMode);
+        break;
+    case XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM:
+        Status = XskSockoptSetOffloadTxChecksum(Xsk, Sockopt, Irp->RequestorMode);
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:

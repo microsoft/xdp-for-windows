@@ -59,25 +59,4 @@ C_ASSERT(sizeof(XDP_FRAME_LAYOUT) == 5);
 
 #pragma warning(pop)
 
-#define XDP_FRAME_EXTENSION_LAYOUT_NAME L"ms_frame_layout"
-#define XDP_FRAME_EXTENSION_LAYOUT_VERSION_1 1U
-
-#include <xdp/extension.h>
-
-//
-// TODO: remove forward declaration after removing explicit offload fields from
-// ring descriptors.
-//
-typedef struct _XDP_FRAME XDP_FRAME;
-
-inline
-XDP_FRAME_LAYOUT *
-XdpGetLayoutExtension(
-    _In_ XDP_FRAME *Frame,
-    _In_ XDP_EXTENSION *Extension
-    )
-{
-    return (XDP_FRAME_LAYOUT *)XdpGetExtensionData(Frame, Extension);
-}
-
 EXTERN_C_END

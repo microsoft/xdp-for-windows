@@ -43,12 +43,6 @@ C_ASSERT(sizeof(XDP_FRAME_CHECKSUM) == 1);
 
 #include <xdp/extension.h>
 
-//
-// TODO: remove forward declaration after removing explicit offload fields from
-// ring descriptors.
-//
-typedef struct _XDP_FRAME XDP_FRAME;
-
 inline
 XDP_FRAME_CHECKSUM *
 XdpGetChecksumExtension(
