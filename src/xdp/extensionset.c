@@ -282,7 +282,7 @@ XdpExtensionSetCreate(
 
     Set =
         ExAllocatePoolZero(
-            PagedPool, sizeof(*Set) + sizeof(Set->Entries[0]) * ReservedExtensionCount,
+            NonPagedPoolNx, sizeof(*Set) + sizeof(Set->Entries[0]) * ReservedExtensionCount,
             XDP_POOLTAG_EXTENSION);
     if (Set == NULL) {
         Status = STATUS_NO_MEMORY;

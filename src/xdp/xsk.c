@@ -143,6 +143,9 @@ typedef struct _XSK_TX_XDP {
 } XSK_TX_XDP;
 
 typedef struct _XSK_TX {
+    //
+    // Data path fields.
+    //
     XSK_KERNEL_RING Ring;
     XSK_KERNEL_RING CompletionRing;
     UMEM_BOUNCE Bounce;
@@ -155,7 +158,12 @@ typedef struct _XSK_TX {
     } OffloadFlags;
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
+
+    //
+    // Control path fields.
+    //
     DMA_ADAPTER *DmaAdapter;
+    XDP_EXTENSION_SET *FrameExtensionSet;
 } XSK_TX;
 
 typedef struct _XSK {
@@ -166,6 +174,7 @@ typedef struct _XSK {
     XSK_RX Rx;
     XSK_TX Tx;
     KSPIN_LOCK Lock;
+    EX_PUSH_LOCK PushLock;
     UINT32 IoWaitFlags;
     XSK_IO_WAIT_FLAGS IoWaitInternalFlags;
     KEVENT IoWaitEvent;
@@ -214,6 +223,23 @@ static XDP_FILE_DISPATCH XskFileDispatch = {
     .IoControl  = XskIrpDeviceIoControl,
     .Cleanup    = XskIrpCleanup,
     .Close      = XskIrpClose,
+};
+
+static const XDP_EXTENSION_REGISTRATION XskTxFrameExtensions[] = {
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+    },
 };
 
 static
@@ -1093,6 +1119,7 @@ XskIrpCreateSocket(
     Xsk->Tx.Xdp.HookId.Direction = XDP_HOOK_TX;
     Xsk->Tx.Xdp.HookId.SubLayer = XDP_HOOK_INJECT;
     KeInitializeSpinLock(&Xsk->Lock);
+    ExInitializePushLock(&Xsk->PushLock);
     KeInitializeEvent(&Xsk->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&Xsk->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
@@ -1854,6 +1881,18 @@ XskIrpCleanup(
 
 static
 VOID
+XskFreeExtensionSet(
+    _Inout_ XDP_EXTENSION_SET **ExtensionSet
+    )
+{
+    if (*ExtensionSet != NULL) {
+        XdpExtensionSetCleanup(*ExtensionSet);
+        *ExtensionSet = NULL;
+    }
+}
+
+static
+VOID
 XskFreeRing(
     XSK_KERNEL_RING *Ring
     )
@@ -2553,6 +2592,7 @@ XskIrpClose(
     XskFreeRing(&Xsk->Rx.FillRing);
     XskFreeRing(&Xsk->Tx.Ring);
     XskFreeRing(&Xsk->Tx.CompletionRing);
+    XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
 
     XskDereference(Xsk);
 
@@ -2644,6 +2684,14 @@ XskIrpBindSocket(
     }
 
     if (Bind.Flags & XSK_BIND_FLAG_TX) {
+        Status =
+            XdpExtensionSetCreate(
+                XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
+                &Xsk->Tx.FrameExtensionSet);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
         WorkItem.Xsk = Xsk;
         WorkItem.QueueId = Bind.QueueId;
         WorkItem.IfWorkItem.WorkRoutine = XskBindTxIf;
@@ -2681,6 +2729,10 @@ Exit:
             ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
 
             KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        }
+
+        if (Bind.Flags & XSK_BIND_FLAG_TX) {
+            XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
         }
 
         if (Xsk->Rx.Xdp.IfHandle != NULL) {
@@ -2743,6 +2795,7 @@ XskIrpActivateSocket(
     XSK_ACTIVATE_IN Activate = {0};
     XSK_BINDING_WORKITEM RxWorkItem = {0}, TxWorkItem = {0};
     KIRQL OldIrql;
+    BOOLEAN IsPushLockHeld = FALSE;
     BOOLEAN ActivateIfInitiated = FALSE;
     BOOLEAN ActivateIfCommitted = FALSE;
 
@@ -2760,6 +2813,8 @@ XskIrpActivateSocket(
         goto Exit;
     }
 
+    RtlAcquirePushLockExclusive(&Xsk->Lock);
+    IsPushLockHeld = TRUE;
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
     if (Xsk->Umem == NULL) {
@@ -2888,6 +2943,10 @@ Exit:
     }
 
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
+    }
 
     TraceInfo(TRACE_XSK, "Xsk=%p Flags=%x Status=%!STATUS!", Xsk, Activate.Flags, Status);
 
@@ -3279,6 +3338,7 @@ XskSockoptSetRingSize(
         }
     }
 
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     IsLockHeld = TRUE;
 
@@ -3339,6 +3399,7 @@ Exit:
 
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
     }
     if (Mdl != NULL) {
         if (UserVa != NULL) {
@@ -3566,6 +3627,19 @@ Exit:
 }
 
 static
+VOID
+XskSetOffloadTxChecksumWorker(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
+    XSK *Xsk = WorkItem->Xsk;
+
+    WorkItem->CompletionStatus = XdpTxQueueEnableChecksumOffload(Xsk->Tx.Xdp.Queue);
+    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
+}
+
+static
 NTSTATUS
 XskSockoptSetOffloadTxChecksum(
     _In_ XSK *Xsk,
@@ -3579,6 +3653,8 @@ XskSockoptSetOffloadTxChecksum(
     UINT32 Enabled;
     KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
+    BOOLEAN IsPushLockHeld = FALSE;
+    XSK_BINDING_WORKITEM WorkItem = {0};
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
@@ -3603,6 +3679,8 @@ XskSockoptSetOffloadTxChecksum(
         goto Exit;
     }
 
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     IsLockHeld = TRUE;
 
@@ -3620,23 +3698,37 @@ XskSockoptSetOffloadTxChecksum(
         goto Exit;
     }
 
-    Status = XdpTxQueueEnableChecksumOffload(Xsk->Tx.Xdp.Queue);
-    if (!NT_SUCCESS(Status)) {
+    KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
+    WorkItem.Xsk = Xsk;
+    WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
+    WorkItem.IfWorkItem.WorkRoutine = XskSetOffloadTxChecksumWorker;
+    XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    IsLockHeld = FALSE;
+
+    KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(WorkItem.CompletionStatus)) {
+        Status = WorkItem.CompletionStatus;
         goto Exit;
     }
 
-    //
-    // TODO: add layout and checksum extensions to AF_XDP rings.
-    //
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    XdpExtensionSetEnableEntry(Xsk->Tx.FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+    XdpExtensionSetEnableEntry(Xsk->Tx.FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
 
     Xsk->Tx.OffloadFlags.Checksum = TRUE;
-
     Status = STATUS_SUCCESS;
 
 Exit:
 
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
     }
 
     TraceExitStatus(TRACE_XSK);
