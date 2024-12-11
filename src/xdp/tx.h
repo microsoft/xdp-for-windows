@@ -33,6 +33,11 @@ XdpTxQueueFindOrCreate(
     _Out_ XDP_TX_QUEUE **TxQueue
     );
 
+NTSTATUS
+XdpTxQueueActivate(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
 VOID
 XdpTxQueueDereference(
     _In_ XDP_TX_QUEUE *TxQueue
@@ -41,7 +46,6 @@ XdpTxQueueDereference(
 typedef struct _XDP_TX_QUEUE_NOTIFY_ENTRY XDP_TX_QUEUE_NOTIFICATION_ENTRY;
 
 typedef enum _XDP_TX_QUEUE_NOTIFICATION_TYPE {
-    XDP_TX_QUEUE_NOTIFICATION_ATTACH,
     XDP_TX_QUEUE_NOTIFICATION_DETACH,
 } XDP_TX_QUEUE_NOTIFICATION_TYPE;
 

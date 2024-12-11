@@ -747,7 +747,6 @@ XdpTxQueueCreate(
     XDP_TX_QUEUE_KEY Key;
     XDP_TX_QUEUE *TxQueue = NULL;
     NTSTATUS Status;
-    XDP_EXTENSION_INFO ExtensionInfo;
     DECLARE_UNICODE_STRING_SIZE(
         Name, ARRAYSIZE("if_" MAXUINT32_STR "_queue_" MAXUINT32_STR "_rx"));
     const WCHAR *DirectionString;
@@ -922,7 +921,6 @@ XdpTxQueueDeleteRings(
     }
 }
 
-static
 NTSTATUS
 XdpTxQueueActivate(
     _In_ XDP_TX_QUEUE *TxQueue
@@ -931,10 +929,25 @@ XdpTxQueueActivate(
     NTSTATUS Status;
     UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
     UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
+    XDP_EXTENSION_INFO ExtensionInfo;
 
     TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
 
-    ASSERT(TxQueue->State == XdpTxQueueStateCreated);
+    if (TxQueue->State == XdpTxQueueStateActive) {
+        //
+        // Already activated - this is a no-op.
+        //
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (TxQueue->State != XdpTxQueueStateCreated) {
+        //
+        // The queue can be activated only from its original created state.
+        //
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
 
     Status =
         XdpExtensionSetAssignLayout(
@@ -1165,15 +1178,10 @@ XdpTxQueueAddDatapathClient(
     ASSERT(TxClientType == XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE_XSK);
     UNREFERENCED_PARAMETER(TxClientType);
 
-    if (TxQueue->State == XdpTxQueueStateCreated) {
-        Status = XdpTxQueueActivate(TxQueue);
-
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
+    if (TxQueue->State != XdpTxQueueStateActive) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
     }
-
-    TxClientEntry->NotifyRoutine(TxClientEntry, XDP_TX_QUEUE_NOTIFICATION_ATTACH);
 
     SyncParams.TxQueue = TxQueue;
     SyncParams.TxClientEntry = TxClientEntry;
