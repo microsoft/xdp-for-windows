@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <xdp/offload.h>
-
 EXTERN_C_START
 
 DECLARE_HANDLE(XDP_RX_QUEUE_HANDLE);
