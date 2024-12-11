@@ -747,8 +747,6 @@ XdpTxQueueCreate(
     XDP_TX_QUEUE_KEY Key;
     XDP_TX_QUEUE *TxQueue = NULL;
     NTSTATUS Status;
-    UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
-    UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
     XDP_EXTENSION_INFO ExtensionInfo;
     DECLARE_UNICODE_STRING_SIZE(
         Name, ARRAYSIZE("if_" MAXUINT32_STR "_queue_" MAXUINT32_STR "_rx"));
@@ -882,6 +880,63 @@ XdpTxQueueCreate(
     }
 
     Status =
+        XdpIfOpenInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(TxQueue->Binding), &TxQueue->Key.HookId,
+            &TxQueue->InterfaceOffloadHandle);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    *NewTxQueue = TxQueue;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceInfo(
+        TRACE_CORE,
+        "TxQueue=%p Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} Status=%!STATUS!",
+        TxQueue, HookId->Layer, HookId->Direction, HookId->SubLayer, Status);
+
+    if (!NT_SUCCESS(Status)) {
+        if (TxQueue != NULL) {
+            XdpTxQueueDereference(TxQueue);
+        }
+    }
+
+    return Status;
+}
+
+static
+VOID
+XdpTxQueueDeleteRings(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    ASSERT(TxQueue->State == XdpTxQueueStateCreated || TxQueue->State == XdpTxQueueStateDeleted);
+
+    if (TxQueue->CompletionRing != NULL) {
+        XdpRingFreeRing(TxQueue->CompletionRing);
+    }
+    if (TxQueue->FrameRing != NULL) {
+        XdpRingFreeRing(TxQueue->FrameRing);
+    }
+}
+
+static
+NTSTATUS
+XdpTxQueueActivate(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    NTSTATUS Status;
+    UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
+    UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
+
+    TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
+
+    ASSERT(TxQueue->State == XdpTxQueueStateCreated);
+
+    Status =
         XdpExtensionSetAssignLayout(
             TxQueue->BufferExtensionSet, sizeof(XDP_BUFFER), __alignof(XDP_BUFFER),
             &BufferSize, &BufferAlignment);
@@ -949,28 +1004,27 @@ XdpTxQueueCreate(
     }
 
     Status =
-        XdpIfOpenInterfaceOffloadHandle(
-            XdpIfGetIfSetHandle(TxQueue->Binding), &TxQueue->Key.HookId,
-            &TxQueue->InterfaceOffloadHandle);
+        XdpIfActivateTxQueue(
+            TxQueue->Binding, TxQueue->InterfaceTxQueue,
+            (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
+            (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
     if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE, "TxQueue=%p XdpIfActivateTxQueue failed Status=%!STATUS!",
+            TxQueue, Status);
         goto Exit;
     }
 
-    *NewTxQueue = TxQueue;
-    Status = STATUS_SUCCESS;
+    TxQueue->State = XdpTxQueueStateActive;
+    TraceInfo(TRACE_CORE, "TxQueue=%p Activated", TxQueue);
 
 Exit:
 
-    TraceInfo(
-        TRACE_CORE,
-        "TxQueue=%p Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} Status=%!STATUS!",
-        TxQueue, HookId->Layer, HookId->Direction, HookId->SubLayer, Status);
-
     if (!NT_SUCCESS(Status)) {
-        if (TxQueue != NULL) {
-            XdpTxQueueDereference(TxQueue);
-        }
+        XdpTxQueueDeleteRings(TxQueue);
     }
+
+    TraceExitStatus(TRACE_CORE);
 
     return Status;
 }
@@ -1112,20 +1166,14 @@ XdpTxQueueAddDatapathClient(
     UNREFERENCED_PARAMETER(TxClientType);
 
     if (TxQueue->State == XdpTxQueueStateCreated) {
-        Status =
-            XdpIfActivateTxQueue(
-                TxQueue->Binding, TxQueue->InterfaceTxQueue,
-                (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
-                (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
+        Status = XdpTxQueueActivate(TxQueue);
+
         if (!NT_SUCCESS(Status)) {
-            TraceError(
-                TRACE_CORE, "TxQueue=%p XdpIfActivateTxQueue failed Status=%!STATUS!",
-                TxQueue, Status);
             goto Exit;
         }
-
-        TxQueue->State = XdpTxQueueStateActive;
     }
+
+    TxClientEntry->NotifyRoutine(TxClientEntry, XDP_TX_QUEUE_NOTIFICATION_ATTACH);
 
     SyncParams.TxQueue = TxQueue;
     SyncParams.TxClientEntry = TxClientEntry;
@@ -1273,12 +1321,7 @@ XdpTxQueueDelete(
 
     TxQueue->State = XdpTxQueueStateDeleted;
 
-    if (TxQueue->CompletionRing != NULL) {
-        XdpRingFreeRing(TxQueue->CompletionRing);
-    }
-    if (TxQueue->FrameRing != NULL) {
-        XdpRingFreeRing(TxQueue->FrameRing);
-    }
+    XdpTxQueueDeleteRings(TxQueue);
     if (TxQueue->TxFrameCompletionExtensionSet != NULL) {
         XdpExtensionSetCleanup(TxQueue->TxFrameCompletionExtensionSet);
     }

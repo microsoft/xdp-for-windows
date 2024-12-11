@@ -29,8 +29,12 @@
 #include <xdp/buffervirtualaddress.h>
 #include <xdp/control.h>
 #include <xdp/datapath.h>
+#include <xdp/framechecksum.h>
+#include <xdp/framechecksumextension.h>
 #include <xdp/framefragment.h>
 #include <xdp/frameinterfacecontext.h>
+#include <xdp/framelayout.h>
+#include <xdp/framelayoutextension.h>
 #include <xdp/framerxaction.h>
 #include <xdp/hookid.h>
 #include <xdp/ndis6.h>

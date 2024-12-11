@@ -38,19 +38,4 @@ C_ASSERT(sizeof(XDP_FRAME_CHECKSUM) == 1);
 
 #pragma warning(pop)
 
-#define XDP_FRAME_EXTENSION_CHECKSUM_NAME L"ms_frame_checksum"
-#define XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1 1U
-
-#include <xdp/extension.h>
-
-inline
-XDP_FRAME_CHECKSUM *
-XdpGetChecksumExtension(
-    _In_ XDP_FRAME *Frame,
-    _In_ XDP_EXTENSION *Extension
-    )
-{
-    return (XDP_FRAME_CHECKSUM *)XdpGetExtensionData(Frame, Extension);
-}
-
 EXTERN_C_END

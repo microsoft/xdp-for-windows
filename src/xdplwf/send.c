@@ -164,9 +164,6 @@ XdpGenericBuildTxNbl(
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
         (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
             &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
-    NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO *UsoInfo =
-        (NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO *)
-            &NET_BUFFER_LIST_INFO(Nbl, UdpSegmentationOffloadInfo);
     IoBuildPartialMdl(
         BufferMdl->Mdl, Mdl,
         (UCHAR *)MmGetMdlVirtualAddress(BufferMdl->Mdl)
@@ -186,65 +183,42 @@ XdpGenericBuildTxNbl(
 
     ChecksumInfo->Value = 0;
 
-    if (Frame->Checksum.Layer3) {
-        switch (Frame->Layout.Layer3Type) {
-        case XdpFrameLayer3TypeIPv4NoOptions:
-        case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
-        case XdpFrameLayer3TypeIPv4WithOptions:
-            ChecksumInfo->Transmit.IpHeaderChecksum = TRUE;
-            break;
-        }
-    }
+    //
+    // TODO: plumb LWF send checksum
+    //
 
-    if (Frame->Checksum.Layer4) {
-        switch (Frame->Layout.Layer4Type) {
-        case XdpFrameLayer4TypeUdp:
-            ChecksumInfo->Transmit.UdpChecksum = TRUE;
-        }
-    }
+    // if (Frame->Checksum.Layer3) {
+    //     switch (Frame->Layout.Layer3Type) {
+    //     case XdpFrameLayer3TypeIPv4NoOptions:
+    //     case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
+    //     case XdpFrameLayer3TypeIPv4WithOptions:
+    //         ChecksumInfo->Transmit.IpHeaderChecksum = TRUE;
+    //         break;
+    //     }
+    // }
 
-    if (Frame->Checksum.Layer3 || Frame->Checksum.Layer4) {
-        switch (Frame->Layout.Layer3Type) {
-        case XdpFrameLayer3TypeIPv4NoOptions:
-        case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
-        case XdpFrameLayer3TypeIPv4WithOptions:
-            ChecksumInfo->Transmit.IsIPv4 = TRUE;
-            break;
+    // if (Frame->Checksum.Layer4) {
+    //     switch (Frame->Layout.Layer4Type) {
+    //     case XdpFrameLayer4TypeUdp:
+    //         ChecksumInfo->Transmit.UdpChecksum = TRUE;
+    //     }
+    // }
 
-        case XdpFrameLayer3TypeIPv6NoExtensions:
-        case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
-        case XdpFrameLayer3TypeIPv6WithExtensions:
-            ChecksumInfo->Transmit.IsIPv6 = TRUE;
-            break;
-        }
-    }
+    // if (Frame->Checksum.Layer3 || Frame->Checksum.Layer4) {
+    //     switch (Frame->Layout.Layer3Type) {
+    //     case XdpFrameLayer3TypeIPv4NoOptions:
+    //     case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
+    //     case XdpFrameLayer3TypeIPv4WithOptions:
+    //         ChecksumInfo->Transmit.IsIPv4 = TRUE;
+    //         break;
 
-    if (Frame->Gso.UDP.Mss > 0) {
-        UsoInfo->Transmit.MSS = Frame->Gso.UDP.Mss;
-
-        //
-        // TODO: Verify the arithmetic doesn't overflow, there is space in the
-        // frame for a UDP header at the offset, etc.
-        //
-        UsoInfo->Transmit.UdpHeaderOffset =
-            Frame->Layout.Layer2HeaderLength + Frame->Layout.Layer3HeaderLength;
-
-        switch (Frame->Layout.Layer3Type) {
-        case XdpFrameLayer3TypeIPv4NoOptions:
-        case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
-        case XdpFrameLayer3TypeIPv4WithOptions:
-            UsoInfo->Transmit.IPVersion = NDIS_UDP_SEGMENTATION_OFFLOAD_IPV4;
-            break;
-
-        case XdpFrameLayer3TypeIPv6NoExtensions:
-        case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
-        case XdpFrameLayer3TypeIPv6WithExtensions:
-            UsoInfo->Transmit.IPVersion = NDIS_UDP_SEGMENTATION_OFFLOAD_IPV6;
-            break;
-        }
-    } else {
-        UsoInfo->Value = 0;
-    }
+    //     case XdpFrameLayer3TypeIPv6NoExtensions:
+    //     case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
+    //     case XdpFrameLayer3TypeIPv6WithExtensions:
+    //         ChecksumInfo->Transmit.IsIPv6 = TRUE;
+    //         break;
+    //     }
+    // }
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
         NblTxContext(Nbl)->CompletionContext =

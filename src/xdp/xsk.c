@@ -2140,28 +2140,80 @@ XskNotifyTxQueue(
     XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Tx.Xdp.QueueNotificationEntry);
     KIRQL OldIrql;
 
-    if (NotificationType != XDP_TX_QUEUE_NOTIFICATION_DETACH) {
-        return;
-    }
+    if (NotificationType == XDP_TX_QUEUE_NOTIFICATION_ATTACH) {
+        XDP_TX_QUEUE_CONFIG_ACTIVATE Config = XdpTxQueueGetConfig(Xsk->Tx.Xdp.Queue);;
+        XDP_EXTENSION_INFO ExtensionInfo;
 
-    //
-    // Set the state to detached, except when socket closure has raced this
-    // detach event.
-    //
-    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-    if (Xsk->State != XskClosing) {
-        ASSERT(Xsk->State >= XskBinding && Xsk->State <= XskActive);
-        Xsk->State = XskDetached;
-    }
-    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        ASSERT(Xsk->State >= XskActivating);
 
-    //
-    // This detach event is executing in the context of XDP binding work queue
-    // processing on the TX queue, so it is synchronized with other detach
-    // instances that also utilize the XDP binding work queue (detach during
-    // bind failure and detach during socket closure).
-    //
-    XskDetachTxIf(Xsk);
+        Xsk->Tx.Xdp.Flags.OutOfOrderCompletion = XdpTxQueueIsOutOfOrderCompletionEnabled(Config);
+        Xsk->Tx.Xdp.Flags.CompletionContext = XdpTxQueueIsTxCompletionContextEnabled(Config);
+
+        Xsk->Tx.Xdp.FrameRing = XdpTxQueueGetFrameRing(Config);
+
+        if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+                XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+                XDP_EXTENSION_TYPE_FRAME);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
+        }
+
+        if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
+            Xsk->Tx.Xdp.CompletionRing = XdpTxQueueGetCompletionRing(Config);
+
+            if (Xsk->Tx.Xdp.Flags.CompletionContext) {
+                XdpInitializeExtensionInfo(
+                    &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
+                    XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
+                    XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+                XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.TxCompletionExtension);
+            }
+        }
+
+        Xsk->Tx.Xdp.Flags.VirtualAddressExt = XdpTxQueueIsVirtualAddressEnabled(Config);
+        if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
+                XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.VaExtension);
+        }
+
+        Xsk->Tx.Xdp.Flags.LogicalAddressExt = XdpTxQueueIsLogicalAddressEnabled(Config);
+        if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_NAME,
+                XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.LaExtension);
+        }
+
+        Xsk->Tx.Xdp.Flags.MdlExt = XdpTxQueueIsMdlEnabled(Config);
+        if (Xsk->Tx.Xdp.Flags.MdlExt) {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_BUFFER_EXTENSION_MDL_NAME,
+                XDP_BUFFER_EXTENSION_MDL_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.MdlExtension);
+        }
+    } else if (NotificationType == XDP_TX_QUEUE_NOTIFICATION_DETACH) {
+        //
+        // Set the state to detached, except when socket closure has raced this
+        // detach event.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        if (Xsk->State != XskClosing) {
+            ASSERT(Xsk->State >= XskBinding && Xsk->State <= XskActive);
+            Xsk->State = XskDetached;
+        }
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
+        //
+        // This detach event is executing in the context of XDP binding work queue
+        // processing on the TX queue, so it is synchronized with other detach
+        // instances that also utilize the XDP binding work queue (detach during
+        // bind failure and detach during socket closure).
+        //
+        XskDetachTxIf(Xsk);
+    }
 }
 
 static
@@ -2268,9 +2320,7 @@ XskBindTxIf(
 {
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
-    XDP_TX_QUEUE_CONFIG_ACTIVATE Config;
     const XDP_TX_CAPABILITIES *InterfaceCapabilities;
-    XDP_EXTENSION_INFO ExtensionInfo;
     NTSTATUS Status;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
@@ -2291,57 +2341,6 @@ XskBindTxIf(
     InterfaceCapabilities = XdpTxQueueGetCapabilities(Xsk->Tx.Xdp.Queue);
     Xsk->Tx.Xdp.MaxBufferLength = InterfaceCapabilities->MaximumBufferSize;
     Xsk->Tx.Xdp.MaxFrameLength = InterfaceCapabilities->MaximumFrameSize;
-
-    Config = XdpTxQueueGetConfig(Xsk->Tx.Xdp.Queue);
-
-    Xsk->Tx.Xdp.Flags.OutOfOrderCompletion = XdpTxQueueIsOutOfOrderCompletionEnabled(Config);
-    Xsk->Tx.Xdp.Flags.CompletionContext = XdpTxQueueIsTxCompletionContextEnabled(Config);
-
-    Xsk->Tx.Xdp.FrameRing = XdpTxQueueGetFrameRing(Config);
-
-    if (Xsk->Tx.Xdp.Flags.CompletionContext) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
-            XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
-            XDP_EXTENSION_TYPE_FRAME);
-        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
-    }
-
-    if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
-        Xsk->Tx.Xdp.CompletionRing = XdpTxQueueGetCompletionRing(Config);
-
-        if (Xsk->Tx.Xdp.Flags.CompletionContext) {
-            XdpInitializeExtensionInfo(
-                &ExtensionInfo, XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_NAME,
-                XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
-                XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
-            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.TxCompletionExtension);
-        }
-    }
-
-    Xsk->Tx.Xdp.Flags.VirtualAddressExt = XdpTxQueueIsVirtualAddressEnabled(Config);
-    if (Xsk->Tx.Xdp.Flags.VirtualAddressExt) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME,
-            XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
-        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.VaExtension);
-    }
-
-    Xsk->Tx.Xdp.Flags.LogicalAddressExt = XdpTxQueueIsLogicalAddressEnabled(Config);
-    if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_NAME,
-            XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
-        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.LaExtension);
-    }
-
-    Xsk->Tx.Xdp.Flags.MdlExt = XdpTxQueueIsMdlEnabled(Config);
-    if (Xsk->Tx.Xdp.Flags.MdlExt) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_BUFFER_EXTENSION_MDL_NAME,
-            XDP_BUFFER_EXTENSION_MDL_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
-        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.MdlExtension);
-    }
 
     Status = STATUS_SUCCESS;
 
