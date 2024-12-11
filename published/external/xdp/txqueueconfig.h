@@ -172,6 +172,11 @@ XdpTxQueueIsOutOfOrderCompletionEnabled(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
     );
 
+BOOLEAN
+XdpTxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    );
+
 #include <xdp/details/txqueueconfig.h>
 
 EXTERN_C_END

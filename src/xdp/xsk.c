@@ -3620,8 +3620,13 @@ XskSockoptSetOffloadTxChecksum(
         goto Exit;
     }
 
+    Status = XdpTxQueueEnableChecksumOffload(Xsk->Tx.Xdp.Queue);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     //
-    // TODO: add layout and checksum extensions to AF_XDP rings and XDP rings.
+    // TODO: add layout and checksum extensions to AF_XDP rings.
     //
 
     Xsk->Tx.OffloadFlags.Checksum = TRUE;

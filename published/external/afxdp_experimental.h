@@ -86,6 +86,11 @@ typedef enum _XSK_POLL_MODE {
 //              option requires the socket is bound and the TX frame ring size
 //              is not set. This option enables the XDP_FRAME_LAYOUT and
 //              XDP_FRAME_CHECKSUM extensions on the TX frame ring.
+//              If the socket is bound to a queue that has already been
+//              activated by another socket without enabling checksum offload,
+//              then enabling the offload on another socket is currently not
+//              supported. Disabling the offload after is has been enabled is
+//              also currently not supported.
 //
 #define XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM 1003
 

@@ -161,9 +161,6 @@ XdpGenericBuildTxNbl(
 {
     NET_BUFFER *Nb = NET_BUFFER_LIST_FIRST_NB(Nbl);
     MDL *Mdl = NET_BUFFER_FIRST_MDL(Nb);
-    NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
-        (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
-            &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
     IoBuildPartialMdl(
         BufferMdl->Mdl, Mdl,
         (UCHAR *)MmGetMdlVirtualAddress(BufferMdl->Mdl)
@@ -181,44 +178,50 @@ XdpGenericBuildTxNbl(
     NblTxContext(Nbl)->InjectionType = XDP_LWF_GENERIC_INJECTION_SEND;
     NblTxContext(Nbl)->BufferAddress = BufferMdl->MdlOffset;
 
-    ChecksumInfo->Value = 0;
+    if (TxQueue->Flags.ChecksumOffloadEnabled) {
+        NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+            (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+                &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
+        const XDP_FRAME_LAYOUT *FrameLayout =
+            XdpGetLayoutExtension(Frame, &TxQueue->FrameLayoutExtension);
+        const XDP_FRAME_CHECKSUM *FrameChecksum =
+            XdpGetChecksumExtension(Frame, &TxQueue->FrameChecksumExtension);
 
-    //
-    // TODO: plumb LWF send checksum
-    //
+        ChecksumInfo->Value = 0;
 
-    // if (Frame->Checksum.Layer3) {
-    //     switch (Frame->Layout.Layer3Type) {
-    //     case XdpFrameLayer3TypeIPv4NoOptions:
-    //     case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
-    //     case XdpFrameLayer3TypeIPv4WithOptions:
-    //         ChecksumInfo->Transmit.IpHeaderChecksum = TRUE;
-    //         break;
-    //     }
-    // }
+        if (FrameChecksum->Layer3) {
+            switch (FrameLayout->Layer3Type) {
+            case XdpFrameLayer3TypeIPv4NoOptions:
+            case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
+            case XdpFrameLayer3TypeIPv4WithOptions:
+                ChecksumInfo->Transmit.IpHeaderChecksum = TRUE;
+                break;
+            }
+        }
 
-    // if (Frame->Checksum.Layer4) {
-    //     switch (Frame->Layout.Layer4Type) {
-    //     case XdpFrameLayer4TypeUdp:
-    //         ChecksumInfo->Transmit.UdpChecksum = TRUE;
-    //     }
-    // }
+        if (FrameChecksum->Layer4) {
+            switch (FrameLayout->Layer4Type) {
+            case XdpFrameLayer4TypeUdp:
+                ChecksumInfo->Transmit.UdpChecksum = TRUE;
+            }
+        }
 
-    // if (Frame->Checksum.Layer3 || Frame->Checksum.Layer4) {
-    //     switch (Frame->Layout.Layer3Type) {
-    //     case XdpFrameLayer3TypeIPv4NoOptions:
-    //     case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
-    //     case XdpFrameLayer3TypeIPv4WithOptions:
-    //         ChecksumInfo->Transmit.IsIPv4 = TRUE;
-    //         break;
+        if (FrameChecksum->Layer3 || FrameChecksum->Layer4) {
+            switch (FrameLayout->Layer3Type) {
+            case XdpFrameLayer3TypeIPv4NoOptions:
+            case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
+            case XdpFrameLayer3TypeIPv4WithOptions:
+                ChecksumInfo->Transmit.IsIPv4 = TRUE;
+                break;
 
-    //     case XdpFrameLayer3TypeIPv6NoExtensions:
-    //     case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
-    //     case XdpFrameLayer3TypeIPv6WithExtensions:
-    //         ChecksumInfo->Transmit.IsIPv6 = TRUE;
-    //         break;
-    //     }
-    // }
+            case XdpFrameLayer3TypeIPv6NoExtensions:
+            case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
+            case XdpFrameLayer3TypeIPv6WithExtensions:
+                ChecksumInfo->Transmit.IsIPv6 = TRUE;
+                break;
+            }
+        }
+    }
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
         NblTxContext(Nbl)->CompletionContext =
@@ -917,6 +920,7 @@ XdpGenericTxActivateQueue(
     TxQueue->CompletionRing = XdpTxQueueGetCompletionRing(Config);
 
     TxQueue->Flags.TxCompletionContextEnabled = XdpTxQueueIsTxCompletionContextEnabled(Config);
+    TxQueue->Flags.ChecksumOffloadEnabled = XdpTxQueueIsChecksumOffloadEnabled(Config);
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
         XdpInitializeExtensionInfo(
@@ -929,6 +933,18 @@ XdpGenericTxActivateQueue(
             XDP_TX_FRAME_COMPLETION_CONTEXT_EXTENSION_VERSION_1,
             XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->TxCompletionContextExtension);
+    }
+
+    if (TxQueue->Flags.ChecksumOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->FrameLayoutExtension);
+
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->FrameChecksumExtension);
     }
 
     WritePointerRelease(&TxQueue->XdpTxQueue, XdpTxQueue);

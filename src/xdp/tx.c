@@ -45,6 +45,7 @@ typedef struct _XDP_TX_QUEUE {
 
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
+    BOOLEAN IsChecksumOffloadEnabled;
 
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
 
@@ -265,6 +266,20 @@ static const XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = 0,
         .Alignment              = __alignof(UCHAR),
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
     },
 };
 
@@ -551,6 +566,16 @@ XdpTxQueueIsOutOfOrderCompletionEnabled(
     return TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled;
 }
 
+BOOLEAN
+XdpTxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    )
+{
+    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
+
+    return TxQueue->IsChecksumOffloadEnabled;
+}
+
 static
 CONST XDP_HOOK_ID *
 XdppTxQueueGetHookId(
@@ -675,7 +700,7 @@ static const XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
 static const XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch = {
     .Header                         = {
         .Revision                   = XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1,
-        .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1
+        .Size                       = sizeof(XdpTxConfigActivateDispatch),
     },
     .GetFrameRing                   = XdpTxQueueGetFrameRing,
     .GetFragmentRing                = XdpTxQueueGetFragmentRing,
@@ -684,6 +709,7 @@ static const XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch =
     .IsTxCompletionContextEnabled   = XdpTxQueueIsTxCompletionContextEnabled,
     .IsFragmentationEnabled         = XdpTxQueueIsFragmentationEnabled,
     .IsOutOfOrderCompletionEnabled  = XdpTxQueueIsOutOfOrderCompletionEnabled,
+    .IsChecksumOffloadEnabled       = XdpTxQueueIsChecksumOffloadEnabled,
 };
 
 static const XDP_TX_QUEUE_NOTIFY_DISPATCH XdpTxNotifyDispatch = {
@@ -1111,6 +1137,35 @@ XdpTxQueueDeregisterNotifications(
     UNREFERENCED_PARAMETER(TxQueue);
 
     RemoveEntryList(&NotifyEntry->Link);
+}
+
+NTSTATUS
+XdpTxQueueEnableChecksumOffload(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
+
+    if (TxQueue->IsChecksumOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (TxQueue->State == XdpTxQueueStateCreated) {
+        XdpExtensionSetEnableEntry(TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+        XdpExtensionSetEnableEntry(TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+        TxQueue->IsChecksumOffloadEnabled = TRUE;
+        Status = STATUS_SUCCESS;
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID
