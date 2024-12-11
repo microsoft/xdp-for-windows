@@ -83,7 +83,6 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = "$RootDir\artifacts"
-$NugetDir = "$ArtifactsDir/nuget"
 
 if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
@@ -113,36 +112,6 @@ function Download-CoreNet-Deps {
         Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "$ArtifactsDir\corenet-ci.zip"
         Expand-Archive -Path "$ArtifactsDir\corenet-ci.zip" -DestinationPath $ArtifactsDir -Force
         Remove-Item -Path "$ArtifactsDir\corenet-ci.zip"
-    }
-}
-
-function Download-eBpf-Nuget {
-    param (
-        [Parameter()]
-        [string]$Platform
-    )
-    # Download private eBPF Nuget package.
-    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.20.0"
-    $EbpfNugetBuild = ""
-    $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-    $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-    $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
-
-    if ($Force -and (Test-Path $NugetDir)) {
-        Remove-Item -Recurse -Force $NugetDir
-    }
-    if (!(Test-Path $NugetDir)) {
-        mkdir $NugetDir | Write-Verbose
-    }
-
-    if (!(Test-Path $NugetDir/$EbpfNuget)) {
-        # Remove any old builds of the package.
-        if (Test-Path $EbpfNugetRestoreDir) {
-            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
-        }
-        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
-
-        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
     }
 }
 
@@ -259,16 +228,7 @@ if ($Cleanup) {
     }
 } else {
     if ($ForBuild) {
-        if (!(Test-Path $NugetDir)) {
-            mkdir $NugetDir | Write-Verbose
-        }
-
-        if ($Platform -eq "arm64") {
-            # Download prerelease versions for arm64, and a matching x64 for
-            # local cross-compile (bpf2c) binaries.
-            Download-eBpf-Nuget -Platform arm64
-            Download-eBpf-Nuget -Platform x64
-        }
+        # There are currently no pre-build steps required.
     }
 
     if ($ForEbpfBuild) {

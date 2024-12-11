@@ -12,13 +12,6 @@
 extern "C" {
 #endif
 
-//
-// Older versions of eBPF defined conflicting versions of XDP structures.
-// Define XDP versions only if eBPF has not already defined them.
-//
-
-#ifndef XDP_EXT_HELPER_FN_BASE
-
 typedef struct xdp_md_ {
     void *data;               ///< Pointer to start of packet data.
     void *data_end;           ///< Pointer to end of packet data.
@@ -50,8 +43,6 @@ xdp_action_t
 xdp_hook_t(
     xdp_md_t *context
     );
-
-#endif // XDP_EXT_HELPER_FN_BASE
 
 #ifdef __cplusplus
 } // extern "C"
