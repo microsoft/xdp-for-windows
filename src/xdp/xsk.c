@@ -3601,27 +3601,25 @@ XskSockoptSetOffloadTxChecksum(
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     IsLockHeld = TRUE;
 
-    switch (Sockopt->Option) {
-    case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
-        TraceInfo(
-            TRACE_XSK,
-            "Xsk=%p Set XSK_SOCKOPT_RX_PROCESSOR_AFFINITY Enabled=%u",
-            Xsk, Enabled);
-        Xsk->Rx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
-        break;
-
-    case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
-        TraceInfo(
-            TRACE_XSK,
-            "Xsk=%p Set XSK_SOCKOPT_TX_PROCESSOR_AFFINITY Enabled=%u",
-            Xsk, Enabled);
-        Xsk->Tx.Ring.Flags.ProfileIdealProcessor = !!Enabled;
-        break;
-
-    default:
-        Status = STATUS_NOT_SUPPORTED;
+    if (Xsk->State != XskBound) {
+        Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
+    if (Xsk->Tx.OffloadFlags.Checksum || Xsk->Tx.Xdp.Queue == NULL ||
+        Xsk->Tx.Ring.Size != 0 || Xsk->Tx.CompletionRing.Size != 0) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (!Enabled) {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    //
+    // TODO: add layout and checksum extensions to AF_XDP rings and XDP rings.
+    //
+
+    Xsk->Tx.OffloadFlags.Checksum = TRUE;
 
     Status = STATUS_SUCCESS;
 
