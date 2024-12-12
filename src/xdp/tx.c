@@ -941,9 +941,11 @@ XdpTxQueueDeleteRings(
 
     if (TxQueue->CompletionRing != NULL) {
         XdpRingFreeRing(TxQueue->CompletionRing);
+        TxQueue->CompletionRing = NULL;
     }
     if (TxQueue->FrameRing != NULL) {
         XdpRingFreeRing(TxQueue->FrameRing);
+        TxQueue->FrameRing = NULL;
     }
 }
 

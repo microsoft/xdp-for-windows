@@ -104,6 +104,15 @@ XdpExtensionSetAssignLayout(
     }
 
     //
+    // Reset state from any previous layout attempts. N.B. because the qsort
+    // below is not a stable sort, each layout attempt may produce different
+    // layouts.
+    //
+    for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
+        ExtensionSet->Entries[Index].Assigned = FALSE;
+    }
+
+    //
     // TODO: This layout algorithm is nowhere near optimal.
     //
     // Make two passes through the extensions: first constrained by the initial

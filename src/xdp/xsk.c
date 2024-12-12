@@ -2813,7 +2813,7 @@ XskIrpActivateSocket(
         goto Exit;
     }
 
-    RtlAcquirePushLockExclusive(&Xsk->Lock);
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
     IsPushLockHeld = TRUE;
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
