@@ -341,6 +341,7 @@ XdpExtensionSetCreate(
         Entry->Info = Reg->Info;
         Entry->Size = Reg->Size;
         Entry->Alignment = Reg->Alignment;
+        Entry->InternalExtension = Reg->InternalExtension;
     }
 
     *ExtensionSet = Set;

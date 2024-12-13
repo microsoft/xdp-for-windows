@@ -11,7 +11,7 @@ typedef struct _XDP_EXTENSION_REGISTRATION {
     XDP_EXTENSION_INFO Info;
     UINT8 Size;
     UINT8 Alignment;
-    BOOLEAN InternalEntry;
+    BOOLEAN InternalExtension;
 } XDP_EXTENSION_REGISTRATION;
 
 NTSTATUS
