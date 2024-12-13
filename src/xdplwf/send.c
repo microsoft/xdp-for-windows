@@ -186,8 +186,62 @@ XdpGenericBuildTxNbl(
             XdpGetLayoutExtension(Frame, &TxQueue->FrameLayoutExtension);
         const XDP_FRAME_CHECKSUM *FrameChecksum =
             XdpGetChecksumExtension(Frame, &TxQueue->FrameChecksumExtension);
+        const UINT8 *NextHeader = NULL;
 
         ChecksumInfo->Value = 0;
+
+        //
+        // Validate each requested checksum offload minimally meets NDIS
+        // requirements for buffer sizes. This is because NDIS drivers may
+        // make assumptions about the buffer size and validity of header fields,
+        // and XDP should not cause undefined behavior in the driver ecosystem.
+        //
+
+        if (FrameChecksum->Layer3 || FrameChecksum->Layer4) {
+            if (FrameLayout->Layer2Type != XdpFrameLayer2TypeEthernet ||
+                FrameLayout->Layer2HeaderLength != sizeof(ETHERNET_HEADER)) {
+                goto InvalidOffload;
+            }
+
+            switch (FrameLayout->Layer3Type) {
+            case XdpFrameLayer3TypeIPv4NoOptions:
+            case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
+            case XdpFrameLayer3TypeIPv4WithOptions:
+                const IPV4_HEADER *Ipv4 = RTL_PTR_ADD(Mdl->MappedSystemVa, sizeof(ETHERNET_HEADER));
+
+                if (Buffer->DataLength < sizeof(ETHERNET_HEADER) + sizeof(*Ipv4) ||
+                    Ipv4->Version != IPV4_VERSION ||
+                    Ipv4->HeaderLength < (sizeof(*Ipv4) >> 2) ||
+                    Buffer->DataLength < sizeof(ETHERNET_HEADER) + (Ipv4->HeaderLength << 2) ||
+                    FrameLayout->Layer3HeaderLength != (Ipv4->HeaderLength << 2)) {
+                    goto InvalidOffload;
+                }
+
+                NextHeader = &Ipv4->Protocol;
+                ChecksumInfo->Transmit.IsIPv4 = TRUE;
+
+                break;
+
+            case XdpFrameLayer3TypeIPv6NoExtensions:
+            case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
+            case XdpFrameLayer3TypeIPv6WithExtensions:
+                const IPV6_HEADER *Ipv6 = RTL_PTR_ADD(Mdl->MappedSystemVa, sizeof(ETHERNET_HEADER));
+
+                if (Buffer->DataLength < sizeof(ETHERNET_HEADER) + sizeof(*Ipv6) ||
+                    Ipv6->Version != IPV6_VERSION ||
+                    FrameLayout->Layer3HeaderLength != sizeof(*Ipv6)) {
+                    goto InvalidOffload;
+                }
+
+                NextHeader = &Ipv6->NextHeader;
+                ChecksumInfo->Transmit.IsIPv6 = TRUE;
+
+                break;
+
+            default:
+                goto InvalidOffload;
+            }
+        }
 
         if (FrameChecksum->Layer3) {
             switch (FrameLayout->Layer3Type) {
@@ -196,30 +250,54 @@ XdpGenericBuildTxNbl(
             case XdpFrameLayer3TypeIPv4WithOptions:
                 ChecksumInfo->Transmit.IpHeaderChecksum = TRUE;
                 break;
+            default:
+                goto InvalidOffload;
             }
         }
 
         if (FrameChecksum->Layer4) {
+            const UINT32 Layer4HeaderOffset =
+                FrameLayout->Layer2HeaderLength + FrameLayout->Layer3HeaderLength;
+            const VOID *Layer4Header = RTL_PTR_ADD(Mdl->MappedSystemVa, Layer4HeaderOffset);
+
             switch (FrameLayout->Layer4Type) {
+            case XdpFrameLayer4TypeTcp:
+                const TCP_HDR *Tcp = Layer4Header;
+
+                if (*NextHeader != IPPROTO_TCP ||
+                    Buffer->DataLength < Layer4HeaderOffset + sizeof(*Tcp) ||
+                    Tcp->th_len < (sizeof(*Tcp) >> 2) ||
+                    Buffer->DataLength < Layer4HeaderOffset + (Tcp->th_len << 2)) {
+                    goto InvalidOffload;
+                }
+                ChecksumInfo->Transmit.TcpChecksum = TRUE;
+                ChecksumInfo->Transmit.TcpHeaderOffset = TRUE;
+                break;
+
             case XdpFrameLayer4TypeUdp:
+                const UDP_HDR *Udp = Layer4Header;
+
+                if (*NextHeader != IPPROTO_UDP ||
+                    Buffer->DataLength < Layer4HeaderOffset + sizeof(*Udp) ||
+                    Udp->uh_ulen < sizeof(*Udp) ||
+                    Buffer->DataLength < Udp->uh_ulen /* Allow UDP length to exceed IP length */) {
+                    goto InvalidOffload;
+                }
                 ChecksumInfo->Transmit.UdpChecksum = TRUE;
+                break;
+
+            default:
+                goto InvalidOffload;
             }
         }
 
-        if (FrameChecksum->Layer3 || FrameChecksum->Layer4) {
-            switch (FrameLayout->Layer3Type) {
-            case XdpFrameLayer3TypeIPv4NoOptions:
-            case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
-            case XdpFrameLayer3TypeIPv4WithOptions:
-                ChecksumInfo->Transmit.IsIPv4 = TRUE;
-                break;
-
-            case XdpFrameLayer3TypeIPv6NoExtensions:
-            case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
-            case XdpFrameLayer3TypeIPv6WithExtensions:
-                ChecksumInfo->Transmit.IsIPv6 = TRUE;
-                break;
-            }
+        if (FALSE) {
+InvalidOffload:
+            //
+            // Clear all OOBs, but send the frame.
+            //
+            ChecksumInfo->Value = 0;
+            STAT_INC(&TxQueue->PcwStats, FramesInvalidChecksumOffload);
         }
     }
 

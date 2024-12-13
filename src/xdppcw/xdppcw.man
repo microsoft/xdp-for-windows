@@ -359,6 +359,19 @@
             detailLevel="standard"
             defaultScale="1"
             />
+          <counter
+            id="3"
+            uri="Microsoft.Xdp.LwfTxQueue.FramesInvalidChecksumOffload"
+            name="Frames with Invalid Checksum Offload"
+            nameID="5012"
+            field="FramesInvalidChecksumOffload"
+            description="Frames with invalid checksum offload parameters."
+            descriptionID="5014"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
       </provider>
     </counters>

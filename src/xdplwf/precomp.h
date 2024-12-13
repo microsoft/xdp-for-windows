@@ -52,6 +52,7 @@
 #include <xdprxqueue_internal.h>
 #include <xdpstatusconvert.h>
 #include <xdptimer.h>
+#include <xdptransport.h>
 #include <xdptxqueue_internal.h>
 #include <xdptrace.h>
 #include <xdpworkqueue.h>
