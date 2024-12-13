@@ -232,6 +232,7 @@ static const XDP_EXTENSION_REGISTRATION XskTxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = sizeof(XDP_FRAME_LAYOUT),
         .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+        .InternalEntry          = TRUE,
     },
     {
         .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
@@ -239,8 +240,15 @@ static const XDP_EXTENSION_REGISTRATION XskTxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = sizeof(XDP_FRAME_CHECKSUM),
         .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalEntry          = TRUE,
     },
 };
+
+static
+VOID
+XskClose(
+    _In_ XSK *Xsk
+    );
 
 static
 VOID
@@ -1131,12 +1139,27 @@ XskIrpCreateSocket(
     Xsk->Rx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
     Xsk->Tx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
 
+    Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
+            &Xsk->Tx.FrameExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     IrpSp->FileObject->FsContext = Xsk;
 
     EventWriteXskCreateSocket(
         &MICROSOFT_XDP_PROVIDER, Xsk, PsGetCurrentProcessId());
 
 Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (Xsk != NULL) {
+            Xsk->State = XskClosing;
+            XskClose(Xsk);
+        }
+    }
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, Status);
     TraceExitStatus(TRACE_XSK);
@@ -2526,21 +2549,15 @@ XskDereferenceUmem(
 }
 
 static
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-XskIrpClose(
-    _Inout_ IRP* Irp,
-    _Inout_ IO_STACK_LOCATION* IrpSp
+VOID
+XskClose(
+    _In_ XSK *Xsk
     )
 {
-    XSK *Xsk = IrpSp->FileObject->FsContext;
     KIRQL OldIrql;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
     EventWriteXskCloseSocketStart(&MICROSOFT_XDP_PROVIDER, Xsk);
-
-    UNREFERENCED_PARAMETER(Irp);
 
     ASSERT(Xsk->State == XskClosing);
 
@@ -2599,6 +2616,22 @@ XskIrpClose(
     EventWriteXskCloseSocketStop(&MICROSOFT_XDP_PROVIDER, Xsk);
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
     TraceExitSuccess(TRACE_XSK);
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
+XskIrpClose(
+    _Inout_ IRP* Irp,
+    _Inout_ IO_STACK_LOCATION* IrpSp
+    )
+{
+    XSK *Xsk = IrpSp->FileObject->FsContext;
+
+    UNREFERENCED_PARAMETER(Irp);
+
+    XskClose(Xsk);
 
     return STATUS_SUCCESS;
 }
@@ -2684,14 +2717,6 @@ XskIrpBindSocket(
     }
 
     if (Bind.Flags & XSK_BIND_FLAG_TX) {
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
-                &Xsk->Tx.FrameExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
-
         WorkItem.Xsk = Xsk;
         WorkItem.QueueId = Bind.QueueId;
         WorkItem.IfWorkItem.WorkRoutine = XskBindTxIf;
@@ -2729,10 +2754,6 @@ Exit:
             ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
 
             KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-        }
-
-        if (Bind.Flags & XSK_BIND_FLAG_TX) {
-            XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
         }
 
         if (Xsk->Rx.Xdp.IfHandle != NULL) {
@@ -3269,19 +3290,15 @@ XskSockoptSetRingSize(
         DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
         break;
     case XSK_SOCKOPT_TX_RING_SIZE:
-        if (Xsk->Tx.FrameExtensionSet != NULL) {
-            UINT8 DescriptorAlignment;
-            Status =
-                XdpExtensionSetAssignLayout(
-                    Xsk->Tx.FrameExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR),
-                    __alignof(XSK_FRAME_DESCRIPTOR), &DescriptorSize, &DescriptorAlignment);
-            if (!NT_SUCCESS(Status)) {
-                goto Exit;
-            }
-            DescriptorSize = max(DescriptorSize, DescriptorAlignment);
-        } else {
-            DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
+        UINT8 DescriptorAlignment;
+        Status =
+            XdpExtensionSetAssignLayout(
+                Xsk->Tx.FrameExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR),
+                __alignof(XSK_FRAME_DESCRIPTOR), &DescriptorSize, &DescriptorAlignment);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
         }
+        DescriptorSize = max(DescriptorSize, DescriptorAlignment);
         break;
     case XSK_SOCKOPT_RX_FILL_RING_SIZE:
     case XSK_SOCKOPT_TX_COMPLETION_RING_SIZE:
@@ -3850,7 +3867,8 @@ XskSockoptGetExtension(
         goto Exit;
     }
 
-    if (ExtensionSet == NULL) {
+    if (ExtensionSet == NULL ||
+        !XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
         Status = STATUS_NOT_FOUND;
         goto Exit;
     }
