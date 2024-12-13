@@ -3250,6 +3250,7 @@ XskSockoptSetRingSize(
     UINT32 NumDescriptors;
     UINT32 DescriptorSize;
     ULONG AllocationSize;
+    XDP_EXTENSION_SET *ExtensionSet = NULL;
     KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
     BOOLEAN IsPushLockHeld = FALSE;
@@ -3291,10 +3292,15 @@ XskSockoptSetRingSize(
         break;
     case XSK_SOCKOPT_TX_RING_SIZE:
         UINT8 DescriptorAlignment;
+        if (XdpExtensionSetIsLayoutAssigned(Xsk->Tx.FrameExtensionSet)) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        ExtensionSet = Xsk->Tx.FrameExtensionSet;
         Status =
             XdpExtensionSetAssignLayout(
-                Xsk->Tx.FrameExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR),
-                __alignof(XSK_FRAME_DESCRIPTOR), &DescriptorSize, &DescriptorAlignment);
+                ExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR), __alignof(XSK_FRAME_DESCRIPTOR),
+                &DescriptorSize, &DescriptorAlignment);
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
@@ -3433,6 +3439,9 @@ Exit:
 
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (ExtensionSet != NULL && !NT_SUCCESS(Status)) {
+        XdpExtensionSetResetLayout(ExtensionSet);
     }
     if (IsPushLockHeld) {
         RtlReleasePushLockExclusive(&Xsk->PushLock);
@@ -3867,7 +3876,7 @@ XskSockoptGetExtension(
         goto Exit;
     }
 
-    if (ExtensionSet == NULL ||
+    if (!XdpExtensionSetIsLayoutAssigned(ExtensionSet) ||
         !XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
         Status = STATUS_NOT_FOUND;
         goto Exit;

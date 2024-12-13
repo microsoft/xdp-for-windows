@@ -24,6 +24,11 @@ XdpExtensionSetAssignLayout(
     );
 
 VOID
+XdpExtensionSetResetLayout(
+    _In_ XDP_EXTENSION_SET *ExtensionSet
+    );
+
+VOID
 XdpExtensionSetRegisterEntry(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
     _In_ XDP_EXTENSION_INFO *Info
@@ -54,6 +59,11 @@ XdpExtensionSetGetExtension(
     _In_ XDP_EXTENSION_SET *ExtensionSet,
     _In_ XDP_EXTENSION_INFO *ExtensionInfo,
     _Out_ XDP_EXTENSION *Extension
+    );
+
+BOOLEAN
+XdpExtensionSetIsLayoutAssigned(
+    _In_ XDP_EXTENSION_SET *ExtensionSet
     );
 
 BOOLEAN

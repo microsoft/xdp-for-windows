@@ -20,6 +20,7 @@ typedef struct _XDP_EXTENSION_ENTRY {
 typedef struct _XDP_EXTENSION_SET {
     XDP_EXTENSION_TYPE Type;
     UINT16 Count;
+    BOOLEAN LayoutAssigned;
     XDP_EXTENSION_ENTRY Entries[0];
 } XDP_EXTENSION_SET;
 
@@ -94,6 +95,8 @@ XdpExtensionSetAssignLayout(
     UINT8 MaxAlignment = BaseAlignment;
     UINT8 CurrentAlignment;
 
+    FRE_ASSERT(!ExtensionSet->LayoutAssigned);
+
     if (Offset > 0) {
         CurrentAlignment = 1 << RtlFindLeastSignificantBit(Offset);
     } else {
@@ -101,15 +104,6 @@ XdpExtensionSetAssignLayout(
         // No alignment contraints.
         //
         CurrentAlignment = 0x80;
-    }
-
-    //
-    // Reset state from any previous layout attempts. N.B. because the qsort
-    // below is not a stable sort, each layout attempt may produce different
-    // layouts.
-    //
-    for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
-        ExtensionSet->Entries[Index].Assigned = FALSE;
     }
 
     //
@@ -144,6 +138,7 @@ XdpExtensionSetAssignLayout(
             }
 
             if (Offset > MAXUINT16) {
+                XdpExtensionSetResetLayout(ExtensionSet);
                 return STATUS_INTEGER_OVERFLOW;
             }
 
@@ -164,8 +159,24 @@ XdpExtensionSetAssignLayout(
 
     *Size = ALIGN_UP_BY(Offset, MaxAlignment);
     *Alignment = MaxAlignment;
+    ExtensionSet->LayoutAssigned = TRUE;
 
     return STATUS_SUCCESS;
+}
+
+VOID
+XdpExtensionSetResetLayout(
+    _In_ XDP_EXTENSION_SET *ExtensionSet
+    )
+{
+    //
+    // Reset state from any previous layout attempts.
+    //
+    for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
+        ExtensionSet->Entries[Index].Assigned = FALSE;
+    }
+
+    ExtensionSet->LayoutAssigned = FALSE;
 }
 
 VOID
@@ -175,6 +186,8 @@ XdpExtensionSetRegisterEntry(
     )
 {
     XDP_EXTENSION_ENTRY *Entry;
+
+    FRE_ASSERT(!ExtensionSet->LayoutAssigned);
 
     XdpExtensionSetValidate(ExtensionSet, Info);
 
@@ -196,6 +209,8 @@ XdpExtensionSetEnableEntry(
     )
 {
     XDP_EXTENSION_ENTRY *Entry;
+
+    FRE_ASSERT(!ExtensionSet->LayoutAssigned);
 
     Entry = XdpExtensionSetFindEntry(ExtensionSet, ExtensionName);
     FRE_ASSERT(Entry != NULL);
@@ -219,6 +234,8 @@ XdpExtensionSetSetInternalEntry(
     // TODO: This should also prohibit interfaces retrieving the extension.
     //
 
+    FRE_ASSERT(!ExtensionSet->LayoutAssigned);
+
     Entry = XdpExtensionSetFindEntry(ExtensionSet, ExtensionName);
     FRE_ASSERT(Entry != NULL);
 
@@ -234,6 +251,8 @@ XdpExtensionSetResizeEntry(
     )
 {
     XDP_EXTENSION_ENTRY *Entry;
+
+    FRE_ASSERT(!ExtensionSet->LayoutAssigned);
 
     XdpExtensionSetValidateAlignment(Alignment);
 
@@ -254,6 +273,7 @@ XdpExtensionSetGetExtension(
     XDP_EXTENSION_ENTRY *Entry;
 
     FRE_ASSERT(ExtensionInfo->ExtensionType == ExtensionSet->Type);
+    FRE_ASSERT(ExtensionSet->LayoutAssigned);
 
     Entry = XdpExtensionSetFindEntry(ExtensionSet, ExtensionInfo->ExtensionName);
     FRE_ASSERT(Entry != NULL);
@@ -262,6 +282,14 @@ XdpExtensionSetGetExtension(
     FRE_ASSERT(Entry->Info.ExtensionVersion >= ExtensionInfo->ExtensionVersion);
 
     Extension->Reserved = Entry->AssignedOffset;
+}
+
+BOOLEAN
+XdpExtensionSetIsLayoutAssigned(
+    _In_ XDP_EXTENSION_SET *ExtensionSet
+    )
+{
+    return ExtensionSet->LayoutAssigned;
 }
 
 BOOLEAN

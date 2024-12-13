@@ -957,6 +957,7 @@ XdpTxQueueActivate(
     NTSTATUS Status;
     UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
     UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
+    BOOLEAN AssigningLayouts = FALSE;
     XDP_EXTENSION_INFO ExtensionInfo;
 
     TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
@@ -976,6 +977,8 @@ XdpTxQueueActivate(
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
+
+    AssigningLayouts = TRUE;
 
     Status =
         XdpExtensionSetAssignLayout(
@@ -1062,6 +1065,14 @@ XdpTxQueueActivate(
 Exit:
 
     if (!NT_SUCCESS(Status)) {
+        if (AssigningLayouts) {
+            if (TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled) {
+                XdpExtensionSetResetLayout(TxQueue->TxFrameCompletionExtensionSet);
+            }
+            XdpExtensionSetResetLayout(TxQueue->FrameExtensionSet);
+            XdpExtensionSetResetLayout(TxQueue->BufferExtensionSet);
+
+        }
         XdpTxQueueDeleteRings(TxQueue);
     }
 
