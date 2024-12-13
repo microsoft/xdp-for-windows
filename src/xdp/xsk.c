@@ -3227,10 +3227,11 @@ XskSockoptSetRingSize(
     VOID *UserVa = NULL;
     XSK_KERNEL_RING *Ring = NULL;
     UINT32 NumDescriptors;
-    ULONG DescriptorSize;
+    UINT32 DescriptorSize;
     ULONG AllocationSize;
     KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
+    BOOLEAN IsPushLockHeld = FALSE;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
@@ -3260,10 +3261,27 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
+
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_RX_RING_SIZE:
-    case XSK_SOCKOPT_TX_RING_SIZE:
         DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
+        break;
+    case XSK_SOCKOPT_TX_RING_SIZE:
+        if (Xsk->Tx.FrameExtensionSet != NULL) {
+            UINT8 DescriptorAlignment;
+            Status =
+                XdpExtensionSetAssignLayout(
+                    Xsk->Tx.FrameExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR),
+                    __alignof(XSK_FRAME_DESCRIPTOR), &DescriptorSize, &DescriptorAlignment);
+            if (!NT_SUCCESS(Status)) {
+                goto Exit;
+            }
+            DescriptorSize = max(DescriptorSize, DescriptorAlignment);
+        } else {
+            DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
+        }
         break;
     case XSK_SOCKOPT_RX_FILL_RING_SIZE:
     case XSK_SOCKOPT_TX_COMPLETION_RING_SIZE:
@@ -3338,7 +3356,6 @@ XskSockoptSetRingSize(
         }
     }
 
-    RtlAcquirePushLockExclusive(&Xsk->PushLock);
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     IsLockHeld = TRUE;
 
@@ -3399,6 +3416,8 @@ Exit:
 
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (IsPushLockHeld) {
         RtlReleasePushLockExclusive(&Xsk->PushLock);
     }
     if (Mdl != NULL) {
@@ -3788,6 +3807,70 @@ Exit:
 }
 
 static
+NTSTATUS
+XskSockoptGetExtension(
+    _In_ XSK *Xsk,
+    _In_ UINT32 Option,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    UINT16 *ExtensionOut = Irp->AssociatedIrp.SystemBuffer;
+    XDP_EXTENSION_INFO ExtensionInfo;
+    XDP_EXTENSION Extension;
+    XDP_EXTENSION_SET *ExtensionSet;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*ExtensionOut)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+
+    switch (Option) {
+    case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
+        ExtensionSet = Xsk->Tx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
+    case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
+        ExtensionSet = Xsk->Tx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
+    default:
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    if (ExtensionSet == NULL) {
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
+
+    XdpExtensionSetGetExtension(ExtensionSet, &ExtensionInfo, &Extension);
+
+    *ExtensionOut = Extension.Reserved;
+    Irp->IoStatus.Information = sizeof(*ExtensionOut);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    RtlReleasePushLockExclusive(&Xsk->PushLock);
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
 UINT32
 XskQueryReadyIo(
     _In_ XSK* Xsk,
@@ -4053,6 +4136,10 @@ XskIrpGetSockopt(
     case XSK_SOCKOPT_TX_ERROR:
     case XSK_SOCKOPT_TX_COMPLETION_ERROR:
         Status = XskSockoptGetError(Xsk, Option, Irp, IrpSp);
+        break;
+    case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
+    case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
+        Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
         break;
     default:
         Status = STATUS_NOT_SUPPORTED;
