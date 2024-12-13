@@ -393,7 +393,9 @@ XdpTxQueueSetCapabilities(
         Capabilities->MdlEnabled ||
         Capabilities->DmaCapabilities != NULL);
 
-    TxQueue->InterfaceTxCapabilities = *Capabilities;
+    RtlCopyMemory(
+        &TxQueue->InterfaceTxCapabilities, Capabilities,
+        min(Capabilities->Header.Size, sizeof(TxQueue->InterfaceTxCapabilities)));
 
     if (Capabilities->VirtualAddressEnabled) {
         XdpExtensionSetEnableEntry(TxQueue->BufferExtensionSet, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME);
@@ -1168,10 +1170,16 @@ XdpTxQueueEnableChecksumOffload(
             TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
     } else if (TxQueue->State == XdpTxQueueStateCreated) {
-        XdpExtensionSetEnableEntry(TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
-        XdpExtensionSetEnableEntry(TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
-        TxQueue->IsChecksumOffloadEnabled = TRUE;
-        Status = STATUS_SUCCESS;
+        if (TxQueue->InterfaceTxCapabilities.ChecksumOffload) {
+            XdpExtensionSetEnableEntry(
+                TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+            XdpExtensionSetEnableEntry(
+                TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+            TxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
     } else {
         Status = STATUS_INVALID_DEVICE_STATE;
     }

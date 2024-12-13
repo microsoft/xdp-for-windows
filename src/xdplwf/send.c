@@ -915,11 +915,23 @@ XdpGenericTxCreateQueue(
         XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
     XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
     XdpInitializeTxCapabilitiesSystemMdl(&TxCapabilities);
+    TxCapabilities.Header.Size = sizeof(TxCapabilities);
     TxCapabilities.OutOfOrderCompletionEnabled = TRUE;
     TxCapabilities.MaximumBufferSize = MAX_TX_BUFFER_LENGTH;
     TxCapabilities.MaximumFrameSize = Generic->Tx.Mtu;
     TxCapabilities.TransmitFrameCountHint = (UINT16)min(MAXUINT16, TxQueue->FrameCount);
+    TxCapabilities.ChecksumOffload = TRUE;
     XdpTxQueueSetCapabilities(Config, &TxCapabilities);
 
     *InterfaceTxQueue = (XDP_INTERFACE_HANDLE)TxQueue;
