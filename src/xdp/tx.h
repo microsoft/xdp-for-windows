@@ -142,6 +142,11 @@ XdpTxQueueIsMdlEnabled(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
     );
 
+BOOLEAN
+XdpTxQueueIsLayoutExtensionEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    );
+
 NTSTATUS
 XdpTxStart(
     VOID

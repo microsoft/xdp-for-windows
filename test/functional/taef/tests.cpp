@@ -175,6 +175,10 @@ public:
         ::GenericTxChecksumOffloadExtensions();
     }
 
+    TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadIp) {
+        ::GenericTxChecksumOffloadIp();
+    }
+
     TEST_METHOD(GenericRxTcpControlV4) {
         GenericRxTcpControl(AF_INET);
     }

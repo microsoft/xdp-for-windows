@@ -190,12 +190,20 @@ typedef struct {
 } MY_UMEM;
 
 typedef struct {
+    BOOLEAN TxFrameLayoutExtensionEnabled;
+    UINT16 TxFrameLayoutExtension;
+    BOOLEAN TxFrameChecksumExtensionEnabled;
+    UINT16 TxFrameChecksumExtension;
+} MY_EXTENSIONS;
+
+typedef struct {
     UINT32 QueueId;
     MY_UMEM Umem;
     wil::unique_handle Handle;
     wil::unique_handle RxProgram;
     RING_SET Rings;
     CxPlatVector<UINT64> FreeDescriptors;
+    MY_EXTENSIONS Extensions;
 } MY_SOCKET;
 
 typedef struct {
@@ -1159,47 +1167,6 @@ XskSetupPreBind(
 }
 
 static
-VOID
-XskSetupPreActivate(
-    _Inout_ MY_SOCKET *Socket,
-    _In_ BOOLEAN Rx,
-    _In_ BOOLEAN Tx
-    )
-{
-    XSK_RING_INFO_SET InfoSet;
-
-    SetFillRing(Socket->Handle.get());
-    SetCompletionRing(Socket->Handle.get());
-
-    if (Rx) {
-        SetRxRing(Socket->Handle.get());
-    }
-
-    if (Tx) {
-        SetTxRing(Socket->Handle.get());
-    }
-
-    GetRingInfo(Socket->Handle.get(), &InfoSet);
-    XskRingInitialize(&Socket->Rings.Fill, &InfoSet.Fill);
-    XskRingInitialize(&Socket->Rings.Completion, &InfoSet.Completion);
-
-    if (Rx) {
-        XskRingInitialize(&Socket->Rings.Rx, &InfoSet.Rx);
-    }
-
-    if (Tx) {
-        XskRingInitialize(&Socket->Rings.Tx, &InfoSet.Tx);
-    }
-
-    UINT64 BufferCount = Socket->Umem.Reg.TotalSize / Socket->Umem.Reg.ChunkSize;
-    UINT64 Offset = 0;
-    while (BufferCount-- > 0) {
-        TEST_TRUE(Socket->FreeDescriptors.push_back(Offset));
-        Offset += Socket->Umem.Reg.ChunkSize;
-    }
-}
-
-static
 MY_SOCKET
 CreateAndBindSocket(
     NET_IFINDEX IfIndex,
@@ -1247,6 +1214,74 @@ CreateAndBindSocket(
     TEST_HRESULT(BindResult);
 
     return Socket;
+}
+
+static
+VOID
+EnableTxChecksumOffload(
+    MY_SOCKET *Socket
+    )
+{
+    UINT32 Enabled = TRUE;
+    SetSockopt(Socket->Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
+    Socket->Extensions.TxFrameLayoutExtensionEnabled = TRUE;
+    Socket->Extensions.TxFrameChecksumExtensionEnabled = TRUE;
+}
+
+static
+VOID
+XskSetupPreActivate(
+    _Inout_ MY_SOCKET *Socket,
+    _In_ BOOLEAN Rx,
+    _In_ BOOLEAN Tx
+    )
+{
+    XSK_RING_INFO_SET InfoSet;
+    UINT32 OptionLength;
+
+    SetFillRing(Socket->Handle.get());
+    SetCompletionRing(Socket->Handle.get());
+
+    if (Rx) {
+        SetRxRing(Socket->Handle.get());
+    }
+
+    if (Tx) {
+        SetTxRing(Socket->Handle.get());
+    }
+
+    GetRingInfo(Socket->Handle.get(), &InfoSet);
+    XskRingInitialize(&Socket->Rings.Fill, &InfoSet.Fill);
+    XskRingInitialize(&Socket->Rings.Completion, &InfoSet.Completion);
+
+    if (Rx) {
+        XskRingInitialize(&Socket->Rings.Rx, &InfoSet.Rx);
+    }
+
+    if (Tx) {
+        XskRingInitialize(&Socket->Rings.Tx, &InfoSet.Tx);
+    }
+
+    UINT64 BufferCount = Socket->Umem.Reg.TotalSize / Socket->Umem.Reg.ChunkSize;
+    UINT64 Offset = 0;
+    while (BufferCount-- > 0) {
+        TEST_TRUE(Socket->FreeDescriptors.push_back(Offset));
+        Offset += Socket->Umem.Reg.ChunkSize;
+    }
+
+    if (Socket->Extensions.TxFrameLayoutExtensionEnabled) {
+        OptionLength = sizeof(Socket->Extensions.TxFrameLayoutExtension);
+        GetSockopt(
+            Socket->Handle.get(), XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION,
+            &Socket->Extensions.TxFrameLayoutExtension, &OptionLength);
+    }
+
+    if (Socket->Extensions.TxFrameChecksumExtensionEnabled) {
+        OptionLength = sizeof(Socket->Extensions.TxFrameChecksumExtension);
+        GetSockopt(
+            Socket->Handle.get(), XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION,
+            &Socket->Extensions.TxFrameChecksumExtension, &OptionLength);
+    }
 }
 
 static
@@ -1335,13 +1370,29 @@ SocketGetRxDesc(
 }
 
 static
+XSK_FRAME_DESCRIPTOR *
+SocketGetTxFrameDesc(
+    _In_ const MY_SOCKET *Socket,
+    _In_ UINT32 Index
+    )
+{
+    return (XSK_FRAME_DESCRIPTOR *)XskRingGetElement(&Socket->Rings.Tx, Index);
+}
+
+static
 XSK_BUFFER_DESCRIPTOR *
 SocketGetTxDesc(
     _In_ const MY_SOCKET *Socket,
     _In_ UINT32 Index
     )
 {
-    return (XSK_BUFFER_DESCRIPTOR *)XskRingGetElement(&Socket->Rings.Tx, Index);
+    //
+    // For legacy/simple applications, the TX ring can be defined simply as a
+    // buffer, and the frame descriptor is simply a higher level abstraction.
+    //
+    C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0);
+
+    return &SocketGetTxFrameDesc(Socket, Index)->Buffer;
 }
 
 static
@@ -6120,7 +6171,6 @@ GenericTxChecksumOffloadExtensions()
     auto If = FnMpIf;
     const BOOLEAN Rx = FALSE, Tx = TRUE;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     UINT16 LayoutExtension;
     UINT16 ChecksumExtension;
@@ -6175,6 +6225,72 @@ GenericTxChecksumOffloadExtensions()
     TEST_TRUE(
         Xsk.Rings.Tx.ElementStride >=
             sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_LAYOUT) + sizeof(XDP_FRAME_CHECKSUM));
+}
+
+VOID
+GenericTxChecksumOffloadIp()
+{
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    EnableTxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    UCHAR UdpPayload[] = "GenericTxChecksumOffloadIp";
+    UINT64 TxBuffer = SocketFreePop(&Xsk);
+    UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+    UINT32 UdpFrameLength = Xsk.Umem.Reg.ChunkSize;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            TxFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    CxPlatVector<UCHAR> Mask(UdpFrameLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, UdpFrameLength);
+
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+    XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex++);
+    TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
+    TxDesc->Buffer.Length = UdpFrameLength;
+    XDP_FRAME_LAYOUT *Layout =
+        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameLayoutExtension);
+    Layout->Layer2Type = XdpFrameLayer2TypeEthernet;
+    Layout->Layer2HeaderLength = sizeof(ETHERNET_HEADER);
+    Layout->Layer3Type = XdpFrameLayer3TypeIPv4NoOptions;
+    Layout->Layer3HeaderLength = sizeof(IPV4_HEADER);
+    Layout->Layer4Type = XdpFrameLayer4TypeUnspecified;
+    Layout->Layer4HeaderLength = 0;
+    XDP_FRAME_CHECKSUM *Checksum =
+        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameChecksumExtension);
+    Checksum->Layer3 = XdpFrameTxChecksumActionRequired;
+    Checksum->Layer4 = XdpFrameTxChecksumActionPassthrough;
+    XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
+    TEST_EQUAL(0, NotifyResult);
+
+    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+
+    TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+    TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Transmit.IsIPv4);
+
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
 }
 
 static

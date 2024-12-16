@@ -2451,6 +2451,20 @@ XskActivateTxIf(
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.MdlExtension);
     }
 
+    if (XdpTxQueueIsLayoutExtensionEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.LayoutExtension);
+    }
+
+    if (XdpTxQueueIsChecksumOffloadEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.ChecksumExtension);
+    }
+
     Status = XskAllocateTxBounceBuffer(Xsk);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -3413,6 +3427,31 @@ XskSockoptSetRingSize(
     if (Ring->Size != 0) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
+    }
+
+    switch (Sockopt->Option) {
+    case XSK_SOCKOPT_TX_RING_SIZE:
+    {
+        XDP_EXTENSION_INFO ExtensionInfo;
+        XDP_EXTENSION Extension;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        if (XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
+            XdpExtensionSetGetExtension(
+                ExtensionSet, &ExtensionInfo, &Extension);
+            Xsk->Tx.LayoutExtensionOffset = Extension.Reserved;
+        }
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        if (XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
+            XdpExtensionSetGetExtension(
+                ExtensionSet, &ExtensionInfo, &Extension);
+            Xsk->Tx.ChecksumExtensionOffset = Extension.Reserved;
+        }
+        break;
+    }
     }
 
     TraceInfo(

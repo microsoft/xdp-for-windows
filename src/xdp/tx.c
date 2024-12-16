@@ -1381,6 +1381,18 @@ XdpTxQueueIsMdlEnabled(
             TxQueue->BufferExtensionSet, XDP_BUFFER_EXTENSION_MDL_NAME);
 }
 
+BOOLEAN
+XdpTxQueueIsLayoutExtensionEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    )
+{
+    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
+
+    return
+        XdpExtensionSetIsExtensionEnabled(
+            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+}
+
 static
 VOID
 XdpTxQueueDelete(
