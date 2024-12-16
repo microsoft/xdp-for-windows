@@ -1179,7 +1179,7 @@ CreateAndBindSocket(
     const XDP_HOOK_ID *TxHookId = nullptr
     )
 {
-    MY_SOCKET Socket;
+    MY_SOCKET Socket = {0};
 
     Socket.Handle = CreateSocket();
 
@@ -6288,6 +6288,167 @@ GenericTxChecksumOffloadIp()
 
     TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
     TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Transmit.IsIPv4);
+    TEST_FALSE(MpTxFrame->Output.Checksum.Transmit.TcpChecksum);
+    TEST_EQUAL(0, MpTxFrame->Output.Checksum.Transmit.TcpHeaderOffset);
+    TEST_FALSE(MpTxFrame->Output.Checksum.Transmit.UdpChecksum);
+
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
+}
+
+VOID
+GenericTxChecksumOffloadTcp(
+    ADDRESS_FAMILY Af
+    )
+{
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    EnableTxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    UCHAR TcpPayload[] = "GenericTxChecksumOffloadTcp";
+    UINT64 TxBuffer = SocketFreePop(&Xsk);
+    UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+    UINT32 UdpFrameLength = Xsk.Umem.Reg.ChunkSize;
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            TxFrame, &UdpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    CxPlatVector<UCHAR> Mask(UdpFrameLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, UdpFrameLength);
+
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+    XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex++);
+    TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
+    TxDesc->Buffer.Length = UdpFrameLength;
+    XDP_FRAME_LAYOUT *Layout =
+        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameLayoutExtension);
+    Layout->Layer2Type = XdpFrameLayer2TypeEthernet;
+    Layout->Layer2HeaderLength = sizeof(ETHERNET_HEADER);
+    Layout->Layer3Type =
+        Af == AF_INET6 ?
+            XdpFrameLayer3TypeIPv6UnspecifiedExtensions : XdpFrameLayer3TypeIPv4UnspecifiedOptions;
+    Layout->Layer3HeaderLength = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
+    Layout->Layer4Type = XdpFrameLayer4TypeTcp;
+    Layout->Layer4HeaderLength = sizeof(TCP_HDR);
+    XDP_FRAME_CHECKSUM *Checksum =
+        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameChecksumExtension);
+    Checksum->Layer3 = XdpFrameTxChecksumActionPassthrough;
+    Checksum->Layer4 = XdpFrameTxChecksumActionRequired;
+    XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
+    TEST_EQUAL(0, NotifyResult);
+
+    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+
+    TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Transmit.TcpChecksum);
+    TEST_EQUAL(
+        (UINT32)(Layout->Layer2HeaderLength + Layout->Layer3HeaderLength),
+        MpTxFrame->Output.Checksum.Transmit.TcpHeaderOffset);
+    TEST_EQUAL((ULONG)(Af == AF_INET), MpTxFrame->Output.Checksum.Transmit.IsIPv4);
+    TEST_FALSE(MpTxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+    TEST_FALSE(MpTxFrame->Output.Checksum.Transmit.UdpChecksum);
+
+    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    MpTxFlush(GenericMp);
+}
+
+VOID
+GenericTxChecksumOffloadUdp(
+    ADDRESS_FAMILY Af
+    )
+{
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    EnableTxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    UCHAR UdpPayload[] = "GenericTxChecksumOffloadUdp";
+    UINT64 TxBuffer = SocketFreePop(&Xsk);
+    UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+    UINT32 UdpFrameLength = Xsk.Umem.Reg.ChunkSize;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            TxFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    CxPlatVector<UCHAR> Mask(UdpFrameLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, UdpFrameLength);
+
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+
+    XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex++);
+    TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
+    TxDesc->Buffer.Length = UdpFrameLength;
+    XDP_FRAME_LAYOUT *Layout =
+        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameLayoutExtension);
+    Layout->Layer2Type = XdpFrameLayer2TypeEthernet;
+    Layout->Layer2HeaderLength = sizeof(ETHERNET_HEADER);
+    Layout->Layer3Type =
+        Af == AF_INET6 ?
+            XdpFrameLayer3TypeIPv6UnspecifiedExtensions : XdpFrameLayer3TypeIPv4UnspecifiedOptions;
+    Layout->Layer3HeaderLength = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
+    Layout->Layer4Type = XdpFrameLayer4TypeUdp;
+    Layout->Layer4HeaderLength = sizeof(UDP_HDR);
+    XDP_FRAME_CHECKSUM *Checksum =
+        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameChecksumExtension);
+    Checksum->Layer3 = XdpFrameTxChecksumActionPassthrough;
+    Checksum->Layer4 = XdpFrameTxChecksumActionRequired;
+    XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
+    TEST_EQUAL(0, NotifyResult);
+
+    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+
+    TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Transmit.UdpChecksum);
+    TEST_EQUAL((ULONG)(Af == AF_INET), MpTxFrame->Output.Checksum.Transmit.IsIPv4);
+    TEST_FALSE(MpTxFrame->Output.Checksum.Transmit.IpHeaderChecksum);
+    TEST_FALSE(MpTxFrame->Output.Checksum.Transmit.TcpChecksum);
+    TEST_EQUAL(0, MpTxFrame->Output.Checksum.Transmit.TcpHeaderOffset);
 
     MpTxDequeueFrame(GenericMp, If.GetQueueId());
     MpTxFlush(GenericMp);

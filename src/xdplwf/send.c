@@ -197,7 +197,8 @@ XdpGenericBuildTxNbl(
         // and XDP should not cause undefined behavior in the driver ecosystem.
         //
 
-        if (FrameChecksum->Layer3 || FrameChecksum->Layer4) {
+        if (FrameChecksum->Layer3 == XdpFrameTxChecksumActionRequired ||
+            FrameChecksum->Layer4 == XdpFrameTxChecksumActionRequired) {
             if (FrameLayout->Layer2Type != XdpFrameLayer2TypeEthernet ||
                 FrameLayout->Layer2HeaderLength != sizeof(ETHERNET_HEADER)) {
                 goto InvalidOffload;
@@ -228,7 +229,7 @@ XdpGenericBuildTxNbl(
                 const IPV6_HEADER *Ipv6 = RTL_PTR_ADD(Mdl->MappedSystemVa, sizeof(ETHERNET_HEADER));
 
                 if (Buffer->DataLength < sizeof(ETHERNET_HEADER) + sizeof(*Ipv6) ||
-                    Ipv6->Version != IPV6_VERSION ||
+                    Ipv6->Version != (IPV6_VERSION >> 4) ||
                     FrameLayout->Layer3HeaderLength != sizeof(*Ipv6)) {
                     goto InvalidOffload;
                 }
@@ -243,7 +244,7 @@ XdpGenericBuildTxNbl(
             }
         }
 
-        if (FrameChecksum->Layer3) {
+        if (FrameChecksum->Layer3 == XdpFrameTxChecksumActionRequired) {
             switch (FrameLayout->Layer3Type) {
             case XdpFrameLayer3TypeIPv4NoOptions:
             case XdpFrameLayer3TypeIPv4UnspecifiedOptions:
@@ -255,7 +256,7 @@ XdpGenericBuildTxNbl(
             }
         }
 
-        if (FrameChecksum->Layer4) {
+        if (FrameChecksum->Layer4 == XdpFrameTxChecksumActionRequired) {
             const UINT32 Layer4HeaderOffset =
                 FrameLayout->Layer2HeaderLength + FrameLayout->Layer3HeaderLength;
             const VOID *Layer4Header = RTL_PTR_ADD(Mdl->MappedSystemVa, Layer4HeaderOffset);
@@ -271,7 +272,7 @@ XdpGenericBuildTxNbl(
                     goto InvalidOffload;
                 }
                 ChecksumInfo->Transmit.TcpChecksum = TRUE;
-                ChecksumInfo->Transmit.TcpHeaderOffset = TRUE;
+                ChecksumInfo->Transmit.TcpHeaderOffset = Layer4HeaderOffset;
                 break;
 
             case XdpFrameLayer4TypeUdp:
@@ -280,7 +281,7 @@ XdpGenericBuildTxNbl(
                 if (*NextHeader != IPPROTO_UDP ||
                     Buffer->DataLength < Layer4HeaderOffset + sizeof(*Udp) ||
                     Udp->uh_ulen < sizeof(*Udp) ||
-                    Buffer->DataLength < Udp->uh_ulen /* Allow UDP length to exceed IP length */) {
+                    Buffer->DataLength < ntohs(Udp->uh_ulen) /* Allow UDP length to exceed IP length */) {
                     goto InvalidOffload;
                 }
                 ChecksumInfo->Transmit.UdpChecksum = TRUE;

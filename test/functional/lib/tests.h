@@ -198,6 +198,16 @@ VOID
 GenericTxChecksumOffloadIp();
 
 VOID
+GenericTxChecksumOffloadTcp(
+    ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericTxChecksumOffloadUdp(
+    ADDRESS_FAMILY Af
+    );
+
+VOID
 GenericXskWait(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
