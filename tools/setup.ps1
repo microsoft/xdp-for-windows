@@ -634,8 +634,6 @@ function Uninstall-Ebpf {
         if ($Process.ExitCode -eq 0x645) {
             Write-Warning "eBPF is present but the MSI is not installed. Trying to uninstall services and binaries..."
 
-            # TODO stop and delete services and directory
-
             Write-Verbose "Stop-Service netebpfext"
             try { Stop-Service netebpfext -NoWait } catch { }
             Cleanup-Service netebpfext
