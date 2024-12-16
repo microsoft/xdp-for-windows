@@ -323,7 +323,31 @@ function Uninstall-Xdp {
 
         Write-Verbose "msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt"
         msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
-        Write-Verbose "msiexe.exe returned $LastExitCode"
+        Write-Verbose "msiexec.exe returned $LastExitCode"
+
+        if ($LastExitCode -eq 0x645) {
+            Write-Warning "XDP is present but the MSI is not installed. Trying to use the installation's setup script..."
+
+            $XdpSetupPath = "$XdpPath/xdp-setup.ps1"
+
+            if (Test-Path "$XdpPath/xdpbpfexport.exe") {
+                Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
+                & $XdpSetupPath -Uninstall xdpebpf
+            }
+            if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
+                Write-Verbose "$XdpSetupPath -Uninstall xdppa"
+                & $XdpSetupPath -Uninstall xdppa
+            }
+            if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
+                Write-Verbose "$XdpSetupPath -Uninstall xdp"
+                & $XdpSetupPath -Uninstall xdp
+            }
+
+            Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
+            Remove-Item $XdpPath -Recurse -Force
+
+            $global:LASTEXITCODE = 0
+        }
 
         if ($LastExitCode -eq 0x666) {
             Write-Warning "The current version of XDP could not be uninstalled using MSI. Trying the existing installer..."
@@ -606,6 +630,25 @@ function Uninstall-Ebpf {
 
     if ($Process.ExitCode -ne 0) {
         Write-Warning "Uninstalling eBPF from $EbpfMsiFullPath failed: $($Process.ExitCode)"
+
+        if ($Process.ExitCode -eq 0x645) {
+            Write-Warning "eBPF is present but the MSI is not installed. Trying to uninstall services and binaries..."
+
+            # TODO stop and delete services and directory
+
+            Write-Verbose "Stop-Service netebpfext"
+            try { Stop-Service netebpfext -NoWait } catch { }
+            Cleanup-Service netebpfext
+
+            Write-Verbose "Stop-Service ebpfcore"
+            try { Stop-Service ebpfcore -NoWait } catch { }
+            Cleanup-Service ebpfcore
+
+            Write-Verbose "Remove-Item $EbpfPath -Recurse -Force"
+            Remove-Item $EbpfPath -Recurse -Force
+
+            $global:LASTEXITCODE = 0
+        }
 
         if ($Process.ExitCode -eq 0x666) {
             Write-Warning "The current version of eBPF could not be uninstalled using MSI. Trying the existing installer..."
