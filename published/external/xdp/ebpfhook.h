@@ -19,7 +19,7 @@ extern "C" {
 
 #ifndef XDP_EXT_HELPER_FN_BASE
 
-typedef struct xdp_md_ {
+typedef struct xdp_md {
     void *data;               ///< Pointer to start of packet data.
     void *data_end;           ///< Pointer to end of packet data.
     uint64_t data_meta;       ///< Packet metadata.
