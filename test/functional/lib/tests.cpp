@@ -27,6 +27,8 @@
 #include <wil/resource.h>
 #pragma warning(pop)
 
+#include <afxdp.h>
+#include <afxdp_experimental.h>
 #include <afxdp_helper.h>
 #include <xdpapi.h>
 #include <xdpapi_experimental.h>
@@ -1140,8 +1142,6 @@ static
 VOID
 XskSetupPreBind(
     _Inout_ MY_SOCKET *Socket,
-    _In_ BOOLEAN Rx,
-    _In_ BOOLEAN Tx,
     _In_opt_ const XDP_HOOK_ID *RxHookId = nullptr,
     _In_opt_ const XDP_HOOK_ID *TxHookId = nullptr
     )
@@ -1149,17 +1149,6 @@ XskSetupPreBind(
     Socket->Umem.Buffer = AllocUmemBuffer();
     InitUmem(&Socket->Umem.Reg, Socket->Umem.Buffer.get());
     SetUmem(Socket->Handle.get(), &Socket->Umem.Reg);
-
-    SetFillRing(Socket->Handle.get());
-    SetCompletionRing(Socket->Handle.get());
-
-    if (Rx) {
-        SetRxRing(Socket->Handle.get());
-    }
-
-    if (Tx) {
-        SetTxRing(Socket->Handle.get());
-    }
 
     if (RxHookId != nullptr) {
         SetRxHookId(Socket->Handle.get(), RxHookId);
@@ -1171,13 +1160,24 @@ XskSetupPreBind(
 
 static
 VOID
-XskSetupPostBind(
+XskSetupPreActivate(
     _Inout_ MY_SOCKET *Socket,
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx
     )
 {
     XSK_RING_INFO_SET InfoSet;
+
+    SetFillRing(Socket->Handle.get());
+    SetCompletionRing(Socket->Handle.get());
+
+    if (Rx) {
+        SetRxRing(Socket->Handle.get());
+    }
+
+    if (Tx) {
+        SetTxRing(Socket->Handle.get());
+    }
 
     GetRingInfo(Socket->Handle.get(), &InfoSet);
     XskRingInitialize(&Socket->Rings.Fill, &InfoSet.Fill);
@@ -1216,7 +1216,7 @@ CreateAndBindSocket(
 
     Socket.Handle = CreateSocket();
 
-    XskSetupPreBind(&Socket, Rx, Tx, RxHookId, TxHookId);
+    XskSetupPreBind(&Socket, RxHookId, TxHookId);
 
     if (Rx) {
         BindFlags |= XSK_BIND_FLAG_RX;
@@ -1246,9 +1246,39 @@ CreateAndBindSocket(
     } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
     TEST_HRESULT(BindResult);
 
-    TEST_HRESULT(XskActivate(Socket.Handle.get(), XSK_ACTIVATE_FLAG_NONE));
+    return Socket;
+}
 
-    XskSetupPostBind(&Socket, Rx, Tx);
+static
+VOID
+ActivateSocket(
+    MY_SOCKET *Socket,
+    BOOLEAN Rx,
+    BOOLEAN Tx
+    )
+{
+    XskSetupPreActivate(Socket, Rx, Tx);
+
+    TEST_HRESULT(XskActivate(Socket->Handle.get(), XSK_ACTIVATE_FLAG_NONE));
+}
+
+static
+MY_SOCKET
+CreateAndActivateSocket(
+    NET_IFINDEX IfIndex,
+    UINT32 QueueId,
+    BOOLEAN Rx,
+    BOOLEAN Tx,
+    XDP_MODE XdpMode,
+    XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_NONE,
+    const XDP_HOOK_ID *RxHookId = nullptr,
+    const XDP_HOOK_ID *TxHookId = nullptr
+    )
+{
+    MY_SOCKET Socket =
+        CreateAndBindSocket(IfIndex, QueueId, Rx, Tx, XdpMode, BindFlags, RxHookId, TxHookId);
+
+    ActivateSocket(&Socket, Rx, Tx);
 
     return Socket;
 }
@@ -1263,7 +1293,7 @@ SetupSocket(
     XDP_MODE XdpMode
     )
 {
-    auto Socket = CreateAndBindSocket(IfIndex, QueueId, Rx, Tx, XdpMode);
+    auto Socket = CreateAndActivateSocket(IfIndex, QueueId, Rx, Tx, XdpMode);
 
     if (Rx) {
         Socket.RxProgram =
@@ -2205,7 +2235,7 @@ CreateTcpSocket(
     wil::unique_handle ProgramHandleTx;
 
     auto Xsk =
-        CreateAndBindSocket(
+        CreateAndActivateSocket(
             If->GetIfIndex(), If->GetQueueId(), TRUE, FALSE, XDP_GENERIC, XSK_BIND_FLAG_NONE,
             &XdpInspectTxL2);
 
@@ -2491,7 +2521,7 @@ BindingTest(
         //
         {
             auto Socket =
-                CreateAndBindSocket(
+                CreateAndActivateSocket(
                     If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
             if (RestartAdapter) {
@@ -2684,7 +2714,7 @@ GenericRxAllQueueRedirect(
     }
 
     auto Xsk =
-        CreateAndBindSocket(
+        CreateAndActivateSocket(
             If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
     XDP_RULE Rule;
@@ -2772,7 +2802,7 @@ GenericRxTcpControl(
     }
 
     auto Xsk =
-        CreateAndBindSocket(
+        CreateAndActivateSocket(
             If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
     XDP_RULE Rule;
@@ -3452,7 +3482,7 @@ GenericRxLowResources()
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
     LocalXskPort = htons(ntohs(LocalPort) + 1);
     RemotePort = htons(1234);
@@ -3573,7 +3603,7 @@ GenericRxMultiSocket()
 
     for (UINT16 Index = 0; Index < RTL_NUMBER_OF(Sockets); Index++) {
         Sockets[Index].Xsk =
-            CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+            CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
         Sockets[Index].LocalPort = htons(1000 + Index);
         Sockets[Index].UdpFrameLength = sizeof(Sockets[Index].UdpFrame);
         TEST_TRUE(
@@ -3651,7 +3681,7 @@ GenericRxMultiProgram()
         XDP_RULE Rule = {};
 
         Sockets[Index].Xsk =
-            CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+            CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
         Sockets[Index].LocalPort = htons(1000 + Index);
         Sockets[Index].UdpFrameLength = sizeof(Sockets[Index].UdpFrame);
         TEST_TRUE(
@@ -4391,7 +4421,7 @@ GenericRxFragmentBuffer(
     Rule.Action = Params->Action;
 
     if (Params->Action == XDP_PROGRAM_ACTION_REDIRECT) {
-        Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+        Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
         Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
         Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
         Rule.Redirect.Target = Xsk.Handle.get();
@@ -4689,7 +4719,7 @@ GenericRxFromTxInspect(
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &XskPort);
     auto Xsk =
-        CreateAndBindSocket(
+        CreateAndActivateSocket(
             If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_UNSPEC, XSK_BIND_FLAG_NONE,
             &XdpInspectTxL2);
 
@@ -5727,7 +5757,7 @@ GenericTxToRxInject()
 
     auto UdpSocket = CreateUdpSocket(AF_INET, &If, &LocalPort);
     auto Xsk =
-        CreateAndBindSocket(
+        CreateAndActivateSocket(
             If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_UNSPEC, XSK_BIND_FLAG_NONE, nullptr,
             &TxInjectToRxL2);
 
@@ -5771,7 +5801,7 @@ VOID
 GenericTxSingleFrame()
 {
     auto If = FnMpIf;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     UINT64 Pattern = 0xA5CC7729CE99C16Aui64;
@@ -5826,7 +5856,7 @@ VOID
 GenericTxOutOfOrder()
 {
     auto If = FnMpIf;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     UINT64 Pattern = 0x2865A18EE4DB02F0ui64;
@@ -5889,7 +5919,7 @@ GenericTxSharing()
 
     for (UINT32 i = 0; i < RTL_NUMBER_OF(Sockets); i++) {
         Sockets[i] =
-            CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+            CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     }
 
     for (UINT32 i = 0; i < RTL_NUMBER_OF(Sockets); i++) {
@@ -5947,7 +5977,7 @@ VOID
 GenericTxPoke()
 {
     auto If = FnMpIf;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     UINT64 Pattern = 0x4FA3DF603CC44911ui64;
@@ -6000,7 +6030,7 @@ VOID
 GenericTxMtu()
 {
     auto If = FnMpIf;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const UINT32 TestMtu = 2048;
     C_ASSERT(TestMtu != FNMP_DEFAULT_MTU);
@@ -6026,7 +6056,7 @@ GenericTxMtu()
     //
     WaitForNdisDatapath(If, MP_RESTART_TIMEOUT_MS);
 
-    Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
+    Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
 
     //
     // Post a TX of size MTU and verify the packet was completed.
@@ -6082,6 +6112,69 @@ GenericTxMtu()
         }
     } while (!Watchdog.IsExpired());
     TEST_EQUAL(1, Stats.TxInvalidDescriptors);
+}
+
+VOID
+GenericTxChecksumOffloadExtensions()
+{
+    auto If = FnMpIf;
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    UINT16 LayoutExtension;
+    UINT16 ChecksumExtension;
+    UINT32 OptionLength;
+
+    OptionLength = sizeof(LayoutExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    OptionLength = sizeof(ChecksumExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
+
+    OptionLength = sizeof(LayoutExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    OptionLength = sizeof(ChecksumExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    OptionLength = sizeof(LayoutExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION, &LayoutExtension,
+        &OptionLength);
+    TEST_TRUE(LayoutExtension >= sizeof(XSK_FRAME_DESCRIPTOR));
+
+    OptionLength = sizeof(ChecksumExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION, &ChecksumExtension,
+        &OptionLength);
+    TEST_TRUE(ChecksumExtension >= sizeof(XSK_FRAME_DESCRIPTOR));
+
+    TEST_NOT_EQUAL(LayoutExtension, ChecksumExtension);
+    TEST_TRUE(
+        Xsk.Rings.Tx.ElementStride >=
+            sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_LAYOUT) + sizeof(XDP_FRAME_CHECKSUM));
 }
 
 static
@@ -6523,7 +6616,7 @@ GenericLoopback(
     SOCKADDR_INET LocalSockAddr = {0};
 
     auto If = FnMpIf;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, TRUE, XDP_GENERIC);
     SocketProduceRxFill(&Xsk, 1);
 
     auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);

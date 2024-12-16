@@ -78,7 +78,7 @@ typedef enum _XSK_POLL_MODE {
 #define XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION 1002
 
 //
-// XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM
+// XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM
 //
 // Supports: set
 // Optval type: UINT32
@@ -92,7 +92,7 @@ typedef enum _XSK_POLL_MODE {
 //              supported. Disabling the offload after is has been enabled is
 //              also currently not supported.
 //
-#define XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM 1003
+#define XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM 1003
 
 #ifdef __cplusplus
 } // extern "C"

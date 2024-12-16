@@ -192,6 +192,9 @@ VOID
 GenericTxMtu();
 
 VOID
+GenericTxChecksumOffloadExtensions();
+
+VOID
 GenericXskWait(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx

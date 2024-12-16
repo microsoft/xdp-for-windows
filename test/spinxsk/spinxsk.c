@@ -1562,7 +1562,7 @@ FuzzSocketMisc(
 
     if (RandUlong() % 2) {
         UINT32 Enabled = RandUlong() % 2;
-        XskSetSockopt(Sock, XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM, &Enabled, sizeof(Enabled));
+        XskSetSockopt(Sock, XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
     }
 
     if (RandUlong() % 2) {

@@ -3673,7 +3673,7 @@ Exit:
 
 static
 VOID
-XskSetOffloadTxChecksumWorker(
+XskSetTxOffloadChecksumWorker(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
@@ -3686,7 +3686,7 @@ XskSetOffloadTxChecksumWorker(
 
 static
 NTSTATUS
-XskSockoptSetOffloadTxChecksum(
+XskSockoptSetTxOffloadChecksum(
     _In_ XSK *Xsk,
     _In_ XSK_SET_SOCKOPT_IN *Sockopt,
     _In_ KPROCESSOR_MODE RequestorMode
@@ -3746,7 +3746,7 @@ XskSockoptSetOffloadTxChecksum(
     KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
     WorkItem.Xsk = Xsk;
     WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
-    WorkItem.IfWorkItem.WorkRoutine = XskSetOffloadTxChecksumWorker;
+    WorkItem.IfWorkItem.WorkRoutine = XskSetTxOffloadChecksumWorker;
     XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
 
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
@@ -4332,8 +4332,8 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
         Status = XskSockoptSetIdealProcessor(Xsk, Sockopt, Irp->RequestorMode);
         break;
-    case XSK_SOCKOPT_OFFLOAD_TX_CHECKSUM:
-        Status = XskSockoptSetOffloadTxChecksum(Xsk, Sockopt, Irp->RequestorMode);
+    case XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM:
+        Status = XskSockoptSetTxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:

@@ -171,6 +171,10 @@ public:
         ::GenericTxMtu();
     }
 
+    TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadExtensions) {
+        ::GenericTxChecksumOffloadExtensions();
+    }
+
     TEST_METHOD(GenericRxTcpControlV4) {
         GenericRxTcpControl(AF_INET);
     }
