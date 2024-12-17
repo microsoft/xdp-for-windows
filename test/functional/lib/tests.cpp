@@ -6428,7 +6428,7 @@ GenericTxChecksumOffloadUdp(
     Layout->Layer2HeaderLength = sizeof(ETHERNET_HEADER);
     Layout->Layer3Type =
         Af == AF_INET6 ?
-            XdpFrameLayer3TypeIPv6UnspecifiedExtensions : XdpFrameLayer3TypeIPv4UnspecifiedOptions;
+            XdpFrameLayer3TypeIPv6NoExtensions : XdpFrameLayer3TypeIPv4UnspecifiedOptions;
     Layout->Layer3HeaderLength = Af == AF_INET6 ? sizeof(IPV6_HEADER) : sizeof(IPV4_HEADER);
     Layout->Layer4Type = XdpFrameLayer4TypeUdp;
     Layout->Layer4HeaderLength = sizeof(UDP_HDR);
