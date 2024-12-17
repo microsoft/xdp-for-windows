@@ -2201,28 +2201,37 @@ XskNotifyTxQueue(
     XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Tx.Xdp.QueueNotificationEntry);
     KIRQL OldIrql;
 
-    if (NotificationType != XDP_TX_QUEUE_NOTIFICATION_DETACH) {
-        return;
-    }
+    if (NotificationType == XDP_TX_QUEUE_NOTIFICATION_DETACH) {
+        //
+        // Set the state to detached, except when socket closure has raced this
+        // detach event.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        if (Xsk->State != XskClosing) {
+            ASSERT(Xsk->State >= XskBinding && Xsk->State <= XskActive);
+            Xsk->State = XskDetached;
+        }
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
-    //
-    // Set the state to detached, except when socket closure has raced this
-    // detach event.
-    //
-    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-    if (Xsk->State != XskClosing) {
-        ASSERT(Xsk->State >= XskBinding && Xsk->State <= XskActive);
-        Xsk->State = XskDetached;
-    }
-    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        //
+        // This detach event is executing in the context of XDP binding work queue
+        // processing on the TX queue, so it is synchronized with other detach
+        // instances that also utilize the XDP binding work queue (detach during
+        // bind failure and detach during socket closure).
+        //
+        XskDetachTxIf(Xsk);
+    } else if (NotificationType == XDP_TX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG) {
+        XSK_SHARED_RING *Shared;
 
-    //
-    // This detach event is executing in the context of XDP binding work queue
-    // processing on the TX queue, so it is synchronized with other detach
-    // instances that also utilize the XDP binding work queue (detach during
-    // bind failure and detach during socket closure).
-    //
-    XskDetachTxIf(Xsk);
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+
+        Shared = Xsk->Tx.Ring.Shared;
+        if (Shared != NULL) {
+            InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
+        }
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
 }
 
 static
@@ -3935,6 +3944,154 @@ Exit:
     return Status;
 }
 
+typedef
+XDP_IF_OFFLOAD_HANDLE
+XSK_GET_IF_OFFLOAD_HANDLE(
+    _In_ XSK *Xsk
+    );
+
+static
+XDP_IF_OFFLOAD_HANDLE
+XskSockoptGetTxOffloadHandle(
+    _In_ XSK *Xsk
+    )
+{
+    if (Xsk->Tx.Xdp.Queue == NULL) {
+        return NULL;
+    }
+
+    return XdpTxQueueGetInterfaceOffloadHandle(Xsk->Tx.Xdp.Queue);
+}
+
+typedef struct _XSK_OFFLOAD_WORKITEM {
+    XDP_BINDING_WORKITEM IfWorkItem;
+    XSK *Xsk;
+    XSK_GET_IF_OFFLOAD_HANDLE *GetIfOffloadHandle;
+    XDP_INTERFACE_OFFLOAD_TYPE OffloadType;
+    UINT32 OffloadParamsSize;
+    VOID *OutputBuffer;
+    KEVENT CompletionEvent;
+    NTSTATUS CompletionStatus;
+} XSK_OFFLOAD_WORKITEM;
+
+static
+VOID
+XskGetOffloadWorker(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_OFFLOAD_WORKITEM *WorkItem = CONTAINING_RECORD(Item, XSK_OFFLOAD_WORKITEM, IfWorkItem);
+    XSK *Xsk = WorkItem->Xsk;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    if (Xsk->Tx.Xdp.Queue == NULL) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    Status =
+        XdpIfGetInterfaceOffload(
+            XdpIfGetIfSetHandle(Item->BindingHandle), WorkItem->GetIfOffloadHandle(Xsk),
+            WorkItem->OffloadType, WorkItem->OutputBuffer, &WorkItem->OffloadParamsSize);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+Exit:
+
+    TraceExitStatus(TRACE_XSK);
+
+    WorkItem->CompletionStatus = Status;
+    NT_VERIFY(NT_SUCCESS(KeSetEvent(&WorkItem->CompletionEvent, IO_NO_INCREMENT, FALSE)));
+}
+
+static
+NTSTATUS
+XskSockoptGetOffload(
+    _In_ XSK *Xsk,
+    _In_ UINT32 Option,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    KIRQL OldIrql;
+    BOOLEAN IsLockHeld = FALSE;
+    XSK_OFFLOAD_WORKITEM WorkItem;
+    VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    SIZE_T *BytesReturned = &Irp->IoStatus.Information;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    *BytesReturned = 0;
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    switch (Option) {
+    case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
+        if (Xsk->Tx.Xdp.IfHandle == NULL) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
+        WorkItem.GetIfOffloadHandle = XskSockoptGetTxOffloadHandle;
+        WorkItem.OffloadType = XdpOffloadChecksum;
+        break;
+
+    default:
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    ASSERT(WorkItem.IfWorkItem.BindingHandle != NULL);
+    ASSERT(WorkItem.GetIfOffloadHandle != NULL);
+
+
+    KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
+    WorkItem.Xsk = Xsk;
+    WorkItem.IfWorkItem.WorkRoutine = XskGetOffloadWorker;
+    WorkItem.OffloadParamsSize = OutputBufferLength;
+    WorkItem.OutputBuffer = OutputBuffer;
+    XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    IsLockHeld = FALSE;
+
+    KeWaitForSingleObject(
+        &WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
+
+    Status = WorkItem.CompletionStatus;
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    *BytesReturned = WorkItem.OffloadParamsSize;
+
+    if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
+        Status = STATUS_BUFFER_OVERFLOW;
+        goto Exit;
+    }
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    TraceInfo(
+        TRACE_XSK, "Xsk=%p Status=%!STATUS! OutputBuffer=%!HEXDUMP!",
+        Xsk, Status, WppHexDump(OutputBuffer, OutputBufferLength));
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
 static
 UINT32
 XskQueryReadyIo(
@@ -4166,6 +4323,8 @@ Exit:
     return Status;
 }
 
+
+
 static
 NTSTATUS
 XskIrpGetSockopt(
@@ -4205,6 +4364,9 @@ XskIrpGetSockopt(
     case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
     case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
         Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
+        break;
+    case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
+        Status = XskSockoptGetOffload(Xsk, Option, Irp, IrpSp);
         break;
     default:
         Status = STATUS_NOT_SUPPORTED;

@@ -198,6 +198,10 @@ XdpLwfGetInterfaceOffload(
         ASSERT(OffloadParams != NULL);
         Status = XdpLwfOffloadRssGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
+    case XdpOffloadChecksum:
+        ASSERT(OffloadParams != NULL);
+        Status = XdpLwfOffloadChecksumGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
+        break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
         Status = STATUS_NOT_SUPPORTED;

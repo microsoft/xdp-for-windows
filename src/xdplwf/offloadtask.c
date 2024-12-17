@@ -217,6 +217,8 @@ XdpOffloadUpdateTaskOffloadConfig(
     NewOffload = NULL;
     Status = STATUS_SUCCESS;
 
+    XdpGenericTxNotifyOffloadChange(&Filter->Generic, &Filter->Offload.LowerEdge);
+
 Exit:
 
     if (OldOffload != NULL) {
@@ -228,4 +230,115 @@ Exit:
     }
 
     TraceExitStatus(TRACE_LWF);
+}
+
+typedef struct _XDP_LWF_OFFLOAD_CHECKSUM_GET {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _Inout_ KEVENT Event;
+    _Out_ NTSTATUS Status;
+    _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext;
+    _Out_ XDP_CHECKSUM_CONFIGURATION *ChecksumParams;
+    _Inout_ UINT32 *ChecksumParamsLength;
+} XDP_LWF_OFFLOAD_CHECKSUM_GET;
+
+static
+_Offload_work_routine_
+VOID
+XdpLwfOffloadChecksumGetWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_OFFLOAD_CHECKSUM_GET *Request =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_CHECKSUM_GET, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+    XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *CurrentTaskSetting = NULL;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    *Request->ChecksumParamsLength = 0;
+
+    //
+    // Determine the appropriate edge.
+    //
+    switch (Request->OffloadContext->Edge) {
+    case XdpOffloadEdgeLower:
+        if (Filter->Offload.LowerEdge.TaskOffload != NULL) {
+            CurrentTaskSetting = Filter->Offload.LowerEdge.TaskOffload;
+        } else {
+            //
+            // No lower edge state implies lower and upper edge state are the same.
+            //
+            CurrentTaskSetting = Filter->Offload.UpperEdge.TaskOffload;
+        }
+        break;
+    default:
+        ASSERT(FALSE);
+        CurrentTaskSetting = NULL;
+        break;
+    }
+
+    if (CurrentTaskSetting == NULL) {
+        //
+        // Task offload not initialized yet.
+        //
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p task offload params not found", Request->OffloadContext);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    if (*Request->ChecksumParamsLength == 0) {
+        *Request->ChecksumParamsLength = sizeof(*Request->ChecksumParams);
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (*Request->ChecksumParamsLength < sizeof(*Request->ChecksumParams)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    Request->ChecksumParams->Header.Revision = XDP_CHECKSUM_CONFIGURATION_REVISION_1;
+    Request->ChecksumParams->Header.Size = sizeof(*Request->ChecksumParams);
+    Request->ChecksumParams->Enabled =
+        CurrentTaskSetting->Checksum.Enabled == XdpOffloadStateEnabled;
+    *Request->ChecksumParamsLength = sizeof(*Request->ChecksumParams);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_LWF);
+
+    Request->Status = Status;
+    KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
+}
+
+NTSTATUS
+XdpLwfOffloadChecksumGet(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
+    _Out_ XDP_CHECKSUM_CONFIGURATION *ChecksumParams,
+    _Inout_ UINT32 *ChecksumParamsLength
+    )
+{
+    XDP_LWF_OFFLOAD_CHECKSUM_GET Request = {0};
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    Request.OffloadContext = OffloadContext;
+    Request.ChecksumParams = ChecksumParams;
+    Request.ChecksumParamsLength = ChecksumParamsLength;
+
+    KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
+    XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadChecksumGetWorker);
+    KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
+
+    Status = Request.Status;
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
 }

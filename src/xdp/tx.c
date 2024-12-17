@@ -33,7 +33,6 @@ typedef struct _XDP_TX_QUEUE {
     XDP_TX_QUEUE_KEY Key;
     XDP_TX_QUEUE_STATE State;
     XDP_BINDING_CLIENT_ENTRY BindingClientEntry;
-    LIST_ENTRY NotifyClients;
     PCW_INSTANCE *PcwInstance;
 
     XDP_TX_CAPABILITIES InterfaceTxCapabilities;
@@ -49,9 +48,15 @@ typedef struct _XDP_TX_QUEUE {
 
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
 
-    BOOLEAN DeleteNeeded;
-    XDP_BINDING_WORKITEM DeleteWorkItem;
-    XDP_TX_QUEUE_NOTIFY_DETAILS NotifyDetails;
+    struct {
+        KSPIN_LOCK Lock;
+        BOOLEAN WorkerQueued : 1;
+        BOOLEAN DeleteNeeded : 1;
+        BOOLEAN OffloadNeeded : 1;
+        XDP_BINDING_WORKITEM WorkItem;
+        XDP_TX_QUEUE_NOTIFY_DETAILS Details;
+        LIST_ENTRY Clients;
+    } Notify;
 
     //
     // Data path fields.
@@ -597,7 +602,7 @@ XdppTxQueueGetNotifyHandle(
 {
     XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigCreate(TxQueueConfig);
 
-    return (XDP_TX_QUEUE_NOTIFY_HANDLE)&TxQueue->NotifyDetails;
+    return (XDP_TX_QUEUE_NOTIFY_HANDLE)&TxQueue->Notify.Details;
 }
 
 static
@@ -606,23 +611,26 @@ XdpTxQueueFromNotify(
     _In_ XDP_TX_QUEUE_NOTIFY_HANDLE TxQueueNotifyHandle
     )
 {
-    return CONTAINING_RECORD(TxQueueNotifyHandle, XDP_TX_QUEUE, NotifyDetails);
+    return CONTAINING_RECORD(TxQueueNotifyHandle, XDP_TX_QUEUE, Notify.Details);
 }
 
 static
+_IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpTxQueueNotifyClients(
     _In_ XDP_TX_QUEUE *TxQueue,
     _In_ XDP_TX_QUEUE_NOTIFICATION_TYPE NotificationType
     )
 {
-    LIST_ENTRY *Entry = TxQueue->NotifyClients.Flink;
+    LIST_ENTRY *Entry = TxQueue->Notify.Clients.Flink;
 
     TraceInfo(
         TRACE_CORE, "TxQueue=%p NotificationType=%!TX_QUEUE_NOTIFICATION_TYPE!",
         TxQueue, NotificationType);
 
-    while (Entry != &TxQueue->NotifyClients) {
+    ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
+    while (Entry != &TxQueue->Notify.Clients) {
         XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
 
         NotifyEntry = CONTAINING_RECORD(Entry, XDP_TX_QUEUE_NOTIFICATION_ENTRY, Link);
@@ -633,14 +641,54 @@ XdpTxQueueNotifyClients(
 }
 
 static
+_Requires_lock_held_(TxQueue->Notify.Lock)
 VOID
-XdpTxQueueDeleteWorker(
+XdpTxQueueNotifyClientsUnderNotifyLock(
+    _In_ XDP_TX_QUEUE *TxQueue,
+    _In_ XDP_TX_QUEUE_NOTIFICATION_TYPE NotificationType,
+    _In_ _IRQL_saves_ _IRQL_restores_ KIRQL *OldIrql
+    )
+{
+    //
+    // N.B. This routine releases and re-acquires the notify lock.
+    //
+    ASSERT(*OldIrql == PASSIVE_LEVEL);
+    KeReleaseSpinLock(&TxQueue->Notify.Lock, *OldIrql);
+    XdpTxQueueNotifyClients(TxQueue, NotificationType);
+    KeAcquireSpinLock(&TxQueue->Notify.Lock, OldIrql);
+}
+
+static
+VOID
+XdpTxQueueNotifyWorker(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
-    XDP_TX_QUEUE *TxQueue = CONTAINING_RECORD(Item, XDP_TX_QUEUE, DeleteWorkItem);
+    XDP_TX_QUEUE *TxQueue = CONTAINING_RECORD(Item, XDP_TX_QUEUE, Notify.WorkItem);
+    KIRQL OldIrql;
 
-    XdpTxQueueNotifyClients(TxQueue, XDP_TX_QUEUE_NOTIFICATION_DETACH);
+    KeAcquireSpinLock(&TxQueue->Notify.Lock, &OldIrql);
+
+    ASSERT(TxQueue->Notify.WorkerQueued);
+
+    while (TRUE) {
+        if (TxQueue->Notify.DeleteNeeded) {
+            TxQueue->Notify.DeleteNeeded = FALSE;
+            XdpTxQueueNotifyClientsUnderNotifyLock(
+                TxQueue, XDP_TX_QUEUE_NOTIFICATION_DETACH, &OldIrql);
+        } else if (TxQueue->Notify.OffloadNeeded) {
+            TxQueue->Notify.OffloadNeeded = FALSE;
+            XdpTxQueueNotifyClientsUnderNotifyLock(
+                TxQueue, XDP_TX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG, &OldIrql);
+        } else {
+            break;
+        }
+    }
+
+    TxQueue->Notify.WorkerQueued = FALSE;
+
+    KeReleaseSpinLock(&TxQueue->Notify.Lock, OldIrql);
+
     XdpTxQueueInterlockedDereference(TxQueue);
 }
 
@@ -654,6 +702,15 @@ XdpTxQueueNotify(
     )
 {
     XDP_TX_QUEUE *TxQueue = XdpTxQueueFromNotify(TxQueueNotifyHandle);
+    KIRQL OldIrql;
+    BOOLEAN NeedNotification = FALSE;
+
+    //
+    // This routine can be invoked from arbitrary contexts, including passive
+    // worker threads and data paths at up to dispatch level.
+    //
+
+    KeAcquireSpinLock(&TxQueue->Notify.Lock, &OldIrql);
 
     switch (NotifyCode) {
     case XDP_TX_QUEUE_NOTIFY_MAX_FRAME_SIZE:
@@ -667,14 +724,29 @@ XdpTxQueueNotify(
         // Similar to NetAdapter, changing MTU after a queue is created causes
         // the queue to be torn down, and perhaps re-created.
         //
-        if (!InterlockedExchangeNoFence8((CHAR *)&TxQueue->DeleteNeeded, 1)) {
-            TxQueue->DeleteWorkItem.BindingHandle = TxQueue->Binding;
-            TxQueue->DeleteWorkItem.WorkRoutine = XdpTxQueueDeleteWorker;
-            XdpTxQueueInterlockedReference(TxQueue);
-            XdpIfQueueWorkItem(&TxQueue->DeleteWorkItem);
-        }
+        TxQueue->Notify.DeleteNeeded = TRUE;
+        NeedNotification = TRUE;
+        break;
+
+    case XDP_TX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG:
+        TraceVerbose(TRACE_CORE, "TxQueue=%p Offload=%p", TxQueue, NotifyBuffer);
+
+        TxQueue->Notify.OffloadNeeded = TRUE;
+        NeedNotification = TRUE;
         break;
     }
+
+    if (NeedNotification) {
+        if (!TxQueue->Notify.WorkerQueued) {
+            TxQueue->Notify.WorkerQueued = TRUE;
+            TxQueue->Notify.WorkItem.BindingHandle = TxQueue->Binding;
+            TxQueue->Notify.WorkItem.WorkRoutine = XdpTxQueueNotifyWorker;
+            XdpTxQueueInterlockedReference(TxQueue);
+            XdpIfQueueWorkItem(&TxQueue->Notify.WorkItem);
+        }
+    }
+
+    KeReleaseSpinLock(&TxQueue->Notify.Lock, OldIrql);
 }
 
 static const XDP_TX_QUEUE_CONFIG_RESERVED XdpTxConfigReservedDispatch = {
@@ -819,7 +891,8 @@ XdpTxQueueCreate(
     TxQueue->Key = Key;
     TxQueue->State = XdpTxQueueStateCreated;
     XdpIfInitializeClientEntry(&TxQueue->BindingClientEntry);
-    InitializeListHead(&TxQueue->NotifyClients);
+    KeInitializeSpinLock(&TxQueue->Notify.Lock);
+    InitializeListHead(&TxQueue->Notify.Clients);
     XdpInitializeQueueInfo(&TxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     InitializeListHead(&TxQueue->ClientList);
     TxQueue->FillEntry = &TxQueue->ClientList;
@@ -829,7 +902,7 @@ XdpTxQueueCreate(
     TxQueue->Dispatch = XdpTxDispatch;
     TxQueue->ConfigCreate.Dispatch = &XdpTxConfigCreateDispatch;
     TxQueue->ConfigActivate.Dispatch = &XdpTxConfigActivateDispatch;
-    TxQueue->NotifyDetails.Dispatch = &XdpTxNotifyDispatch;
+    TxQueue->Notify.Details.Dispatch = &XdpTxNotifyDispatch;
 
     Status =
         XdpIfRegisterClient(
@@ -1140,7 +1213,7 @@ XdpTxQueueRegisterNotifications(
     )
 {
     NotifyEntry->NotifyRoutine = NotifyRoutine;
-    InsertTailList(&TxQueue->NotifyClients, &NotifyEntry->Link);
+    InsertTailList(&TxQueue->Notify.Clients, &NotifyEntry->Link);
 }
 
 VOID
@@ -1337,6 +1410,14 @@ XdpTxQueueGetInterfacePollHandle(
     return TxQueue->InterfacePollHandle;
 }
 
+XDP_IF_OFFLOAD_HANDLE
+XdpTxQueueGetInterfaceOffloadHandle(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    return TxQueue->InterfaceOffloadHandle;
+}
+
 XDP_TX_QUEUE_CONFIG_ACTIVATE
 XdpTxQueueGetConfig(
     _In_ XDP_TX_QUEUE *TxQueue
@@ -1402,7 +1483,7 @@ XdpTxQueueDelete(
     TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
     TraceInfo(TRACE_CORE, "Deleting TxQueue=%p", TxQueue);
 
-    ASSERT(IsListEmpty(&TxQueue->NotifyClients));
+    ASSERT(IsListEmpty(&TxQueue->Notify.Clients));
     ASSERT(IsListEmpty(&TxQueue->ClientList));
 
     if (TxQueue->InterfaceOffloadHandle != NULL) {

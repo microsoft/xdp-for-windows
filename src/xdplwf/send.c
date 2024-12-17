@@ -697,6 +697,32 @@ XdpGenericTxRestart(
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericTxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
+    )
+{
+    LIST_ENTRY *Entry = Generic->Tx.Queues.Flink;
+
+    TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
+
+    UNREFERENCED_PARAMETER(Offload);
+
+    while (Entry != &Generic->Tx.Queues) {
+        XDP_LWF_GENERIC_TX_QUEUE *TxQueue =
+            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_TX_QUEUE, Link);
+        Entry = Entry->Flink;
+
+        XdpTxQueueNotify(
+            TxQueue->XdpNotifyHandle, XDP_TX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
+    }
+
+    TraceExitSuccess(TRACE_GENERIC);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 XdpGenericTxNotify(
     _In_ XDP_LWF_GENERIC_TX_QUEUE *TxQueue,
