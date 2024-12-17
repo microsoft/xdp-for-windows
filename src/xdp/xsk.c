@@ -4020,13 +4020,12 @@ XskSockoptGetOffload(
     KIRQL OldIrql;
     BOOLEAN IsLockHeld = FALSE;
     XSK_OFFLOAD_WORKITEM WorkItem;
+    XSK_SHARED_RING *Ring = NULL;
     VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
     UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     SIZE_T *BytesReturned = &Irp->IoStatus.Information;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
-
-    *BytesReturned = 0;
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     IsLockHeld = TRUE;
@@ -4040,6 +4039,7 @@ XskSockoptGetOffload(
         WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
         WorkItem.GetIfOffloadHandle = XskSockoptGetTxOffloadHandle;
         WorkItem.OffloadType = XdpOffloadChecksum;
+        Ring = Xsk->Tx.Ring.Shared;
         break;
 
     default:
@@ -4050,6 +4050,9 @@ XskSockoptGetOffload(
     ASSERT(WorkItem.IfWorkItem.BindingHandle != NULL);
     ASSERT(WorkItem.GetIfOffloadHandle != NULL);
 
+    if (Ring != NULL) {
+        InterlockedAndNoFence((LONG *)&Ring->Flags, ~XSK_RING_FLAG_OFFLOAD_CHANGED);
+    }
 
     KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
     WorkItem.Xsk = Xsk;
@@ -4063,7 +4066,6 @@ XskSockoptGetOffload(
 
     KeWaitForSingleObject(
         &WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
-    ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
 
     Status = WorkItem.CompletionStatus;
     if (!NT_SUCCESS(Status)) {

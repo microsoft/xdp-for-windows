@@ -256,21 +256,18 @@ XdpLwfOffloadChecksumGetWorker(
 
     TraceEnter(TRACE_LWF, "Filter=%p", Filter);
 
-    *Request->ChecksumParamsLength = 0;
-
     //
     // Determine the appropriate edge.
     //
     switch (Request->OffloadContext->Edge) {
     case XdpOffloadEdgeLower:
-        if (Filter->Offload.LowerEdge.TaskOffload != NULL) {
-            CurrentTaskSetting = Filter->Offload.LowerEdge.TaskOffload;
-        } else {
-            //
-            // No lower edge state implies lower and upper edge state are the same.
-            //
-            CurrentTaskSetting = Filter->Offload.UpperEdge.TaskOffload;
-        }
+        CurrentTaskSetting = Filter->Offload.LowerEdge.TaskOffload;
+        break;
+    case XdpOffloadEdgeUpper:
+        //
+        // Offload translation for upper edges is not supported yet.
+        //
+        CurrentTaskSetting = NULL;
         break;
     default:
         ASSERT(FALSE);
@@ -290,21 +287,21 @@ XdpLwfOffloadChecksumGetWorker(
     }
 
     if (*Request->ChecksumParamsLength == 0) {
-        *Request->ChecksumParamsLength = sizeof(*Request->ChecksumParams);
+        *Request->ChecksumParamsLength = XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1;
         Status = STATUS_SUCCESS;
         goto Exit;
     }
 
-    if (*Request->ChecksumParamsLength < sizeof(*Request->ChecksumParams)) {
+    if (*Request->ChecksumParamsLength < XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1) {
         Status = STATUS_BUFFER_TOO_SMALL;
         goto Exit;
     }
 
     Request->ChecksumParams->Header.Revision = XDP_CHECKSUM_CONFIGURATION_REVISION_1;
-    Request->ChecksumParams->Header.Size = sizeof(*Request->ChecksumParams);
+    Request->ChecksumParams->Header.Size = XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1;
     Request->ChecksumParams->Enabled =
         CurrentTaskSetting->Checksum.Enabled == XdpOffloadStateEnabled;
-    *Request->ChecksumParamsLength = sizeof(*Request->ChecksumParams);
+    *Request->ChecksumParamsLength = Request->ChecksumParams->Header.Size;
     Status = STATUS_SUCCESS;
 
 Exit:

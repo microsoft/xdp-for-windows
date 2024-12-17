@@ -6454,6 +6454,59 @@ GenericTxChecksumOffloadUdp(
     MpTxFlush(GenericMp);
 }
 
+VOID
+GenericTxChecksumOffloadConfig()
+{
+    const auto &If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+    UINT32 OptionLength;
+
+    TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+
+    OptionLength = sizeof(ChecksumConfig);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+        &OptionLength);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    TEST_FALSE(ChecksumConfig.Enabled);
+
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+
+    auto OffloadReset = MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+
+    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+    while (!Watchdog.IsExpired()) {
+        if (XskRingOffloadChanged(&Xsk.Rings.Tx)) {
+            break;
+        }
+    }
+
+    TEST_TRUE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+
+    OptionLength = sizeof(ChecksumConfig);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+        &OptionLength);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    TEST_TRUE(ChecksumConfig.Enabled);
+
+    TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+}
+
 static
 VOID
 RxIndicate(
