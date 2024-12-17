@@ -33,6 +33,11 @@ XdpTxQueueFindOrCreate(
     _Out_ XDP_TX_QUEUE **TxQueue
     );
 
+NTSTATUS
+XdpTxQueueActivate(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
 VOID
 XdpTxQueueDereference(
     _In_ XDP_TX_QUEUE *TxQueue
@@ -67,6 +72,11 @@ VOID
 XdpTxQueueDeregisterNotifications(
     _In_ XDP_TX_QUEUE *TxQueue,
     _Inout_ XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    );
+
+NTSTATUS
+XdpTxQueueEnableChecksumOffload(
+    _In_ XDP_TX_QUEUE *TxQueue
     );
 
 typedef enum _XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE {
@@ -129,6 +139,11 @@ XdpTxQueueIsLogicalAddressEnabled(
 
 BOOLEAN
 XdpTxQueueIsMdlEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    );
+
+BOOLEAN
+XdpTxQueueIsLayoutExtensionEnabled(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
     );
 

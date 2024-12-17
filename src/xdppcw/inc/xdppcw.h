@@ -42,6 +42,7 @@ typedef struct _XDP_PCW_TX_QUEUE {
 typedef struct _XDP_PCW_LWF_TX_QUEUE {
     UINT64 FramesDroppedPause;
     UINT64 FramesDroppedNic;
+    UINT64 FramesInvalidChecksumOffload;
 } XDP_PCW_LWF_TX_QUEUE;
 
 #define STAT_INC(_Stats, _Field) (((_Stats)->_Field)++)

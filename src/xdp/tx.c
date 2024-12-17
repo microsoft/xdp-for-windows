@@ -45,6 +45,7 @@ typedef struct _XDP_TX_QUEUE {
 
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
+    BOOLEAN IsChecksumOffloadEnabled;
 
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
 
@@ -266,6 +267,20 @@ static const XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
         .Size                   = 0,
         .Alignment              = __alignof(UCHAR),
     },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+    },
 };
 
 static const XDP_EXTENSION_REGISTRATION XdpTxBufferExtensions[] = {
@@ -378,7 +393,9 @@ XdpTxQueueSetCapabilities(
         Capabilities->MdlEnabled ||
         Capabilities->DmaCapabilities != NULL);
 
-    TxQueue->InterfaceTxCapabilities = *Capabilities;
+    RtlCopyMemory(
+        &TxQueue->InterfaceTxCapabilities, Capabilities,
+        min(Capabilities->Header.Size, sizeof(TxQueue->InterfaceTxCapabilities)));
 
     if (Capabilities->VirtualAddressEnabled) {
         XdpExtensionSetEnableEntry(TxQueue->BufferExtensionSet, XDP_BUFFER_EXTENSION_VIRTUAL_ADDRESS_NAME);
@@ -551,6 +568,16 @@ XdpTxQueueIsOutOfOrderCompletionEnabled(
     return TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled;
 }
 
+BOOLEAN
+XdpTxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    )
+{
+    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
+
+    return TxQueue->IsChecksumOffloadEnabled;
+}
+
 static
 CONST XDP_HOOK_ID *
 XdppTxQueueGetHookId(
@@ -675,7 +702,7 @@ static const XDP_TX_QUEUE_CONFIG_CREATE_DISPATCH XdpTxConfigCreateDispatch = {
 static const XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch = {
     .Header                         = {
         .Revision                   = XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1,
-        .Size                       = XDP_SIZEOF_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1
+        .Size                       = sizeof(XdpTxConfigActivateDispatch),
     },
     .GetFrameRing                   = XdpTxQueueGetFrameRing,
     .GetFragmentRing                = XdpTxQueueGetFragmentRing,
@@ -684,6 +711,7 @@ static const XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpTxConfigActivateDispatch =
     .IsTxCompletionContextEnabled   = XdpTxQueueIsTxCompletionContextEnabled,
     .IsFragmentationEnabled         = XdpTxQueueIsFragmentationEnabled,
     .IsOutOfOrderCompletionEnabled  = XdpTxQueueIsOutOfOrderCompletionEnabled,
+    .IsChecksumOffloadEnabled       = XdpTxQueueIsChecksumOffloadEnabled,
 };
 
 static const XDP_TX_QUEUE_NOTIFY_DISPATCH XdpTxNotifyDispatch = {
@@ -747,9 +775,6 @@ XdpTxQueueCreate(
     XDP_TX_QUEUE_KEY Key;
     XDP_TX_QUEUE *TxQueue = NULL;
     NTSTATUS Status;
-    UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
-    UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
-    XDP_EXTENSION_INFO ExtensionInfo;
     DECLARE_UNICODE_STRING_SIZE(
         Name, ARRAYSIZE("if_" MAXUINT32_STR "_queue_" MAXUINT32_STR "_rx"));
     const WCHAR *DirectionString;
@@ -882,6 +907,82 @@ XdpTxQueueCreate(
     }
 
     Status =
+        XdpIfOpenInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(TxQueue->Binding), &TxQueue->Key.HookId,
+            &TxQueue->InterfaceOffloadHandle);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    *NewTxQueue = TxQueue;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceInfo(
+        TRACE_CORE,
+        "TxQueue=%p Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} Status=%!STATUS!",
+        TxQueue, HookId->Layer, HookId->Direction, HookId->SubLayer, Status);
+
+    if (!NT_SUCCESS(Status)) {
+        if (TxQueue != NULL) {
+            XdpTxQueueDereference(TxQueue);
+        }
+    }
+
+    return Status;
+}
+
+static
+VOID
+XdpTxQueueDeleteRings(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    ASSERT(TxQueue->State == XdpTxQueueStateCreated || TxQueue->State == XdpTxQueueStateDeleted);
+
+    if (TxQueue->CompletionRing != NULL) {
+        XdpRingFreeRing(TxQueue->CompletionRing);
+        TxQueue->CompletionRing = NULL;
+    }
+    if (TxQueue->FrameRing != NULL) {
+        XdpRingFreeRing(TxQueue->FrameRing);
+        TxQueue->FrameRing = NULL;
+    }
+}
+
+NTSTATUS
+XdpTxQueueActivate(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    NTSTATUS Status;
+    UINT32 BufferSize, FrameSize, FrameOffset, FrameCount, TxCompletionSize;
+    UINT8 BufferAlignment, FrameAlignment, TxCompletionAlignment;
+    BOOLEAN AssigningLayouts = FALSE;
+    XDP_EXTENSION_INFO ExtensionInfo;
+
+    TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
+
+    if (TxQueue->State == XdpTxQueueStateActive) {
+        //
+        // Already activated - this is a no-op.
+        //
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (TxQueue->State != XdpTxQueueStateCreated) {
+        //
+        // The queue can be activated only from its original created state.
+        //
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    AssigningLayouts = TRUE;
+
+    Status =
         XdpExtensionSetAssignLayout(
             TxQueue->BufferExtensionSet, sizeof(XDP_BUFFER), __alignof(XDP_BUFFER),
             &BufferSize, &BufferAlignment);
@@ -949,28 +1050,35 @@ XdpTxQueueCreate(
     }
 
     Status =
-        XdpIfOpenInterfaceOffloadHandle(
-            XdpIfGetIfSetHandle(TxQueue->Binding), &TxQueue->Key.HookId,
-            &TxQueue->InterfaceOffloadHandle);
+        XdpIfActivateTxQueue(
+            TxQueue->Binding, TxQueue->InterfaceTxQueue,
+            (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
+            (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
     if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE, "TxQueue=%p XdpIfActivateTxQueue failed Status=%!STATUS!",
+            TxQueue, Status);
         goto Exit;
     }
 
-    *NewTxQueue = TxQueue;
-    Status = STATUS_SUCCESS;
+    TxQueue->State = XdpTxQueueStateActive;
+    TraceInfo(TRACE_CORE, "TxQueue=%p Activated", TxQueue);
 
 Exit:
 
-    TraceInfo(
-        TRACE_CORE,
-        "TxQueue=%p Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} Status=%!STATUS!",
-        TxQueue, HookId->Layer, HookId->Direction, HookId->SubLayer, Status);
-
     if (!NT_SUCCESS(Status)) {
-        if (TxQueue != NULL) {
-            XdpTxQueueDereference(TxQueue);
+        if (AssigningLayouts) {
+            if (TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled) {
+                XdpExtensionSetResetLayout(TxQueue->TxFrameCompletionExtensionSet);
+            }
+            XdpExtensionSetResetLayout(TxQueue->FrameExtensionSet);
+            XdpExtensionSetResetLayout(TxQueue->BufferExtensionSet);
+
         }
+        XdpTxQueueDeleteRings(TxQueue);
     }
+
+    TraceExitStatus(TRACE_CORE);
 
     return Status;
 }
@@ -1046,6 +1154,41 @@ XdpTxQueueDeregisterNotifications(
     RemoveEntryList(&NotifyEntry->Link);
 }
 
+NTSTATUS
+XdpTxQueueEnableChecksumOffload(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
+
+    if (TxQueue->IsChecksumOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (TxQueue->State == XdpTxQueueStateCreated) {
+        if (TxQueue->InterfaceTxCapabilities.ChecksumOffload) {
+            XdpExtensionSetEnableEntry(
+                TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+            XdpExtensionSetEnableEntry(
+                TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+            TxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
 VOID
 XdpTxQueueSync(
     _In_ XDP_TX_QUEUE *TxQueue,
@@ -1111,20 +1254,9 @@ XdpTxQueueAddDatapathClient(
     ASSERT(TxClientType == XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE_XSK);
     UNREFERENCED_PARAMETER(TxClientType);
 
-    if (TxQueue->State == XdpTxQueueStateCreated) {
-        Status =
-            XdpIfActivateTxQueue(
-                TxQueue->Binding, TxQueue->InterfaceTxQueue,
-                (XDP_TX_QUEUE_HANDLE)&TxQueue->Dispatch,
-                (XDP_TX_QUEUE_CONFIG_ACTIVATE)&TxQueue->ConfigActivate);
-        if (!NT_SUCCESS(Status)) {
-            TraceError(
-                TRACE_CORE, "TxQueue=%p XdpIfActivateTxQueue failed Status=%!STATUS!",
-                TxQueue, Status);
-            goto Exit;
-        }
-
-        TxQueue->State = XdpTxQueueStateActive;
+    if (TxQueue->State != XdpTxQueueStateActive) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
     }
 
     SyncParams.TxQueue = TxQueue;
@@ -1249,6 +1381,18 @@ XdpTxQueueIsMdlEnabled(
             TxQueue->BufferExtensionSet, XDP_BUFFER_EXTENSION_MDL_NAME);
 }
 
+BOOLEAN
+XdpTxQueueIsLayoutExtensionEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    )
+{
+    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
+
+    return
+        XdpExtensionSetIsExtensionEnabled(
+            TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+}
+
 static
 VOID
 XdpTxQueueDelete(
@@ -1273,12 +1417,7 @@ XdpTxQueueDelete(
 
     TxQueue->State = XdpTxQueueStateDeleted;
 
-    if (TxQueue->CompletionRing != NULL) {
-        XdpRingFreeRing(TxQueue->CompletionRing);
-    }
-    if (TxQueue->FrameRing != NULL) {
-        XdpRingFreeRing(TxQueue->FrameRing);
-    }
+    XdpTxQueueDeleteRings(TxQueue);
     if (TxQueue->TxFrameCompletionExtensionSet != NULL) {
         XdpExtensionSetCleanup(TxQueue->TxFrameCompletionExtensionSet);
     }

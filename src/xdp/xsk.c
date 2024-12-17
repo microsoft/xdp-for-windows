@@ -115,6 +115,8 @@ typedef struct _XSK_TX_XDP {
     XDP_EXTENSION MdlExtension;
     XDP_EXTENSION FrameTxCompletionExtension;
     XDP_EXTENSION TxCompletionExtension;
+    XDP_EXTENSION LayoutExtension;
+    XDP_EXTENSION ChecksumExtension;
     UINT32 OutstandingFrames;
     UINT32 MaxBufferLength;
     UINT32 MaxFrameLength;
@@ -141,11 +143,27 @@ typedef struct _XSK_TX_XDP {
 } XSK_TX_XDP;
 
 typedef struct _XSK_TX {
+    //
+    // Data path fields.
+    //
     XSK_KERNEL_RING Ring;
     XSK_KERNEL_RING CompletionRing;
     UMEM_BOUNCE Bounce;
     XSK_TX_XDP Xdp;
+    union {
+        struct {
+            UINT8 Checksum : 1;
+        };
+        UINT8 Value;
+    } OffloadFlags;
+    UINT16 LayoutExtensionOffset;
+    UINT16 ChecksumExtensionOffset;
+
+    //
+    // Control path fields.
+    //
     DMA_ADAPTER *DmaAdapter;
+    XDP_EXTENSION_SET *FrameExtensionSet;
 } XSK_TX;
 
 typedef struct _XSK {
@@ -156,6 +174,7 @@ typedef struct _XSK {
     XSK_RX Rx;
     XSK_TX Tx;
     KSPIN_LOCK Lock;
+    EX_PUSH_LOCK PushLock;
     UINT32 IoWaitFlags;
     XSK_IO_WAIT_FLAGS IoWaitInternalFlags;
     KEVENT IoWaitEvent;
@@ -205,6 +224,31 @@ static XDP_FILE_DISPATCH XskFileDispatch = {
     .Cleanup    = XskIrpCleanup,
     .Close      = XskIrpClose,
 };
+
+static const XDP_EXTENSION_REGISTRATION XskTxFrameExtensions[] = {
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+        .InternalExtension      = TRUE,
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalExtension      = TRUE,
+    },
+};
+
+static
+VOID
+XskClose(
+    _In_ XSK *Xsk
+    );
 
 static
 VOID
@@ -747,6 +791,44 @@ XskFillTx(
                     Frame, &Xsk->Tx.Xdp.FrameTxCompletionExtension);
             CompletionContext->Context = &Xsk->Tx.Xdp.DatapathClientEntry;
         }
+        if (Xsk->Tx.OffloadFlags.Value != 0) {
+            //
+            // Gate all offload features behind a single flag union, to minimize
+            // code complexity for the common case of non-offloading sockets.
+            //
+
+            if (Xsk->Tx.LayoutExtensionOffset != 0) {
+                XDP_FRAME_LAYOUT *XdpLayout =
+                    XdpGetLayoutExtension(Frame, &Xsk->Tx.Xdp.LayoutExtension);
+                const XDP_FRAME_LAYOUT *XskLayout =
+                    RTL_PTR_ADD(XskFrame, Xsk->Tx.LayoutExtensionOffset);
+
+                C_ASSERT(sizeof(*XdpLayout) == sizeof(*XskLayout));
+                ASSERT(Xsk->Tx.Xdp.LayoutExtension.Reserved != 0);
+
+                //
+                // Copy the offload structure directly into the XDP ring. The
+                // XSK layer does not perform even perfunctory validation.
+                //
+                RtlCopyVolatileMemory(XdpLayout, XskLayout, sizeof(*XdpLayout));
+            }
+
+            if (Xsk->Tx.ChecksumExtensionOffset != 0) {
+                XDP_FRAME_CHECKSUM *XdpChecksum =
+                    XdpGetChecksumExtension(Frame, &Xsk->Tx.Xdp.ChecksumExtension);
+                const XDP_FRAME_CHECKSUM *XskChecksum =
+                    RTL_PTR_ADD(XskFrame, Xsk->Tx.ChecksumExtensionOffset);
+
+                C_ASSERT(sizeof(*XdpChecksum) == sizeof(*XskChecksum));
+                ASSERT(Xsk->Tx.Xdp.ChecksumExtension.Reserved != 0);
+
+                //
+                // Copy the offload structure directly into the XDP ring. The
+                // XSK layer does not perform even perfunctory validation.
+                //
+                RtlCopyVolatileMemory(XdpChecksum, XskChecksum, sizeof(*XdpChecksum));
+            }
+        }
 
         EventWriteXskTxEnqueue(
             &MICROSOFT_XDP_PROVIDER, Xsk, Xsk->Tx.Ring.Shared->ConsumerIndex + i,
@@ -1044,6 +1126,7 @@ XskIrpCreateSocket(
     Xsk->Tx.Xdp.HookId.Direction = XDP_HOOK_TX;
     Xsk->Tx.Xdp.HookId.SubLayer = XDP_HOOK_INJECT;
     KeInitializeSpinLock(&Xsk->Lock);
+    ExInitializePushLock(&Xsk->PushLock);
     KeInitializeEvent(&Xsk->IoWaitEvent, NotificationEvent, TRUE);
     KeInitializeEvent(&Xsk->PollRequested, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Xsk->Tx.Xdp.OutstandingFlushComplete, NotificationEvent, FALSE);
@@ -1055,12 +1138,27 @@ XskIrpCreateSocket(
     Xsk->Rx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
     Xsk->Tx.Ring.Flags.ProfileIdealProcessor = OpenPacket->ApiVersion < XDP_API_VERSION_2;
 
+    Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
+            &Xsk->Tx.FrameExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     IrpSp->FileObject->FsContext = Xsk;
 
     EventWriteXskCreateSocket(
         &MICROSOFT_XDP_PROVIDER, Xsk, PsGetCurrentProcessId());
 
 Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        if (Xsk != NULL) {
+            Xsk->State = XskClosing;
+            XskClose(Xsk);
+        }
+    }
 
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, Status);
     TraceExitStatus(TRACE_XSK);
@@ -1805,6 +1903,18 @@ XskIrpCleanup(
 
 static
 VOID
+XskFreeExtensionSet(
+    _Inout_ XDP_EXTENSION_SET **ExtensionSet
+    )
+{
+    if (*ExtensionSet != NULL) {
+        XdpExtensionSetCleanup(*ExtensionSet);
+        *ExtensionSet = NULL;
+    }
+}
+
+static
+VOID
 XskFreeRing(
     XSK_KERNEL_RING *Ring
     )
@@ -2219,9 +2329,7 @@ XskBindTxIf(
 {
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
-    XDP_TX_QUEUE_CONFIG_ACTIVATE Config;
     const XDP_TX_CAPABILITIES *InterfaceCapabilities;
-    XDP_EXTENSION_INFO ExtensionInfo;
     NTSTATUS Status;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
@@ -2243,11 +2351,54 @@ XskBindTxIf(
     Xsk->Tx.Xdp.MaxBufferLength = InterfaceCapabilities->MaximumBufferSize;
     Xsk->Tx.Xdp.MaxFrameLength = InterfaceCapabilities->MaximumFrameSize;
 
-    Config = XdpTxQueueGetConfig(Xsk->Tx.Xdp.Queue);
+    Status = STATUS_SUCCESS;
 
+Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        XskDetachTxIf(Xsk);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    WorkItem->CompletionStatus = Status;
+    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
+}
+
+static
+VOID
+XskActivateTxIf(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
+    XSK *Xsk = WorkItem->Xsk;
+    XDP_TX_QUEUE_CONFIG_ACTIVATE Config;
+    XDP_EXTENSION_INFO ExtensionInfo;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    ASSERT(Xsk->Tx.Ring.Size > 0);
+
+    if (Xsk->Tx.Xdp.Queue == NULL) {
+        ASSERT(Xsk->State > XskActive);
+        Status = STATUS_DELETE_PENDING;
+        goto Exit;
+    }
+
+    //
+    // Activate the TX queue, which commits all configured extensions and
+    // options to the underlying XDP interface queue.
+    //
+    Status = XdpTxQueueActivate(Xsk->Tx.Xdp.Queue);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Config = XdpTxQueueGetConfig(Xsk->Tx.Xdp.Queue);
     Xsk->Tx.Xdp.Flags.OutOfOrderCompletion = XdpTxQueueIsOutOfOrderCompletionEnabled(Config);
     Xsk->Tx.Xdp.Flags.CompletionContext = XdpTxQueueIsTxCompletionContextEnabled(Config);
-
     Xsk->Tx.Xdp.FrameRing = XdpTxQueueGetFrameRing(Config);
 
     if (Xsk->Tx.Xdp.Flags.CompletionContext) {
@@ -2284,6 +2435,11 @@ XskBindTxIf(
             &ExtensionInfo, XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_NAME,
             XDP_BUFFER_EXTENSION_LOGICAL_ADDRESS_VERSION_1, XDP_EXTENSION_TYPE_BUFFER);
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.LaExtension);
+
+        Status = XskSetupDma(Xsk);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
     }
 
     Xsk->Tx.Xdp.Flags.MdlExt = XdpTxQueueIsMdlEnabled(Config);
@@ -2294,45 +2450,18 @@ XskBindTxIf(
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.MdlExtension);
     }
 
-    Status = STATUS_SUCCESS;
-
-Exit:
-
-    if (!NT_SUCCESS(Status)) {
-        XskDetachTxIf(Xsk);
+    if (XdpTxQueueIsLayoutExtensionEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.LayoutExtension);
     }
 
-    TraceExitStatus(TRACE_XSK);
-
-    WorkItem->CompletionStatus = Status;
-    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
-}
-
-static
-VOID
-XskActivateTxIf(
-    _In_ XDP_BINDING_WORKITEM *Item
-    )
-{
-    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
-    XSK *Xsk = WorkItem->Xsk;
-    NTSTATUS Status;
-
-    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
-
-    ASSERT(Xsk->Tx.Ring.Size > 0);
-
-    if (Xsk->Tx.Xdp.Queue == NULL) {
-        ASSERT(Xsk->State > XskActive);
-        Status = STATUS_DELETE_PENDING;
-        goto Exit;
-    }
-
-    if (Xsk->Tx.Xdp.Flags.LogicalAddressExt) {
-        Status = XskSetupDma(Xsk);
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
+    if (XdpTxQueueIsChecksumOffloadEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.ChecksumExtension);
     }
 
     Status = XskAllocateTxBounceBuffer(Xsk);
@@ -2433,21 +2562,15 @@ XskDereferenceUmem(
 }
 
 static
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-XskIrpClose(
-    _Inout_ IRP* Irp,
-    _Inout_ IO_STACK_LOCATION* IrpSp
+VOID
+XskClose(
+    _In_ XSK *Xsk
     )
 {
-    XSK *Xsk = IrpSp->FileObject->FsContext;
     KIRQL OldIrql;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
     EventWriteXskCloseSocketStart(&MICROSOFT_XDP_PROVIDER, Xsk);
-
-    UNREFERENCED_PARAMETER(Irp);
 
     ASSERT(Xsk->State == XskClosing);
 
@@ -2499,12 +2622,29 @@ XskIrpClose(
     XskFreeRing(&Xsk->Rx.FillRing);
     XskFreeRing(&Xsk->Tx.Ring);
     XskFreeRing(&Xsk->Tx.CompletionRing);
+    XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
 
     XskDereference(Xsk);
 
     EventWriteXskCloseSocketStop(&MICROSOFT_XDP_PROVIDER, Xsk);
     TraceInfo(TRACE_XSK, "Xsk=%p Status=%!STATUS!", Xsk, STATUS_SUCCESS);
     TraceExitSuccess(TRACE_XSK);
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
+XskIrpClose(
+    _Inout_ IRP* Irp,
+    _Inout_ IO_STACK_LOCATION* IrpSp
+    )
+{
+    XSK *Xsk = IrpSp->FileObject->FsContext;
+
+    UNREFERENCED_PARAMETER(Irp);
+
+    XskClose(Xsk);
 
     return STATUS_SUCCESS;
 }
@@ -2689,6 +2829,7 @@ XskIrpActivateSocket(
     XSK_ACTIVATE_IN Activate = {0};
     XSK_BINDING_WORKITEM RxWorkItem = {0}, TxWorkItem = {0};
     KIRQL OldIrql;
+    BOOLEAN IsPushLockHeld = FALSE;
     BOOLEAN ActivateIfInitiated = FALSE;
     BOOLEAN ActivateIfCommitted = FALSE;
 
@@ -2706,6 +2847,8 @@ XskIrpActivateSocket(
         goto Exit;
     }
 
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
     if (Xsk->Umem == NULL) {
@@ -2834,6 +2977,10 @@ Exit:
     }
 
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
+    }
 
     TraceInfo(TRACE_XSK, "Xsk=%p Flags=%x Status=%!STATUS!", Xsk, Activate.Flags, Status);
 
@@ -3114,10 +3261,12 @@ XskSockoptSetRingSize(
     VOID *UserVa = NULL;
     XSK_KERNEL_RING *Ring = NULL;
     UINT32 NumDescriptors;
-    ULONG DescriptorSize;
+    UINT32 DescriptorSize;
     ULONG AllocationSize;
+    XDP_EXTENSION_SET *ExtensionSet = NULL;
     KIRQL OldIrql = {0};
     BOOLEAN IsLockHeld = FALSE;
+    BOOLEAN IsPushLockHeld = FALSE;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
@@ -3147,10 +3296,28 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
+
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_RX_RING_SIZE:
-    case XSK_SOCKOPT_TX_RING_SIZE:
         DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
+        break;
+    case XSK_SOCKOPT_TX_RING_SIZE:
+        UINT8 DescriptorAlignment;
+        if (XdpExtensionSetIsLayoutAssigned(Xsk->Tx.FrameExtensionSet)) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        ExtensionSet = Xsk->Tx.FrameExtensionSet;
+        Status =
+            XdpExtensionSetAssignLayout(
+                ExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR), __alignof(XSK_FRAME_DESCRIPTOR),
+                &DescriptorSize, &DescriptorAlignment);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        DescriptorSize = max(DescriptorSize, DescriptorAlignment);
         break;
     case XSK_SOCKOPT_RX_FILL_RING_SIZE:
     case XSK_SOCKOPT_TX_COMPLETION_RING_SIZE:
@@ -3261,6 +3428,31 @@ XskSockoptSetRingSize(
         goto Exit;
     }
 
+    switch (Sockopt->Option) {
+    case XSK_SOCKOPT_TX_RING_SIZE:
+    {
+        XDP_EXTENSION_INFO ExtensionInfo;
+        XDP_EXTENSION Extension;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        if (XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
+            XdpExtensionSetGetExtension(
+                ExtensionSet, &ExtensionInfo, &Extension);
+            Xsk->Tx.LayoutExtensionOffset = Extension.Reserved;
+        }
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        if (XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
+            XdpExtensionSetGetExtension(
+                ExtensionSet, &ExtensionInfo, &Extension);
+            Xsk->Tx.ChecksumExtensionOffset = Extension.Reserved;
+        }
+        break;
+    }
+    }
+
     TraceInfo(
         TRACE_XSK, "Xsk=%p Set ring Type=%u Size=%u",
         Xsk, Sockopt->Option, NumDescriptors);
@@ -3285,6 +3477,12 @@ Exit:
 
     if (IsLockHeld) {
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (ExtensionSet != NULL && !NT_SUCCESS(Status)) {
+        XdpExtensionSetResetLayout(ExtensionSet);
+    }
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
     }
     if (Mdl != NULL) {
         if (UserVa != NULL) {
@@ -3512,6 +3710,116 @@ Exit:
 }
 
 static
+VOID
+XskSetTxOffloadChecksumWorker(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
+    XSK *Xsk = WorkItem->Xsk;
+
+    WorkItem->CompletionStatus = XdpTxQueueEnableChecksumOffload(Xsk->Tx.Xdp.Queue);
+    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
+}
+
+static
+NTSTATUS
+XskSockoptSetTxOffloadChecksum(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    )
+{
+    NTSTATUS Status;
+    const VOID *SockoptIn;
+    UINT32 SockoptInSize;
+    UINT32 Enabled;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+    BOOLEAN IsPushLockHeld = FALSE;
+    XSK_BINDING_WORKITEM WorkItem = {0};
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    //
+    // This is a nested buffer not copied by IO manager, so it needs special care.
+    //
+    SockoptIn = Sockopt->InputBuffer;
+    SockoptInSize = Sockopt->InputBufferLength;
+
+    if (SockoptInSize < sizeof(Enabled)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    __try {
+        if (RequestorMode != KernelMode) {
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
+        }
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    if (Xsk->State != XskBound) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (Xsk->Tx.OffloadFlags.Checksum || Xsk->Tx.Xdp.Queue == NULL ||
+        Xsk->Tx.Ring.Size != 0 || Xsk->Tx.CompletionRing.Size != 0) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (!Enabled) {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
+    WorkItem.Xsk = Xsk;
+    WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
+    WorkItem.IfWorkItem.WorkRoutine = XskSetTxOffloadChecksumWorker;
+    XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    IsLockHeld = FALSE;
+
+    KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(WorkItem.CompletionStatus)) {
+        Status = WorkItem.CompletionStatus;
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    XdpExtensionSetEnableEntry(Xsk->Tx.FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+    XdpExtensionSetEnableEntry(Xsk->Tx.FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+
+    Xsk->Tx.OffloadFlags.Checksum = TRUE;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
 NTSTATUS
 XskSockoptGetError(
     _In_ XSK *Xsk,
@@ -3556,6 +3864,71 @@ XskSockoptGetError(
     Irp->IoStatus.Information = sizeof(*XskError);
 
 Exit:
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
+NTSTATUS
+XskSockoptGetExtension(
+    _In_ XSK *Xsk,
+    _In_ UINT32 Option,
+    _In_ IRP *Irp,
+    _In_ IO_STACK_LOCATION *IrpSp
+    )
+{
+    NTSTATUS Status;
+    UINT16 *ExtensionOut = Irp->AssociatedIrp.SystemBuffer;
+    XDP_EXTENSION_INFO ExtensionInfo;
+    XDP_EXTENSION Extension;
+    XDP_EXTENSION_SET *ExtensionSet;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*ExtensionOut)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+
+    switch (Option) {
+    case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
+        ExtensionSet = Xsk->Tx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
+    case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
+        ExtensionSet = Xsk->Tx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
+    default:
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    if (!XdpExtensionSetIsLayoutAssigned(ExtensionSet) ||
+        !XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
+        Status = STATUS_NOT_FOUND;
+        goto Exit;
+    }
+
+    XdpExtensionSetGetExtension(ExtensionSet, &ExtensionInfo, &Extension);
+
+    *ExtensionOut = Extension.Reserved;
+    Irp->IoStatus.Information = sizeof(*ExtensionOut);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    RtlReleasePushLockExclusive(&Xsk->PushLock);
 
     TraceExitStatus(TRACE_XSK);
 
@@ -3829,6 +4202,10 @@ XskIrpGetSockopt(
     case XSK_SOCKOPT_TX_COMPLETION_ERROR:
         Status = XskSockoptGetError(Xsk, Option, Irp, IrpSp);
         break;
+    case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
+    case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
+        Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
+        break;
     default:
         Status = STATUS_NOT_SUPPORTED;
         break;
@@ -3992,6 +4369,9 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_RX_PROCESSOR_AFFINITY:
     case XSK_SOCKOPT_TX_PROCESSOR_AFFINITY:
         Status = XskSockoptSetIdealProcessor(Xsk, Sockopt, Irp->RequestorMode);
+        break;
+    case XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM:
+        Status = XskSockoptSetTxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
