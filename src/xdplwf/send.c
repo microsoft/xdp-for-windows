@@ -224,8 +224,6 @@ XdpGenericBuildTxNbl(
                 break;
 
             case XdpFrameLayer3TypeIPv6NoExtensions:
-            case XdpFrameLayer3TypeIPv6UnspecifiedExtensions:
-            case XdpFrameLayer3TypeIPv6WithExtensions:
                 const IPV6_HEADER *Ipv6 = RTL_PTR_ADD(Mdl->MappedSystemVa, sizeof(ETHERNET_HEADER));
 
                 if (Buffer->DataLength < sizeof(ETHERNET_HEADER) + sizeof(*Ipv6) ||
