@@ -756,7 +756,6 @@ XskFillTx(
             continue;
         }
 
-
         if (Buffer->DataLength > min(Xsk->Tx.Xdp.MaxBufferLength, Xsk->Tx.Xdp.MaxFrameLength)) {
             Xsk->Statistics.TxInvalidDescriptors++;
             STAT_INC(XdpTxQueueGetStats(Xsk->Tx.Xdp.Queue), XskInvalidDescriptors);

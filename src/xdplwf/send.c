@@ -268,6 +268,10 @@ XdpGenericBuildTxNbl(
                 if (*NextHeader != IPPROTO_TCP ||
                     Buffer->DataLength < Layer4HeaderOffset + sizeof(*Tcp) ||
                     Tcp->th_len < (sizeof(*Tcp) >> 2) ||
+                    /* N.B. The TCP header length is only validated to fit within the frame's
+                            buffer, in order to prevent memory access violations by NDIS drivers
+                            further in the send path. It is not compared to the IP packet's length,
+                            which may result in the frame eventually being dropped by a receiver. */
                     Buffer->DataLength < Layer4HeaderOffset + (Tcp->th_len << 2)) {
                     goto InvalidOffload;
                 }
@@ -281,7 +285,11 @@ XdpGenericBuildTxNbl(
                 if (*NextHeader != IPPROTO_UDP ||
                     Buffer->DataLength < Layer4HeaderOffset + sizeof(*Udp) ||
                     Udp->uh_ulen < sizeof(*Udp) ||
-                    Buffer->DataLength < ntohs(Udp->uh_ulen) /* Allow UDP length to exceed IP length */) {
+                    /* N.B. The UDP datagram length is only validated to fit within the frame's
+                            buffer, in order to prevent memory access violations by NDIS drivers
+                            further in the send path. It is not compared to the IP packet's length,
+                            which may result in the frame eventually being dropped by a receiver. */
+                    Buffer->DataLength < ntohs(Udp->uh_ulen)) {
                     goto InvalidOffload;
                 }
                 ChecksumInfo->Transmit.UdpChecksum = TRUE;
