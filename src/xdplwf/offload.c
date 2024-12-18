@@ -198,6 +198,10 @@ XdpLwfGetInterfaceOffload(
         ASSERT(OffloadParams != NULL);
         Status = XdpLwfOffloadRssGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
+    case XdpOffloadChecksum:
+        ASSERT(OffloadParams != NULL);
+        Status = XdpLwfOffloadChecksumGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
+        break;
     default:
         TraceError(TRACE_LWF, "OffloadContext=%p Unsupported offload", OffloadContext);
         Status = STATUS_NOT_SUPPORTED;
@@ -428,6 +432,15 @@ XdpLwfOffloadTransformNbls(
     if (OldIrql != DISPATCH_LEVEL) {
         KeLowerIrql(OldIrql);
     }
+}
+
+VOID
+XdpLwfOffloadInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    XdpLwfOffloadRssInitialize(Filter);
+    XdpLwfOffloadTaskInitialize(Filter);
 }
 
 typedef struct _XDP_LWF_OFFLOAD_DEACTIVATE {

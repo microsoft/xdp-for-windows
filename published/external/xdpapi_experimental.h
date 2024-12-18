@@ -174,6 +174,19 @@ XdpInitializeRssConfiguration(
     RssConfiguration->Header.Size = XDP_SIZEOF_RSS_CONFIGURATION_REVISION_1;
 }
 
+typedef struct _XDP_CHECKSUM_CONFIGURATION {
+    XDP_OBJECT_HEADER Header;
+
+    //
+    // Indicates whether checksum offload is enabled.
+    //
+    BOOLEAN Enabled;
+} XDP_CHECKSUM_CONFIGURATION;
+
+#define XDP_CHECKSUM_CONFIGURATION_REVISION_1 1
+#define XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(XDP_CHECKSUM_CONFIGURATION, Enabled)
+
 typedef enum _XDP_QUIC_OPERATION {
     XDP_QUIC_OPERATION_ADD,     // Add (or modify) a QUIC connection offload
     XDP_QUIC_OPERATION_REMOVE,  // Remove a QUIC connection offload

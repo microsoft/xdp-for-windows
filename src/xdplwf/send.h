@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ec.h"
+#include "offload.h"
 
 typedef struct _XDP_LWF_GENERIC XDP_LWF_GENERIC;
 
@@ -84,6 +85,14 @@ VOID
 XdpGenericTxRestart(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ UINT32 NewMtu
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericTxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     );
 
 XDP_CREATE_TX_QUEUE XdpGenericTxCreateQueue;

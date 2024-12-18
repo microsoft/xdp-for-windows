@@ -47,6 +47,7 @@ typedef struct _XDP_TX_QUEUE_NOTIFY_ENTRY XDP_TX_QUEUE_NOTIFICATION_ENTRY;
 
 typedef enum _XDP_TX_QUEUE_NOTIFICATION_TYPE {
     XDP_TX_QUEUE_NOTIFICATION_DETACH,
+    XDP_TX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG,
 } XDP_TX_QUEUE_NOTIFICATION_TYPE;
 
 typedef
@@ -119,6 +120,11 @@ XdpTxQueueGetDmaCapabilities(
 
 NDIS_HANDLE
 XdpTxQueueGetInterfacePollHandle(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
+XDP_IF_OFFLOAD_HANDLE
+XdpTxQueueGetInterfaceOffloadHandle(
     _In_ XDP_TX_QUEUE *TxQueue
     );
 

@@ -208,6 +208,9 @@ GenericTxChecksumOffloadUdp(
     );
 
 VOID
+GenericTxChecksumOffloadConfig();
+
+VOID
 GenericXskWait(
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx

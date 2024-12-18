@@ -5,6 +5,8 @@
 
 #pragma once
 
+typedef struct _XDP_LWF_FILTER XDP_LWF_FILTER;
+
 typedef enum _XDP_OID_ACTION {
     XdpOidActionPass,
     XdpOidActionComplete,
