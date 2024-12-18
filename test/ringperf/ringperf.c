@@ -3,6 +3,11 @@
 // Licensed under the MIT License.
 //
 
+//
+// This ringperf microbenchmark measures the performance of AF_XDP/XSK shared
+// single producer / single consumer rings.
+//
+
 #include <afxdp_helper.h>
 #include <intsafe.h>
 #include <malloc.h>
