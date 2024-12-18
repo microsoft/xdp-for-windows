@@ -225,7 +225,7 @@ XdpLwfFilterAttach(
     //
     Status = NDIS_STATUS_SUCCESS;
 
-    XdpLwfOffloadRssInitialize(Filter);
+    XdpLwfOffloadInitialize(Filter);
 
     LocalStatus =
         XdpNativeAttachInterface(

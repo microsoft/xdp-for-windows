@@ -110,6 +110,70 @@ XdpLwfFreeTaskOffloadSetting(
     ExFreePoolWithTag(OldOffload, POOLTAG_OFFLOAD);
 }
 
+typedef struct _XDP_LWF_OFFLOAD_TASK_INITIALIZE {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _Inout_ KEVENT Event;
+} XDP_LWF_OFFLOAD_TASK_INITIALIZE;
+
+static
+_Offload_work_routine_
+VOID
+XdpLwfOffloadTaskInitializeWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_OFFLOAD_TASK_INITIALIZE *Request =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_TASK_INITIALIZE, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+    NTSTATUS Status;
+    NDIS_OFFLOAD TaskConfig = {0};
+    ULONG BytesReturned = 0;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    Status =
+        XdpLwfOidInternalRequest(
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR,
+            NdisRequestQueryInformation, OID_TCP_OFFLOAD_CURRENT_CONFIG, &TaskConfig,
+            sizeof(TaskConfig), 0, 0, &BytesReturned);
+    if (!NT_SUCCESS(Status) && Status != STATUS_NOT_SUPPORTED) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Failed OID_TCP_OFFLOAD_CURRENT_CONFIG Status=%!STATUS!",
+            Filter, Status);
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    XdpOffloadUpdateTaskOffloadConfig(Filter, &TaskConfig, BytesReturned);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
+
+    TraceExitStatus(TRACE_LWF);
+}
+
+VOID
+XdpLwfOffloadTaskInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    XDP_LWF_OFFLOAD_TASK_INITIALIZE Request = {0};
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
+    XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadTaskInitializeWorker);
+    KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
 _Offload_work_routine_
 VOID
 XdpLwfOffloadTaskOffloadDeactivate(
@@ -147,7 +211,10 @@ XdpOffloadUpdateTaskOffloadConfig(
     }
 
     if (TaskOffloadSize < sizeof(TaskOffload->Header) ||
-        TaskOffload->Header.Size > TaskOffloadSize) {
+        TaskOffload->Header.Size > TaskOffloadSize ||
+        TaskOffload->Header.Type != NDIS_OBJECT_TYPE_OFFLOAD ||
+        TaskOffload->Header.Revision < NDIS_OFFLOAD_REVISION_1 ||
+        TaskOffload->Header.Size < NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }

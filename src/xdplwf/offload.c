@@ -434,6 +434,15 @@ XdpLwfOffloadTransformNbls(
     }
 }
 
+VOID
+XdpLwfOffloadInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    XdpLwfOffloadRssInitialize(Filter);
+    XdpLwfOffloadTaskInitialize(Filter);
+}
+
 typedef struct _XDP_LWF_OFFLOAD_DEACTIVATE {
     _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
     _Inout_ KEVENT Event;

@@ -14,6 +14,11 @@ XdpOffloadChecksumNb(
     _In_ UINT32 DataOffset
     );
 
+VOID
+XdpLwfOffloadTaskInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    );
+
 _Offload_work_routine_
 VOID
 XdpLwfOffloadTaskOffloadDeactivate(
