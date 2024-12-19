@@ -61,7 +61,7 @@ try {
     Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
     Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
 
-    & "$RootDir\tools\log.ps1" -Start -Name rxfiltercpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
+    & "$RootDir\tools\log.ps1" -Start -Name rxfiltercpu -Profile CpuSample.Verbose -Config $Config -Platform $Platform
 
     $ArgList = `
         "-IfIndex", (Get-NetAdapter -Name XDPMP).ifIndex, `
