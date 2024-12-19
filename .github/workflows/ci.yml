@@ -427,7 +427,7 @@ jobs:
         path: artifacts/bin
     - name: Run rxfilter (drop)
       shell: PowerShell
-      run: tools/rxfilter.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop
+      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop
     - name: Upload Logs
       uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       if: ${{ always() }}
