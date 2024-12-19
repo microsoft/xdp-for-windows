@@ -44,7 +44,6 @@ if ($Fndis) {
 }
 
 try {
-
     if ($Fndis) {
         Write-Verbose "installing fndis..."
         & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Platform $Platform
