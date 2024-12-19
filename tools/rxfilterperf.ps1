@@ -61,7 +61,7 @@ try {
     Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
     Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
 
-    & "$RootDir\tools\log.ps1" -Start -Name rxfiltercpu -Profile CpuSample.Verbose -Config $Config -Platform $Platform
+    & "$RootDir\tools\log.ps1" -Start -Name rxfiltercpu_$XdpMode -Profile CpuSample.Verbose -Config $Config -Platform $Platform
 
     $ArgList = `
         "-IfIndex", (Get-NetAdapter -Name XDPMP).ifIndex, `
@@ -90,7 +90,7 @@ try {
         Stop-Process -InputObject $RxFilterProcess
     }
 
-    & "$RootDir\tools\log.ps1" -Stop -Name rxfiltercpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    & "$RootDir\tools\log.ps1" -Stop -Name rxfiltercpu_$XdpMode -Config $Config -Platform $Platform -ErrorAction 'Continue'
 
     & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
