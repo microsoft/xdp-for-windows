@@ -401,6 +401,41 @@ jobs:
         path: artifacts/logs
         if-no-files-found: ignore
 
+  rxfilter_perf_tests:
+    name: RX Filter Perf Tests
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [Prerelease]
+        configuration: [Release]
+        platform: [x64, arm64]
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        sparse-checkout: |
+          tools
+    - name: Download Artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run rxfilter (drop)
+      shell: PowerShell
+      run: tools/rxfilter.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop
+    - name: Upload Logs
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+      if: ${{ always() }}
+      with:
+        name: logs_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+        if-no-files-found: ignore
+
   downlevel_functional_tests:
     name: Downlevel Functional Tests
     needs: build
@@ -559,7 +594,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, ring_perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
