@@ -45,9 +45,9 @@ typedef struct _XDP_PCW_LWF_TX_QUEUE {
     UINT64 FramesInvalidChecksumOffload;
 } XDP_PCW_LWF_TX_QUEUE;
 
-#define STAT_INC(_Stats, _Field) (((_Stats)->_Field)++)
-#define STAT_ADD(_Stats, _Field, _Bias) (((_Stats)->_Field) += (_Bias))
-#define STAT_SET(_Stats, _Field, _Value) (((_Stats)->_Field) = (_Value))
+#define STAT_SET(_Stats, _Field, _Value) WriteUInt64NoFence(&((_Stats)->_Field), (_Value))
+#define STAT_ADD(_Stats, _Field, _Bias) STAT_SET(_Stats, _Field, ReadUInt64NoFence(&((_Stats)->_Field)) + (_Bias))
+#define STAT_INC(_Stats, _Field) STAT_ADD(_Stats, _Field, 1)
 
 #ifdef KERNEL_MODE
 //
