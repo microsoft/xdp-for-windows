@@ -50,6 +50,10 @@
 #define ReadUInt64NoFence ReadULong64NoFence
 #endif
 
+#ifndef WriteUInt64NoFence
+#define WriteUInt64NoFence WriteULong64NoFence
+#endif
+
 #ifndef htons
 #define htons _byteswap_ushort
 #endif
