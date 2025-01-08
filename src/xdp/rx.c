@@ -176,6 +176,7 @@ XdpFlushReceive(
 }
 
 static
+FORCEINLINE
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdppReceiveBatch(
