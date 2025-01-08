@@ -41,6 +41,9 @@ param (
     [switch]$DeepInspection = $false,
 
     [Parameter(Mandatory=$false)]
+    [switch]$ZerocopySimulation = $false,
+
+    [Parameter(Mandatory=$false)]
     [switch]$LargePages = $false,
 
     [Parameter(Mandatory=$false)]
@@ -182,6 +185,9 @@ try {
                         if ($Fndis) {
                             $Options += "-FNDIS"
                         }
+                        if ($ZerocopySimulation) {
+                            $Options += "-ZEROCOPY"
+                        }
 
                         $ScenarioName = `
                             $AdapterName `
@@ -208,6 +214,7 @@ try {
                                     -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
                                     -RxInject:$RxInject -TxInspect:$TxInspect `
                                     -TxInspectContentionCount $TxInspectContentionCount `
+                                    -ZerocopySimulation:$ZerocopySimulation `
                                     -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
                                     -Platform $Platform -XperfFile $XperfFile
 

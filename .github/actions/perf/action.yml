@@ -62,6 +62,9 @@ runs:
   - name: Run xskperfsuite (TX-inspect, RX-inject)
     shell: PowerShell
     run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.csv" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
+  - name: Run xskperfsuite (ZerocopySimulation)
+    shell: PowerShell
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -ZerocopySimulation -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.csv" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
   - name: Run xskperfsuite (Winsock, RIO)
     shell: PowerShell
     run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.csv" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
