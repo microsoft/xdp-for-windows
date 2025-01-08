@@ -64,6 +64,9 @@ param (
     [switch]$RateSimulation = $false,
 
     [Parameter(Mandatory=$false)]
+    [switch]$ZerocopySimulation = $false,
+
+    [Parameter(Mandatory=$false)]
     [switch]$LargePages = $false,
 
     [Parameter(Mandatory=$false)]
@@ -162,6 +165,12 @@ if ($AdapterRss.BaseProcessorGroup -ne 0 -or
         -Profile ClosestStatic
     $NicReset = $true
 }
+
+Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskDisableTxBounce /d $([int]$ZerocopySimulation) /t REG_DWORD /f"
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskDisableTxBounce /d [int]$ZerocopySimulation /t REG_DWORD /f | Write-Verbose
+
+Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskRxZeroCopy /d $([int]$ZerocopySimulation) /t REG_DWORD /f"
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskRxZeroCopy /d [int]$ZerocopySimulation /t REG_DWORD /f | Write-Verbose
 
 Write-Verbose "Restarting XDP"
 Restart-Service xdp
