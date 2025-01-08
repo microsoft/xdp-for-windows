@@ -167,10 +167,10 @@ if ($AdapterRss.BaseProcessorGroup -ne 0 -or
 }
 
 Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskDisableTxBounce /d $([int]!!$ZerocopySimulation) /t REG_DWORD /f"
-reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskDisableTxBounce /d [int]!!$ZerocopySimulation /t REG_DWORD /f | Write-Verbose
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskDisableTxBounce /d $([int]!!$ZerocopySimulation) /t REG_DWORD /f | Write-Verbose
 
 Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskRxZeroCopy /d $([int]!!$ZerocopySimulation) /t REG_DWORD /f"
-reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskRxZeroCopy /d [int]!!$ZerocopySimulation /t REG_DWORD /f | Write-Verbose
+reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskRxZeroCopy /d $([int]!!$ZerocopySimulation) /t REG_DWORD /f | Write-Verbose
 
 Write-Verbose "Restarting XDP"
 Restart-Service xdp
