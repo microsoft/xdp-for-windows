@@ -365,7 +365,7 @@ jobs:
         id: "baseref"
     - name: Compare Results
       shell: PowerShell
-      run: tools\xskperfcompare.ps1 -DataFile1 baseref/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv
+      run: tools\perfcompare.ps1 -DataFile1 baseref/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv -Metric pps
 
   ring_perf_tests:
     name: Ring Perf Tests
