@@ -16,11 +16,34 @@ param (
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
+function ImportCsvDataset {
+    param($File)
+
+    $dataset = [ordered]@{}
+
+    $contents = Get-Content $File
+
+    foreach ($line in $contents) {
+        $array = $line.Split(",")
+        $scenarioName = $array[0]
+        $scenarioData = $array[3..$array.Count]
+        $dataset.Add($scenarioName, $scenarioData)
+    }
+
+    return $dataset
+}
+
 function ImportDataset {
     param($File)
 
     $dataset = [ordered]@{}
-    $contents = Get-Content -Raw $File | ConvertFrom-Json
+
+    try {
+        $contents = Get-Content -Raw $File | ConvertFrom-Json
+    } catch {
+        Write-Warning "Failed to parse $File as JSON. Attempting to parse as legacy CSV."
+        return ImportCsvDataset $File
+    }
 
     foreach ($data in $contents) {
         $scenarioName = $data.ScenarioName
