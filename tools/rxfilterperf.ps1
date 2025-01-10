@@ -98,7 +98,7 @@ try {
 
         [void]$Results.Add($(
             New-PerfData -ScenarioName "RXFILTER-$XdpMode-$Action-$($QueueCount)Q" `
-                -Platform $Platform ` -CommitHash $CommitHash -Metrics @(
+                -Platform $Platform -CommitHash $CommitHash -Metrics @(
                     @{
                         Name = "pps"
                         Value = $Kpps
