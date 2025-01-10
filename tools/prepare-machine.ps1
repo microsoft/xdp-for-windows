@@ -98,7 +98,7 @@ if ($RequireNoReboot) {
 
 # Log the OS version.
 Write-Verbose "Querying OS BuildLabEx"
-(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').BuildLabEx | Write-Verbose
+Get-OsBuildVersionString | Write-Verbose
 
 function Download-CoreNet-Deps {
     $CoreNetCiCommit = Get-CoreNetCiCommit

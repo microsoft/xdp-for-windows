@@ -140,6 +140,7 @@ if ($DeepInspection) {
 }
 
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
 
 try {
     if ($AdapterNames.Contains("XDPMP")) {
@@ -204,6 +205,12 @@ try {
                         }
 
                         try {
+                            $Results = [System.Collections.ArrayList]::new()
+
+                            if (-not [string]::IsNullOrEmpty($RawResultsFile) -and (Test-Path $RawResultsFile)) {
+                                $Results.AddRange($(Get-Content -Raw $RawResultsFile | ConvertFrom-Json))
+                            }
+
                             for ($i = 0; $i -lt $Iterations; $i++) {
                                 $TmpFile = [System.IO.Path]::GetTempFileName()
                                 & $RootDir\tools\xskperf.ps1 `
@@ -218,7 +225,20 @@ try {
                                     -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
                                     -Platform $Platform -XperfFile $XperfFile
 
-                                $kppsList += ExtractKppsStat $TmpFile
+                                $kpps = ExtractKppsStat $TmpFile
+                                $kppsList += $kpps
+
+                                [void]$Results.Add($(
+                                    New-PerfData -ScenarioName $ScenarioName -Platform $Platform `
+                                        -CommitHash $CommitHash -Metrics @(
+                                            @{
+                                                Name = "pps"
+                                                Value = $kpps
+                                                Scale = 1000
+                                            }
+                                        )
+                                    )
+                                )
                             }
 
                             $avg = ($kppsList | Measure-Object -Average).Average
@@ -226,12 +246,7 @@ try {
                             Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
 
                             if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
-                                Add-Content -Path $RawResultsFile -Value `
-                                    ("{0},{1},{2},{3}" -f `
-                                        $ScenarioName, `
-                                        $CommitHash, `
-                                        ([DateTimeOffset](Get-Date)).ToUnixTimeSeconds(), `
-                                        ($kppsList -join ","))
+                                Set-Content -Path $RawResultsFile -Value $($Results | ConvertTo-Json -Depth 100)
                             }
                         } catch {
                             Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"

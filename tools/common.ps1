@@ -211,6 +211,10 @@ function Get-XdpBuildVersionString {
     return $VersionString;
 }
 
+function Get-OsBuildVersionString {
+    return (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').BuildLabEx
+}
+
 # Returns whether the script is running as a built-in administrator.
 function Test-Admin {
     return ([Security.Principal.WindowsPrincipal] `
@@ -290,4 +294,30 @@ function Initiate-Bugcheck {
 
     Write-Host "$NotMyFault -accepteula -bugcheck $Code"
     & $NotMyFault -accepteula -bugcheck $Code
+}
+
+function New-PerfData {
+    param (
+        [Parameter()]
+        [string]$ScenarioName,
+
+        [Parameter()]
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$CommitHash,
+
+        [Parameter()]
+        [hashtable[]]$Metrics
+    )
+
+    return @{
+        ScenarioName = $ScenarioName
+        Platform = $Platform
+        CommitHash = $CommitHash
+        Timestamp = (Get-Date).toString("o")
+        OsBuild = Get-OsBuildVersionString
+        MachineName = $env:ComputerName
+        Metrics = $Metrics
+    }
 }

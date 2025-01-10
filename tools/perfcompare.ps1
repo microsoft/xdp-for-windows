@@ -7,10 +7,16 @@ param (
     [string]$DataFile1,
 
     [Parameter(Mandatory=$true)]
-    [string]$DataFile2
+    [string]$DataFile2,
+
+    [Parameter(Mandatory=$false)]
+    [string]$Metric = "pps"
 )
 
-function ImportDataset {
+Set-StrictMode -Version 'Latest'
+$ErrorActionPreference = 'Stop'
+
+function ImportCsvDataset {
     param($File)
 
     $dataset = [ordered]@{}
@@ -22,6 +28,31 @@ function ImportDataset {
         $scenarioName = $array[0]
         $scenarioData = $array[3..$array.Count]
         $dataset.Add($scenarioName, $scenarioData)
+    }
+
+    return $dataset
+}
+
+function ImportDataset {
+    param($File)
+
+    $dataset = [ordered]@{}
+
+    try {
+        $contents = Get-Content -Raw $File | ConvertFrom-Json
+    } catch {
+        Write-Warning "Failed to parse $File as JSON. Attempting to parse as legacy CSV."
+        return ImportCsvDataset $File
+    }
+
+    foreach ($data in $contents) {
+        $scenarioName = $data.ScenarioName
+        $scenarioData = ($data.Metrics | Where-Object { $_.Name -eq $Metric }).Value
+        if ($dataset.Contains($scenarioName)) {
+            [array]$dataset[$scenarioName] += $scenarioData
+        } else {
+            $dataset.Add($scenarioName, $scenarioData)
+        }
     }
 
     return $dataset
