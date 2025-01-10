@@ -434,10 +434,10 @@ jobs:
       run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
     - name: Run rxfilter (drop, generic)
       shell: PowerShell
-      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Generic
+      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Generic -RawResultsFile artifacts/logs/rxfilterperf.json -CommitHash ${{ github.sha }}
     - name: Run rxfilter (drop, native)
       shell: PowerShell
-      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Native
+      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Native -RawResultsFile artifacts/logs/rxfilterperf.json -CommitHash ${{ github.sha }}
     - name: Upload Logs
       uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
       if: ${{ always() }}

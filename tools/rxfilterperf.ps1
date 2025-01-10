@@ -21,7 +21,13 @@ param (
     [switch]$Fndis = $false,
 
     [Parameter(Mandatory = $false)]
-    [string]$Action = "Drop"
+    [string]$Action = "Drop",
+
+    [Parameter(Mandatory=$false)]
+    [string]$RawResultsFile = "",
+
+    [Parameter(Mandatory=$false)]
+    [string]$CommitHash = ""
 )
 
 Set-StrictMode -Version 'Latest'
@@ -84,7 +90,26 @@ try {
 
     & $RootDir\tools\xdpmpratesim.ps1 -AdapterName XDPMP -RxFramesPerInterval 1000
 
-    Write-Output "Filtered $(($EndPackets - $StartPackets)) packets in $Timeout seconds ($(($EndPackets - $StartPackets) / 1000 / $Timeout) Kpps)."
+    $Kpps = ($EndPackets - $StartPackets) / 1000 / $Timeout
+    Write-Output "Filtered $(($EndPackets - $StartPackets)) packets in $Timeout seconds ($Kpps Kpps)."
+
+    if (![string]::IsNullOrEmpty($RawResultsFile)) {
+        $Results = New-PerfDataSet -Files $RawResultsFile
+
+        [void]$Results.Add($(
+            New-PerfData -ScenarioName "RXFILTER-$XdpMode-$Action-$($QueueCount)Q" `
+                -Platform $Platform ` -CommitHash $CommitHash -Metrics @(
+                    @{
+                        Name = "pps"
+                        Value = $Kpps
+                        Scale = 1000
+                    }
+                )
+            )
+        )
+
+        Write-PerfDataSet -DataSet $Results -File $RawResultsFile
+    }
 } finally {
     if ($RxFilterProcess) {
         Stop-Process -InputObject $RxFilterProcess
