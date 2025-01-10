@@ -470,7 +470,7 @@ jobs:
         merge-multiple: true
     - name: Summarize Perf Data
       shell: PowerShell
-      run: tools/summarize-perf.ps1 -Files artifacts/perf/*.json
+      run: tools/summarize-perf.ps1 -Files artifacts/perf/*.json >> $env:GITHUB_STEP_SUMMARY
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
