@@ -309,6 +309,8 @@ function New-PerfDataSet {
             $Results.AddRange($(Get-Content -Raw $File | ConvertFrom-Json))
         }
     }
+
+    return $Results
 }
 
 function Write-PerfDataSet {

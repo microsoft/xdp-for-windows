@@ -58,22 +58,27 @@ runs:
       path: ./${{ inputs.id }}/artifacts/bin
   - name: Run xskperfsuite (Generic, Native)
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
   - name: Run xskperfsuite (TX-inspect, RX-inject)
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Generic" -TxInspect -RxInject -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
   - name: Run xskperfsuite (ZerocopySimulation)
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -ZerocopySimulation -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -ZerocopySimulation -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
   - name: Run xskperfsuite (Winsock, RIO)
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "./${{ inputs.id }}/artifacts/logs/xskperfsuite.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ github.sha }}
   - name: Upload Logs
     uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
     if: ${{ always() }}
     with:
       name: logs_perf_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
       path: ./${{ inputs.id }}/artifacts/logs
+  - name: Upload Perf Data
+    uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
+    with:
+      name: perfdata_xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
+      path: ./${{ inputs.id }}/artifacts/perf
   - name: Check Drivers
     if: ${{ always() }}
     shell: PowerShell
