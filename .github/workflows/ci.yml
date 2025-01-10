@@ -328,7 +328,7 @@ jobs:
     needs: [build, build_base, resolve_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' ) && '8' || '3' }}
-    timeout-minutes: 90 # Ideally this would be only 30 min for PR runs, but GitHub Actions don't support that.
+    timeout-minutes: 120 # Ideally this would be only 30 min for PR runs, but GitHub Actions don't support that.
     strategy:
       fail-fast: false
       matrix:
