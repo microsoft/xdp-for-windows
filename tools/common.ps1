@@ -310,7 +310,7 @@ function New-PerfDataSet {
         }
     }
 
-    return $Results
+    return Write-Output -NoEnumerate $Results
 }
 
 function Write-PerfDataSet {
@@ -322,7 +322,8 @@ function Write-PerfDataSet {
         [string]$File
     )
 
-    Set-Content -Path $File -Value $($DataSet | ConvertTo-Json -Depth 100)
+    New-Item -ItemType Directory -Force -Path (Split-Path $File) | Out-Null
+    $DataSet | ConvertTo-Json -Depth 100 | Out-File -FilePath $File -Encoding utf8
 }
 
 function New-PerfData {

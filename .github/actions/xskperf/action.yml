@@ -1,5 +1,5 @@
-name: 'Perf Tests'
-description: 'Run Perf Tests'
+name: 'XSK Perf Tests'
+description: 'Run XSK Perf Tests'
 inputs:
   ref:
     required: false
@@ -72,12 +72,12 @@ runs:
     uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
     if: ${{ always() }}
     with:
-      name: logs_perf_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
+      name: logs_xskperf_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
       path: ./${{ inputs.id }}/artifacts/logs
   - name: Upload Perf Data
     uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
     with:
-      name: perfdata_xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
+      name: perfdata_xskperf_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}
       path: ./${{ inputs.id }}/artifacts/perf
   - name: Check Drivers
     if: ${{ always() }}

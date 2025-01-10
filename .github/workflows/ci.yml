@@ -323,8 +323,8 @@ jobs:
         path: artifacts/logs
         if-no-files-found: ignore
 
-  perf_tests:
-    name: Perf Tests
+  xskperf_tests:
+    name: XSK Perf Tests
     needs: [build, build_base, resolve_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' ) && '8' || '3' }}
@@ -351,12 +351,12 @@ jobs:
         sparse-checkout: |
           .github
           tools
-    - uses: ./.github/actions/perf
+    - uses: ./.github/actions/xskperf
       with:
         config: ${{ matrix.configuration }}
         os: ${{ matrix.windows }}
         platform: ${{ matrix.platform }}
-    - uses: ./.github/actions/perf
+    - uses: ./.github/actions/xskperf
       with:
         config: ${{ matrix.configuration }}
         os: ${{ matrix.windows }}
@@ -457,7 +457,7 @@ jobs:
 
   perf_test_summary:
     name: Perf Test Summary
-    needs: [perf_tests, rxfilter_perf_tests]
+    needs: [xskperf_tests, rxfilter_perf_tests]
     runs-on: windows-2022
     steps:
     - name: Checkout repository
@@ -630,7 +630,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
