@@ -296,6 +296,36 @@ function Initiate-Bugcheck {
     & $NotMyFault -accepteula -bugcheck $Code
 }
 
+function New-PerfDataSet {
+    param (
+        [Parameter()]
+        [string[]]$Files = @()
+    )
+
+    $Results = [System.Collections.ArrayList]::new()
+
+    foreach ($File in $Files) {
+        if (-not [string]::IsNullOrEmpty($File) -and (Test-Path $File)) {
+            $Results.AddRange($(Get-Content -Raw $File | ConvertFrom-Json))
+        }
+    }
+
+    return Write-Output -NoEnumerate $Results
+}
+
+function Write-PerfDataSet {
+    param (
+        [Parameter()]
+        [object]$DataSet,
+
+        [Parameter()]
+        [string]$File
+    )
+
+    New-Item -ItemType Directory -Force -Path (Split-Path $File) | Out-Null
+    $DataSet | ConvertTo-Json -Depth 100 | Out-File -FilePath $File -Encoding utf8
+}
+
 function New-PerfData {
     param (
         [Parameter()]
