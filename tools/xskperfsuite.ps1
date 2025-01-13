@@ -205,11 +205,7 @@ try {
                         }
 
                         try {
-                            $Results = [System.Collections.ArrayList]::new()
-
-                            if (-not [string]::IsNullOrEmpty($RawResultsFile) -and (Test-Path $RawResultsFile)) {
-                                $Results.AddRange($(Get-Content -Raw $RawResultsFile | ConvertFrom-Json))
-                            }
+                            $Results = New-PerfDataSet -Files $RawResultsFile
 
                             for ($i = 0; $i -lt $Iterations; $i++) {
                                 $TmpFile = [System.IO.Path]::GetTempFileName()
@@ -246,7 +242,7 @@ try {
                             Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
 
                             if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
-                                Set-Content -Path $RawResultsFile -Value $($Results | ConvertTo-Json -Depth 100)
+                                Write-PerfDataSet -DataSet $Results -File $RawResultsFile
                             }
                         } catch {
                             Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"
