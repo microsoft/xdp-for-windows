@@ -470,7 +470,9 @@ jobs:
         merge-multiple: true
     - name: Summarize Perf Data
       shell: PowerShell
-      run: tools/summarize-perf.ps1 -Files artifacts/perf/*.json >> $env:GITHUB_STEP_SUMMARY
+      run: |
+        Install-Module -Name FormatMarkdownTable -Force -AllowClobber -Scope CurrentUser -Repository PSGallery -Verbose
+        tools/summarize-perf.ps1 -Files artifacts/perf/*.json | Format-MarkdownTableTableStyle -DoNotCopyToClipboard -Property ScenarioName, Platform, CommitHash, MetricName, Average, Minimum, Maximum >> $env:GITHUB_STEP_SUMMARY
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
