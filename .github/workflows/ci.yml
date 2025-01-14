@@ -472,7 +472,7 @@ jobs:
       shell: PowerShell
       run: |
         Install-Module -Name FormatMarkdownTable -Force -AllowClobber -Scope CurrentUser -Repository PSGallery -Verbose
-        tools/summarize-perf.ps1 -Files artifacts/perf/*.json | Format-MarkdownTableTableStyle -DoNotCopyToClipboard -Property ScenarioName, Platform, CommitHash, MetricName, Average, Minimum, Maximum >> $env:GITHUB_STEP_SUMMARY
+        tools/summarize-perf.ps1 -Files artifacts/perf/*.json | Format-MarkdownTableTableStyle -Property ScenarioName, Platform, CommitHash, MetricName, Average, Minimum, Maximum -DoNotCopyToClipboard -ShowMarkdown -HideStandardOutput >> $env:GITHUB_STEP_SUMMARY
 
   downlevel_functional_tests:
     name: Downlevel Functional Tests
