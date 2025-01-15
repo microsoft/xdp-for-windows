@@ -65,6 +65,7 @@ runs:
   - name: Run xskperfsuite (ZerocopySimulation)
     shell: PowerShell
     run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -ZerocopySimulation -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ inputs.ref != '' && format('_{0}', inputs.ref) || github.sha }}
+  - name: Run xskperfsuite (Winsock, RIO)
     shell: PowerShell
     run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ inputs.ref != '' && format('_{0}', inputs.ref) || github.sha }}
   - name: Upload Logs
