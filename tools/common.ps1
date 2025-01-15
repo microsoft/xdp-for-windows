@@ -323,7 +323,7 @@ function Write-PerfDataSet {
     )
 
     New-Item -ItemType Directory -Force -Path (Split-Path $File) | Out-Null
-    $DataSet | ConvertTo-Json -Depth 100 | Out-File -FilePath $File -Encoding utf8
+    ConvertTo-Json -InputObject $DataSet -Depth 100 | Out-File -FilePath $File -Encoding utf8
 }
 
 function New-PerfData {
