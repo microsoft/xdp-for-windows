@@ -582,7 +582,7 @@ XskAllocateTxBounceBuffer(
         //
         ASSERT(Bounce->AllocationSource == NotAllocated);
         Bounce->Mapping.SystemAddress =
-            ExAllocatePoolUninitialized(NonPagedPoolNx, Xsk->Umem->Reg.TotalSize, POOLTAG_BOUNCE);
+            ExAllocatePoolZero(NonPagedPoolNx, Xsk->Umem->Reg.TotalSize, POOLTAG_BOUNCE);
         if (Bounce->Mapping.SystemAddress == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
