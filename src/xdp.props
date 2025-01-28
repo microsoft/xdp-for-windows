@@ -20,8 +20,8 @@
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(RestoreSolutionDirectory)' != ''">
-    <!-- Work around OneBranch bug during Nuget restore by setting bogus properties. -->
+  <PropertyGroup>
+    <!-- TODO: remove or understand this OneBranch workaround. -->
     <UseHalfStaticOSMode>true</UseHalfStaticOSMode>
   </PropertyGroup>
   <ItemGroup>
