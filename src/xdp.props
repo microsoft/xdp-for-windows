@@ -20,6 +20,10 @@
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(RestoreSolutionDirectory)' != ''">
+    <!-- Work around OneBranch bug during Nuget restore by setting bogus properties. -->
+    <UseHalfStaticOSMode>true</UseHalfStaticOSMode>
+  </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
     <PackageReference Include="eBPF-for-Windows" Version="0.18.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
