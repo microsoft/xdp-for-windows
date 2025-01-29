@@ -20,10 +20,6 @@
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
   </PropertyGroup>
-  <PropertyGroup>
-    <!-- TODO: remove or understand this OneBranch workaround. -->
-    <UseHalfStaticOSMode>true</UseHalfStaticOSMode>
-  </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
     <PackageReference Include="eBPF-for-Windows" Version="0.18.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
@@ -38,6 +34,10 @@
     <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
+  <PropertyGroup>
+    <!-- TODO: remove or understand this OneBranch workaround. -->
+    <UseHalfStaticOSMode>true</UseHalfStaticOSMode>
+  </PropertyGroup>
   <PropertyGroup>
     <WntPackagePath>$(Pkgwin-net-test)\</WntPackagePath>
   </PropertyGroup>
