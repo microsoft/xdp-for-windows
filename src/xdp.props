@@ -34,7 +34,7 @@
     <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
     <!-- TODO: remove or understand this OneBranch workaround. -->
-  <Import Project="$(SolutionDir)Directory.Build.props" Condition="Exists('$(SolutionDir)Directory.Build.props')" />
+  <Import Project="$(SolutionDir)..\Directory.Build.props" Condition="Exists('$(SolutionDir)Directory.Build.props')" />
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
   <PropertyGroup>
     <!-- TODO: remove or understand this OneBranch workaround. -->
