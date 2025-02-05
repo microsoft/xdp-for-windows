@@ -35,10 +35,6 @@
   </ItemGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
   <PropertyGroup>
-    <!-- TODO: remove or understand this OneBranch workaround. -->
-    <UseHalfStaticOSMode>true</UseHalfStaticOSMode>
-  </PropertyGroup>
-  <PropertyGroup>
     <WntPackagePath>$(Pkgwin-net-test)\</WntPackagePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Platform)' == 'x64'">

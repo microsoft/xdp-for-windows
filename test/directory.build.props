@@ -1,3 +1,4 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" Condition="'$([MSBuild]::GetPathOfFileAbove(%27Directory.Build.props%27, %27$(MSBuildThisFileDirectory)../%27))' != ''" />
   <Import Project="$(SolutionDir)test\xdp.test.props" />
 </Project>
