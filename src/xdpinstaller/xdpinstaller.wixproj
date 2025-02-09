@@ -4,6 +4,7 @@
     <ProjectGuid>{93635a7b-565e-4b41-af67-5b375756b227}</ProjectGuid>
     <ImportUndocked>false</ImportUndocked>
     <ImportWdk>false</ImportWdk>
+    <UseInternalMSUniCrtPackage>true</UseInternalMSUniCrtPackage>
     <WixVer>5.0.1</WixVer>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.props" />
