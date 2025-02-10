@@ -5,6 +5,7 @@
     <ImportUndocked>false</ImportUndocked>
     <ImportWdk>false</ImportWdk>
     <WixVer>5.0.1</WixVer>
+    <UndockedOfficial>true</UndockedOfficial>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.props" />
   <PropertyGroup>
