@@ -157,8 +157,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
         # Sanity test the XDP_PA installer.
 
         Write-Verbose "Reinstalling XDP at PA layer..."
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -PaLayer
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -XdpInstaller $XdpInstaller -PaLayer
         Write-Verbose "Installed XDP PA layer."
 
         if (!(Get-NetAdapterBinding -ComponentID ms_xdp_pa)) {
