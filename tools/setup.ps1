@@ -41,7 +41,7 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF")]
+    [ValidateSet("MSI", "INF", "NuGet")]
     [string]$XdpInstaller = "MSI",
 
     [Parameter(Mandatory = $false)]
@@ -74,6 +74,7 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
+$XdpRuntimeNupkgSetupPath = "runtime/native/xdp-setup.ps1"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
@@ -171,6 +172,25 @@ function Cleanup-Service($Name) {
             Uninstall-Failure "cleanup_service_$Name.dmp"
         }
     }
+}
+
+# Returns the only nupkg matching the pattern, otherwise throws an error.
+function Find-Nupkg($Pattern) {
+    $Nupkg = @(Get-ChildItem -Path $Pattern)
+    if ($Nupkg.Count -ne 1) {
+        Write-Error "Expected exactly one nupkg matching $Pattern, but found $Nupkg"
+    }
+    return $Nupkg.FullName
+}
+
+# Extracts a NuGet package to a directory.
+function Expand-Nupkg($Nupkg, $Dir) {
+    $NupkgZip = "$Nupkg.zip"
+    Write-Verbose "Expanding $Nupkg to $Dir"
+    Remove-Item -Path $Dir -Recurse -Force -ErrorAction Ignore | Write-Verbose
+    Copy-Item -Path $Nupkg -Destination $NupkgZip
+    Expand-Archive -Path $NupkgZip -DestinationPath $Dir
+    Remove-Item -Path $NupkgZip
 }
 
 # Installs the certificates for driver package signing.
@@ -284,6 +304,23 @@ function Install-Xdp {
         if ($LastExitCode -ne 0) {
             Write-Error "XDP MSI installation failed: $LastExitCode"
         }
+    } elseif ($XdpInstaller -eq "NuGet") {
+        $XdpPath = Get-XdpInstallPath
+        $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
+        $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\XDP-for-Windows-Runtime.$Platform.$XdpFileVersion*.nupkg"
+
+        Expand-Nupkg $XdpRuntimeNupkgFullPath $XdpPath | Write-Verbose
+
+        Write-Verbose "$XdpSetupPath -Install xdp"
+        & $XdpSetupPath -Install xdp | Write-Verbose
+        if ($PaLayer) {
+            Write-Verbose "$XdpSetupPath -Install xdppa"
+            & $XdpSetupPath -Install xdppa | Write-Verbose
+        }
+        if ($EnableEbpf) {
+            Write-Verbose "$XdpSetupPath -Install xdpebpf"
+            & $XdpSetupPath -Install xdpebpf | Write-Verbose
+        }
     } elseif ($XdpInstaller -eq "INF") {
         Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
         netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
@@ -363,6 +400,32 @@ function Uninstall-Xdp {
             Write-Error "XDP MSI uninstall failed with status $LastExitCode" -ErrorAction Continue
             Uninstall-Failure "xdp_uninstall.dmp"
         }
+    } elseif ($XdpInstaller -eq "NuGet") {
+        $XdpPath = Get-XdpInstallPath
+        $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
+
+        if (!(Test-Path $XdpPath)) {
+            Write-Verbose "$XdpPath does not exist. Assuming XDP is not installed."
+            return
+        }
+
+        if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters").PSObject.Properties["XdpEbpfEnabled"]) {
+            Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
+            & $XdpSetupPath -Uninstall xdpebpf
+        }
+        if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
+            Write-Verbose "$XdpSetupPath -Uninstall xdppa"
+            & $XdpSetupPath -Uninstall xdppa
+        }
+        if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
+            Write-Verbose "$XdpSetupPath -Uninstall xdp"
+            & $XdpSetupPath -Uninstall xdp
+        }
+
+        Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
+        Remove-Item $XdpPath -Recurse -Force
+
+        $global:LASTEXITCODE = 0
     } elseif ($XdpInstaller -eq "INF") {
         Write-Verbose "unlodctr.exe /m:$XdpPcwMan"
         unlodctr.exe /m:$XdpPcwMan | Write-Verbose

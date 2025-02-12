@@ -82,7 +82,11 @@ param (
     [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$EbpfPreinstalled = $false
+    [switch]$EbpfPreinstalled = $false,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("MSI", "INF", "NuGet")]
+    [string]$XdpInstaller = "MSI"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -145,7 +149,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing xdpmp..."
@@ -189,7 +193,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
     } finally {
         & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }

@@ -44,7 +44,11 @@ param (
     [string]$TestBinaryPath = "",
 
     [Parameter(Mandatory = $false)]
-    [switch]$NoPrerelease = $false
+    [switch]$NoPrerelease = $false,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("MSI", "INF", "NuGet")]
+    [string]$XdpInstaller = "MSI"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -98,7 +102,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
 
         Write-Verbose "installing fnmp..."
@@ -168,7 +172,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Uninstall fnsock -Config $Config -Platform $Platform -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnlwf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }

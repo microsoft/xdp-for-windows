@@ -96,7 +96,7 @@ function Get-VsTestPath {
 
 # Returns the XDP installation path
 function Get-XdpInstallPath {
-    return "$($env:SystemDrive)\xdpmsi"
+    return "$($env:SystemDrive)\xdpruntime"
 }
 
 # Returns the eBPF installation path
