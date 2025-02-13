@@ -74,7 +74,8 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
-$XdpRuntimeNupkgSetupPath = "runtime/native/xdp-setup.ps1"
+$XdpRuntimeNupkgNativePath = "runtime/native"
+$XdpRuntimeNupkgSetupPath = "$XdpRuntimeNupkgNativePath/xdp-setup.ps1"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
 $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
@@ -285,6 +286,7 @@ function Install-Xdp {
 
     if ($XdpInstaller -eq "MSI") {
         $XdpPath = Get-XdpInstallPath
+        $XdpBinariesPath = $XdpPath
 
         $AddLocal = @()
 
@@ -306,6 +308,7 @@ function Install-Xdp {
         }
     } elseif ($XdpInstaller -eq "NuGet") {
         $XdpPath = Get-XdpInstallPath
+        $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
         $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\XDP-for-Windows-Runtime.$Platform.$XdpFileVersion*.nupkg"
 
@@ -322,6 +325,8 @@ function Install-Xdp {
             & $XdpSetupPath -Install xdpebpf | Write-Verbose
         }
     } elseif ($XdpInstaller -eq "INF") {
+        $XdpBinariesPath = $ArtifactsDir
+
         Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
         netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
         if ($LastExitCode) {
@@ -344,6 +349,8 @@ function Install-Xdp {
     Start-Service-With-Retry xdp
 
     Refresh-Path
+    $env:_XDP_BINARIES_PATH = $XdpBinariesPath
+    [System.Environment]::SetEnvironmentVariable("_XDP_BINARIES_PATH", $env:_XDP_BINARIES_PATH, "Machine")
 
     Write-Verbose "xdp.sys install complete!"
 }
@@ -444,6 +451,8 @@ function Uninstall-Xdp {
         Cleanup-Service xdp
     }
 
+    [System.Environment]::SetEnvironmentVariable("_XDP_BINARIES_PATH", $null, "Machine")
+    $env:_XDP_BINARIES_PATH = $null
     Refresh-Path
 
     Write-Verbose "xdp.sys uninstall complete!"
