@@ -35,5 +35,13 @@
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
+  <Target Name="CleanNuget" BeforeTargets="Clean" Condition="$(BuildStage) == '' OR $(BuildStage) == 'AllPackage'">
+     <ItemGroup>
+       <FilesToDelete Include="$(OutDir)XDP-for-Windows.*.nupkg"/>
+     </ItemGroup>
+     <Delete Files="@(FilesToDelete)">
+       <Output TaskParameter="DeletedFiles" ItemName="FilesDeleted"/>
+     </Delete>
+  </Target>
   <Import Project="$(SolutionDir)src\xdp.targets" />
 </Project>

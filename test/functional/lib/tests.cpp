@@ -730,10 +730,17 @@ SetDeviceSddl(
     _In_z_ const CHAR *Sddl
     )
 {
+    CHAR XdpBinaryPath[MAX_PATH];
+    UINT32 XdpBinaryPathLength;
     CHAR CmdBuff[256];
-    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
 
-    sprintf_s(CmdBuff, "xdpcfg.exe SetDeviceSddl \"%s\"", Sddl);
+    XdpBinaryPathLength =
+        GetEnvironmentVariableA("_XDP_BINARIES_PATH", XdpBinaryPath, sizeof(XdpBinaryPath));
+    TEST_NOT_EQUAL(0, XdpBinaryPathLength);
+    TEST_TRUE(XdpBinaryPathLength <= sizeof(XdpBinaryPath));
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", XdpBinaryPath, Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
