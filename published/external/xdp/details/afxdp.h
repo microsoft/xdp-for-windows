@@ -87,11 +87,11 @@ XskBind(
     _In_ XSK_BIND_FLAGS Flags
     )
 {
-    XSK_BIND_IN Bind = {};
-
-    Bind.IfIndex = IfIndex;
-    Bind.QueueId = QueueId;
-    Bind.Flags = Flags;
+    XSK_BIND_IN Bind = {
+        .IfIndex = IfIndex,
+        .QueueId = QueueId,
+        .Flags = Flags
+    };
 
     return
         _XdpIoctl(
@@ -120,9 +120,9 @@ XskActivate(
     _In_ XSK_ACTIVATE_FLAGS Flags
     )
 {
-    XSK_ACTIVATE_IN Activate = {};
-
-    Activate.Flags = Flags;
+    XSK_ACTIVATE_IN Activate = {
+        .Flags = Flags
+    };
 
     return
         _XdpIoctl(
@@ -156,11 +156,11 @@ XskSetSockopt(
     _In_ UINT32 OptionLength
     )
 {
-    XSK_SET_SOCKOPT_IN Sockopt = {};
-
-    Sockopt.Option = OptionName;
-    Sockopt.InputBuffer = OptionValue;
-    Sockopt.InputBufferLength = OptionLength;
+    XSK_SET_SOCKOPT_IN Sockopt = {
+        .Option = OptionName,
+        .InputBuffer = OptionValue,
+        .InputBufferLength = OptionLength    
+    };
 
     return
         _XdpIoctl(
@@ -247,10 +247,10 @@ XskNotifySocket(
 {
     XDP_STATUS Res;
     DWORD BytesReturned;
-    XSK_NOTIFY_IN Notify = {};
-
-    Notify.Flags = Flags;
-    Notify.WaitTimeoutMilliseconds = WaitTimeoutMilliseconds;
+    XSK_NOTIFY_IN Notify = {
+        .Flags = Flags,
+        .WaitTimeoutMilliseconds = WaitTimeoutMilliseconds
+    };
 
     Res =
         _XdpIoctl(
@@ -281,10 +281,10 @@ XskNotifyAsync(
     )
 {
     DWORD BytesReturned;
-    XSK_NOTIFY_IN Notify = {};
-
-    Notify.Flags = Flags;
-    Notify.WaitTimeoutMilliseconds = XDP_INFINITE;
+    XSK_NOTIFY_IN Notify = {
+        .Flags = Flags,
+        .WaitTimeoutMilliseconds = XDP_INFINITE
+    };
 
     return
         _XdpIoctl(
