@@ -3,7 +3,7 @@
 <package>
     <metadata>
         <id>Microsoft.XDP-for-Windows.Runtime.{arch}</id>
-        <title>XDP for Windows Runtime for {arch}</title>
+        <title>XDP-for-Windows Runtime for {arch}</title>
         <version>{version}</version>
         <authors>Microsoft</authors>
         <requireLicenseAcceptance>true</requireLicenseAcceptance>
@@ -11,7 +11,7 @@
         <copyright>© Microsoft Corporation. All rights reserved.</copyright>
         <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
         <readme>README.md</readme>
-        <description>XDP for Windows Runtime for {arch}</description>
+        <description>XDP-for-Windows Runtime for {arch}</description>
         <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
     </metadata>
     <files>
