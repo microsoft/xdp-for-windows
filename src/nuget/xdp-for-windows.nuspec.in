@@ -7,7 +7,7 @@
         <version>{version}</version>
         <authors>Microsoft</authors>
         <requireLicenseAcceptance>true</requireLicenseAcceptance>
-		<license type="expression">MIT</license>
+        <license type="expression">MIT</license>
         <copyright>© Microsoft Corporation. All rights reserved.</copyright>
         <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
         <readme>README.md</readme>
