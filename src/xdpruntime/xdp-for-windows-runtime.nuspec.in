@@ -2,14 +2,15 @@
 <!-- Copyright (c) Microsoft Corporation -->
 <package>
     <metadata>
-        <title>XDP for Windows Runtime ({arch})</title>
-        <id>XDP-for-Windows-Runtime.{arch}</id>
+        <id>Microsoft.XDP-for-Windows.Runtime.{arch}</id>
+        <title>XDP for Windows Runtime for {arch}</title>
         <version>{version}</version>
-        <authors>XDP for Windows Contributors</authors>
-        <owners>XDP for Windows Contributors</owners>
-        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <authors>Microsoft</authors>
+        <requireLicenseAcceptance>true</requireLicenseAcceptance>
 		<license type="expression">MIT</license>
+        <copyright>© Microsoft Corporation. All rights reserved.</copyright>
         <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
+        <readme>README.md</readme>
         <description>XDP for Windows Runtime for {arch}</description>
         <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
     </metadata>
@@ -27,5 +28,6 @@
         <file src="{binpath_anyarch}\xdp\xdpapi.dll" target="runtime\native"/>
         <file src="{binpath_anyarch}\xdpapi.pdb" target="runtime\native"/>
         <file src="{rootpath}\tools\xdptrace.wprp" target="runtime\native"/>
+        <file src="{rootpath}\readme.md" target="."/>
     </files>
 </package>
