@@ -30,7 +30,7 @@
   </Target>
   <Target Name="CleanNuget" BeforeTargets="Clean" Condition="$(BuildStage) == '' OR $(BuildStage) == 'Package'">
      <ItemGroup>
-       <FilesToDelete Include="$(OutDir)XDP-for-Windows-Runtime.$(Platform).*.nupkg"/>
+       <FilesToDelete Include="$(OutDir)XDP-for-Windows.Runtime.$(Platform).*.nupkg"/>
      </ItemGroup>
      <Delete Files="@(FilesToDelete)">
        <Output TaskParameter="DeletedFiles" ItemName="FilesDeleted"/>

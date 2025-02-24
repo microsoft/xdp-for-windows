@@ -310,7 +310,7 @@ function Install-Xdp {
         $XdpPath = Get-XdpInstallPath
         $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
-        $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\XDP-for-Windows-Runtime.$Platform.$XdpFileVersion*.nupkg"
+        $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\XDP-for-Windows.Runtime.$Platform.$XdpFileVersion*.nupkg"
 
         Expand-Nupkg $XdpRuntimeNupkgFullPath $XdpPath | Write-Verbose
 
