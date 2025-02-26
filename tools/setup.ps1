@@ -290,7 +290,11 @@ function Install-Xdp {
         $XdpPath = Get-XdpInstallPath
         $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
+<<<<<<< HEAD
         $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\packages\Microsoft.XDP-for-Windows.Runtime.$Platform.$XdpFileVersion*.nupkg"
+=======
+        $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\Microsoft.XDP-for-Windows.Runtime.$Platform.$XdpFileVersion*.nupkg"
+>>>>>>> 958a7f32 (Change NuGet package IDs to Microsoft.* prefix (#805))
 
         Expand-Nupkg $XdpRuntimeNupkgFullPath $XdpPath | Write-Verbose
 
