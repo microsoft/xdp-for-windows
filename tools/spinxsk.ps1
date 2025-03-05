@@ -82,7 +82,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("XDPMP", "FNMP")]
-    [string]$Driver = "XDPMP",
+    [string]$Driver = "FNMP",
+    # TODO guhetier: XDPMP by default, but using FNMP to test CI easily
+    # [string]$Driver = "XDPMP",
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
