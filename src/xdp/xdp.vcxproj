@@ -137,7 +137,8 @@
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(LatestWdkPlatformVersion)' &gt;= '10.0.26100.0'">
+  <ItemDefinitionGroup Condition="'$(LatestWdkPlatformVersion)' != '' And '$(LatestWdkPlatformVersion)' &gt;= '10.0.26100.0'">
+    <!-- a null check is needed to let nuget parse this before LatestWdkPlatformVersion is defined when packages are initially restored -->
     <!-- volatileaccessk.lib is introduced in WDK version 10.0.22621.0, i.e., ge_release. -->
     <Link>
       <AdditionalDependencies>
