@@ -6,6 +6,14 @@
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
 
+#define NOMINMAX
+#include <xdp/wincommon.h>
+#include <winsock2.h>
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
+#include <ntddndis.h>
+#pragma warning(pop)
+
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
@@ -20,6 +28,8 @@
 #include <stdlib.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+
+#include <fnmpapi.h>
 
 #include "trace.h"
 #include "util.h"
@@ -205,6 +215,7 @@ struct QUEUE_CONTEXT {
     HANDLE sock;
     HANDLE sharedUmemSock;
     HANDLE rss;
+    FNMP_HANDLE fnmp;
     SRWLOCK rssLock;
 
     XSK_PROGRAM_SET rxProgramSet;
@@ -920,6 +931,11 @@ CleanupQueue(
         ASSERT_FRE(res);
     }
 
+    if (Queue->fnmp != NULL)
+    {
+	    FnMpClose(Queue->fnmp);
+    }
+
     DeleteCriticalSection(&Queue->sharedUmemRxProgramSet.Lock);
     DeleteCriticalSection(&Queue->rxProgramSet.Lock);
 
@@ -1247,6 +1263,14 @@ InitializeQueue(
     InitializeCriticalSection(&queue->rxProgramSet.Lock);
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
+
+    //
+    // Get an handle to the FNMP driver interface to inject received data.
+    //
+    res = FnMpOpenShared(ifindex, &queue->fnmp);
+    if (!SUCCEEDED(res)) {
+        goto Exit;
+    }
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
