@@ -33,6 +33,12 @@ more coverage for setup and cleanup.
 .PARAMETER NoLogs
     Do not capture logs.
 
+.PARAMETER BreakOnWatchdog
+    Break on watchdog timeout.
+
+.PARAMETER Driver
+    Driver to use for the test. Can be either XDPMP or FNMP.
+
 .PARAMETER XdpmpPollProvider
     Poll provider for XDPMP.
 
@@ -73,6 +79,10 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$BreakOnWatchdog = $false,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("XDPMP", "FNMP")]
+    [string]$Driver = "XDPMP",
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
@@ -152,18 +162,28 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
 
-        Write-Verbose "installing xdpmp..."
-        & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
-        Write-Verbose "installed xdpmp."
+        if ($Driver -eq "XDPMP") {
+            Write-Verbose "installing xdpmp..."
+            & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
+            Write-Verbose "installed xdpmp."
 
-        Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
-        Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
+            $AdapterName = "XDPMP"
+        } else {
+            Write-Verbose "installing fnmp..."
+            & "$RootDir\scripts\setup.ps1" -Install fnmp -Config $Config -Arch $Arch
+            Write-Verbose "installed fnmp."
+
+            $AdapterName = "XDPFNMP"
+        }
+
+        Write-Verbose "Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount"
+        Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount
 
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
         $Args = `
-            "-IfIndex", (Get-NetAdapter XDPMP).ifIndex, `
+            "-IfIndex", (Get-NetAdapter $AdapterName).ifIndex, `
             "-QueueCount", $QueueCount, `
             "-Minutes", $ThisIterationMinutes
         if ($Stats) {
@@ -192,7 +212,11 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             throw "SpinXsk failed with $LastExitCode"
         }
     } finally {
-        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        if ($Driver -eq "XDPMP") {
+            & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        } else {
+            & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        }
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
