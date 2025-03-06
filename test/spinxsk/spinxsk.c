@@ -29,7 +29,12 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
+#include <netiodef.h>
+#include <ws2ipdef.h>
+#include <mstcpip.h>
+
 #include <fnmpapi.h>
+#include <pkthlp.h>
 
 #include "trace.h"
 #include "util.h"
@@ -934,8 +939,7 @@ CleanupQueue(
         ASSERT_FRE(res);
     }
 
-    if (Queue->fnmp != NULL)
-    {
+    if (Queue->fnmp != NULL) {
 	    FnMpClose(Queue->fnmp);
     }
 
@@ -2021,6 +2025,96 @@ ProcessPkts(
     return TRUE;
 }
 
+#define FNMP_FRAME_MAX_BACKFILL 64
+#define FNMP_IPV4_ADDRESS "192.168.200.1"
+#define FNMP_NEIGHBOR_IPV4_ADDRESS "192.168.200.2"
+#define FNMP_IPV6_ADDRESS "fc00::200:1"
+#define FNMP_NEIGHBOR_IPV6_ADDRESS "fc00::200:2"
+#define FNMP_LOCAL_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x00}
+#define FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x02}
+
+typedef union _INET_ADDR_STORAGE {
+    IN_ADDR Ipv4;
+    IN6_ADDR Ipv6;
+} INET_ADDR_STORAGE;
+
+//
+// Build and inject UDP-like frames in the receive path through the FNMP driver.
+//
+void
+InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
+    const ETHERNET_ADDRESS localHw = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS removeHw = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+    UCHAR udpPayload[2048];
+    UCHAR udpFrame[FNMP_FRAME_MAX_BACKFILL + UDP_HEADER_STORAGE + sizeof(udpPayload)];
+    const UINT8 numFrames = (UINT8)RandUlong();
+
+    for (UINT8 i = 0; i < numFrames; i++) {
+        DATA_FRAME frame = {0};
+        DATA_BUFFER buffers[2] = {0};
+        INET_ADDR_STORAGE localIp = {0};
+        INET_ADDR_STORAGE remoteIp = {0};
+        UINT32 udpFrameLength = 0;
+
+        const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
+        const UINT16 udpPayloadLength = RandUlong() % sizeof(udpPayload);
+        const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+        const UINT16 localPort = (UINT16)RandUlong();
+        const UINT16 remotePort = (UINT16)RandUlong();
+
+        if (af == AF_INET) {
+            PCSTR terminator = NULL;
+            ASSERT_FRE(
+                RtlIpv4StringToAddressA(
+                    FNMP_IPV4_ADDRESS, FALSE, &terminator, &localIp.Ipv4) == 0);
+            ASSERT_FRE(
+                RtlIpv4StringToAddressA(
+                    FNMP_NEIGHBOR_IPV4_ADDRESS, FALSE, &terminator, &remoteIp.Ipv4) == 0);
+        } else {
+            PCSTR terminator = NULL;
+            ASSERT_FRE(
+                RtlIpv6StringToAddressA(
+                    FNMP_IPV6_ADDRESS, &terminator, &localIp.Ipv6) == 0);
+            ASSERT_FRE(
+                RtlIpv6StringToAddressA(
+                    FNMP_NEIGHBOR_IPV6_ADDRESS, &terminator, &remoteIp.Ipv6) == 0);
+        }
+
+        udpPayload[0] = (UCHAR)RandUlong();
+        udpFrameLength = sizeof(udpFrame) - backfill;
+    	PktBuildUdpFrame(
+	        &udpFrame[backfill], &udpFrameLength, udpPayload, udpPayloadLength,
+	        &localHw, &removeHw, af, &localIp, &remoteIp, localPort, remotePort);
+
+        if (RandUlong() % 2) {
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = udpFrameLength;
+            buffers[0].BufferLength = sizeof(udpFrame);
+            buffers[0].VirtualAddress = udpFrame;
+            frame.Buffers = buffers;
+            frame.BufferCount = 1;
+        } else {
+            const UINT32 bufferSplitOffset = RandUlong() % (udpFrameLength + 1);
+
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = bufferSplitOffset;
+            buffers[0].BufferLength = backfill + buffers[0].DataLength;
+            buffers[0].VirtualAddress = udpFrame;
+            buffers[1].DataLength = udpFrameLength - bufferSplitOffset;
+            buffers[1].BufferLength = sizeof(udpFrame) - buffers[0].BufferLength;
+            buffers[1].VirtualAddress = udpFrame + buffers[0].BufferLength;
+            frame.Buffers = buffers;
+            frame.BufferCount = 2;
+        }
+
+        FnMpRxEnqueue(Fnmp, &frame);
+    }
+    DATA_FLUSH_OPTIONS flushOptions = {0};
+    flushOptions.Flags.DpcLevel = RandUlong() & 1;
+
+    FnMpRxFlush(Fnmp, &flushOptions);
+}
+
 VOID
 PrintDatapathStats(
     _In_ const XSK_DATAPATH_WORKER *Datapath
@@ -2303,83 +2397,6 @@ QueueWorkerFn(
         }
 
         //
-        // TODO guhetier: Inject received data. Probably should be done in another thread?
-        //
-        if (queue->fnmp != NULL) {
-            // static const ETHERNET_ADDRESS LocalHw = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
-            // static const ETHERNET_ADDRESS RemoteHw = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
-            #define MAX_BACKFILL 64
-            UCHAR UdpPayload[2048];
-            UCHAR UdpFrame[MAX_BACKFILL + /*UDP_HEADER_STORAGE +*/ sizeof(UdpPayload)];
-            DATA_FLUSH_OPTIONS FlushOptions = {0};
-            const UINT8 NumFrames = (UINT8)RandUlong();
-            for (UINT8 i = 0; i < NumFrames; i++) {
-                DATA_FRAME Frame = {0};
-                DATA_BUFFER Buffers[2] = {0};
-                //INET_ADDR_STORAGE LocalIp;
-                //INET_ADDR_STORAGE RemoteIp;
-                UINT32 UdpFrameLength;
-
-                const UINT32 Backfill = RandUlong() % MAX_BACKFILL;
-                //const UINT16 UdpPayloadLength = RandUlong() % sizeof(UdpPayload);
-                //const ADDRESS_FAMILY Af = (RandUlong() % 2) ? AF_INET : AF_INET6;
-                //const UINT16 LocalPort = (UINT16)RandUlong();
-                //const UINT16 RemotePort = (UINT16)RandUlong();
-
-                //if (Af == AF_INET) {
-                //    PCSTR Terminator;
-                //    FRE_ASSERT(
-                //        RtlIpv4StringToAddressA(
-                //            FNMP_IPV4_ADDRESS, FALSE, &Terminator, &LocalIp.Ipv4) == 0);
-                //    FRE_ASSERT(
-                //        RtlIpv4StringToAddressA(
-                //            FNMP_NEIGHBOR_IPV4_ADDRESS, FALSE, &Terminator, &RemoteIp.Ipv4) == 0);
-                //} else {
-                //    PCSTR Terminator;
-                //    FRE_ASSERT(
-                //        RtlIpv6StringToAddressA(
-                //            FNMP_IPV6_ADDRESS, &Terminator, &LocalIp.Ipv6) == 0);
-                //    FRE_ASSERT(
-                //        RtlIpv6StringToAddressA(
-                //            FNMP_NEIGHBOR_IPV6_ADDRESS, &Terminator, &RemoteIp.Ipv6) == 0);
-                //}
-
-                UdpPayload[0] = (UCHAR)RandUlong();
-                UdpFrameLength = sizeof(UdpFrame) - Backfill;
-                // PktBuildUdpFrame(
-                //     &UdpFrame[Backfill], &UdpFrameLength, UdpPayload, UdpPayloadLength,
-                //     &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort);
-
-                if (RandUlong() % 2) {
-                    Buffers[0].DataOffset = Backfill;
-                    Buffers[0].DataLength = UdpFrameLength;
-                    Buffers[0].BufferLength = sizeof(UdpFrame);
-                    Buffers[0].VirtualAddress = UdpFrame;
-                    Frame.Buffers = Buffers;
-                    Frame.BufferCount = 1;
-                } else {
-                    const UINT32 BufferSplitOffset = RandUlong() % (UdpFrameLength + 1);
-
-                    Buffers[0].DataOffset = Backfill;
-                    Buffers[0].DataLength = BufferSplitOffset;
-                    Buffers[0].BufferLength = Backfill + Buffers[0].DataLength;
-                    Buffers[0].VirtualAddress = UdpFrame;
-                    Buffers[1].DataLength = UdpFrameLength - BufferSplitOffset;
-                    Buffers[1].BufferLength = sizeof(UdpFrame) - Buffers[0].BufferLength;
-                    Buffers[1].VirtualAddress = UdpFrame + Buffers[0].BufferLength;
-                    Frame.Buffers = Buffers;
-                    Frame.BufferCount = 2;
-                }
-
-                FnMpRxEnqueue(queue->fnmp, &Frame);
-            }
-            FlushOptions.Flags.DpcLevel = RandUlong() & 1;
-
-            FnMpRxFlush(queue->fnmp, &FlushOptions);
-            #undef MAX_BACKFILL
-        }
-
-        //
         // Wait until fuzzers have successfully configured the socket/s.
         //
         TraceVerbose("q[%u]: waiting for sockets to be configured", queue->queueId);
@@ -2398,6 +2415,14 @@ QueueWorkerFn(
             if (queue->datapath2.sock != NULL) {
                 queue->datapath2.threadHandle =
                     CreateThread(NULL, 0, XskDatapathWorkerFn, &queue->datapath2, 0, NULL);
+            }
+
+            //
+            // Inject packets from FNMP if available
+            // TODO guhetier: Should be on separate thread? Should loop?
+            //
+        	if (queue->fnmp != NULL) {
+				InjectFnmpRxPacket(queue->fnmp);
             }
 
             //
