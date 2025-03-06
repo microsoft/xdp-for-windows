@@ -208,6 +208,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if ($EnableEbpf) {
             $Args += "-EnableEbpf"
         }
+        if ($Driver -eq "FNMP") {
+            $Args += "-UseFnmp"
+        }
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args
         if ($LastExitCode -ne 0) {
