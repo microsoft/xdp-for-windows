@@ -2041,7 +2041,7 @@ typedef union _INET_ADDR_STORAGE {
 //
 // Build and inject UDP-like frames in the receive path through the FNMP driver.
 //
-void
+UINT8
 InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     const ETHERNET_ADDRESS localHw = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS removeHw = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
@@ -2113,6 +2113,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
 
     FnMpRxFlush(Fnmp, &flushOptions);
+    return numFrames;
 }
 
 VOID
@@ -2418,18 +2419,24 @@ QueueWorkerFn(
             }
 
             //
-            // Inject packets from FNMP if available
-            // TODO guhetier: Should be on separate thread? Should loop?
-            //
-        	if (queue->fnmp != NULL) {
-				InjectFnmpRxPacket(queue->fnmp);
-            }
-
-            //
             // Let datapath thread/s pump datapath for set duration.
             //
             TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
-            WaitForSingleObject(stopEvent, 500);
+
+            if (queue->fnmp != NULL) {
+                //
+                // Inject packets from FNMP if it is available
+                //
+                for (int i = 0; i < 10; ++i) {
+                    UINT8 numFrameInjected = InjectFnmpRxPacket(queue->fnmp);
+                    TraceVerbose("q[%u]: %d frames injected through FNMP", queue->queueId, numFrameInjected);
+                    if (WAIT_OBJECT_0 == WaitForSingleObject(stopEvent, 50)) {
+	                    break;
+                    }
+                }
+            } else {
+                WaitForSingleObject(stopEvent, 500);
+            }
 
             //
             // Signal and wait for datapath thread/s to return.
