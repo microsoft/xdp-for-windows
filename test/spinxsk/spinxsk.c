@@ -6,6 +6,14 @@
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
 
+#define NOMINMAX
+#include <xdp/wincommon.h>
+#include <winsock2.h>
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
+#include <ntddndis.h>
+#pragma warning(pop)
+
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
@@ -20,6 +28,13 @@
 #include <stdlib.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+
+#include <netiodef.h>
+#include <ws2ipdef.h>
+#include <mstcpip.h>
+
+#include <fnmpapi.h>
+#include <pkthlp.h>
 
 #include "trace.h"
 #include "util.h"
@@ -60,6 +75,8 @@ CHAR *HELP =
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 "   -EnableEbpf           Enables eBPF testing\n"
+"                         Default: off\n"
+"   -UseFnmp              Use FnMp to inject packets in the receive path\n"
 "                         Default: off\n"
 ;
 
@@ -205,6 +222,7 @@ struct QUEUE_CONTEXT {
     HANDLE sock;
     HANDLE sharedUmemSock;
     HANDLE rss;
+    FNMP_HANDLE fnmp;
     SRWLOCK rssLock;
 
     XSK_PROGRAM_SET rxProgramSet;
@@ -260,6 +278,7 @@ BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
+BOOLEAN useFnmp = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
@@ -920,6 +939,10 @@ CleanupQueue(
         ASSERT_FRE(res);
     }
 
+    if (Queue->fnmp != NULL) {
+	    FnMpClose(Queue->fnmp);
+    }
+
     DeleteCriticalSection(&Queue->sharedUmemRxProgramSet.Lock);
     DeleteCriticalSection(&Queue->rxProgramSet.Lock);
 
@@ -1247,6 +1270,16 @@ InitializeQueue(
     InitializeCriticalSection(&queue->rxProgramSet.Lock);
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
+
+    if (useFnmp) {
+        //
+        // Get an handle to the FNMP driver interface to inject received data.
+        //
+        res = FnMpOpenShared(ifindex, &queue->fnmp);
+        if (!SUCCEEDED(res)) {
+            goto Exit;
+        }
+    }
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
@@ -1992,6 +2025,97 @@ ProcessPkts(
     return TRUE;
 }
 
+#define FNMP_FRAME_MAX_BACKFILL 64
+#define FNMP_IPV4_ADDRESS "192.168.200.1"
+#define FNMP_NEIGHBOR_IPV4_ADDRESS "192.168.200.2"
+#define FNMP_IPV6_ADDRESS "fc00::200:1"
+#define FNMP_NEIGHBOR_IPV6_ADDRESS "fc00::200:2"
+#define FNMP_LOCAL_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x00}
+#define FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x02}
+
+typedef union _INET_ADDR_STORAGE {
+    IN_ADDR Ipv4;
+    IN6_ADDR Ipv6;
+} INET_ADDR_STORAGE;
+
+//
+// Build and inject UDP-like frames in the receive path through the FNMP driver.
+//
+UINT8
+InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
+    const ETHERNET_ADDRESS localHw = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS removeHw = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+    UCHAR udpPayload[2048];
+    UCHAR udpFrame[FNMP_FRAME_MAX_BACKFILL + UDP_HEADER_STORAGE + sizeof(udpPayload)];
+    const UINT8 numFrames = (UINT8)RandUlong();
+
+    for (UINT8 i = 0; i < numFrames; i++) {
+        DATA_FRAME frame = {0};
+        DATA_BUFFER buffers[2] = {0};
+        INET_ADDR_STORAGE localIp = {0};
+        INET_ADDR_STORAGE remoteIp = {0};
+        UINT32 udpFrameLength = 0;
+
+        const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
+        const UINT16 udpPayloadLength = RandUlong() % sizeof(udpPayload);
+        const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+        const UINT16 localPort = (UINT16)RandUlong();
+        const UINT16 remotePort = (UINT16)RandUlong();
+
+        if (af == AF_INET) {
+            PCSTR terminator = NULL;
+            ASSERT_FRE(
+                RtlIpv4StringToAddressA(
+                    FNMP_IPV4_ADDRESS, FALSE, &terminator, &localIp.Ipv4) == 0);
+            ASSERT_FRE(
+                RtlIpv4StringToAddressA(
+                    FNMP_NEIGHBOR_IPV4_ADDRESS, FALSE, &terminator, &remoteIp.Ipv4) == 0);
+        } else {
+            PCSTR terminator = NULL;
+            ASSERT_FRE(
+                RtlIpv6StringToAddressA(
+                    FNMP_IPV6_ADDRESS, &terminator, &localIp.Ipv6) == 0);
+            ASSERT_FRE(
+                RtlIpv6StringToAddressA(
+                    FNMP_NEIGHBOR_IPV6_ADDRESS, &terminator, &remoteIp.Ipv6) == 0);
+        }
+
+        udpPayload[0] = (UCHAR)RandUlong();
+        udpFrameLength = sizeof(udpFrame) - backfill;
+    	PktBuildUdpFrame(
+	        &udpFrame[backfill], &udpFrameLength, udpPayload, udpPayloadLength,
+	        &localHw, &removeHw, af, &localIp, &remoteIp, localPort, remotePort);
+
+        if (RandUlong() % 2) {
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = udpFrameLength;
+            buffers[0].BufferLength = sizeof(udpFrame);
+            buffers[0].VirtualAddress = udpFrame;
+            frame.Buffers = buffers;
+            frame.BufferCount = 1;
+        } else {
+            const UINT32 bufferSplitOffset = RandUlong() % (udpFrameLength + 1);
+
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = bufferSplitOffset;
+            buffers[0].BufferLength = backfill + buffers[0].DataLength;
+            buffers[0].VirtualAddress = udpFrame;
+            buffers[1].DataLength = udpFrameLength - bufferSplitOffset;
+            buffers[1].BufferLength = sizeof(udpFrame) - buffers[0].BufferLength;
+            buffers[1].VirtualAddress = udpFrame + buffers[0].BufferLength;
+            frame.Buffers = buffers;
+            frame.BufferCount = 2;
+        }
+
+        FnMpRxEnqueue(Fnmp, &frame);
+    }
+    DATA_FLUSH_OPTIONS flushOptions = {0};
+    flushOptions.Flags.DpcLevel = RandUlong() & 1;
+
+    FnMpRxFlush(Fnmp, &flushOptions);
+    return numFrames;
+}
+
 VOID
 PrintDatapathStats(
     _In_ const XSK_DATAPATH_WORKER *Datapath
@@ -2298,7 +2422,21 @@ QueueWorkerFn(
             // Let datapath thread/s pump datapath for set duration.
             //
             TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
-            WaitForSingleObject(stopEvent, 500);
+
+            if (queue->fnmp != NULL) {
+                //
+                // Inject packets from FNMP if it is available
+                //
+                for (int i = 0; i < 10; ++i) {
+                    UINT8 numFrameInjected = InjectFnmpRxPacket(queue->fnmp);
+                    TraceVerbose("q[%u]: %d frames injected through FNMP", queue->queueId, numFrameInjected);
+                    if (WAIT_OBJECT_0 == WaitForSingleObject(stopEvent, 50)) {
+	                    break;
+                    }
+                }
+            } else {
+                WaitForSingleObject(stopEvent, 500);
+            }
 
             //
             // Signal and wait for datapath thread/s to return.
@@ -2550,6 +2688,8 @@ ParseArgs(
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
+        } else if (!strcmp(argv[i], "-UseFnmp")) {
+            useFnmp = TRUE;
         } else {
             Usage();
         }

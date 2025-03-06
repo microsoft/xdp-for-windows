@@ -26,4 +26,4 @@ and/or registry keys.
 
 Additionally, XDPMP supports a load generator and rate limiter. RX load
 generation and TX rate limiting  can be dynamically configured with
-`xdpmppace.ps1`.
+`xdpmpratesim.ps1`.

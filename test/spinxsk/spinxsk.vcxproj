@@ -13,6 +13,7 @@
     <TargetName>spinxsk</TargetName>
     <UndockedType>exe</UndockedType>
     <ImportEbpf>true</ImportEbpf>
+    <ImportWnt>true</ImportWnt>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
