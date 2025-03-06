@@ -310,13 +310,19 @@ if ($Cleanup) {
         # 1   - Delay (in minutes) after boot until simulation engages
         #       This is the lowest value configurable via verifier.exe.
         # WARNING: xdp.sys itself may fail to load due to low resources simulation.
-        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
-        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
+        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys fnmp.sys ebpfcore.sys"
+        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys fnmp.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }
 
         Enable-CrashDumps
+        Download-Fn-Runtime
+        Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
+        $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
+        if ($null -ne $FnResult -and $FnResult -contains "RebootRequired" -and $FnResult["RebootRequired"]) {
+            $Reboot = $true
+        }
     }
 
     if ($ForPerfTest) {
