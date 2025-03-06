@@ -71,6 +71,8 @@ CHAR *HELP =
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 "   -EnableEbpf           Enables eBPF testing\n"
 "                         Default: off\n"
+"   -UseFnmp              Use FnMp to inject packets in the receive path\n"
+"                         Default: off\n"
 ;
 
 #define ASSERT_FRE(expr) \
@@ -271,6 +273,7 @@ BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
+BOOLEAN useFnmp = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
@@ -1264,12 +1267,14 @@ InitializeQueue(
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
 
-    //
-    // Get an handle to the FNMP driver interface to inject received data.
-    //
-    res = FnMpOpenShared(ifindex, &queue->fnmp);
-    if (!SUCCEEDED(res)) {
-        goto Exit;
+    if (useFnmp) {
+        //
+        // Get an handle to the FNMP driver interface to inject received data.
+        //
+        res = FnMpOpenShared(ifindex, &queue->fnmp);
+        if (!SUCCEEDED(res)) {
+            goto Exit;
+        }
     }
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
@@ -2300,7 +2305,7 @@ QueueWorkerFn(
         //
         // TODO guhetier: Inject received data. Probably should be done in another thread?
         //
-        {
+        if (queue->fnmp != NULL) {
             // static const ETHERNET_ADDRESS LocalHw = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
             // static const ETHERNET_ADDRESS RemoteHw = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
             #define MAX_BACKFILL 64
@@ -2651,6 +2656,8 @@ ParseArgs(
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
+        } else if (!strcmp(argv[i], "-UseFnmp")) {
+            useFnmp = TRUE;
         } else {
             Usage();
         }
