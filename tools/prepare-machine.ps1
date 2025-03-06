@@ -351,6 +351,7 @@ if ($Cleanup) {
 if ($Reboot) {
     if ($RequireNoReboot) {
         Write-Error "Reboot required but disallowed"
+        Write-Info "If running in CI, it likely means the OS image used has a non-matching configuration."
     } elseif ($NoReboot) {
         Write-Verbose "Reboot required"
         return @{"RebootRequired" = $true}
