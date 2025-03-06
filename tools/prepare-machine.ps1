@@ -310,7 +310,7 @@ if ($Cleanup) {
         # 1   - Delay (in minutes) after boot until simulation engages
         #       This is the lowest value configurable via verifier.exe.
         # WARNING: xdp.sys itself may fail to load due to low resources simulation.
-        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys fnmp.sys ebpfcore.sys"
+        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
         verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys fnmp.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
