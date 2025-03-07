@@ -15,7 +15,7 @@ Invoke-WebRequest https://aka.ms/xdp-v1.msi -OutFile xdp.msi
 msiexec.exe /i xdp.msi /quiet
 ```
 
-Optionally, the runtime may be installed from the `XDP-for-Windows-Runtime.<arch>` nuget package. The package must first be restored or its contents otherwise extracted, and then the following command installs the base `xdp` runtime components:
+Optionally, the runtime may be installed from a [`XDP-for-Windows-Runtime.<arch>`](https://www.nuget.org/packages?q=xdp-for-windows.runtime) nuget package. The package must first be restored or its contents otherwise extracted, and then the following command installs the base `xdp` runtime components:
 
 ```Powershell
 xdp-setup.ps1 -Install xdp
