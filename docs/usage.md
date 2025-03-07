@@ -15,6 +15,12 @@ Invoke-WebRequest https://aka.ms/xdp-v1.msi -OutFile xdp.msi
 msiexec.exe /i xdp.msi /quiet
 ```
 
+Optionally, the runtime may be installed from the `XDP-for-Windows-Runtime.<arch>` nuget package. The package must first be restored or its contents otherwise extracted, and then the following command installs the base `xdp` runtime components:
+
+```Powershell
+xdp-setup.ps1 -Install xdp
+```
+
 ### Install a Test Version
 
 If xdp.sys is not production-signed:
@@ -43,6 +49,12 @@ msiexec.exe /x xdp-for-windows.msi /quiet
 **Note** eBPF support is experimental and is not officially supported by XDP.
 
 Starting with XDP version 1.1, experimental eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
+
+When using the runtime nuget package instead of the runtime MSI, run the following command after [installing eBPF-for-Windows](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/InstallEbpf.md) and the base `xdp` component:
+
+```Powershell
+xdp-setup.ps1 -Install xdpebpf
+```
 
 The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development). Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages.
 
