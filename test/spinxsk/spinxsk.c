@@ -50,6 +50,7 @@
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_QUEUE_COUNT 4
 #define DEFAULT_FUZZER_COUNT 3
+#define DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT 4
 #define DEFAULT_SUCCESS_THRESHOLD 50
 
 CHAR *HELP =
@@ -222,7 +223,6 @@ struct QUEUE_CONTEXT {
     HANDLE sock;
     HANDLE sharedUmemSock;
     HANDLE rss;
-    FNMP_HANDLE fnmp;
     SRWLOCK rssLock;
 
     XSK_PROGRAM_SET rxProgramSet;
@@ -939,10 +939,6 @@ CleanupQueue(
         ASSERT_FRE(res);
     }
 
-    if (Queue->fnmp != NULL) {
-	    FnMpClose(Queue->fnmp);
-    }
-
     DeleteCriticalSection(&Queue->sharedUmemRxProgramSet.Lock);
     DeleteCriticalSection(&Queue->rxProgramSet.Lock);
 
@@ -1270,16 +1266,6 @@ InitializeQueue(
     InitializeCriticalSection(&queue->rxProgramSet.Lock);
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
-
-    if (useFnmp) {
-        //
-        // Get an handle to the FNMP driver interface to inject received data.
-        //
-        res = FnMpOpenShared(ifindex, &queue->fnmp);
-        if (!SUCCEEDED(res)) {
-            goto Exit;
-        }
-    }
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
@@ -2082,9 +2068,9 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
 
         udpPayload[0] = (UCHAR)RandUlong();
         udpFrameLength = sizeof(udpFrame) - backfill;
-    	PktBuildUdpFrame(
-	        &udpFrame[backfill], &udpFrameLength, udpPayload, udpPayloadLength,
-	        &localHw, &removeHw, af, &localIp, &remoteIp, localPort, remotePort);
+        PktBuildUdpFrame(
+            &udpFrame[backfill], &udpFrameLength, udpPayload, udpPayloadLength,
+            &localHw, &removeHw, af, &localIp, &remoteIp, localPort, remotePort);
 
         if (RandUlong() % 2) {
             buffers[0].DataOffset = backfill;
@@ -2423,21 +2409,6 @@ QueueWorkerFn(
             //
             TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
 
-            if (queue->fnmp != NULL) {
-                //
-                // Inject packets from FNMP if it is available
-                //
-                for (int i = 0; i < 10; ++i) {
-                    UINT8 numFrameInjected = InjectFnmpRxPacket(queue->fnmp);
-                    TraceVerbose("q[%u]: %d frames injected through FNMP", queue->queueId, numFrameInjected);
-                    if (WAIT_OBJECT_0 == WaitForSingleObject(stopEvent, 50)) {
-	                    break;
-                    }
-                }
-            } else {
-                WaitForSingleObject(stopEvent, 500);
-            }
-
             //
             // Signal and wait for datapath thread/s to return.
             //
@@ -2498,6 +2469,39 @@ QueueWorkerFn(
     ASSERT_FRE(successPct >= successThresholdPercent);
 
     TraceExit("q[%u]", queueWorker->queueId);
+    return 0;
+}
+
+DWORD
+WINAPI
+GlobalConcurrentWorkerFn(
+    _In_ VOID *ThreadParameter
+    )
+{
+    UNREFERENCED_PARAMETER(ThreadParameter);
+
+    TraceEnter("-");
+
+    //
+    // Get an handle to the FNMP driver interface to inject received data.
+    //
+    FNMP_HANDLE fnmp;
+    HRESULT res = FnMpOpenShared(ifindex, &fnmp);
+    ASSERT_FRE(SUCCEEDED(res));
+
+    while (TRUE) {
+        DWORD timeoutMs = RandUlong() % 100;
+        DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
+        if (status == WAIT_OBJECT_0) {
+            break;
+        }
+
+        InjectFnmpRxPacket(fnmp);
+    }
+
+    FnMpClose(fnmp);
+
+    TraceExit("-");
     return 0;
 }
 
@@ -2729,6 +2733,7 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
+    HANDLE globalConcurrentThreads[DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT] = {0};
 
     WPP_INIT_TRACING(NULL);
 
@@ -2777,7 +2782,18 @@ main(
     ASSERT_FRE(watchdogThread);
 
     //
-    // Kick off the queue workers.
+    // Create global concurrent workers
+    // (non-queue specific operations running concurrently).
+    //
+    if (useFnmp) {
+        for (UINT32 i = 0; i < DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT; i++) {
+            globalConcurrentThreads[i] = CreateThread(NULL, 0, GlobalConcurrentWorkerFn, NULL, 0, NULL);
+            ASSERT_FRE(globalConcurrentThreads[i]);
+        }
+    }
+
+    //
+    // Create per-queue workers.
     //
     for (UINT32 i = 0; i < queueCount; i++) {
         QUEUE_WORKER *queueWorker = &queueWorkers[i];
@@ -2808,10 +2824,19 @@ main(
     }
 
     //
-    // Cleanup the admin and watchdog threads after all workers have exited.
+    // Cleanup helper threads after all workers have exited.
     //
 
     SetEvent(workersDoneEvent);
+
+    if (useFnmp) {
+        TraceVerbose("main: waiting for globalConcurrent...");
+        for (UINT32 i = 0; i < DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT; i++) {
+            WaitForSingleObject(globalConcurrentThreads[i], INFINITE);
+            ASSERT_FRE(CloseHandle(globalConcurrentThreads[i]));
+            globalConcurrentThreads[i] = NULL;
+        }
+    }
 
     TraceVerbose("main: waiting for admin...");
     WaitForSingleObject(adminThread, INFINITE);
