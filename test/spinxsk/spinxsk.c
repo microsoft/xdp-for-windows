@@ -2075,12 +2075,17 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
 
         UINT32 frameLength = sizeof(frame) - backfill;
 
-        if (RandUlong() % 2) {
+        UINT32 frameType = RandUlong() % 3;
+        if (frameType == 0) {
+            //
+            // Build a UDP frame.
+            //
             ASSERT_FRE(PktBuildUdpFrame(
                 &frame[backfill], &frameLength, payload, payloadLength,
                 &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
-        } else {
+        } else if (frameType == 1) {
             //
+            // Build a TCP frame.
             // Up to 40 bytes of TCP options and random flags.
             //
             UINT8 tcpOptions[TCP_MAX_OPTION_LEN];
@@ -2095,6 +2100,14 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
                 &frame[backfill], &frameLength, payload, payloadLength,
                 tcpOptions, tcpOptionsLength, thSeq, thAck, thFlags, thWin,
                 &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
+        } else {
+            //
+            // Send pure chaos.
+            //
+            frameLength = RandUlong() % frameLength;
+            for (UINT32 j = 0; j < frameLength - sizeof(ULONG); j += sizeof(ULONG)) {
+                *(ULONG*)(frame + backfill + j) = RandUlong();
+            }
         }
 
         //
