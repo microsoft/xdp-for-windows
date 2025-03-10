@@ -2156,7 +2156,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
     flushOptions.Flags.LowResources = RandUlong() & 1;
     flushOptions.Flags.RssCpu = RandUlong() & 1;
-    flushOptions.RssCpuQueueId = RandUlong() & 1;
+    flushOptions.RssCpuQueueId = RandUlong() % queueCount;
 
     FnMpRxFlush(Fnmp, &flushOptions);
 
