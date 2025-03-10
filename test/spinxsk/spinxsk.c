@@ -2011,6 +2011,7 @@ ProcessPkts(
     return TRUE;
 }
 
+#define MAX_HEADER_STORAGE TCP_HEADER_STORAGE
 #define FNMP_FRAME_MAX_BACKFILL 64
 #define FNMP_IPV4_ADDRESS "192.168.200.1"
 #define FNMP_NEIGHBOR_IPV4_ADDRESS "192.168.200.2"
@@ -2025,29 +2026,25 @@ typedef union _INET_ADDR_STORAGE {
 } INET_ADDR_STORAGE;
 
 //
-// Build and inject UDP-like frames in the receive path through the FNMP driver.
+// Build and inject frames in the receive path through the FNMP driver.
 //
 UINT8
 InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
-    const ETHERNET_ADDRESS localHw = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
-    const ETHERNET_ADDRESS removeHw = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
-    UCHAR udpPayload[2048];
-    UCHAR udpFrame[FNMP_FRAME_MAX_BACKFILL + UDP_HEADER_STORAGE + sizeof(udpPayload)];
-    const UINT8 numFrames = (UINT8)RandUlong();
+    const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
 
+    UCHAR* payload = calloc(64'000, sizeof(UCHAR));
+    UCHAR* frame = calloc(FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + sizeof(payload), sizeof(UCHAR));
+    ASSERT_FRE(payload != NULL && frame != NULL);
+
+    const UINT8 numFrames = (UINT8)RandUlong();
     for (UINT8 i = 0; i < numFrames; i++) {
-        DATA_FRAME frame = {0};
-        DATA_BUFFER buffers[2] = {0};
+        //
+        // Set IP addresses: IPv4 or IPv6.
+        //
         INET_ADDR_STORAGE localIp = {0};
         INET_ADDR_STORAGE remoteIp = {0};
-        UINT32 udpFrameLength = 0;
-
-        const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
-        const UINT16 udpPayloadLength = RandUlong() % sizeof(udpPayload);
         const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
-        const UINT16 localPort = (UINT16)RandUlong();
-        const UINT16 remotePort = (UINT16)RandUlong();
-
         if (af == AF_INET) {
             PCSTR terminator = NULL;
             ASSERT_FRE(
@@ -2066,39 +2063,93 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
                     FNMP_NEIGHBOR_IPV6_ADDRESS, &terminator, &remoteIp.Ipv6) == 0);
         }
 
-        udpPayload[0] = (UCHAR)RandUlong();
-        udpFrameLength = sizeof(udpFrame) - backfill;
-        PktBuildUdpFrame(
-            &udpFrame[backfill], &udpFrameLength, udpPayload, udpPayloadLength,
-            &localHw, &removeHw, af, &localIp, &remoteIp, localPort, remotePort);
+        //
+        // Build a frame
+        //
+        const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
+        const UINT16 localPort = (UINT16)RandUlong();
+        const UINT16 remotePort = (UINT16)RandUlong();
+
+        payload[0] = (UCHAR)RandUlong();
+        const UINT16 payloadLength = RandUlong() % sizeof(payload);
+
+        UINT32 frameLength = sizeof(frame) - backfill;
 
         if (RandUlong() % 2) {
-            buffers[0].DataOffset = backfill;
-            buffers[0].DataLength = udpFrameLength;
-            buffers[0].BufferLength = sizeof(udpFrame);
-            buffers[0].VirtualAddress = udpFrame;
-            frame.Buffers = buffers;
-            frame.BufferCount = 1;
+            ASSERT_FRE(PktBuildUdpFrame(
+                &frame[backfill], &frameLength, payload, payloadLength,
+                &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
         } else {
-            const UINT32 bufferSplitOffset = RandUlong() % (udpFrameLength + 1);
+            //
+            // Up to 40 bytes of TCP options and random flags.
+            //
+            UINT8 tcpOptions[TCP_MAX_OPTION_LEN];
+            tcpOptions[0] = (UCHAR)RandUlong();
+            UINT16 tcpOptionsLength = 4 * RandUlong() % 10;
+            const UINT32 thSeq = RandUlong();
+            const UINT32 thAck = RandUlong();
+            const UINT8 thFlags = (UINT8)RandUlong();
+            const UINT16 thWin = (UINT16)RandUlong();
+
+            ASSERT_FRE(PktBuildTcpFrame(
+                &frame[backfill], &frameLength, payload, payloadLength,
+                tcpOptions, tcpOptionsLength, thSeq, thAck, thFlags, thWin,
+                &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
+        }
+
+        //
+        // Setup the fnmp data frame.
+        //
+        DATA_FRAME fnmpFrame = {0};
+        fnmpFrame.Input.RssHashQueueId = RandUlong() % queueCount;
+        fnmpFrame.Input.Checksum.Value = (PVOID)(ULONG_PTR)RandUlong();
+        //
+        // TODO guhetier: May need to be smarter with this based on the frame size?
+        //
+        fnmpFrame.Input.Rsc.Value = (PVOID)(ULONG_PTR)RandUlong();
+
+        //
+        // Split the frame into one or two MDLs.
+        //
+        DATA_BUFFER buffers[2] = {0};
+        if (RandUlong() % 2) {
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = frameLength;
+            buffers[0].BufferLength = sizeof(frame);
+            buffers[0].VirtualAddress = frame;
+            fnmpFrame.Buffers = buffers;
+            fnmpFrame.BufferCount = 1;
+        } else {
+            const UINT32 bufferSplitOffset = RandUlong() % (frameLength + 1);
 
             buffers[0].DataOffset = backfill;
             buffers[0].DataLength = bufferSplitOffset;
             buffers[0].BufferLength = backfill + buffers[0].DataLength;
-            buffers[0].VirtualAddress = udpFrame;
-            buffers[1].DataLength = udpFrameLength - bufferSplitOffset;
-            buffers[1].BufferLength = sizeof(udpFrame) - buffers[0].BufferLength;
-            buffers[1].VirtualAddress = udpFrame + buffers[0].BufferLength;
-            frame.Buffers = buffers;
-            frame.BufferCount = 2;
+            buffers[0].VirtualAddress = frame;
+            buffers[1].DataLength = frameLength - bufferSplitOffset;
+            buffers[1].BufferLength = sizeof(frame) - buffers[0].BufferLength;
+            buffers[1].VirtualAddress = frame + buffers[0].BufferLength;
+            fnmpFrame.Buffers = buffers;
+            fnmpFrame.BufferCount = 2;
         }
 
-        FnMpRxEnqueue(Fnmp, &frame);
+        FnMpRxEnqueue(Fnmp, &fnmpFrame);
     }
+
     DATA_FLUSH_OPTIONS flushOptions = {0};
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
+    flushOptions.Flags.LowResources = RandUlong() & 1;
+    flushOptions.Flags.RssCpu = RandUlong() & 1;
+    flushOptions.RssCpuQueueId = RandUlong() & 1;
 
     FnMpRxFlush(Fnmp, &flushOptions);
+
+    //
+    // Cleanup
+    //
+    free(payload);
+    free(frame);
+
     return numFrames;
 }
 
@@ -2472,6 +2523,11 @@ QueueWorkerFn(
     return 0;
 }
 
+//
+// Worker function for tasks that:
+// - are global (not specific to a queue)
+// - need to run concurrently on multiple threads
+//
 DWORD
 WINAPI
 GlobalConcurrentWorkerFn(
@@ -2490,6 +2546,9 @@ GlobalConcurrentWorkerFn(
     ASSERT_FRE(SUCCEEDED(res));
 
     while (TRUE) {
+        //
+        // Use a random delay to simulate bursts of traffic
+        //
         DWORD timeoutMs = RandUlong() % 100;
         DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
         if (status == WAIT_OBJECT_0) {
