@@ -2033,11 +2033,15 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
 
-    UCHAR* payload = calloc(64'000, sizeof(UCHAR));
-    UCHAR* frame = calloc(FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + sizeof(payload), sizeof(UCHAR));
+    const ULONG payloadBufferSize = 64'000;
+    UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
+    const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + payloadBufferSize;
+    UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
     ASSERT_FRE(payload != NULL && frame != NULL);
 
     const UINT8 numFrames = (UINT8)RandUlong();
+    TraceVerbose("FnmpInjectRx: injecting %d frames", numFrames);
+
     for (UINT8 i = 0; i < numFrames; i++) {
         //
         // Set IP addresses: IPv4 or IPv6.
@@ -2071,10 +2075,9 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
         const UINT16 remotePort = (UINT16)RandUlong();
 
         payload[0] = (UCHAR)RandUlong();
-        const UINT16 payloadLength = RandUlong() % sizeof(payload);
+        const UINT16 payloadLength = (UINT16)(RandUlong() % payloadBufferSize);
 
-        UINT32 frameLength = sizeof(frame) - backfill;
-
+        UINT32 frameLength = frameBufferSize - backfill;
         UINT32 frameType = RandUlong() % 3;
         if (frameType == 0) {
             //
@@ -2090,7 +2093,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             //
             UINT8 tcpOptions[TCP_MAX_OPTION_LEN];
             tcpOptions[0] = (UCHAR)RandUlong();
-            UINT16 tcpOptionsLength = 4 * RandUlong() % 10;
+            UINT16 tcpOptionsLength = 4 * (RandUlong() % 10);
             const UINT32 thSeq = RandUlong();
             const UINT32 thAck = RandUlong();
             const UINT8 thFlags = (UINT8)RandUlong();
@@ -2105,7 +2108,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             // Send pure chaos.
             //
             frameLength = RandUlong() % frameLength;
-            for (UINT32 j = 0; j < frameLength - sizeof(ULONG); j += sizeof(ULONG)) {
+            for (UINT32 j = 0; j + sizeof(ULONG) < frameLength; j += sizeof(ULONG)) {
                 *(ULONG*)(frame + backfill + j) = RandUlong();
             }
         }
