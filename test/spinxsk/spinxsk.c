@@ -2012,13 +2012,6 @@ ProcessPkts(
 }
 
 #define MAX_HEADER_STORAGE TCP_HEADER_STORAGE
-#define FNMP_FRAME_MAX_BACKFILL 64
-#define FNMP_IPV4_ADDRESS "192.168.200.1"
-#define FNMP_NEIGHBOR_IPV4_ADDRESS "192.168.200.2"
-#define FNMP_IPV6_ADDRESS "fc00::200:1"
-#define FNMP_NEIGHBOR_IPV6_ADDRESS "fc00::200:2"
-#define FNMP_LOCAL_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x00}
-#define FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x02}
 
 typedef union _INET_ADDR_STORAGE {
     IN_ADDR Ipv4;
@@ -2033,8 +2026,10 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
 
-    const ULONG payloadBufferSize = 64'000;
+    const UINT32 payloadBufferSize = 64'000;
     UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
+    payload[0] = (UCHAR)RandUlong(); // Makes TVS happy, the payload being garbage data is a plus here.
+
     const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + payloadBufferSize;
     UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
     ASSERT_FRE(payload != NULL && frame != NULL);
@@ -2067,15 +2062,41 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
                     FNMP_NEIGHBOR_IPV6_ADDRESS, &terminator, &remoteIp.Ipv6) == 0);
         }
 
+        UINT32 payloadLength = 0;
+        if (RandUlong() % 2) {
+            //
+            // Add some QUIC flavor to the TCP / UDP payload.
+            //
+            // We want to generate the QUIC header in the TCP/UDP payload buffer
+            // and we use the frame buffer as a random QUIC payload.
+            //
+            payloadLength = payloadBufferSize;
+            UINT16 quicPayloadLength = (UINT16)(RandUlong() % (payloadBufferSize - QUIC_MAX_HEADER_LEN));
+            UINT8 typeSpecificBits = (UINT8)RandUlong();
+            CONST UINT8 version = 1;
+            UINT8 destConnIdLength = (UINT8)(RandUlong() % XDP_QUIC_MAX_CID_LENGTH);
+            UINT8 destConnId[20];
+            destConnId[0] = (UCHAR)RandUlong();
+            UINT8 srcConnIdLength = (UINT8)(RandUlong() % XDP_QUIC_MAX_CID_LENGTH);
+            UINT8 srcConnId[20];
+            srcConnId[0] = (UCHAR)RandUlong();
+            BOOLEAN useShortHeader = (BOOLEAN)(RandUlong() % 2);
+            ASSERT_FRE(PktBuildQuicPacket(
+                payload, &payloadLength, frame, quicPayloadLength, typeSpecificBits, version,
+                destConnId, destConnIdLength, srcConnId, srcConnIdLength, useShortHeader));
+        } else {
+            //
+            // Use a random payload.
+            //
+            payloadLength = RandUlong() % payloadBufferSize;
+        }
+
         //
-        // Build a frame
+        // Build a transport frame
         //
         const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
         const UINT16 localPort = (UINT16)RandUlong();
         const UINT16 remotePort = (UINT16)RandUlong();
-
-        payload[0] = (UCHAR)RandUlong();
-        const UINT16 payloadLength = (UINT16)(RandUlong() % payloadBufferSize);
 
         UINT32 frameLength = frameBufferSize - backfill;
         UINT32 frameType = RandUlong() % 3;
@@ -2084,7 +2105,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             // Build a UDP frame.
             //
             ASSERT_FRE(PktBuildUdpFrame(
-                &frame[backfill], &frameLength, payload, payloadLength,
+                &frame[backfill], &frameLength, payload, (UINT16)payloadLength,
                 &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
         } else if (frameType == 1) {
             //
@@ -2100,7 +2121,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             const UINT16 thWin = (UINT16)RandUlong();
 
             ASSERT_FRE(PktBuildTcpFrame(
-                &frame[backfill], &frameLength, payload, payloadLength,
+                &frame[backfill], &frameLength, payload, (UINT16)payloadLength,
                 tcpOptions, tcpOptionsLength, thSeq, thAck, thFlags, thWin,
                 &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
         } else {
