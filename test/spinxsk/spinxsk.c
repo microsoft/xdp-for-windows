@@ -6,6 +6,14 @@
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 #pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
 
+#define NOMINMAX
+#include <xdp/wincommon.h>
+#include <winsock2.h>
+#pragma warning(push)
+#pragma warning(disable:4324) // structure was padded due to alignment specifier
+#include <ntddndis.h>
+#pragma warning(pop)
+
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
@@ -21,6 +29,13 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
+#include <netiodef.h>
+#include <ws2ipdef.h>
+#include <mstcpip.h>
+
+#include <fnmpapi.h>
+#include <pkthlp.h>
+
 #include "trace.h"
 #include "util.h"
 #include "spinxsk.tmh"
@@ -35,6 +50,7 @@
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_QUEUE_COUNT 4
 #define DEFAULT_FUZZER_COUNT 3
+#define DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT 4
 #define DEFAULT_SUCCESS_THRESHOLD 50
 
 CHAR *HELP =
@@ -60,6 +76,8 @@ CHAR *HELP =
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 "   -EnableEbpf           Enables eBPF testing\n"
+"                         Default: off\n"
+"   -UseFnmp              Use FnMp to inject packets in the receive path\n"
 "                         Default: off\n"
 ;
 
@@ -260,6 +278,7 @@ BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
+BOOLEAN useFnmp = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
@@ -1992,6 +2011,164 @@ ProcessPkts(
     return TRUE;
 }
 
+#define MAX_HEADER_STORAGE TCP_HEADER_STORAGE
+#define FNMP_FRAME_MAX_BACKFILL 64
+#define FNMP_IPV4_ADDRESS "192.168.200.1"
+#define FNMP_NEIGHBOR_IPV4_ADDRESS "192.168.200.2"
+#define FNMP_IPV6_ADDRESS "fc00::200:1"
+#define FNMP_NEIGHBOR_IPV6_ADDRESS "fc00::200:2"
+#define FNMP_LOCAL_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x00}
+#define FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT {0x22, 0x22, 0x22, 0x22, 0x00, 0x02}
+
+typedef union _INET_ADDR_STORAGE {
+    IN_ADDR Ipv4;
+    IN6_ADDR Ipv6;
+} INET_ADDR_STORAGE;
+
+//
+// Build and inject frames in the receive path through the FNMP driver.
+//
+UINT8
+InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
+    const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+
+    const ULONG payloadBufferSize = 64'000;
+    UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
+    const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + payloadBufferSize;
+    UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
+    ASSERT_FRE(payload != NULL && frame != NULL);
+
+    const UINT8 numFrames = (UINT8)RandUlong();
+    TraceVerbose("FnmpInjectRx: injecting %d frames", numFrames);
+
+    for (UINT8 i = 0; i < numFrames; i++) {
+        //
+        // Set IP addresses: IPv4 or IPv6.
+        //
+        INET_ADDR_STORAGE localIp = {0};
+        INET_ADDR_STORAGE remoteIp = {0};
+        const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+        if (af == AF_INET) {
+            PCSTR terminator = NULL;
+            ASSERT_FRE(
+                RtlIpv4StringToAddressA(
+                    FNMP_IPV4_ADDRESS, FALSE, &terminator, &localIp.Ipv4) == 0);
+            ASSERT_FRE(
+                RtlIpv4StringToAddressA(
+                    FNMP_NEIGHBOR_IPV4_ADDRESS, FALSE, &terminator, &remoteIp.Ipv4) == 0);
+        } else {
+            PCSTR terminator = NULL;
+            ASSERT_FRE(
+                RtlIpv6StringToAddressA(
+                    FNMP_IPV6_ADDRESS, &terminator, &localIp.Ipv6) == 0);
+            ASSERT_FRE(
+                RtlIpv6StringToAddressA(
+                    FNMP_NEIGHBOR_IPV6_ADDRESS, &terminator, &remoteIp.Ipv6) == 0);
+        }
+
+        //
+        // Build a frame
+        //
+        const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
+        const UINT16 localPort = (UINT16)RandUlong();
+        const UINT16 remotePort = (UINT16)RandUlong();
+
+        payload[0] = (UCHAR)RandUlong();
+        const UINT16 payloadLength = (UINT16)(RandUlong() % payloadBufferSize);
+
+        UINT32 frameLength = frameBufferSize - backfill;
+        UINT32 frameType = RandUlong() % 3;
+        if (frameType == 0) {
+            //
+            // Build a UDP frame.
+            //
+            ASSERT_FRE(PktBuildUdpFrame(
+                &frame[backfill], &frameLength, payload, payloadLength,
+                &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
+        } else if (frameType == 1) {
+            //
+            // Build a TCP frame.
+            // Up to 40 bytes of TCP options and random flags.
+            //
+            UINT8 tcpOptions[TCP_MAX_OPTION_LEN];
+            tcpOptions[0] = (UCHAR)RandUlong();
+            UINT16 tcpOptionsLength = 4 * (RandUlong() % 10);
+            const UINT32 thSeq = RandUlong();
+            const UINT32 thAck = RandUlong();
+            const UINT8 thFlags = (UINT8)RandUlong();
+            const UINT16 thWin = (UINT16)RandUlong();
+
+            ASSERT_FRE(PktBuildTcpFrame(
+                &frame[backfill], &frameLength, payload, payloadLength,
+                tcpOptions, tcpOptionsLength, thSeq, thAck, thFlags, thWin,
+                &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
+        } else {
+            //
+            // Send pure chaos.
+            //
+            frameLength = RandUlong() % frameLength;
+            for (UINT32 j = 0; j + sizeof(ULONG) < frameLength; j += sizeof(ULONG)) {
+                *(ULONG*)(frame + backfill + j) = RandUlong();
+            }
+        }
+
+        //
+        // Setup the fnmp data frame.
+        //
+        DATA_FRAME fnmpFrame = {0};
+        fnmpFrame.Input.RssHashQueueId = RandUlong() % queueCount;
+        fnmpFrame.Input.Checksum.Value = (PVOID)(ULONG_PTR)RandUlong();
+        //
+        // TODO guhetier: May need to be smarter with this based on the frame size?
+        //
+        fnmpFrame.Input.Rsc.Value = (PVOID)(ULONG_PTR)RandUlong();
+
+        //
+        // Split the frame into one or two MDLs.
+        //
+        DATA_BUFFER buffers[2] = {0};
+        if (RandUlong() % 2) {
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = frameLength;
+            buffers[0].BufferLength = sizeof(frame);
+            buffers[0].VirtualAddress = frame;
+            fnmpFrame.Buffers = buffers;
+            fnmpFrame.BufferCount = 1;
+        } else {
+            const UINT32 bufferSplitOffset = RandUlong() % (frameLength + 1);
+
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = bufferSplitOffset;
+            buffers[0].BufferLength = backfill + buffers[0].DataLength;
+            buffers[0].VirtualAddress = frame;
+            buffers[1].DataLength = frameLength - bufferSplitOffset;
+            buffers[1].BufferLength = sizeof(frame) - buffers[0].BufferLength;
+            buffers[1].VirtualAddress = frame + buffers[0].BufferLength;
+            fnmpFrame.Buffers = buffers;
+            fnmpFrame.BufferCount = 2;
+        }
+
+        FnMpRxEnqueue(Fnmp, &fnmpFrame);
+    }
+
+    DATA_FLUSH_OPTIONS flushOptions = {0};
+    flushOptions.Flags.DpcLevel = RandUlong() & 1;
+    flushOptions.Flags.LowResources = RandUlong() & 1;
+    flushOptions.Flags.RssCpu = RandUlong() & 1;
+    flushOptions.RssCpuQueueId = RandUlong() % queueCount;
+
+    FnMpRxFlush(Fnmp, &flushOptions);
+
+    //
+    // Cleanup
+    //
+    free(payload);
+    free(frame);
+
+    return numFrames;
+}
+
 VOID
 PrintDatapathStats(
     _In_ const XSK_DATAPATH_WORKER *Datapath
@@ -2298,7 +2475,6 @@ QueueWorkerFn(
             // Let datapath thread/s pump datapath for set duration.
             //
             TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
-            WaitForSingleObject(stopEvent, 500);
 
             //
             // Signal and wait for datapath thread/s to return.
@@ -2360,6 +2536,47 @@ QueueWorkerFn(
     ASSERT_FRE(successPct >= successThresholdPercent);
 
     TraceExit("q[%u]", queueWorker->queueId);
+    return 0;
+}
+
+//
+// Worker function for tasks that:
+// - are global (not specific to a queue)
+// - need to run concurrently on multiple threads
+//
+DWORD
+WINAPI
+GlobalConcurrentWorkerFn(
+    _In_ VOID *ThreadParameter
+    )
+{
+    UNREFERENCED_PARAMETER(ThreadParameter);
+
+    TraceEnter("-");
+
+    //
+    // Get an handle to the FNMP driver interface to inject received data.
+    //
+    FNMP_HANDLE fnmp;
+    HRESULT res = FnMpOpenShared(ifindex, &fnmp);
+    ASSERT_FRE(SUCCEEDED(res));
+
+    while (TRUE) {
+        //
+        // Use a random delay to simulate bursts of traffic
+        //
+        DWORD timeoutMs = RandUlong() % 100;
+        DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
+        if (status == WAIT_OBJECT_0) {
+            break;
+        }
+
+        InjectFnmpRxPacket(fnmp);
+    }
+
+    FnMpClose(fnmp);
+
+    TraceExit("-");
     return 0;
 }
 
@@ -2550,6 +2767,8 @@ ParseArgs(
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
+        } else if (!strcmp(argv[i], "-UseFnmp")) {
+            useFnmp = TRUE;
         } else {
             Usage();
         }
@@ -2589,6 +2808,7 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
+    HANDLE globalConcurrentThreads[DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT] = {0};
 
     WPP_INIT_TRACING(NULL);
 
@@ -2637,7 +2857,18 @@ main(
     ASSERT_FRE(watchdogThread);
 
     //
-    // Kick off the queue workers.
+    // Create global concurrent workers
+    // (non-queue specific operations running concurrently).
+    //
+    if (useFnmp) {
+        for (UINT32 i = 0; i < DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT; i++) {
+            globalConcurrentThreads[i] = CreateThread(NULL, 0, GlobalConcurrentWorkerFn, NULL, 0, NULL);
+            ASSERT_FRE(globalConcurrentThreads[i]);
+        }
+    }
+
+    //
+    // Create per-queue workers.
     //
     for (UINT32 i = 0; i < queueCount; i++) {
         QUEUE_WORKER *queueWorker = &queueWorkers[i];
@@ -2668,10 +2899,19 @@ main(
     }
 
     //
-    // Cleanup the admin and watchdog threads after all workers have exited.
+    // Cleanup helper threads after all workers have exited.
     //
 
     SetEvent(workersDoneEvent);
+
+    if (useFnmp) {
+        TraceVerbose("main: waiting for globalConcurrent...");
+        for (UINT32 i = 0; i < DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT; i++) {
+            WaitForSingleObject(globalConcurrentThreads[i], INFINITE);
+            ASSERT_FRE(CloseHandle(globalConcurrentThreads[i]));
+            globalConcurrentThreads[i] = NULL;
+        }
+    }
 
     TraceVerbose("main: waiting for admin...");
     WaitForSingleObject(adminThread, INFINITE);
