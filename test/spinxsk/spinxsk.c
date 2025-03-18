@@ -299,6 +299,17 @@ RandUlong(
     return r;
 }
 
+VOID
+FillRandomBuffer(
+    _In_ const SIZE_T Size,
+    _Out_writes_bytes_(Size) UINT8* Buffer
+    )
+{
+    for (SIZE_T i = 0; i < Size; i++) {
+        Buffer[i] = (UINT8)RandUlong();
+    }
+}
+
 ULONG
 Pct(
     ULONG Dividend,
@@ -2028,7 +2039,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
 
     const UINT32 payloadBufferSize = 64'000;
     UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
-    payload[0] = (UCHAR)RandUlong(); // Makes TVS happy, the payload being garbage data is a plus here.
+    FillRandomBuffer(payloadBufferSize, payload);
 
     const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + payloadBufferSize;
     UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
@@ -2071,15 +2082,15 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             // and we use the frame buffer as a random QUIC payload.
             //
             payloadLength = payloadBufferSize;
-            UINT16 quicPayloadLength = (UINT16)(RandUlong() % (payloadBufferSize - QUIC_MAX_HEADER_LEN));
+            UINT16 quicPayloadLength = (UINT16)(RandUlong() % (payloadBufferSize - QUIC_MAX_HEADER_LEN + 1));
             UINT8 typeSpecificBits = (UINT8)RandUlong();
             CONST UINT8 version = 1;
-            UINT8 destConnIdLength = (UINT8)(RandUlong() % XDP_QUIC_MAX_CID_LENGTH);
+            UINT8 destConnIdLength = (UINT8)(RandUlong() % (XDP_QUIC_MAX_CID_LENGTH + 1));
             UINT8 destConnId[20];
-            destConnId[0] = (UCHAR)RandUlong();
-            UINT8 srcConnIdLength = (UINT8)(RandUlong() % XDP_QUIC_MAX_CID_LENGTH);
+            FillRandomBuffer(sizeof(destConnId), destConnId);
+            UINT8 srcConnIdLength = (UINT8)(RandUlong() % (XDP_QUIC_MAX_CID_LENGTH + 1));
             UINT8 srcConnId[20];
-            srcConnId[0] = (UCHAR)RandUlong();
+            FillRandomBuffer(sizeof(srcConnId), srcConnId);
             BOOLEAN useShortHeader = (BOOLEAN)(RandUlong() % 2);
             ASSERT_FRE(PktBuildQuicPacket(
                 payload, &payloadLength, frame, quicPayloadLength, typeSpecificBits, version,
@@ -2088,13 +2099,13 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             //
             // Use a random payload.
             //
-            payloadLength = RandUlong() % payloadBufferSize;
+            payloadLength = RandUlong() % (payloadBufferSize + 1);
         }
 
         //
         // Build a transport frame
         //
-        const UINT32 backfill = RandUlong() % FNMP_FRAME_MAX_BACKFILL;
+        const UINT32 backfill = RandUlong() % (FNMP_FRAME_MAX_BACKFILL + 1);
         const UINT16 localPort = (UINT16)RandUlong();
         const UINT16 remotePort = (UINT16)RandUlong();
 
@@ -2113,8 +2124,8 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             // Up to 40 bytes of TCP options and random flags.
             //
             UINT8 tcpOptions[TCP_MAX_OPTION_LEN];
-            tcpOptions[0] = (UCHAR)RandUlong();
-            UINT16 tcpOptionsLength = 4 * (RandUlong() % 10);
+            FillRandomBuffer(sizeof(tcpOptions), tcpOptions);
+            UINT16 tcpOptionsLength = 4 * (RandUlong() % (10 + 1));
             const UINT32 thSeq = RandUlong();
             const UINT32 thAck = RandUlong();
             const UINT8 thFlags = (UINT8)RandUlong();
@@ -2128,7 +2139,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             //
             // Send pure chaos.
             //
-            frameLength = RandUlong() % frameLength;
+            frameLength = RandUlong() % (frameLength + 1);
             for (UINT32 j = 0; j + sizeof(ULONG) < frameLength; j += sizeof(ULONG)) {
                 *(ULONG*)(frame + backfill + j) = RandUlong();
             }
@@ -2140,9 +2151,6 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
         DATA_FRAME fnmpFrame = {0};
         fnmpFrame.Input.RssHashQueueId = RandUlong() % queueCount;
         fnmpFrame.Input.Checksum.Value = (PVOID)(ULONG_PTR)RandUlong();
-        //
-        // TODO guhetier: May need to be smarter with this based on the frame size?
-        //
         fnmpFrame.Input.Rsc.Value = (PVOID)(ULONG_PTR)RandUlong();
 
         //
