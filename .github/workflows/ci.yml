@@ -237,6 +237,7 @@ jobs:
         windows: [2019, 2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
+        testDriver: [XDPMP, FNMP]
         exclude:
         - windows: 2019
           platform: arm64
@@ -267,12 +268,12 @@ jobs:
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'}}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15

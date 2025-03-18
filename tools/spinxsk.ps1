@@ -82,9 +82,7 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("XDPMP", "FNMP")]
-    [string]$Driver = "FNMP",
-    # TODO guhetier: XDPMP by default, but using FNMP to test CI easily
-    # [string]$Driver = "XDPMP",
+    [string]$Driver = "XDPMP",
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
@@ -141,8 +139,8 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
 
     try {
         if (!$NoLogs) {
-            & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Platform $Platform
-            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
+            & "$RootDir\tools\log.ps1" -Start -Name spinxsk_$Driver -Profile SpinXsk.Verbose -Config $Config -Platform $Platform
+            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf_$Driver -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
             if ($Platform -ne "arm64") {
                 # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
                 & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
@@ -234,8 +232,8 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
                 # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
                 & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
             }
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
     }
 }
