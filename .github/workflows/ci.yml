@@ -278,12 +278,12 @@ jobs:
       if: ${{ always() }}
       timeout-minutes: 15
       shell: PowerShell
-      run: tools/log.ps1 -Convert -Name spinxsk -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+      run: tools/log.ps1 -Convert -Name spinxsk_${{ matrix.testDriver }} -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: ${{ always() }}
       with:
-        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
