@@ -143,7 +143,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf_$Driver -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
             if ($Platform -ne "arm64") {
                 # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
-                & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
+                & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu_$Driver -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
             }
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
@@ -230,7 +230,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if (!$NoLogs) {
             if ($Platform -ne "arm64") {
                 # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
-                & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
+                & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
             }
             & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
