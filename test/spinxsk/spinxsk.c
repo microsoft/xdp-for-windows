@@ -2060,7 +2060,7 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
         return;
     }
 
-    const UINT32 numFrames = RandUlong() % 4000;
+    const UINT32 numFrames = (UINT8)(RandUlong() % 4000);
     TraceVerbose("FnmpInjectRx: injecting %d frames", numFrames);
 
     for (UINT8 i = 0; i < numFrames; i++) {
@@ -2634,7 +2634,7 @@ GlobalConcurrentWorkerFn(
         //
         // Use a random delay to simulate bursts of traffic
         //
-        DWORD timeoutMs = RandUlong() % 10;
+        DWORD timeoutMs = RandUlong() % 100;
         DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
         if (status == WAIT_OBJECT_0) {
             break;
