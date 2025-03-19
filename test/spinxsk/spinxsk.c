@@ -2023,6 +2023,23 @@ ProcessPkts(
 }
 
 //
+// Add some "corrupted" bytes to a buffer.
+// Each byte of the buffer has a 1/20 chance to be replaced by a random value.
+//
+VOID
+CorruptBuffer(
+    _Inout_updates_bytes_(BufferSize) UINT8* Buffer,
+    _In_ const UINT32 BufferSize
+    )
+{
+    for (UINT32 i = 0; i < BufferSize; i++) {
+        if (RandUlong() % 20 == 0) {
+            Buffer[i] = (UINT8)RandUlong();
+        }
+    }
+}
+
+//
 // Build and inject frames in the receive path through the FNMP driver.
 //
 VOID
@@ -2032,7 +2049,6 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
 
     const UINT32 payloadBufferSize = 64'000;
     UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
-    FillRandomBuffer(payloadBufferSize, payload);
 
     const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
     UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
@@ -2048,6 +2064,9 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     TraceVerbose("FnmpInjectRx: injecting %d frames", numFrames);
 
     for (UINT8 i = 0; i < numFrames; i++) {
+        FillRandomBuffer(payloadBufferSize, payload);
+        FillRandomBuffer(frameBufferSize, frame);
+
         //
         // Set IP addresses: IPv4 or IPv6.
         //
@@ -2142,6 +2161,13 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
             for (UINT32 j = 0; j + sizeof(ULONG) < frameLength; j += sizeof(ULONG)) {
                 *(ULONG*)(frame + backfill + j) = RandUlong();
             }
+        }
+
+        //
+        // Consider corrupting a well built frame a little.
+        //
+        if (RandUlong() % 2) {
+            CorruptBuffer(&frame[backfill], frameLength);
         }
 
         //
