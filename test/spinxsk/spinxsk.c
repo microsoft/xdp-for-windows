@@ -2022,17 +2022,10 @@ ProcessPkts(
     return TRUE;
 }
 
-#define MAX_HEADER_STORAGE TCP_HEADER_STORAGE
-
-typedef union _INET_ADDR_STORAGE {
-    IN_ADDR Ipv4;
-    IN6_ADDR Ipv6;
-} INET_ADDR_STORAGE;
-
 //
 // Build and inject frames in the receive path through the FNMP driver.
 //
-UINT8
+VOID
 InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
@@ -2041,19 +2034,25 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
     FillRandomBuffer(payloadBufferSize, payload);
 
-    const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + MAX_HEADER_STORAGE + payloadBufferSize;
+    const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
     UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
-    ASSERT_FRE(payload != NULL && frame != NULL);
 
-    const UINT8 numFrames = (UINT8)RandUlong();
+    if (frame == NULL || payload == NULL) {
+        TraceWarn("Allocation failure, frame: %p, payload: %p", frame, payload);
+        free(frame);
+        free(payload);
+        return;
+    }
+
+    const UINT32 numFrames = RandUlong() % 4000;
     TraceVerbose("FnmpInjectRx: injecting %d frames", numFrames);
 
     for (UINT8 i = 0; i < numFrames; i++) {
         //
         // Set IP addresses: IPv4 or IPv6.
         //
-        INET_ADDR_STORAGE localIp = {0};
-        INET_ADDR_STORAGE remoteIp = {0};
+        INET_ADDR localIp = {0};
+        INET_ADDR remoteIp = {0};
         const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
         if (af == AF_INET) {
             PCSTR terminator = NULL;
@@ -2156,27 +2155,44 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
         //
         // Split the frame into one or two MDLs.
         //
-        DATA_BUFFER buffers[2] = {0};
-        if (RandUlong() % 2) {
+        DATA_BUFFER buffers[3] = {0};
+        const UINT16 numSplit = (UINT16)(RandUlong() % 3);
+        if (numSplit == 0) {
             buffers[0].DataOffset = backfill;
             buffers[0].DataLength = frameLength;
-            buffers[0].BufferLength = sizeof(frame);
+            buffers[0].BufferLength = frameBufferSize;
             buffers[0].VirtualAddress = frame;
-            fnmpFrame.Buffers = buffers;
-            fnmpFrame.BufferCount = 1;
-        } else {
+        } else if (numSplit == 1) {
             const UINT32 bufferSplitOffset = RandUlong() % (frameLength + 1);
 
             buffers[0].DataOffset = backfill;
             buffers[0].DataLength = bufferSplitOffset;
-            buffers[0].BufferLength = backfill + buffers[0].DataLength;
+            buffers[0].BufferLength = backfill + bufferSplitOffset;
             buffers[0].VirtualAddress = frame;
+
             buffers[1].DataLength = frameLength - bufferSplitOffset;
-            buffers[1].BufferLength = sizeof(frame) - buffers[0].BufferLength;
-            buffers[1].VirtualAddress = frame + buffers[0].BufferLength;
-            fnmpFrame.Buffers = buffers;
-            fnmpFrame.BufferCount = 2;
+            buffers[1].BufferLength = frameBufferSize - buffers[0].BufferLength;
+            buffers[1].VirtualAddress = buffers[0].VirtualAddress + buffers[0].BufferLength;;
+        } else { // numSplit == 2
+            const UINT32 bufferSplitOffset = RandUlong() % (frameLength + 1);
+            const UINT32 bufferSplitOffset2 =
+                bufferSplitOffset + RandUlong() % (frameLength - bufferSplitOffset + 1);
+
+            buffers[0].DataOffset = backfill;
+            buffers[0].DataLength = bufferSplitOffset;
+            buffers[0].BufferLength = backfill + bufferSplitOffset;
+            buffers[0].VirtualAddress = frame;
+
+            buffers[1].DataLength = bufferSplitOffset2 - bufferSplitOffset;
+            buffers[1].BufferLength = bufferSplitOffset2 - bufferSplitOffset;
+            buffers[1].VirtualAddress = buffers[0].VirtualAddress + buffers[0].BufferLength;
+
+            buffers[2].DataLength = frameLength - bufferSplitOffset2;
+            buffers[2].BufferLength = frameBufferSize - backfill - bufferSplitOffset2;
+            buffers[2].VirtualAddress = buffers[1].VirtualAddress + buffers[1].BufferLength;
         }
+        fnmpFrame.Buffers = buffers;
+        fnmpFrame.BufferCount = numSplit + 1;
 
         FnMpRxEnqueue(Fnmp, &fnmpFrame);
     }
@@ -2192,10 +2208,8 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     //
     // Cleanup
     //
-    free(payload);
     free(frame);
-
-    return numFrames;
+    free(payload);
 }
 
 VOID
@@ -2594,7 +2608,7 @@ GlobalConcurrentWorkerFn(
         //
         // Use a random delay to simulate bursts of traffic
         //
-        DWORD timeoutMs = RandUlong() % 100;
+        DWORD timeoutMs = RandUlong() % 10;
         DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
         if (status == WAIT_OBJECT_0) {
             break;
