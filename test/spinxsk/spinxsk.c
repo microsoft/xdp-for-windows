@@ -2701,15 +2701,13 @@ GlobalConcurrentWorkerFn(
         //
         // Use a random delay to simulate bursts of traffic
         //
-        // TODO guhetier: Reduce the delay to 10ms / increase the number of frames
-        //
-        DWORD timeoutMs = RandUlong() % 100;
+        DWORD timeoutMs = RandUlong() % 10;
         DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
         if (status == WAIT_OBJECT_0) {
             break;
         }
 
-        const UINT32 numFrames = RandUlong() % 256;
+        const UINT32 numFrames = RandUlong() % 4000;
         InjectFnmpRxFrames(fnmp, numFrames);
     }
 
