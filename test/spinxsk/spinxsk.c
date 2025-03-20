@@ -50,7 +50,7 @@
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_QUEUE_COUNT 4
 #define DEFAULT_FUZZER_COUNT 3
-#define DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT 4
+#define DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT 2
 #define DEFAULT_SUCCESS_THRESHOLD 50
 
 CHAR *HELP =
@@ -285,6 +285,7 @@ HANDLE workersDoneEvent;
 QUEUE_WORKER *queueWorkers;
 UINT32 queueCount = DEFAULT_QUEUE_COUNT;
 UINT32 fuzzerCount = DEFAULT_FUZZER_COUNT;
+UINT32 rxInjecterCount = DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT;
 ULONGLONG perfFreq;
 CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
@@ -2043,7 +2044,7 @@ CorruptBuffer(
 // Build and inject frames in the receive path through the FNMP driver.
 //
 VOID
-InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
+InjectFnmpRxFrames(_In_ FNMP_HANDLE Fnmp, _In_ const UINT32 NumFrames) {
     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
 
@@ -2060,10 +2061,9 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
         return;
     }
 
-    const UINT32 numFrames = (UINT8)(RandUlong() % 4000);
-    TraceVerbose("FnmpInjectRx: injecting %d frames", numFrames);
+    TraceVerbose("FnmpInjectRx: injecting %d frames", NumFrames);
 
-    for (UINT8 i = 0; i < numFrames; i++) {
+    for (UINT8 i = 0; i < NumFrames; i++) {
         FillRandomBuffer(payloadBufferSize, payload);
         FillRandomBuffer(frameBufferSize, frame);
 
@@ -2230,6 +2230,8 @@ InjectFnmpRxPacket(_In_ FNMP_HANDLE Fnmp) {
     flushOptions.RssCpuQueueId = RandUlong() % queueCount;
 
     FnMpRxFlush(Fnmp, &flushOptions);
+
+    TraceVerbose("FnmpInjectRx: done injecting %d frames", NumFrames);
 
     //
     // Cleanup
@@ -2640,7 +2642,8 @@ GlobalConcurrentWorkerFn(
             break;
         }
 
-        InjectFnmpRxPacket(fnmp);
+        const UINT32 numFrames = (UINT8)(RandUlong() % 4000);
+        InjectFnmpRxFrames(fnmp, numFrames);
     }
 
     FnMpClose(fnmp);
@@ -2819,6 +2822,12 @@ ParseArgs(
             }
             fuzzerCount = atoi(argv[i]);
             TraceVerbose("fuzzerCount=%u", fuzzerCount);
+        } else if (!strcmp(argv[i], "-RxInjecterCount")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            rxInjecterCount = atoi(argv[i]);
+            TraceVerbose("rxInjecterCount=%u", rxInjecterCount);
         } else if (!strcmp(argv[i], "-CleanDatapath")) {
             cleanDatapath = TRUE;
             TraceVerbose("cleanDatapath=%!BOOLEAN!", cleanDatapath);
@@ -2836,8 +2845,10 @@ ParseArgs(
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
+            TraceVerbose("enableEbpf=%!BOOLEAN!", enableEbpf);
         } else if (!strcmp(argv[i], "-UseFnmp")) {
             useFnmp = TRUE;
+            TraceVerbose("useFnmp=%!BOOLEAN!", useFnmp);
         } else {
             Usage();
         }
@@ -2975,7 +2986,10 @@ main(
 
     if (useFnmp) {
         TraceVerbose("main: waiting for globalConcurrent...");
-        for (UINT32 i = 0; i < DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT; i++) {
+        //
+        // For now, only rx frame injection uses the global concurrent threads
+        //
+        for (UINT32 i = 0; i < rxInjecterCount; i++) {
             WaitForSingleObject(globalConcurrentThreads[i], INFINITE);
             ASSERT_FRE(CloseHandle(globalConcurrentThreads[i]));
             globalConcurrentThreads[i] = NULL;
