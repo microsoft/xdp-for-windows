@@ -449,6 +449,11 @@ XdpStart(
     //
     XdpRegistryUpdate();
 
+    volatile int Crash = TRUE;
+    if (Crash) {
+        KeBugCheck(MANUALLY_INITIATED_CRASH1);
+    }
+
     XdpRegWatcher = XdpRegWatcherCreate(XDP_PARAMETERS_KEY, XdpDriverObject, NULL);
     if (XdpRegWatcher == NULL) {
         Status = STATUS_NO_MEMORY;
