@@ -24,6 +24,9 @@ more coverage for setup and cleanup.
 .Parameter FuzzerCount
     Number of fuzzer threads per queue.
 
+.Parameter RxInjecterCount
+    Number of threads injecting frames (with FNMP only).
+
 .Parameter SuccessThresholdPercent
     Minimum socket success rate, percent.
 
@@ -67,6 +70,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [Int32]$FuzzerCount = 0,
+
+    [Parameter(Mandatory = $false)]
+    [Int32]$RxInjecterCount = 2,
 
     [Parameter(Mandatory = $false)]
     [Int32]$SuccessThresholdPercent = -1,
@@ -208,6 +214,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($Driver -eq "FNMP") {
             $Args += "-UseFnmp"
+            $Args += "-RxInjecterCount", $RxInjecterCount
         }
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args
