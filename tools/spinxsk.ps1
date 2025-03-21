@@ -192,7 +192,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             "-IfIndex", (Get-NetAdapter $AdapterName).ifIndex, `
             "-QueueCount", $QueueCount, `
             "-Minutes", $ThisIterationMinutes, `
-            "-GlobalConcurrentWorkerCount", $GlobalConcurrentWorkerCount
+            "-GlobalConcurrentWorkers", $GlobalConcurrentWorkerCount
         if ($Stats) {
             $Args += "-Stats"
         }
