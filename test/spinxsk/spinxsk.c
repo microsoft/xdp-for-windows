@@ -8,6 +8,8 @@
 
 #define NOMINMAX
 #include <xdp/wincommon.h>
+#include <bcrypt.h>
+
 #include <winsock2.h>
 #pragma warning(push)
 #pragma warning(disable:4324) // structure was padded due to alignment specifier
@@ -305,12 +307,10 @@ RandUlong(
 VOID
 FillRandomBuffer(
     _Out_writes_bytes_(Size) UINT8* Buffer,
-    _In_ const SIZE_T Size
+    _In_ const ULONG Size
     )
 {
-    for (SIZE_T i = 0; i < Size; i++) {
-        Buffer[i] = (UINT8)RandUlong();
-    }
+    (void)BCryptGenRandom(NULL, Buffer, Size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 }
 
 ULONG
@@ -2212,6 +2212,7 @@ InjectFnmpRxFrames(
 )
 {
     const UINT32 payloadBufferSize = 64'000;
+    DATA_FLUSH_OPTIONS flushOptions = {0};
     UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
     const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
     UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
@@ -2263,19 +2264,16 @@ InjectFnmpRxFrames(
             BuildRandomTcpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else {
             //
-            // Send pure chaos.
+            // Send pure chaos - the frame buffer has already be randomly initilized.
             //
             frameLength = RandUlong() % (frameLength + 1);
-            for (UINT32 j = 0; j + sizeof(ULONG) < frameLength; j += sizeof(ULONG)) {
-                *(ULONG*)(frame + backfill + j) = RandUlong();
-            }
         }
 
         //
         // Consider corrupting a well built frame a little.
         //
         if (RandUlong() % 2) {
-            CorruptBuffer(&frame[backfill], frameLength);
+            CorruptBuffer(&frame[backfill], TCP_HEADER_STORAGE + QUIC_MAX_HEADER_LEN);
         }
 
         //
@@ -2296,7 +2294,6 @@ InjectFnmpRxFrames(
         FnMpRxEnqueue(Fnmp, &fnmpFrame);
     }
 
-    DATA_FLUSH_OPTIONS flushOptions = {0};
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
     flushOptions.Flags.LowResources = RandUlong() & 1;
     flushOptions.Flags.RssCpu = RandUlong() & 1;
@@ -2714,7 +2711,7 @@ GlobalConcurrentWorkerFn(
 
     while (TRUE) {
 		DWORD status = ERROR_SUCCESS;
-        UINT32 numFrames = 0;
+        UINT32 burstSize = 0;
         DWORD timeoutMs = 0;
 
         //
@@ -2726,17 +2723,20 @@ GlobalConcurrentWorkerFn(
             break;
         }
 
-        numFrames = RandUlong() % 4000;
-		while (numFrames > 0) {
-			UINT32 batchSize = RandUlong() % max(numFrames, UINT8_MAX);
-            if (RandUlong() % 100 == 0) {
-                //
-                // Small chance to send an extra-large batch
-                //
-				batchSize = numFrames;
-            }
+        burstSize = RandUlong() % 4000;
+
+        //
+        // Split the burst into smaller batches
+        //
+		while (burstSize > 0) {
+			UINT32 batchSize = min(burstSize, UINT8_MAX);
             InjectFnmpRxFrames(fnmp, batchSize);
-			numFrames -= batchSize;
+			burstSize -= batchSize;
+
+            status = WaitForSingleObject(workersDoneEvent, 0);
+	        if (status == WAIT_OBJECT_0) {
+	            break;
+	        }
 		}
     }
 
