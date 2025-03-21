@@ -2916,7 +2916,7 @@ ParseArgs(
             }
             fuzzerCount = atoi(argv[i]);
             TraceVerbose("fuzzerCount=%u", fuzzerCount);
-        } else if (!strcmp(argv[i], "-GloabalConcurrentWorkerCount")) {
+        } else if (!strcmp(argv[i], "-GlobalConcurrentWorkers")) {
             if (++i >= argc) {
                 Usage();
             }
