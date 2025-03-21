@@ -67,6 +67,8 @@ CHAR *HELP =
 "                         Default: " STR_OF(DEFAULT_QUEUE_COUNT) "\n"
 "   -FuzzerCount <count>  Number of fuzzer threads per queue\n"
 "                         Default: " STR_OF(DEFAULT_FUZZER_COUNT) "\n"
+"   -GlobalConcurrentWorkers <count> Number of concurrent workers\n"
+"                         Default: " STR_OF(DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT) "\n"
 "   -CleanDatapath        Avoid actions that invalidate the datapath\n"
 "                         Default: off\n"
 "   -WatchdogCmd <cmd>    Execute a system command after a watchdog violation\n"
@@ -285,7 +287,7 @@ HANDLE workersDoneEvent;
 QUEUE_WORKER *queueWorkers;
 UINT32 queueCount = DEFAULT_QUEUE_COUNT;
 UINT32 fuzzerCount = DEFAULT_FUZZER_COUNT;
-UINT32 rxInjecterCount = DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT;
+UINT32 globalConcurrentWorkerCount = DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT;
 ULONGLONG perfFreq;
 CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
@@ -2149,71 +2151,66 @@ BuildRandomTcpFrame(
 }
 
 VOID
-BuildRandomFnmpDataFrame(
-    _Out_ DATA_FRAME* FnmpFrame,
+BuildRandomFnmpDataBuffers(
+    _Out_writes_(*NumBuffers) DATA_BUFFER* Buffers,
+    _Inout_ UINT16* NumBuffers,
     _In_reads_bytes_(FrameLength) UCHAR* Frame,
     _In_ const UINT32 FrameLength,
     _In_ const UINT32 FrameBufferSize,
-    _In_ const UINT32 Backfill,
-    _In_ const UINT32 RssQueuesCount
+    _In_ const UINT32 Backfill
 )
 {
-    DATA_BUFFER buffers[3] = {0};
-    const UINT16 numSplit = (UINT16)(RandUlong() % 3);
-
     //
     // Split the frame into up to 3 MDLs.
     //
-    if (numSplit == 0) {
-        buffers[0].DataOffset = Backfill;
-        buffers[0].DataLength = FrameLength;
-        buffers[0].BufferLength = FrameBufferSize;
-        buffers[0].VirtualAddress = Frame;
-    } else if (numSplit == 1) {
+	ASSERT_FRE(*NumBuffers > 0);
+    *NumBuffers = (RandUlong() % min(*NumBuffers, 3)) + 1;
+
+    if (*NumBuffers == 1) {
+        Buffers[0].DataOffset = Backfill;
+        Buffers[0].DataLength = FrameLength;
+        Buffers[0].BufferLength = FrameBufferSize;
+        Buffers[0].VirtualAddress = Frame;
+    } else if (*NumBuffers == 2) {
         const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
 
-        buffers[0].DataOffset = Backfill;
-        buffers[0].DataLength = bufferSplitOffset;
-        buffers[0].BufferLength = Backfill + bufferSplitOffset;
-        buffers[0].VirtualAddress = Frame;
+        Buffers[0].DataOffset = Backfill;
+        Buffers[0].DataLength = bufferSplitOffset;
+        Buffers[0].BufferLength = Backfill + bufferSplitOffset;
+        Buffers[0].VirtualAddress = Frame;
 
-        buffers[1].DataLength = FrameLength - bufferSplitOffset;
-        buffers[1].BufferLength = FrameBufferSize - buffers[0].BufferLength;
-        buffers[1].VirtualAddress = buffers[0].VirtualAddress + buffers[0].BufferLength;;
-    } else { // numSplit == 2
+        Buffers[1].DataLength = FrameLength - bufferSplitOffset;
+        Buffers[1].BufferLength = FrameBufferSize - Buffers[0].BufferLength;
+        Buffers[1].VirtualAddress = Buffers[0].VirtualAddress + Buffers[0].BufferLength;;
+    } else { // *NumBuffers == 3
         const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
         const UINT32 bufferSplitOffset2 =
             bufferSplitOffset + RandUlong() % (FrameLength - bufferSplitOffset + 1);
 
-        buffers[0].DataOffset = Backfill;
-        buffers[0].DataLength = bufferSplitOffset;
-        buffers[0].BufferLength = Backfill + bufferSplitOffset;
-        buffers[0].VirtualAddress = Frame;
+        Buffers[0].DataOffset = Backfill;
+        Buffers[0].DataLength = bufferSplitOffset;
+        Buffers[0].BufferLength = Backfill + bufferSplitOffset;
+        Buffers[0].VirtualAddress = Frame;
 
-        buffers[1].DataLength = bufferSplitOffset2 - bufferSplitOffset;
-        buffers[1].BufferLength = bufferSplitOffset2 - bufferSplitOffset;
-        buffers[1].VirtualAddress = buffers[0].VirtualAddress + buffers[0].BufferLength;
+        Buffers[1].DataLength = bufferSplitOffset2 - bufferSplitOffset;
+        Buffers[1].BufferLength = bufferSplitOffset2 - bufferSplitOffset;
+        Buffers[1].VirtualAddress = Buffers[0].VirtualAddress + Buffers[0].BufferLength;
 
-        buffers[2].DataLength = FrameLength - bufferSplitOffset2;
-        buffers[2].BufferLength = FrameBufferSize - Backfill - bufferSplitOffset2;
-        buffers[2].VirtualAddress = buffers[1].VirtualAddress + buffers[1].BufferLength;
+        Buffers[2].DataLength = FrameLength - bufferSplitOffset2;
+        Buffers[2].BufferLength = FrameBufferSize - Backfill - bufferSplitOffset2;
+        Buffers[2].VirtualAddress = Buffers[1].VirtualAddress + Buffers[1].BufferLength;
     }
-
-    //
-    // Setup the fnmp data frame.
-    //
-    FnmpFrame->Input.RssHashQueueId = RandUlong() % RssQueuesCount;
-    FnmpFrame->Input.Checksum.Value = (PVOID)(ULONG_PTR)RandUlong();
-    FnmpFrame->Input.Rsc.Value = (PVOID)(ULONG_PTR)RandUlong();
-    FnmpFrame->Buffers = buffers;
-    FnmpFrame->BufferCount = numSplit + 1;
 }
 
 //
 // Build and inject frames in the receive path through the FNMP driver.
 //
 VOID
-InjectFnmpRxFrames(_In_ FNMP_HANDLE Fnmp, _In_ const UINT32 NumFrames) {
+InjectFnmpRxFrames(
+    _In_ FNMP_HANDLE Fnmp,
+    _In_ const UINT32 NumFrames
+)
+{
     const UINT32 payloadBufferSize = 64'000;
     UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
     const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
@@ -2231,9 +2228,11 @@ InjectFnmpRxFrames(_In_ FNMP_HANDLE Fnmp, _In_ const UINT32 NumFrames) {
     for (UINT8 i = 0; i < NumFrames; i++) {
         const UINT32 backfill = RandUlong() % (FNMP_FRAME_MAX_BACKFILL + 1);
         UINT32 frameLength = frameBufferSize - backfill;
-        DATA_FRAME fnmpFrame = {0};
         UINT32 frameType = 0;
         UINT32 payloadLength = 0;
+        DATA_FRAME fnmpFrame = {0};
+        DATA_BUFFER buffers[3] = {0};
+        UINT16 numBuffers = RTL_NUMBER_OF(buffers);
 
         FillRandomBuffer(payload, payloadBufferSize);
         FillRandomBuffer(frame, frameBufferSize);
@@ -2280,10 +2279,19 @@ InjectFnmpRxFrames(_In_ FNMP_HANDLE Fnmp, _In_ const UINT32 NumFrames) {
         }
 
         //
-        // Build a randomized FNMP data frame
+        // Randomly split the frame between data buffers
         //
-        BuildRandomFnmpDataFrame(
-            &fnmpFrame, frame, frameLength, frameBufferSize, backfill, queueCount);
+        BuildRandomFnmpDataBuffers(
+            buffers, &numBuffers, frame, frameLength, frameBufferSize, backfill);
+
+        //
+        // Setup the fnmp data frame.
+        //
+        fnmpFrame.Input.RssHashQueueId = RandUlong() % queueCount;
+        fnmpFrame.Input.Checksum.Value = (PVOID)(ULONG_PTR)RandUlong();
+        fnmpFrame.Input.Rsc.Value = (PVOID)(ULONG_PTR)RandUlong();
+        fnmpFrame.Buffers = buffers;
+        fnmpFrame.BufferCount = numBuffers + 1;
 
         FnMpRxEnqueue(Fnmp, &fnmpFrame);
     }
@@ -2686,29 +2694,50 @@ GlobalConcurrentWorkerFn(
     _In_ VOID *ThreadParameter
     )
 {
+    FNMP_HANDLE fnmp;
+	HRESULT res = S_OK;
+
     UNREFERENCED_PARAMETER(ThreadParameter);
 
     TraceEnter("-");
 
+    if (!useFnmp) {
+        TraceExit("Early exit - no work to do");
+        return 0;
+    }
+
     //
     // Get an handle to the FNMP driver interface to inject received data.
     //
-    FNMP_HANDLE fnmp;
-    HRESULT res = FnMpOpenShared(ifindex, &fnmp);
+    res = FnMpOpenShared(ifindex, &fnmp);
     ASSERT_FRE(SUCCEEDED(res));
 
     while (TRUE) {
+		DWORD status = ERROR_SUCCESS;
+        UINT32 numFrames = 0;
+        DWORD timeoutMs = 0;
+
         //
         // Use a random delay to simulate bursts of traffic
         //
-        DWORD timeoutMs = RandUlong() % 10;
-        DWORD status = WaitForSingleObject(workersDoneEvent, timeoutMs);
+        timeoutMs = RandUlong() % 10;
+        status = WaitForSingleObject(workersDoneEvent, timeoutMs);
         if (status == WAIT_OBJECT_0) {
             break;
         }
 
-        const UINT32 numFrames = RandUlong() % 4000;
-        InjectFnmpRxFrames(fnmp, numFrames);
+        numFrames = RandUlong() % 4000;
+		while (numFrames > 0) {
+			UINT32 batchSize = RandUlong() % max(numFrames, UINT8_MAX);
+            if (RandUlong() % 100 == 0) {
+                //
+                // Small chance to send an extra-large batch
+                //
+				batchSize = numFrames;
+            }
+            InjectFnmpRxFrames(fnmp, batchSize);
+			numFrames -= batchSize;
+		}
     }
 
     FnMpClose(fnmp);
@@ -2887,12 +2916,12 @@ ParseArgs(
             }
             fuzzerCount = atoi(argv[i]);
             TraceVerbose("fuzzerCount=%u", fuzzerCount);
-        } else if (!strcmp(argv[i], "-RxInjecterCount")) {
+        } else if (!strcmp(argv[i], "-GloabalConcurrentWorkerCount")) {
             if (++i >= argc) {
                 Usage();
             }
-            rxInjecterCount = atoi(argv[i]);
-            TraceVerbose("rxInjecterCount=%u", rxInjecterCount);
+            globalConcurrentWorkerCount = atoi(argv[i]);
+            TraceVerbose("globalConcurrentWorkerCount=%u", globalConcurrentWorkerCount);
         } else if (!strcmp(argv[i], "-CleanDatapath")) {
             cleanDatapath = TRUE;
             TraceVerbose("cleanDatapath=%!BOOLEAN!", cleanDatapath);
@@ -2953,7 +2982,7 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
-    HANDLE globalConcurrentThreads[DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT] = {0};
+    HANDLE* globalConcurrentThreads;
 
     WPP_INIT_TRACING(NULL);
 
@@ -3005,11 +3034,11 @@ main(
     // Create global concurrent workers
     // (non-queue specific operations running concurrently).
     //
-    if (useFnmp) {
-        for (UINT32 i = 0; i < DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT; i++) {
-            globalConcurrentThreads[i] = CreateThread(NULL, 0, GlobalConcurrentWorkerFn, NULL, 0, NULL);
-            ASSERT_FRE(globalConcurrentThreads[i]);
-        }
+    globalConcurrentThreads = calloc(globalConcurrentWorkerCount, sizeof(HANDLE));
+    ASSERT_FRE(globalConcurrentThreads != NULL);
+    for (UINT32 i = 0; i < globalConcurrentWorkerCount; i++) {
+        globalConcurrentThreads[i] = CreateThread(NULL, 0, GlobalConcurrentWorkerFn, NULL, 0, NULL);
+        ASSERT_FRE(globalConcurrentThreads[i]);
     }
 
     //
@@ -3049,16 +3078,11 @@ main(
 
     SetEvent(workersDoneEvent);
 
-    if (useFnmp) {
-        TraceVerbose("main: waiting for globalConcurrent...");
-        //
-        // For now, only rx frame injection uses the global concurrent threads
-        //
-        for (UINT32 i = 0; i < rxInjecterCount; i++) {
-            WaitForSingleObject(globalConcurrentThreads[i], INFINITE);
-            ASSERT_FRE(CloseHandle(globalConcurrentThreads[i]));
-            globalConcurrentThreads[i] = NULL;
-        }
+    TraceVerbose("main: waiting for globalConcurrent...");
+    for (UINT32 i = 0; i < globalConcurrentWorkerCount; i++) {
+        WaitForSingleObject(globalConcurrentThreads[i], INFINITE);
+        ASSERT_FRE(CloseHandle(globalConcurrentThreads[i]));
+        globalConcurrentThreads[i] = NULL;
     }
 
     TraceVerbose("main: waiting for admin...");
