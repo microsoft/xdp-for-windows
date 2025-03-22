@@ -2211,11 +2211,28 @@ InjectFnmpRxFrames(
     _In_ const UINT32 NumFrames
 )
 {
-    const UINT32 payloadBufferSize = 64'000;
+    UINT32 payloadBufferSize = 0;
     DATA_FLUSH_OPTIONS flushOptions = {0};
-    UCHAR* payload = calloc(payloadBufferSize, sizeof(UCHAR));
-    const ULONG frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
-    UCHAR* frame = calloc(frameBufferSize, sizeof(UCHAR));
+    ULONG frameBufferSize = 0;
+    UCHAR* payload = NULL;
+	UCHAR* frame = NULL;
+
+    //
+    // Use a very large payload buffer from time to time
+    // but keep it smaller most of the time to iterate faster:
+    // most of the interesting logic has to do with the headers.
+    //
+    if (RandUlong() % 10 == 0)
+    {
+		payloadBufferSize = 64'000;
+	}
+	else {
+		payloadBufferSize = 500;
+    }
+    frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
+
+    payload = calloc(payloadBufferSize, sizeof(UCHAR));
+	frame = calloc(frameBufferSize, sizeof(UCHAR));
 
     if (frame == NULL || payload == NULL) {
         TraceWarn("Allocation failure, frame: %p, payload: %p", frame, payload);
