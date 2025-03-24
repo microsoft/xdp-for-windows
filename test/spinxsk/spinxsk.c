@@ -2026,11 +2026,11 @@ ProcessPkts(
 }
 
 //
-// Add some "corrupted" bytes to a buffer.
+// Add some "randomized" bytes to a buffer.
 // Each byte of the buffer has a 1/20 chance to be replaced by a random value.
 //
 VOID
-CorruptBuffer(
+PartiallyRandomizeBuffer(
     _Inout_updates_bytes_(BufferSize) UINT8* Buffer,
     _In_ const UINT32 BufferSize
     )
@@ -2287,10 +2287,10 @@ InjectFnmpRxFrames(
         }
 
         //
-        // Consider corrupting a well built frame a little.
+        // Consider randomizing some bytes in a well built frame.
         //
         if (RandUlong() % 2) {
-            CorruptBuffer(&frame[backfill], TCP_HEADER_STORAGE + QUIC_MAX_HEADER_LEN);
+            PartiallyRandomizeBuffer(&frame[backfill], TCP_HEADER_STORAGE + QUIC_MAX_HEADER_LEN);
         }
 
         //
