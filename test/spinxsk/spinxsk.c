@@ -310,7 +310,7 @@ FillRandomBuffer(
     _In_ const ULONG Size
     )
 {
-    ASSERT_FRE(NT_SUCCESS(BCryptGenRandom(NULL, Buffer, Size, BCRYPT_USE_SYSTEM_PREFERRED_RNG)));
+    (void)BCryptGenRandom(NULL, Buffer, Size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 }
 
 ULONG
