@@ -2163,7 +2163,7 @@ BuildRandomFnmpDataBuffers(
     //
     // Split the frame into up to 3 MDLs.
     //
-	ASSERT_FRE(*NumBuffers > 0);
+    ASSERT_FRE(*NumBuffers > 0);
     *NumBuffers = (RandUlong() % min(*NumBuffers, 3)) + 1;
 
     if (*NumBuffers == 1) {
@@ -2215,7 +2215,7 @@ InjectFnmpRxFrames(
     DATA_FLUSH_OPTIONS flushOptions = {0};
     ULONG frameBufferSize = 0;
     UCHAR* payload = NULL;
-	UCHAR* frame = NULL;
+    UCHAR* frame = NULL;
 
     //
     // Use a very large payload buffer from time to time
@@ -2224,15 +2224,15 @@ InjectFnmpRxFrames(
     //
     if (RandUlong() % 10 == 0)
     {
-		payloadBufferSize = 64'000;
-	}
-	else {
-		payloadBufferSize = 500;
+        payloadBufferSize = 64'000;
+    }
+    else {
+        payloadBufferSize = 500;
     }
     frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
 
     payload = calloc(payloadBufferSize, sizeof(UCHAR));
-	frame = calloc(frameBufferSize, sizeof(UCHAR));
+    frame = calloc(frameBufferSize, sizeof(UCHAR));
 
     if (frame == NULL || payload == NULL) {
         TraceWarn("Allocation failure, frame: %p, payload: %p", frame, payload);
@@ -2709,7 +2709,7 @@ GlobalConcurrentWorkerFn(
     )
 {
     FNMP_HANDLE fnmp;
-	HRESULT res = S_OK;
+    HRESULT res = S_OK;
 
     UNREFERENCED_PARAMETER(ThreadParameter);
 
@@ -2727,7 +2727,7 @@ GlobalConcurrentWorkerFn(
     ASSERT_FRE(SUCCEEDED(res));
 
     while (TRUE) {
-		DWORD status = ERROR_SUCCESS;
+        DWORD status = ERROR_SUCCESS;
         UINT32 burstSize = 0;
         DWORD timeoutMs = 0;
 
@@ -2745,28 +2745,19 @@ GlobalConcurrentWorkerFn(
         //
         // Split the burst into smaller batches
         //
-		while (burstSize > 0) {
+        while (burstSize > 0) {
             //
             // NDIS recommands to not exceed 255 packets in a single operation.
             //
-			UINT32 batchSize = min(burstSize, UINT8_MAX);
-
-            if (RandUlong() % 100 == 0) {
-                //
-                // Small chance to send a very large burst.
-                // Drivers should avoid this, but XDP should handle it.
-                //
-                batchSize = burstSize;
-            }
-
+            UINT32 batchSize = min(burstSize, UINT8_MAX);
             InjectFnmpRxFrames(fnmp, batchSize);
-			burstSize -= batchSize;
+            burstSize -= batchSize;
 
             status = WaitForSingleObject(workersDoneEvent, 0);
-	        if (status == WAIT_OBJECT_0) {
-	            break;
-	        }
-		}
+            if (status == WAIT_OBJECT_0) {
+                break;
+            }
+        }
     }
 
     FnMpClose(fnmp);
