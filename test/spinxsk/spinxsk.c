@@ -310,7 +310,7 @@ FillRandomBuffer(
     _In_ const ULONG Size
     )
 {
-    (void)BCryptGenRandom(NULL, Buffer, Size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    ASSERT_FRE(NT_SUCCESS(BCryptGenRandom(NULL, Buffer, Size, BCRYPT_USE_SYSTEM_PREFERRED_RNG)));
 }
 
 ULONG
@@ -2746,7 +2746,19 @@ GlobalConcurrentWorkerFn(
         // Split the burst into smaller batches
         //
 		while (burstSize > 0) {
+            //
+            // NDIS recommands to not exceed 255 packets in a single operation.
+            //
 			UINT32 batchSize = min(burstSize, UINT8_MAX);
+
+            if (RandUlong() % 100 == 0) {
+                //
+                // Small chance to send a very large burst.
+                // Drivers should avoid this, but XDP should handle it.
+                //
+                batchSize = burstSize;
+            }
+
             InjectFnmpRxFrames(fnmp, batchSize);
 			burstSize -= batchSize;
 
