@@ -31,7 +31,7 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
     <PackageReference Include="Microsoft.Windows.WDK.$(Platform)" Version="$(XdpWdkVersion)" Condition="'$(ImportWdk)' != 'false'" />
     <PackageReference Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="$(XdpWdkVersion)" Condition="'$(ImportWdk)' != 'false' AND '$(HostPlatform)' != '$(Platform)'" />
-    <PackageReference Include="win-net-test" Version="1.2.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
+    <PackageReference Include="win-net-test" Version="1.3.0" GeneratePathProperty="true" Condition="'$(ImportWnt)' == 'true'"/>
   </ItemGroup>
   <Import Project="$(UndockedDir)vs\windows.undocked.props" Condition="'$(ImportUndocked)' != 'false'" />
   <PropertyGroup>
