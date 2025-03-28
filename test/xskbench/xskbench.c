@@ -38,6 +38,7 @@
 #define DEFAULT_TX_IO_SIZE 64
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
+#define DEFAULT_WATCHDOG_USEC 0
 
 CHAR *HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -98,6 +99,8 @@ CHAR *HELP =
 "                      Default: \"\"\n"
 "   -lat_count         Number of latency samples to collect\n"
 "                      Default: " STR_OF(DEFAULT_LAT_COUNT) "\n"
+"   -watchdog_usec     The datapath watchdog timeout in microseconds, or zero.\n"
+"                      Default: " STR_OF(DEFAULT_WATCHDOG_USEC) "\n"
 
 "\n"
 "OPTIONS: \n"
@@ -170,6 +173,8 @@ typedef struct {
     INT64 *latSamples;
     UINT32 latSamplesCount;
     UINT32 latIndex;
+    INT64 watchdogIntervalQpc;
+    LARGE_INTEGER watchdogLastQpc;
     XSK_POLL_MODE pollMode;
 
     struct {
@@ -851,6 +856,36 @@ NotifyDriver(
 }
 
 VOID
+UpdateWatchdog(
+    MY_QUEUE *Queue
+    )
+{
+    if (Queue->watchdogIntervalQpc > 0) {
+        VERIFY(QueryPerformanceCounter(&Queue->watchdogLastQpc));
+    }
+}
+
+VOID
+TestWatchdog(
+    MY_QUEUE *Queue
+    )
+{
+    if (Queue->watchdogIntervalQpc > 0) {
+        LARGE_INTEGER currentQpc;
+        VERIFY(QueryPerformanceCounter(&currentQpc));
+        if (currentQpc.QuadPart - Queue->watchdogLastQpc.QuadPart >= Queue->watchdogIntervalQpc) {
+            if (Queue->watchdogLastQpc.QuadPart > 0) {
+                DbgRaiseAssertionFailure();
+                printf_error("[%d] Watchdog timeout lastQpc:%lld currentQpc:%lld\n",
+                    Queue->queueId, Queue->watchdogLastQpc.QuadPart, currentQpc.QuadPart);
+            }
+
+            Queue->watchdogLastQpc = currentQpc;
+        }
+    }
+}
+
+VOID
 WriteFillPackets(
     MY_QUEUE *Queue,
     UINT32 FreeConsumerIndex,
@@ -907,6 +942,10 @@ ProcessRx(
 
         processed += available;
         Queue->packetCount += available;
+
+        UpdateWatchdog(Queue);
+    } else {
+        TestWatchdog(Queue);
     }
 
     available =
@@ -1040,6 +1079,10 @@ ProcessTx(
                 Queue->txRing.Size) {
             notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
         }
+
+        UpdateWatchdog(Queue);
+    } else {
+        TestWatchdog(Queue);
     }
 
     available =
@@ -1452,6 +1495,16 @@ PrintUsage(
     ABORT(HELP);
 }
 
+INT64
+UsToQpc(
+    _In_ INT64 Us
+    )
+{
+    LARGE_INTEGER FreqQpc;
+    VERIFY(QueryPerformanceFrequency(&FreqQpc));
+    return (Us * FreqQpc.QuadPart) / 1000000;
+}
+
 VOID
 ParseQueueArgs(
     MY_QUEUE *Queue,
@@ -1469,6 +1522,7 @@ ParseQueueArgs(
     Queue->flags.optimizePoking = TRUE;
     Queue->txiosize = DEFAULT_TX_IO_SIZE;
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
+    Queue->watchdogIntervalQpc = UsToQpc(DEFAULT_WATCHDOG_USEC);
 
     for (INT i = 0; i < argc; i++) {
         if (!_stricmp(argv[i], "-id")) {
@@ -1557,6 +1611,11 @@ ParseQueueArgs(
                 Usage();
             }
             Queue->latSamplesCount = atoi(argv[i]);
+        } else if (!strcmp(argv[i], "-watchdog_usec")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->watchdogIntervalQpc = UsToQpc(atoi(argv[i]));
         } else {
             Usage();
         }
