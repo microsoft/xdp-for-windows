@@ -38,6 +38,8 @@
 #define DEFAULT_TX_IO_SIZE 64
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
+#define DEFAULT_PRIORITY THREAD_PRIORITY_NORMAL
+#define DEFAULT_PRIORITY_CLASS NORMAL_PRIORITY_CLASS
 #define DEFAULT_WATCHDOG_USEC 0
 
 CHAR *HELP =
@@ -60,6 +62,9 @@ CHAR *HELP =
 "   -yield <count>     The number of yield instructions to execute after the\n"
 "                      thread performs no work.\n"
 "                      Default: " STR_OF(DEFAULT_YIELD_COUNT) "\n"
+"   -priority <num>    The thread priority.\n"
+"                      Default: " STR_OF(DEFAULT_PRIORITY) "\n"
+
 "\n"
 "QUEUE_PARAMS: \n"
 "   -id <queueid>      Required. The queue ID.\n"
@@ -112,6 +117,9 @@ CHAR *HELP =
 "                      Default: " STR_OF(DEFAULT_UDP_DEST_PORT) "\n"
 "   -lp                Use large pages. Requires privileged account.\n"
 "                      Default: off\n"
+"   -priclass <class>  The priority class of the process.\n"
+"                      Default: " STR_OF(DEFAULT_PRIORITY_CLASS) "\n"
+
 "\n"
 "Examples\n"
 "   xskbench.exe rx -i 6 -t -q -id 0\n"
@@ -215,6 +223,7 @@ typedef struct {
     UINT32 yieldCount;
     DWORD_PTR cpuAffinity;
     BOOLEAN wait;
+    INT priority;
 
     UINT32 queueCount;
     MY_QUEUE *queues;
@@ -1661,6 +1670,7 @@ ParseThreadArgs(
     Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
     Thread->group = DEFAULT_GROUP;
     Thread->yieldCount = DEFAULT_YIELD_COUNT;
+    Thread->priority = DEFAULT_PRIORITY;
 
     for (INT i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "-q")) {
@@ -1694,6 +1704,11 @@ ParseThreadArgs(
                 Usage();
             }
             Thread->yieldCount = atoi(argv[i]);
+        } else if (!_stricmp(argv[i], "-priority")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Thread->priority = strtol(argv[i], NULL, 0);
         } else if (Thread->queueCount == 0) {
             Usage();
         }
@@ -1739,6 +1754,7 @@ ParseArgs(
     INT i = 1;
     UINT32 threadCount = 0;
     MY_THREAD *threads = NULL;
+    DWORD priorityClass = DEFAULT_PRIORITY_CLASS;
 
     if (argc < 4) {
         Usage();
@@ -1781,6 +1797,11 @@ ParseArgs(
         } else if (!_stricmp(argv[i], "-lp")) {
             largePages = TRUE;
             EnableLargePages();
+        } else if (!_stricmp(argv[i], "-priclass")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            priorityClass = strtoul(argv[i], NULL, 0);
         } else if (threadCount == 0) {
             Usage();
         }
@@ -1795,6 +1816,8 @@ ParseArgs(
     if (threadCount == 0) {
         Usage();
     }
+
+    ASSERT_FRE(SetPriorityClass(GetCurrentProcess(), priorityClass));
 
     threads = calloc(threadCount, sizeof(*threads));
     ASSERT_FRE(threads != NULL);
@@ -1820,6 +1843,8 @@ SetThreadAffinities(
     MY_THREAD *Thread
     )
 {
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), Thread->priority));
+
     if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
         GROUP_AFFINITY group;
 
