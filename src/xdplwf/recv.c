@@ -1631,7 +1631,6 @@ XdpGenericReceivePostInspectNbs(
             // N.B. This releases and reacquires the EC spinlock.
             //
             ASSERT(!RxQueue->Flags.TxInspect);
-            ASSERT(FrameRing->InterfaceReserved == FrameRing->ProducerIndex);
             XdpGenericReceiveLowResources(
                 RxQueue->Generic->NdisFilterHandle, &RxQueue->EcLock, PassList, DropList,
                 LowResourcesList, PortNumber, (NbHead == NULL));
