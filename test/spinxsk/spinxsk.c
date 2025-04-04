@@ -2074,7 +2074,7 @@ BuildRandomQuicPacket(
     _Inout_ UINT32* PacketBufferSize,
     _In_reads_bytes_(PayloadBufferSize) UCHAR* Payload,
     _In_ const UINT32 PayloadBufferSize
-)
+    )
 {
     UINT16 quicPayloadLength =
         (UINT16)(RandUlong() % (min(PayloadBufferSize, *PacketBufferSize - QUIC_MAX_HEADER_LEN) + 1));
@@ -2098,7 +2098,7 @@ void BuildRandomUdpFrame(
     _In_ UINT32* FrameLength,
     _In_reads_bytes_(PayloadLength) UCHAR* Payload,
     _In_ const UINT16 PayloadLength
-)
+    )
 {
     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
@@ -2121,7 +2121,7 @@ BuildRandomTcpFrame(
     _In_ UINT32* FrameLength,
     _In_reads_bytes_(PayloadLength) UCHAR* Payload,
     _In_ const UINT16 PayloadLength
-)
+    )
 {
     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
@@ -2158,7 +2158,7 @@ BuildRandomFnmpDataBuffers(
     _In_ const UINT32 FrameLength,
     _In_ const UINT32 FrameBufferSize,
     _In_ const UINT32 Backfill
-)
+    )
 {
     //
     // Split the frame into up to 3 MDLs.
@@ -2183,6 +2183,7 @@ BuildRandomFnmpDataBuffers(
         Buffers[1].BufferLength = FrameBufferSize - Buffers[0].BufferLength;
         Buffers[1].VirtualAddress = Buffers[0].VirtualAddress + Buffers[0].BufferLength;;
     } else { // *NumBuffers == 3
+        ASSERT_FRE(*NumBuffers == 3);
         const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
         const UINT32 bufferSplitOffset2 =
             bufferSplitOffset + RandUlong() % (FrameLength - bufferSplitOffset + 1);
@@ -2209,7 +2210,7 @@ VOID
 InjectFnmpRxFrames(
     _In_ FNMP_HANDLE Fnmp,
     _In_ const UINT32 NumFrames
-)
+    )
 {
     UINT32 payloadBufferSize = 0;
     DATA_FLUSH_OPTIONS flushOptions = {0};
