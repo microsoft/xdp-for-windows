@@ -2080,13 +2080,14 @@ BuildRandomQuicPacket(
         (UINT16)(RandUlong() % (min(PayloadBufferSize, *PacketBufferSize - QUIC_MAX_HEADER_LEN) + 1));
     UINT8 typeSpecificBits = (UINT8)RandUlong();
     CONST UINT8 version = 1;
+    BOOLEAN useShortHeader = (BOOLEAN)(RandUlong() % 2);
     UINT8 destConnIdLength = (UINT8)(RandUlong() % (XDP_QUIC_MAX_CID_LENGTH + 1));
     UINT8 srcConnIdLength = (UINT8)(RandUlong() % (XDP_QUIC_MAX_CID_LENGTH + 1));
     UINT8 destConnId[20];
     UINT8 srcConnId[20];
     FillRandomBuffer(destConnId, sizeof(destConnId));
     FillRandomBuffer(srcConnId, sizeof(srcConnId));
-    BOOLEAN useShortHeader = (BOOLEAN)(RandUlong() % 2);
+    FillRandomBuffer(Payload, quicPayloadLength);
 
     ASSERT_FRE(PktBuildQuicPacket(
         Packet, PacketBufferSize, Payload, quicPayloadLength, typeSpecificBits, version,
@@ -2217,6 +2218,7 @@ InjectFnmpRxFrames(
     ULONG frameBufferSize = 0;
     UCHAR* payload = NULL;
     UCHAR* frame = NULL;
+    int status = 0;
 
     //
     // Use a very large payload buffer from time to time
@@ -2226,8 +2228,7 @@ InjectFnmpRxFrames(
     if (RandUlong() % 10 == 0)
     {
         payloadBufferSize = 64'000;
-    }
-    else {
+    } else {
         payloadBufferSize = 500;
     }
     frameBufferSize = FNMP_FRAME_MAX_BACKFILL + TCP_HEADER_STORAGE + payloadBufferSize;
@@ -2253,9 +2254,6 @@ InjectFnmpRxFrames(
         DATA_BUFFER buffers[3] = {0};
         UINT16 numBuffers = RTL_NUMBER_OF(buffers);
 
-        FillRandomBuffer(payload, payloadBufferSize);
-        FillRandomBuffer(frame, frameBufferSize);
-
         if (RandUlong() % 2) {
             //
             // Add some QUIC flavor to the TCP / UDP payload.
@@ -2270,6 +2268,7 @@ InjectFnmpRxFrames(
             // Use a random payload.
             //
             payloadLength = RandUlong() % (payloadBufferSize + 1);
+            FillRandomBuffer(payload, payloadLength);
         }
 
         //
@@ -2309,7 +2308,8 @@ InjectFnmpRxFrames(
         fnmpFrame.Buffers = buffers;
         fnmpFrame.BufferCount = numBuffers + 1;
 
-        FnMpRxEnqueue(Fnmp, &fnmpFrame);
+        status = FnMpRxEnqueue(Fnmp, &fnmpFrame);
+        TraceVerbose("FnmpInjectRx: FnMpRxEnqueue failed with %d", status);
     }
 
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
@@ -2317,9 +2317,8 @@ InjectFnmpRxFrames(
     flushOptions.Flags.RssCpu = RandUlong() & 1;
     flushOptions.RssCpuQueueId = RandUlong() % queueCount;
 
-    FnMpRxFlush(Fnmp, &flushOptions);
-
-    TraceVerbose("FnmpInjectRx: done injecting %d frames", NumFrames);
+    status = FnMpRxFlush(Fnmp, &flushOptions);
+    TraceVerbose("FnmpInjectRx: done injecting %d frames, status %d", NumFrames, status);
 
     //
     // Cleanup
