@@ -2306,7 +2306,7 @@ InjectFnmpRxFrames(
         fnmpFrame.Input.Checksum.Value = (PVOID)(ULONG_PTR)RandUlong();
         fnmpFrame.Input.Rsc.Value = (PVOID)(ULONG_PTR)RandUlong();
         fnmpFrame.Buffers = buffers;
-        fnmpFrame.BufferCount = numBuffers + 1;
+        fnmpFrame.BufferCount = numBuffers;
 
         status = FnMpRxEnqueue(Fnmp, &fnmpFrame);
         TraceVerbose("FnmpInjectRx: FnMpRxEnqueue failed with %d", status);
