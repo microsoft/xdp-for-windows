@@ -31,7 +31,7 @@
     <PostBuildEvent>
       <Command>
         powershell -NonInteractive -ExecutionPolicy Unrestricted ..\..\tools\update-nuspec.ps1 -InputFile xdp-for-windows.nuspec.in -OutputFile $(IntDir)xdp-for-windows.nuspec -Platform $(NugetPlatforms) -Config $(Configuration)
-        NuGet.exe pack $(IntDir)xdp-for-windows.nuspec -OutputDirectory $(OutDir) -BasePath $(ProjectDir)
+        NuGet.exe pack $(IntDir)xdp-for-windows.nuspec -OutputDirectory $(OutDir) -BasePath $(ProjectDir) -Properties TreatWarningsAsErrors=true
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
