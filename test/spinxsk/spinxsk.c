@@ -2218,7 +2218,7 @@ InjectFnmpRxFrames(
     ULONG frameBufferSize = 0;
     UCHAR* payload = NULL;
     UCHAR* frame = NULL;
-    int status = 0;
+    HRESULT status = S_OK;
 
     //
     // Use a very large payload buffer from time to time
@@ -2309,7 +2309,7 @@ InjectFnmpRxFrames(
         fnmpFrame.BufferCount = numBuffers;
 
         status = FnMpRxEnqueue(Fnmp, &fnmpFrame);
-        TraceVerbose("FnmpInjectRx: FnMpRxEnqueue failed with %d", status);
+        TraceVerbose("FnmpInjectRx: FnMpRxEnqueue failed with %x", status);
     }
 
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
@@ -2318,7 +2318,7 @@ InjectFnmpRxFrames(
     flushOptions.RssCpuQueueId = RandUlong() % queueCount;
 
     status = FnMpRxFlush(Fnmp, &flushOptions);
-    TraceVerbose("FnmpInjectRx: done injecting %d frames, status %d", NumFrames, status);
+    TraceVerbose("FnmpInjectRx: done injecting %d frames, status %x", NumFrames, status);
 
     //
     // Cleanup
