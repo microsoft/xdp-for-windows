@@ -1633,7 +1633,7 @@ XdpGenericReceivePostInspectNbs(
             ASSERT(!RxQueue->Flags.TxInspect);
             XdpGenericReceiveLowResources(
                 RxQueue->Generic->NdisFilterHandle, &RxQueue->EcLock, PassList, DropList,
-                LowResourcesList, PortNumber, (NbHead == NULL));
+                LowResourcesList, PortNumber, (NbHead == NbTail));
         }
     }
 
