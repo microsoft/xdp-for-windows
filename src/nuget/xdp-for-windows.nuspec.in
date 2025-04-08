@@ -15,7 +15,7 @@
         <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
     </metadata>
     <files>
-        <file src="xdp-for-windows.props" target="build\native"/>
+        <file src="xdp-for-windows.props" target="build\native\Microsoft.XDP-for-Windows.Sdk.props"/>
         <file src="{rootpath}\published\external\**" target="build\native\include"/>
         <file src="{binpath_anyarch}\xdpbpfexport.exe" target="build\native\bin\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpapi.lib" target="build\native\lib\{anyarch}"/>
