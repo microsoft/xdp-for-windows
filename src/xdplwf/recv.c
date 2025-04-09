@@ -1512,6 +1512,9 @@ XdpGenericReceivePreInspectNbs(
     BOOLEAN InspectionNeeded = FALSE;
     BOOLEAN NbAddedToRing = FALSE;
 
+    ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->InterfaceReserved);
+    ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->ProducerIndex);
+
     //
     // For low resources indications (CanPend == FALSE), ensure only one NBL
     // is processed at a time (even if not added to the XDP ring for inspection).
@@ -1565,8 +1568,14 @@ XdpGenericReceivePostInspectNbs(
 
     //
     // XDP must have inspected and returned all frames in the ring.
+    // In low resource scenarios, zero or one frames may have been
+    // added in the ring.
     //
     ASSERT(FrameRing->ConsumerIndex == FrameRing->ProducerIndex);
+    ASSERT(
+        CanPend ||
+        FrameRing->InterfaceReserved == FrameRing->ProducerIndex ||
+        FrameRing->InterfaceReserved == FrameRing->ProducerIndex - 1);
 
     while (NbHead != NbTail) {
         XDP_FRAME *Frame;
@@ -1629,6 +1638,11 @@ XdpGenericReceivePostInspectNbs(
         }
 
         //
+        // In low resource scenarios, only one NB should be processed at a time.
+        //
+		ASSERT(CanPend || NbHead == NbTail);
+
+        //
         // Now that we've finished dereferencing ActionNbl, apply the RX action.
         //
         if (ActionNbl != NULL) {
@@ -1654,9 +1668,18 @@ XdpGenericReceivePostInspectNbs(
         if (!CanPend) {
             //
             // Enforce NDIS low resources constraints on pass and return lists.
+            // In low resources scenarios, NDIS requires that the NBL chain is
+            // released inline and in the original order: we need to indicate
+            // NBLs up as we go.
+            //
             // N.B. This releases and reacquires the EC spinlock.
+            // To ensure the state of FrameRing is consistent for another thread
+            // use, all NBLs this thread added to the ring must have been processed
+            // before the lock is releaded. We enforce this by processing a single
+            // NB at a time in low resources scenario.
             //
             ASSERT(!RxQueue->Flags.TxInspect);
+            ASSERT(FrameRing->ConsumerIndex == FrameRing->InterfaceReserved);
             XdpGenericReceiveLowResources(
                 RxQueue->Generic->NdisFilterHandle, &RxQueue->EcLock, PassList, DropList,
                 LowResourcesList, PortNumber, (NbHead == NULL));
@@ -1699,6 +1722,11 @@ XdpGenericReceiveInspect(
         //
         InspectionNeeded = XdpGenericReceivePreInspectNbs(RxQueue, CanPend, &NextNbl, &NextNb);
 
+        EventWriteGenericRxInspectRingStart(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, !CanPend, RxQueue->FrameRing->ProducerIndex,
+            RxQueue->FrameRing->ConsumerIndex, RxQueue->FrameRing->InterfaceReserved,
+            NbHead, NextNb);
+
         if (InspectionNeeded) {
             //
             // Invoke XDP inspection. Use the dispatch table (indirect call) rather
@@ -1713,6 +1741,12 @@ XdpGenericReceiveInspect(
         XdpGenericReceivePostInspectNbs(
             RxQueue, PortNumber, CanPend, NblHead, NbHead, NextNb, PassList, DropList, TxList,
             &LowResourcesList);
+
+        EventWriteGenericRxInspectRingStop(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, !CanPend, RxQueue->FrameRing->ProducerIndex,
+            RxQueue->FrameRing->ConsumerIndex, RxQueue->FrameRing->InterfaceReserved,
+            NbHead, NextNb);
+
     } while (NextNb != NULL);
 }
 
