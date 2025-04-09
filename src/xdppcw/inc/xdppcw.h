@@ -31,7 +31,7 @@ typedef struct _XDP_PCW_LWF_RX_QUEUE {
     UINT64 ForwardingFailuresRscInvalidHeaders;
     UINT64 ForwardingNbsRequested;
     UINT64 ForwardingNbsSent;
-    UINT64 NdisLoopbackPackets;
+    UINT64 LoopbackNblsSkipped;
 } XDP_PCW_LWF_RX_QUEUE;
 
 typedef struct _XDP_PCW_TX_QUEUE {

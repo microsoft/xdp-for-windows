@@ -1400,7 +1400,7 @@ XdpGenericReceivePreinspectNb(
     // on the receive path. Skip inspection of these packets.
     //
     if (NdisTestNblFlag(Nbl, NDIS_NBL_FLAGS_IS_LOOPBACK_PACKET)) {
-        STAT_INC(&RxQueue->PcwStats, NdisLoopbackPackets);
+        STAT_INC(&RxQueue->PcwStats, LoopbackNblsSkipped);
         return;
     }
 
