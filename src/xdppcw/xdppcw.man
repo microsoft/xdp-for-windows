@@ -266,11 +266,11 @@
             />
           <counter
             id="8"
-            uri="Microsoft.Xdp.LwfRxQueue.NdisLoopbackPackets"
-            name="Ndis Loopback Packets"
+            uri="Microsoft.Xdp.LwfRxQueue.LoopbackNblsSkipped"
+            name="Ndis Loopback Nbls Slipped"
             nameID="3032"
-            field="NdisLoopbackPackets"
-            description="Ndis Loopback Frames, which are not submitted to XDP for inspection."
+            field="LoopbackNblsSkipped"
+            description="Ndis Loopback Nbls, which skip XDP inspection."
             descriptionID="3034"
             type="perf_counter_rawcount"
             aggregate="sum"
