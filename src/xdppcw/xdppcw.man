@@ -267,7 +267,7 @@
           <counter
             id="8"
             uri="Microsoft.Xdp.LwfRxQueue.LoopbackNblsSkipped"
-            name="Ndis Loopback NBLs Skipped"
+            name="NDIS Loopback NBLs Skipped"
             nameID="3032"
             field="LoopbackNblsSkipped"
             description="Ndis Loopback NBLs, which skip XDP inspection."
