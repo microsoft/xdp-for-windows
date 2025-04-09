@@ -1679,7 +1679,7 @@ XdpGenericReceivePostInspectNbs(
             // NB at a time in low resources scenario.
             //
             ASSERT(!RxQueue->Flags.TxInspect);
-            ASSERT(FrameRing->ConsumerIndex == FrameRing->InterfaceReserved);
+            ASSERT(FrameRing->InterfaceReserved == FrameRing->ProducerIndex);
             XdpGenericReceiveLowResources(
                 RxQueue->Generic->NdisFilterHandle, &RxQueue->EcLock, PassList, DropList,
                 LowResourcesList, PortNumber, (NbHead == NULL));
