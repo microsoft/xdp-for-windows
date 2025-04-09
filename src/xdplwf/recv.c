@@ -1367,11 +1367,12 @@ XdpGenericReceiveEnqueueTxNbl(
 }
 
 static
-BOOLEAN
+VOID
 XdpGenericReceivePreinspectNb(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
     _In_ NET_BUFFER_LIST *Nbl,
     _In_ NET_BUFFER *Nb,
+    _Out_ BOOLEAN *NbAddedToRing,
     _Out_ BOOLEAN *FlushNeeded
 )
 {
@@ -1392,13 +1393,15 @@ XdpGenericReceivePreinspectNb(
     DataLength -= Buffer->DataLength;
 
     *FlushNeeded = FALSE;
+    *NbAddedToRing = FALSE;
 
     //
     // NDIS components may request that packets sent locally be looped back
     // on the receive path. Skip inspection of these packets.
     //
     if (NdisTestNblFlag(Nbl, NDIS_NBL_FLAGS_IS_LOOPBACK_PACKET)) {
-        return FALSE;
+        STAT_INC(&RxQueue->PcwStats, NdisLoopbackPackets);
+        return;
     }
 
     SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
@@ -1406,7 +1409,7 @@ XdpGenericReceivePreinspectNb(
         MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
     if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
         STAT_INC(&RxQueue->PcwStats, MappingFailures);
-        return FALSE;
+        return;
     }
 
     //
@@ -1430,12 +1433,12 @@ XdpGenericReceivePreinspectNb(
             //
             if (RxQueue->FragmentBufferInUse) {
                 *FlushNeeded = TRUE;
-                return FALSE;
+                return;
             }
 
             if (!XdpGenericReceiveLinearizeNb(RxQueue, Nb)) {
                 STAT_INC(&RxQueue->PcwStats, LinearizationFailures);
-                return FALSE;
+                return;
             }
 
             //
@@ -1452,7 +1455,7 @@ XdpGenericReceivePreinspectNb(
         //
         if (++FragmentCount > XdpRingFree(FragmentRing)) {
             *FlushNeeded = TRUE;
-            return FALSE;
+            return;
         }
 
         Buffer =
@@ -1470,7 +1473,7 @@ XdpGenericReceivePreinspectNb(
             MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
         if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
             STAT_INC(&RxQueue->PcwStats, MappingFailures);
-            return FALSE;
+            return;
         }
     }
 
@@ -1492,7 +1495,8 @@ XdpGenericReceivePreinspectNb(
     FragmentRing->ProducerIndex += FragmentCount;
     FrameRing->ProducerIndex++;
 
-    return TRUE;
+    *NbAddedToRing = TRUE;
+    return;
 }
 
 static
@@ -1506,10 +1510,11 @@ XdpGenericReceivePreInspectNbs(
 {
     BOOLEAN FlushNeeded = FALSE;
     BOOLEAN InspectionNeeded = FALSE;
+    BOOLEAN NbAddedToRing = FALSE;
 
     //
-    // For low resources indications (`CanPend == TRUE`), ensure only one NBL is processed at a time
-    // (even if not added to the XDP ring for inspection).
+    // For low resources indications (CanPend == FALSE), ensure only one NBL
+    // is processed at a time (even if not added to the XDP ring for inspection).
     // This is required since we release the EC lock to indicate low resource
     // frames up the stack, so we must leave the RX queue in a state that allows
     // another thread (or the same thread) to inspect while the low resources
@@ -1519,7 +1524,8 @@ XdpGenericReceivePreInspectNbs(
     do {
         ASSERT(XdpRingFree(RxQueue->FrameRing) > 0);
 
-        InspectionNeeded |= XdpGenericReceivePreinspectNb(RxQueue, *Nbl, *Nb, &FlushNeeded);
+        XdpGenericReceivePreinspectNb(RxQueue, *Nbl, *Nb, &NbAddedToRing, &FlushNeeded);
+        InspectionNeeded |= NbAddedToRing;
         if (FlushNeeded) {
             return InspectionNeeded;
         }
