@@ -1500,20 +1500,22 @@ XdpGenericReceivePreinspectNb(
 }
 
 static
-BOOLEAN
+VOID
 XdpGenericReceivePreInspectNbs(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
     _In_ BOOLEAN CanPend,
     _Inout_ NET_BUFFER_LIST **Nbl,
-    _Inout_ NET_BUFFER **Nb
+    _Inout_ NET_BUFFER **Nb,
+    _Out_ BOOLEAN* InspectionNeeded
     )
 {
     BOOLEAN FlushNeeded = FALSE;
-    BOOLEAN InspectionNeeded = FALSE;
     BOOLEAN NbAddedToRing = FALSE;
 
     ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->InterfaceReserved);
     ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->ProducerIndex);
+
+    InspectionNeeded = FALSE;
 
     //
     // For low resources indications (CanPend == FALSE), ensure only one NBL
@@ -1530,7 +1532,7 @@ XdpGenericReceivePreInspectNbs(
         XdpGenericReceivePreinspectNb(RxQueue, *Nbl, *Nb, &NbAddedToRing, &FlushNeeded);
         InspectionNeeded |= NbAddedToRing;
         if (FlushNeeded) {
-            return InspectionNeeded;
+            return;
         }
 
         //
@@ -1545,8 +1547,6 @@ XdpGenericReceivePreInspectNbs(
             }
         }
     } while (*Nb != NULL && XdpRingFree(RxQueue->FrameRing) > 0 && CanPend);
-
-    return InspectionNeeded;
 }
 
 static
@@ -1720,7 +1720,7 @@ XdpGenericReceiveInspect(
         //
         // Queue a batch of NBLs into the XDP receive ring for inspection.
         //
-        InspectionNeeded = XdpGenericReceivePreInspectNbs(RxQueue, CanPend, &NextNbl, &NextNb);
+        XdpGenericReceivePreInspectNbs(RxQueue, CanPend, &NextNbl, &NextNb, &InspectionNeeded);
 
         EventWriteGenericRxInspectRingStart(
             &MICROSOFT_XDP_PROVIDER, RxQueue, !CanPend, RxQueue->FrameRing->ProducerIndex,
