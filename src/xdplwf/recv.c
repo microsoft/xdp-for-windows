@@ -1640,7 +1640,7 @@ XdpGenericReceivePostInspectNbs(
         //
         // In low resource scenarios, only one NB should be processed at a time.
         //
-		ASSERT(CanPend || NbHead == NbTail);
+        ASSERT(CanPend || NbHead == NbTail);
 
         //
         // Now that we've finished dereferencing ActionNbl, apply the RX action.
