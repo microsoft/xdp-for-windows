@@ -264,6 +264,19 @@
             detailLevel="standard"
             defaultScale="1"
             />
+          <counter
+            id="8"
+            uri="Microsoft.Xdp.LwfRxQueue.LoopbackNblsSkipped"
+            name="NDIS Loopback NBLs Skipped"
+            nameID="3032"
+            field="LoopbackNblsSkipped"
+            description="Ndis Loopback NBLs, which skip XDP inspection."
+            descriptionID="3034"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
         <counterSet
           guid="{05947256-79cd-4393-b54c-a65be0963294}"
