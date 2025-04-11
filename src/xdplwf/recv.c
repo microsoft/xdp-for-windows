@@ -1496,7 +1496,6 @@ XdpGenericReceivePreinspectNb(
     FrameRing->ProducerIndex++;
 
     *NbAddedToRing = TRUE;
-    return;
 }
 
 static
