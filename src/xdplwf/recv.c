@@ -1515,7 +1515,7 @@ XdpGenericReceivePreInspectNbs(
     ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->InterfaceReserved);
     ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->ProducerIndex);
 
-    InspectionNeeded = FALSE;
+    *InspectionNeeded = FALSE;
 
     //
     // For low resources indications (CanPend == FALSE), ensure only one NBL
@@ -1530,7 +1530,7 @@ XdpGenericReceivePreInspectNbs(
         ASSERT(XdpRingFree(RxQueue->FrameRing) > 0);
 
         XdpGenericReceivePreinspectNb(RxQueue, *Nbl, *Nb, &NbAddedToRing, &FlushNeeded);
-        InspectionNeeded |= NbAddedToRing;
+        *InspectionNeeded |= NbAddedToRing;
         if (FlushNeeded) {
             return;
         }
