@@ -2225,8 +2225,7 @@ InjectFnmpRxFrames(
     // but keep it smaller most of the time to iterate faster:
     // most of the interesting logic has to do with the headers.
     //
-    if (RandUlong() % 10 == 0)
-    {
+    if (RandUlong() % 10 == 0) {
         payloadBufferSize = 64'000;
     } else {
         payloadBufferSize = 500;
@@ -2238,9 +2237,7 @@ InjectFnmpRxFrames(
 
     if (frame == NULL || payload == NULL) {
         TraceWarn("Allocation failure, frame: %p, payload: %p", frame, payload);
-        free(frame);
-        free(payload);
-        return;
+        goto Exit;
     }
 
     TraceVerbose("FnmpInjectRx: injecting %d frames", NumFrames);
@@ -2309,7 +2306,9 @@ InjectFnmpRxFrames(
         fnmpFrame.BufferCount = numBuffers;
 
         status = FnMpRxEnqueue(Fnmp, &fnmpFrame);
-        TraceVerbose("FnmpInjectRx: FnMpRxEnqueue failed with %x", status);
+        if (FAILED(status)) {
+            TraceWarn("FnmpInjectRx: FnMpRxEnqueue failed with %x", status);
+        }
     }
 
     flushOptions.Flags.DpcLevel = RandUlong() & 1;
@@ -2320,6 +2319,7 @@ InjectFnmpRxFrames(
     status = FnMpRxFlush(Fnmp, &flushOptions);
     TraceVerbose("FnmpInjectRx: done injecting %d frames, status %x", NumFrames, status);
 
+Exit:
     //
     // Cleanup
     //
