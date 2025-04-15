@@ -2242,7 +2242,7 @@ InjectFnmpRxFrames(
 
     TraceVerbose("FnmpInjectRx: injecting %d frames", NumFrames);
 
-    for (UINT8 i = 0; i < NumFrames; i++) {
+    for (UINT32 i = 0; i < NumFrames; i++) {
         const UINT32 backfill = RandUlong() % (FNMP_FRAME_MAX_BACKFILL + 1);
         UINT32 frameLength = frameBufferSize - backfill;
         UINT32 frameType = 0;
