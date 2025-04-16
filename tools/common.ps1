@@ -125,11 +125,7 @@ function Get-EbpfMsiUrl {
         [string]$Platform
     )
     $EbpfVersion = Get-EbpfMsiVersion -Platform $Platform
-    if ($Platform -eq "x64") {
-        return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
-    } else {
-        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.$Platform.0.20.0.msi"
-    }
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
 }
 
 function Get-FnVersion {
