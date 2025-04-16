@@ -122,10 +122,10 @@ function Download-eBpf-Nuget {
         [string]$Platform
     )
     # Download private eBPF Nuget package.
-    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.21.0"
-    $EbpfNugetBuild = ""
-    $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-    $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+    $EbpfVersion = Get-EbpfVersion
+    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.$EbpfVersion"
+    $EbpfNuget = "$EbpfNugetVersion.nupkg"
+    $EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/tag/Release-v$EbpfVersion/$EbpfNuget"
     $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
     if ($Force -and (Test-Path $NugetDir)) {
