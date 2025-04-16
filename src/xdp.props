@@ -22,7 +22,6 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
-    <PackageReference Include="eBPF-for-Windows" Version="0.21.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' == 'x64'"/>
     <PackageReference Include="eBPF-for-Windows.arm64" Version="0.21.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' != 'x64'"/>
     <PackageReference Include="eBPF-for-Windows.x64" Version="0.21.0" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true' AND '$(Platform)' != 'x64'"/>
     <PackageReference Include="Microsoft.Build.Tasks.Git" Version="1.0.0" GeneratePathProperty="true" />
