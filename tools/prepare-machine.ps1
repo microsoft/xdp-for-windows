@@ -122,7 +122,7 @@ function Download-eBpf-Nuget {
         [string]$Platform
     )
     # Download private eBPF Nuget package.
-    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.20.0"
+    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.21.0"
     $EbpfNugetBuild = ""
     $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
     $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
