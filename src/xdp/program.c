@@ -664,7 +664,7 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
-    .capabilities = {.supports_context_header = TRUE},
+    .capabilities = {0},
 };
 
 static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
