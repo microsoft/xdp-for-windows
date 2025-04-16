@@ -128,6 +128,7 @@ function Get-EbpfMsiUrl {
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
 }
 
+
 function Get-FnVersion {
     return "1.3.0"
 }
