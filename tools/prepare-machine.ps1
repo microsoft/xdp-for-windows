@@ -125,7 +125,7 @@ function Download-eBpf-Nuget {
     $EbpfVersion = Get-EbpfVersion
     $EbpfNugetVersion = "eBPF-for-Windows.$Platform.$EbpfVersion"
     $EbpfNuget = "$EbpfNugetVersion.nupkg"
-    $EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/tag/Release-v$EbpfVersion/$EbpfNuget"
+    $EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/$EbpfNuget"
     $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
     if ($Force -and (Test-Path $NugetDir)) {
