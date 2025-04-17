@@ -121,7 +121,7 @@ function Download-eBpf-Nuget {
         [Parameter()]
         [string]$Platform
     )
-    # Download private eBPF Nuget package.
+    # Download eBPF Nuget package.
     $EbpfVersion = Get-EbpfVersion
     $EbpfNugetVersion = "eBPF-for-Windows.$Platform.$EbpfVersion"
     $EbpfNuget = "$EbpfNugetVersion.nupkg"
@@ -258,19 +258,6 @@ if ($Cleanup) {
         # Tests do not fully clean up.
     }
 } else {
-    if ($ForBuild) {
-        if (!(Test-Path $NugetDir)) {
-            mkdir $NugetDir | Write-Verbose
-        }
-
-        if ($Platform -eq "arm64") {
-            # Download prerelease versions for arm64, and a matching x64 for
-            # local cross-compile (bpf2c) binaries.
-            Download-eBpf-Nuget -Platform arm64
-            Download-eBpf-Nuget -Platform x64
-        }
-    }
-
     if ($ForEbpfBuild) {
         if (!(Get-Command clang.exe)) {
             Write-Error "clang.exe is not detected"
