@@ -19,9 +19,6 @@
     <!-- eBPF-for-windows version -->
     <EbpfVersion>0.21.0</EbpfVersion>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Platform)' != 'x64'">
-    <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
-  </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
     <PackageReference Include="eBPF-for-Windows.$(Platform)" Version="$(EbpfVersion)" GeneratePathProperty="true" Condition="'$(ImportEbpf)' == 'true'"/>
