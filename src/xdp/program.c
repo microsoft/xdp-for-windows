@@ -1675,8 +1675,8 @@ EbpfProgramOnClientAttach(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
     if (ClientData == NULL ||
-        ClientData->header.version != 0 ||
-        ClientData->header.size != sizeof(IfIndex) ||
+        ClientData->header.version < EBPF_ATTACH_CLIENT_DATA_CURRENT_VERSION ||
+        ClientData->data_size != sizeof(IfIndex) ||
         ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
