@@ -258,6 +258,10 @@ if ($Cleanup) {
         # Tests do not fully clean up.
     }
 } else {
+    if ($ForBuild) {
+        # There are currently no pre-build steps required.
+    }
+
     if ($ForEbpfBuild) {
         if (!(Get-Command clang.exe)) {
             Write-Error "clang.exe is not detected"
