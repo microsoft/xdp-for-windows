@@ -2,22 +2,24 @@
 <!-- Copyright (c) Microsoft Corporation -->
 <package>
     <metadata>
-        <title>XDP for Windows</title>
-        <id>XDP-for-Windows</id>
+        <id>Microsoft.XDP-for-Windows.Sdk</id>
+        <title>XDP-for-Windows SDK</title>
         <version>{version}</version>
-        <authors>XDP for Windows Contributors</authors>
-        <owners>XDP for Windows Contributors</owners>
-        <requireLicenseAcceptance>false</requireLicenseAcceptance>
-		<license type="expression">MIT</license>
+        <authors>Microsoft</authors>
+        <requireLicenseAcceptance>true</requireLicenseAcceptance>
+        <license type="expression">MIT</license>
+        <copyright>© Microsoft Corporation. All rights reserved.</copyright>
         <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
-        <description>XDP for Windows</description>
+        <readme>README.md</readme>
+        <description>XDP-for-Windows SDK</description>
         <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
     </metadata>
     <files>
-        <file src="xdp-for-windows.props" target="build\native"/>
+        <file src="xdp-for-windows.props" target="build\native\Microsoft.XDP-for-Windows.Sdk.props"/>
         <file src="{rootpath}\published\external\**" target="build\native\include"/>
         <file src="{binpath_anyarch}\xdpbpfexport.exe" target="build\native\bin\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpapi.lib" target="build\native\lib\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpnmr.lib" target="build\native\lib\{anyarch}"/>
+        <file src="{rootpath}\readme.md" target="."/>
     </files>
 </package>

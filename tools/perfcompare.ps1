@@ -7,21 +7,29 @@ param (
     [string]$DataFile1,
 
     [Parameter(Mandatory=$true)]
-    [string]$DataFile2
+    [string]$DataFile2,
+
+    [Parameter(Mandatory=$false)]
+    [string]$Metric = "pps"
 )
+
+Set-StrictMode -Version 'Latest'
+$ErrorActionPreference = 'Stop'
 
 function ImportDataset {
     param($File)
 
     $dataset = [ordered]@{}
+    $contents = Get-Content -Raw $File | ConvertFrom-Json
 
-    $contents = Get-Content $File
-
-    foreach ($line in $contents) {
-        $array = $line.Split(",")
-        $scenarioName = $array[0]
-        $scenarioData = $array[3..$array.Count]
-        $dataset.Add($scenarioName, $scenarioData)
+    foreach ($data in $contents) {
+        $scenarioName = $data.ScenarioName
+        $scenarioData = ($data.Metrics | Where-Object { $_.Name -eq $Metric }).Value
+        if ($dataset.Contains($scenarioName)) {
+            [array]$dataset[$scenarioName] += $scenarioData
+        } else {
+            $dataset.Add($scenarioName, $scenarioData)
+        }
     }
 
     return $dataset

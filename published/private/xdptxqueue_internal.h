@@ -75,6 +75,10 @@ typedef enum _XDP_TX_QUEUE_NOTIFY_CODE {
     // for deletion.
     //
     XDP_TX_QUEUE_NOTIFY_MAX_FRAME_SIZE,
+    //
+    // The TX queue's current offload configuration has changed.
+    //
+    XDP_TX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG,
 } XDP_TX_QUEUE_NOTIFY_CODE;
 
 typedef

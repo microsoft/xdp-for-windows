@@ -83,6 +83,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = "$RootDir\artifacts"
+$NugetDir = "$ArtifactsDir/nuget"
 
 if (!$ForBuild -and !$ForEbpfBuild -and !$ForTest -and !$ForFunctionalTest -and !$ForSpinxskTest -and !$ForPerfTest -and !$ForLogging) {
     Write-Error 'Must one of -ForBuild, -ForTest, -ForFunctionalTest, -ForSpinxskTest, -ForPerfTest, or -ForLogging'
@@ -97,7 +98,7 @@ if ($RequireNoReboot) {
 
 # Log the OS version.
 Write-Verbose "Querying OS BuildLabEx"
-(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').BuildLabEx | Write-Verbose
+Get-OsBuildVersionString | Write-Verbose
 
 function Download-CoreNet-Deps {
     $CoreNetCiCommit = Get-CoreNetCiCommit
@@ -112,6 +113,36 @@ function Download-CoreNet-Deps {
         Invoke-WebRequest-WithRetry -Uri "https://github.com/microsoft/corenet-ci/archive/$CoreNetCiCommit.zip" -OutFile "$ArtifactsDir\corenet-ci.zip"
         Expand-Archive -Path "$ArtifactsDir\corenet-ci.zip" -DestinationPath $ArtifactsDir -Force
         Remove-Item -Path "$ArtifactsDir\corenet-ci.zip"
+    }
+}
+
+function Download-eBpf-Nuget {
+    param (
+        [Parameter()]
+        [string]$Platform
+    )
+    # Download eBPF Nuget package.
+    $EbpfVersion = Get-EbpfVersion
+    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.$EbpfVersion"
+    $EbpfNuget = "$EbpfNugetVersion.nupkg"
+    $EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/$EbpfNuget"
+    $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
+
+    if ($Force -and (Test-Path $NugetDir)) {
+        Remove-Item -Recurse -Force $NugetDir
+    }
+    if (!(Test-Path $NugetDir)) {
+        mkdir $NugetDir | Write-Verbose
+    }
+
+    if (!(Test-Path $NugetDir/$EbpfNuget)) {
+        # Remove any old builds of the package.
+        if (Test-Path $EbpfNugetRestoreDir) {
+            Remove-Item -Recurse -Force $EbpfNugetRestoreDir
+        }
+        Remove-Item -Force $NugetDir/$EbpfNugetVersion*
+
+        Invoke-WebRequest-WithRetry -Uri $EbpfNugetUrl -OutFile $NugetDir/$EbpfNuget
     }
 }
 
@@ -277,6 +308,12 @@ if ($Cleanup) {
         }
 
         Enable-CrashDumps
+        Download-Fn-Runtime
+        Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
+        $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
+        if ($null -ne $FnResult -and $FnResult -contains "RebootRequired" -and $FnResult["RebootRequired"]) {
+            $Reboot = $true
+        }
     }
 
     if ($ForPerfTest) {
@@ -305,6 +342,7 @@ if ($Cleanup) {
 if ($Reboot) {
     if ($RequireNoReboot) {
         Write-Error "Reboot required but disallowed"
+        Write-Info "If running in CI, it likely means the OS image used has a non-matching configuration."
     } elseif ($NoReboot) {
         Write-Verbose "Reboot required"
         return @{"RebootRequired" = $true}

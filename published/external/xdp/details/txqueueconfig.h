@@ -99,6 +99,7 @@ typedef struct _XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH {
     XDP_TX_QUEUE_ACTIVATE_IS_ENABLED        *IsTxCompletionContextEnabled;
     XDP_TX_QUEUE_ACTIVATE_IS_ENABLED        *IsFragmentationEnabled;
     XDP_TX_QUEUE_ACTIVATE_IS_ENABLED        *IsOutOfOrderCompletionEnabled;
+    XDP_TX_QUEUE_ACTIVATE_IS_ENABLED        *IsChecksumOffloadEnabled;
 } XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH;
 
 #define XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1 1
@@ -234,6 +235,21 @@ XDPEXPORT(XdpTxQueueIsOutOfOrderCompletionEnabled)(
 {
     XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS *Details = (XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS *)TxQueueConfig;
     return Details->Dispatch->IsOutOfOrderCompletionEnabled(TxQueueConfig);
+}
+
+inline
+BOOLEAN
+XDPEXPORT(XdpTxQueueIsChecksumOffloadEnabled)(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    )
+{
+    XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS *Details = (XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS *)TxQueueConfig;
+    if (Details->Dispatch->Header.Revision == XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1 &&
+        Details->Dispatch->Header.Size >= RTL_SIZEOF_THROUGH_FIELD(XDP_TX_QUEUE_CONFIG_ACTIVATE_DISPATCH, IsChecksumOffloadEnabled)) {
+        return Details->Dispatch->IsChecksumOffloadEnabled(TxQueueConfig);
+    } else {
+        return FALSE;
+    }
 }
 
 EXTERN_C_END

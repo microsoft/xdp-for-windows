@@ -67,6 +67,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpruntime", "src\xdpruntim
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwdkm", "samples\xskfwd\xskfwdkm.vcxproj", "{F722DA97-3252-42F1-92D3-215C99935607}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ringperf", "test\ringperf\ringperf.vcxproj", "{838975CE-9BC8-4BA8-A129-2C33791BA339}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -395,6 +397,14 @@ Global
 		{F722DA97-3252-42F1-92D3-215C99935607}.Release|ARM64.Build.0 = Release|ARM64
 		{F722DA97-3252-42F1-92D3-215C99935607}.Release|x64.ActiveCfg = Release|x64
 		{F722DA97-3252-42F1-92D3-215C99935607}.Release|x64.Build.0 = Release|x64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Debug|ARM64.Build.0 = Debug|ARM64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Debug|x64.ActiveCfg = Debug|x64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Debug|x64.Build.0 = Debug|x64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Release|ARM64.ActiveCfg = Release|ARM64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Release|ARM64.Build.0 = Release|ARM64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Release|x64.ActiveCfg = Release|x64
+		{838975CE-9BC8-4BA8-A129-2C33791BA339}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

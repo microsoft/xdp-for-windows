@@ -84,6 +84,16 @@ function Cleanup-Service($Name) {
     }
 }
 
+function Cleanup-File($Path) {
+    Write-Verbose "Cleaning up $Path"
+    if (Test-Path $Path) {
+        Write-Verbose "Remove-Item $Path -Force"
+        Remove-Item $Path -Force
+    } else {
+        Write-Verbose "$Path did not exist"
+    }
+}
+
 # Helper to uninstall a driver from its inf file.
 function Uninstall-Driver($Inf) {
     # Expected pnputil enum output is:
@@ -155,8 +165,8 @@ function Uninstall-XdpComponent($ComponentId) {
 
     Cleanup-Service xdp
 
-    Remove-Item $env:WINDIR\system32\xdpapi.dll -Force
-    Remove-Item $env:WINDIR\system32\drivers\xdp.sys -Force
+    Cleanup-File $env:WINDIR\system32\xdpapi.dll
+    Cleanup-File $env:WINDIR\system32\drivers\xdp.sys
 
     Write-Verbose "xdp.sys uninstall complete!"
 }

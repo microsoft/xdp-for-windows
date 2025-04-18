@@ -24,6 +24,9 @@ more coverage for setup and cleanup.
 .Parameter FuzzerCount
     Number of fuzzer threads per queue.
 
+.Parameter GlobalConcurrentWorkerCount
+    Number of concurrent threads 
+
 .Parameter SuccessThresholdPercent
     Minimum socket success rate, percent.
 
@@ -32,6 +35,12 @@ more coverage for setup and cleanup.
 
 .PARAMETER NoLogs
     Do not capture logs.
+
+.PARAMETER BreakOnWatchdog
+    Break on watchdog timeout.
+
+.PARAMETER Driver
+    Driver to use for the test. Can be either XDPMP or FNMP.
 
 .PARAMETER XdpmpPollProvider
     Poll provider for XDPMP.
@@ -63,6 +72,9 @@ param (
     [Int32]$FuzzerCount = 0,
 
     [Parameter(Mandatory = $false)]
+    [Int32]$GlobalConcurrentWorkerCount = 2,
+
+    [Parameter(Mandatory = $false)]
     [Int32]$SuccessThresholdPercent = -1,
 
     [Parameter(Mandatory = $false)]
@@ -75,6 +87,10 @@ param (
     [switch]$BreakOnWatchdog = $false,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("XDPMP", "FNMP")]
+    [string]$Driver = "XDPMP",
+
+    [Parameter(Mandatory = $false)]
     [ValidateSet("NDIS", "FNDIS")]
     [string]$XdpmpPollProvider = "NDIS",
 
@@ -82,7 +98,11 @@ param (
     [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$EbpfPreinstalled = $false
+    [switch]$EbpfPreinstalled = $false,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("MSI", "INF", "NuGet")]
+    [string]$XdpInstaller = "MSI"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -125,11 +145,11 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
 
     try {
         if (!$NoLogs) {
-            & "$RootDir\tools\log.ps1" -Start -Name spinxsk -Profile SpinXsk.Verbose -Config $Config -Platform $Platform
-            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
+            & "$RootDir\tools\log.ps1" -Start -Name spinxsk_$Driver -Profile SpinXsk.Verbose -Config $Config -Platform $Platform
+            & "$RootDir\tools\log.ps1" -Start -Name spinxskebpf_$Driver -Profile SpinXskEbpf.Verbose -LogMode Memory -Config $Config -Platform $Platform
             if ($Platform -ne "arm64") {
                 # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
-                & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
+                & "$RootDir\tools\log.ps1" -Start -Name spinxskcpu_$Driver -Profile CpuCswitchSample.Verbose -Config $Config -Platform $Platform
             }
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
@@ -145,23 +165,34 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
 
         Write-Verbose "installing xdp..."
-        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
 
-        Write-Verbose "installing xdpmp..."
-        & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
-        Write-Verbose "installed xdpmp."
+        if ($Driver -eq "XDPMP") {
+            Write-Verbose "installing xdpmp..."
+            & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
+            Write-Verbose "installed xdpmp."
 
-        Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
-        Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
+            $AdapterName = "XDPMP"
+        } else {
+            Write-Verbose "installing fnmp..."
+            & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
+            Write-Verbose "installed fnmp."
+
+            $AdapterName = "XDPFNMP"
+        }
+
+        Write-Verbose "Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount"
+        Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount
 
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
         $Args = `
-            "-IfIndex", (Get-NetAdapter XDPMP).ifIndex, `
+            "-IfIndex", (Get-NetAdapter $AdapterName).ifIndex, `
             "-QueueCount", $QueueCount, `
-            "-Minutes", $ThisIterationMinutes
+            "-Minutes", $ThisIterationMinutes, `
+            "-GlobalConcurrentWorkers", $GlobalConcurrentWorkerCount
         if ($Stats) {
             $Args += "-Stats"
         }
@@ -182,14 +213,21 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if ($EnableEbpf) {
             $Args += "-EnableEbpf"
         }
+        if ($Driver -eq "FNMP") {
+            $Args += "-UseFnmp"
+        }
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args
         if ($LastExitCode -ne 0) {
             throw "SpinXsk failed with $LastExitCode"
         }
     } finally {
-        & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
-        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        if ($Driver -eq "XDPMP") {
+            & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        } else {
+            & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        }
+        & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
@@ -199,10 +237,10 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if (!$NoLogs) {
             if ($Platform -ne "arm64") {
                 # Our spinxsk pool does not yet support Gen6 VMs, so skip the profile.
-                & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu -Config $Config -Platform $Platform -ErrorAction 'Continue'
+                & "$RootDir\tools\log.ps1" -Stop -Name spinxskcpu_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
             }
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
-            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
     }
 }

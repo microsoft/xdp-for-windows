@@ -33,6 +33,11 @@ XdpTxQueueFindOrCreate(
     _Out_ XDP_TX_QUEUE **TxQueue
     );
 
+NTSTATUS
+XdpTxQueueActivate(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
 VOID
 XdpTxQueueDereference(
     _In_ XDP_TX_QUEUE *TxQueue
@@ -42,6 +47,7 @@ typedef struct _XDP_TX_QUEUE_NOTIFY_ENTRY XDP_TX_QUEUE_NOTIFICATION_ENTRY;
 
 typedef enum _XDP_TX_QUEUE_NOTIFICATION_TYPE {
     XDP_TX_QUEUE_NOTIFICATION_DETACH,
+    XDP_TX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG,
 } XDP_TX_QUEUE_NOTIFICATION_TYPE;
 
 typedef
@@ -67,6 +73,11 @@ VOID
 XdpTxQueueDeregisterNotifications(
     _In_ XDP_TX_QUEUE *TxQueue,
     _Inout_ XDP_TX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry
+    );
+
+NTSTATUS
+XdpTxQueueEnableChecksumOffload(
+    _In_ XDP_TX_QUEUE *TxQueue
     );
 
 typedef enum _XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE {
@@ -112,6 +123,11 @@ XdpTxQueueGetInterfacePollHandle(
     _In_ XDP_TX_QUEUE *TxQueue
     );
 
+XDP_IF_OFFLOAD_HANDLE
+XdpTxQueueGetInterfaceOffloadHandle(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
 XDP_TX_QUEUE_CONFIG_ACTIVATE
 XdpTxQueueGetConfig(
     _In_ XDP_TX_QUEUE *TxQueue
@@ -129,6 +145,11 @@ XdpTxQueueIsLogicalAddressEnabled(
 
 BOOLEAN
 XdpTxQueueIsMdlEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    );
+
+BOOLEAN
+XdpTxQueueIsLayoutExtensionEnabled(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
     );
 

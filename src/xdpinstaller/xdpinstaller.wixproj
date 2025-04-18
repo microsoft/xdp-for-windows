@@ -36,12 +36,15 @@
   <ItemGroup Condition="'$(BuildStage)' != 'Binary'">
     <Compile Include="product.wxs" />
   </ItemGroup>
+  <!-- OneBranch doesn't build the WiX project, but loading the .props and .targets files during
+       NuGet restore causes unrelated OneBranch errors. Suppress these internally for now.
+       -->
   <ItemGroup>
-    <PackageReference Include="WixToolset.UI.wixext" Version="$(WixVer)" />
-    <PackageReference Include="WixToolset.Util.wixext" Version="$(WixVer)" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="$(WixVer)" Condition="'$(UndockedOfficial)' != 'true'" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="$(WixVer)" Condition="'$(UndockedOfficial)' != 'true'" />
   </ItemGroup>
-  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
-  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixVer)" />
+  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(WixVer)" Condition="'$(UndockedOfficial)' != 'true'" />
+  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixVer)" Condition="'$(UndockedOfficial)' != 'true'" />
   <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Build">
     <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
   </Target>

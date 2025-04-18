@@ -264,6 +264,19 @@
             detailLevel="standard"
             defaultScale="1"
             />
+          <counter
+            id="8"
+            uri="Microsoft.Xdp.LwfRxQueue.LoopbackNblsSkipped"
+            name="NDIS Loopback NBLs Skipped"
+            nameID="3032"
+            field="LoopbackNblsSkipped"
+            description="Ndis Loopback NBLs, which skip XDP inspection."
+            descriptionID="3034"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
         <counterSet
           guid="{05947256-79cd-4393-b54c-a65be0963294}"
@@ -354,6 +367,19 @@
             field="FramesDroppedNic"
             description="Frames returned by the NIC with a failure status code and presumed dropped."
             descriptionID="5010"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="3"
+            uri="Microsoft.Xdp.LwfTxQueue.FramesInvalidChecksumOffload"
+            name="Frames with Invalid Checksum Offload"
+            nameID="5012"
+            field="FramesInvalidChecksumOffload"
+            description="Frames with invalid checksum offload parameters."
+            descriptionID="5014"
             type="perf_counter_rawcount"
             aggregate="sum"
             detailLevel="standard"
