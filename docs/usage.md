@@ -23,11 +23,15 @@ xdp-setup.ps1 -Install xdp
 
 ### Install a Test Version
 
-If xdp.sys is not production-signed:
+If xdp.sys is not an official production-signed release, its test sigining certificate must be installed and test signing must be enabled before installing XDP. Secure boot must be [disabled](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/disabling-secure-boot) before test signing can be enabled.
 
-```bat
-CertUtil.exe -addstore Root CoreNetSignRoot.cer
-CertUtil.exe -addstore TrustedPublisher CoreNetSignRoot.cer
+Here's an example set of commands to extract the test signing certificate from an MSI, install it as a trusted certificate, and enable test signing:
+
+```PowerShell
+$CertFileName = 'xdp.cer'
+Get-AuthenticodeSignature 'xdp-for-windows.msi' | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName
+Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root'
+Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher'
 bcdedit.exe /set testsigning on
 [reboot]
 ```
