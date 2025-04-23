@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="eBPF-for-Windows.arm64" Version="$(XdpEbpfVersion)" />
+    <PackageVersion Include="eBPF-for-Windows.x64" Version="$(XdpEbpfVersion)" />
+    <PackageVersion Include="Microsoft.Build.Tasks.Git" Version="1.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.AzureRepos.Git" Version="1.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.Common" Version="1.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
+    <PackageVersion Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="$(XdpWdkVersion)" Condition="'$(Platform)' != '$(HostPlatform)'"/>
+    <PackageVersion Include="Microsoft.Windows.WDK.$(Platform)" Version="$(XdpWdkVersion)" />
+    <PackageVersion Include="win-net-test" Version="1.3.0" />
+    <PackageVersion Include="WixToolset.UI.wixext" Version="$(XdpWixVer)" />
+    <PackageVersion Include="WixToolset.Util.wixext" Version="$(XdpWixVer)" />
+  </ItemGroup>
+</Project>
