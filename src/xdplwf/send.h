@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ec.h"
+#include "offload.h"
 
 typedef struct _XDP_LWF_GENERIC XDP_LWF_GENERIC;
 
@@ -26,6 +27,8 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     XDP_EXTENSION BufferMdlExtension;
     XDP_EXTENSION FrameTxCompletionContextExtension;
     XDP_EXTENSION TxCompletionContextExtension;
+    XDP_EXTENSION FrameLayoutExtension;
+    XDP_EXTENSION FrameChecksumExtension;
 
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
     XDP_EC Ec;
@@ -36,6 +39,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
         BOOLEAN Pause : 1;
         BOOLEAN RxInject : 1;
         BOOLEAN TxCompletionContextEnabled : 1;
+        BOOLEAN ChecksumOffloadEnabled : 1;
     } Flags;
 
     KEVENT *PauseComplete;
@@ -81,6 +85,14 @@ VOID
 XdpGenericTxRestart(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ UINT32 NewMtu
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericTxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     );
 
 XDP_CREATE_TX_QUEUE XdpGenericTxCreateQueue;

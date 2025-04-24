@@ -15,13 +15,23 @@ Invoke-WebRequest https://aka.ms/xdp-v1.msi -OutFile xdp.msi
 msiexec.exe /i xdp.msi /quiet
 ```
 
+Optionally, the runtime may be installed from a [`XDP-for-Windows-Runtime.<arch>`](https://www.nuget.org/packages?q=xdp-for-windows.runtime) nuget package. The package must first be restored or its contents otherwise extracted, and then the following command installs the base `xdp` runtime components:
+
+```Powershell
+xdp-setup.ps1 -Install xdp
+```
+
 ### Install a Test Version
 
-If xdp.sys is not production-signed:
+If xdp.sys is not an official production-signed release, its test sigining certificate must be installed and test signing must be enabled before installing XDP. Secure boot must be [disabled](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/disabling-secure-boot) before test signing can be enabled.
 
-```bat
-CertUtil.exe -addstore Root CoreNetSignRoot.cer
-CertUtil.exe -addstore TrustedPublisher CoreNetSignRoot.cer
+Here's an example set of commands to extract the test signing certificate from an MSI, install it as a trusted certificate, and enable test signing:
+
+```PowerShell
+$CertFileName = 'xdp.cer'
+Get-AuthenticodeSignature 'xdp-for-windows.msi' | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName
+Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root'
+Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher'
 bcdedit.exe /set testsigning on
 [reboot]
 ```
@@ -43,6 +53,12 @@ msiexec.exe /x xdp-for-windows.msi /quiet
 **Note** eBPF support is experimental and is not officially supported by XDP.
 
 Starting with XDP version 1.1, experimental eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
+
+When using the runtime nuget package instead of the runtime MSI, run the following command after [installing eBPF-for-Windows](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/InstallEbpf.md) and the base `xdp` component:
+
+```Powershell
+xdp-setup.ps1 -Install xdpebpf
+```
 
 The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development). Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages.
 

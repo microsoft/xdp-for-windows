@@ -96,7 +96,7 @@ function Get-VsTestPath {
 
 # Returns the XDP installation path
 function Get-XdpInstallPath {
-    return "$($env:SystemDrive)\xdpmsi"
+    return "$($env:SystemDrive)\xdpruntime"
 }
 
 # Returns the eBPF installation path
@@ -104,8 +104,8 @@ function Get-EbpfInstallPath {
     return "$($env:SystemDrive)\ebpf"
 }
 
-function Get-EbpfMsiVersion {
-    return "0.18.0"
+function Get-EbpfVersion {
+    return "0.21.0"
 }
 
 # Returns the eBPF MSI full path
@@ -115,7 +115,7 @@ function Get-EbpfMsiFullPath {
         [string]$Platform
     )
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfVersion = Get-EbpfMsiVersion
+    $EbpfVersion = Get-EbpfVersion
     return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.$Platform.msi"
 }
 
@@ -124,16 +124,12 @@ function Get-EbpfMsiUrl {
         [Parameter()]
         [string]$Platform
     )
-    $EbpfVersion = Get-EbpfMsiVersion -Platform $Platform
-    if ($Platform -eq "x64") {
-        return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$EbpfVersion.msi"
-    } else {
-        return "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/ebpf-for-windows.$Platform.0.20.0.msi"
-    }
+    $EbpfVersion = Get-EbpfVersion
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$Platform.$EbpfVersion.msi"
 }
 
 function Get-FnVersion {
-    return "1.2.0"
+    return "1.3.0"
 }
 
 function Get-FnRuntimeUrl {
@@ -209,6 +205,10 @@ function Get-XdpBuildVersionString {
     }
 
     return $VersionString;
+}
+
+function Get-OsBuildVersionString {
+    return (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').BuildLabEx
 }
 
 # Returns whether the script is running as a built-in administrator.
@@ -290,4 +290,60 @@ function Initiate-Bugcheck {
 
     Write-Host "$NotMyFault -accepteula -bugcheck $Code"
     & $NotMyFault -accepteula -bugcheck $Code
+}
+
+function New-PerfDataSet {
+    param (
+        [Parameter()]
+        [string[]]$Files = @()
+    )
+
+    $Results = [System.Collections.ArrayList]::new()
+
+    foreach ($File in $Files) {
+        if (-not [string]::IsNullOrEmpty($File) -and (Test-Path $File)) {
+            $Results.AddRange($(Get-Content -Raw $File | ConvertFrom-Json))
+        }
+    }
+
+    return Write-Output -NoEnumerate $Results
+}
+
+function Write-PerfDataSet {
+    param (
+        [Parameter()]
+        [object]$DataSet,
+
+        [Parameter()]
+        [string]$File
+    )
+
+    New-Item -ItemType Directory -Force -Path (Split-Path $File) | Out-Null
+    ConvertTo-Json -InputObject $DataSet -Depth 100 | Out-File -FilePath $File -Encoding utf8
+}
+
+function New-PerfData {
+    param (
+        [Parameter()]
+        [string]$ScenarioName,
+
+        [Parameter()]
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$CommitHash,
+
+        [Parameter()]
+        [hashtable[]]$Metrics
+    )
+
+    return @{
+        ScenarioName = $ScenarioName
+        Platform = $Platform
+        CommitHash = $CommitHash
+        Timestamp = (Get-Date).toString("o")
+        OsBuild = Get-OsBuildVersionString
+        MachineName = $env:ComputerName
+        Metrics = $Metrics
+    }
 }

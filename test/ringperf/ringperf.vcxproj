@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="ringperf.c" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{838975ce-9bc8-4ba8-a129-2c33791ba339}</ProjectGuid>
+    <TargetName>ringperf</TargetName>
+    <UndockedType>exe</UndockedType>
+    <ImportWnt>true</ImportWnt>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalDependencies>
+        onecore.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+</Project>

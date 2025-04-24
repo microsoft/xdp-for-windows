@@ -249,4 +249,13 @@ BOOLEAN
 XdpTxQueueIsOutOfOrderCompletionEnabled(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
     );
+
+//
+// Returns whether checksum offload is enabled.
+//
+BOOLEAN
+XdpTxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    );
+    
 ```

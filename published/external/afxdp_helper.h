@@ -75,7 +75,7 @@ XskRingConsumerReserve(
 {
     UINT32 Consumer = *Ring->SharedConsumer;
     UINT32 Available;
-    
+
     *Index = Consumer;
     Available =  Ring->CachedProducer - Consumer;
     if (Available >= MaxCount) {
@@ -154,6 +154,15 @@ XskRingAffinityChanged(
     )
 {
     return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_AFFINITY_CHANGED);
+}
+
+inline
+BOOLEAN
+XskRingOffloadChanged(
+    _In_ const XSK_RING *Ring
+    )
+{
+    return !!(XskRingGetFlags(Ring) & XSK_RING_FLAG_OFFLOAD_CHANGED);
 }
 
 #ifdef __cplusplus

@@ -32,6 +32,7 @@ typedef struct _XDP_TX_CAPABILITIES {
     UINT32 MaximumFrameSize;
     UINT8 MaximumFragments;
     BOOLEAN OutOfOrderCompletionEnabled;
+    BOOLEAN ChecksumOffload;
 } XDP_TX_CAPABILITIES;
 
 
@@ -169,6 +170,11 @@ XdpTxQueueIsTxCompletionContextEnabled(
 
 BOOLEAN
 XdpTxQueueIsOutOfOrderCompletionEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    );
+
+BOOLEAN
+XdpTxQueueIsChecksumOffloadEnabled(
     _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
     );
 

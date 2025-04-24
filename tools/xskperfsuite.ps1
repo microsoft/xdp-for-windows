@@ -41,6 +41,9 @@ param (
     [switch]$DeepInspection = $false,
 
     [Parameter(Mandatory=$false)]
+    [switch]$ZerocopySimulation = $false,
+
+    [Parameter(Mandatory=$false)]
     [switch]$LargePages = $false,
 
     [Parameter(Mandatory=$false)]
@@ -137,6 +140,7 @@ if ($DeepInspection) {
 }
 
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
 
 try {
     if ($AdapterNames.Contains("XDPMP")) {
@@ -182,6 +186,9 @@ try {
                         if ($Fndis) {
                             $Options += "-FNDIS"
                         }
+                        if ($ZerocopySimulation) {
+                            $Options += "-ZEROCOPY"
+                        }
 
                         $ScenarioName = `
                             $AdapterName `
@@ -198,6 +205,8 @@ try {
                         }
 
                         try {
+                            $Results = New-PerfDataSet -Files $RawResultsFile
+
                             for ($i = 0; $i -lt $Iterations; $i++) {
                                 $TmpFile = [System.IO.Path]::GetTempFileName()
                                 & $RootDir\tools\xskperf.ps1 `
@@ -208,10 +217,24 @@ try {
                                     -UdpDstPort $UdpDstPort -XdpMode $XdpMode -LargePages:$LargePages `
                                     -RxInject:$RxInject -TxInspect:$TxInspect `
                                     -TxInspectContentionCount $TxInspectContentionCount `
+                                    -ZerocopySimulation:$ZerocopySimulation `
                                     -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
                                     -Platform $Platform -XperfFile $XperfFile
 
-                                $kppsList += ExtractKppsStat $TmpFile
+                                $kpps = ExtractKppsStat $TmpFile
+                                $kppsList += $kpps
+
+                                [void]$Results.Add($(
+                                    New-PerfData -ScenarioName $ScenarioName -Platform $Platform `
+                                        -CommitHash $CommitHash -Metrics @(
+                                            @{
+                                                Name = "pps"
+                                                Value = $kpps
+                                                Scale = 1000
+                                            }
+                                        )
+                                    )
+                                )
                             }
 
                             $avg = ($kppsList | Measure-Object -Average).Average
@@ -219,12 +242,7 @@ try {
                             Write-Host $($Format -f $ScenarioName, [Math]::ceiling($avg), [Math]::ceiling($stddev))
 
                             if (-not [string]::IsNullOrEmpty($RawResultsFile)) {
-                                Add-Content -Path $RawResultsFile -Value `
-                                    ("{0},{1},{2},{3}" -f `
-                                        $ScenarioName, `
-                                        $CommitHash, `
-                                        ([DateTimeOffset](Get-Date)).ToUnixTimeSeconds(), `
-                                        ($kppsList -join ","))
+                                Write-PerfDataSet -DataSet $Results -File $RawResultsFile
                             }
                         } catch {
                             Write-Error "$($PSItem.Exception.Message)`n$($PSItem.ScriptStackTrace)"

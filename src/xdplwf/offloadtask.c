@@ -110,6 +110,70 @@ XdpLwfFreeTaskOffloadSetting(
     ExFreePoolWithTag(OldOffload, POOLTAG_OFFLOAD);
 }
 
+typedef struct _XDP_LWF_OFFLOAD_TASK_INITIALIZE {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _Inout_ KEVENT Event;
+} XDP_LWF_OFFLOAD_TASK_INITIALIZE;
+
+static
+_Offload_work_routine_
+VOID
+XdpLwfOffloadTaskInitializeWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_OFFLOAD_TASK_INITIALIZE *Request =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_TASK_INITIALIZE, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+    NTSTATUS Status;
+    NDIS_OFFLOAD TaskConfig = {0};
+    ULONG BytesReturned = 0;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    Status =
+        XdpLwfOidInternalRequest(
+            Filter->NdisFilterHandle, XDP_OID_REQUEST_INTERFACE_REGULAR,
+            NdisRequestQueryInformation, OID_TCP_OFFLOAD_CURRENT_CONFIG, &TaskConfig,
+            sizeof(TaskConfig), 0, 0, &BytesReturned);
+    if (!NT_SUCCESS(Status) && Status != STATUS_NOT_SUPPORTED) {
+        TraceError(
+            TRACE_LWF,
+            "Filter=%p Failed OID_TCP_OFFLOAD_CURRENT_CONFIG Status=%!STATUS!",
+            Filter, Status);
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    XdpOffloadUpdateTaskOffloadConfig(Filter, &TaskConfig, BytesReturned);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
+
+    TraceExitStatus(TRACE_LWF);
+}
+
+VOID
+XdpLwfOffloadTaskInitialize(
+    _In_ XDP_LWF_FILTER *Filter
+    )
+{
+    XDP_LWF_OFFLOAD_TASK_INITIALIZE Request = {0};
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
+    XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadTaskInitializeWorker);
+    KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
 _Offload_work_routine_
 VOID
 XdpLwfOffloadTaskOffloadDeactivate(
@@ -147,7 +211,10 @@ XdpOffloadUpdateTaskOffloadConfig(
     }
 
     if (TaskOffloadSize < sizeof(TaskOffload->Header) ||
-        TaskOffload->Header.Size > TaskOffloadSize) {
+        TaskOffload->Header.Size > TaskOffloadSize ||
+        TaskOffload->Header.Type != NDIS_OBJECT_TYPE_OFFLOAD ||
+        TaskOffload->Header.Revision < NDIS_OFFLOAD_REVISION_1 ||
+        TaskOffload->Header.Size < NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -217,6 +284,8 @@ XdpOffloadUpdateTaskOffloadConfig(
     NewOffload = NULL;
     Status = STATUS_SUCCESS;
 
+    XdpGenericTxNotifyOffloadChange(&Filter->Generic, &Filter->Offload.LowerEdge);
+
 Exit:
 
     if (OldOffload != NULL) {
@@ -228,4 +297,112 @@ Exit:
     }
 
     TraceExitStatus(TRACE_LWF);
+}
+
+typedef struct _XDP_LWF_OFFLOAD_CHECKSUM_GET {
+    _In_ XDP_LWF_OFFLOAD_WORKITEM WorkItem;
+    _Inout_ KEVENT Event;
+    _Out_ NTSTATUS Status;
+    _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext;
+    _Out_ XDP_CHECKSUM_CONFIGURATION *ChecksumParams;
+    _Inout_ UINT32 *ChecksumParamsLength;
+} XDP_LWF_OFFLOAD_CHECKSUM_GET;
+
+static
+_Offload_work_routine_
+VOID
+XdpLwfOffloadChecksumGetWorker(
+    _In_ XDP_LWF_OFFLOAD_WORKITEM *WorkItem
+    )
+{
+    XDP_LWF_OFFLOAD_CHECKSUM_GET *Request =
+        CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_CHECKSUM_GET, WorkItem);
+    XDP_LWF_FILTER *Filter = WorkItem->Filter;
+    XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD *CurrentTaskSetting = NULL;
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    //
+    // Determine the appropriate edge.
+    //
+    switch (Request->OffloadContext->Edge) {
+    case XdpOffloadEdgeLower:
+        CurrentTaskSetting = Filter->Offload.LowerEdge.TaskOffload;
+        break;
+    case XdpOffloadEdgeUpper:
+        //
+        // Offload translation for upper edges is not supported yet.
+        //
+        CurrentTaskSetting = NULL;
+        break;
+    default:
+        ASSERT(FALSE);
+        CurrentTaskSetting = NULL;
+        break;
+    }
+
+    if (CurrentTaskSetting == NULL) {
+        //
+        // Task offload not initialized yet.
+        //
+        TraceError(
+            TRACE_LWF,
+            "OffloadContext=%p task offload params not found", Request->OffloadContext);
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    if (*Request->ChecksumParamsLength == 0) {
+        *Request->ChecksumParamsLength = XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1;
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (*Request->ChecksumParamsLength < XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    Request->ChecksumParams->Header.Revision = XDP_CHECKSUM_CONFIGURATION_REVISION_1;
+    Request->ChecksumParams->Header.Size = XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1;
+    Request->ChecksumParams->Enabled =
+        CurrentTaskSetting->Checksum.Enabled == XdpOffloadStateEnabled;
+    *Request->ChecksumParamsLength = Request->ChecksumParams->Header.Size;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_LWF);
+
+    Request->Status = Status;
+    KeSetEvent(&Request->Event, IO_NO_INCREMENT, FALSE);
+}
+
+NTSTATUS
+XdpLwfOffloadChecksumGet(
+    _In_ XDP_LWF_FILTER *Filter,
+    _In_ XDP_LWF_INTERFACE_OFFLOAD_CONTEXT *OffloadContext,
+    _Out_ XDP_CHECKSUM_CONFIGURATION *ChecksumParams,
+    _Inout_ UINT32 *ChecksumParamsLength
+    )
+{
+    XDP_LWF_OFFLOAD_CHECKSUM_GET Request = {0};
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "Filter=%p", Filter);
+
+    Request.OffloadContext = OffloadContext;
+    Request.ChecksumParams = ChecksumParams;
+    Request.ChecksumParamsLength = ChecksumParamsLength;
+
+    KeInitializeEvent(&Request.Event, NotificationEvent, FALSE);
+    XdpLwfOffloadQueueWorkItem(Filter, &Request.WorkItem, XdpLwfOffloadChecksumGetWorker);
+    KeWaitForSingleObject(&Request.Event, Executive, KernelMode, FALSE, NULL);
+
+    Status = Request.Status;
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
 }

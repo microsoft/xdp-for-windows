@@ -25,8 +25,12 @@
 #include <xdp/driverapi.h>
 #include <xdp/extension.h>
 #include <xdp/extensioninfo.h>
+#include <xdp/framechecksum.h>
+#include <xdp/framechecksumextension.h>
 #include <xdp/framefragment.h>
 #include <xdp/frameinterfacecontext.h>
+#include <xdp/framelayout.h>
+#include <xdp/framelayoutextension.h>
 #include <xdp/framerxaction.h>
 #include <xdp/guid.h>
 #include <xdp/interfaceconfig.h>
