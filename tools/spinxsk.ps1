@@ -222,9 +222,6 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if ($LastExitCode -ne 0) {
             throw "SpinXsk failed with $LastExitCode"
         }
-    } catch {
-        Write-Error "Something went wrong: $_"
-        exit 1
     } finally {
         if ($Driver -eq "XDPMP") {
             & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
