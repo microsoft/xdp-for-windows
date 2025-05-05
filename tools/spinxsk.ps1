@@ -176,6 +176,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             $AdapterName = "XDPMP"
         } else {
             Write-Verbose "installing fnmp..."
+            yoyoyo
             & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
             Write-Verbose "installed fnmp."
 
