@@ -21,12 +21,16 @@
       <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
     </ProjectReference>
   </ItemGroup>
+  <PropertyGroup>
+    <OutRootDir>$(OutDir)</OutRootDir>
+    <OutDir>$(OutDir)packages\</OutDir>
+  </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
-  <Target Name="CopyBinaries" BeforeTargets="Build" Condition="$(BuildStage) != 'Package'">
-      <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)" />
+  <Target Name="CopyBinaries" BeforeTargets="BuildNuget" Condition="$(BuildStage) != 'Package'">
+      <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutRootDir)" />
   </Target>
-  <Target Name="SignBinaries" DependsOnTargets="CopyBinaries" BeforeTargets="Build" Condition="$(SignMode) != 'Off' and $(BuildStage) != 'Package'">
-      <Exec Command="powershell.exe /c &quot;&amp; '$(DriverSignToolPath)signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutDir)xdp-setup.ps1&quot;" />
+  <Target Name="SignBinaries" DependsOnTargets="CopyBinaries" BeforeTargets="BuildNuget" Condition="$(SignMode) != 'Off' and $(BuildStage) != 'Package'">
+      <Exec Command="powershell.exe /c &quot;&amp; '$(DriverSignToolPath)signtool.exe' sign /sha1 ([system.security.cryptography.x509certificates.x509certificate2]::new([System.IO.File]::ReadAllBytes('$(OutRootDir)xdp\xdp.sys'))).Thumbprint /fd sha256  $(OutRootDir)xdp-setup.ps1&quot;" />
   </Target>
   <Target Name="CleanNuget" BeforeTargets="Clean" Condition="$(BuildStage) == '' OR $(BuildStage) == 'Package'">
      <ItemGroup>
