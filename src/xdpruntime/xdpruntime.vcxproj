@@ -21,6 +21,9 @@
       <Project>{e64ccf9c-9d27-4aac-8119-197faba5e8c2}</Project>
     </ProjectReference>
   </ItemGroup>
+  <PropertyGroup>
+    <OutDir>$(OutDir)packages\</OutDir>
+  </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
   <Target Name="CopyBinaries" BeforeTargets="Build" Condition="$(BuildStage) != 'Package'">
       <Copy SourceFiles="xdp-setup.ps1" DestinationFolder="$(OutDir)" />
