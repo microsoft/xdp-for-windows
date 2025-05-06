@@ -571,6 +571,7 @@ function Uninstall-XdpMp {
 # Installs the fnmp driver.
 function Install-FnMp {
     Write-Verbose "$(Get-FnRuntimeDir)/tools/setup.ps1 -Install fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir $(Get-FnRuntimeDir)/bin -LogsDir $LogsDir"
+    yoyoyo
     & "$(Get-FnRuntimeDir)/tools/setup.ps1" -Install fnmp -Config $Config -Arch $Platform -FnMpCount 2 -ArtifactsDir "$(Get-FnRuntimeDir)/bin" -LogsDir $LogsDir
 
     Write-Verbose "Renaming adapters"
