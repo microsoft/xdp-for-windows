@@ -284,6 +284,27 @@ function Install-Xdp {
         if ($LastExitCode -ne 0) {
             Write-Error "XDP MSI installation failed: $LastExitCode"
         }
+<<<<<<< HEAD
+=======
+    } elseif ($XdpInstaller -eq "NuGet") {
+        $XdpPath = Get-XdpInstallPath
+        $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
+        $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
+        $XdpRuntimeNupkgFullPath = Find-Nupkg "$ArtifactsDir\packages\Microsoft.XDP-for-Windows.Runtime.$Platform.$XdpFileVersion*.nupkg"
+
+        Expand-Nupkg $XdpRuntimeNupkgFullPath $XdpPath | Write-Verbose
+
+        Write-Verbose "$XdpSetupPath -Install xdp"
+        & $XdpSetupPath -Install xdp | Write-Verbose
+        if ($PaLayer) {
+            Write-Verbose "$XdpSetupPath -Install xdppa"
+            & $XdpSetupPath -Install xdppa | Write-Verbose
+        }
+        if ($EnableEbpf) {
+            Write-Verbose "$XdpSetupPath -Install xdpebpf"
+            & $XdpSetupPath -Install xdpebpf | Write-Verbose
+        }
+>>>>>>> ad75cbc1 (Output NuGet packages to a packages subdirectory (#842))
     } elseif ($XdpInstaller -eq "INF") {
         Write-Verbose "netcfg.exe -v -l $XdpInf -c s -i ms_xdp"
         netcfg.exe -v -l $XdpInf -c s -i ms_xdp | Write-Verbose
