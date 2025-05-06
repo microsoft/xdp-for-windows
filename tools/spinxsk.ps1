@@ -222,7 +222,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             throw "SpinXsk failed with $LastExitCode"
         }
     } catch {
-        Write-Error "Something went wrong: $_"
+        Write-Error "Error: $_"
         exit 1
     } finally {
         if ($Driver -eq "XDPMP") {
