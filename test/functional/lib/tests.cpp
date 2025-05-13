@@ -6236,7 +6236,63 @@ GenericTxChecksumOffloadExtensions()
 
 VOID
 GenericRxCheckSumOffloadExtentions() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
 
+    UINT16 LayoutExtension;
+    UINT16 ChecksumExtension;
+    UINT32 OptionLength;
+
+    OptionLength = sizeof(LayoutExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    OptionLength = sizeof(ChecksumExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
+
+    OptionLength = sizeof(LayoutExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    OptionLength = sizeof(ChecksumExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION, &LayoutExtension,
+            &OptionLength));
+
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    OptionLength = sizeof(LayoutExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION, &LayoutExtension,
+        &OptionLength);
+    TEST_TRUE(LayoutExtension >= sizeof(XSK_FRAME_DESCRIPTOR));
+
+    OptionLength = sizeof(ChecksumExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION, &ChecksumExtension,
+        &OptionLength);
+    TEST_TRUE(ChecksumExtension >= sizeof(XSK_FRAME_DESCRIPTOR));
+
+    TEST_NOT_EQUAL(LayoutExtension, ChecksumExtension);
+    TEST_TRUE(
+        Xsk.Rings.Rx.ElementStride >=
+            sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_LAYOUT) + sizeof(XDP_FRAME_CHECKSUM));
 }
 
 VOID
@@ -6536,7 +6592,7 @@ GenericTxChecksumOffloadConfig()
 
 VOID
 GenericRxChecksumOffloadConfig() {
-    
+
 }
 
 static

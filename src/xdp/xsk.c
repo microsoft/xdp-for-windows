@@ -3918,6 +3918,13 @@ XskSockoptGetExtension(
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         break;
 
+    case XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION:
+        // TODO: Implement in a follow up PR.
+        break;
+    case XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION:
+        // TODO: Implement in a follow up PR.
+        break;
+        
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
@@ -4365,6 +4372,8 @@ XskIrpGetSockopt(
         break;
     case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
     case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
+    case XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION:
+    case XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION:
         Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
@@ -4536,6 +4545,9 @@ XskIrpSetSockopt(
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM:
         Status = XskSockoptSetTxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
+        break;
+    case XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM:
+        // TODO: Implement in a follow up PR
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
