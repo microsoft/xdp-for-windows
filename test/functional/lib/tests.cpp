@@ -6235,6 +6235,11 @@ GenericTxChecksumOffloadExtensions()
 }
 
 VOID
+GenericRxCheckSumOffloadExtentions() {
+
+}
+
+VOID
 GenericTxChecksumOffloadIp()
 {
     const BOOLEAN Rx = FALSE, Tx = TRUE;
@@ -6301,6 +6306,11 @@ GenericTxChecksumOffloadIp()
 
     MpTxDequeueFrame(GenericMp, If.GetQueueId());
     MpTxFlush(GenericMp);
+}
+
+VOID
+GenericRxChecksumOffloadIp() {
+
 }
 
 VOID
@@ -6384,6 +6394,11 @@ GenericTxChecksumOffloadTcp(
 }
 
 VOID
+GenericRxChecksumOffloadTcp() {
+
+}
+
+VOID
 GenericTxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
     )
@@ -6462,6 +6477,11 @@ GenericTxChecksumOffloadUdp(
 }
 
 VOID
+GenericRxChecksumOffloadUdp() {
+
+}
+
+VOID
 GenericTxChecksumOffloadConfig()
 {
     const auto &If = FnMpIf;
@@ -6512,6 +6532,11 @@ GenericTxChecksumOffloadConfig()
     TEST_TRUE(ChecksumConfig.Enabled);
 
     TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+}
+
+VOID
+GenericRxChecksumOffloadConfig() {
+    
 }
 
 static
