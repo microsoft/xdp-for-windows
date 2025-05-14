@@ -253,6 +253,25 @@ static const XDP_EXTENSION_REGISTRATION XskTxFrameExtensions[] = {
     },
 };
 
+static const XDP_EXTENSION_REGISTRATION XskRxFrameExtensions[] = {
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+        .InternalExtension      = TRUE,
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalExtension      = TRUE,
+    },
+};
+
 static
 VOID
 XskClose(
@@ -1157,7 +1176,7 @@ XskIrpCreateSocket(
 
     Status =
         XdpExtensionSetCreate(
-            XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
+            XDP_EXTENSION_TYPE_FRAME, XskRxFrameExtensions, RTL_NUMBER_OF(XskRxFrameExtensions),
             &Xsk->Rx.FrameExtensionSet);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
