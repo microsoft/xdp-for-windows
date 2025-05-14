@@ -102,6 +102,15 @@ typedef struct _XSK_RX {
     XSK_KERNEL_RING Ring;
     XSK_KERNEL_RING FillRing;
     XSK_RX_XDP Xdp;
+    union {
+        struct {
+            UINT8 Checksum : 1;
+        };
+        UINT8 Value;
+    } OffloadFlags;
+    UINT16 LayoutExtensionOffset;
+    UINT16 ChecksumExtensionOffset;
+    XDP_EXTENSION_SET *FrameExtensionSet;
 } XSK_RX;
 
 typedef struct _XSK_TX_XDP {
@@ -1142,6 +1151,14 @@ XskIrpCreateSocket(
         XdpExtensionSetCreate(
             XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
             &Xsk->Tx.FrameExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
+            &Xsk->Rx.FrameExtensionSet);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -2632,6 +2649,7 @@ XskClose(
     XskFreeRing(&Xsk->Tx.Ring);
     XskFreeRing(&Xsk->Tx.CompletionRing);
     XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
+    XskFreeExtensionSet(&Xsk->Rx.FrameExtensionSet);
 
     XskDereference(Xsk);
 
@@ -3310,7 +3328,20 @@ XskSockoptSetRingSize(
 
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_RX_RING_SIZE:
-        DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
+        UINT8 DescriptorAlignment;
+        if (XdpExtensionSetIsLayoutAssigned(Xsk->Rx.FrameExtensionSet)) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        Status =
+            XdpExtensionSetAssignLayout(
+                ExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR), __alignof(XSK_FRAME_DESCRIPTOR),
+                &DescriptorSize, &DescriptorAlignment);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        DescriptorSize = max(DescriptorSize, DescriptorAlignment);
         break;
     case XSK_SOCKOPT_TX_RING_SIZE:
         UINT8 DescriptorAlignment;
