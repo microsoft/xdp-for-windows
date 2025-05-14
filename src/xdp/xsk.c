@@ -3919,12 +3919,19 @@ XskSockoptGetExtension(
         break;
 
     case XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION:
-        // TODO: Implement in a follow up PR.
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         break;
+
     case XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION:
-        // TODO: Implement in a follow up PR.
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         break;
-        
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
