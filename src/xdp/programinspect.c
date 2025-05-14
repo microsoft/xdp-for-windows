@@ -440,6 +440,35 @@ XdpParseFrame(
         return;
     }
 
+    if (IpProto == IPPROTO_IPV4) {
+        if (Buffer->DataLength < Offset + sizeof(*Cache->InnerIp4Hdr)) {
+            goto BufferTooSmall;
+        }
+        Cache->InnerIp4Hdr = (IPV4_HEADER *)&Va[Offset];
+        if (Cache->InnerIp4Hdr->Version == IPV4_VERSION) {
+            if ((((UINT64)Cache->InnerIp4Hdr->HeaderLength) << 2) != sizeof(*Cache->InnerIp4Hdr)) {
+                return;
+            }
+            Cache->InnerIp4Valid = TRUE;
+            Offset += sizeof(*Cache->InnerIp4Hdr);
+            IpProto = Cache->InnerIp4Hdr->Protocol;
+        } else {
+            return;
+        }
+    } else if (IpProto == IPPROTO_IPV6) {
+        if (Buffer->DataLength < Offset + sizeof(*Cache->InnerIp6Hdr)) {
+            goto BufferTooSmall;
+        }
+        Cache->InnerIp6Hdr = (IPV6_HEADER *)&Va[Offset];
+        if ((Cache->InnerIp6Hdr->VersionClassFlow & IP_VER_MASK) == IPV6_VERSION) {
+            Cache->InnerIp6Valid = TRUE;
+            Offset += sizeof(*Cache->InnerIp6Hdr);
+            IpProto = Cache->InnerIp6Hdr->NextHeader;
+        } else {
+            return;
+        }
+    }
+
     if (IpProto == IPPROTO_UDP) {
         if (Buffer->DataLength < Offset + sizeof(*Cache->UdpHdr)) {
             goto BufferTooSmall;
@@ -825,6 +854,37 @@ XdpInspect(
             if (FrameCache.Ip6Valid &&
                 Ipv6PrefixMatch(
                     &FrameCache.Ip6Hdr->DestinationAddress,
+                    &Rule->Pattern.IpMask.Address.Ipv6,
+                    &Rule->Pattern.IpMask.Mask.Ipv6)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_INNER_IPV4_DST_MASK_UDP:
+            if (!FrameCache.Ip4Cached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.InnerIp4Valid &&
+                FrameCache.UdpValid &&
+                Ipv4PrefixMatch(
+                    &FrameCache.InnerIp4Hdr->DestinationAddress, &Rule->Pattern.IpMask.Address.Ipv4,
+                    &Rule->Pattern.IpMask.Mask.Ipv4)) {
+                Matched = TRUE;
+            }
+            break;
+
+        case XDP_MATCH_INNER_IPV6_DST_MASK_UDP:
+            if (!FrameCache.Ip6Cached) {
+                XdpParseFrame(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache, &Program->FrameStorage);
+            }
+            if (FrameCache.InnerIp6Valid &&
+                FrameCache.UdpValid &&
+                Ipv6PrefixMatch(
+                    &FrameCache.InnerIp6Hdr->DestinationAddress,
                     &Rule->Pattern.IpMask.Address.Ipv6,
                     &Rule->Pattern.IpMask.Mask.Ipv6)) {
                 Matched = TRUE;

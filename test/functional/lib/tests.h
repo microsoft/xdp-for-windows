@@ -49,6 +49,11 @@ GenericRxMatchIpPrefix(
     );
 
 VOID
+GenericRxMatchInnerIpPrefix(
+    _In_ UINT16 AddressFamily
+    );
+
+VOID
 GenericRxLowResources();
 
 VOID

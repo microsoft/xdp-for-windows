@@ -279,6 +279,14 @@ public:
         GenericRxMatchIpPrefix(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxMatchInnerIpPrefixV4Udp) {
+        GenericRxMatchInnerIpPrefix(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxMatchInnerIpPrefixV6Udp) {
+        GenericRxMatchInnerIpPrefix(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxMatchUdpPortSetV4) {
         GenericRxMatch(AF_INET, XDP_MATCH_UDP_PORT_SET, TRUE);
     }

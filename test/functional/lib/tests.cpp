@@ -3530,6 +3530,128 @@ GenericRxMatchIpPrefix(
 }
 
 VOID
+GenericRxMatchInnerIpPrefix(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort = htons(4321);
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    XDP_INET_ADDR LocalIp, RemoteIp, InnerSrcIp, InnerDstIp;
+    XDP_RULE Rule;
+
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+        TEST_EQUAL(1, inet_pton(Af, "10.10.10.1", &InnerSrcIp));
+        TEST_EQUAL(1, inet_pton(Af, "10.10.10.2", &InnerDstIp));
+        TEST_EQUAL(1, inet_pton(Af, "255.255.255.0", &Rule.Pattern.IpMask.Mask));
+        Rule.Match = XDP_MATCH_INNER_IPV4_DST_MASK_UDP;
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+        TEST_EQUAL(1, inet_pton(Af, "beef:a:b:c:d:e:1234:5678", &InnerSrcIp));
+        TEST_EQUAL(1, inet_pton(Af, "beef:a:b:c:d:e:1234:5679", &InnerDstIp));
+        TEST_EQUAL(1, inet_pton(Af, "ffff:ffff:ffff:ffff:ffff:ffff:ffff:0", &Rule.Pattern.IpMask.Mask));
+        Rule.Match = XDP_MATCH_INNER_IPV6_DST_MASK_UDP;
+    }
+
+    UCHAR UdpPayload[] = "GenericRxMatchInnerIpPrefix";
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    // Add inner IP header
+    UCHAR UdpFrameWithInnerIpHeader[sizeof(UdpFrame) + sizeof(IPV6_HEADER)] = {0};
+    UINT32 IpHeaderLength = (Af == AF_INET ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
+    UINT32 UdpOffset = sizeof(ETHERNET_HEADER) + IpHeaderLength;
+    UINT32 UdpLength = UdpFrameLength - UdpOffset;
+    RtlCopyMemory(UdpFrameWithInnerIpHeader, UdpFrame, sizeof(ETHERNET_HEADER) + IpHeaderLength);
+    UINT32 Offset = sizeof(ETHERNET_HEADER) + IpHeaderLength;
+    if (Af == AF_INET) {
+        IPV4_HEADER *OuterIpHeader = (IPV4_HEADER *)(UdpFrameWithInnerIpHeader + sizeof(ETHERNET_HEADER));
+        OuterIpHeader->Protocol = IPPROTO_IPV4;
+        OuterIpHeader->HeaderChecksum = 0;
+        OuterIpHeader->HeaderChecksum = PktChecksum(0, OuterIpHeader, sizeof(*OuterIpHeader));
+
+        IPV4_HEADER *InnerIpHeader = (IPV4_HEADER *)(UdpFrameWithInnerIpHeader + Offset);
+        InnerIpHeader->Version = IPV4_VERSION;
+        InnerIpHeader->HeaderLength = 5;
+        InnerIpHeader->TimeToLive = 128;
+        InnerIpHeader->TotalLength = htons((UINT16)UdpLength);
+        InnerIpHeader->Protocol = IPPROTO_UDP;
+        InnerIpHeader->SourceAddress = InnerSrcIp.Ipv4;
+        InnerIpHeader->DestinationAddress = InnerDstIp.Ipv4;
+        InnerIpHeader->HeaderChecksum = PktChecksum(0, InnerIpHeader, sizeof(*InnerIpHeader));
+        Offset += sizeof(IPV4_HEADER);
+    } else {
+        IPV6_HEADER *OuterIpHeader = (IPV6_HEADER *)(UdpFrameWithInnerIpHeader + sizeof(ETHERNET_HEADER));
+        OuterIpHeader->NextHeader = IPPROTO_IPV6;
+
+        IPV6_HEADER *InnerIpHeader = (IPV6_HEADER *)(UdpFrameWithInnerIpHeader + Offset);
+        InnerIpHeader->VersionClassFlow = IPV6_VERSION;
+        InnerIpHeader->PayloadLength = htons((UINT16)UdpLength);
+        InnerIpHeader->NextHeader = IPPROTO_UDP;
+        InnerIpHeader->HopLimit = 128;
+        RtlCopyMemory(&InnerIpHeader->SourceAddress, &InnerSrcIp.Ipv6, sizeof(IN6_ADDR));
+        RtlCopyMemory(&InnerIpHeader->DestinationAddress, &InnerSrcIp.Ipv6, sizeof(IN6_ADDR));
+        Offset += sizeof(IPV6_HEADER);
+    }
+
+    RtlCopyMemory(UdpFrameWithInnerIpHeader + Offset, UdpFrame + UdpOffset, UdpLength);
+    Offset += UdpLength;
+
+    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    Rule.Redirect.Target = Xsk.Handle.get();
+    RtlCopyMemory(&Rule.Pattern.IpMask.Address, &InnerDstIp, sizeof(InnerDstIp));
+    ClearMaskedBits(&Rule.Pattern.IpMask.Address, &Rule.Pattern.IpMask.Mask, Af);
+    wil::unique_handle ProgramHandle = CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+    SocketProduceRxFill(&Xsk, 6);
+
+    //
+    // Verify XDP receives the frame because of inner IP prefix match.
+    //
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrameWithInnerIpHeader, Offset);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(Offset, RxDesc->Length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
+            UdpFrameWithInnerIpHeader,
+            Offset));
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+
+    //
+    // Verify XDP does not receie the frme because of inner IP prefix mismatch.
+    //
+    if (Af == AF_INET) {
+        IPV4_HEADER *InnerIpHeader = (IPV4_HEADER *)(UdpFrameWithInnerIpHeader + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER));
+        InnerIpHeader->DestinationAddress = {0};
+        InnerIpHeader->HeaderChecksum = 0;
+        InnerIpHeader->HeaderChecksum = PktChecksum(0, InnerIpHeader, sizeof(*InnerIpHeader));
+    } else {
+        IPV6_HEADER *InnerIpHeader = (IPV6_HEADER *)(UdpFrameWithInnerIpHeader + sizeof(ETHERNET_HEADER) +  sizeof(IPV6_HEADER));
+        InnerIpHeader->DestinationAddress = {0};
+    }
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrameWithInnerIpHeader, Offset);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+}
+
+VOID
 GenericRxLowResources()
 {
     auto If = FnMpIf;

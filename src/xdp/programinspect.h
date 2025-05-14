@@ -67,8 +67,10 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 EthValid : 1;
             UINT32 Ip4Cached : 1;
             UINT32 Ip4Valid : 1;
+            UINT32 InnerIp4Valid : 1;
             UINT32 Ip6Cached : 1;
             UINT32 Ip6Valid : 1;
+            UINT32 InnerIp6Valid : 1;
             UINT32 UdpCached : 1;
             UINT32 UdpValid : 1;
             UINT32 TcpCached : 1;
@@ -86,6 +88,10 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     union {
         IPV4_HEADER *Ip4Hdr;
         IPV6_HEADER *Ip6Hdr;
+    };
+    union {
+        IPV4_HEADER *InnerIp4Hdr;
+        IPV6_HEADER *InnerIp6Hdr;
     };
     union {
         UDP_HDR *UdpHdr;
