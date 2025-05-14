@@ -3326,9 +3326,9 @@ XskSockoptSetRingSize(
     RtlAcquirePushLockExclusive(&Xsk->PushLock);
     IsPushLockHeld = TRUE;
 
+    UINT8 DescriptorAlignment;
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_RX_RING_SIZE:
-        UINT8 DescriptorAlignment;
         if (XdpExtensionSetIsLayoutAssigned(Xsk->Rx.FrameExtensionSet)) {
             Status = STATUS_INVALID_DEVICE_STATE;
             goto Exit;
@@ -3344,7 +3344,6 @@ XskSockoptSetRingSize(
         DescriptorSize = max(DescriptorSize, DescriptorAlignment);
         break;
     case XSK_SOCKOPT_TX_RING_SIZE:
-        UINT8 DescriptorAlignment;
         if (XdpExtensionSetIsLayoutAssigned(Xsk->Tx.FrameExtensionSet)) {
             Status = STATUS_INVALID_DEVICE_STATE;
             goto Exit;

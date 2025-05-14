@@ -6235,7 +6235,7 @@ GenericTxChecksumOffloadExtensions()
 }
 
 VOID
-GenericRxCheckSumOffloadExtentions() {
+GenericRxChecksumOffloadExtensions() {
     auto If = FnMpIf;
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
@@ -6450,7 +6450,9 @@ GenericTxChecksumOffloadTcp(
 }
 
 VOID
-GenericRxChecksumOffloadTcp() {
+GenericRxChecksumOffloadTcp(
+    ADDRESS_FAMILY Af
+) {
 
 }
 
@@ -6533,7 +6535,9 @@ GenericTxChecksumOffloadUdp(
 }
 
 VOID
-GenericRxChecksumOffloadUdp() {
+GenericRxChecksumOffloadUdp(
+    ADDRESS_FAMILY Af
+) {
 
 }
 
