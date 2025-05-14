@@ -194,6 +194,10 @@ typedef struct {
     UINT16 TxFrameLayoutExtension;
     BOOLEAN TxFrameChecksumExtensionEnabled;
     UINT16 TxFrameChecksumExtension;
+    BOOLEAN RxFrameLayoutExtensionEnabled;
+    UINT16 RxFrameLayoutExtension;
+    BOOLEAN RxFrameChecksumExtensionEnabled;
+    UINT16 RxFrameChecksumExtension;
 } MY_EXTENSIONS;
 
 typedef struct {
@@ -1234,6 +1238,19 @@ EnableTxChecksumOffload(
     Socket->Extensions.TxFrameLayoutExtensionEnabled = TRUE;
     Socket->Extensions.TxFrameChecksumExtensionEnabled = TRUE;
 }
+
+static
+VOID
+EnableRxChecksumOffload(
+    MY_SOCKET *Socket
+    )
+{
+    UINT32 Enabled = TRUE;
+    SetSockopt(Socket->Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
+    Socket->Extensions.RxFrameLayoutExtensionEnabled = TRUE;
+    Socket->Extensions.RxFrameChecksumExtensionEnabled = TRUE;
+}
+
 
 static
 VOID
@@ -6453,7 +6470,31 @@ VOID
 GenericRxChecksumOffloadTcp(
     ADDRESS_FAMILY Af
 ) {
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
+    // TODO: Implement this function.
 }
 
 VOID
@@ -6538,7 +6579,31 @@ VOID
 GenericRxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
 ) {
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    UCHAR UdpPayload[] = "GenericTxChecksumOffloadUdp";
+    // TODO: Implement this function.
 }
 
 VOID
