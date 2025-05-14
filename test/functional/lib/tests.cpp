@@ -6493,7 +6493,7 @@ GenericRxChecksumOffloadTcp(
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
 
-    UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
+    // UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
     // TODO: Implement this function.
 }
 
@@ -6602,7 +6602,7 @@ GenericRxChecksumOffloadUdp(
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
 
-    UCHAR UdpPayload[] = "GenericTxChecksumOffloadUdp";
+    // UCHAR UdpPayload[] = "GenericRxChecksumOffloadUdp";
     // TODO: Implement this function.
 }
 
