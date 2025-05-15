@@ -1306,6 +1306,20 @@ XskSetupPreActivate(
             Socket->Handle.get(), XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION,
             &Socket->Extensions.TxFrameChecksumExtension, &OptionLength);
     }
+
+    if (Socket->Extensions.RxFrameLayoutExtensionEnabled) {
+        OptionLength = sizeof(Socket->Extensions.RxFrameLayoutExtension);
+        GetSockopt(
+            Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION,
+            &Socket->Extensions.RxFrameLayoutExtension, &OptionLength);
+    }
+
+    if (Socket->Extensions.RxFrameChecksumExtensionEnabled) {
+        OptionLength = sizeof(Socket->Extensions.RxFrameChecksumExtension);
+        GetSockopt(
+            Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION,
+            &Socket->Extensions.TxFrameChecksumExtension, &OptionLength);
+    }
 }
 
 static
@@ -6275,8 +6289,8 @@ GenericRxChecksumOffloadExtensions() {
             Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION, &LayoutExtension,
             &OptionLength));
 
-    UINT32 Enabled = TRUE;
-    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
+    // UINT32 Enabled = TRUE;
+    // SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM, &Enabled, sizeof(Enabled));
 
     OptionLength = sizeof(LayoutExtension);
     TEST_EQUAL(
