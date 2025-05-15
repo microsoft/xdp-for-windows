@@ -175,28 +175,56 @@ public:
         ::GenericTxChecksumOffloadExtensions();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadExtensions) {
+        ::GenericRxChecksumOffloadExtensions();
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadIp) {
         ::GenericTxChecksumOffloadIp();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadIp) {
+        ::GenericRxChecksumOffloadIp();
     }
 
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadTcpV4) {
         ::GenericTxChecksumOffloadTcp(AF_INET);
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadTcpV4) {
+        ::GenericRxChecksumOffloadTcp(AF_INET);
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadTcpV6) {
         ::GenericTxChecksumOffloadTcp(AF_INET6);
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadTcpV6) {
+        ::GenericRxChecksumOffloadTcp(AF_INET6);
     }
 
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadUdpV4) {
         ::GenericTxChecksumOffloadUdp(AF_INET);
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadUdpV4) {
+        ::GenericRxChecksumOffloadUdp(AF_INET);
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadUdpV6) {
         ::GenericTxChecksumOffloadUdp(AF_INET6);
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadUdpV6) {
+        ::GenericRxChecksumOffloadUdp(AF_INET6);
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadConfig) {
         ::GenericTxChecksumOffloadConfig();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfig) {
+        ::GenericRxChecksumOffloadConfig();
     }
 
     TEST_METHOD(GenericRxTcpControlV4) {

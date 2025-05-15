@@ -102,6 +102,15 @@ typedef struct _XSK_RX {
     XSK_KERNEL_RING Ring;
     XSK_KERNEL_RING FillRing;
     XSK_RX_XDP Xdp;
+    union {
+        struct {
+            UINT8 Checksum : 1;
+        };
+        UINT8 Value;
+    } OffloadFlags;
+    UINT16 LayoutExtensionOffset;
+    UINT16 ChecksumExtensionOffset;
+    XDP_EXTENSION_SET *FrameExtensionSet;
 } XSK_RX;
 
 typedef struct _XSK_TX_XDP {
@@ -226,6 +235,25 @@ static XDP_FILE_DISPATCH XskFileDispatch = {
 };
 
 static const XDP_EXTENSION_REGISTRATION XskTxFrameExtensions[] = {
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+        .InternalExtension      = TRUE,
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalExtension      = TRUE,
+    },
+};
+
+static const XDP_EXTENSION_REGISTRATION XskRxFrameExtensions[] = {
     {
         .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
         .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
@@ -1142,6 +1170,14 @@ XskIrpCreateSocket(
         XdpExtensionSetCreate(
             XDP_EXTENSION_TYPE_FRAME, XskTxFrameExtensions, RTL_NUMBER_OF(XskTxFrameExtensions),
             &Xsk->Tx.FrameExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XskRxFrameExtensions, RTL_NUMBER_OF(XskRxFrameExtensions),
+            &Xsk->Rx.FrameExtensionSet);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -2632,6 +2668,7 @@ XskClose(
     XskFreeRing(&Xsk->Tx.Ring);
     XskFreeRing(&Xsk->Tx.CompletionRing);
     XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
+    XskFreeExtensionSet(&Xsk->Rx.FrameExtensionSet);
 
     XskDereference(Xsk);
 
@@ -3308,12 +3345,24 @@ XskSockoptSetRingSize(
     RtlAcquirePushLockExclusive(&Xsk->PushLock);
     IsPushLockHeld = TRUE;
 
+    UINT8 DescriptorAlignment;
     switch (Sockopt->Option) {
     case XSK_SOCKOPT_RX_RING_SIZE:
-        DescriptorSize = sizeof(XSK_FRAME_DESCRIPTOR);
+        if (XdpExtensionSetIsLayoutAssigned(Xsk->Rx.FrameExtensionSet)) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        Status =
+            XdpExtensionSetAssignLayout(
+                ExtensionSet, sizeof(XSK_FRAME_DESCRIPTOR), __alignof(XSK_FRAME_DESCRIPTOR),
+                &DescriptorSize, &DescriptorAlignment);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        DescriptorSize = max(DescriptorSize, DescriptorAlignment);
         break;
     case XSK_SOCKOPT_TX_RING_SIZE:
-        UINT8 DescriptorAlignment;
         if (XdpExtensionSetIsLayoutAssigned(Xsk->Tx.FrameExtensionSet)) {
             Status = STATUS_INVALID_DEVICE_STATE;
             goto Exit;
@@ -3918,6 +3967,20 @@ XskSockoptGetExtension(
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         break;
 
+    case XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION:
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
+    case XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION:
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
     default:
         Status = STATUS_NOT_SUPPORTED;
         goto Exit;
@@ -4365,6 +4428,8 @@ XskIrpGetSockopt(
         break;
     case XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION:
     case XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION:
+    case XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION:
+    case XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION:
         Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
@@ -4536,6 +4601,9 @@ XskIrpSetSockopt(
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CHECKSUM:
         Status = XskSockoptSetTxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
+        break;
+    case XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM:
+        // TODO: Implement in a follow up PR
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
