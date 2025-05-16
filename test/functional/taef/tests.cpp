@@ -427,6 +427,14 @@ public:
         GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, FALSE);
     }
 
+    TEST_METHOD(GenericRxInnerIpHeaderFragmentsV4) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxInnerIpHeaderFragmentsV6) {
+        GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, FALSE, TRUE);
+    }
+
     TEST_METHOD(GenericRxL2Fwd) {
         GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_L2FWD, TRUE);
     }

@@ -3601,7 +3601,7 @@ GenericRxMatchInnerIpPrefix(
         InnerIpHeader->NextHeader = IPPROTO_UDP;
         InnerIpHeader->HopLimit = 128;
         RtlCopyMemory(&InnerIpHeader->SourceAddress, &InnerSrcIp.Ipv6, sizeof(IN6_ADDR));
-        RtlCopyMemory(&InnerIpHeader->DestinationAddress, &InnerSrcIp.Ipv6, sizeof(IN6_ADDR));
+        RtlCopyMemory(&InnerIpHeader->DestinationAddress, &InnerDstIp.Ipv6, sizeof(IN6_ADDR));
         Offset += sizeof(IPV6_HEADER);
     }
 
@@ -4219,6 +4219,7 @@ typedef struct _GENERIC_RX_FRAGMENT_PARAMS {
     _In_ UINT16 GroSegCount;
     _In_opt_ UINT32 IfMtu;
     _In_ BOOLEAN UseIpNextHeaderMatch;
+    _In_ BOOLEAN UseInnerIpPrefixMatch;
     _In_ XDP_RULE_ACTION Action;
     _In_opt_ const NDIS_OFFLOAD_PARAMETERS *OffloadParams;
     _In_opt_ const FN_OFFLOAD_OPTIONS *OffloadOptions;
@@ -4550,6 +4551,7 @@ GenericRxFragmentBuffer(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
+    XDP_INET_ADDR InnerSrcIp = { 0 }, InnerDstIp = { 0 };
     MY_SOCKET Xsk;
     wil::unique_handle ProgramHandle;
     unique_fnmp_handle GenericMp;
@@ -4594,6 +4596,21 @@ GenericRxFragmentBuffer(
     if (Params->UseIpNextHeaderMatch) {
         Rule.Match = XDP_MATCH_IP_NEXT_HEADER;
         Rule.Pattern.NextHeader = TestNextHeaderValue;
+    } else if (Params->UseInnerIpPrefixMatch) {
+        if (Af == AF_INET) {
+            TEST_EQUAL(1, inet_pton(Af, "10.10.10.1", &InnerSrcIp));
+            TEST_EQUAL(1, inet_pton(Af, "10.10.10.2", &InnerDstIp));
+            TEST_EQUAL(1, inet_pton(Af, "255.255.255.0", &Rule.Pattern.IpMask.Mask));
+            Rule.Match = XDP_MATCH_INNER_IPV4_DST_MASK_UDP;
+        } else {
+            TEST_EQUAL(1, inet_pton(Af, "beef:a:b:c:d:e:1234:5678", &InnerSrcIp));
+            TEST_EQUAL(1, inet_pton(Af, "beef:a:b:c:d:e:1234:5679", &InnerDstIp));
+            TEST_EQUAL(1, inet_pton(Af, "ffff:ffff:ffff:ffff:ffff:ffff:ffff:0", &Rule.Pattern.IpMask.Mask));
+            Rule.Match = XDP_MATCH_INNER_IPV6_DST_MASK_UDP;
+        }
+
+        RtlCopyMemory(&Rule.Pattern.IpMask.Address, &InnerDstIp, sizeof(InnerDstIp));
+        ClearMaskedBits(&Rule.Pattern.IpMask.Address, &Rule.Pattern.IpMask.Mask, Af);
     } else {
         Rule.Match = Params->IsUdp ? XDP_MATCH_UDP_DST : XDP_MATCH_TCP_DST;
         Rule.Pattern.Port = LocalPort;
@@ -4632,6 +4649,42 @@ GenericRxFragmentBuffer(
                 PacketBuffer.data() + Params->Backfill, &ActualPacketLength, Payload.get(),
                 Params->PayloadLength, &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort,
                 RemotePort));
+
+        if (Params->UseInnerIpPrefixMatch) {
+            TraceError("UseInnerIpPrefixMatch");
+            UINT32 UdpOffset = sizeof(ETHERNET_HEADER) + (Af == AF_INET ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
+            UCHAR *OuterIpHeaderStart = PacketBuffer.data() + Params->Backfill + sizeof(ETHERNET_HEADER);
+            if (Af == AF_INET) {
+                IPV4_HEADER *OuterIpHeader = (IPV4_HEADER *)OuterIpHeaderStart;
+                OuterIpHeader->Protocol = IPPROTO_IPV4;
+                OuterIpHeader->HeaderChecksum = 0;
+                OuterIpHeader->HeaderChecksum = PktChecksum(0, OuterIpHeader, sizeof(*OuterIpHeader));
+                IPV4_HEADER InnerIpHeader = { 0 };
+                InnerIpHeader.Version = IPV4_VERSION;
+                InnerIpHeader.HeaderLength = 5;
+                InnerIpHeader.TimeToLive = 128;
+                InnerIpHeader.TotalLength = htons((UINT16)Params->PayloadLength);
+                InnerIpHeader.Protocol = IPPROTO_UDP;
+                InnerIpHeader.SourceAddress = InnerSrcIp.Ipv4;
+                InnerIpHeader.DestinationAddress = InnerDstIp.Ipv4;
+                InnerIpHeader.HeaderChecksum = PktChecksum(0, &InnerIpHeader, sizeof(InnerIpHeader));
+                ActualPacketLength += sizeof(IPV4_HEADER);
+                PacketBuffer.insert(PacketBuffer.begin() + Params->Backfill + UdpOffset, (UCHAR *)&InnerIpHeader, (UCHAR *)&InnerIpHeader + sizeof(IPV4_HEADER));
+            } else {
+                IPV6_HEADER *OuterIpHeader = (IPV6_HEADER *)OuterIpHeaderStart;
+                OuterIpHeader->NextHeader = IPPROTO_IPV6;
+                OuterIpHeader->PayloadLength += sizeof(IPV6_HEADER);
+                IPV6_HEADER InnerIpHeader = { 0 };
+                InnerIpHeader.VersionClassFlow = IPV6_VERSION;
+                InnerIpHeader.PayloadLength = OuterIpHeader->PayloadLength;
+                InnerIpHeader.NextHeader = IPPROTO_UDP;
+                InnerIpHeader.HopLimit = 128;
+                RtlCopyMemory(&InnerIpHeader.SourceAddress, &InnerSrcIp.Ipv6, sizeof(IN6_ADDR));
+                RtlCopyMemory(&InnerIpHeader.DestinationAddress, &InnerDstIp.Ipv6, sizeof(IN6_ADDR));
+                ActualPacketLength += sizeof(IPV6_HEADER);
+                PacketBuffer.insert(PacketBuffer.begin() + Params->Backfill + UdpOffset, (UCHAR *)&InnerIpHeader, (UCHAR *)&InnerIpHeader + sizeof(IPV6_HEADER));
+            }
+        }
     } else {
         TEST_TRUE(
             PktBuildTcpFrame(
@@ -4824,7 +4877,8 @@ GenericRxHeaderMultipleFragments(
     _In_ BOOLEAN IsUdp,
     _In_ BOOLEAN IsTxInspect,
     _In_ BOOLEAN IsLowResources,
-    _In_ BOOLEAN UseIpNextHeaderMatch
+    _In_ BOOLEAN UseIpNextHeaderMatch,
+    _In_ BOOLEAN UseInnerIpPrefixMatch
     )
 {
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
@@ -4846,6 +4900,7 @@ GenericRxHeaderMultipleFragments(
         Params.IsTxInspect = IsTxInspect;
         Params.LowResources = IsLowResources;
         Params.UseIpNextHeaderMatch = UseIpNextHeaderMatch;
+        Params.UseInnerIpPrefixMatch = UseInnerIpPrefixMatch;
         GenericRxFragmentBuffer(Af, &Params);
     }
 }
@@ -4857,7 +4912,8 @@ GenericRxHeaderFragments(
     _In_ BOOLEAN IsUdp,
     _In_ BOOLEAN IsTxInspect,
     _In_ BOOLEAN IsLowResources,
-    _In_ BOOLEAN UseIpNextHeaderMatch
+    _In_ BOOLEAN UseIpNextHeaderMatch,
+    _In_ BOOLEAN UseInnerIpPrefixMatch
     )
 {
     GENERIC_RX_FRAGMENT_PARAMS Params = {0};
@@ -4869,13 +4925,19 @@ GenericRxHeaderFragments(
     Params.IsTxInspect = IsTxInspect;
     Params.LowResources = IsLowResources;
     Params.UseIpNextHeaderMatch = UseIpNextHeaderMatch;
+    Params.UseInnerIpPrefixMatch = UseInnerIpPrefixMatch;
+    UINT16 IpHeaderLength = ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER));
+    if (UseInnerIpPrefixMatch) {
+        IpHeaderLength *= 2;
+    }
     UINT16 HeadersLength =
         sizeof(ETHERNET_HEADER) +
             ((Af == AF_INET) ? sizeof(IPV4_HEADER) : sizeof(IPV6_HEADER)) +
+            IpHeaderLength +
             (IsUdp ? sizeof(UDP_HDR) : sizeof(TCP_HDR));
 
     GenericRxHeaderMultipleFragments(
-        Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources, UseIpNextHeaderMatch);
+        Af, ProgramAction, IsUdp, IsTxInspect, IsLowResources, UseIpNextHeaderMatch, UseInnerIpPrefixMatch);
 
     for (UINT32 i = 1; i < HeadersLength; i++) {
         Params.SplitIndexes = &i;
