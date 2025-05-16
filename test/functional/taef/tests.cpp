@@ -279,6 +279,14 @@ public:
         GenericRxMatchIpPrefix(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxMatchInnerIpPrefixV4Udp) {
+        GenericRxMatchInnerIpPrefix(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxMatchInnerIpPrefixV6Udp) {
+        GenericRxMatchInnerIpPrefix(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxMatchUdpPortSetV4) {
         GenericRxMatch(AF_INET, XDP_MATCH_UDP_PORT_SET, TRUE);
     }
@@ -417,6 +425,14 @@ public:
 
     TEST_METHOD(GenericRxTcpHeaderFragmentsV6) {
         GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, FALSE);
+    }
+
+    TEST_METHOD(GenericRxInnerIpHeaderFragmentsV4) {
+        GenericRxHeaderFragments(AF_INET, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, FALSE, TRUE);
+    }
+
+    TEST_METHOD(GenericRxInnerIpHeaderFragmentsV6) {
+        GenericRxHeaderFragments(AF_INET6, XDP_PROGRAM_ACTION_REDIRECT, TRUE, FALSE, FALSE, FALSE, TRUE);
     }
 
     TEST_METHOD(GenericRxL2Fwd) {

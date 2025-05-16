@@ -41,6 +41,10 @@ typedef struct _XDP_PROGRAM_FRAME_STORAGE {
         IPV6_HEADER Ip6Hdr;
     };
     union {
+        IPV4_HEADER InnerIp4Hdr;
+        IPV6_HEADER InnerIp6Hdr;
+    };
+    union {
         UDP_HDR UdpHdr;
         TCP_HDR TcpHdr;
     };
@@ -67,8 +71,12 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 EthValid : 1;
             UINT32 Ip4Cached : 1;
             UINT32 Ip4Valid : 1;
+            UINT32 InnerIpCached : 1;
+            UINT32 InnerIp4Valid : 1;
             UINT32 Ip6Cached : 1;
             UINT32 Ip6Valid : 1;
+            UINT32 InnerIp6Valid : 1;
+            UINT32 IpPayloadValid : 1;
             UINT32 UdpCached : 1;
             UINT32 UdpValid : 1;
             UINT32 TcpCached : 1;
@@ -88,6 +96,10 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
         IPV6_HEADER *Ip6Hdr;
     };
     union {
+        IPV4_HEADER *InnerIp4Hdr;
+        IPV6_HEADER *InnerIp6Hdr;
+    };
+    union {
         UDP_HDR *UdpHdr;
         TCP_HDR *TcpHdr;
     };
@@ -95,6 +107,7 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     UINT8 QuicCidLength;
     const UINT8 *QuicCid; // Src CID for long header, Dest CID for short header
     XDP_PROGRAM_PAYLOAD_CACHE TransportPayload;
+    XDP_PROGRAM_PAYLOAD_CACHE IpPayload;
 } XDP_PROGRAM_FRAME_CACHE;
 
 #pragma warning(push)
