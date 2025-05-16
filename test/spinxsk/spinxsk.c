@@ -717,7 +717,7 @@ AttachXdpProgram(
         rule.Match = XDP_MATCH_ALL;
 
         if (!(RandUlong() % 2)) {
-            rule.Match = RandUlong() % (XDP_MATCH_IP_NEXT_HEADER + 1);
+            rule.Match = RandUlong() % (XDP_MATCH_INNER_IPV6_DST_MASK_UDP + 1);
         }
 
         if (!(RandUlong() % 128)) {

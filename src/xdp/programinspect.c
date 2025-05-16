@@ -370,6 +370,13 @@ XdpParseFragmentedFrame(
             Cache->TransportPayload.IsFragmentedBuffer = TRUE;
             Cache->TransportPayloadValid = TRUE;
         }
+    } else {
+        Cache->IpPayload.Buffer = Buffer;
+        Cache->IpPayload.BufferDataOffset = BufferDataOffset;
+        Cache->IpPayload.FragmentCount = FragmentCount;
+        Cache->IpPayload.FragmentIndex = FragmentIndex;
+        Cache->IpPayload.IsFragmentedBuffer = TRUE;
+        Cache->IpPayloadValid = TRUE;
     }
 }
 
@@ -440,35 +447,6 @@ XdpParseFrame(
         return;
     }
 
-    if (IpProto == IPPROTO_IPV4) {
-        if (Buffer->DataLength < Offset + sizeof(*Cache->InnerIp4Hdr)) {
-            goto BufferTooSmall;
-        }
-        Cache->InnerIp4Hdr = (IPV4_HEADER *)&Va[Offset];
-        if (Cache->InnerIp4Hdr->Version == IPV4_VERSION) {
-            if ((((UINT64)Cache->InnerIp4Hdr->HeaderLength) << 2) != sizeof(*Cache->InnerIp4Hdr)) {
-                return;
-            }
-            Cache->InnerIp4Valid = TRUE;
-            Offset += sizeof(*Cache->InnerIp4Hdr);
-            IpProto = Cache->InnerIp4Hdr->Protocol;
-        } else {
-            return;
-        }
-    } else if (IpProto == IPPROTO_IPV6) {
-        if (Buffer->DataLength < Offset + sizeof(*Cache->InnerIp6Hdr)) {
-            goto BufferTooSmall;
-        }
-        Cache->InnerIp6Hdr = (IPV6_HEADER *)&Va[Offset];
-        if ((Cache->InnerIp6Hdr->VersionClassFlow & IP_VER_MASK) == IPV6_VERSION) {
-            Cache->InnerIp6Valid = TRUE;
-            Offset += sizeof(*Cache->InnerIp6Hdr);
-            IpProto = Cache->InnerIp6Hdr->NextHeader;
-        } else {
-            return;
-        }
-    }
-
     if (IpProto == IPPROTO_UDP) {
         if (Buffer->DataLength < Offset + sizeof(*Cache->UdpHdr)) {
             goto BufferTooSmall;
@@ -498,6 +476,11 @@ XdpParseFrame(
         Cache->TransportPayload.BufferDataOffset = Offset;
         Cache->TransportPayload.IsFragmentedBuffer = FALSE;
         Cache->TransportPayloadValid = TRUE;
+    } else {
+        Cache->IpPayload.Buffer = Buffer;
+        Cache->IpPayload.BufferDataOffset = Offset;
+        Cache->IpPayload.IsFragmentedBuffer = FALSE;
+        Cache->IpPayloadValid = TRUE;
     }
 
     return;
@@ -716,6 +699,130 @@ BufferTooSmall:
 }
 
 static
+_Success_(return != FALSE)
+BOOLEAN
+XdpParseInnerIpHeaderPayload(
+    _In_ const UINT8 *Payload,
+    _In_ UINT32 DataLength,
+    _In_ IPPROTO IpProto,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    if (IpProto == IPPROTO_IPV4) {
+        if (DataLength < sizeof(IPV4_HEADER)) {
+            return FALSE;
+        }
+
+        FrameCache->InnerIp4Hdr = (IPV4_HEADER *)Payload;
+        if (FrameCache->InnerIp4Hdr->Version == IPV4_VERSION &&
+            (((UINT64)FrameCache->InnerIp4Hdr->HeaderLength) << 2) == sizeof(IPV4_HEADER)) {
+            FrameCache->InnerIp4Valid = TRUE;
+        }
+    } else if (IpProto == IPPROTO_IPV6) {
+        if (DataLength < sizeof(IPV6_HEADER)) {
+            return FALSE;
+        }
+
+        FrameCache->InnerIp6Hdr = (IPV6_HEADER *)Payload;
+        if ((FrameCache->InnerIp6Hdr->VersionClassFlow & IP_VER_MASK) == IPV6_VERSION) {
+            FrameCache->InnerIp6Valid = TRUE;
+        }
+    }
+
+    return TRUE;
+}
+
+static
+VOID
+XdpParseFragmentedInnerIpHeader(
+    _In_ XDP_FRAME *Frame,
+    _In_ XDP_RING *FragmentRing,
+    _In_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ IPPROTO IpProto,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *FrameStore,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    XDP_BUFFER *Buffer = FrameCache->IpPayload.Buffer;
+    UINT32 BufferDataOffset = FrameCache->IpPayload.BufferDataOffset;
+    UINT32 FragmentCount = FrameCache->IpPayload.FragmentCount;
+    UINT8* IpPayload = NULL;
+    UINT32 ReadLength;
+
+    if (FrameCache->IpPayload.IsFragmentedBuffer) {
+        FragmentIndex = FrameCache->IpPayload.FragmentIndex;
+    } else {
+        FragmentIndex--;
+        FragmentCount = XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount;
+    }
+
+    if (IpProto == IPPROTO_IPV4) {
+        ReadLength =
+            XdpGetContiguousHeaderLength(
+                Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount,
+                FragmentRing, VirtualAddressExtension, &FrameStore->InnerIp4Hdr,
+                sizeof(FrameStore->InnerIp4Hdr), &IpPayload);
+    } else if (IpProto == IPPROTO_IPV6) {
+        ReadLength =
+            XdpGetContiguousHeaderLength(
+                Frame, &Buffer, &BufferDataOffset, &FragmentIndex, &FragmentCount,
+                FragmentRing, VirtualAddressExtension, &FrameStore->InnerIp6Hdr,
+                sizeof(FrameStore->InnerIp6Hdr), &IpPayload);
+    } else {
+        return;
+    }
+
+    XdpParseInnerIpHeaderPayload(IpPayload, ReadLength, IpProto, FrameCache);
+}
+
+static
+VOID
+XdpParseInnerIpHeader(
+    _In_ XDP_FRAME *Frame,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ XDP_PROGRAM_PAYLOAD_CACHE *Payload,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *FrameStore,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    UINT32 BufferDataOffset = Payload->BufferDataOffset;
+    XDP_BUFFER *Buffer = Payload->Buffer;
+    UCHAR *Va = XdpGetVirtualAddressExtension(Buffer, VirtualAddressExtension)->VirtualAddress + Buffer->DataOffset;
+    FrameCache->InnerIpCached = TRUE;
+
+    IPPROTO IpProto = IPPROTO_MAX;
+    if (FrameCache->Ip4Valid) {
+        IpProto = FrameCache->Ip4Hdr->Protocol;
+    } else if (FrameCache->Ip6Valid) {
+        IpProto = FrameCache->Ip6Hdr->NextHeader;
+    } else {
+        return;
+    }
+
+    if (Buffer->DataLength < BufferDataOffset) {
+        goto BufferTooSmall;
+    }
+
+    if (XdpParseInnerIpHeaderPayload(&Va[BufferDataOffset], Buffer->DataLength - BufferDataOffset, IpProto, FrameCache)) {
+        return;
+    }
+
+BufferTooSmall:
+
+    if (FragmentRing != NULL) {
+        ASSERT(FragmentExtension);
+        XdpParseFragmentedInnerIpHeader(
+            Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+            IpProto, FrameStore, FrameCache);
+    }
+}
+
+static
 BOOLEAN
 XdpTestBit(
     _In_ const UINT8 *BitMap,
@@ -866,8 +973,19 @@ XdpInspect(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
             }
+
+            if (!FrameCache.IpPayloadValid) {
+                break;
+            }
+
+            if (!FrameCache.InnerIpCached) {
+                XdpParseInnerIpHeader(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache.IpPayload, &Program->FrameStorage, &FrameCache);
+            }
+
             if (FrameCache.InnerIp4Valid &&
-                FrameCache.UdpValid &&
+                FrameCache.InnerIp4Hdr->Protocol == IPPROTO_UDP &&
                 Ipv4PrefixMatch(
                     &FrameCache.InnerIp4Hdr->DestinationAddress, &Rule->Pattern.IpMask.Address.Ipv4,
                     &Rule->Pattern.IpMask.Mask.Ipv4)) {
@@ -881,8 +999,19 @@ XdpInspect(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
             }
+
+            if (!FrameCache.IpPayloadValid) {
+                break;
+            }
+
+            if (!FrameCache.InnerIpCached) {
+                XdpParseInnerIpHeader(
+                    Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+                    &FrameCache.IpPayload, &Program->FrameStorage, &FrameCache);
+            }
+
             if (FrameCache.InnerIp6Valid &&
-                FrameCache.UdpValid &&
+                FrameCache.InnerIp6Hdr->NextHeader == IPPROTO_UDP &&
                 Ipv6PrefixMatch(
                     &FrameCache.InnerIp6Hdr->DestinationAddress,
                     &Rule->Pattern.IpMask.Address.Ipv6,
@@ -1226,7 +1355,7 @@ XdpProgramValidateRule(
     //
     RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
 
-    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_IP_NEXT_HEADER) {
+    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_INNER_IPV6_DST_MASK_UDP) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
