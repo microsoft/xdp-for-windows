@@ -16,6 +16,7 @@ typedef struct _XDP_LWF_OFFLOAD_SETTING_RSS {
 typedef struct _XDP_LWF_OFFLOAD_SETTING_TASK_OFFLOAD {
     struct {
         BOOLEAN Enabled : 1;
+        BOOLEAN TcpOptions : 1;
     } Checksum;
     struct {
         UINT32 MaxOffloadSize;

@@ -229,9 +229,8 @@ XdpOffloadUpdateTaskOffloadConfig(
 
     //
     // Simplify the adapter's checksum capabilities and impose minimum
-    // requirements. Any modern NIC should support IP, TCP (with options) and
-    // UDP checksums for all protocols and directions, otherwise it probably
-    // doesn't support any.
+    // requirements. Any modern NIC should support IP, TCP and UDP checksums for
+    // all protocols and directions, otherwise it probably doesn't support any.
     //
     if (((TaskOffload->Checksum.IPv4Receive.Encapsulation & Encapsulation) == Encapsulation) &&
         ((TaskOffload->Checksum.IPv6Receive.Encapsulation & Encapsulation) == Encapsulation) &&
@@ -252,6 +251,14 @@ XdpOffloadUpdateTaskOffloadConfig(
         TaskOffload->Checksum.IPv6Transmit.TcpOptionsSupported &&
         TaskOffload->Checksum.IPv6Transmit.UdpChecksum) {
         NewOffload->Checksum.Enabled = TRUE;
+    }
+
+    if (NewOffload->Checksum.Enabled &&
+        TaskOffload->Checksum.IPv4Receive.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv6Receive.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv4Transmit.TcpOptionsSupported &&
+        TaskOffload->Checksum.IPv6Transmit.TcpOptionsSupported) {
+        NewOffload->Checksum.TcpOptions = TRUE;
     }
 
     //
@@ -275,9 +282,10 @@ XdpOffloadUpdateTaskOffloadConfig(
     TraceInfo(
         TRACE_LWF,
         "Filter=%p updated task offload. "
-        "Checksum.Enabled=%!BOOLEAN! Lso.MaxOffloadSize=%u Lso.MinSegments=%u",
-        Filter, NewOffload->Checksum.Enabled, NewOffload->Lso.MaxOffloadSize,
-        NewOffload->Lso.MinSegments);
+        "Checksum.Enabled=%!BOOLEAN! Checksum.TcpOptions=%!BOOLEAN"
+        "Lso.MaxOffloadSize=%u Lso.MinSegments=%u",
+        Filter, NewOffload->Checksum.Enabled, NewOffload->Checksum.TcpOptions,
+        NewOffload->Lso.MaxOffloadSize, NewOffload->Lso.MinSegments);
 
     OldOffload = Filter->Offload.LowerEdge.TaskOffload;
     Filter->Offload.LowerEdge.TaskOffload = NewOffload;
@@ -366,8 +374,8 @@ XdpLwfOffloadChecksumGetWorker(
 
     Request->ChecksumParams->Header.Revision = XDP_CHECKSUM_CONFIGURATION_REVISION_1;
     Request->ChecksumParams->Header.Size = XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1;
-    Request->ChecksumParams->Enabled =
-        CurrentTaskSetting->Checksum.Enabled == XdpOffloadStateEnabled;
+    Request->ChecksumParams->Enabled = CurrentTaskSetting->Checksum.Enabled;
+    Request->ChecksumParams->TcpOptions = CurrentTaskSetting->Checksum.TcpOptions;
     *Request->ChecksumParamsLength = Request->ChecksumParams->Header.Size;
     Status = STATUS_SUCCESS;
 
