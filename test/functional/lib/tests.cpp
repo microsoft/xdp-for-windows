@@ -6396,69 +6396,55 @@ GenericTxChecksumOffloadIp()
 }
 
 VOID
-GenericRxChecksumOffloadIp() {
+GenericRxChecksumOffloadIp()
+{
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMpIf;
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
 
-    RemotePort = htons(1234);
+    LocalPort = htons(1234);
+    RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     If.GetIpv4Address(&LocalIp.Ipv4);
     If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
 
-    EnableRxChecksumOffload(&Xsk);
-    ActivateSocket(&Xsk, Rx, Tx);
-
+    // Construct a valid IPv4 + UDP frame with a valid IP checksum
     UCHAR UdpPayload[] = "GenericRxChecksumOffloadIp";
-    UINT64 RxBuffer = SocketFreePop(&Xsk);
-    UCHAR *RxFrame = Xsk.Umem.Buffer.get() + RxBuffer;
-    UINT32 UdpFrameLength = Xsk.Umem.Reg.ChunkSize;
+    UCHAR Frame[MAX_ETHERNET_MTU];
+    UINT32 FrameLength = sizeof(Frame);
     TEST_TRUE(
         PktBuildUdpFrame(
-            RxFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
-            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+            Frame, &FrameLength, UdpPayload, sizeof(UdpPayload), &RemoteHw,
+            &LocalHw, AF_INET, &RemoteIp, &LocalIp, RemotePort, LocalPort));
 
-    UINT32 ProducerIndex;
-    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Rx, 1, &ProducerIndex));
+    // Inject the frame as if it came from the wire
+    MpInjectRxFrame(GenericMp, Frame, FrameLength);
 
-    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxDesc(&Xsk, ProducerIndex++);
-    RxDesc->Buffer.Address.AddressAndOffset = RxBuffer;
-    RxDesc->Buffer.Length = UdpFrameLength;
-    XDP_FRAME_LAYOUT *Layout =
-        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameLayoutExtension);
-    Layout->Layer2Type = XdpFrameLayer2TypeEthernet;
-    Layout->Layer2HeaderLength = sizeof(ETHERNET_HEADER);
-    Layout->Layer3Type = XdpFrameLayer3TypeIPv4NoOptions;
-    Layout->Layer3HeaderLength = sizeof(IPV4_HEADER);
-    Layout->Layer4Type = XdpFrameLayer4TypeUnspecified;
-    Layout->Layer4HeaderLength = 0;
+    // Flush RX path to make frame visible to the socket
+    MpRxFlush(GenericMp);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_BUFFER_DESCRIPTOR *RxDesc = SocketGetRxDesc(&Xsk, ConsumerIndex++);
+
+    // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
-        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
-    Checksum->Layer3 = XdpFrameTxChecksumActionRequired;
-    Checksum->Layer4 = XdpFrameTxChecksumActionPassthrough;
-    XskRingProducerSubmit(&Xsk.Rings.Rx, 1);
+        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxChecksumExtension);
 
-    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
-    NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
-    TEST_EQUAL(0, NotifyResult);
+    TEST_EQUAL(XdpFrameRxChecksumValid, Checksum->Layer3);
+    TEST_EQUAL(XdpFrameRxChecksumUnknown, Checksum->Layer4);
 
-    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
-
-    TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Receive.IpHeaderChecksum);
-    TEST_EQUAL(TRUE, MpTxFrame->Output.Checksum.Receive.IsIPv4);
-    TEST_FALSE(MpTxFrame->Output.Checksum.Receive.TcpChecksum);
-    TEST_EQUAL(0, MpTxFrame->Output.Checksum.Receive.TcpHeaderOffset);
-    TEST_FALSE(MpTxFrame->Output.Checksum.Receive.UdpChecksum);
-
-    MpTxDequeueFrame(GenericMp, If.GetQueueId());
-    MpTxFlush(GenericMp);
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
+
 
 VOID
 GenericTxChecksumOffloadTcp(
@@ -6735,7 +6721,7 @@ GenericTxChecksumOffloadConfig()
 
 VOID
 GenericRxChecksumOffloadConfig() {
-
+    // NOTE: TODO.
 }
 
 static
