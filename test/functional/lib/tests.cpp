@@ -6694,6 +6694,7 @@ GenericTxChecksumOffloadConfig()
     TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
     TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
     TEST_TRUE(ChecksumConfig.Enabled);
+    TEST_TRUE(ChecksumConfig.TcpOptions);
 
     TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
 }
