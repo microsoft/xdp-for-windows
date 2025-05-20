@@ -282,7 +282,7 @@ XdpOffloadUpdateTaskOffloadConfig(
     TraceInfo(
         TRACE_LWF,
         "Filter=%p updated task offload. "
-        "Checksum.Enabled=%!BOOLEAN! Checksum.TcpOptions=%!BOOLEAN"
+        "Checksum.Enabled=%!BOOLEAN! Checksum.TcpOptions=%!BOOLEAN!"
         "Lso.MaxOffloadSize=%u Lso.MinSegments=%u",
         Filter, NewOffload->Checksum.Enabled, NewOffload->Checksum.TcpOptions,
         NewOffload->Lso.MaxOffloadSize, NewOffload->Lso.MinSegments);
