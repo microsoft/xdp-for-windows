@@ -6428,7 +6428,7 @@ GenericRxChecksumOffloadIp() {
     UCHAR UdpPayload[] = "GenericRxChecksumOffloadIp";
     RX_FRAME RxFrame;
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
-    INT32 UdpFrameLength = sizeof(UdpFrame);
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
     RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
 
     TEST_TRUE(
@@ -6437,7 +6437,7 @@ GenericRxChecksumOffloadIp() {
             &LocalHw, AF_INET, &RemoteIp, &LocalIp, RemotePort, LocalPort));
 
     // Inject the frame as if it came from the wire
-    MpRxEnqueueFrame(GenericMp, RxFrame);
+    MpRxEnqueueFrame(GenericMp, &RxFrame);
 
     // Flush RX path to make frame visible to the socket
     MpRxFlush(GenericMp);
