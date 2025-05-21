@@ -6266,7 +6266,13 @@ GenericTxChecksumOffloadExtensions()
 }
 
 VOID
-GenericRxChecksumOffloadExtensions() {
+GenericRxChecksumOffloadExtensions()
+/*
+    Routine Description:
+        Verify that the RX checksum offload extensions are present when
+        checksum offload is enabled.
+*/
+{
     auto If = FnMpIf;
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
@@ -6397,6 +6403,12 @@ GenericTxChecksumOffloadIp()
 
 VOID
 GenericRxChecksumOffloadIp()
+/*
+    Routine Description:
+        This test verifies the metadata that indicates RX checksum offloads were done for IP.
+        It does so by injecting a UDP frame with a valid IP checksum and verifying that
+        the
+*/
 {
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMpIf;
@@ -6417,15 +6429,16 @@ GenericRxChecksumOffloadIp()
 
     // Construct a valid IPv4 + UDP frame with a valid IP checksum
     UCHAR UdpPayload[] = "GenericRxChecksumOffloadIp";
-    UCHAR Frame[MAX_ETHERNET_MTU];
-    UINT32 FrameLength = sizeof(Frame);
+    UINT64 RxBuffer = SocketFreePop(&Xsk);
+    UCHAR *RxFrame = Xsk.Umem.Buffer.get() + RxBuffer;
+    UINT32 UdpFrameLength = Xsk.Umem.Reg.ChunkSize;
     TEST_TRUE(
         PktBuildUdpFrame(
-            Frame, &FrameLength, UdpPayload, sizeof(UdpPayload), &RemoteHw,
+            RxFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &RemoteHw,
             &LocalHw, AF_INET, &RemoteIp, &LocalIp, RemotePort, LocalPort));
 
     // Inject the frame as if it came from the wire
-    MpInjectRxFrame(GenericMp, Frame, FrameLength);
+    MpRxEnqueueFrame(GenericMp, RxFrame);
 
     // Flush RX path to make frame visible to the socket
     MpRxFlush(GenericMp);
@@ -6439,8 +6452,8 @@ GenericRxChecksumOffloadIp()
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxChecksumExtension);
 
-    TEST_EQUAL(XdpFrameRxChecksumValid, Checksum->Layer3);
-    TEST_EQUAL(XdpFrameRxChecksumUnknown, Checksum->Layer4);
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer3);
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer4);
 
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
@@ -6529,7 +6542,15 @@ GenericTxChecksumOffloadTcp(
 VOID
 GenericRxChecksumOffloadTcp(
     ADDRESS_FAMILY Af
-) {
+)
+/*
+    Routine Description:
+        This test verifies the metadata that indicates RX checksum offloads were done for TCP.
+        It does so by injecting a TCP frame with a valid IP checksum and verifying that
+        the metadata is correct.
+*/
+
+{
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMpIf;
     UINT16 LocalPort, RemotePort;
@@ -6638,7 +6659,14 @@ GenericTxChecksumOffloadUdp(
 VOID
 GenericRxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
-) {
+)
+/*
+    Routine Description:
+        This test verifies the metadata that indicates RX checksum offloads were done for UDP.
+        It does so by injecting a UDP frame with a valid IP checksum and verifying that
+        the metadata is correct.
+*/
+{
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMpIf;
     UINT16 LocalPort, RemotePort;
@@ -6720,7 +6748,12 @@ GenericTxChecksumOffloadConfig()
 }
 
 VOID
-GenericRxChecksumOffloadConfig() {
+GenericRxChecksumOffloadConfig()
+/*
+    Routine Description:
+        This test verifies the RX checksum offload configuration.
+*/
+{
     // NOTE: TODO.
 }
 
