@@ -453,6 +453,22 @@ XdpProgramTrace(
                 Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
             break;
 
+        case XDP_MATCH_INNER_IPV4_DST_MASK_UDP:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_INNER_IPV4_DST_MASK_UDP Ip=%!IPADDR! Mask=%!IPADDR!",
+                Program, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr,
+                Rule->Pattern.IpMask.Mask.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_INNER_IPV6_DST_MASK_UDP:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_INNER_IPV6_DST_MASK_UDP Ip=%!IPV6ADDR! Mask=%!IPV6ADDR!",
+                Program, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte,
+                Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
+            break;
+
         case XDP_MATCH_QUIC_FLOW_SRC_CID:
             TraceInfo(
                 TRACE_CORE,
@@ -664,7 +680,6 @@ static const ebpf_program_data_t EbpfXdpProgramData = {
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,
-    .capabilities = {.supports_context_header = TRUE},
 };
 
 static const NPI_MODULEID EbpfXdpProgramInfoProviderModuleId = {
@@ -1675,8 +1690,8 @@ EbpfProgramOnClientAttach(
         TRACE_CORE, "AttachingProvider=%p AttachingClient=%p", AttachingProvider, AttachingClient);
 
     if (ClientData == NULL ||
-        ClientData->header.version != 0 ||
-        ClientData->header.size != sizeof(IfIndex) ||
+        ClientData->header.version < EBPF_ATTACH_CLIENT_DATA_CURRENT_VERSION ||
+        ClientData->data_size != sizeof(IfIndex) ||
         ClientData->data == NULL) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;

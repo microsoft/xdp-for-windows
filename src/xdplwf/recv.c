@@ -1368,148 +1368,176 @@ XdpGenericReceiveEnqueueTxNbl(
 
 static
 VOID
-XdpGenericReceivePreInspectNbs(
+XdpGenericReceivePreinspectNb(
     _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
-    _In_ BOOLEAN CanPend,
-    _Inout_ NET_BUFFER_LIST **Nbl,
-    _Inout_ NET_BUFFER **Nb
-    )
+    _In_ NET_BUFFER_LIST *Nbl,
+    _In_ NET_BUFFER *Nb,
+    _Out_ BOOLEAN *NbAddedToRing,
+    _Out_ BOOLEAN *FlushNeeded
+)
 {
     XDP_RING *FrameRing = RxQueue->FrameRing;
     XDP_RING *FragmentRing = RxQueue->FragmentRing;
-    XDP_FRAME *Frame;
-    XDP_FRAME_FRAGMENT *FragmentExtension;
-    UINT8 FragmentCount;
-    XDP_BUFFER *Buffer;
-    MDL *Mdl;
+    XDP_FRAME *Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
+    XDP_BUFFER *Buffer = &Frame->Buffer;
+    UINT32 DataLength = NET_BUFFER_DATA_LENGTH(Nb);
+    MDL *Mdl = NET_BUFFER_CURRENT_MDL(Nb);
+    UINT8 FragmentCount = 0;
     XDP_BUFFER_VIRTUAL_ADDRESS *SystemVa;
-    UINT32 DataLength;
     XDP_LWF_GENERIC_RX_FRAME_CONTEXT *InterfaceExtension;
-    UINT32 FrameRingReservedCount;
+    XDP_FRAME_FRAGMENT *FragmentExtension;
+
+    Buffer->DataOffset = NET_BUFFER_CURRENT_MDL_OFFSET(Nb);
+    Buffer->DataLength = min(Mdl->ByteCount - Buffer->DataOffset, DataLength);
+    Buffer->BufferLength = Mdl->ByteCount;
+    DataLength -= Buffer->DataLength;
+
+    *FlushNeeded = FALSE;
+    *NbAddedToRing = FALSE;
 
     //
-    // For low resources indications, ensure only one frame is enqueued at a time.
-    // This is required since we release the EC lock to indicate low resource
-    // frames up the stack, so we must leave the RX queue in a state that allows
-    // another thread (or the same thread) to inspect while the low resources
-    // indication is in progress.
+    // NDIS components may request that packets sent locally be looped back
+    // on the receive path. Skip inspection of these packets.
     //
-    FrameRingReservedCount = CanPend ? 0 : FrameRing->Mask;
+    if (NdisTestNblFlag(Nbl, NDIS_NBL_FLAGS_IS_LOOPBACK_PACKET)) {
+        STAT_INC(&RxQueue->PcwStats, LoopbackNblsSkipped);
+        return;
+    }
 
-    do {
-        ASSERT(XdpRingFree(FrameRing) > FrameRingReservedCount);
-        Frame = XdpRingGetElement(FrameRing, FrameRing->ProducerIndex & FrameRing->Mask);
+    SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
+    SystemVa->VirtualAddress =
+        MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
+    if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
+        STAT_INC(&RxQueue->PcwStats, MappingFailures);
+        return;
+    }
 
-        Buffer = &Frame->Buffer;
-        DataLength = NET_BUFFER_DATA_LENGTH(*Nb);
-        Mdl = NET_BUFFER_CURRENT_MDL(*Nb);
-        Buffer->DataOffset = NET_BUFFER_CURRENT_MDL_OFFSET(*Nb);
-        Buffer->DataLength = min(Mdl->ByteCount - Buffer->DataOffset, DataLength);
+    //
+    // Loop over fragment MDLs. NDIS allows excess MDLs past the data length;
+    // ignore those, but allow trailing bytes in the final buffer.
+    //
+    for (Mdl = Mdl->Next; Mdl != NULL && DataLength > 0; Mdl = Mdl->Next) {
+        //
+        // Check if the number of MDLs exceeds the maximum XDP fragments. If so,
+        // attempt to convert the MDL chain to a single flat buffer.
+        //
+        if (FragmentCount + 1ui32 > RxQueue->FragmentLimit) {
+            //
+            // Generic XDP reserves a single contiguous buffer for
+            // linearization; if a NB contains more than the maximum number
+            // of fragments (MDLs), copy the contents of the entire MDL
+            // chain into one contiguous buffer.
+            //
+            // If the contiguous buffer is already in use, flush the queue
+            // first.
+            //
+            if (RxQueue->FragmentBufferInUse) {
+                *FlushNeeded = TRUE;
+                return;
+            }
+
+            if (!XdpGenericReceiveLinearizeNb(RxQueue, Nb)) {
+                STAT_INC(&RxQueue->PcwStats, LinearizationFailures);
+                return;
+            }
+
+            //
+            // The NB was converted to a single, virtually-contiguous buffer,
+            // so abandon fragmentation and proceed to XDP inspection.
+            //
+            FragmentCount = 0;
+            break;
+        }
+
+        //
+        // Reserve XDP descriptor space for this MDL. If space does not exist,
+        // flush existing descriptors to create space.
+        //
+        if (++FragmentCount > XdpRingFree(FragmentRing)) {
+            *FlushNeeded = TRUE;
+            return;
+        }
+
+        Buffer =
+            XdpRingGetElement(
+                FragmentRing,
+                (FragmentRing->ProducerIndex + FragmentCount - 1) & FragmentRing->Mask);
+
+        Buffer->DataOffset = 0;
+        Buffer->DataLength = min(Mdl->ByteCount, DataLength);
         Buffer->BufferLength = Mdl->ByteCount;
         DataLength -= Buffer->DataLength;
-        FragmentCount = 0;
-
-        //
-        // NDIS components may request that packets sent locally be looped back
-        // on the receive path. Skip inspection of these packets.
-        //
-        if (NdisTestNblFlag(*Nbl, NDIS_NBL_FLAGS_IS_LOOPBACK_PACKET)) {
-            goto Next;
-        }
 
         SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
         SystemVa->VirtualAddress =
             MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
         if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
             STAT_INC(&RxQueue->PcwStats, MappingFailures);
-            goto Next;
+            return;
+        }
+    }
+
+    FragmentExtension = XdpGetFragmentExtension(Frame, &RxQueue->FragmentExtension);
+    FragmentExtension->FragmentBufferCount = FragmentCount;
+
+    //
+    // Store the original NB address so uninspected frames (e.g. those where
+    // virtual mappings failed) can be identified and dropped later.
+    //
+    InterfaceExtension =
+        XdpGetFrameInterfaceContextExtension(Frame, &RxQueue->FrameInterfaceContextExtension);
+    InterfaceExtension->Nb = Nb;
+
+    //
+    // The NB has successfully been converted to XDP descriptors, so commit
+    // the descriptors to the XDP rings.
+    //
+    FragmentRing->ProducerIndex += FragmentCount;
+    FrameRing->ProducerIndex++;
+
+    *NbAddedToRing = TRUE;
+}
+
+static
+VOID
+XdpGenericReceivePreInspectNbs(
+    _In_ XDP_LWF_GENERIC_RX_QUEUE *RxQueue,
+    _In_ BOOLEAN CanPend,
+    _Inout_ NET_BUFFER_LIST **Nbl,
+    _Inout_ NET_BUFFER **Nb,
+    _Out_ BOOLEAN* InspectionNeeded
+    )
+{
+    BOOLEAN FlushNeeded = FALSE;
+    BOOLEAN NbAddedToRing = FALSE;
+
+    ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->InterfaceReserved);
+    ASSERT(RxQueue->FrameRing->ConsumerIndex == RxQueue->FrameRing->ProducerIndex);
+
+    *InspectionNeeded = FALSE;
+
+    //
+    // For low resources indications (CanPend == FALSE), ensure only one NBL
+    // is processed at a time (even if not added to the XDP ring for inspection).
+    // This is required since we release the EC lock to indicate low resource
+    // frames up the stack, so we must leave the RX queue in a state that allows
+    // another thread (or the same thread) to inspect while the low resources
+    // indication is in progress.
+    //
+
+    do {
+        ASSERT(XdpRingFree(RxQueue->FrameRing) > 0);
+
+        XdpGenericReceivePreinspectNb(RxQueue, *Nbl, *Nb, &NbAddedToRing, &FlushNeeded);
+        *InspectionNeeded |= NbAddedToRing;
+        if (FlushNeeded) {
+            return;
         }
 
         //
-        // Loop over fragment MDLs. NDIS allows excess MDLs past the data length;
-        // ignore those, but allow trailing bytes in the final buffer.
+        // Go to the next NetBuffer.
         //
-        for (Mdl = Mdl->Next; Mdl != NULL && DataLength > 0; Mdl = Mdl->Next) {
-            //
-            // Check if the number of MDLs exceeds the maximum XDP fragments. If so,
-            // attempt to convert the MDL chain to a single flat buffer.
-            //
-            if (FragmentCount + 1ui32 > RxQueue->FragmentLimit) {
-                //
-                // Generic XDP reserves a single contiguous buffer for
-                // linearization; if a NB contains more than the maximum number
-                // of fragments (MDLs), copy the contents of the entire MDL
-                // chain into one contiguous buffer.
-                //
-                // If the contiguous buffer is already in use, flush the queue
-                // first.
-                //
-                if (RxQueue->FragmentBufferInUse) {
-                    return;
-                }
-
-                if (!XdpGenericReceiveLinearizeNb(RxQueue, *Nb)) {
-                    STAT_INC(&RxQueue->PcwStats, LinearizationFailures);
-                    goto Next;
-                }
-
-                //
-                // The NB was converted to a single, virtually-contiguous buffer,
-                // so abandon fragmentation and proceed to XDP inspection.
-                //
-                FragmentCount = 0;
-                break;
-            }
-
-            //
-            // Reserve XDP descriptor space for this MDL. If space does not exist,
-            // flush existing descriptors to create space.
-            //
-            if (++FragmentCount > XdpRingFree(FragmentRing)) {
-                return;
-            }
-
-            Buffer =
-                XdpRingGetElement(
-                    FragmentRing,
-                    (FragmentRing->ProducerIndex + FragmentCount - 1) & FragmentRing->Mask);
-
-            Buffer->DataOffset = 0;
-            Buffer->DataLength = min(Mdl->ByteCount, DataLength);
-            Buffer->BufferLength = Mdl->ByteCount;
-            DataLength -= Buffer->DataLength;
-
-            SystemVa = XdpGetVirtualAddressExtension(Buffer, &RxQueue->BufferVaExtension);
-            SystemVa->VirtualAddress =
-                MmGetSystemAddressForMdlSafe(Mdl, LowPagePriority | MdlMappingNoExecute);
-            if (SystemVa->VirtualAddress == NULL || XdpLwfFaultInject()) {
-                STAT_INC(&RxQueue->PcwStats, MappingFailures);
-                goto Next;
-            }
-        }
-
-        FragmentExtension = XdpGetFragmentExtension(Frame, &RxQueue->FragmentExtension);
-        FragmentExtension->FragmentBufferCount = FragmentCount;
-
-        //
-        // Store the original NB address so uninspected frames (e.g. those where
-        // virtual mappings failed) can be identified and dropped later.
-        //
-        InterfaceExtension =
-            XdpGetFrameInterfaceContextExtension(Frame, &RxQueue->FrameInterfaceContextExtension);
-        InterfaceExtension->Nb = *Nb;
-
-        //
-        // The NB has successfully been converted to XDP descriptors, so commit
-        // the descriptors to the XDP rings.
-        //
-        FragmentRing->ProducerIndex += FragmentCount;
-        FrameRing->ProducerIndex++;
-
-Next:
-
         *Nb = NET_BUFFER_NEXT_NB(*Nb);
-
         if (*Nb == NULL) {
             *Nbl = NET_BUFFER_LIST_NEXT_NBL(*Nbl);
 
@@ -1517,7 +1545,7 @@ Next:
                 *Nb = NET_BUFFER_LIST_FIRST_NB(*Nbl);
             }
         }
-    } while (*Nb != NULL && XdpRingFree(FrameRing) > FrameRingReservedCount);
+    } while (*Nb != NULL && XdpRingFree(RxQueue->FrameRing) > 0 && CanPend);
 }
 
 static
@@ -1539,8 +1567,14 @@ XdpGenericReceivePostInspectNbs(
 
     //
     // XDP must have inspected and returned all frames in the ring.
+    // In low resource scenarios, zero or one frames may have been
+    // added in the ring.
     //
     ASSERT(FrameRing->ConsumerIndex == FrameRing->ProducerIndex);
+    ASSERT(
+        CanPend ||
+        FrameRing->InterfaceReserved == FrameRing->ProducerIndex ||
+        FrameRing->InterfaceReserved == FrameRing->ProducerIndex - 1);
 
     while (NbHead != NbTail) {
         XDP_FRAME *Frame;
@@ -1603,6 +1637,11 @@ XdpGenericReceivePostInspectNbs(
         }
 
         //
+        // In low resource scenarios, only one NB should be processed at a time.
+        //
+        ASSERT(CanPend || NbHead == NbTail);
+
+        //
         // Now that we've finished dereferencing ActionNbl, apply the RX action.
         //
         if (ActionNbl != NULL) {
@@ -1628,7 +1667,15 @@ XdpGenericReceivePostInspectNbs(
         if (!CanPend) {
             //
             // Enforce NDIS low resources constraints on pass and return lists.
+            // In low resources scenarios, NDIS requires that the NBL chain is
+            // released inline and in the original order: we need to indicate
+            // NBLs up as we go.
+            //
             // N.B. This releases and reacquires the EC spinlock.
+            // To ensure the state of FrameRing is consistent for another thread
+            // use, all NBLs this thread added to the ring must have been processed
+            // before the lock is releaded. We enforce this by processing a single
+            // NB at a time in low resources scenario.
             //
             ASSERT(!RxQueue->Flags.TxInspect);
             ASSERT(FrameRing->InterfaceReserved == FrameRing->ProducerIndex);
@@ -1657,6 +1704,7 @@ XdpGenericReceiveInspect(
     NBL_QUEUE LowResourcesList;
     NET_BUFFER_LIST *NblHead, *NextNbl;
     NET_BUFFER *NbHead, *NextNb;
+    BOOLEAN InspectionNeeded = FALSE;
 
     ASSERT(NetBufferListChain != NULL);
 
@@ -1671,13 +1719,20 @@ XdpGenericReceiveInspect(
         //
         // Queue a batch of NBLs into the XDP receive ring for inspection.
         //
-        XdpGenericReceivePreInspectNbs(RxQueue, CanPend, &NextNbl, &NextNb);
+        XdpGenericReceivePreInspectNbs(RxQueue, CanPend, &NextNbl, &NextNb, &InspectionNeeded);
 
-        //
-        // Invoke XDP inspection. Use the dispatch table (indirect call) rather
-        // than a direct call since XDP may substitute for an optimized routine.
-        //
-        XdpReceiveThunk(XdpRxQueue);
+        EventWriteGenericRxInspectRingStart(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, !CanPend, RxQueue->FrameRing->ProducerIndex,
+            RxQueue->FrameRing->ConsumerIndex, RxQueue->FrameRing->InterfaceReserved,
+            NbHead, NextNb);
+
+        if (InspectionNeeded) {
+            //
+            // Invoke XDP inspection. Use the dispatch table (indirect call) rather
+            // than a direct call since XDP may substitute for an optimized routine.
+            //
+            XdpReceiveThunk(XdpRxQueue);
+        }
 
         //
         // Apply XDP actions from the XDP receive ring to the NBL chain.
@@ -1685,6 +1740,12 @@ XdpGenericReceiveInspect(
         XdpGenericReceivePostInspectNbs(
             RxQueue, PortNumber, CanPend, NblHead, NbHead, NextNb, PassList, DropList, TxList,
             &LowResourcesList);
+
+        EventWriteGenericRxInspectRingStop(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, !CanPend, RxQueue->FrameRing->ProducerIndex,
+            RxQueue->FrameRing->ConsumerIndex, RxQueue->FrameRing->InterfaceReserved,
+            NbHead, NextNb);
+
     } while (NextNb != NULL);
 }
 

@@ -315,6 +315,43 @@
                 outType="win:HexInt32"
                 />
           </template>
+          <template tid="tid_GenericRxInspectRing">
+            <data
+                inType="win:Pointer"
+                name="RxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt8"
+                name="LowResources"
+                outType="xs:boolean"
+                />
+            <data
+                inType="win:UInt32"
+                name="RingProducerIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="RingConsumerIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:UInt32"
+                name="RingResultIndex"
+                outType="win:HexInt32"
+                />
+            <data
+                inType="win:Pointer"
+                name="NetBufferHead"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="NetBufferTail"
+                outType="win:HexInt64"
+                />
+          </template>
         </templates>
         <events>
           <event
@@ -516,6 +553,26 @@
               template="tid_EbpfProgramFailure"
               value="20"
               />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Rx"
+              level="XdpPerFrame"
+              message="$(string.GenericRxInspectRingStart.EventMessage)"
+              opcode="GenericRxFilter"
+              symbol="GenericRxInspectRingStart"
+              template="tid_GenericRxInspectRing"
+              value="21"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Generic Rx"
+              level="XdpPerFrame"
+              message="$(string.GenericRxInspectRingStop.EventMessage)"
+              opcode="GenericRxFilter"
+              symbol="GenericRxInspectRingStop"
+              template="tid_GenericRxInspectRing"
+              value="22"
+              />
         </events>
       </provider>
     </events>
@@ -602,6 +659,14 @@
         <string
             id="EbpfProgramFailure.EventMessage"
             value="[ebpf][%1] program failed EbpfResult=%2"
+            />
+        <string
+            id="GenericRxInspectRingStart.EventMessage"
+            value="[gxrf][%1] Rx ring submitted for inspection LowResources=%2 RingProducerIndex=%3 RingConsumerIndex=%4 RingResultIndex=%5 NetBufferHead=%6 NetBufferTail=%7"
+            />
+        <string
+            id="GenericRxInspectRingStop.EventMessage"
+            value="[gxrf][%1] Rx ring inspection complete LowResources=%2 RingProducerIndex=%3 RingConsumerIndex=%4 RingResultIndex=%5 NetBufferHead=%6 NetBufferTail=%7"
             />
       </stringTable>
     </resources>

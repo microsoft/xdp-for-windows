@@ -38,6 +38,9 @@
 #define DEFAULT_TX_IO_SIZE 64
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
+#define DEFAULT_PRIORITY THREAD_PRIORITY_NORMAL
+#define DEFAULT_PRIORITY_CLASS NORMAL_PRIORITY_CLASS
+#define DEFAULT_WATCHDOG_USEC 0
 
 CHAR *HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -59,6 +62,9 @@ CHAR *HELP =
 "   -yield <count>     The number of yield instructions to execute after the\n"
 "                      thread performs no work.\n"
 "                      Default: " STR_OF(DEFAULT_YIELD_COUNT) "\n"
+"   -priority <num>    The thread priority.\n"
+"                      Default: " STR_OF(DEFAULT_PRIORITY) "\n"
+
 "\n"
 "QUEUE_PARAMS: \n"
 "   -id <queueid>      Required. The queue ID.\n"
@@ -98,6 +104,8 @@ CHAR *HELP =
 "                      Default: \"\"\n"
 "   -lat_count         Number of latency samples to collect\n"
 "                      Default: " STR_OF(DEFAULT_LAT_COUNT) "\n"
+"   -watchdog_usec     The datapath watchdog timeout in microseconds, or zero.\n"
+"                      Default: " STR_OF(DEFAULT_WATCHDOG_USEC) "\n"
 
 "\n"
 "OPTIONS: \n"
@@ -109,6 +117,9 @@ CHAR *HELP =
 "                      Default: " STR_OF(DEFAULT_UDP_DEST_PORT) "\n"
 "   -lp                Use large pages. Requires privileged account.\n"
 "                      Default: off\n"
+"   -priclass <class>  The priority class of the process.\n"
+"                      Default: " STR_OF(DEFAULT_PRIORITY_CLASS) "\n"
+
 "\n"
 "Examples\n"
 "   xskbench.exe rx -i 6 -t -q -id 0\n"
@@ -170,6 +181,8 @@ typedef struct {
     INT64 *latSamples;
     UINT32 latSamplesCount;
     UINT32 latIndex;
+    INT64 watchdogIntervalQpc;
+    LARGE_INTEGER watchdogLastQpc;
     XSK_POLL_MODE pollMode;
 
     struct {
@@ -210,6 +223,7 @@ typedef struct {
     UINT32 yieldCount;
     DWORD_PTR cpuAffinity;
     BOOLEAN wait;
+    INT priority;
 
     UINT32 queueCount;
     MY_QUEUE *queues;
@@ -851,6 +865,36 @@ NotifyDriver(
 }
 
 VOID
+UpdateWatchdog(
+    MY_QUEUE *Queue
+    )
+{
+    if (Queue->watchdogIntervalQpc > 0) {
+        VERIFY(QueryPerformanceCounter(&Queue->watchdogLastQpc));
+    }
+}
+
+VOID
+TestWatchdog(
+    MY_QUEUE *Queue
+    )
+{
+    if (Queue->watchdogIntervalQpc > 0) {
+        LARGE_INTEGER currentQpc;
+        VERIFY(QueryPerformanceCounter(&currentQpc));
+        if (currentQpc.QuadPart - Queue->watchdogLastQpc.QuadPart >= Queue->watchdogIntervalQpc) {
+            if (Queue->watchdogLastQpc.QuadPart > 0) {
+                DbgRaiseAssertionFailure();
+                printf_error("[%d] Watchdog timeout lastQpc:%lld currentQpc:%lld\n",
+                    Queue->queueId, Queue->watchdogLastQpc.QuadPart, currentQpc.QuadPart);
+            }
+
+            Queue->watchdogLastQpc = currentQpc;
+        }
+    }
+}
+
+VOID
 WriteFillPackets(
     MY_QUEUE *Queue,
     UINT32 FreeConsumerIndex,
@@ -907,6 +951,10 @@ ProcessRx(
 
         processed += available;
         Queue->packetCount += available;
+
+        UpdateWatchdog(Queue);
+    } else {
+        TestWatchdog(Queue);
     }
 
     available =
@@ -1040,6 +1088,10 @@ ProcessTx(
                 Queue->txRing.Size) {
             notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
         }
+
+        UpdateWatchdog(Queue);
+    } else {
+        TestWatchdog(Queue);
     }
 
     available =
@@ -1452,6 +1504,16 @@ PrintUsage(
     ABORT(HELP);
 }
 
+INT64
+UsToQpc(
+    _In_ INT64 Us
+    )
+{
+    LARGE_INTEGER FreqQpc;
+    VERIFY(QueryPerformanceFrequency(&FreqQpc));
+    return (Us * FreqQpc.QuadPart) / 1000000;
+}
+
 VOID
 ParseQueueArgs(
     MY_QUEUE *Queue,
@@ -1469,6 +1531,7 @@ ParseQueueArgs(
     Queue->flags.optimizePoking = TRUE;
     Queue->txiosize = DEFAULT_TX_IO_SIZE;
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
+    Queue->watchdogIntervalQpc = UsToQpc(DEFAULT_WATCHDOG_USEC);
 
     for (INT i = 0; i < argc; i++) {
         if (!_stricmp(argv[i], "-id")) {
@@ -1557,6 +1620,11 @@ ParseQueueArgs(
                 Usage();
             }
             Queue->latSamplesCount = atoi(argv[i]);
+        } else if (!strcmp(argv[i], "-watchdog_usec")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->watchdogIntervalQpc = UsToQpc(atoi(argv[i]));
         } else {
             Usage();
         }
@@ -1602,6 +1670,7 @@ ParseThreadArgs(
     Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
     Thread->group = DEFAULT_GROUP;
     Thread->yieldCount = DEFAULT_YIELD_COUNT;
+    Thread->priority = DEFAULT_PRIORITY;
 
     for (INT i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "-q")) {
@@ -1635,6 +1704,11 @@ ParseThreadArgs(
                 Usage();
             }
             Thread->yieldCount = atoi(argv[i]);
+        } else if (!_stricmp(argv[i], "-priority")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Thread->priority = strtol(argv[i], NULL, 0);
         } else if (Thread->queueCount == 0) {
             Usage();
         }
@@ -1680,6 +1754,7 @@ ParseArgs(
     INT i = 1;
     UINT32 threadCount = 0;
     MY_THREAD *threads = NULL;
+    DWORD priorityClass = DEFAULT_PRIORITY_CLASS;
 
     if (argc < 4) {
         Usage();
@@ -1722,6 +1797,11 @@ ParseArgs(
         } else if (!_stricmp(argv[i], "-lp")) {
             largePages = TRUE;
             EnableLargePages();
+        } else if (!_stricmp(argv[i], "-priclass")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            priorityClass = strtoul(argv[i], NULL, 0);
         } else if (threadCount == 0) {
             Usage();
         }
@@ -1736,6 +1816,8 @@ ParseArgs(
     if (threadCount == 0) {
         Usage();
     }
+
+    ASSERT_FRE(SetPriorityClass(GetCurrentProcess(), priorityClass));
 
     threads = calloc(threadCount, sizeof(*threads));
     ASSERT_FRE(threads != NULL);
@@ -1761,6 +1843,8 @@ SetThreadAffinities(
     MY_THREAD *Thread
     )
 {
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), Thread->priority));
+
     if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
         GROUP_AFFINITY group;
 

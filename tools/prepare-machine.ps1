@@ -121,11 +121,11 @@ function Download-eBpf-Nuget {
         [Parameter()]
         [string]$Platform
     )
-    # Download private eBPF Nuget package.
-    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.0.20.0"
-    $EbpfNugetBuild = ""
-    $EbpfNuget = "$EbpfNugetVersion$EbpfNugetBuild.nupkg"
-    $EbpfNugetUrl = "https://github.com/microsoft/xdp-for-windows/releases/download/main-prerelease/$EbpfNugetVersion$EbpfNugetBuild.nupkg"
+    # Download eBPF Nuget package.
+    $EbpfVersion = Get-EbpfVersion
+    $EbpfNugetVersion = "eBPF-for-Windows.$Platform.$EbpfVersion"
+    $EbpfNuget = "$EbpfNugetVersion.nupkg"
+    $EbpfNugetUrl = "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/$EbpfNuget"
     $EbpfNugetRestoreDir = "$RootDir/packages/$EbpfNugetVersion"
 
     if ($Force -and (Test-Path $NugetDir)) {
@@ -259,16 +259,7 @@ if ($Cleanup) {
     }
 } else {
     if ($ForBuild) {
-        if (!(Test-Path $NugetDir)) {
-            mkdir $NugetDir | Write-Verbose
-        }
-
-        if ($Platform -eq "arm64") {
-            # Download prerelease versions for arm64, and a matching x64 for
-            # local cross-compile (bpf2c) binaries.
-            Download-eBpf-Nuget -Platform arm64
-            Download-eBpf-Nuget -Platform x64
-        }
+        # There are currently no pre-build steps required.
     }
 
     if ($ForEbpfBuild) {
@@ -317,6 +308,12 @@ if ($Cleanup) {
         }
 
         Enable-CrashDumps
+        Download-Fn-Runtime
+        Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
+        $FnResult = & "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1" -ForTest -NoReboot
+        if ($null -ne $FnResult -and $FnResult -contains "RebootRequired" -and $FnResult["RebootRequired"]) {
+            $Reboot = $true
+        }
     }
 
     if ($ForPerfTest) {
@@ -345,6 +342,7 @@ if ($Cleanup) {
 if ($Reboot) {
     if ($RequireNoReboot) {
         Write-Error "Reboot required but disallowed"
+        Write-Info "If running in CI, it likely means the OS image used has a non-matching configuration."
     } elseif ($NoReboot) {
         Write-Verbose "Reboot required"
         return @{"RebootRequired" = $true}

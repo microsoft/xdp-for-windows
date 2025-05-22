@@ -342,7 +342,10 @@ XdpOffloadFilterStatusWorker(
         CONTAINING_RECORD(WorkItem, XDP_LWF_OFFLOAD_INSPECT_STATUS, WorkItem);
     XDP_LWF_FILTER *Filter = WorkItem->Filter;
 
-    TraceEnter(TRACE_LWF, "Filter=%p StatusIndication=%u", Filter, InspectRequest->StatusCode);
+    TraceEnter(
+        TRACE_LWF, "Filter=%p StatusCode=%u StatusBuffer=%!HEXDUMP!",
+        Filter, InspectRequest->StatusCode,
+        WppHexDump(InspectRequest->StatusBuffer, InspectRequest->StatusBufferSize));
 
     switch (InspectRequest->StatusCode) {
     case NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG:
@@ -366,7 +369,7 @@ XdpOffloadFilterStatus(
     XDP_LWF_OFFLOAD_INSPECT_STATUS *InspectRequest = NULL;
     NTSTATUS Status;
 
-    TraceEnter(TRACE_LWF, "Filter=%p StatusIndication=%u", Filter, StatusIndication->StatusCode);
+    TraceEnter(TRACE_LWF, "Filter=%p StatusCode=%u", Filter, StatusIndication->StatusCode);
 
     InspectRequest = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*InspectRequest), POOLTAG_OFFLOAD);
     if (InspectRequest == NULL) {
