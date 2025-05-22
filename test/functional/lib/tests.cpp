@@ -6658,6 +6658,21 @@ GenericTxChecksumOffloadConfig()
 
     TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
 
+    OptionLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, NULL, &OptionLength));
+    TEST_TRUE(OptionLength >= XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1);
+
+    OptionLength = 1;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+            &OptionLength));
+    TEST_TRUE(OptionLength == 0);
+
     OptionLength = sizeof(ChecksumConfig);
     GetSockopt(
         Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
@@ -8419,6 +8434,7 @@ GenericXskQueryAffinity()
                 XskRingConsumerRelease(&Socket.Rings.Rx, 1);
                 TEST_TRUE(XskRingAffinityChanged(&Socket.Rings.Rx));
 
+                ProcNumberSize = sizeof(ProcNumber);
                 GetSockopt(
                     Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &ProcNumber,
                     &ProcNumberSize);
@@ -8449,6 +8465,7 @@ GenericXskQueryAffinity()
 
                 TEST_TRUE(XskRingAffinityChanged(&Socket.Rings.Tx));
 
+                ProcNumberSize = sizeof(ProcNumber);
                 GetSockopt(
                     Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &ProcNumber,
                     &ProcNumberSize);
