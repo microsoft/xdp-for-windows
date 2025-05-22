@@ -180,7 +180,7 @@ XDP_STATUS
 XskGetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
-    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
+    _Out_writes_bytes_opt_(*OptionLength) VOID *OptionValue,
     _Inout_ UINT32 *OptionLength
     )
 {
@@ -204,7 +204,7 @@ XskIoctl(
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
     _In_ UINT32 InputLength,
-    _Out_writes_bytes_(*OutputLength) VOID *OutputValue,
+    _Out_writes_bytes_opt_(*OutputLength) VOID *OutputValue,
     _Inout_ UINT32 *OutputLength
     )
 {
