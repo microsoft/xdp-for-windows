@@ -6437,7 +6437,7 @@ GenericRxChecksumOffloadIp() {
             &LocalHw, AF_INET, &RemoteIp, &LocalIp, RemotePort, LocalPort));
 
     // Inject the frame as if it came from the wire
-    MpRxEnqueueFrame(GenericMp, &RxFrame);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
 
     // Flush RX path to make frame visible to the socket
     MpRxFlush(GenericMp);
