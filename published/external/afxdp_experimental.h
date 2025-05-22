@@ -103,6 +103,48 @@ typedef enum _XSK_POLL_MODE {
 //
 #define XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM 1004
 
+//
+// XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION
+//
+// Supports: get
+// Optval type: UINT16
+// Description: Gets the XDP_FRAME_CHECKSUM descriptor extension for the RX
+//              frame ring. This requires the socket is bound, the RX ring size
+//              is set. The returned value is the offset of the
+//              XDP_FRAME_CHECKSUM structure from the start of each RX descriptor.
+//
+#define XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION 1005
+
+//
+// XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION
+//
+// Supports: get
+// Optval type: UINT16
+// Description: Gets the XDP_FRAME_LAYOUT descriptor extension for the RX frame
+//              ring. This requires the socket is bound, the RX ring size is
+//              set, and at least one socket option has enabled the frame layout
+//              extension. The returned value is the offset of the
+//              XDP_FRAME_LAYOUT structure from the start of each RX descriptor.
+//
+#define XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION 1006
+
+//
+// XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM
+//
+// Supports: set
+// Optval type: UINT32
+// Description: Sets whether checksum receive offload is enabled. This
+//              option requires the socket is bound and the RX frame ring size
+//              is not set. This option enables the XDP_FRAME_LAYOUT and
+//              XDP_FRAME_CHECKSUM extensions on the RX frame ring.
+//              If the socket is bound to a queue that has already been
+//              activated by another socket without enabling checksum offload,
+//              then enabling the offload on another socket is currently not
+//              supported. Disabling the offload after is has been enabled is
+//              also currently not supported.
+//
+#define XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM 1007
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
