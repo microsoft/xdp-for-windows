@@ -6428,10 +6428,11 @@ GenericRxChecksumOffloadIp() {
     UCHAR UdpPayload[] = "GenericRxChecksumOffloadIp";
     RX_FRAME RxFrame;
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
     DATA_BUFFER Buffer = {0};
     Buffer.DataOffset = 0;
-    Buffer.DataLength = sizeof(UdpFrame);
-    Buffer.BufferLength = sizeof(UdpFrame);
+    Buffer.DataLength = UdpFrameLength;
+    Buffer.BufferLength = UdpFrameLength;
     Buffer.VirtualAddress = UdpFrame;
 
     RxInitializeFrame(&RxFrame, If.GetQueueId(), &Buffer);
