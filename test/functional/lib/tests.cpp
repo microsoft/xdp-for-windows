@@ -8434,6 +8434,7 @@ GenericXskQueryAffinity()
                 XskRingConsumerRelease(&Socket.Rings.Rx, 1);
                 TEST_TRUE(XskRingAffinityChanged(&Socket.Rings.Rx));
 
+                ProcNumberSize = sizeof(ProcNumber);
                 GetSockopt(
                     Socket.Handle.get(), XSK_SOCKOPT_RX_PROCESSOR_AFFINITY, &ProcNumber,
                     &ProcNumberSize);
@@ -8464,6 +8465,7 @@ GenericXskQueryAffinity()
 
                 TEST_TRUE(XskRingAffinityChanged(&Socket.Rings.Tx));
 
+                ProcNumberSize = sizeof(ProcNumber);
                 GetSockopt(
                     Socket.Handle.get(), XSK_SOCKOPT_TX_PROCESSOR_AFFINITY, &ProcNumber,
                     &ProcNumberSize);
