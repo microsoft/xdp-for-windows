@@ -184,10 +184,7 @@ XskGetSockopt(
     _Inout_ UINT32 *OptionLength
     )
 {
-    XDP_STATUS Res;
-    DWORD BytesReturned;
-
-    Res =
+    return
         _XdpIoctl(
             Socket,
             IOCTL_XSK_GET_SOCKOPT,
@@ -195,16 +192,9 @@ XskGetSockopt(
             sizeof(OptionName),
             OptionValue,
             *OptionLength,
-            &BytesReturned,
+            (ULONG *)OptionLength,
             NULL,
             FALSE);
-    if (XDP_FAILED(Res)) {
-        return Res;
-    }
-
-    *OptionLength = BytesReturned;
-
-    return Res;
 }
 
 inline
