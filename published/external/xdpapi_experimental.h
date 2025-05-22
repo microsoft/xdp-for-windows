@@ -178,14 +178,20 @@ typedef struct _XDP_CHECKSUM_CONFIGURATION {
     XDP_OBJECT_HEADER Header;
 
     //
-    // Indicates whether checksum offload is enabled.
+    // Indicates whether basic checksum offloads are enabled.
+    // Includes RX and TX (as appropriate for a queue) IPv4,
+    // UDP, and TCP checksums.
     //
     BOOLEAN Enabled;
+    //
+    // Indicates whether TCP header options are enabled.
+    //
+    BOOLEAN TcpOptions;
 } XDP_CHECKSUM_CONFIGURATION;
 
 #define XDP_CHECKSUM_CONFIGURATION_REVISION_1 1
 #define XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1 \
-    RTL_SIZEOF_THROUGH_FIELD(XDP_CHECKSUM_CONFIGURATION, Enabled)
+    RTL_SIZEOF_THROUGH_FIELD(XDP_CHECKSUM_CONFIGURATION, TcpOptions)
 
 typedef enum _XDP_QUIC_OPERATION {
     XDP_QUIC_OPERATION_ADD,     // Add (or modify) a QUIC connection offload

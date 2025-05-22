@@ -453,6 +453,22 @@ XdpProgramTrace(
                 Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
             break;
 
+        case XDP_MATCH_INNER_IPV4_DST_MASK_UDP:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_INNER_IPV4_DST_MASK_UDP Ip=%!IPADDR! Mask=%!IPADDR!",
+                Program, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr,
+                Rule->Pattern.IpMask.Mask.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_INNER_IPV6_DST_MASK_UDP:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_INNER_IPV6_DST_MASK_UDP Ip=%!IPV6ADDR! Mask=%!IPV6ADDR!",
+                Program, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte,
+                Rule->Pattern.IpMask.Mask.Ipv6.u.Byte);
+            break;
+
         case XDP_MATCH_QUIC_FLOW_SRC_CID:
             TraceInfo(
                 TRACE_CORE,

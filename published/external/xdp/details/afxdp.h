@@ -180,10 +180,23 @@ XDP_STATUS
 XskGetSockopt(
     _In_ HANDLE Socket,
     _In_ UINT32 OptionName,
-    _Out_writes_bytes_(*OptionLength) VOID *OptionValue,
+    _Out_writes_bytes_opt_(*OptionLength) VOID *OptionValue,
     _Inout_ UINT32 *OptionLength
     )
 {
+#if defined(XDP_API_VERSION) && (XDP_API_VERSION >= XDP_API_VERSION_3)
+    return
+        _XdpIoctl(
+            Socket,
+            IOCTL_XSK_GET_SOCKOPT,
+            &OptionName,
+            sizeof(OptionName),
+            OptionValue,
+            *OptionLength,
+            (ULONG *)OptionLength,
+            NULL,
+            FALSE);
+#else
     XDP_STATUS Res;
     DWORD BytesReturned;
 
@@ -205,6 +218,7 @@ XskGetSockopt(
     *OptionLength = BytesReturned;
 
     return Res;
+#endif
 }
 
 inline
@@ -214,7 +228,7 @@ XskIoctl(
     _In_ UINT32 OptionName,
     _In_reads_bytes_opt_(InputLength) const VOID *InputValue,
     _In_ UINT32 InputLength,
-    _Out_writes_bytes_(*OutputLength) VOID *OutputValue,
+    _Out_writes_bytes_opt_(*OutputLength) VOID *OutputValue,
     _Inout_ UINT32 *OutputLength
     )
 {

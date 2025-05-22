@@ -102,6 +102,16 @@ typedef enum _XDP_MATCH_TYPE {
     // The port number is specified by field NextHeader in XDP_MATCH_PATTERN.
     //
     XDP_MATCH_IP_NEXT_HEADER,
+    //
+    // Match IPv4 UDP frames based on their destination address of inner IP header, using an IP address mask.
+    // The address mask is specified by field IpMask in XDP_MATCH_PATTERN.
+    //
+    XDP_MATCH_INNER_IPV4_DST_MASK_UDP,
+    //
+    // Match IPv6 UDP frames based on their destination address of inner IP header, using an IP address mask.
+    // The address mask is specified by field IpMask in XDP_MATCH_PATTERN.
+    //
+    XDP_MATCH_INNER_IPV6_DST_MASK_UDP,
 } XDP_MATCH_TYPE;
 ```
 

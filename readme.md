@@ -8,6 +8,7 @@ used to send and receive packets at high rates by bypassing most of the OS netwo
 ## Documentation
 
 * [Usage](./docs/usage.md)
+* [Architecture](./docs/architecture.md)
 * [Development](./docs/development.md)
 * [AF_XDP API](./docs/afxdp.md)
 * [Release and Support](./docs/release.md)

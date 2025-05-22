@@ -98,7 +98,7 @@ typedef enum _XSK_POLL_MODE {
 // XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM
 //
 // Supports: get
-// Optval type: UINT32
+// Optval type: XDP_CHECKSUM_CONFIGURATION
 // Description: Returns the TX queue's current checksum offload configuration.
 //
 #define XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM 1004
