@@ -184,6 +184,7 @@ XskGetSockopt(
     _Inout_ UINT32 *OptionLength
     )
 {
+#if defined(XDP_API_VERSION) && (XDP_API_VERSION >= XDP_API_VERSION_3)
     return
         _XdpIoctl(
             Socket,
@@ -195,6 +196,29 @@ XskGetSockopt(
             (ULONG *)OptionLength,
             NULL,
             FALSE);
+#else
+    XDP_STATUS Res;
+    DWORD BytesReturned;
+
+    Res =
+        _XdpIoctl(
+            Socket,
+            IOCTL_XSK_GET_SOCKOPT,
+            &OptionName,
+            sizeof(OptionName),
+            OptionValue,
+            *OptionLength,
+            &BytesReturned,
+            NULL,
+            FALSE);
+    if (XDP_FAILED(Res)) {
+        return Res;
+    }
+
+    *OptionLength = BytesReturned;
+
+    return Res;
+#endif
 }
 
 inline
