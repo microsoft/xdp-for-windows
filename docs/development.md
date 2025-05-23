@@ -28,6 +28,9 @@ git submodule update --init --recursive
     - C++ Clang Compiler for Windows
 - [NuGet Windows x86 Commandline](https://www.nuget.org/downloads)
   - Version 6.3.1 or higher is required by the eBPF-for-Windows project.
+- [Windows WDK and matching SDK](https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
+  - Version 10.0.26100.3323 is required to build eBPF programs, including tests. This prerequisite will eventually be [removed](https://github.com/microsoft/ebpf-for-windows/issues/4379) by the eBPF project.
+  - The standalone SDK and WDK are not required to build the XDP runtime.
 
 ### Building
 
