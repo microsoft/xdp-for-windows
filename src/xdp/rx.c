@@ -86,6 +86,8 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
+    BOOLEAN IsChecksumOffloadEnabled;
+
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
     PCW_INSTANCE *PcwInstance;
 
@@ -617,6 +619,17 @@ XdpRxQueueIsTxActionSupported(
     return RxQueue->InterfaceRxCapabilities.TxActionSupported;
 }
 
+BOOLEAN
+XdpRxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+
+    return RxQueue->IsChecksumOffloadEnabled;
+}
+
+
 static
 CONST XDP_HOOK_ID *
 XdppRxQueueGetHookId(
@@ -658,6 +671,7 @@ static const XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch =
     .GetFragmentRing            = XdpRxQueueGetFragmentRing,
     .GetExtension               = XdpRxQueueGetExtension,
     .IsVirtualAddressEnabled    = XdpRxQueueIsVirtualAddressEnabled,
+    .IsChecksumOffloadEnabled   = XdpRxQueueIsChecksumOffloadEnabled,
 };
 
 static
@@ -1129,6 +1143,41 @@ XdpRxQueueDeregisterNotifications(
         RemoveEntryList(&NotifyEntry->Link);
         InitializeListHead(&NotifyEntry->Link);
     }
+}
+
+NTSTATUS
+XdpRxQueueEnableChecksumOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+
+    if (RxQueue->IsChecksumOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (RxQueue->State == XdpTxQueueStateCreated) {
+        if (RxQueue->InterfaceTxCapabilities.ChecksumOffload) {
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+            RxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID

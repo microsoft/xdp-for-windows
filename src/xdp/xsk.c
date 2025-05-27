@@ -3781,6 +3781,19 @@ XskSetTxOffloadChecksumWorker(
 }
 
 static
+VOID
+XskSetRxOffloadChecksumWorker(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
+    XSK *Xsk = WorkItem->Xsk;
+
+    WorkItem->CompletionStatus = XdpRxQueueEnableChecksumOffload(Xsk->Rx.Xdp.Queue);
+    KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
+}
+
+static
 NTSTATUS
 XskSockoptSetTxOffloadChecksum(
     _In_ XSK *Xsk,
@@ -3861,6 +3874,103 @@ XskSockoptSetTxOffloadChecksum(
     XdpExtensionSetEnableEntry(Xsk->Tx.FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
 
     Xsk->Tx.OffloadFlags.Checksum = TRUE;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
+NTSTATUS
+XskSockoptSetRxOffloadChecksum(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    )
+{
+    NTSTATUS Status;
+    const VOID *SockoptIn;
+    UINT32 SockoptInSize;
+    UINT32 Enabled;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+    BOOLEAN IsPushLockHeld = FALSE;
+    XSK_BINDING_WORKITEM WorkItem = {0};
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    //
+    // This is a nested buffer not copied by IO manager, so it needs special care.
+    //
+    SockoptIn = Sockopt->InputBuffer;
+    SockoptInSize = Sockopt->InputBufferLength;
+
+    if (SockoptInSize < sizeof(Enabled)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    __try {
+        if (RequestorMode != KernelMode) {
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
+        }
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    if (Xsk->State != XskBound) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (Xsk->Rx.OffloadFlags.Checksum || Xsk->Rx.Xdp.Queue == NULL ||
+        Xsk->Rx.Ring.Size != 0 || Xsk->Rx.CompletionRing.Size != 0) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (!Enabled) {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    KeInitializeEvent(&WorkItem.CompletionEvent, NotificationEvent, FALSE);
+    WorkItem.Xsk = Xsk;
+    WorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
+    WorkItem.IfWorkItem.WorkRoutine = XskSetRxOffloadChecksumWorker;
+    XdpIfQueueWorkItem(&WorkItem.IfWorkItem);
+
+    KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    IsLockHeld = FALSE;
+
+    KeWaitForSingleObject(&WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(WorkItem.CompletionStatus)) {
+        Status = WorkItem.CompletionStatus;
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    XdpExtensionSetEnableEntry(Xsk->Rx.FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+    XdpExtensionSetEnableEntry(Xsk->Rx.FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+
+    Xsk->Rx.OffloadFlags.Checksum = TRUE;
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -4603,7 +4713,7 @@ XskIrpSetSockopt(
         Status = XskSockoptSetTxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
         break;
     case XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM:
-        // TODO: Implement in a follow up PR
+        Status = XskSockoptSetRxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
         break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
