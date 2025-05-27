@@ -96,6 +96,7 @@ typedef struct _XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH {
     XDP_RX_QUEUE_GET_RING                   *GetFragmentRing;
     XDP_RX_QUEUE_GET_EXTENSION              *GetExtension;
     XDP_RX_QUEUE_ACTIVATE_IS_ENABLED        *IsVirtualAddressEnabled;
+    XDP_RX_QUEUE_ACTIVATE_IS_ENABLED        *IsChecksumOffloadEnabled;
 } XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH;
 
 #define XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1 1

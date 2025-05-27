@@ -3940,7 +3940,7 @@ XskSockoptSetRxOffloadChecksum(
         goto Exit;
     }
     if (Xsk->Rx.OffloadFlags.Checksum || Xsk->Rx.Xdp.Queue == NULL ||
-        Xsk->Rx.Ring.Size != 0 || Xsk->Rx.CompletionRing.Size != 0) {
+        Xsk->Rx.Ring.Size != 0 || Xsk->Rx.FillRing.Size != 0) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }

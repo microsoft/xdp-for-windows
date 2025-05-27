@@ -15,6 +15,7 @@ static UINT32 XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
 typedef enum _XDP_RX_QUEUE_STATE {
     XdpRxQueueStateUnbound,
     XdpRxQueueStateActive,
+    XdpRxQueueStateCreated,
 } XDP_RX_QUEUE_STATE;
 
 typedef struct _XDP_RX_QUEUE_KEY {
@@ -1024,6 +1025,7 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
+    RxQueue->State = XdpRxQueueStateCreated;
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
@@ -1160,8 +1162,8 @@ XdpRxQueueEnableChecksumOffload(
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
-    } else if (RxQueue->State == XdpTxQueueStateCreated) {
-        if (RxQueue->InterfaceTxCapabilities.ChecksumOffload) {
+    } else if (RxQueue->State == XdpRxQueueStateCreated) {
+        if (RxQueue->InterfaceRxCapabilities.ChecksumOffload) {
             XdpExtensionSetEnableEntry(
                 RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
             XdpExtensionSetEnableEntry(
