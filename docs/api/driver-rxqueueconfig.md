@@ -180,4 +180,13 @@ BOOLEAN
 XdpRxQueueIsVirtualAddressEnabled(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
+
+//
+// Returns whether checksum offload is enabled.
+//
+BOOLEAN
+XdpRxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
 ```

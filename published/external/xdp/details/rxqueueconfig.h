@@ -204,4 +204,19 @@ XDPEXPORT(XdpRxQueueIsVirtualAddressEnabled)(
     return Details->Dispatch->IsVirtualAddressEnabled(RxQueueConfig);
 }
 
+inline
+BOOLEAN
+XDPEXPORT(XdpRxQueueIsChecksumOffloadEnabled)(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS *Details = (XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS *)RxQueueConfig;
+    if (Details->Dispatch->Header.Revision == XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1 &&
+        Details->Dispatch->Header.Size >= RTL_SIZEOF_THROUGH_FIELD(XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH, IsChecksumOffloadEnabled)) {
+        return Details->Dispatch->IsChecksumOffloadEnabled(RxQueueConfig);
+    } else {
+        return FALSE;
+    }
+}
+
 EXTERN_C_END
