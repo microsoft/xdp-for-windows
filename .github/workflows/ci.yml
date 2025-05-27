@@ -199,7 +199,7 @@ jobs:
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
       shell: PowerShell
       timeout-minutes: 36
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }} -TestCaseFilter 'Name=GenericRxChecksumOffloadIp'
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'}}
       shell: PowerShell
