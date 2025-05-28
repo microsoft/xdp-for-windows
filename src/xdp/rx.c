@@ -1088,6 +1088,9 @@ XdpRxQueueFind(
     RxQueue = XdpRxQueueFromBindingEntry(ClientEntry);
     XdpRxQueueReference(RxQueue);
 
+    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE; // TODO: Bad place to set this. Figure out where
+                                                             //       and how it should be set.
+
     return RxQueue;
 }
 
