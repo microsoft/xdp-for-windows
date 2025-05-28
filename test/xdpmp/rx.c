@@ -600,16 +600,6 @@ MpXdpCreateRxQueue(
 
     XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.RxAction);
 
-    XdpInitializeExtensionInfo(
-        &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
-        XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
-    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
-
-    XdpInitializeExtensionInfo(
-        &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
-        XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
-    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
-
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     RxCapabilities.Header.Size = sizeof(RxCapabilities); // TODO: Do we need this? Why wasn't this set before?
     RxCapabilities.TxActionSupported = TRUE;
