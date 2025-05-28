@@ -6591,7 +6591,9 @@ GenericRxChecksumOffloadIp() {
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
 
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for IP.
