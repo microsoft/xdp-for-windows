@@ -15,7 +15,6 @@ static UINT32 XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
 typedef enum _XDP_RX_QUEUE_STATE {
     XdpRxQueueStateUnbound,
     XdpRxQueueStateActive,
-    XdpRxQueueStateCreated,
 } XDP_RX_QUEUE_STATE;
 
 typedef struct _XDP_RX_QUEUE_KEY {
@@ -1025,7 +1024,7 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
-    RxQueue->State = XdpRxQueueStateCreated;
+    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE; // TODO: Remove?
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
@@ -1087,9 +1086,6 @@ XdpRxQueueFind(
 
     RxQueue = XdpRxQueueFromBindingEntry(ClientEntry);
     XdpRxQueueReference(RxQueue);
-
-    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE; // TODO: Bad place to set this. Figure out where
-                                                             //       and how it should be set.
 
     return RxQueue;
 }
@@ -1165,7 +1161,7 @@ XdpRxQueueEnableChecksumOffload(
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
-    } else if (RxQueue->State == XdpRxQueueStateCreated) {
+    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
         if (RxQueue->InterfaceRxCapabilities.ChecksumOffload) {
             XdpExtensionSetEnableEntry(
                 RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
