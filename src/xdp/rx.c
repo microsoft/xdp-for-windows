@@ -1042,6 +1042,14 @@ XdpRxQueueCreate(
     }
 
     Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+            &RxQueue->FrameExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
         XdpIfRegisterClient(
             Binding, &RxQueueBindingClient, &RxQueue->Key, &RxQueue->BindingClientEntry);
     if (!NT_SUCCESS(Status)) {
