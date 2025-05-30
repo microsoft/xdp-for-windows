@@ -824,7 +824,7 @@ BufferTooSmall:
 
 static
 BOOLEAN
-XdpTestBit(
+XdpTestBitNoFence(
     _In_ const UINT8 *BitMap,
     _In_ UINT32 Index
     )
@@ -1071,7 +1071,7 @@ XdpInspect(
                     &FrameCache, &Program->FrameStorage);
             }
             if (FrameCache.UdpValid &&
-                XdpTestBit(Rule->Pattern.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
+                XdpTestBitNoFence(Rule->Pattern.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
                 Matched = TRUE;
             }
             break;
@@ -1087,7 +1087,7 @@ XdpInspect(
                     &FrameCache.Ip4Hdr->DestinationAddress,
                     &Rule->Pattern.IpPortSet.Address.Ipv4) &&
                 FrameCache.UdpValid &&
-                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
+                XdpTestBitNoFence(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
                 Matched = TRUE;
             }
             break;
@@ -1103,7 +1103,7 @@ XdpInspect(
                     &FrameCache.Ip6Hdr->DestinationAddress,
                     &Rule->Pattern.IpPortSet.Address.Ipv6) &&
                 FrameCache.UdpValid &&
-                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
+                XdpTestBitNoFence(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.UdpHdr->uh_dport)) {
                 Matched = TRUE;
             }
             break;
@@ -1119,7 +1119,7 @@ XdpInspect(
                     &FrameCache.Ip4Hdr->DestinationAddress,
                     &Rule->Pattern.IpPortSet.Address.Ipv4) &&
                 FrameCache.TcpValid &&
-                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
+                XdpTestBitNoFence(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
                 Matched = TRUE;
             }
             break;
@@ -1135,7 +1135,7 @@ XdpInspect(
                     &FrameCache.Ip6Hdr->DestinationAddress,
                     &Rule->Pattern.IpPortSet.Address.Ipv6) &&
                 FrameCache.TcpValid &&
-                XdpTestBit(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
+                XdpTestBitNoFence(Rule->Pattern.IpPortSet.PortSet.PortSet, FrameCache.TcpHdr->th_dport)) {
                 Matched = TRUE;
             }
             break;

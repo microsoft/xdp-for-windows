@@ -549,7 +549,7 @@ XskBounceBuffer(
         // behavior is undefined if the buffer is modified while IO is
         // outstanding. Ignore any writes to the buffer once an IO is in flight.
         //
-        RtlCopyMemory(
+        RtlCopyVolatileMemory(
             Bounce->Mapping.SystemAddress + RelativeAddress + Buffer->DataOffset,
             Umem->Mapping.SystemAddress + RelativeAddress + Buffer->DataOffset,
             Buffer->DataLength);
@@ -4948,6 +4948,7 @@ XskReceiveSingleFrame(
 
     XSK_FRAME_DESCRIPTOR *XskFrame;
     XSK_BUFFER_DESCRIPTOR *XskBuffer;
+    XSK_BUFFER_ADDRESS XskBufferAddress;
 
     RingIndex =
         (ReadUInt32NoFence(&Xsk->Rx.FillRing.Shared->ConsumerIndex) + FillOffset) &
@@ -4968,7 +4969,8 @@ XskReceiveSingleFrame(
     CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.ChunkSize - UmemOffset);
 
     if (!XskGlobals.RxZeroCopy) {
-        RtlCopyMemory(UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
+        RtlCopyVolatileMemory(
+            UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
     }
     if (CopyLength < Buffer->DataLength) {
         //
@@ -4987,7 +4989,7 @@ XskReceiveSingleFrame(
             CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.ChunkSize - UmemOffset);
 
             if (!XskGlobals.RxZeroCopy) {
-                RtlCopyMemory(
+                RtlCopyVolatileMemory(
                     UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
             }
 
@@ -5007,10 +5009,12 @@ XskReceiveSingleFrame(
             Xsk->Rx.Ring.Mask;
     XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
     XskBuffer = &XskFrame->Buffer;
-    XskBuffer->Address.BaseAddress = UmemAddress;
+
+    XskBufferAddress.BaseAddress = UmemAddress;
     ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
-    XskBuffer->Address.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
-    XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
+    XskBufferAddress.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
+    WriteUInt64NoFence(&XskBuffer->Address.AddressAndOffset, XskBufferAddress.AddressAndOffset);
+    WriteUInt32NoFence(&XskBuffer->Length, UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength);
 
     ++*CompletionOffset;
 }
