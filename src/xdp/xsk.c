@@ -549,7 +549,7 @@ XskBounceBuffer(
         // behavior is undefined if the buffer is modified while IO is
         // outstanding. Ignore any writes to the buffer once an IO is in flight.
         //
-        RtlCopyMemory(
+        RtlCopyVolatileMemory(
             Bounce->Mapping.SystemAddress + RelativeAddress + Buffer->DataOffset,
             Umem->Mapping.SystemAddress + RelativeAddress + Buffer->DataOffset,
             Buffer->DataLength);
@@ -4968,7 +4968,8 @@ XskReceiveSingleFrame(
     CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.ChunkSize - UmemOffset);
 
     if (!XskGlobals.RxZeroCopy) {
-        RtlCopyMemory(UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
+        RtlCopyVolatileMemory(
+            UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
     }
     if (CopyLength < Buffer->DataLength) {
         //
@@ -4987,7 +4988,7 @@ XskReceiveSingleFrame(
             CopyLength = min(Buffer->DataLength, Xsk->Umem->Reg.ChunkSize - UmemOffset);
 
             if (!XskGlobals.RxZeroCopy) {
-                RtlCopyMemory(
+                RtlCopyVolatileMemory(
                     UmemChunk + UmemOffset, Va->VirtualAddress + Buffer->DataOffset, CopyLength);
             }
 
