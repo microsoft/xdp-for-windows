@@ -4948,6 +4948,7 @@ XskReceiveSingleFrame(
 
     XSK_FRAME_DESCRIPTOR *XskFrame;
     XSK_BUFFER_DESCRIPTOR *XskBuffer;
+    XSK_BUFFER_ADDRESS XskBufferAddress;
 
     RingIndex =
         (ReadUInt32NoFence(&Xsk->Rx.FillRing.Shared->ConsumerIndex) + FillOffset) &
@@ -5008,10 +5009,12 @@ XskReceiveSingleFrame(
             Xsk->Rx.Ring.Mask;
     XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
     XskBuffer = &XskFrame->Buffer;
-    XskBuffer->Address.BaseAddress = UmemAddress;
+
+    XskBufferAddress.BaseAddress = UmemAddress;
     ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
-    XskBuffer->Address.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
-    XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
+    XskBufferAddress.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
+    WriteUInt64NoFence(&XskBuffer->Address.AddressAndOffset, XskBufferAddress.AddressAndOffset);
+    WriteUInt32NoFence(&XskBuffer->Length, UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength);
 
     ++*CompletionOffset;
 }
