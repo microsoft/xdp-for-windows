@@ -86,6 +86,8 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
+    BOOLEAN IsChecksumOffloadEnabled;
+
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
     PCW_INSTANCE *PcwInstance;
 
@@ -379,6 +381,20 @@ static const XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
         .Size                   = 0,
         .Alignment              = __alignof(UCHAR),
     },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+    },
 };
 
 static const XDP_EXTENSION_REGISTRATION XdpRxBufferExtensions[] = {
@@ -458,7 +474,9 @@ XdpRxQueueSetCapabilities(
     FRE_ASSERT(Capabilities->Header.Revision >= XDP_RX_CAPABILITIES_REVISION_1);
     FRE_ASSERT(Capabilities->Header.Size >= XDP_SIZEOF_RX_CAPABILITIES_REVISION_1);
 
-    RxQueue->InterfaceRxCapabilities = *Capabilities;
+    RtlCopyMemory(
+        &RxQueue->InterfaceRxCapabilities, Capabilities,
+        sizeof(RxQueue->InterfaceRxCapabilities));
 
     //
     // XDP programs require a system virtual address. Ensure the driver has
@@ -617,6 +635,17 @@ XdpRxQueueIsTxActionSupported(
     return RxQueue->InterfaceRxCapabilities.TxActionSupported;
 }
 
+BOOLEAN
+XdpRxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+
+    return RxQueue->IsChecksumOffloadEnabled;
+}
+
+
 static
 CONST XDP_HOOK_ID *
 XdppRxQueueGetHookId(
@@ -658,6 +687,7 @@ static const XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch =
     .GetFragmentRing            = XdpRxQueueGetFragmentRing,
     .GetExtension               = XdpRxQueueGetExtension,
     .IsVirtualAddressEnabled    = XdpRxQueueIsVirtualAddressEnabled,
+    .IsChecksumOffloadEnabled   = XdpRxQueueIsChecksumOffloadEnabled,
 };
 
 static
@@ -1010,6 +1040,7 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
+    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE; // TODO: Remove?
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
@@ -1022,6 +1053,14 @@ XdpRxQueueCreate(
     }
 
     Status = XdpPcwCreateRxQueue(&RxQueue->PcwInstance, &Name, &RxQueue->PcwStats);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+            &RxQueue->FrameExtensionSet);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1129,6 +1168,41 @@ XdpRxQueueDeregisterNotifications(
         RemoveEntryList(&NotifyEntry->Link);
         InitializeListHead(&NotifyEntry->Link);
     }
+}
+
+NTSTATUS
+XdpRxQueueEnableChecksumOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+
+    if (RxQueue->IsChecksumOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
+        if (RxQueue->InterfaceRxCapabilities.ChecksumOffload) {
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+            RxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID
