@@ -476,7 +476,7 @@ XdpRxQueueSetCapabilities(
 
     RtlCopyMemory(
         &RxQueue->InterfaceRxCapabilities, Capabilities,
-        min(Capabilities->Header.Size, sizeof(RxQueue->InterfaceRxCapabilities)));
+        sizeof(RxQueue->InterfaceRxCapabilities));
 
     //
     // XDP programs require a system virtual address. Ensure the driver has
