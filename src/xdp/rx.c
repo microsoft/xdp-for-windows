@@ -474,7 +474,9 @@ XdpRxQueueSetCapabilities(
     FRE_ASSERT(Capabilities->Header.Revision >= XDP_RX_CAPABILITIES_REVISION_1);
     FRE_ASSERT(Capabilities->Header.Size >= XDP_SIZEOF_RX_CAPABILITIES_REVISION_1);
 
-    RxQueue->InterfaceRxCapabilities = *Capabilities;
+    RtlCopyMemory(
+        &RxQueue->InterfaceRxCapabilities, Capabilities,
+        min(Capabilities->Header.Size, sizeof(RxQueue->InterfaceRxCapabilities)));
 
     //
     // XDP programs require a system virtual address. Ensure the driver has
