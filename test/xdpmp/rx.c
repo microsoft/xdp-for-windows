@@ -601,7 +601,6 @@ MpXdpCreateRxQueue(
     XdpRxQueueRegisterExtensionVersion(Config, &MpSupportedXdpExtensions.RxAction);
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
-    RxCapabilities.Header.Size = sizeof(RxCapabilities); // TODO: Do we need this? Why wasn't this set before?
     RxCapabilities.TxActionSupported = TRUE;
     RxCapabilities.ChecksumOffload = TRUE; // TODO: Verify if this is indeed supported.
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
