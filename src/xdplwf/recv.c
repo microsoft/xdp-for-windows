@@ -2340,12 +2340,6 @@ XdpGenericRxDeleteQueueEntry(
     if (RxQueue->FragmentBuffer != NULL) {
         ExFreePoolWithTag(RxQueue->FragmentBuffer, POOLTAG_RECV);
     }
-    if (RxQueue->FrameRing != NULL) {
-        ExFreePoolWithTag(Ring, XDP_POOLTAG_RING);
-    }
-    if (RxQueue->FragmentRing != NULL) {
-        ExFreePoolWithTag(RxQueue->FragmentRing, XDP_POOLTAG_RING);
-    }
     XdpGenericRxFreeNblCloneCache(
         (NET_BUFFER_LIST *)InterlockedFlushSList(&RxQueue->TxCloneNblSList));
     XdpGenericRxFreeNblCloneCache(RxQueue->TxCloneNblList);
