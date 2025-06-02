@@ -807,23 +807,6 @@ XdpRxQueueAttachInterface(
     ASSERT(RxQueue->InterfaceRxQueue == NULL);
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
-
-    Status =
-        XdpExtensionSetCreate(
-            XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
-            &RxQueue->FrameExtensionSet);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
-    Status =
-        XdpExtensionSetCreate(
-            XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
-            &RxQueue->BufferExtensionSet);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
     RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
 
     Status =
