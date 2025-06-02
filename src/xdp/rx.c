@@ -1372,6 +1372,26 @@ XdpRxQueueDereference(
             PcwCloseInstance(RxQueue->PcwInstance);
             RxQueue->PcwInstance = NULL;
         }
+
+        if (RxQueue->FragmentRing != NULL) {
+            XdpRingFreeRing(RxQueue->FragmentRing);
+            RxQueue->FragmentRing = NULL;
+        }
+
+        if (RxQueue->FrameRing != NULL) {
+            XdpRingFreeRing(RxQueue->FrameRing);
+            RxQueue->FrameRing = NULL;
+        }
+
+        if (RxQueue->BufferExtensionSet != NULL) {
+            XdpExtensionSetCleanup(RxQueue->BufferExtensionSet);
+            RxQueue->BufferExtensionSet = NULL;
+        }
+
+        if (RxQueue->FrameExtensionSet != NULL) {
+            XdpExtensionSetCleanup(RxQueue->FrameExtensionSet);
+            RxQueue->FrameExtensionSet = NULL;
+        }
         ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
     }
 }
