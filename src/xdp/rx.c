@@ -1066,6 +1066,14 @@ XdpRxQueueCreate(
     }
 
     Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
+            &RxQueue->BufferExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
         XdpIfRegisterClient(
             Binding, &RxQueueBindingClient, &RxQueue->Key, &RxQueue->BindingClientEntry);
     if (!NT_SUCCESS(Status)) {
