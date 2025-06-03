@@ -24,7 +24,6 @@ inputs:
     type: string
     default: '2022'
     # options:
-    #   - 2019
     #   - 2022
     #   - Prerelease
   id:

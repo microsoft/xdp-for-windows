@@ -21,7 +21,6 @@ on:
         type: string
         default: '2022'
         # options:
-        #   - 2019
         #   - 2022
       platform:
         required: false
