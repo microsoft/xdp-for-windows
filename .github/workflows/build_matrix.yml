@@ -27,9 +27,6 @@ jobs:
         os: [2022]
         config: [Release, Debug]
         platform: [x64, arm64]
-        exclude:
-        - os: 2019
-          platform: arm64
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}
