@@ -602,7 +602,6 @@ MpXdpCreateRxQueue(
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     RxCapabilities.TxActionSupported = TRUE;
-    RxCapabilities.ChecksumOffload = TRUE; // TODO: Verify if this is indeed supported.
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeExclusivePollInfo(&PollInfo, AdapterQueue->NdisPollHandle);
