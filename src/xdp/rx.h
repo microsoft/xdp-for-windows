@@ -61,6 +61,11 @@ XdpRxQueueDeregisterNotifications(
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry
     );
 
+NTSTATUS
+XdpRxQueueEnableChecksumOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 VOID
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue

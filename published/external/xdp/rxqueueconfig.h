@@ -27,6 +27,7 @@ typedef struct _XDP_RX_CAPABILITIES {
     UINT16 ReceiveFrameCountHint;
     UINT8 MaximumFragments;
     BOOLEAN TxActionSupported;
+    BOOLEAN ChecksumOffload;
 } XDP_RX_CAPABILITIES;
 
 #define XDP_RX_CAPABILITIES_REVISION_1 1
@@ -113,6 +114,11 @@ XdpRxQueueGetExtension(
 
 BOOLEAN
 XdpRxQueueIsVirtualAddressEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
+BOOLEAN
+XdpRxQueueIsChecksumOffloadEnabled(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
 
