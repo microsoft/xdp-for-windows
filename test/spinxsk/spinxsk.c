@@ -1677,22 +1677,22 @@ FuzzSocketMisc(
         XskGetSockopt(Sock, Option, &Extension, &optSize);
     }
 
-    // if (RandUlong() % 2) {
-    //     UINT16 Extension;
-    //     UINT32 Option = 0;
+    if (RandUlong() % 2) {
+        UINT16 Extension;
+        UINT32 Option = 0;
 
-    //     switch (RandUlong() % 2) {
-    //     case 0:
-    //         Option = XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION;
-    //         break;
-    //     case 1:
-    //         Option = XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION;
-    //         break;
-    //     }
+        switch (RandUlong() % 2) {
+        case 0:
+            Option = XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION;
+            break;
+        case 1:
+            Option = XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION;
+            break;
+        }
 
-    //     optSize = sizeof(Extension);
-    //     XskGetSockopt(Sock, Option, &Extension, &optSize);
-    // }
+        optSize = sizeof(Extension);
+        XskGetSockopt(Sock, Option, &Extension, &optSize);
+    }
 
     if (RandUlong() % 2) {
         XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
