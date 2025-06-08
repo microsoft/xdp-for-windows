@@ -2241,7 +2241,6 @@ XdpGenericRxCreateQueue(
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     RxCapabilities.MaximumFragments = RxQueue->FragmentLimit;
     RxCapabilities.TxActionSupported = TRUE;
-    RxCapabilities.ChecksumOffload = TRUE; // TODO: Verify if this is indeed supported.
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeRxDescriptorContexts(&DescriptorContexts);
