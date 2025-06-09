@@ -478,6 +478,27 @@ XdpRxQueueSetCapabilities(
         &RxQueue->InterfaceRxCapabilities, Capabilities,
         sizeof(RxQueue->InterfaceRxCapabilities));
 
+
+    if (RxQueue->FrameExtensionSet == NULL) {
+        Status =
+            XdpExtensionSetCreate(
+                XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+                &RxQueue->FrameExtensionSet);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    }
+
+    if (RxQueue->BufferExtensionSet == NULL) {
+        Status =
+            XdpExtensionSetCreate(
+                XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
+                &RxQueue->BufferExtensionSet);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+    }
+
     //
     // XDP programs require a system virtual address. Ensure the driver has
     // registered the capability and enable the extension.
