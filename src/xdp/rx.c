@@ -480,28 +480,6 @@ XdpRxQueueSetCapabilities(
         &RxQueue->InterfaceRxCapabilities, Capabilities,
         sizeof(RxQueue->InterfaceRxCapabilities));
 
-    NTSTATUS Status;
-    if (RxQueue->FrameExtensionSet == NULL) {
-        RxQueue->IsChecksumOffloadEnabled = FALSE;
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
-                &RxQueue->FrameExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            FRE_ASSERT(FALSE);
-        }
-    }
-
-    if (RxQueue->BufferExtensionSet == NULL) {
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
-                &RxQueue->BufferExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            FRE_ASSERT(FALSE);
-        }
-    }
-
     //
     // XDP programs require a system virtual address. Ensure the driver has
     // registered the capability and enable the extension.
@@ -1070,7 +1048,8 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
-    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE; // TODO: Remove?
+    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE;
+    RxQueue->IsChecksumOffloadEnabled = FALSE;
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
@@ -1216,6 +1195,27 @@ XdpRxQueueEnableChecksumOffload(
     NTSTATUS Status;
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+
+    if (RxQueue->FrameExtensionSet == NULL) {
+        RxQueue->IsChecksumOffloadEnabled = FALSE;
+        Status =
+            XdpExtensionSetCreate(
+                XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+                &RxQueue->FrameExtensionSet);
+        if (!NT_SUCCESS(Status)) {
+            return Status;
+        }
+    }
+
+    if (RxQueue->BufferExtensionSet == NULL) {
+        Status =
+            XdpExtensionSetCreate(
+                XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
+                &RxQueue->BufferExtensionSet);
+        if (!NT_SUCCESS(Status)) {
+            return Status;
+        }
+    }
 
     if (RxQueue->IsChecksumOffloadEnabled) {
         ASSERT(XdpExtensionSetIsExtensionEnabled(
