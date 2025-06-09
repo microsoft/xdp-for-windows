@@ -15,6 +15,8 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     XDP_EXTENSION RxActionExtension;
     XDP_EXTENSION FragmentExtension;
     XDP_EXTENSION FrameInterfaceContextExtension;
+    XDP_EXTENSION FrameLayoutExtension;
+    XDP_EXTENSION FrameChecksumExtension;
     XDP_PCW_LWF_RX_QUEUE PcwStats;
     NDIS_HANDLE TxCloneNblPool;
     UINT32 TxCloneCacheLimit;
@@ -67,6 +69,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
         BOOLEAN TxInspectInline: 1;
         BOOLEAN TxInspectWorker : 1;
         BOOLEAN TxInspectNeedFlush : 1;
+        BOOLEAN ChecksumOffloadEnabled : 1;
     } Flags;
     UINT32 QueueId;
     LIST_ENTRY Link;
