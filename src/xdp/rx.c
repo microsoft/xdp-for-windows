@@ -478,7 +478,7 @@ XdpRxQueueSetCapabilities(
         &RxQueue->InterfaceRxCapabilities, Capabilities,
         sizeof(RxQueue->InterfaceRxCapabilities));
 
-
+    NTSTATUS Status;
     if (RxQueue->FrameExtensionSet == NULL) {
         Status =
             XdpExtensionSetCreate(
