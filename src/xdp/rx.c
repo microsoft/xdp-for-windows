@@ -387,6 +387,7 @@ static const XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = sizeof(XDP_FRAME_LAYOUT),
         .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+        .InternalExtension      = TRUE,
     },
     {
         .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
@@ -394,6 +395,7 @@ static const XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = sizeof(XDP_FRAME_CHECKSUM),
         .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalExtension      = TRUE,
     },
 };
 
@@ -480,6 +482,7 @@ XdpRxQueueSetCapabilities(
 
     NTSTATUS Status;
     if (RxQueue->FrameExtensionSet == NULL) {
+        RxQueue->IsChecksumOffloadEnabled = FALSE;
         Status =
             XdpExtensionSetCreate(
                 XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
@@ -831,6 +834,7 @@ XdpRxQueueAttachInterface(
 
 
     if (RxQueue->FrameExtensionSet == NULL) {
+        RxQueue->IsChecksumOffloadEnabled = FALSE;
         Status =
             XdpExtensionSetCreate(
                 XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
