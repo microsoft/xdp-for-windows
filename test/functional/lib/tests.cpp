@@ -6612,21 +6612,16 @@ GenericRxChecksumOffloadIp() {
 
     // Construct a valid IPv4 + UDP frame with a valid IP checksum
     UCHAR UdpPayload[] = "GenericRxChecksumOffloadIp";
-    RX_FRAME RxFrame;
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
     UINT32 UdpFrameLength = sizeof(UdpFrame);
-    DATA_BUFFER Buffer = {0};
-    Buffer.DataOffset = 0;
-    Buffer.DataLength = UdpFrameLength;
-    Buffer.BufferLength = UdpFrameLength;
-    Buffer.VirtualAddress = UdpFrame;
-
-    RxInitializeFrame(&RxFrame, If.GetQueueId(), &Buffer);
 
     TEST_TRUE(
         PktBuildUdpFrame(
-            &RxFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &RemoteHw,
-            &LocalHw, AF_INET, &RemoteIp, &LocalIp, RemotePort, LocalPort));
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    RX_FRAME RxFrame;
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
 
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
