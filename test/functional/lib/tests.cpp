@@ -6630,6 +6630,7 @@ GenericRxChecksumOffloadIp() {
     MpRxFlush(GenericMp);
 
     UINT32 ConsumerIndex;
+    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
 
     XSK_BUFFER_DESCRIPTOR *RxDesc = SocketGetRxDesc(&Xsk, ConsumerIndex++);
