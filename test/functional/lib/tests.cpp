@@ -6626,6 +6626,11 @@ GenericRxChecksumOffloadIp() {
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
 
+    //
+    // Produce one XSK fill descriptor.
+    //
+    SocketProduceRxFill(&Xsk, 1);
+
     // Flush RX path to make frame visible to the socket
     MpRxFlush(GenericMp);
 
