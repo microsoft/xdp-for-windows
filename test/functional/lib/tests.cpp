@@ -6603,6 +6603,9 @@ GenericRxChecksumOffloadIp() {
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
 
+    Xsk.RxProgram =
+        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
     LocalPort = htons(1234);
     RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
