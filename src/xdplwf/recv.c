@@ -1736,43 +1736,40 @@ XdpGenericReceiveInspect(
         }
 
         if (RxQueue->Flags.ChecksumOffloadEnabled) {
-            NET_BUFFER *CurrNb = NbHead;
             UINT32 CurrIndex = StartIndex;
-            UINT32 EndIndex = RxQueue->FrameRing->ProducerIndex;
             UINT32 Mask = RxQueue->FrameRing->Mask;
+            UINT32 EndIndex = RxQueue->FrameRing->ProducerIndex;
 
-            while (CurrNb != NextNb && CurrIndex != EndIndex) {
-                NET_BUFFER_LIST *CurrNbl = NET_BUFFER_LIST_FROM_NB(CurrNb);
-                 NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+            for (NET_BUFFER_LIST *nbl = NblHead; nbl != NextNbl; nbl = NET_BUFFER_LIST_NEXT_NBL(nbl)) {
+                NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
                     (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
-                        &NET_BUFFER_LIST_INFO(CurrNbl, TcpIpChecksumNetBufferListInfo);
-                XDP_FRAME *Frame = XdpRingGetElement(RxQueue->FrameRing, CurrIndex & Mask);
-                const XDP_FRAME_CHECKSUM *FrameChecksum =
-                    XdpGetChecksumExtension(Frame, &RxQueue->FrameChecksumExtension);
+                        &NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
 
-                // Record the checksum metadata to Frame Checksum extension based on CheckSumInfo.
-                ((XDP_FRAME_CHECKSUM *)FrameChecksum)->IsValid = TRUE;
+                for (NET_BUFFER *nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb)) {
+                    if (CurrIndex == EndIndex) {
+                        // Something went wrong — frame and NB count out of sync
+                        break;
+                    }
+                    XDP_FRAME *frame = XdpRingGetElement(RxQueue->FrameRing, CurrIndex & Mask);
+                    XDP_FRAME_CHECKSUM *csumExt =
+                        (XDP_FRAME_CHECKSUM *)XdpGetChecksumExtension(frame, &RxQueue->FrameChecksumExtension);
 
-                // Layer 3 (IP)
-                if (ChecksumInfo->Receive.IpChecksumFailed) {
-                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer3 = XdpFrameRxChecksumEvaluationFailed;
-                } else if (ChecksumInfo->Receive.IpChecksumSucceeded) {
-                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer3 = XdpFrameRxChecksumEvaluationSucceeded;
-                } else {
-                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer3 = XdpFrameRxChecksumEvaluationNotChecked;
+                    csumExt->IsValid = TRUE;
+
+                    csumExt->Layer3 =
+                        ChecksumInfo->Receive.IpChecksumFailed     ? XdpFrameRxChecksumEvaluationFailed :
+                        ChecksumInfo->Receive.IpChecksumSucceeded  ? XdpFrameRxChecksumEvaluationSucceeded :
+                                                                    XdpFrameRxChecksumEvaluationNotChecked;
+
+                    csumExt->Layer4 =
+                        (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed)
+                            ? XdpFrameRxChecksumEvaluationFailed
+                        : (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded)
+                            ? XdpFrameRxChecksumEvaluationSucceeded
+                        : XdpFrameRxChecksumEvaluationNotChecked;
+
+                    CurrIndex++;
                 }
-
-                // Layer 4 (TCP/UDP)
-                if (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed) {
-                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer4 = XdpFrameRxChecksumEvaluationFailed;
-                } else if (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded) {
-                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer4 = XdpFrameRxChecksumEvaluationSucceeded;
-                } else {
-                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer4 = XdpFrameRxChecksumEvaluationNotChecked;
-                }
-
-                CurrNb = NET_BUFFER_NEXT_NB(CurrNb);
-                CurrIndex++;
             }
         }
 
