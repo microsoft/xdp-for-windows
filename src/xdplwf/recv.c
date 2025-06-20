@@ -1716,6 +1716,7 @@ XdpGenericReceiveInspect(
         NblHead = NextNbl;
         NbHead = NextNb;
 
+        UINT32 StartIndex = RxQueue->FrameRing->ProducerIndex;
         //
         // Queue a batch of NBLs into the XDP receive ring for inspection.
         //
@@ -1732,6 +1733,47 @@ XdpGenericReceiveInspect(
             // than a direct call since XDP may substitute for an optimized routine.
             //
             XdpReceiveThunk(XdpRxQueue);
+        }
+
+        if (RxQueue->Flags.ChecksumOffloadEnabled) {
+            NET_BUFFER *CurrNb = NbHead;
+            UINT32 CurrIndex = StartIndex;
+            UINT32 EndIndex = RxQueue->FrameRing->ProducerIndex;
+            UINT32 Mask = RxQueue->FrameRing->Mask;
+
+            while (CurrNb != NextNb && CurrIndex != EndIndex) {
+                NET_BUFFER_LIST *CurrNbl = NET_BUFFER_LIST_FROM_NB(CurrNb);
+                 NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+                    (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+                        &NET_BUFFER_LIST_INFO(CurrNbl, TcpIpChecksumNetBufferListInfo);
+                XDP_FRAME *Frame = XdpRingGetElement(RxQueue->FrameRing, CurrIndex & Mask);
+                const XDP_FRAME_CHECKSUM *FrameChecksum =
+                    XdpGetChecksumExtension(Frame, &RxQueue->FrameChecksumExtension);
+
+                // Record the checksum metadata to Frame Checksum extension based on CheckSumInfo.
+                ((XDP_FRAME_CHECKSUM *)FrameChecksum)->IsValid = TRUE;
+
+                // Layer 3 (IP)
+                if (ChecksumInfo->Receive.IpChecksumFailed) {
+                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer3 = XdpFrameRxChecksumEvaluationFailed;
+                } else if (ChecksumInfo->Receive.IpChecksumSucceeded) {
+                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer3 = XdpFrameRxChecksumEvaluationSucceeded;
+                } else {
+                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer3 = XdpFrameRxChecksumEvaluationNotChecked;
+                }
+
+                // Layer 4 (TCP/UDP)
+                if (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed) {
+                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer4 = XdpFrameRxChecksumEvaluationFailed;
+                } else if (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded) {
+                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer4 = XdpFrameRxChecksumEvaluationSucceeded;
+                } else {
+                    ((XDP_FRAME_CHECKSUM *)FrameChecksum)->Layer4 = XdpFrameRxChecksumEvaluationNotChecked;
+                }
+
+                CurrNb = NET_BUFFER_NEXT_NB(CurrNb);
+                CurrIndex++;
+            }
         }
 
         //
