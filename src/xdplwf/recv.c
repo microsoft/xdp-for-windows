@@ -1754,8 +1754,6 @@ XdpGenericReceiveInspect(
                     XDP_FRAME_CHECKSUM *csumExt =
                         (XDP_FRAME_CHECKSUM *)XdpGetChecksumExtension(frame, &RxQueue->FrameChecksumExtension);
 
-                    csumExt->IsValid = TRUE;
-
                     csumExt->Layer3 =
                         ChecksumInfo->Receive.IpChecksumFailed     ? XdpFrameRxChecksumEvaluationFailed :
                         ChecksumInfo->Receive.IpChecksumSucceeded  ? XdpFrameRxChecksumEvaluationSucceeded :
