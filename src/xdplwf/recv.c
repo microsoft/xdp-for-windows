@@ -1716,6 +1716,7 @@ XdpGenericReceiveInspect(
         NblHead = NextNbl;
         NbHead = NextNb;
 
+        UINT32 StartIndex = RxQueue->FrameRing->ProducerIndex;
         //
         // Queue a batch of NBLs into the XDP receive ring for inspection.
         //
@@ -1732,6 +1733,42 @@ XdpGenericReceiveInspect(
             // than a direct call since XDP may substitute for an optimized routine.
             //
             XdpReceiveThunk(XdpRxQueue);
+        }
+
+        if (RxQueue->Flags.ChecksumOffloadEnabled) {
+            UINT32 CurrIndex = StartIndex;
+            UINT32 Mask = RxQueue->FrameRing->Mask;
+            UINT32 EndIndex = RxQueue->FrameRing->ProducerIndex;
+
+            for (NET_BUFFER_LIST *nbl = NblHead; nbl != NextNbl; nbl = NET_BUFFER_LIST_NEXT_NBL(nbl)) {
+                NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+                    (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+                        &NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
+
+                for (NET_BUFFER *nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb)) {
+                    if (CurrIndex == EndIndex) {
+                        // Something went wrong — frame and NB count out of sync
+                        break;
+                    }
+                    XDP_FRAME *frame = XdpRingGetElement(RxQueue->FrameRing, CurrIndex & Mask);
+                    XDP_FRAME_CHECKSUM *csumExt =
+                        (XDP_FRAME_CHECKSUM *)XdpGetChecksumExtension(frame, &RxQueue->FrameChecksumExtension);
+
+                    csumExt->Layer3 =
+                        ChecksumInfo->Receive.IpChecksumFailed     ? XdpFrameRxChecksumEvaluationFailed :
+                        ChecksumInfo->Receive.IpChecksumSucceeded  ? XdpFrameRxChecksumEvaluationSucceeded :
+                                                                    XdpFrameRxChecksumEvaluationNotChecked;
+
+                    csumExt->Layer4 =
+                        (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed)
+                            ? XdpFrameRxChecksumEvaluationFailed
+                        : (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded)
+                            ? XdpFrameRxChecksumEvaluationSucceeded
+                        : XdpFrameRxChecksumEvaluationNotChecked;
+
+                    CurrIndex++;
+                }
+            }
         }
 
         //
@@ -2226,11 +2263,22 @@ XdpGenericRxCreateQueue(
         XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
     RxQueue->FragmentLimit = RECV_MAX_FRAGMENTS;
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
     RxCapabilities.MaximumFragments = RxQueue->FragmentLimit;
     RxCapabilities.TxActionSupported = TRUE;
+    RxCapabilities.ChecksumOffload = TRUE;
     XdpRxQueueSetCapabilities(Config, &RxCapabilities);
 
     XdpInitializeRxDescriptorContexts(&DescriptorContexts);
@@ -2275,6 +2323,7 @@ XdpGenericRxActivateQueue(
 
     RxQueue->FrameRing = XdpRxQueueGetFrameRing(Config);
     RxQueue->FragmentRing = XdpRxQueueGetFragmentRing(Config);
+    RxQueue->Flags.ChecksumOffloadEnabled = XdpRxQueueIsChecksumOffloadEnabled(Config);
 
     ASSERT(RxQueue->FrameRing->InterfaceReserved == RxQueue->FrameRing->ProducerIndex);
 
@@ -2298,6 +2347,18 @@ XdpGenericRxActivateQueue(
         &ExtensionInfo, XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_NAME,
         XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameInterfaceContextExtension);
+
+    if (RxQueue->Flags.ChecksumOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameLayoutExtension);
+
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameChecksumExtension);
+    }
 
     WritePointerRelease(&RxQueue->XdpRxQueue, XdpRxQueue);
 
