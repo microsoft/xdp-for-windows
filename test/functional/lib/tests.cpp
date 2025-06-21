@@ -1712,12 +1712,12 @@ RxFrameSetChecksumOffloadState(
     _In_ ULONG IpChecksumFailed
     )
 {
-    Frame->Frame.Input.Checksum.TcpChecksumSucceeded = TcpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.TcpChecksumFailed = TcpChecksumFailed;
-    Frame->Frame.Input.Checksum.UdpChecksumSucceeded = UdpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.UdpChecksumFailed = UdpChecksumFailed;
-    Frame->Frame.Input.Checksum.IpChecksumSucceeded = IpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.IpChecksumFailed = IpChecksumFailed;
+    Frame->Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TcpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.Receive.TcpChecksumFailed = TcpChecksumFailed;
+    Frame->Frame.Input.Checksum.Receive.UdpChecksumSucceeded = UdpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.Receive.UdpChecksumFailed = UdpChecksumFailed;
+    Frame->Frame.Input.Checksum.Receive.IpChecksumSucceeded = IpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.Receive.IpChecksumFailed = IpChecksumFailed;
 }
 
 static
