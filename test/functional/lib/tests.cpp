@@ -1702,6 +1702,26 @@ RxInitializeFrame(
 
 static
 VOID
+RxFrameSetChecksumOffloadState(
+    _Out_ RX_FRAME *Frame,
+    _In_ ULONG TcpChecksumSucceeded,
+    _In_ ULONG TcpChecksumFailed,
+    _In_ ULONG UdpChecksumSucceeded,
+    _In_ ULONG UdpChecksumFailed,
+    _In_ ULONG IpChecksumSucceeded,
+    _In_ ULONG IpChecksumFailed
+    )
+{
+    Frame->Frame.Input.Checksum.TcpChecksumSucceeded = TcpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.TcpChecksumFailed = TcpChecksumFailed;
+    Frame->Frame.Input.Checksum.UdpChecksumSucceeded = UdpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.UdpChecksumFailed = UdpChecksumFailed;
+    Frame->Frame.Input.Checksum.IpChecksumSucceeded = IpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.IpChecksumFailed = IpChecksumFailed;
+}
+
+static
+VOID
 RxInitializeFrame(
     _Out_ RX_FRAME *Frame,
     _In_ UINT32 HashQueueId,
@@ -6624,7 +6644,9 @@ GenericRxChecksumOffloadIp() {
             &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     RX_FRAME RxFrame;
+
     RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    RxFrameSetChecksumOffloadState(&RxFrame, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE);
 
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
