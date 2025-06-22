@@ -1398,16 +1398,6 @@ SocketGetRxFillDesc(
 }
 
 static
-XSK_BUFFER_DESCRIPTOR *
-SocketGetRxDesc(
-    _In_ const MY_SOCKET *Socket,
-    _In_ UINT32 Index
-    )
-{
-    return (XSK_BUFFER_DESCRIPTOR *)XskRingGetElement(&Socket->Rings.Rx, Index);
-}
-
-static
 XSK_FRAME_DESCRIPTOR *
 SocketGetTxFrameDesc(
     _In_ const MY_SOCKET *Socket,
@@ -1415,6 +1405,16 @@ SocketGetTxFrameDesc(
     )
 {
     return (XSK_FRAME_DESCRIPTOR *)XskRingGetElement(&Socket->Rings.Tx, Index);
+}
+
+static
+XSK_FRAME_DESCRIPTOR *
+SocketGetRxFrameDesc(
+    _In_ const MY_SOCKET *Socket,
+    _In_ UINT32 Index
+    )
+{
+    return (XSK_FRAME_DESCRIPTOR *)XskRingGetElement(&Socket->Rings.Rx, Index);
 }
 
 static
@@ -1431,6 +1431,22 @@ SocketGetTxDesc(
     C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0);
 
     return &SocketGetTxFrameDesc(Socket, Index)->Buffer;
+}
+
+static
+XSK_BUFFER_DESCRIPTOR *
+SocketGetRxDesc(
+    _In_ const MY_SOCKET *Socket,
+    _In_ UINT32 Index
+    )
+{
+    //
+    // For legacy/simple applications, the RX ring can be defined simply as a
+    // buffer, and the frame descriptor is simply a higher level abstraction.
+    //
+    C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0);
+
+    return &SocketGetRxFrameDesc(Socket, Index)->Buffer;
 }
 
 static
@@ -6663,7 +6679,7 @@ GenericRxChecksumOffloadIp() {
     ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
 
-    XSK_BUFFER_DESCRIPTOR *RxDesc = SocketGetRxDesc(&Xsk, ConsumerIndex++);
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
 
     // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
