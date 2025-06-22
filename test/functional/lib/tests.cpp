@@ -6666,11 +6666,8 @@ GenericRxChecksumOffloadIp() {
 
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
-
-    //
-    // Produce one XSK fill descriptor.
-    //
-    SocketProduceRxFill(&Xsk, 1);
+    // Flush RX path to make frame visible to the socket
+    MpRxFlush(GenericMp);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
@@ -6685,9 +6682,6 @@ GenericRxChecksumOffloadIp() {
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
 
     printf("Xsk.Extensions.RxFrameChecksumExtension: %u\n", Xsk.Extensions.RxFrameChecksumExtension);
-
-    // Flush RX path to make frame visible to the socket
-    MpRxFlush(GenericMp);
 
     TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer4);
