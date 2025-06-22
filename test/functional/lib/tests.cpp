@@ -6585,7 +6585,7 @@ GenericTxChecksumOffloadIp()
 
     UINT32 ProducerIndex;
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
-
+    printf("ProducerIndex: %u\n", ProducerIndex);
     XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex++);
     TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
     TxDesc->Buffer.Length = UdpFrameLength;
@@ -6599,7 +6599,6 @@ GenericTxChecksumOffloadIp()
     Layout->Layer4HeaderLength = 0;
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameChecksumExtension);
-    printf("Checksum Pointer: %p\n", Checksum);
     printf("Xsk.Extensions.TxFrameChecksumExtension: %u\n", Xsk.Extensions.TxFrameChecksumExtension);
     Checksum->Layer3 = XdpFrameTxChecksumActionRequired;
     Checksum->Layer4 = XdpFrameTxChecksumActionPassthrough;
@@ -6662,24 +6661,16 @@ GenericRxChecksumOffloadIp() {
             &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     RX_FRAME RxFrame;
-
     RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     RxFrameSetChecksumOffloadState(&RxFrame, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE);
 
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
 
-    //
-    // Produce one XSK fill descriptor.
-    //
-    SocketProduceRxFill(&Xsk, 1);
-
-    // Flush RX path to make frame visible to the socket
-    MpRxFlush(GenericMp);
-
     UINT32 ConsumerIndex;
-    ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    printf("ConsumerIndex: %u\n", ConsumerIndex);
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
@@ -6688,8 +6679,10 @@ GenericRxChecksumOffloadIp() {
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
 
-    printf("Checksum Pointer: %p\n", Checksum);
     printf("Xsk.Extensions.RxFrameChecksumExtension: %u\n", Xsk.Extensions.RxFrameChecksumExtension);
+
+    // Flush RX path to make frame visible to the socket
+    MpRxFlush(GenericMp);
 
     TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer4);
