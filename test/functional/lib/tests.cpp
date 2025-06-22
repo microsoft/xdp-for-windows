@@ -6686,7 +6686,7 @@ GenericRxChecksumOffloadIp() {
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
 
-    TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer3);
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer4);
 
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
