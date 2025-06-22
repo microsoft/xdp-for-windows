@@ -6667,6 +6667,11 @@ GenericRxChecksumOffloadIp() {
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
 
+    //
+    // Produce one XSK fill descriptor.
+    //
+    SocketProduceRxFill(&Xsk, 1);
+
     UINT32 ConsumerIndex;
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
 
