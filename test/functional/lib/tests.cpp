@@ -6599,6 +6599,8 @@ GenericTxChecksumOffloadIp()
     Layout->Layer4HeaderLength = 0;
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameChecksumExtension);
+    printf("Checksum Pointer: %p\n", Checksum);
+    printf("Xsk.Extensions.TxFrameChecksumExtension: %u\n", Xsk.Extensions.TxFrameChecksumExtension);
     Checksum->Layer3 = XdpFrameTxChecksumActionRequired;
     Checksum->Layer4 = XdpFrameTxChecksumActionPassthrough;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
