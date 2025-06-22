@@ -1318,7 +1318,7 @@ XskSetupPreActivate(
         OptionLength = sizeof(Socket->Extensions.RxFrameChecksumExtension);
         GetSockopt(
             Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION,
-            &Socket->Extensions.TxFrameChecksumExtension, &OptionLength);
+            &Socket->Extensions.RxFrameChecksumExtension, &OptionLength);
     }
 }
 
@@ -6680,6 +6680,7 @@ GenericRxChecksumOffloadIp() {
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
+    TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
 
     // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
