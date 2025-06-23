@@ -6680,7 +6680,7 @@ GenericRxChecksumOffloadIp() {
 
     printf("ConsumerIndex: %u\n", ConsumerIndex);
 
-    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, 1);
     TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
 
     // Get and validate checksum metadata
