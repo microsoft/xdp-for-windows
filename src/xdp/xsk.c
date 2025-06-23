@@ -83,6 +83,8 @@ typedef struct _XSK_RX_XDP {
     XDP_EXTENSION VaExtension;
     XDP_EXTENSION FragmentExtension;
     XDP_EXTENSION RxActionExtension;
+    XDP_EXTENSION LayoutExtension;
+    XDP_EXTENSION ChecksumExtension;
     NDIS_POLL_BACKCHANNEL *PollHandle;
     struct {
         UINT8 NotificationsRegistered : 1;
@@ -5177,6 +5179,35 @@ XskReceiveSingleFrame(
                 STAT_INC(XdpRxQueueGetStats(Xsk->Rx.Xdp.Queue), XskFramesTruncated);
                 break;
             }
+        }
+    }
+
+    if (Xsk->Rx.OffloadFlags != 0) {
+        if (Xsk->Rx.LayoutExtensionOffset != 0) {
+            XDP_FRAME_LAYOUT *XdpLayout =
+                XdpGetLayoutExtension(Frame, &Xsk->Rx.Xdp.LayoutExtension);
+            const XDP_FRAME_LAYOUT *XskLayout =
+                RTL_PTR_ADD(XskFrame, Xsk->Rx.LayoutExtensionOffset);
+            C_ASSERT(sizeof(*XdpLayout) == sizeof(*XskLayout));
+            ASSERT(Xsk->Rx.Xdp.LayoutExtension.Reserved != 0);
+            //
+            // Copy the received metadata from the XDP ring to the Xsk ring
+            // so that user mode apps may read it.
+            //
+            RtlCopyVolatileMemory(XskLayout, XdpLayout, sizeof(*XdpLayout));
+        }
+        if (Xsk->Rx.ChecksumExtensionOffset != 0) {
+            XDP_FRAME_CHECKSUM *XdpChecksum =
+                XdpGetChecksumExtension(Frame, &Xsk->Rx.Xdp.ChecksumExtension);
+            const XDP_FRAME_CHECKSUM *XskChecksum =
+                RTL_PTR_ADD(XskFrame, Xsk->Rx.ChecksumExtensionOffset);
+            C_ASSERT(sizeof(*XdpChecksum) == sizeof(*XskChecksum));
+            ASSERT(Xsk->Rx.Xdp.ChecksumExtension.Reserved != 0);
+            //
+            // Copy the received metadata from the XDP ring to the Xsk ring
+            // so that user mode apps may read it.
+            //
+            RtlCopyVolatileMemory(XskChecksum, XdpChecksum, sizeof(*XdpChecksum));
         }
     }
 
