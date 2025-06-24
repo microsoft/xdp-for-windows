@@ -122,6 +122,11 @@ XdpRxQueueIsChecksumOffloadEnabled(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
 
+BOOLEAN
+XdpRxQueueIsLayoutExtensionEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
 #include <xdp/details/rxqueueconfig.h>
 
 EXTERN_C_END

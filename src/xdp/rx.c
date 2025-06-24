@@ -648,6 +648,17 @@ XdpRxQueueIsChecksumOffloadEnabled(
 }
 
 
+BOOLEAN
+XdpRxQueueIsLayoutExtensionEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+    return
+        XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+}
+
 static
 CONST XDP_HOOK_ID *
 XdppRxQueueGetHookId(

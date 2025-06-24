@@ -1790,6 +1790,20 @@ XskNotifyAttachRxQueue(
         XDP_FRAME_EXTENSION_RX_ACTION_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.RxActionExtension);
 
+    if (XdpRxQueueIsLayoutExtensionEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.LayoutExtension);
+    }
+
+    if (XdpRxQueueIsChecksumOffloadEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.ChecksumExtension);
+    }
+
     if (XdpRxQueueGetMaximumFragments(Config) > 1) {
         Xsk->Rx.Xdp.FragmentRing = XdpRxQueueGetFragmentRing(Config);
 
@@ -5221,6 +5235,8 @@ XskReceiveSingleFrame(
             XDP_FRAME_LAYOUT *XskLayout =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.LayoutExtensionOffset);
             C_ASSERT(sizeof(*XdpLayout) == sizeof(*XskLayout));
+            ASSERT(Xsk->Rx.Xdp.LayoutExtension.Reserved != 0);
+
             //
             // Copy the received metadata from the XDP ring to the Xsk ring
             // so that user mode apps may read it.
@@ -5233,6 +5249,8 @@ XskReceiveSingleFrame(
             XDP_FRAME_CHECKSUM *XskChecksum =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.ChecksumExtensionOffset);
             C_ASSERT(sizeof(*XdpChecksum) == sizeof(*XskChecksum));
+            ASSERT(Xsk->Rx.Xdp.ChecksumExtension.Reserved != 0);
+
             //
             // Copy the received metadata from the XDP ring to the Xsk ring
             // so that user mode apps may read it.
