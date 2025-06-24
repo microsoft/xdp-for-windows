@@ -5182,6 +5182,16 @@ XskReceiveSingleFrame(
         }
     }
 
+    RingIndex =
+        (ReadUInt32NoFence(&Xsk->Rx.Ring.Shared->ProducerIndex) + *CompletionOffset) &
+            Xsk->Rx.Ring.Mask;
+    XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
+    XskBuffer = &XskFrame->Buffer;
+    XskBuffer->Address.BaseAddress = UmemAddress;
+    ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
+    XskBuffer->Address.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
+    XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
+
     if (Xsk->Rx.OffloadFlags.Value != 0) {
         if (Xsk->Rx.LayoutExtensionOffset != 0) {
             const XDP_FRAME_LAYOUT *XdpLayout =
@@ -5210,16 +5220,6 @@ XskReceiveSingleFrame(
             RtlCopyVolatileMemory(XskChecksum, XdpChecksum, sizeof(*XdpChecksum));
         }
     }
-
-    RingIndex =
-        (ReadUInt32NoFence(&Xsk->Rx.Ring.Shared->ProducerIndex) + *CompletionOffset) &
-            Xsk->Rx.Ring.Mask;
-    XskFrame = XskKernelRingGetElement(&Xsk->Rx.Ring, RingIndex);
-    XskBuffer = &XskFrame->Buffer;
-    XskBuffer->Address.BaseAddress = UmemAddress;
-    ASSERT(Xsk->Umem->Reg.Headroom <= MAXUINT16);
-    XskBuffer->Address.Offset = (UINT16)Xsk->Umem->Reg.Headroom;
-    XskBuffer->Length = UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength;
 
     ++*CompletionOffset;
 }
