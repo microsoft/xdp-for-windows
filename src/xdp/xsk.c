@@ -5184,9 +5184,9 @@ XskReceiveSingleFrame(
 
     if (Xsk->Rx.OffloadFlags.Value != 0) {
         if (Xsk->Rx.LayoutExtensionOffset != 0) {
-            XDP_FRAME_LAYOUT *XdpLayout =
+            const XDP_FRAME_LAYOUT *XdpLayout =
                 XdpGetLayoutExtension(Frame, &Xsk->Rx.Xdp.LayoutExtension);
-            const XDP_FRAME_LAYOUT *XskLayout =
+            XDP_FRAME_LAYOUT *XskLayout =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.LayoutExtensionOffset);
             C_ASSERT(sizeof(*XdpLayout) == sizeof(*XskLayout));
             ASSERT(Xsk->Rx.Xdp.LayoutExtension.Reserved != 0);
@@ -5197,9 +5197,9 @@ XskReceiveSingleFrame(
             RtlCopyVolatileMemory(XskLayout, XdpLayout, sizeof(*XdpLayout));
         }
         if (Xsk->Rx.ChecksumExtensionOffset != 0) {
-            XDP_FRAME_CHECKSUM *XdpChecksum =
+            const XDP_FRAME_CHECKSUM *XdpChecksum =
                 XdpGetChecksumExtension(Frame, &Xsk->Rx.Xdp.ChecksumExtension);
-            const XDP_FRAME_CHECKSUM *XskChecksum =
+            XDP_FRAME_CHECKSUM *XskChecksum =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.ChecksumExtensionOffset);
             C_ASSERT(sizeof(*XdpChecksum) == sizeof(*XskChecksum));
             ASSERT(Xsk->Rx.Xdp.ChecksumExtension.Reserved != 0);
