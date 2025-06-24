@@ -1727,14 +1727,6 @@ XdpGenericReceiveInspect(
             RxQueue->FrameRing->ConsumerIndex, RxQueue->FrameRing->InterfaceReserved,
             NbHead, NextNb);
 
-        if (InspectionNeeded) {
-            //
-            // Invoke XDP inspection. Use the dispatch table (indirect call) rather
-            // than a direct call since XDP may substitute for an optimized routine.
-            //
-            XdpReceiveThunk(XdpRxQueue);
-        }
-
         if (RxQueue->Flags.ChecksumOffloadEnabled) {
             UINT32 CurrIndex = StartIndex;
             UINT32 Mask = RxQueue->FrameRing->Mask;
@@ -1769,6 +1761,14 @@ XdpGenericReceiveInspect(
                     CurrIndex++;
                 }
             }
+        }
+
+        if (InspectionNeeded) {
+            //
+            // Invoke XDP inspection. Use the dispatch table (indirect call) rather
+            // than a direct call since XDP may substitute for an optimized routine.
+            //
+            XdpReceiveThunk(XdpRxQueue);
         }
 
         //
