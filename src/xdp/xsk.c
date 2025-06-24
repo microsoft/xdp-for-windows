@@ -5182,7 +5182,7 @@ XskReceiveSingleFrame(
         }
     }
 
-    if (Xsk->Rx.OffloadFlags != 0) {
+    if (Xsk->Rx.OffloadFlags.Value != 0) {
         if (Xsk->Rx.LayoutExtensionOffset != 0) {
             XDP_FRAME_LAYOUT *XdpLayout =
                 XdpGetLayoutExtension(Frame, &Xsk->Rx.Xdp.LayoutExtension);
