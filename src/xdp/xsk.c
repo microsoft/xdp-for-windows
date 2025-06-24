@@ -5221,7 +5221,6 @@ XskReceiveSingleFrame(
             XDP_FRAME_LAYOUT *XskLayout =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.LayoutExtensionOffset);
             C_ASSERT(sizeof(*XdpLayout) == sizeof(*XskLayout));
-            ASSERT(Xsk->Rx.Xdp.LayoutExtension.Reserved != 0);
             //
             // Copy the received metadata from the XDP ring to the Xsk ring
             // so that user mode apps may read it.
@@ -5234,7 +5233,6 @@ XskReceiveSingleFrame(
             XDP_FRAME_CHECKSUM *XskChecksum =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.ChecksumExtensionOffset);
             C_ASSERT(sizeof(*XdpChecksum) == sizeof(*XskChecksum));
-            ASSERT(Xsk->Rx.Xdp.ChecksumExtension.Reserved != 0);
             //
             // Copy the received metadata from the XDP ring to the Xsk ring
             // so that user mode apps may read it.
