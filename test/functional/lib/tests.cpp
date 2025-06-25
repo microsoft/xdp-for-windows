@@ -6783,7 +6783,7 @@ GenericRxChecksumOffloadTcp(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 AckNum = 0;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, &RemotePort, $AckNum);
+    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, &RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
 
