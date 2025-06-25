@@ -6678,16 +6678,12 @@ GenericRxChecksumOffloadIp() {
     UINT32 ConsumerIndex;
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
 
-    printf("ConsumerIndex: %u\n", ConsumerIndex);
-
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
 
     // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
-
-    printf("Xsk.Extensions.RxFrameChecksumExtension: %u\n", Xsk.Extensions.RxFrameChecksumExtension);
 
     TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer4);
@@ -6727,21 +6723,21 @@ GenericTxChecksumOffloadTcp(
     UCHAR TcpPayload[] = "GenericTxChecksumOffloadTcp";
     UINT64 TxBuffer = SocketFreePop(&Xsk);
     UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
-    UINT32 UdpFrameLength = Xsk.Umem.Reg.ChunkSize;
+    UINT32 TcpFrameLength = Xsk.Umem.Reg.ChunkSize;
     TEST_TRUE(
         PktBuildTcpFrame(
-            TxFrame, &UdpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
+            TxFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
             &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
-    CxPlatVector<UCHAR> Mask(UdpFrameLength, 0xFF);
-    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, UdpFrameLength);
+    CxPlatVector<UCHAR> Mask(TcpFrameLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, TcpFrameLength);
 
     UINT32 ProducerIndex;
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
 
     XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex++);
     TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
-    TxDesc->Buffer.Length = UdpFrameLength;
+    TxDesc->Buffer.Length = TcpFrameLength;
     XDP_FRAME_LAYOUT *Layout =
         (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameLayoutExtension);
     Layout->Layer2Type = XdpFrameLayer2TypeEthernet;
@@ -6789,12 +6785,20 @@ GenericRxChecksumOffloadTcp(
     auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
+
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for TCP.
-    //     It does so by injecting a TCP frame with a valid IP checksum and verifying that
-    //     the metadata is correct.
+    //     It does so by injecting a TCP frame with a valid TCP checksum and verifying that
+    //     the metadata is correctly set by the miniport driver.
 
-    RemotePort = htons(1234);
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    Xsk.RxProgram =
+        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
+    LocalPort = htons(1234);
+    RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -6805,11 +6809,45 @@ GenericRxChecksumOffloadTcp(
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    EnableRxChecksumOffload(&Xsk);
-    ActivateSocket(&Xsk, Rx, Tx);
+    // Construct a valid IPv4/IPv6 + TCP frame with a valid TCP checksum
+    UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
+    UCHAR TcpFrame[TCP_HEADER_STORAGE + sizeof(TcpPayload)];
+    UINT32 TcpFrameLength = sizeof(TcpFrame);
 
-    // UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
-    // TODO: Implement this function.
+    TEST_TRUE(
+        PktBuildTcpFrame(
+            TcpFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    RX_FRAME RxFrame;
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), TcpFrame, TcpFrameLength);
+    RxFrameSetChecksumOffloadState(&RxFrame, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE);
+
+    // Inject the frame as if it came from the wire
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+
+    //
+    // Produce one XSK fill descriptor.
+    //
+    SocketProduceRxFill(&Xsk, 1);
+
+    // Flush RX path to make frame visible to the socket
+    MpRxFlush(GenericMp);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
+    TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
+
+    // Get and validate checksum metadata
+    XDP_FRAME_CHECKSUM *Checksum =
+        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
+
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer3);
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer4);
+
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
 
 VOID
@@ -6903,12 +6941,20 @@ GenericRxChecksumOffloadUdp(
     auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
+
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for UDP.
-    //     It does so by injecting a UDP frame with a valid IP checksum and verifying that
-    //     the metadata is correct.
+    //     It does so by injecting a UDP frame with a valid UDP checksum and verifying that
+    //     the metadata is correctly set by the miniport driver.
 
-    RemotePort = htons(1234);
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    Xsk.RxProgram =
+        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
+    LocalPort = htons(1234);
+    RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -6919,11 +6965,45 @@ GenericRxChecksumOffloadUdp(
         If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
     }
 
-    EnableRxChecksumOffload(&Xsk);
-    ActivateSocket(&Xsk, Rx, Tx);
+    // Construct a valid IPv4/IPv6 + UDP frame with a valid UDP checksum
+    UCHAR UdpPayload[] = "GenericRxChecksumOffloadUdp";
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
 
-    // UCHAR UdpPayload[] = "GenericRxChecksumOffloadUdp";
-    // TODO: Implement this function.
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    RX_FRAME RxFrame;
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    RxFrameSetChecksumOffloadState(&RxFrame, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE);
+
+    // Inject the frame as if it came from the wire
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+
+    //
+    // Produce one XSK fill descriptor.
+    //
+    SocketProduceRxFill(&Xsk, 1);
+
+    // Flush RX path to make frame visible to the socket
+    MpRxFlush(GenericMp);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
+    TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
+
+    // Get and validate checksum metadata
+    XDP_FRAME_CHECKSUM *Checksum =
+        (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
+
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer3);
+    TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer4);
+
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
 
 VOID
