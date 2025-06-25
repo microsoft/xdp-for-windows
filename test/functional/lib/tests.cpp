@@ -6643,7 +6643,6 @@ GenericRxChecksumOffloadIp() {
     Xsk.RxProgram =
         SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
 
-    LocalPort = htons(1234);
     RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
@@ -6783,9 +6782,9 @@ GenericRxChecksumOffloadTcp(
     INET_ADDR LocalIp, RemoteIp;
     UINT32 AckNum = 0;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, &RemotePort, &AckNum);
+    RemotePort = htons(4321);
+    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-
 
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for TCP.
@@ -6798,8 +6797,6 @@ GenericRxChecksumOffloadTcp(
     Xsk.RxProgram =
         SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
 
-    LocalPort = htons(1234);
-    RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -6954,7 +6951,6 @@ GenericRxChecksumOffloadUdp(
     Xsk.RxProgram =
         SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
 
-    LocalPort = htons(1234);
     RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
