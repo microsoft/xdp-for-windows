@@ -6816,8 +6816,8 @@ GenericRxChecksumOffloadTcp(
 
     TEST_TRUE(
         PktBuildTcpFrame(
-            TcpFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), &LocalHw,
-            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+            TcpFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
+            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     RX_FRAME RxFrame;
     RxInitializeFrame(&RxFrame, If.GetQueueId(), TcpFrame, TcpFrameLength);
