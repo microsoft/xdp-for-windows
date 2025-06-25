@@ -6781,8 +6781,9 @@ GenericRxChecksumOffloadTcp(
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
+    UINT32 AckNum = 0;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, &RemotePort, $AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
 
