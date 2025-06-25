@@ -6776,7 +6776,7 @@ GenericRxChecksumOffloadTcp(
     ADDRESS_FAMILY Af
 ) {
     const BOOLEAN Rx = TRUE, Tx = FALSE;
-    auto If = FnMpIf;
+    auto If = FnMp1QIf;
     UINT16 LocalPort, RemotePort;
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
