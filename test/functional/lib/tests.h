@@ -207,7 +207,9 @@ VOID
 GenericTxChecksumOffloadIp();
 
 VOID
-GenericRxChecksumOffloadIp();
+GenericRxChecksumOffloadIp(
+    BOOLEAN TestRebind
+    );
 
 VOID
 GenericTxChecksumOffloadTcp(
