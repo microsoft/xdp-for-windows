@@ -326,15 +326,31 @@ XdpExtensionSetCreate(
         goto Exit;
     }
 
-    Set->Type = Type;
-    Set->Count = ReservedExtensionCount;
+    Status = XdpExtensionSetInitialize(
+        Type, ReservedExtensions, ReservedExtensionCount, Set);
 
-    for (UINT16 Index = 0; Index < Set->Count; Index++) {
-        XDP_EXTENSION_ENTRY *Entry = &Set->Entries[Index];
+Exit:
+
+    return Status;
+}
+
+NTSTATUS
+XdpExtensionSetInitialize(
+    _In_ XDP_EXTENSION_TYPE Type,
+    _In_opt_count_(ReservedExtensionCount) const XDP_EXTENSION_REGISTRATION *ReservedExtensions,
+    _In_ UINT16 ReservedExtensionCount,
+    _Inout_ XDP_EXTENSION_SET *ExtensionSet
+    )
+{
+    ExtensionSet->Type = Type;
+    ExtensionSet->Count = ReservedExtensionCount;
+
+    for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
+        XDP_EXTENSION_ENTRY *Entry = &ExtensionSet->Entries[Index];
         ASSERT(ReservedExtensions);
         const XDP_EXTENSION_REGISTRATION *Reg = &ReservedExtensions[Index];
 
-        XdpExtensionSetValidate(Set, &Reg->Info);
+        XdpExtensionSetValidate(ExtensionSet, &Reg->Info);
         XdpExtensionSetValidateAlignment(Reg->Alignment);
 
         Entry->Enabled = FALSE;
@@ -344,13 +360,9 @@ XdpExtensionSetCreate(
         Entry->InternalExtension = Reg->InternalExtension;
     }
 
-    *ExtensionSet = Set;
-    Status = STATUS_SUCCESS;
-
-Exit:
-
-    return Status;
+    return STATUS_SUCCESS;
 }
+
 
 VOID
 XdpExtensionSetCleanup(
