@@ -6493,7 +6493,7 @@ GenericTxChecksumOffloadTcp(
     )
 {
     const BOOLEAN Rx = FALSE, Tx = TRUE;
-    auto If = FnMpIf;
+    auto If = FnMp1QIf;
     UINT16 LocalPort;
     UINT16 RemotePort = htons(1234);
     ETHERNET_ADDRESS LocalHw, RemoteHw;
