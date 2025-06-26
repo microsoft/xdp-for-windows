@@ -329,6 +329,10 @@ XdpExtensionSetCreate(
     Status = XdpExtensionSetInitialize(
         Type, ReservedExtensions, ReservedExtensionCount, Set);
 
+    if (NT_SUCCESS(Status)) {
+        *ExtensionSet = Set;
+    }
+
 Exit:
 
     return Status;
