@@ -80,7 +80,7 @@ XdpExtensionSetCreate(
     _Out_ XDP_EXTENSION_SET **ExtensionSet
     );
 
-NTSTATUS
+VOID
 XdpExtensionSetInitialize(
     _In_ XDP_EXTENSION_TYPE Type,
     _In_opt_count_(ReservedExtensionCount) const XDP_EXTENSION_REGISTRATION *ReservedExtensions,
