@@ -348,6 +348,8 @@ XdpExtensionSetInitialize(
     _Inout_ XDP_EXTENSION_SET *ExtensionSet
     )
 {
+    UNREFERENCED_PARAMETER(Type);
+    UNREFERENCED_PARAMETER(ReservedExtensions);
     ASSERT(ExtensionSet->Type == Type);
     ASSERT(ExtensionSet->Count >= ReservedExtensionCount);
 
