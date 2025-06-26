@@ -365,8 +365,6 @@ XdpExtensionSetInitialize(
         Entry->Alignment = Reg->Alignment;
         Entry->InternalExtension = Reg->InternalExtension;
     }
-
-    return STATUS_SUCCESS;
 }
 
 
