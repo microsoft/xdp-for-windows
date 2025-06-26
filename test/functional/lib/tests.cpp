@@ -6726,7 +6726,7 @@ GenericTxChecksumOffloadTcp(
     UINT32 TcpFrameLength = Xsk.Umem.Reg.ChunkSize;
     TEST_TRUE(
         PktBuildTcpFrame(
-            TxFrame, &UdpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, AckNum, TH_SYN, 0,
+            TxFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, AckNum, TH_SYN, 0,
             &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     CxPlatVector<UCHAR> Mask(TcpFrameLength, 0xFF);
