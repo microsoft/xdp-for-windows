@@ -2683,8 +2683,8 @@ XskClose(
     XskFreeRing(&Xsk->Rx.FillRing);
     XskFreeRing(&Xsk->Tx.Ring);
     XskFreeRing(&Xsk->Tx.CompletionRing);
-    XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
     XskFreeExtensionSet(&Xsk->Rx.FrameExtensionSet);
+    XskFreeExtensionSet(&Xsk->Tx.FrameExtensionSet);
 
     XskDereference(Xsk);
 

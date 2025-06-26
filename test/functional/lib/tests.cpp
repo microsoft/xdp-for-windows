@@ -1251,7 +1251,6 @@ EnableRxChecksumOffload(
     Socket->Extensions.RxFrameChecksumExtensionEnabled = TRUE;
 }
 
-
 static
 VOID
 XskSetupPreActivate(
@@ -1719,7 +1718,7 @@ RxInitializeFrame(
 static
 VOID
 RxFrameSetChecksumOffloadState(
-    _Out_ RX_FRAME *Frame,
+    _Inout_ RX_FRAME *Frame,
     _In_ ULONG TcpChecksumSucceeded,
     _In_ ULONG TcpChecksumFailed,
     _In_ ULONG UdpChecksumSucceeded,
@@ -6495,9 +6494,11 @@ GenericRxChecksumOffloadExtensions() {
     UINT16 ChecksumExtension;
     UINT32 OptionLength;
 
+    //
     // Routine Description:
     //     Verify that the RX checksum offload extensions are present when
     //     checksum offload is enabled.
+    //
 
     OptionLength = sizeof(LayoutExtension);
     TEST_EQUAL(
@@ -6585,7 +6586,6 @@ GenericTxChecksumOffloadIp()
 
     UINT32 ProducerIndex;
     TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
-    printf("ProducerIndex: %u\n", ProducerIndex);
     XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex++);
     TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
     TxDesc->Buffer.Length = UdpFrameLength;
@@ -6599,7 +6599,6 @@ GenericTxChecksumOffloadIp()
     Layout->Layer4HeaderLength = 0;
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(TxDesc, Xsk.Extensions.TxFrameChecksumExtension);
-    printf("Xsk.Extensions.TxFrameChecksumExtension: %u\n", Xsk.Extensions.TxFrameChecksumExtension);
     Checksum->Layer3 = XdpFrameTxChecksumActionRequired;
     Checksum->Layer4 = XdpFrameTxChecksumActionPassthrough;
     XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
@@ -6631,11 +6630,12 @@ GenericRxChecksumOffloadIp() {
     auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
-
+    //
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for IP.
     //     It does so by injecting a UDP frame with a valid IP checksum and verifying that
     //     the metadata is correctly set by the miniport driver.
+    //
 
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
@@ -6726,11 +6726,7 @@ GenericTxChecksumOffloadTcp(
     UINT32 TcpFrameLength = Xsk.Umem.Reg.ChunkSize;
     TEST_TRUE(
         PktBuildTcpFrame(
-<<<<<<< jackhe/rx-csum-offloads
-            TxFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
-=======
             TxFrame, &UdpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, AckNum, TH_SYN, 0,
->>>>>>> main
             &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     CxPlatVector<UCHAR> Mask(TcpFrameLength, 0xFF);
@@ -6779,7 +6775,8 @@ GenericTxChecksumOffloadTcp(
 VOID
 GenericRxChecksumOffloadTcp(
     ADDRESS_FAMILY Af
-) {
+    )
+{
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMp1QIf;
     UINT16 LocalPort, RemotePort;
@@ -6791,10 +6788,12 @@ GenericRxChecksumOffloadTcp(
     auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
+    //
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for TCP.
     //     It does so by injecting a TCP frame with a valid TCP checksum and verifying that
     //     the metadata is correctly set by the miniport driver.
+    //
 
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
@@ -6934,7 +6933,8 @@ GenericTxChecksumOffloadUdp(
 VOID
 GenericRxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
-) {
+    )
+{
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMpIf;
     UINT16 LocalPort, RemotePort;
@@ -6944,11 +6944,12 @@ GenericRxChecksumOffloadUdp(
     auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
-
+    //
     // Routine Description:
     //     This test verifies the metadata that indicates RX checksum offloads were done for UDP.
     //     It does so by injecting a UDP frame with a valid UDP checksum and verifying that
     //     the metadata is correctly set by the miniport driver.
+    //
 
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
@@ -7079,8 +7080,10 @@ GenericTxChecksumOffloadConfig()
 
 VOID
 GenericRxChecksumOffloadConfig() {
+    //
     // Routine Description:
     //     This test verifies the RX checksum offload configuration.
+    //
     // NOTE: TODO.
 }
 
