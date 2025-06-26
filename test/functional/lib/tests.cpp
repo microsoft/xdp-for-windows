@@ -6697,15 +6697,16 @@ GenericTxChecksumOffloadTcp(
     )
 {
     const BOOLEAN Rx = FALSE, Tx = TRUE;
-    auto If = FnMpIf;
-    UINT16 LocalPort, RemotePort;
+    auto If = FnMp1QIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
+    UINT32 AckNum;
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
-    RemotePort = htons(1234);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     if (Af == AF_INET) {
@@ -6725,7 +6726,11 @@ GenericTxChecksumOffloadTcp(
     UINT32 TcpFrameLength = Xsk.Umem.Reg.ChunkSize;
     TEST_TRUE(
         PktBuildTcpFrame(
+<<<<<<< jackhe/rx-csum-offloads
             TxFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
+=======
+            TxFrame, &UdpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, AckNum, TH_SYN, 0,
+>>>>>>> main
             &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
 
     CxPlatVector<UCHAR> Mask(TcpFrameLength, 0xFF);

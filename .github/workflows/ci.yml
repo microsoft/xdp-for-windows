@@ -167,12 +167,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022, Prerelease]
+        windows: [2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
-        - windows: 2019
-          platform: arm64
         - windows: 2022
           platform: arm64
     runs-on:
@@ -234,13 +232,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022, Prerelease]
+        windows: [2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
         exclude:
-        - windows: 2019
-          platform: arm64
         - windows: 2022
           platform: arm64
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
@@ -333,12 +329,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022, Prerelease]
+        windows: [2022, Prerelease]
         configuration: [Release]
         platform: [x64, arm64]
         exclude:
-        - windows: 2019
-          platform: arm64
         - windows: 2022
           platform: arm64
     runs-on:
@@ -485,7 +479,7 @@ jobs:
       fail-fast: false
       matrix:
         downlevel_release: [1.0.2, 1.1.0]
-        windows: [2019, 2022, Prerelease]
+        windows: [2022, Prerelease]
         configuration: [Release]
         platform: [x64]
     runs-on:
@@ -540,12 +534,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2019, 2022, Prerelease]
+        windows: [2022, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
-        - windows: 2019
-          platform: arm64
         - windows: 2022
           platform: arm64
     runs-on:
