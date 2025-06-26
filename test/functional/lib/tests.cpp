@@ -6620,7 +6620,7 @@ GenericTxChecksumOffloadIp()
 }
 
 VOID
-GenericRxChecksumOffloadIp() {
+GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
     const BOOLEAN Rx = TRUE, Tx = FALSE;
     auto If = FnMpIf;
     UINT16 LocalPort, RemotePort;
@@ -6640,8 +6640,16 @@ GenericRxChecksumOffloadIp() {
     EnableRxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
 
-    Xsk.RxProgram =
-        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+    if (TestRebind) {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+        Xsk.RxProgram.reset();
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+    } else {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+    }
 
     RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);

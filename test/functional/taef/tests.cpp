@@ -184,7 +184,11 @@ public:
     }
 
     TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadIp) {
-        ::GenericRxChecksumOffloadIp();
+        ::GenericRxChecksumOffloadIp(FALSE);
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadIpWithRebind) {
+        ::GenericRxChecksumOffloadIp(TRUE);
     }
 
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadTcpV4) {
