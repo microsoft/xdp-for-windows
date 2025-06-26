@@ -349,7 +349,7 @@ XdpExtensionSetInitialize(
     )
 {
     UNREFERENCED_PARAMETER(Type);
-    UNREFERENCED_PARAMETER(ReservedExtensions);
+    UNREFERENCED_PARAMETER(ReservedExtensionCount);
     ASSERT(ExtensionSet->Type == Type);
     ASSERT(ExtensionSet->Count >= ReservedExtensionCount);
 
