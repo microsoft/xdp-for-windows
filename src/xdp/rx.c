@@ -772,11 +772,11 @@ XdpRxQueueDetachInterface(
 
     XdpExtensionSetInitialize(
         XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
-        &RxQueue->FrameExtensionSet);
+        RxQueue->FrameExtensionSet);
 
     XdpExtensionSetInitialize(
         XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
-        &RxQueue->BufferExtensionSet);
+        RxQueue->BufferExtensionSet);
 }
 
 static
