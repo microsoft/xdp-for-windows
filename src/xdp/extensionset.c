@@ -354,6 +354,7 @@ XdpExtensionSetInitialize(
     ASSERT(ExtensionSet->Count >= ReservedExtensionCount);
 
     ExtensionSet->LayoutAssigned = FALSE;
+
     for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
         XDP_EXTENSION_ENTRY *Entry = &ExtensionSet->Entries[Index];
         ASSERT(ReservedExtensions);

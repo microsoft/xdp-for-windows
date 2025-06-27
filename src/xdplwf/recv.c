@@ -1395,6 +1395,27 @@ XdpGenericReceivePreinspectNb(
     *FlushNeeded = FALSE;
     *NbAddedToRing = FALSE;
 
+    if (RxQueue->Flags.ChecksumOffloadEnabled) {
+        NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+            (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+            &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
+
+        XDP_FRAME_CHECKSUM *csumExt =
+            (XDP_FRAME_CHECKSUM *)XdpGetChecksumExtension(Frame, &RxQueue->FrameChecksumExtension);
+
+        csumExt->Layer3 =
+            ChecksumInfo->Receive.IpChecksumFailed     ? XdpFrameRxChecksumEvaluationFailed :
+            ChecksumInfo->Receive.IpChecksumSucceeded  ? XdpFrameRxChecksumEvaluationSucceeded :
+                                                        XdpFrameRxChecksumEvaluationNotChecked;
+
+        csumExt->Layer4 =
+            (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed)
+                ? XdpFrameRxChecksumEvaluationFailed
+            : (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded)
+                ? XdpFrameRxChecksumEvaluationSucceeded
+            : XdpFrameRxChecksumEvaluationNotChecked;
+    }
+
     //
     // NDIS components may request that packets sent locally be looped back
     // on the receive path. Skip inspection of these packets.
@@ -1716,7 +1737,6 @@ XdpGenericReceiveInspect(
         NblHead = NextNbl;
         NbHead = NextNb;
 
-        UINT32 StartIndex = RxQueue->FrameRing->ProducerIndex;
         //
         // Queue a batch of NBLs into the XDP receive ring for inspection.
         //
@@ -1726,42 +1746,6 @@ XdpGenericReceiveInspect(
             &MICROSOFT_XDP_PROVIDER, RxQueue, !CanPend, RxQueue->FrameRing->ProducerIndex,
             RxQueue->FrameRing->ConsumerIndex, RxQueue->FrameRing->InterfaceReserved,
             NbHead, NextNb);
-
-        if (RxQueue->Flags.ChecksumOffloadEnabled) {
-            UINT32 CurrIndex = StartIndex;
-            UINT32 Mask = RxQueue->FrameRing->Mask;
-            UINT32 EndIndex = RxQueue->FrameRing->ProducerIndex;
-
-            for (NET_BUFFER_LIST *nbl = NblHead; nbl != NextNbl; nbl = NET_BUFFER_LIST_NEXT_NBL(nbl)) {
-                NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
-                    (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
-                        &NET_BUFFER_LIST_INFO(nbl, TcpIpChecksumNetBufferListInfo);
-
-                for (NET_BUFFER *nb = NET_BUFFER_LIST_FIRST_NB(nbl); nb != NULL; nb = NET_BUFFER_NEXT_NB(nb)) {
-                    if (CurrIndex == EndIndex) {
-                        // Something went wrong — frame and NB count out of sync
-                        break;
-                    }
-                    XDP_FRAME *frame = XdpRingGetElement(RxQueue->FrameRing, CurrIndex & Mask);
-                    XDP_FRAME_CHECKSUM *csumExt =
-                        (XDP_FRAME_CHECKSUM *)XdpGetChecksumExtension(frame, &RxQueue->FrameChecksumExtension);
-
-                    csumExt->Layer3 =
-                        ChecksumInfo->Receive.IpChecksumFailed     ? XdpFrameRxChecksumEvaluationFailed :
-                        ChecksumInfo->Receive.IpChecksumSucceeded  ? XdpFrameRxChecksumEvaluationSucceeded :
-                                                                    XdpFrameRxChecksumEvaluationNotChecked;
-
-                    csumExt->Layer4 =
-                        (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed)
-                            ? XdpFrameRxChecksumEvaluationFailed
-                        : (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded)
-                            ? XdpFrameRxChecksumEvaluationSucceeded
-                        : XdpFrameRxChecksumEvaluationNotChecked;
-
-                    CurrIndex++;
-                }
-            }
-        }
 
         if (InspectionNeeded) {
             //
