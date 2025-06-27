@@ -362,7 +362,6 @@ XdpExtensionSetInitialize(
         XdpExtensionSetValidate(ExtensionSet, &Reg->Info);
         XdpExtensionSetValidateAlignment(Reg->Alignment);
 
-        Entry->Enabled = FALSE;
         Entry->Info = Reg->Info;
         Entry->Size = Reg->Size;
         Entry->Alignment = Reg->Alignment;
