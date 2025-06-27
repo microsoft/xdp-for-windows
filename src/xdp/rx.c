@@ -819,6 +819,13 @@ XdpRxQueueAttachInterface(
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
+    if (RxQueue->IsChecksumOffloadEnabled) {
+        XdpExtensionSetEnableEntry(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+        XdpExtensionSetEnableEntry(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+    }
+
     RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
 
     Status =
