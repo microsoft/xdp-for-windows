@@ -770,15 +770,13 @@ XdpRxQueueDetachInterface(
         RxQueue->FrameRing = NULL;
     }
 
-    if (RxQueue->BufferExtensionSet != NULL) {
-        XdpExtensionSetCleanup(RxQueue->BufferExtensionSet);
-        RxQueue->BufferExtensionSet = NULL;
-    }
+    XdpExtensionSetInitialize(
+        XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+        &RxQueue->FrameExtensionSet);
 
-    if (RxQueue->FrameExtensionSet != NULL) {
-        XdpExtensionSetCleanup(RxQueue->FrameExtensionSet);
-        RxQueue->FrameExtensionSet = NULL;
-    }
+    XdpExtensionSetInitialize(
+        XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
+        &RxQueue->BufferExtensionSet);
 }
 
 static
@@ -820,28 +818,6 @@ XdpRxQueueAttachInterface(
     ASSERT(RxQueue->InterfaceRxQueue == NULL);
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
-
-
-    if (RxQueue->FrameExtensionSet == NULL) {
-        RxQueue->IsChecksumOffloadEnabled = FALSE;
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
-                &RxQueue->FrameExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
-    }
-
-    if (RxQueue->BufferExtensionSet == NULL) {
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
-                &RxQueue->BufferExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            goto Exit;
-        }
-    }
 
     RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
 
@@ -1206,27 +1182,6 @@ XdpRxQueueEnableChecksumOffload(
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
-    if (RxQueue->FrameExtensionSet == NULL) {
-        RxQueue->IsChecksumOffloadEnabled = FALSE;
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
-                &RxQueue->FrameExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            return Status;
-        }
-    }
-
-    if (RxQueue->BufferExtensionSet == NULL) {
-        Status =
-            XdpExtensionSetCreate(
-                XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
-                &RxQueue->BufferExtensionSet);
-        if (!NT_SUCCESS(Status)) {
-            return Status;
-        }
-    }
-
     if (RxQueue->IsChecksumOffloadEnabled) {
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
@@ -1419,16 +1374,6 @@ XdpRxQueueDereference(
         if (RxQueue->PcwInstance != NULL) {
             PcwCloseInstance(RxQueue->PcwInstance);
             RxQueue->PcwInstance = NULL;
-        }
-
-        if (RxQueue->FragmentRing != NULL) {
-            XdpRingFreeRing(RxQueue->FragmentRing);
-            RxQueue->FragmentRing = NULL;
-        }
-
-        if (RxQueue->FrameRing != NULL) {
-            XdpRingFreeRing(RxQueue->FrameRing);
-            RxQueue->FrameRing = NULL;
         }
 
         if (RxQueue->BufferExtensionSet != NULL) {
