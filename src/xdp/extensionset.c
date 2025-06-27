@@ -348,8 +348,8 @@ XdpExtensionSetInitialize(
     _Inout_ XDP_EXTENSION_SET *ExtensionSet
     )
 {
-    UNREFERENCED_PARAMETER(Type);
-    UNREFERENCED_PARAMETER(ReservedExtensionCount);
+    DBG_UNREFERENCED_PARAMETER(Type);
+    DBG_UNREFERENCED_PARAMETER(ReservedExtensionCount);
     ASSERT(ExtensionSet->Type == Type);
     ASSERT(ExtensionSet->Count >= ReservedExtensionCount);
 
@@ -367,6 +367,10 @@ XdpExtensionSetInitialize(
         Entry->Size = Reg->Size;
         Entry->Alignment = Reg->Alignment;
         Entry->InternalExtension = Reg->InternalExtension;
+        Entry->InterfaceRegistered = FALSE;
+        Entry->Assigned = FALSE;
+        Entry->AssignedOffset = 0;
+        RtlZeroMemory(&Entry->Extension, sizeof(Entry->Extension));
     }
 }
 
