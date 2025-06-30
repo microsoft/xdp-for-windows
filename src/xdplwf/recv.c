@@ -1416,7 +1416,7 @@ XdpGenericReceivePreinspectNb(
             : XdpFrameRxChecksumEvaluationNotChecked;
 
         XDP_FRAME_LAYOUT *layoutExt =
-            XdpGetFrameLayoutExtension(Frame, &RxQueue->FrameLayoutExtension);
+            XdpGetLayoutExtension(Frame, &RxQueue->FrameLayoutExtension);
 
         //
         // Infer what we can based on the checksum evaluation results.
