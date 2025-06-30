@@ -6687,13 +6687,17 @@ GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
+    TEST_TRUE(Xsk.Extensions.RxFrameLayoutExtension != 0);
 
     // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
+    XDP_FRAME_LAYOUT *Layout =
+        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameLayoutExtension);
 
     TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer4);
+    TEST_EQUAL(XdpFrameLayer4TypeUnspecified, Layout->Layer4Type);
 
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
@@ -6849,13 +6853,17 @@ GenericRxChecksumOffloadTcp(
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
+    TEST_TRUE(Xsk.Extensions.RxFrameLayoutExtension != 0);
 
     // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
+    XDP_FRAME_LAYOUT *Layout =
+        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameLayoutExtension);
 
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer4);
+    TEST_EQUAL(XdpFrameLayer4TypeTcp, Layout->Layer4Type);
 
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
@@ -7006,13 +7014,17 @@ GenericRxChecksumOffloadUdp(
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxFrameChecksumExtension != 0);
+    TEST_TRUE(Xsk.Extensions.RxFrameLayoutExtension != 0);
 
     // Get and validate checksum metadata
     XDP_FRAME_CHECKSUM *Checksum =
         (XDP_FRAME_CHECKSUM *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameChecksumExtension);
+    XDP_FRAME_LAYOUT *Layout =
+        (XDP_FRAME_LAYOUT *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxFrameLayoutExtension);
 
     TEST_EQUAL(XdpFrameRxChecksumEvaluationNotChecked, Checksum->Layer3);
     TEST_EQUAL(XdpFrameRxChecksumEvaluationSucceeded, Checksum->Layer4);
+    TEST_EQUAL(XdpFrameLayer4TypeUdp, Layout->Layer4Type);
 
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }

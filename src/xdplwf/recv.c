@@ -1414,6 +1414,27 @@ XdpGenericReceivePreinspectNb(
             : (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded)
                 ? XdpFrameRxChecksumEvaluationSucceeded
             : XdpFrameRxChecksumEvaluationNotChecked;
+
+        XDP_FRAME_LAYOUT *layoutExt =
+            XdpGetFrameLayoutExtension(Frame, &RxQueue->FrameLayoutExtension);
+
+        //
+        // Infer what we can based on the checksum evaluation results.
+        //
+        if (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.TcpChecksumFailed) {
+            layoutExt->Layer4Type = XdpFrameLayer4TypeTcp;
+        } else if (ChecksumInfo->Receive.UdpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumFailed) {
+            layoutExt->Layer4Type = XdpFrameLayer4TypeUdp;
+        } else {
+            layoutExt->Layer4Type = XdpFrameLayer4TypeUnspecified;
+        }
+
+        //
+        // Assume the Layer 3 type is not specified if the checksum was not computed.
+        //
+        if (csumExt->Layer3 == XdpFrameRxChecksumEvaluationNotChecked) {
+            layoutExt->Layer3Type = XdpFrameLayer3TypeUnspecified;
+        }
     }
 
     //
