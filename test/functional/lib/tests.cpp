@@ -6494,6 +6494,7 @@ MY_SOCKET RxChecksumTestHelper(
     // Create an auxiliary socket to reserve a port so that we don't interfere with other
     // processes.
     //
+    RemotePort = htons(4321);
     if (TestTcp) {
         UINT32 AckNum = 0;
         auto AuxTcpSocket = CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
@@ -6517,7 +6518,6 @@ MY_SOCKET RxChecksumTestHelper(
             SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
     }
 
-    RemotePort = htons(4321);
     If.GetHwAddress(&LocalHw);
     If.GetRemoteHwAddress(&RemoteHw);
     If.GetIpv4Address(&LocalIp.Ipv4);
