@@ -6523,6 +6523,7 @@ MY_SOCKET RxChecksumTestHelper(
     If.GetIpv4Address(&LocalIp.Ipv4);
     If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
 
+    RX_FRAME RxFrame;
     if (TestTcp) {
         // Construct a valid IPv4/IPv6 + TCP frame with a valid checksum
         UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
@@ -6532,6 +6533,7 @@ MY_SOCKET RxChecksumTestHelper(
             PktBuildTcpFrame(
                 TcpFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
                 &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        RxInitializeFrame(&RxFrame, If.GetQueueId(), TcpFrame, TcpFrameLength);
     } else {
         // Construct a valid IPv4/IPv6 + UDP frame with a valid checksum
         UCHAR UdpPayload[] = "GenericRxChecksumOffloadUdp";
@@ -6541,16 +6543,16 @@ MY_SOCKET RxChecksumTestHelper(
             PktBuildUdpFrame(
                 UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
                 &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+        RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     }
 
-    RX_FRAME RxFrame;
-    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
-    Frame->Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TestOffload->TcpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.Receive.TcpChecksumFailed = TestOffload->TcpChecksumFailed;
-    Frame->Frame.Input.Checksum.Receive.UdpChecksumSucceeded = TestOffload->UdpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.Receive.UdpChecksumFailed = TestOffload->UdpChecksumFailed;
-    Frame->Frame.Input.Checksum.Receive.IpChecksumSucceeded = TestOffload->IpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.Receive.IpChecksumFailed = TestOffload->IpChecksumFailed;
+
+    RxFrame->Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TestOffload->TcpChecksumSucceeded;
+    RxFrame->Frame.Input.Checksum.Receive.TcpChecksumFailed = TestOffload->TcpChecksumFailed;
+    RxFrame->Frame.Input.Checksum.Receive.UdpChecksumSucceeded = TestOffload->UdpChecksumSucceeded;
+    RxFrame->Frame.Input.Checksum.Receive.UdpChecksumFailed = TestOffload->UdpChecksumFailed;
+    RxFrame->Frame.Input.Checksum.Receive.IpChecksumSucceeded = TestOffload->IpChecksumSucceeded;
+    RxFrame->Frame.Input.Checksum.Receive.IpChecksumFailed = TestOffload->IpChecksumFailed;
 
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
