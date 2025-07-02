@@ -1717,26 +1717,6 @@ RxInitializeFrame(
 
 static
 VOID
-RxFrameSetChecksumOffloadState(
-    _Inout_ RX_FRAME *Frame,
-    _In_ ULONG TcpChecksumSucceeded,
-    _In_ ULONG TcpChecksumFailed,
-    _In_ ULONG UdpChecksumSucceeded,
-    _In_ ULONG UdpChecksumFailed,
-    _In_ ULONG IpChecksumSucceeded,
-    _In_ ULONG IpChecksumFailed
-    )
-{
-    Frame->Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TcpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.Receive.TcpChecksumFailed = TcpChecksumFailed;
-    Frame->Frame.Input.Checksum.Receive.UdpChecksumSucceeded = UdpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.Receive.UdpChecksumFailed = UdpChecksumFailed;
-    Frame->Frame.Input.Checksum.Receive.IpChecksumSucceeded = IpChecksumSucceeded;
-    Frame->Frame.Input.Checksum.Receive.IpChecksumFailed = IpChecksumFailed;
-}
-
-static
-VOID
 RxInitializeFrame(
     _Out_ RX_FRAME *Frame,
     _In_ UINT32 HashQueueId,
@@ -6484,6 +6464,108 @@ GenericTxChecksumOffloadExtensions()
             sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_LAYOUT) + sizeof(XDP_FRAME_CHECKSUM));
 }
 
+struct RxOffloadPreferences {
+    ULONG TcpChecksumSucceeded;
+    ULONG TcpChecksumFailed;
+    ULONG UdpChecksumSucceeded;
+    ULONG UdpChecksumFailed;
+    ULONG IpChecksumSucceeded;
+    ULONG IpChecksumFailed;
+};
+
+MY_SOCKET RxChecksumTestHelper(
+    _In_ RxOffloadPreferences *TestOffload,
+    _In_ BOOLEAN TestRebind,
+    _In_ BOOLEAN TestTcp,
+    _In_ ADDRESS_FAMILY Af
+) {
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto If = FnMpIf;
+    if (TestTcp) {
+        If = FnMp1QIf;
+    }
+
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    //
+    // Create an auxiliary socket to reserve a port so that we don't interfere with other
+    // processes.
+    //
+    if (TestTcp) {
+        UINT32 AckNum = 0;
+        auto AuxTcpSocket = CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
+    } else {
+        auto AuxUdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    }
+
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    if (TestRebind) {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+        Xsk.RxProgram.reset();
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+    } else {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+    }
+
+    RemotePort = htons(4321);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    if (TestTcp) {
+        // Construct a valid IPv4/IPv6 + TCP frame with a valid checksum
+        UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
+        UCHAR TcpFrame[TCP_HEADER_STORAGE + sizeof(TcpPayload)];
+        UINT32 TcpFrameLength = sizeof(TcpFrame);
+        TEST_TRUE(
+            PktBuildTcpFrame(
+                TcpFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
+                &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    } else {
+        // Construct a valid IPv4/IPv6 + UDP frame with a valid checksum
+        UCHAR UdpPayload[] = "GenericRxChecksumOffloadUdp";
+        UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+        UINT32 UdpFrameLength = sizeof(UdpFrame);
+        TEST_TRUE(
+            PktBuildUdpFrame(
+                UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+                &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    }
+
+    RX_FRAME RxFrame;
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    Frame->Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TestOffload->TcpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.Receive.TcpChecksumFailed = TestOffload->TcpChecksumFailed;
+    Frame->Frame.Input.Checksum.Receive.UdpChecksumSucceeded = TestOffload->UdpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.Receive.UdpChecksumFailed = TestOffload->UdpChecksumFailed;
+    Frame->Frame.Input.Checksum.Receive.IpChecksumSucceeded = TestOffload->IpChecksumSucceeded;
+    Frame->Frame.Input.Checksum.Receive.IpChecksumFailed = TestOffload->IpChecksumFailed;
+
+    // Inject the frame as if it came from the wire
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+
+    //
+    // Produce one XSK fill descriptor.
+    //
+    SocketProduceRxFill(&Xsk, 1);
+
+    // Flush RX path to make frame visible to the socket
+    MpRxFlush(GenericMp);
+
+    return Xsk;
+}
+
 VOID
 GenericRxChecksumOffloadExtensions() {
     auto If = FnMpIf;
@@ -6621,14 +6703,6 @@ GenericTxChecksumOffloadIp()
 
 VOID
 GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
-    const BOOLEAN Rx = TRUE, Tx = FALSE;
-    auto If = FnMpIf;
-    UINT16 LocalPort, RemotePort;
-    ETHERNET_ADDRESS LocalHw, RemoteHw;
-    INET_ADDR LocalIp, RemoteIp;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
-    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     //
     // Routine Description:
@@ -6637,50 +6711,10 @@ GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
     //     the metadata is correctly set by the miniport driver.
     //
 
-    EnableRxChecksumOffload(&Xsk);
-    ActivateSocket(&Xsk, Rx, Tx);
-
-    if (TestRebind) {
-        Xsk.RxProgram =
-            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
-        Xsk.RxProgram.reset();
-        Xsk.RxProgram =
-            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
-    } else {
-        Xsk.RxProgram =
-            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
-    }
-
-    RemotePort = htons(4321);
-    If.GetHwAddress(&LocalHw);
-    If.GetRemoteHwAddress(&RemoteHw);
-    If.GetIpv4Address(&LocalIp.Ipv4);
-    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
-
-    // Construct a valid IPv4 + UDP frame with a valid IP checksum
-    UCHAR UdpPayload[] = "GenericRxChecksumOffloadIp";
-    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
-    UINT32 UdpFrameLength = sizeof(UdpFrame);
-
-    TEST_TRUE(
-        PktBuildUdpFrame(
-            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
-            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
-
-    RX_FRAME RxFrame;
-    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
-    RxFrameSetChecksumOffloadState(&RxFrame, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE);
-
-    // Inject the frame as if it came from the wire
-    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
-
-    //
-    // Produce one XSK fill descriptor.
-    //
-    SocketProduceRxFill(&Xsk, 1);
-
-    // Flush RX path to make frame visible to the socket
-    MpRxFlush(GenericMp);
+    OffloadPreferences TestOffload = {0};
+    TestOffload.IpChecksumSucceeded = TRUE;
+    auto Xsk = RxChecksumTestHelper(
+        &TestOffload, TestRebind, FALSE, AF_INET);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
@@ -6789,16 +6823,6 @@ GenericRxChecksumOffloadTcp(
     ADDRESS_FAMILY Af
     )
 {
-    const BOOLEAN Rx = TRUE, Tx = FALSE;
-    auto If = FnMp1QIf;
-    UINT16 LocalPort, RemotePort;
-    ETHERNET_ADDRESS LocalHw, RemoteHw;
-    INET_ADDR LocalIp, RemoteIp;
-    UINT32 AckNum = 0;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    RemotePort = htons(4321);
-    auto TcpSocket = CreateTcpSocket(Af, &If, &LocalPort, RemotePort, &AckNum);
-    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     //
     // Routine Description:
@@ -6807,46 +6831,10 @@ GenericRxChecksumOffloadTcp(
     //     the metadata is correctly set by the miniport driver.
     //
 
-    EnableRxChecksumOffload(&Xsk);
-    ActivateSocket(&Xsk, Rx, Tx);
-
-    Xsk.RxProgram =
-        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
-
-    If.GetHwAddress(&LocalHw);
-    If.GetRemoteHwAddress(&RemoteHw);
-    if (Af == AF_INET) {
-        If.GetIpv4Address(&LocalIp.Ipv4);
-        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
-    } else {
-        If.GetIpv6Address(&LocalIp.Ipv6);
-        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
-    }
-
-    // Construct a valid IPv4/IPv6 + TCP frame with a valid TCP checksum
-    UCHAR TcpPayload[] = "GenericRxChecksumOffloadTcp";
-    UCHAR TcpFrame[TCP_HEADER_STORAGE + sizeof(TcpPayload)];
-    UINT32 TcpFrameLength = sizeof(TcpFrame);
-
-    TEST_TRUE(
-        PktBuildTcpFrame(
-            TcpFrame, &TcpFrameLength, TcpPayload, sizeof(TcpPayload), NULL, 0, 0, 0, TH_SYN, 0,
-            &LocalHw, &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
-
-    RX_FRAME RxFrame;
-    RxInitializeFrame(&RxFrame, If.GetQueueId(), TcpFrame, TcpFrameLength);
-    RxFrameSetChecksumOffloadState(&RxFrame, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE);
-
-    // Inject the frame as if it came from the wire
-    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
-
-    //
-    // Produce one XSK fill descriptor.
-    //
-    SocketProduceRxFill(&Xsk, 1);
-
-    // Flush RX path to make frame visible to the socket
-    MpRxFlush(GenericMp);
+    OffloadPreferences TestOffload = {0};
+    TestOffload.TcpChecksumSucceeded = TRUE;
+    auto Xsk = RxChecksumTestHelper(
+        &TestOffload, FALSE, TRUE, Af);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
@@ -6951,14 +6939,6 @@ GenericRxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
     )
 {
-    const BOOLEAN Rx = TRUE, Tx = FALSE;
-    auto If = FnMpIf;
-    UINT16 LocalPort, RemotePort;
-    ETHERNET_ADDRESS LocalHw, RemoteHw;
-    INET_ADDR LocalIp, RemoteIp;
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
-    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
-    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
     //
     // Routine Description:
@@ -6967,47 +6947,10 @@ GenericRxChecksumOffloadUdp(
     //     the metadata is correctly set by the miniport driver.
     //
 
-    EnableRxChecksumOffload(&Xsk);
-    ActivateSocket(&Xsk, Rx, Tx);
-
-    Xsk.RxProgram =
-        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
-
-    RemotePort = htons(4321);
-    If.GetHwAddress(&LocalHw);
-    If.GetRemoteHwAddress(&RemoteHw);
-    if (Af == AF_INET) {
-        If.GetIpv4Address(&LocalIp.Ipv4);
-        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
-    } else {
-        If.GetIpv6Address(&LocalIp.Ipv6);
-        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
-    }
-
-    // Construct a valid IPv4/IPv6 + UDP frame with a valid UDP checksum
-    UCHAR UdpPayload[] = "GenericRxChecksumOffloadUdp";
-    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
-    UINT32 UdpFrameLength = sizeof(UdpFrame);
-
-    TEST_TRUE(
-        PktBuildUdpFrame(
-            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
-            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
-
-    RX_FRAME RxFrame;
-    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
-    RxFrameSetChecksumOffloadState(&RxFrame, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE);
-
-    // Inject the frame as if it came from the wire
-    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
-
-    //
-    // Produce one XSK fill descriptor.
-    //
-    SocketProduceRxFill(&Xsk, 1);
-
-    // Flush RX path to make frame visible to the socket
-    MpRxFlush(GenericMp);
+    OffloadPreferences TestOffload = {0};
+    TestOffload.UdpChecksumSucceeded = TRUE;
+    auto Xsk = RxChecksumTestHelper(
+        &TestOffload, FALSE, FALSE, Af);
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
