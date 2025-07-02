@@ -6547,12 +6547,12 @@ MY_SOCKET RxChecksumTestHelper(
     }
 
 
-    RxFrame->Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TestOffload->TcpChecksumSucceeded;
-    RxFrame->Frame.Input.Checksum.Receive.TcpChecksumFailed = TestOffload->TcpChecksumFailed;
-    RxFrame->Frame.Input.Checksum.Receive.UdpChecksumSucceeded = TestOffload->UdpChecksumSucceeded;
-    RxFrame->Frame.Input.Checksum.Receive.UdpChecksumFailed = TestOffload->UdpChecksumFailed;
-    RxFrame->Frame.Input.Checksum.Receive.IpChecksumSucceeded = TestOffload->IpChecksumSucceeded;
-    RxFrame->Frame.Input.Checksum.Receive.IpChecksumFailed = TestOffload->IpChecksumFailed;
+    RxFrame.Frame.Input.Checksum.Receive.TcpChecksumSucceeded = TestOffload->TcpChecksumSucceeded;
+    RxFrame.Frame.Input.Checksum.Receive.TcpChecksumFailed = TestOffload->TcpChecksumFailed;
+    RxFrame.Frame.Input.Checksum.Receive.UdpChecksumSucceeded = TestOffload->UdpChecksumSucceeded;
+    RxFrame.Frame.Input.Checksum.Receive.UdpChecksumFailed = TestOffload->UdpChecksumFailed;
+    RxFrame.Frame.Input.Checksum.Receive.IpChecksumSucceeded = TestOffload->IpChecksumSucceeded;
+    RxFrame.Frame.Input.Checksum.Receive.IpChecksumFailed = TestOffload->IpChecksumFailed;
 
     // Inject the frame as if it came from the wire
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
@@ -6713,7 +6713,7 @@ GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
     //     the metadata is correctly set by the miniport driver.
     //
 
-    OffloadPreferences TestOffload = {0};
+    RxOffloadPreferences TestOffload = {0};
     TestOffload.IpChecksumSucceeded = TRUE;
     auto Xsk = RxChecksumTestHelper(
         &TestOffload, TestRebind, FALSE, AF_INET);
@@ -6833,7 +6833,7 @@ GenericRxChecksumOffloadTcp(
     //     the metadata is correctly set by the miniport driver.
     //
 
-    OffloadPreferences TestOffload = {0};
+    RxOffloadPreferences TestOffload = {0};
     TestOffload.TcpChecksumSucceeded = TRUE;
     auto Xsk = RxChecksumTestHelper(
         &TestOffload, FALSE, TRUE, Af);
@@ -6949,7 +6949,7 @@ GenericRxChecksumOffloadUdp(
     //     the metadata is correctly set by the miniport driver.
     //
 
-    OffloadPreferences TestOffload = {0};
+    RxOffloadPreferences TestOffload = {0};
     TestOffload.UdpChecksumSucceeded = TRUE;
     auto Xsk = RxChecksumTestHelper(
         &TestOffload, FALSE, FALSE, Af);
