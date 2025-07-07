@@ -27,7 +27,6 @@ typedef struct _XDP_RX_CAPABILITIES {
     UINT16 ReceiveFrameCountHint;
     UINT8 MaximumFragments;
     BOOLEAN TxActionSupported;
-    BOOLEAN ChecksumOffload;
 } XDP_RX_CAPABILITIES;
 
 #define XDP_RX_CAPABILITIES_REVISION_1 1

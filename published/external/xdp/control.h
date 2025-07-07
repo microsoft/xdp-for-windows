@@ -38,6 +38,7 @@ struct _XDP_CAPABILITIES_EX {
     UINT32 DriverApiVersionCount;
     XDP_VERSION DdkDriverApiVersion;
     GUID InstanceId;
+    BOOLEAN RxChecksumSupported;
 } XDP_CAPABILITIES_EX;
 
 #define XDP_CAPABILITIES_EX_REVISION_1 1
@@ -73,6 +74,8 @@ XdpInitializeCapabilities(
 
     Capabilities->DriverApiVersion = *DriverApiVersion;
     Capabilities->CapabilitiesEx.DdkDriverApiVersion = DdkDriverApiVersion;
+
+    Capabilities->CapabilitiesEx.RxChecksumSupported = TRUE;
 
     return XdpGuidCreate(&Capabilities->CapabilitiesEx.InstanceId);
 }

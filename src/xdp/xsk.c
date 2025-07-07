@@ -3826,8 +3826,10 @@ XskSetRxOffloadChecksumWorker(
 {
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
-
-    WorkItem->CompletionStatus = XdpRxQueueEnableChecksumOffload(Xsk->Rx.Xdp.Queue);
+    XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(Xsk->Rx.Xdp.IfHandle);
+    WorkItem->CompletionStatus =
+        XdpRxQueueEnableChecksumOffload(Xsk->Rx.Xdp.Queue,
+            IfCapabilities->CapabilitiesEx.RxChecksumSupported);
     KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
 }
 

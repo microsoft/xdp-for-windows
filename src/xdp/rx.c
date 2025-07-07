@@ -1042,7 +1042,6 @@ XdpRxQueueCreate(
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
-    RxQueue->InterfaceRxCapabilities.ChecksumOffload = TRUE;
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
@@ -1182,7 +1181,8 @@ XdpRxQueueDeregisterNotifications(
 
 NTSTATUS
 XdpRxQueueEnableChecksumOffload(
-    _In_ XDP_RX_QUEUE *RxQueue
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ BOOLEAN IfSupportsRxChecksum
     )
 {
     NTSTATUS Status;
@@ -1196,7 +1196,7 @@ XdpRxQueueEnableChecksumOffload(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
     } else if (RxQueue->State == XdpRxQueueStateUnbound) {
-        if (RxQueue->InterfaceRxCapabilities.ChecksumOffload) {
+        if (IfSupportsRxChecksum) {
             XdpExtensionSetEnableEntry(
                 RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
             XdpExtensionSetEnableEntry(

@@ -63,7 +63,8 @@ XdpRxQueueDeregisterNotifications(
 
 NTSTATUS
 XdpRxQueueEnableChecksumOffload(
-    _In_ XDP_RX_QUEUE *RxQueue
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ BOOLEAN IfSupportsRxChecksum
     );
 
 VOID
