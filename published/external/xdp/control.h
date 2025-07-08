@@ -75,8 +75,6 @@ XdpInitializeCapabilities(
     Capabilities->DriverApiVersion = *DriverApiVersion;
     Capabilities->CapabilitiesEx.DdkDriverApiVersion = DdkDriverApiVersion;
 
-    Capabilities->CapabilitiesEx.RxChecksumSupported = TRUE;
-
     return XdpGuidCreate(&Capabilities->CapabilitiesEx.InstanceId);
 }
 
