@@ -6653,10 +6653,6 @@ GenericTxChecksumOffloadConfig()
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const BOOLEAN Rx = FALSE, Tx = TRUE;
 
-    //
-    // Enable the TX checksum offload on the socket, and then indicate another
-    // NIC config change. This time the offload change flag should be set.
-    //
     auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
     EnableTxChecksumOffload(&Xsk);
     ActivateSocket(&Xsk, Rx, Tx);
