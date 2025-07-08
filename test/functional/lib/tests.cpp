@@ -6652,12 +6652,22 @@ GenericTxChecksumOffloadConfig()
     const auto &If = FnMpIf;
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const BOOLEAN Rx = FALSE, Tx = TRUE;
-    auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    //
+    // Enable the TX checksum offload on the socket, and then indicate another
+    // NIC config change. This time the offload change flag should be set.
+    //
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    EnableTxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    auto PlainXsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
 
     XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
     UINT32 OptionLength;
 
     TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Tx));
 
     OptionLength = 0;
     TEST_EQUAL(
@@ -6693,15 +6703,19 @@ GenericTxChecksumOffloadConfig()
 
     auto OffloadReset = MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
 
-    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
-    while (!Watchdog.IsExpired()) {
-        if (XskRingOffloadChanged(&Xsk.Rings.Tx)) {
-            break;
-        }
-    }
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the offload change notification to occur.
 
+    //
+    // The offload bit should not be set unless the offload is enabled on the
+    // socket.
+    //
     TEST_TRUE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Tx));
 
+    //
+    // Verify the current config is updated and the offload change flag has been
+    // cleared.
+    //
     OptionLength = sizeof(ChecksumConfig);
     GetSockopt(
         Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
@@ -6713,6 +6727,7 @@ GenericTxChecksumOffloadConfig()
     TEST_TRUE(ChecksumConfig.TcpOptions);
 
     TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Tx));
 }
 
 static
