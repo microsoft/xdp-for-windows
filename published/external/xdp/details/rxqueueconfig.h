@@ -96,6 +96,7 @@ typedef struct _XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH {
     XDP_RX_QUEUE_GET_RING                   *GetFragmentRing;
     XDP_RX_QUEUE_GET_EXTENSION              *GetExtension;
     XDP_RX_QUEUE_ACTIVATE_IS_ENABLED        *IsVirtualAddressEnabled;
+    XDP_RX_QUEUE_ACTIVATE_IS_ENABLED        *IsChecksumOffloadEnabled;
 } XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH;
 
 #define XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1 1
@@ -201,6 +202,21 @@ XDPEXPORT(XdpRxQueueIsVirtualAddressEnabled)(
 {
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS *Details = (XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS *)RxQueueConfig;
     return Details->Dispatch->IsVirtualAddressEnabled(RxQueueConfig);
+}
+
+inline
+BOOLEAN
+XDPEXPORT(XdpRxQueueIsChecksumOffloadEnabled)(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS *Details = (XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS *)RxQueueConfig;
+    if (Details->Dispatch->Header.Revision == XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH_REVISION_1 &&
+        Details->Dispatch->Header.Size >= RTL_SIZEOF_THROUGH_FIELD(XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH, IsChecksumOffloadEnabled)) {
+        return Details->Dispatch->IsChecksumOffloadEnabled(RxQueueConfig);
+    } else {
+        return FALSE;
+    }
 }
 
 EXTERN_C_END

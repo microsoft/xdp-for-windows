@@ -201,10 +201,23 @@ VOID
 GenericTxChecksumOffloadExtensions();
 
 VOID
+GenericRxChecksumOffloadExtensions();
+
+VOID
 GenericTxChecksumOffloadIp();
 
 VOID
+GenericRxChecksumOffloadIp(
+    BOOLEAN TestRebind
+    );
+
+VOID
 GenericTxChecksumOffloadTcp(
+    ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxChecksumOffloadTcp(
     ADDRESS_FAMILY Af
     );
 
@@ -214,7 +227,16 @@ GenericTxChecksumOffloadUdp(
     );
 
 VOID
+GenericRxChecksumOffloadUdp(
+    ADDRESS_FAMILY Af
+    );
+
+
+VOID
 GenericTxChecksumOffloadConfig();
+
+VOID
+GenericRxChecksumOffloadConfig();
 
 VOID
 GenericXskWait(

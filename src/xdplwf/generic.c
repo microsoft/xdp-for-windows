@@ -689,6 +689,8 @@ XdpGenericAttachInterface(
         goto Exit;
     }
 
+    Generic->Capabilities.CapabilitiesEx.RxChecksumSupported = TRUE;
+
     Status =
         XdpRegisterInterface(
             IfIndex, &Generic->Capabilities, Generic,

@@ -49,6 +49,11 @@ typedef struct _XDP_RX_CAPABILITIES {
     // The XDP_RX_ACTION_TX action is supported on this RX queue.
     //
     BOOLEAN TxActionSupported;
+
+    //
+    // This RX queue supports checksum offloading.
+    //
+    BOOLEAN ChecksumOffload;
 } XDP_RX_CAPABILITIES;
 
 //
@@ -175,4 +180,13 @@ BOOLEAN
 XdpRxQueueIsVirtualAddressEnabled(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );
+
+//
+// Returns whether checksum offload is enabled.
+//
+BOOLEAN
+XdpRxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
 ```

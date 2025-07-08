@@ -329,20 +329,8 @@ XdpExtensionSetCreate(
     Set->Type = Type;
     Set->Count = ReservedExtensionCount;
 
-    for (UINT16 Index = 0; Index < Set->Count; Index++) {
-        XDP_EXTENSION_ENTRY *Entry = &Set->Entries[Index];
-        ASSERT(ReservedExtensions);
-        const XDP_EXTENSION_REGISTRATION *Reg = &ReservedExtensions[Index];
-
-        XdpExtensionSetValidate(Set, &Reg->Info);
-        XdpExtensionSetValidateAlignment(Reg->Alignment);
-
-        Entry->Enabled = FALSE;
-        Entry->Info = Reg->Info;
-        Entry->Size = Reg->Size;
-        Entry->Alignment = Reg->Alignment;
-        Entry->InternalExtension = Reg->InternalExtension;
-    }
+    XdpExtensionSetInitialize(
+        Type, ReservedExtensions, ReservedExtensionCount, Set);
 
     *ExtensionSet = Set;
     Status = STATUS_SUCCESS;
@@ -351,6 +339,42 @@ Exit:
 
     return Status;
 }
+
+VOID
+XdpExtensionSetInitialize(
+    _In_ XDP_EXTENSION_TYPE Type,
+    _In_opt_count_(ReservedExtensionCount) const XDP_EXTENSION_REGISTRATION *ReservedExtensions,
+    _In_ UINT16 ReservedExtensionCount,
+    _Inout_ XDP_EXTENSION_SET *ExtensionSet
+    )
+{
+    DBG_UNREFERENCED_PARAMETER(Type);
+    DBG_UNREFERENCED_PARAMETER(ReservedExtensionCount);
+    ASSERT(ExtensionSet->Type == Type);
+    ASSERT(ExtensionSet->Count >= ReservedExtensionCount);
+
+    ExtensionSet->LayoutAssigned = FALSE;
+
+    for (UINT16 Index = 0; Index < ExtensionSet->Count; Index++) {
+        XDP_EXTENSION_ENTRY *Entry = &ExtensionSet->Entries[Index];
+        ASSERT(ReservedExtensions);
+        const XDP_EXTENSION_REGISTRATION *Reg = &ReservedExtensions[Index];
+
+        XdpExtensionSetValidate(ExtensionSet, &Reg->Info);
+        XdpExtensionSetValidateAlignment(Reg->Alignment);
+
+        Entry->Enabled = FALSE;
+        Entry->Info = Reg->Info;
+        Entry->Size = Reg->Size;
+        Entry->Alignment = Reg->Alignment;
+        Entry->InternalExtension = Reg->InternalExtension;
+        Entry->InterfaceRegistered = FALSE;
+        Entry->Assigned = FALSE;
+        Entry->AssignedOffset = 0;
+        RtlZeroMemory(&Entry->Extension, sizeof(Entry->Extension));
+    }
+}
+
 
 VOID
 XdpExtensionSetCleanup(

@@ -86,6 +86,8 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
+    BOOLEAN IsChecksumOffloadEnabled;
+
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
     PCW_INSTANCE *PcwInstance;
 
@@ -379,6 +381,22 @@ static const XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
         .Size                   = 0,
         .Alignment              = __alignof(UCHAR),
     },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_LAYOUT_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_LAYOUT),
+        .Alignment              = __alignof(XDP_FRAME_LAYOUT),
+        .InternalExtension      = TRUE,
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_CHECKSUM),
+        .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalExtension      = TRUE,
+    },
 };
 
 static const XDP_EXTENSION_REGISTRATION XdpRxBufferExtensions[] = {
@@ -458,7 +476,9 @@ XdpRxQueueSetCapabilities(
     FRE_ASSERT(Capabilities->Header.Revision >= XDP_RX_CAPABILITIES_REVISION_1);
     FRE_ASSERT(Capabilities->Header.Size >= XDP_SIZEOF_RX_CAPABILITIES_REVISION_1);
 
-    RxQueue->InterfaceRxCapabilities = *Capabilities;
+    RtlCopyMemory(
+        &RxQueue->InterfaceRxCapabilities, Capabilities,
+        sizeof(RxQueue->InterfaceRxCapabilities));
 
     //
     // XDP programs require a system virtual address. Ensure the driver has
@@ -617,6 +637,28 @@ XdpRxQueueIsTxActionSupported(
     return RxQueue->InterfaceRxCapabilities.TxActionSupported;
 }
 
+BOOLEAN
+XdpRxQueueIsChecksumOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+
+    return RxQueue->IsChecksumOffloadEnabled;
+}
+
+
+BOOLEAN
+XdpRxQueueIsLayoutExtensionEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+    return
+        XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+}
+
 static
 CONST XDP_HOOK_ID *
 XdppRxQueueGetHookId(
@@ -658,6 +700,7 @@ static const XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch =
     .GetFragmentRing            = XdpRxQueueGetFragmentRing,
     .GetExtension               = XdpRxQueueGetExtension,
     .IsVirtualAddressEnabled    = XdpRxQueueIsVirtualAddressEnabled,
+    .IsChecksumOffloadEnabled   = XdpRxQueueIsChecksumOffloadEnabled,
 };
 
 static
@@ -727,15 +770,13 @@ XdpRxQueueDetachInterface(
         RxQueue->FrameRing = NULL;
     }
 
-    if (RxQueue->BufferExtensionSet != NULL) {
-        XdpExtensionSetCleanup(RxQueue->BufferExtensionSet);
-        RxQueue->BufferExtensionSet = NULL;
-    }
+    XdpExtensionSetInitialize(
+        XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+        RxQueue->FrameExtensionSet);
 
-    if (RxQueue->FrameExtensionSet != NULL) {
-        XdpExtensionSetCleanup(RxQueue->FrameExtensionSet);
-        RxQueue->FrameExtensionSet = NULL;
-    }
+    XdpExtensionSetInitialize(
+        XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
+        RxQueue->BufferExtensionSet);
 }
 
 static
@@ -778,20 +819,11 @@ XdpRxQueueAttachInterface(
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
-    Status =
-        XdpExtensionSetCreate(
-            XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
-            &RxQueue->FrameExtensionSet);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
-    Status =
-        XdpExtensionSetCreate(
-            XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
-            &RxQueue->BufferExtensionSet);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
+    if (RxQueue->IsChecksumOffloadEnabled) {
+        XdpExtensionSetEnableEntry(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+        XdpExtensionSetEnableEntry(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
     }
 
     RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
@@ -1027,6 +1059,22 @@ XdpRxQueueCreate(
     }
 
     Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_FRAME, XdpRxFrameExtensions, RTL_NUMBER_OF(XdpRxFrameExtensions),
+            &RxQueue->FrameExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        XdpExtensionSetCreate(
+            XDP_EXTENSION_TYPE_BUFFER, XdpRxBufferExtensions, RTL_NUMBER_OF(XdpRxBufferExtensions),
+            &RxQueue->BufferExtensionSet);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
         XdpIfRegisterClient(
             Binding, &RxQueueBindingClient, &RxQueue->Key, &RxQueue->BindingClientEntry);
     if (!NT_SUCCESS(Status)) {
@@ -1129,6 +1177,42 @@ XdpRxQueueDeregisterNotifications(
         RemoveEntryList(&NotifyEntry->Link);
         InitializeListHead(&NotifyEntry->Link);
     }
+}
+
+NTSTATUS
+XdpRxQueueEnableChecksumOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+
+    if (RxQueue->IsChecksumOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
+        const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
+        if (IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+            RxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
 }
 
 VOID
@@ -1297,6 +1381,16 @@ XdpRxQueueDereference(
         if (RxQueue->PcwInstance != NULL) {
             PcwCloseInstance(RxQueue->PcwInstance);
             RxQueue->PcwInstance = NULL;
+        }
+
+        if (RxQueue->BufferExtensionSet != NULL) {
+            XdpExtensionSetCleanup(RxQueue->BufferExtensionSet);
+            RxQueue->BufferExtensionSet = NULL;
+        }
+
+        if (RxQueue->FrameExtensionSet != NULL) {
+            XdpExtensionSetCleanup(RxQueue->FrameExtensionSet);
+            RxQueue->FrameExtensionSet = NULL;
         }
         ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
     }

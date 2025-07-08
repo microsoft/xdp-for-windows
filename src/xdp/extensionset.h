@@ -81,6 +81,14 @@ XdpExtensionSetCreate(
     );
 
 VOID
+XdpExtensionSetInitialize(
+    _In_ XDP_EXTENSION_TYPE Type,
+    _In_opt_count_(ReservedExtensionCount) const XDP_EXTENSION_REGISTRATION *ReservedExtensions,
+    _In_ UINT16 ReservedExtensionCount,
+    _Inout_ XDP_EXTENSION_SET *ExtensionSet
+    );
+
+VOID
 XdpExtensionSetCleanup(
     _In_ XDP_EXTENSION_SET *ExtensionSet
     );

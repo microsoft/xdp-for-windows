@@ -1395,6 +1395,48 @@ XdpGenericReceivePreinspectNb(
     *FlushNeeded = FALSE;
     *NbAddedToRing = FALSE;
 
+    if (RxQueue->Flags.ChecksumOffloadEnabled) {
+        NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *ChecksumInfo =
+            (NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO *)
+            &NET_BUFFER_LIST_INFO(Nbl, TcpIpChecksumNetBufferListInfo);
+
+        XDP_FRAME_CHECKSUM *csumExt =
+            (XDP_FRAME_CHECKSUM *)XdpGetChecksumExtension(Frame, &RxQueue->FrameChecksumExtension);
+
+        csumExt->Layer3 =
+            ChecksumInfo->Receive.IpChecksumFailed     ? XdpFrameRxChecksumEvaluationFailed :
+            ChecksumInfo->Receive.IpChecksumSucceeded  ? XdpFrameRxChecksumEvaluationSucceeded :
+                                                        XdpFrameRxChecksumEvaluationNotChecked;
+
+        csumExt->Layer4 =
+            (ChecksumInfo->Receive.TcpChecksumFailed || ChecksumInfo->Receive.UdpChecksumFailed)
+                ? XdpFrameRxChecksumEvaluationFailed
+            : (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumSucceeded)
+                ? XdpFrameRxChecksumEvaluationSucceeded
+            : XdpFrameRxChecksumEvaluationNotChecked;
+
+        XDP_FRAME_LAYOUT *layoutExt =
+            XdpGetLayoutExtension(Frame, &RxQueue->FrameLayoutExtension);
+
+        //
+        // Infer what we can based on the checksum evaluation results.
+        //
+        if (ChecksumInfo->Receive.TcpChecksumSucceeded || ChecksumInfo->Receive.TcpChecksumFailed) {
+            layoutExt->Layer4Type = XdpFrameLayer4TypeTcp;
+        } else if (ChecksumInfo->Receive.UdpChecksumSucceeded || ChecksumInfo->Receive.UdpChecksumFailed) {
+            layoutExt->Layer4Type = XdpFrameLayer4TypeUdp;
+        } else {
+            layoutExt->Layer4Type = XdpFrameLayer4TypeUnspecified;
+        }
+
+        //
+        // Assume the Layer 3 type is not specified if the checksum was not computed.
+        //
+        if (csumExt->Layer3 == XdpFrameRxChecksumEvaluationNotChecked) {
+            layoutExt->Layer3Type = XdpFrameLayer3TypeUnspecified;
+        }
+    }
+
     //
     // NDIS components may request that packets sent locally be looped back
     // on the receive path. Skip inspection of these packets.
@@ -2226,6 +2268,16 @@ XdpGenericRxCreateQueue(
         XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+        XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+        XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
     RxQueue->FragmentLimit = RECV_MAX_FRAGMENTS;
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
@@ -2275,6 +2327,7 @@ XdpGenericRxActivateQueue(
 
     RxQueue->FrameRing = XdpRxQueueGetFrameRing(Config);
     RxQueue->FragmentRing = XdpRxQueueGetFragmentRing(Config);
+    RxQueue->Flags.ChecksumOffloadEnabled = XdpRxQueueIsChecksumOffloadEnabled(Config);
 
     ASSERT(RxQueue->FrameRing->InterfaceReserved == RxQueue->FrameRing->ProducerIndex);
 
@@ -2298,6 +2351,18 @@ XdpGenericRxActivateQueue(
         &ExtensionInfo, XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_NAME,
         XDP_FRAME_EXTENSION_INTERFACE_CONTEXT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameInterfaceContextExtension);
+
+    if (RxQueue->Flags.ChecksumOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
+            XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameLayoutExtension);
+
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
+            XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameChecksumExtension);
+    }
 
     WritePointerRelease(&RxQueue->XdpRxQueue, XdpRxQueue);
 
