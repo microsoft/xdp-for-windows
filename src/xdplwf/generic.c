@@ -663,7 +663,6 @@ XdpGenericAttachInterface(
     Generic->InternalCapabilities.HookCount = RTL_NUMBER_OF(GenericHooks);
     Generic->InternalCapabilities.CapabilitiesEx = &Generic->Capabilities.CapabilitiesEx;
     Generic->InternalCapabilities.CapabilitiesSize = sizeof(Generic->Capabilities);
-    Generic->Capabilities.CapabilitiesEx.RxChecksumSupported = TRUE;
 
     Generic->Rx.Datapath.DelayDetachTimer =
         XdpTimerCreate(
@@ -689,6 +688,8 @@ XdpGenericAttachInterface(
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
+
+    Generic->Capabilities.CapabilitiesEx.RxChecksumSupported = TRUE;
 
     Status =
         XdpRegisterInterface(
