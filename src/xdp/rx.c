@@ -1181,8 +1181,7 @@ XdpRxQueueDeregisterNotifications(
 
 NTSTATUS
 XdpRxQueueEnableChecksumOffload(
-    _In_ XDP_RX_QUEUE *RxQueue,
-    _In_ BOOLEAN IfSupportsRxChecksum
+    _In_ XDP_RX_QUEUE *RxQueue
     )
 {
     NTSTATUS Status;
@@ -1196,7 +1195,8 @@ XdpRxQueueEnableChecksumOffload(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
     } else if (RxQueue->State == XdpRxQueueStateUnbound) {
-        if (IfSupportsRxChecksum) {
+        const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
+        if (IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
             XdpExtensionSetEnableEntry(
                 RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
             XdpExtensionSetEnableEntry(
