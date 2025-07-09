@@ -175,6 +175,12 @@ typedef struct _XSK_TX {
     //
     DMA_ADAPTER *DmaAdapter;
     XDP_EXTENSION_SET *FrameExtensionSet;
+    union {
+        struct {
+            UINT8 CurrentConfig : 1;
+        };
+        UINT8 Value;
+    } OffloadChangeFlags;
 } XSK_TX;
 
 typedef struct _XSK {
@@ -2277,8 +2283,13 @@ XskNotifyTxQueue(
 
         KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
+        //
+        // Set the offload changed flag if any offloads sensitive to current
+        // config changes are enabled.
+        //
         Shared = Xsk->Tx.Ring.Shared;
-        if (Shared != NULL) {
+        if (Shared != NULL && Xsk->Tx.OffloadFlags.Checksum) {
+            Xsk->Tx.OffloadChangeFlags.CurrentConfig = TRUE;
             InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
         }
 
@@ -4234,6 +4245,7 @@ XskSockoptGetOffload(
     VOID *OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
     UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     SIZE_T *BytesReturned = &Irp->IoStatus.Information;
+    BOOLEAN ResetChangeFlag = FALSE;
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
@@ -4250,6 +4262,8 @@ XskSockoptGetOffload(
         WorkItem.GetIfOffloadHandle = XskSockoptGetTxOffloadHandle;
         WorkItem.OffloadType = XdpOffloadChecksum;
         Ring = Xsk->Tx.Ring.Shared;
+        Xsk->Tx.OffloadChangeFlags.CurrentConfig = FALSE;
+        ResetChangeFlag = Xsk->Tx.OffloadChangeFlags.Value == 0;
         break;
 
     default:
@@ -4260,7 +4274,7 @@ XskSockoptGetOffload(
     ASSERT(WorkItem.IfWorkItem.BindingHandle != NULL);
     ASSERT(WorkItem.GetIfOffloadHandle != NULL);
 
-    if (Ring != NULL) {
+    if (Ring != NULL && ResetChangeFlag) {
         InterlockedAndNoFence((LONG *)&Ring->Flags, ~XSK_RING_FLAG_OFFLOAD_CHANGED);
     }
 
