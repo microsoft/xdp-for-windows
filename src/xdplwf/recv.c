@@ -2229,6 +2229,8 @@ XdpGenericRxCreateQueue(
         goto Exit;
     }
 
+    RxQueue->XdpNotifyHandle = XdpRxQueueGetNotifyHandle(Config);
+
     PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
     PoolParams.Header.Size = sizeof(PoolParams);

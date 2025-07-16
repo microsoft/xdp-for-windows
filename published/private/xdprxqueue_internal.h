@@ -56,7 +56,7 @@ XdpRxQueueGetNotifyHandle(
     _In_ XDP_RX_QUEUE_CONFIG_CREATE RxQueueConfig
     )
 {
-    XDP_RX_QUEUE_CONFIG_CREATE_DETAILS *Details = (XDP_RX_QUEUE_CONFIG_CREATE_DETAILS *)RXQueueConfig;
+    XDP_RX_QUEUE_CONFIG_CREATE_DETAILS *Details = (XDP_RX_QUEUE_CONFIG_CREATE_DETAILS *)RxQueueConfig;
     const XDP_RX_QUEUE_CONFIG_RESERVED *Reserved = Details->Dispatch->Reserved;
 
     if (Reserved == NULL ||
@@ -66,7 +66,7 @@ XdpRxQueueGetNotifyHandle(
         return NULL;
     }
 
-    return Reserved->GetNotifyHandle(RXQueueConfig);
+    return Reserved->GetNotifyHandle(RxQueueConfig);
 }
 
 typedef enum _XDP_RX_QUEUE_NOTIFY_CODE {

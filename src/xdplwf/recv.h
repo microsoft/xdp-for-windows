@@ -63,6 +63,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     NBL_QUEUE TxInspectPollNblQueue;
 
     XDP_LWF_GENERIC *Generic;
+    XDP_RX_QUEUE_NOTIFY_HANDLE XdpNotifyHandle;
     struct {
         BOOLEAN Paused : 1;
         BOOLEAN TxInspect : 1;
