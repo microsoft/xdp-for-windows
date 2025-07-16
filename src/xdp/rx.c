@@ -91,7 +91,13 @@ typedef struct _XDP_RX_QUEUE {
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
     PCW_INSTANCE *PcwInstance;
 
-    LIST_ENTRY NotifyClients;
+    struct {
+        KSPIN_LOCK Lock;
+        BOOLEAN WorkerQueued : 1;
+        BOOLEAN OffloadNeeded : 1;
+        XDP_RX_QUEUE_NOTIFY_DETAILS Details;
+        LIST_ENTRY Clients;
+    } Notify;
 } XDP_RX_QUEUE;
 
 typedef struct _XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS {
@@ -670,12 +676,40 @@ XdppRxQueueGetHookId(
     return &RxQueue->Key.HookId;
 }
 
+static
+XDP_RX_QUEUE_NOTIFY_HANDLE
+XdppRxQueueGetNotifyHandle(
+    _In_ XDP_RX_QUEUE_CONFIG_CREATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigCreate(RxQueueConfig);
+
+    return (XDP_RX_QUEUE_NOTIFY_HANDLE)&RxQueue->Notify.Details;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpRxQueueNotify(
+    _In_ XDP_RX_QUEUE_NOTIFY_HANDLE RxQueueNotifyHandle,
+    _In_ XDP_RX_QUEUE_NOTIFY_CODE NotifyCode,
+    _In_opt_ const VOID *NotifyBuffer,
+    _In_ SIZE_T NotifyBufferSize
+    )
+{
+    // TODO: fix.
+    UNREFERENCED_PARAMETER(RxQueueNotifyHandle);
+    UNREFERENCED_PARAMETER(NotifyCode);
+    UNREFERENCED_PARAMETER(NotifyBuffer);
+    UNREFERENCED_PARAMETER(NotifyBufferSize);
+}
+
 static const XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
     .Header                         = {
         .Revision                   = XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
         .Size                       = XDP_SIZEOF_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
     },
     .GetHookId                      = XdppRxQueueGetHookId,
+    .GetNotifyHandle                = XdppRxQueueGetNotifyHandle,
 };
 
 static const XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
@@ -703,6 +737,14 @@ static const XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch =
     .IsChecksumOffloadEnabled   = XdpRxQueueIsChecksumOffloadEnabled,
 };
 
+static const XDP_RX_QUEUE_NOTIFY_DISPATCH XdpRxNotifyDispatch = {
+    .Header                         = {
+        .Revision                   = XDP_RX_QUEUE_NOTIFY_DISPATCH_REVISION_1,
+        .Size                       = XDP_SIZEOF_RX_QUEUE_NOTIFY_DISPATCH_REVISION_1
+    },
+    .Notify                         = XdpRxQueueNotify,
+};
+
 static
 VOID
 XdpRxQueueNotifyClients(
@@ -710,13 +752,13 @@ XdpRxQueueNotifyClients(
     _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
     )
 {
-    LIST_ENTRY *Entry = RxQueue->NotifyClients.Flink;
+    LIST_ENTRY *Entry = RxQueue->Notify.Clients.Flink;
 
     TraceInfo(
         TRACE_CORE, "RxQueue=%p NotificationType=%!RX_QUEUE_NOTIFICATION_TYPE!",
         RxQueue, NotificationType);
 
-    while (Entry != &RxQueue->NotifyClients) {
+    while (Entry != &RxQueue->Notify.Clients) {
         XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
 
         NotifyEntry = CONTAINING_RECORD(Entry, XDP_RX_QUEUE_NOTIFICATION_ENTRY, Link);
@@ -1038,7 +1080,7 @@ XdpRxQueueCreate(
     RxQueue->State = XdpRxQueueStateUnbound;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
     InitializeListHead(&RxQueue->ProgramBindings);
-    InitializeListHead(&RxQueue->NotifyClients);
+    InitializeListHead(&RxQueue->Notify.Clients);
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
@@ -1155,7 +1197,7 @@ XdpRxQueueRegisterNotifications(
     )
 {
     NotifyEntry->NotifyRoutine = NotifyRoutine;
-    InsertTailList(&RxQueue->NotifyClients, &NotifyEntry->Link);
+    InsertTailList(&RxQueue->Notify.Clients, &NotifyEntry->Link);
 
     if (RxQueue->InterfaceRxQueue != NULL) {
         NotifyRoutine(NotifyEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);

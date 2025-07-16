@@ -1868,6 +1868,9 @@ XskNotifyRxQueue(
         XskNotifyDetachRxQueueComplete(Xsk);
         break;
 
+    case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
+
+        break;
     }
 }
 

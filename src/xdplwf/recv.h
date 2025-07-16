@@ -132,6 +132,14 @@ XdpGenericRxRestart(
     _In_ UINT32 NewMtu
     );
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericRxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
+    );
+
 VOID
 XdpGenericReceiveRegistryUpdate(
     VOID
