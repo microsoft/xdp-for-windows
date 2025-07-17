@@ -785,6 +785,8 @@ XdpRxQueueNotify(
             RxQueue->Notify.WorkItem.WorkRoutine = XdpRxQueueNotifyWorker;
         }
     }
+
+    KeReleaseSpinLock(&RxQueue->Notify.Lock, OldIrql);
 }
 
 static const XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
