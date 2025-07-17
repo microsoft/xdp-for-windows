@@ -746,6 +746,7 @@ XdpRxQueueNotifyWorker(
     )
 {
     // !!!TODO
+    UNREFERENCED_PARAMETER(Item);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -757,6 +758,9 @@ XdpRxQueueNotify(
     _In_ SIZE_T NotifyBufferSize
     )
 {
+    UNREFERENCED_PARAMETER(NotifyBuffer);
+    UNREFERENCED_PARAMETER(NotifyBufferSize);
+
     XDP_RX_QUEUE *RxQueue = XdpRxQueueFromNotify(RxQueueNotifyHandle);
     KIRQL OldIrql;
     BOOLEAN NeedNotification = FALSE;
