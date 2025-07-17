@@ -1193,7 +1193,7 @@ VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry,
-    _In_ XDP_RX_QUEUE_NOTIFY *NotifyRoutine
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
     )
 {
     NotifyEntry->NotifyRoutine = NotifyRoutine;
