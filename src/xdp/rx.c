@@ -69,6 +69,7 @@ typedef struct _XDP_RX_QUEUE {
     // Control path fields. TODO: Move to a separate, paged structure.
     //
 
+    RTL_REFERENCE_COUNT InterlockedReferenceCount;
     RTL_REFERENCE_COUNT ReferenceCount;
     XDP_BINDING_HANDLE Binding;
     XDP_RX_QUEUE_KEY Key;
@@ -95,6 +96,7 @@ typedef struct _XDP_RX_QUEUE {
         KSPIN_LOCK Lock;
         BOOLEAN WorkerQueued : 1;
         BOOLEAN OffloadNeeded : 1;
+        XDP_BINDING_WORKITEM WorkItem;
         XDP_RX_QUEUE_NOTIFY_DETAILS Details;
         LIST_ENTRY Clients;
     } Notify;
@@ -687,6 +689,65 @@ XdppRxQueueGetNotifyHandle(
     return (XDP_RX_QUEUE_NOTIFY_HANDLE)&RxQueue->Notify.Details;
 }
 
+static
+XDP_RX_QUEUE *
+XdpRxQueueFromNotify(
+    _In_ XDP_RX_QUEUE_NOTIFY_HANDLE RxQueueNotifyHandle
+    )
+{
+    return CONTAINING_RECORD(RxQueueNotifyHandle, XDP_RX_QUEUE, Notify.Details);
+}
+
+static
+VOID
+XdpRxQueueNotifyClients(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
+    )
+{
+    LIST_ENTRY *Entry = RxQueue->Notify.Clients.Flink;
+
+    TraceInfo(
+        TRACE_CORE, "RxQueue=%p NotificationType=%!RX_QUEUE_NOTIFICATION_TYPE!",
+        RxQueue, NotificationType);
+
+    while (Entry != &RxQueue->Notify.Clients) {
+        XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
+
+        NotifyEntry = CONTAINING_RECORD(Entry, XDP_RX_QUEUE_NOTIFICATION_ENTRY, Link);
+        Entry = Entry->Flink;
+
+        NotifyEntry->NotifyRoutine(NotifyEntry, NotificationType);
+    }
+}
+
+static
+_Requires_lock_held_(RxQueue->Notify.Lock)
+VOID
+XdpRxQueueNotifyClientsUnderNotifyLock(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType,
+    _In_ _IRQL_saves_ _IRQL_restores_ KIRQL *OldIrql
+    )
+{
+    //
+    // N.B. This routine releases and re-acquires the notify lock.
+    //
+    ASSERT(*OldIrql == PASSIVE_LEVEL);
+    KeReleaseSpinLock(&RxQueue->Notify.Lock, *OldIrql);
+    XdpRxQueueNotifyClients(RxQueue, NotificationType);
+    KeAcquireSpinLock(&RxQueue->Notify.Lock, OldIrql);
+}
+
+static
+VOID
+XdpRxQueueNotifyWorker(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    // !!!TODO
+}
+
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpRxQueueNotify(
@@ -696,11 +757,30 @@ XdpRxQueueNotify(
     _In_ SIZE_T NotifyBufferSize
     )
 {
-    // TODO: fix.
-    UNREFERENCED_PARAMETER(RxQueueNotifyHandle);
-    UNREFERENCED_PARAMETER(NotifyCode);
-    UNREFERENCED_PARAMETER(NotifyBuffer);
-    UNREFERENCED_PARAMETER(NotifyBufferSize);
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromNotify(RxQueueNotifyHandle);
+    KIRQL OldIrql;
+    BOOLEAN NeedNotification = FALSE;
+
+    // !!!TODO
+    // This routine can be invoked from arbitrary IRQLs, from PASSIVE_LEVEL to DISPATCH_LEVEL.
+    //
+
+    KeAcquireSpinLock(&RxQueue->Notify.Lock, &OldIrql);
+
+    switch (NotifyCode) {
+        case XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG:
+            RxQueue->Notify.OffloadNeeded = TRUE;
+            NeedNotification = TRUE;
+            break;
+    }
+
+    if (NeedNotification) {
+        if (!RxQueue->Notify.WorkerQueued) {
+            RxQueue->Notify.WorkerQueued = TRUE;
+            RxQueue->Notify.WorkItem.BindingHandle = RxQueue->Binding;
+            RxQueue->Notify.WorkItem.WorkRoutine = XdpRxQueueNotifyWorker;
+        }
+    }
 }
 
 static const XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
@@ -744,29 +824,6 @@ static const XDP_RX_QUEUE_NOTIFY_DISPATCH XdpRxNotifyDispatch = {
     },
     .Notify                         = XdpRxQueueNotify,
 };
-
-static
-VOID
-XdpRxQueueNotifyClients(
-    _In_ XDP_RX_QUEUE *RxQueue,
-    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
-    )
-{
-    LIST_ENTRY *Entry = RxQueue->Notify.Clients.Flink;
-
-    TraceInfo(
-        TRACE_CORE, "RxQueue=%p NotificationType=%!RX_QUEUE_NOTIFICATION_TYPE!",
-        RxQueue, NotificationType);
-
-    while (Entry != &RxQueue->Notify.Clients) {
-        XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
-
-        NotifyEntry = CONTAINING_RECORD(Entry, XDP_RX_QUEUE_NOTIFICATION_ENTRY, Link);
-        Entry = Entry->Flink;
-
-        NotifyEntry->NotifyRoutine(NotifyEntry, NotificationType);
-    }
-}
 
 static
 VOID
@@ -1076,6 +1133,7 @@ XdpRxQueueCreate(
         goto Exit;
     }
 
+    XdpInitializeReferenceCount(&RxQueue->InterlockedReferenceCount);
     XdpInitializeReferenceCount(&RxQueue->ReferenceCount);
     RxQueue->State = XdpRxQueueStateUnbound;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
@@ -1412,6 +1470,26 @@ XdpRxQueueGetStatsFromInspectionContext(
     return XdpRxQueueGetStats(RxQueue);
 }
 
+static
+VOID
+XdpRxQueueInterlockedReference(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdpIncrementReferenceCount(&RxQueue->InterlockedReferenceCount);
+}
+
+static
+VOID
+XdpRxQueueInterlockedDereference(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    if (XdpDecrementReferenceCount(&RxQueue->InterlockedReferenceCount)) {
+        ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
+    }
+}
+
 VOID
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue
@@ -1434,7 +1512,7 @@ XdpRxQueueDereference(
             XdpExtensionSetCleanup(RxQueue->FrameExtensionSet);
             RxQueue->FrameExtensionSet = NULL;
         }
-        ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
+        XdpRxQueueInterlockedDereference(RxQueue);
     }
 }
 
