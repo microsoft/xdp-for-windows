@@ -34,14 +34,14 @@ typedef enum _XDP_RX_QUEUE_NOTIFICATION_TYPE {
 
 typedef
 VOID
-XDP_RX_QUEUE_NOTIFY(
+XDP_RX_QUEUE_NOTIFICATION_ROUTINE(
     XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
     XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
     );
 
 typedef struct _XDP_RX_QUEUE_NOTIFY_ENTRY {
     LIST_ENTRY Link;
-    XDP_RX_QUEUE_NOTIFY *NotifyRoutine;
+    XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine;
 } XDP_RX_QUEUE_NOTIFICATION_ENTRY;
 
 VOID
@@ -53,7 +53,7 @@ VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry,
-    _In_ XDP_RX_QUEUE_NOTIFY *NotifyRoutine
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
     );
 
 VOID
