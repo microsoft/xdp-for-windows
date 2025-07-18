@@ -700,6 +700,26 @@ XdpRxQueueFromNotify(
 
 static
 VOID
+XdpRxQueueInterlockedReference(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdpIncrementReferenceCount(&RxQueue->InterlockedReferenceCount);
+}
+
+static
+VOID
+XdpRxQueueInterlockedDereference(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    if (XdpDecrementReferenceCount(&RxQueue->InterlockedReferenceCount)) {
+        ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
+    }
+}
+
+static
+VOID
 XdpRxQueueNotifyClients(
     _In_ XDP_RX_QUEUE *RxQueue,
     _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
@@ -1495,26 +1515,6 @@ XdpRxQueueGetStatsFromInspectionContext(
 {
     XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Context, XDP_RX_QUEUE, InspectionContext);
     return XdpRxQueueGetStats(RxQueue);
-}
-
-static
-VOID
-XdpRxQueueInterlockedReference(
-    _Inout_ XDP_RX_QUEUE *RxQueue
-    )
-{
-    XdpIncrementReferenceCount(&RxQueue->InterlockedReferenceCount);
-}
-
-static
-VOID
-XdpRxQueueInterlockedDereference(
-    _Inout_ XDP_RX_QUEUE *RxQueue
-    )
-{
-    if (XdpDecrementReferenceCount(&RxQueue->InterlockedReferenceCount)) {
-        ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
-    }
 }
 
 VOID
