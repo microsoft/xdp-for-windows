@@ -746,7 +746,26 @@ XdpRxQueueNotifyWorker(
     )
 {
     // !!!TODO
-    UNREFERENCED_PARAMETER(Item);
+    XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Item, XDP_RX_QUEUE, Notify.WorkItem);
+    KIRQL OldIrql;
+
+    KeAcquireSpinLock(&RxQueue->Notify.Lock, &OldIrql);
+
+    ASSERT(RxQueue->Notify.WorkerQueued);
+
+    while (TRUE) {
+        if (RxQueue->Notify.OffloadNeeded) {
+            RxQueue->Notify.OffloadNeeded = FALSE;
+            XdpRxQueueNotifyClientsUnderNotifyLock(
+                RxQueue, XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG, &OldIrql);
+        } else {
+            break;
+        }
+    }
+
+    KeReleaseSpinLock(&RxQueue->Notify.Lock, OldIrql);
+
+    XdpRxQueueInterlockedDereference(RxQueue);
 }
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -783,6 +802,8 @@ XdpRxQueueNotify(
             RxQueue->Notify.WorkerQueued = TRUE;
             RxQueue->Notify.WorkItem.BindingHandle = RxQueue->Binding;
             RxQueue->Notify.WorkItem.WorkRoutine = XdpRxQueueNotifyWorker;
+            XdpRxQueueInterlockedReference(RxQueue);
+            XdpIfQueueWorkItem(&RxQueue->Notify.WorkItem);
         }
     }
 
