@@ -7060,7 +7060,83 @@ GenericRxChecksumOffloadConfig() {
     // Routine Description:
     //     This test verifies the RX checksum offload configuration.
     //
-    // NOTE: TODO.
+
+    // !!!TODO
+    const auto &If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    auto PlainXsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    // XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+    // UINT32 OptionLength;
+
+    // TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    // TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
+
+    // OptionLength = 0;
+    // TEST_EQUAL(
+    //     HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+    //     TryGetSockopt(
+    //         Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, NULL, &OptionLength));
+    // TEST_TRUE(OptionLength >= XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1);
+
+    // OptionLength = 1;
+    // TEST_EQUAL(
+    //     HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER),
+    //     TryGetSockopt(
+    //         Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+    //         &OptionLength));
+    // TEST_TRUE(OptionLength == 0);
+
+    // OptionLength = sizeof(ChecksumConfig);
+    // GetSockopt(
+    //     Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+    //     &OptionLength);
+    // TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    // TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    // TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    // TEST_FALSE(ChecksumConfig.Enabled);
+
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+
+    auto OffloadReset = MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the offload change notification to occur.
+
+    //
+    // The offload bit should not be set unless the offload is enabled on the
+    // socket.
+    //
+    // TEST_TRUE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+    // TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Tx));
+
+    //
+    // Verify the current config is updated and the offload change flag has been
+    // cleared.
+    //
+    // OptionLength = sizeof(ChecksumConfig);
+    // GetSockopt(
+    //     Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+    //     &OptionLength);
+    // TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    // TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    // TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    // TEST_TRUE(ChecksumConfig.Enabled);
+    // TEST_TRUE(ChecksumConfig.TcpOptions);
+
+    // TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Tx));
+    // TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Tx));
 }
 
 static

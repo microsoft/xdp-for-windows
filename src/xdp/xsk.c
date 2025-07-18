@@ -113,6 +113,12 @@ typedef struct _XSK_RX {
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
     XDP_EXTENSION_SET *FrameExtensionSet;
+    union {
+        struct {
+            UINT8 CurrentConfig : 1;
+        };
+        UINT8 Value;
+    } OffloadChangeFlags;
 } XSK_RX;
 
 typedef struct _XSK_TX_XDP {
@@ -1869,7 +1875,23 @@ XskNotifyRxQueue(
         break;
 
     case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
+        // !!!TODO
+        XSK_SHARED_RING *Shared;
+        KIRQL OldIrql;
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
+        //
+        // Set the offload changed flag if any offloads sensitive to current
+        // config changes are enabled.
+        //
+
+        Shared = Xsk->Rx.Ring.Shared;
+        if (Shared != NULL && Xsk->Rx.OffloadFlags.Checksum) {
+            Xsk->Rx.OffloadChangeFlags.CurrentConfig = TRUE;
+            InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
+        }
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         break;
     }
 }
