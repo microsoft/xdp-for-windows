@@ -4250,9 +4250,30 @@ XskGetOffloadWorker(
         goto Exit;
     }
 
+    if (Xsk->Rx.Xdp.Queue == NULL) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    /*
+    TODO: on the RX path,
+
+    Do we want to move the RX interface offload handle creation deletion routines
+    to the XDP_RX_QUEUE creation / deletion paths (like how TX does it), or must we allocate / deallocate
+    the RX interface offload handle each time we attach/detach an interface?
+    In other words, can we get away with creating interface offload handle once in XDP_RX_QUEUE_CREATE
+    and delete it once in the deallocation path, or do we have to do it every time the app attaches/detaches
+    from an interface?
+    */
+    XDP_IF_OFFLOAD_HANDLE OffloadHandle = WorkItem->GetIfOffloadHandle(Xsk);
+    if (OffloadHandle == NULL) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
     Status =
         XdpIfGetInterfaceOffload(
-            XdpIfGetIfSetHandle(Item->BindingHandle), WorkItem->GetIfOffloadHandle(Xsk),
+            XdpIfGetIfSetHandle(Item->BindingHandle), OffloadHandle,
             WorkItem->OffloadType, WorkItem->OutputBuffer, &WorkItem->OffloadParamsSize);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
