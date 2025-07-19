@@ -4209,6 +4209,19 @@ XskSockoptGetTxOffloadHandle(
     return XdpTxQueueGetInterfaceOffloadHandle(Xsk->Tx.Xdp.Queue);
 }
 
+static
+XDP_IF_OFFLOAD_HANDLE
+XskSockoptGetRxOffloadHandle(
+    _In_ XSK *Xsk
+    )
+{
+    if (Xsk->Rx.Xdp.Queue == NULL) {
+        return NULL;
+    }
+
+    return XdpRxQueueGetInterfaceOffloadHandle(Xsk->Rx.Xdp.Queue);
+}
+
 typedef struct _XSK_OFFLOAD_WORKITEM {
     XDP_BINDING_WORKITEM IfWorkItem;
     XSK *Xsk;
@@ -4289,6 +4302,19 @@ XskSockoptGetOffload(
         Ring = Xsk->Tx.Ring.Shared;
         Xsk->Tx.OffloadChangeFlags.CurrentConfig = FALSE;
         ResetChangeFlag = Xsk->Tx.OffloadChangeFlags.Value == 0;
+        break;
+
+    case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM: //!!!TODO
+        if (Xsk->Rx.Xdp.IfHandle == NULL) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        WorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
+        WorkItem.GetIfOffloadHandle = XskSockoptGetRxOffloadHandle;
+        WorkItem.OffloadType = XdpOffloadChecksum;
+        Ring = Xsk->Rx.Ring.Shared;
+        Xsk->Rx.OffloadChangeFlags.CurrentConfig = FALSE;
+        ResetChangeFlag = Xsk->Rx.OffloadChangeFlags.Value == 0;
         break;
 
     default:
@@ -4619,6 +4645,9 @@ XskIrpGetSockopt(
         Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
+        Status = XskSockoptGetOffload(Xsk, Option, Irp, IrpSp);
+        break;
+    case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
         Status = XskSockoptGetOffload(Xsk, Option, Irp, IrpSp);
         break;
     default:

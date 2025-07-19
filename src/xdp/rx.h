@@ -114,6 +114,11 @@ XdpRxQueueGetInterfacePollHandle(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
+XDP_IF_OFFLOAD_HANDLE
+XdpRxQueueGetInterfaceOffloadHandle(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 XDP_RX_QUEUE_CONFIG_ACTIVATE
 XdpRxQueueGetConfig(
     _In_ XDP_RX_QUEUE *RxQueue
