@@ -4245,12 +4245,12 @@ XskGetOffloadWorker(
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
-    if (Xsk->Tx.Xdp.Queue == NULL) {
+    if (WorkItem->OffloadType == XdpTxOffloadChecksum && Xsk->Tx.Xdp.Queue == NULL) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
 
-    if (Xsk->Rx.Xdp.Queue == NULL) {
+    if (WorkItem->OffloadType == XdpRxOffloadChecksum && Xsk->Rx.Xdp.Queue == NULL) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
@@ -4319,7 +4319,7 @@ XskSockoptGetOffload(
         }
         WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
         WorkItem.GetIfOffloadHandle = XskSockoptGetTxOffloadHandle;
-        WorkItem.OffloadType = XdpOffloadChecksum;
+        WorkItem.OffloadType = XdpTxOffloadChecksum;
         Ring = Xsk->Tx.Ring.Shared;
         Xsk->Tx.OffloadChangeFlags.CurrentConfig = FALSE;
         ResetChangeFlag = Xsk->Tx.OffloadChangeFlags.Value == 0;
@@ -4332,7 +4332,7 @@ XskSockoptGetOffload(
         }
         WorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
         WorkItem.GetIfOffloadHandle = XskSockoptGetRxOffloadHandle;
-        WorkItem.OffloadType = XdpOffloadChecksum;
+        WorkItem.OffloadType = XdpRxOffloadChecksum;
         Ring = Xsk->Rx.Ring.Shared;
         Xsk->Rx.OffloadChangeFlags.CurrentConfig = FALSE;
         ResetChangeFlag = Xsk->Rx.OffloadChangeFlags.Value == 0;

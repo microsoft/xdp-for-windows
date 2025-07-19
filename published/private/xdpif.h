@@ -85,7 +85,8 @@ XDP_REMOVE_INTERFACE_COMPLETE(
 typedef enum {
     XdpOffloadRss,
     XdpOffloadQeo,
-    XdpOffloadChecksum,
+    XdpRxOffloadChecksum,
+    XdpTxOffloadChecksum,
 } XDP_INTERFACE_OFFLOAD_TYPE;
 
 typedef enum {

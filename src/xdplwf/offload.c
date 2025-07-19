@@ -198,7 +198,8 @@ XdpLwfGetInterfaceOffload(
         ASSERT(OffloadParams != NULL);
         Status = XdpLwfOffloadRssGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
-    case XdpOffloadChecksum:
+    case XdpRxOffloadChecksum:
+    case XdpTxOffloadChecksum:
         ASSERT(OffloadParams != NULL);
         Status = XdpLwfOffloadChecksumGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
