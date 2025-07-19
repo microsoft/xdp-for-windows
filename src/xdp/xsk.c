@@ -4666,8 +4666,6 @@ XskIrpGetSockopt(
         Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
-        Status = XskSockoptGetOffload(Xsk, Option, Irp, IrpSp);
-        break;
     case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
         Status = XskSockoptGetOffload(Xsk, Option, Irp, IrpSp);
         break;
