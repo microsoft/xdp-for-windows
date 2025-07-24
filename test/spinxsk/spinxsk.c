@@ -1707,6 +1707,19 @@ FuzzSocketMisc(
             Sock, XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig, &optSize);
     }
 
+    if (RandUlong() % 2) {
+        XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+
+        optSize = sizeof(ChecksumConfig);
+        if (!(RandUlong() % 8)) {
+            optSize = 0;
+        } else if (!(RandUlong() % 8)) {
+            optSize = RandUlong() % (sizeof(ChecksumConfig) * 2);
+        }
+        XskGetSockopt(
+            Sock, XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig, &optSize);
+    }
+
     if (!cleanDatapath && !(RandUlong() % 3)) {
         DetachXdpProgram(RxProgramSet);
 
