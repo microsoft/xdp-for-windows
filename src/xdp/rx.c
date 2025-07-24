@@ -1241,6 +1241,7 @@ XdpRxQueueCreate(
         goto Exit;
     }
 
+    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
     Status =
         XdpIfCreateRxQueue(
             RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
