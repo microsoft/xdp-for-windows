@@ -17,6 +17,20 @@ on:
         required: false
         default: true
         type: boolean
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: false
+        default: ''
+        type: string
+      id:
+        required: false
+        default: ''
+        type: string
+      codeql:
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   build_matrix:
