@@ -7055,7 +7055,7 @@ GenericTxChecksumOffloadConfig()
 }
 
 VOID
-GenericRxChecksumOffloadConfig() {
+GenericRxChecksumOffloadConfig(BOOLEAN AttachInterfaceAndProgram) {
     //
     // Routine Description:
     //     This test verifies the RX checksum offload configuration.
@@ -7072,10 +7072,12 @@ GenericRxChecksumOffloadConfig() {
 
     auto PlainXsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
 
-    Xsk.RxProgram =
-        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
-    PlainXsk.RxProgram =
-        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, PlainXsk.Handle.get());
+    if (AttachInterfaceAndProgram) {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+        PlainXsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, PlainXsk.Handle.get());
+    }
 
     XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
     UINT32 OptionLength;

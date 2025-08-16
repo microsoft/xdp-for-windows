@@ -4256,7 +4256,10 @@ XskGetOffloadWorker(
     }
 
     XDP_IF_OFFLOAD_HANDLE OffloadHandle = WorkItem->GetIfOffloadHandle(Xsk);
-    ASSERT(OffloadHandle != NULL);
+    if (OffloadHandle == NULL) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
 
     Status =
         XdpIfGetInterfaceOffload(

@@ -227,8 +227,12 @@ public:
         ::GenericTxChecksumOffloadConfig();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfig) {
-        ::GenericRxChecksumOffloadConfig();
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfigAttachInterfaceAndProgram) {
+        ::GenericRxChecksumOffloadConfig(TRUE);
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfigDoNotAttachInterfaceAndProgram) {
+        ::GenericRxChecksumOffloadConfig(FALSE);
     }
 
     TEST_METHOD(GenericRxTcpControlV4) {
