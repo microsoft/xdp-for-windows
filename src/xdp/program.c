@@ -1286,6 +1286,8 @@ XdpProgramBindingAttach(
         ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
         XdpProgramRxQueueNotify);
 
+    XdpProgramRxQueueNotify(&ProgramBinding->RxQueueNotificationEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH); // !!!TODO
+
     ASSERT(
         !IsListEmpty(&ProgramBinding->RxQueueEntry) &&
         !IsListEmpty(&ProgramBinding->Link));
