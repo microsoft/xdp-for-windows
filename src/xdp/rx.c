@@ -1557,7 +1557,6 @@ XdpRxQueueDereference(
 {
     if (XdpDecrementReferenceCount(&RxQueue->ReferenceCount)) {
         TraceInfo(TRACE_CORE, "Deleting RxQueue=%p", RxQueue);
-        XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
 
         // !!!TODO
         if (RxQueue->InterfaceOffloadHandle != NULL) {
@@ -1565,6 +1564,8 @@ XdpRxQueueDereference(
                 XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
             RxQueue->InterfaceOffloadHandle = NULL;
         }
+
+        XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
 
         // !!!TODO
         // if (RxQueue->InterfaceRxQueue != NULL) {
