@@ -887,12 +887,12 @@ XdpRxQueueDetachInterface(
 
     if (RxQueue->InterfaceRxQueue != NULL) {
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH);
-        // XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
+        XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
         RxQueue->State = XdpRxQueueStateUnbound;
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE);
 
-        // RxQueue->InterfaceRxDispatch = NULL; // !!!TODO
-        // RxQueue->InterfaceRxQueue = NULL; // !!!TODO
+        RxQueue->InterfaceRxDispatch = NULL; // !!!TODO
+        RxQueue->InterfaceRxQueue = NULL; // !!!TODO
     } else {
         ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
         ASSERT(RxQueue->InterfaceRxDispatch == NULL);
@@ -962,7 +962,7 @@ XdpRxQueueAttachInterface(
     UINT8 BufferAlignment, FrameAlignment;
 
     ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
-    // ASSERT(RxQueue->InterfaceRxQueue == NULL); // !!!TODO
+    ASSERT(RxQueue->InterfaceRxQueue == NULL); // !!!TODO
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
@@ -973,16 +973,16 @@ XdpRxQueueAttachInterface(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
     }
 
-    // RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch; // !!!TODO
+    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch; // !!!TODO
 
     // !!!TODO
-    // Status =
-    //     XdpIfCreateRxQueue(
-    //         RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
-    //         &RxQueue->InterfaceRxQueue, &RxQueue->InterfaceRxDispatch);
-    // if (!NT_SUCCESS(Status)) {
-    //     goto Exit;
-    // }
+    Status =
+        XdpIfCreateRxQueue(
+            RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
+            &RxQueue->InterfaceRxQueue, &RxQueue->InterfaceRxDispatch);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
 
 
     //
@@ -1197,7 +1197,7 @@ XdpRxQueueCreate(
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
 
-    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch; // !!!TODO
+    // RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch; // !!!TODO
 
     Status =
         RtlUnicodeStringPrintf(
@@ -1235,13 +1235,13 @@ XdpRxQueueCreate(
     }
 
     // !!!TODO
-    Status =
-        XdpIfCreateRxQueue(
-            RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
-            &RxQueue->InterfaceRxQueue, &RxQueue->InterfaceRxDispatch);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    // Status =
+    //     XdpIfCreateRxQueue(
+    //         RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
+    //         &RxQueue->InterfaceRxQueue, &RxQueue->InterfaceRxDispatch);
+    // if (!NT_SUCCESS(Status)) {
+    //     goto Exit;
+    // }
 
     // !!!TODO
     Status =
@@ -1567,9 +1567,9 @@ XdpRxQueueDereference(
         }
 
         // !!!TODO
-        if (RxQueue->InterfaceRxQueue != NULL) {
-            XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue);
-        }
+        // if (RxQueue->InterfaceRxQueue != NULL) {
+        //     XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue);
+        // }
 
         if (RxQueue->PcwInstance != NULL) {
             PcwCloseInstance(RxQueue->PcwInstance);
