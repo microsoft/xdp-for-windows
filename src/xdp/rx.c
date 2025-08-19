@@ -980,9 +980,9 @@ XdpRxQueueAttachInterface(
     //     XdpIfCreateRxQueue(
     //         RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
     //         &RxQueue->InterfaceRxQueue, &RxQueue->InterfaceRxDispatch);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    // if (!NT_SUCCESS(Status)) {
+    //     goto Exit;
+    // }
 
 
     //
