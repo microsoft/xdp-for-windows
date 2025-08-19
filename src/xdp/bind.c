@@ -892,6 +892,18 @@ XdpIfCloseInterfaceOffloadHandle(
 {
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)IfSetHandle;
     XDP_IF_OFFLOAD_OBJECT *OffloadObject = (XDP_IF_OFFLOAD_OBJECT *)InterfaceOffloadHandle;
+
+    // !!!TODO
+    if (IfSet == NULL) {
+        //
+        // The interface was deleted before we could close the offload handle.
+        // Assume proper cleanup has been performed in the delete code paths.
+        //
+        XdpIfpDereferenceInterfaceOffloadObject(OffloadObject);
+        return;
+    }
+
+
     BOOLEAN NeedCleanup = FALSE;
 
     TraceEnter(
