@@ -888,12 +888,12 @@ XdpRxQueueDetachInterface(
 
     if (RxQueue->InterfaceRxQueue != NULL) {
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH);
-        XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
+        // XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
         RxQueue->State = XdpRxQueueStateUnbound;
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE);
 
-        RxQueue->InterfaceRxDispatch = NULL; // !!!TODO
-        RxQueue->InterfaceRxQueue = NULL; // !!!TODO
+        // RxQueue->InterfaceRxDispatch = NULL; // !!!TODO
+        // RxQueue->InterfaceRxQueue = NULL; // !!!TODO
     } else {
         ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
         ASSERT(RxQueue->InterfaceRxDispatch == NULL);
