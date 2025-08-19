@@ -15,6 +15,7 @@ static UINT32 XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
 typedef enum _XDP_RX_QUEUE_STATE {
     XdpRxQueueStateUnbound,
     XdpRxQueueStateActive,
+    XdpRxQueueStateCreated,
 } XDP_RX_QUEUE_STATE;
 
 typedef struct _XDP_RX_QUEUE_KEY {
@@ -894,7 +895,7 @@ XdpRxQueueDetachInterface(
         RxQueue->InterfaceRxDispatch = NULL; // !!!TODO
         RxQueue->InterfaceRxQueue = NULL; // !!!TODO
     } else {
-        ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
+        ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
         ASSERT(RxQueue->InterfaceRxDispatch == NULL);
         ASSERT(RxQueue->InterfaceRxQueue == NULL);
     }
@@ -961,7 +962,7 @@ XdpRxQueueAttachInterface(
     UINT32 BufferSize, FrameSize, FrameOffset;
     UINT8 BufferAlignment, FrameAlignment;
 
-    ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
+    ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
     // ASSERT(RxQueue->InterfaceRxQueue == NULL); // !!!TODO
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
@@ -1069,22 +1070,24 @@ XdpRxQueueAttachInterface(
     XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
 
     // !!!TODO
-    // Status =
-    //     XdpIfActivateRxQueue(
-    //         RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
-    //         ConfigActivate);
-    // if (!NT_SUCCESS(Status)) {
-    //     TraceError(
-    //         TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
-    //         RxQueue, Status);
-    //     goto Exit;
-    // }
-    // RxQueue->State = XdpRxQueueStateActive;
+    if (RxQueue->State == XdpRxQueueStateCreated) {
+        Status =
+            XdpIfActivateRxQueue(
+                RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
+                ConfigActivate);
+        if (!NT_SUCCESS(Status)) {
+            TraceError(
+                TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
+                RxQueue, Status);
+            goto Exit;
+        }
+    }
+    RxQueue->State = XdpRxQueueStateActive;
 
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
+        ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
         XdpRxQueueDetachInterface(RxQueue);
     }
 
@@ -1186,7 +1189,7 @@ XdpRxQueueCreate(
 
     XdpInitializeReferenceCount(&RxQueue->InterlockedReferenceCount);
     XdpInitializeReferenceCount(&RxQueue->ReferenceCount);
-    RxQueue->State = XdpRxQueueStateUnbound;
+    RxQueue->State = XdpRxQueueStateCreated;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
     InitializeListHead(&RxQueue->ProgramBindings);
     InitializeListHead(&RxQueue->Notify.Clients);
@@ -1245,17 +1248,17 @@ XdpRxQueueCreate(
     }
 
     // !!!TODO
-    Status =
-        XdpIfActivateRxQueue(
-            RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
-            (XDP_RX_QUEUE_CONFIG_ACTIVATE) &RxQueue->ConfigActivate);
-    if (!NT_SUCCESS(Status)) {
-        TraceError(
-            TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
-            RxQueue, Status);
-        goto Exit;
-    }
-    RxQueue->State = XdpRxQueueStateActive;
+    // Status =
+    //     XdpIfActivateRxQueue(
+    //         RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
+    //         (XDP_RX_QUEUE_CONFIG_ACTIVATE) &RxQueue->ConfigActivate);
+    // if (!NT_SUCCESS(Status)) {
+    //     TraceError(
+    //         TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
+    //         RxQueue, Status);
+    //     goto Exit;
+    // }
+    // RxQueue->State = XdpRxQueueStateActive;
 
     // !!!TODO
     Status =
@@ -1380,7 +1383,7 @@ XdpRxQueueEnableChecksumOffload(
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
-    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
+    } else if (RxQueue->State == XdpRxQueueStateCreated) {
         const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
         if (IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
             XdpExtensionSetEnableEntry(
