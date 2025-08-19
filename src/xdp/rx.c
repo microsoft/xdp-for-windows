@@ -1248,7 +1248,7 @@ XdpRxQueueCreate(
     Status =
         XdpIfActivateRxQueue(
             RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
-            ConfigActivate);
+            &RxQueue->ConfigActivate);
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
