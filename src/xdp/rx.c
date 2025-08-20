@@ -880,15 +880,17 @@ XdpRxQueueDetachInterface(
     )
 {
     // !!!TODO
-    // if (RxQueue->InterfaceOffloadHandle != NULL) {
-    //     XdpIfCloseInterfaceOffloadHandle(
-    //         XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
-    //     RxQueue->InterfaceOffloadHandle = NULL;
-    // }
+    if (RxQueue->InterfaceOffloadHandle != NULL && RxQueue->State == XdpRxQueueStateCreated) {
+        XdpIfCloseInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
+        RxQueue->InterfaceOffloadHandle = NULL;
+    }
 
     if (RxQueue->InterfaceRxQueue != NULL) {
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH);
-        // XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
+        if (RxQueue->State == XdpRxQueueStateCreated) {
+            XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
+        }
         RxQueue->State = XdpRxQueueStateUnbound;
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE);
 

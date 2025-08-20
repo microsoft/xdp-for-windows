@@ -291,8 +291,8 @@ XdpIfpCloseNmrInterface(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE!",
         Interface->IfIndex, Interface->Capabilities.Mode);
 
-    //ASSERT(Interface->XdpDriverApi.ProviderReference == 0); // !!!TODO
-    //ASSERT(Interface->XdpDriverApi.InterfaceContext == NULL); // !!!TODO
+    ASSERT(Interface->XdpDriverApi.ProviderReference == 0); // !!!TODO
+    ASSERT(Interface->XdpDriverApi.InterfaceContext == NULL); // !!!TODO
     ASSERT(Nmr != NULL && Nmr->NmrHandle != NULL);
 
     XdpCloseProvider(Nmr->NmrHandle);
