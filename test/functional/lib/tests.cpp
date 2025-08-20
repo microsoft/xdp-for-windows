@@ -216,8 +216,8 @@ typedef struct {
 } RX_TX_TESTCASE;
 
 static RX_TX_TESTCASE RxTxTestCases[] = {
-    { TRUE, FALSE },
     { FALSE, TRUE },
+    { TRUE, FALSE },
     { TRUE, TRUE }
 };
 
