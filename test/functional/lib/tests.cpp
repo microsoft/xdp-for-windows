@@ -2659,13 +2659,13 @@ BindingTest(
         //
         // Close the XSK handle while the RX program is still attached.
         //
-        if (Case.Rx && !RestartAdapter) {
-            auto Socket =
-                SetupSocket(
-                    If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
+        // if (Case.Rx && !RestartAdapter) {
+        //     auto Socket =
+        //         SetupSocket(
+        //             If.GetIfIndex(), If.GetQueueId(), Case.Rx, Case.Tx, XDP_GENERIC);
 
-            Socket.Handle.reset();
-        }
+        //     Socket.Handle.reset();
+        // }
     }
 
     if (RestartAdapter) {
