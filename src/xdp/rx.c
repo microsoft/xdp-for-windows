@@ -965,6 +965,7 @@ XdpRxQueueAttachInterface(
     ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
     // ASSERT(RxQueue->InterfaceRxQueue == NULL); // !!!TODO
     ASSERT(RxQueue->InterfaceRxQueue != NULL); // !!!TODO
+    ASSERT(RxQueue->InterfaceOffloadHandle != NULL); // !!!TODO
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
@@ -1050,13 +1051,15 @@ XdpRxQueueAttachInterface(
     }
 
     // !!!TODO
-    // Status =
-    //     XdpIfOpenInterfaceOffloadHandle(
-    //         XdpIfGetIfSetHandle(RxQueue->Binding), &RxQueue->Key.HookId,
-    //         &RxQueue->InterfaceOffloadHandle);
-    // if (!NT_SUCCESS(Status)) {
-    //     goto Exit;
-    // }
+    XdpIfCloseInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
+    Status =
+        XdpIfOpenInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), &RxQueue->Key.HookId,
+            &RxQueue->InterfaceOffloadHandle);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
 
     // RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch; // !!!TODO
 
