@@ -993,8 +993,10 @@ XdpProgramRxQueueNotify(
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
         XdpProgramDetachRxQueue(ProgramBinding);
+        if (ProgramBinding->RxQueue != NULL) {
+            XdpRxQueueDereference(ProgramBinding->RxQueue);
+        }
         break;
-
     }
 }
 
