@@ -67,7 +67,7 @@ XdpRxQueueEnableChecksumOffload(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
-VOID
+BOOLEAN
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue
     );

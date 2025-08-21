@@ -1573,7 +1573,7 @@ XdpRxQueueGetStatsFromInspectionContext(
     return XdpRxQueueGetStats(RxQueue);
 }
 
-VOID
+BOOLEAN
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue
     )
@@ -1612,7 +1612,9 @@ XdpRxQueueDereference(
             RxQueue->FrameExtensionSet = NULL;
         }
         XdpRxQueueInterlockedDereference(RxQueue);
+        return TRUE;
     }
+    return FALSE;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
