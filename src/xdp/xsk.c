@@ -1870,6 +1870,16 @@ XskNotifyRxQueue(
         XskNotifyDetachRxQueue(Xsk);
         break;
 
+    case XDP_RX_QUEUE_NOTIFICATION_DELETE:
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        if (Xsk->State != XskClosing) {
+            ASSERT(Xsk->State >= XskBinding && Xsk->State <= XskActive);
+            Xsk->State = XskDetached;
+        }
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        XskDetachRxIf(Xsk);
+        break;
+
     case XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE:
         XskNotifyDetachRxQueueComplete(Xsk);
         break;
