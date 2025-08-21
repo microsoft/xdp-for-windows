@@ -1850,6 +1850,50 @@ XskNotifyAttachRxQueue(
     Xsk->Rx.Xdp.Flags.DatapathAttached = TRUE;
 }
 
+
+static
+VOID
+XskDetachRxIf(
+    _In_ XSK *Xsk
+    )
+{
+    KIRQL OldIrql;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    if (Xsk->Rx.Xdp.Queue != NULL) {
+        if (Xsk->Rx.Xdp.Flags.NotificationsRegistered) {
+            XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
+            XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
+            Xsk->Rx.Xdp.Flags.NotificationsRegistered = FALSE;
+        }
+
+        XskNotifyDetachRxQueue(Xsk);
+        XskNotifyDetachRxQueueComplete(Xsk);
+        XdpRxQueueDereference(Xsk->Rx.Xdp.Queue);
+        Xsk->Rx.Xdp.Queue = NULL;
+    }
+
+    if (Xsk->Rx.Xdp.IfHandle != NULL) {
+        XdpIfDereferenceBinding(Xsk->Rx.Xdp.IfHandle);
+
+        //
+        // Synchronize with non-binding-workers while clearing the interface
+        // handle.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        Xsk->Rx.Xdp.IfHandle = NULL;
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    if (Xsk->State >= XskActive) {
+        XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
+        XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
+    }
+
+    TraceExitSuccess(TRACE_XSK);
+}
+
 VOID
 XskNotifyRxQueue(
     _In_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
@@ -1859,6 +1903,7 @@ XskNotifyRxQueue(
     XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Rx.Xdp.QueueNotificationEntry);
 
     TraceInfo(TRACE_XSK, "Xsk=%p NotificationType=%u", Xsk, NotificationType);
+    KIRQL OldIrql;
 
     switch (NotificationType) {
 
@@ -2168,49 +2213,6 @@ XskRxSyncDetach(
     XSK *Xsk = Context;
     ASSERT(Xsk);
     Xsk->Rx.Xdp.Flags.DatapathAttached = FALSE;
-}
-
-static
-VOID
-XskDetachRxIf(
-    _In_ XSK *Xsk
-    )
-{
-    KIRQL OldIrql;
-
-    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
-
-    if (Xsk->Rx.Xdp.Queue != NULL) {
-        if (Xsk->Rx.Xdp.Flags.NotificationsRegistered) {
-            XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
-            XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
-            Xsk->Rx.Xdp.Flags.NotificationsRegistered = FALSE;
-        }
-
-        XskNotifyDetachRxQueue(Xsk);
-        XskNotifyDetachRxQueueComplete(Xsk);
-        XdpRxQueueDereference(Xsk->Rx.Xdp.Queue);
-        Xsk->Rx.Xdp.Queue = NULL;
-    }
-
-    if (Xsk->Rx.Xdp.IfHandle != NULL) {
-        XdpIfDereferenceBinding(Xsk->Rx.Xdp.IfHandle);
-
-        //
-        // Synchronize with non-binding-workers while clearing the interface
-        // handle.
-        //
-        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-        Xsk->Rx.Xdp.IfHandle = NULL;
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-    }
-
-    if (Xsk->State >= XskActive) {
-        XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
-        XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
-    }
-
-    TraceExitSuccess(TRACE_XSK);
 }
 
 static
