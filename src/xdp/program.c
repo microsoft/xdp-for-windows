@@ -997,7 +997,7 @@ XdpProgramRxQueueNotify(
         XdpProgramDetachRxQueue(ProgramBinding);
         if (ProgramBinding->RxQueue != NULL) {
             if (XdpRxQueueDereference(ProgramBinding->RxQueue)) {
-                    ProgramBinding->RxQueue = NULL;
+                ProgramBinding->RxQueue = NULL;
             }
         }
         break;
