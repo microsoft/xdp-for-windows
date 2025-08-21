@@ -1943,7 +1943,6 @@ XskNotifyRxQueue(
     case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
         // !!!TODO
         XSK_SHARED_RING *Shared;
-        KIRQL OldIrql;
         KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
 
         //
