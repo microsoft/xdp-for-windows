@@ -1850,6 +1850,17 @@ XskNotifyAttachRxQueue(
     Xsk->Rx.Xdp.Flags.DatapathAttached = TRUE;
 }
 
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XskRxSyncDetach(
+    _In_opt_ VOID *Context
+    )
+{
+    XSK *Xsk = Context;
+    ASSERT(Xsk);
+    Xsk->Rx.Xdp.Flags.DatapathAttached = FALSE;
+}
 
 static
 VOID
@@ -2201,18 +2212,6 @@ XskCleanupDma(
         Xsk->Tx.DmaAdapter->DmaOperations->PutDmaAdapter(Xsk->Tx.DmaAdapter);
         Xsk->Tx.DmaAdapter = NULL;
     }
-}
-
-static
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-XskRxSyncDetach(
-    _In_opt_ VOID *Context
-    )
-{
-    XSK *Xsk = Context;
-    ASSERT(Xsk);
-    Xsk->Rx.Xdp.Flags.DatapathAttached = FALSE;
 }
 
 static
