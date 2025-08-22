@@ -37,7 +37,7 @@ jobs:
       base_ref: ${{ steps.resolve_base_ref.outputs.base_ref }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         repository: microsoft/xdp-for-windows
         fetch-depth: 2
@@ -82,17 +82,17 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
     - name: Download x64 Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.config }}_x64
         path: artifacts/bin
     - name: Download arm64 Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.config }}_arm64
         path: artifacts/bin
@@ -125,7 +125,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -179,7 +179,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -189,7 +189,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -246,7 +246,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -256,7 +256,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -301,11 +301,11 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: tools
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -341,7 +341,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: |
           .github
@@ -377,12 +377,12 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: |
           tools
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -412,12 +412,12 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: |
           tools
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -456,9 +456,9 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         path: artifacts/perf
         pattern: perfdata_*
@@ -488,7 +488,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -498,7 +498,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -546,7 +546,7 @@ jobs:
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         sparse-checkout: tools
     - name: Check Drivers
@@ -556,7 +556,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -590,9 +590,9 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
     - name: Download Artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
