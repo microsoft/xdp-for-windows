@@ -1352,9 +1352,9 @@ XdpRxQueueRegisterNotifications(
     InsertTailList(&RxQueue->Notify.Clients, &NotifyEntry->Link);
 
     // !!!TODO
-    // if (RxQueue->InterfaceRxQueue != NULL) {
-    //     NotifyRoutine(NotifyEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
-    // }
+    if (RxQueue->InterfaceRxQueue != NULL) {
+        NotifyRoutine(NotifyEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
+    }
 }
 
 VOID
