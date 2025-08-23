@@ -15,6 +15,7 @@ static UINT32 XdpRxRingSize = XDP_DEFAULT_RX_RING_SIZE;
 typedef enum _XDP_RX_QUEUE_STATE {
     XdpRxQueueStateUnbound,
     XdpRxQueueStateActive,
+    XdpRxQueueStateCreated,
 } XDP_RX_QUEUE_STATE;
 
 typedef struct _XDP_RX_QUEUE_KEY {
@@ -69,6 +70,7 @@ typedef struct _XDP_RX_QUEUE {
     // Control path fields. TODO: Move to a separate, paged structure.
     //
 
+    RTL_REFERENCE_COUNT InterlockedReferenceCount;
     RTL_REFERENCE_COUNT ReferenceCount;
     XDP_BINDING_HANDLE Binding;
     XDP_RX_QUEUE_KEY Key;
@@ -91,7 +93,14 @@ typedef struct _XDP_RX_QUEUE {
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
     PCW_INSTANCE *PcwInstance;
 
-    LIST_ENTRY NotifyClients;
+    struct {
+        KSPIN_LOCK Lock;
+        BOOLEAN WorkerQueued : 1;
+        BOOLEAN OffloadNeeded : 1;
+        XDP_BINDING_WORKITEM WorkItem;
+        XDP_RX_QUEUE_NOTIFY_DETAILS Details;
+        LIST_ENTRY Clients;
+    } Notify;
 } XDP_RX_QUEUE;
 
 typedef struct _XDP_RX_QUEUE_SWAP_PROGRAM_PARAMS {
@@ -670,12 +679,165 @@ XdppRxQueueGetHookId(
     return &RxQueue->Key.HookId;
 }
 
+static
+XDP_RX_QUEUE_NOTIFY_HANDLE
+XdppRxQueueGetNotifyHandle(
+    _In_ XDP_RX_QUEUE_CONFIG_CREATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigCreate(RxQueueConfig);
+
+    return (XDP_RX_QUEUE_NOTIFY_HANDLE)&RxQueue->Notify.Details;
+}
+
+static
+XDP_RX_QUEUE *
+XdpRxQueueFromNotify(
+    _In_ XDP_RX_QUEUE_NOTIFY_HANDLE RxQueueNotifyHandle
+    )
+{
+    return CONTAINING_RECORD(RxQueueNotifyHandle, XDP_RX_QUEUE, Notify.Details);
+}
+
+static
+VOID
+XdpRxQueueInterlockedReference(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XdpIncrementReferenceCount(&RxQueue->InterlockedReferenceCount);
+}
+
+static
+VOID
+XdpRxQueueInterlockedDereference(
+    _Inout_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    if (XdpDecrementReferenceCount(&RxQueue->InterlockedReferenceCount)) {
+        ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
+    }
+}
+
+static
+VOID
+XdpRxQueueNotifyClients(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
+    )
+{
+    LIST_ENTRY *Entry = RxQueue->Notify.Clients.Flink;
+
+    TraceInfo(
+        TRACE_CORE, "RxQueue=%p NotificationType=%!RX_QUEUE_NOTIFICATION_TYPE!",
+        RxQueue, NotificationType);
+
+    while (Entry != &RxQueue->Notify.Clients) {
+        XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
+
+        NotifyEntry = CONTAINING_RECORD(Entry, XDP_RX_QUEUE_NOTIFICATION_ENTRY, Link);
+        Entry = Entry->Flink;
+
+        NotifyEntry->NotifyRoutine(NotifyEntry, NotificationType);
+    }
+}
+
+static
+_Requires_lock_held_(RxQueue->Notify.Lock)
+VOID
+XdpRxQueueNotifyClientsUnderNotifyLock(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType,
+    _In_ _IRQL_saves_ _IRQL_restores_ KIRQL *OldIrql
+    )
+{
+    //
+    // N.B. This routine releases and re-acquires the notify lock.
+    //
+    ASSERT(*OldIrql == PASSIVE_LEVEL);
+    KeReleaseSpinLock(&RxQueue->Notify.Lock, *OldIrql);
+    XdpRxQueueNotifyClients(RxQueue, NotificationType);
+    KeAcquireSpinLock(&RxQueue->Notify.Lock, OldIrql);
+}
+
+static
+VOID
+XdpRxQueueNotifyWorker(
+    _In_ XDP_BINDING_WORKITEM *Item
+    )
+{
+    // !!!TODO
+    XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Item, XDP_RX_QUEUE, Notify.WorkItem);
+    KIRQL OldIrql;
+
+    KeAcquireSpinLock(&RxQueue->Notify.Lock, &OldIrql);
+
+    ASSERT(RxQueue->Notify.WorkerQueued);
+
+    while (TRUE) {
+        if (RxQueue->Notify.OffloadNeeded) {
+            RxQueue->Notify.OffloadNeeded = FALSE;
+            XdpRxQueueNotifyClientsUnderNotifyLock(
+                RxQueue, XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG, &OldIrql);
+        } else {
+            break;
+        }
+    }
+
+    KeReleaseSpinLock(&RxQueue->Notify.Lock, OldIrql);
+
+    XdpRxQueueInterlockedDereference(RxQueue);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpRxQueueNotify(
+    _In_ XDP_RX_QUEUE_NOTIFY_HANDLE RxQueueNotifyHandle,
+    _In_ XDP_RX_QUEUE_NOTIFY_CODE NotifyCode,
+    _In_opt_ const VOID *NotifyBuffer,
+    _In_ SIZE_T NotifyBufferSize
+    )
+{
+    UNREFERENCED_PARAMETER(NotifyBuffer);
+    UNREFERENCED_PARAMETER(NotifyBufferSize);
+
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromNotify(RxQueueNotifyHandle);
+    KIRQL OldIrql;
+    BOOLEAN NeedNotification = FALSE;
+
+    // !!!TODO
+    // This routine can be invoked from arbitrary IRQLs, from PASSIVE_LEVEL to DISPATCH_LEVEL.
+    //
+
+    KeAcquireSpinLock(&RxQueue->Notify.Lock, &OldIrql);
+
+    switch (NotifyCode) {
+        case XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG:
+            RxQueue->Notify.OffloadNeeded = TRUE;
+            NeedNotification = TRUE;
+            break;
+    }
+
+    if (NeedNotification) {
+        if (!RxQueue->Notify.WorkerQueued) {
+            RxQueue->Notify.WorkerQueued = TRUE;
+            RxQueue->Notify.WorkItem.BindingHandle = RxQueue->Binding;
+            RxQueue->Notify.WorkItem.WorkRoutine = XdpRxQueueNotifyWorker;
+            XdpRxQueueInterlockedReference(RxQueue);
+            XdpIfQueueWorkItem(&RxQueue->Notify.WorkItem);
+        }
+    }
+
+    KeReleaseSpinLock(&RxQueue->Notify.Lock, OldIrql);
+}
+
 static const XDP_RX_QUEUE_CONFIG_RESERVED XdpRxConfigReservedDispatch = {
     .Header                         = {
         .Revision                   = XDP_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
         .Size                       = XDP_SIZEOF_RX_QUEUE_CONFIG_RESERVED_REVISION_1,
     },
     .GetHookId                      = XdppRxQueueGetHookId,
+    .GetNotifyHandle                = XdppRxQueueGetNotifyHandle,
 };
 
 static const XDP_RX_QUEUE_CONFIG_CREATE_DISPATCH XdpRxConfigCreateDispatch = {
@@ -703,28 +865,13 @@ static const XDP_RX_QUEUE_CONFIG_ACTIVATE_DISPATCH XdpRxConfigActivateDispatch =
     .IsChecksumOffloadEnabled   = XdpRxQueueIsChecksumOffloadEnabled,
 };
 
-static
-VOID
-XdpRxQueueNotifyClients(
-    _In_ XDP_RX_QUEUE *RxQueue,
-    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
-    )
-{
-    LIST_ENTRY *Entry = RxQueue->NotifyClients.Flink;
-
-    TraceInfo(
-        TRACE_CORE, "RxQueue=%p NotificationType=%!RX_QUEUE_NOTIFICATION_TYPE!",
-        RxQueue, NotificationType);
-
-    while (Entry != &RxQueue->NotifyClients) {
-        XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
-
-        NotifyEntry = CONTAINING_RECORD(Entry, XDP_RX_QUEUE_NOTIFICATION_ENTRY, Link);
-        Entry = Entry->Flink;
-
-        NotifyEntry->NotifyRoutine(NotifyEntry, NotificationType);
-    }
-}
+static const XDP_RX_QUEUE_NOTIFY_DISPATCH XdpRxNotifyDispatch = {
+    .Header                         = {
+        .Revision                   = XDP_RX_QUEUE_NOTIFY_DISPATCH_REVISION_1,
+        .Size                       = XDP_SIZEOF_RX_QUEUE_NOTIFY_DISPATCH_REVISION_1
+    },
+    .Notify                         = XdpRxQueueNotify,
+};
 
 static
 VOID
@@ -732,22 +879,25 @@ XdpRxQueueDetachInterface(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    if (RxQueue->InterfaceOffloadHandle != NULL) {
-        XdpIfCloseInterfaceOffloadHandle(
-            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
-        RxQueue->InterfaceOffloadHandle = NULL;
-    }
+    // !!!TODO
+    // if (RxQueue->InterfaceOffloadHandle != NULL && RxQueue->State == XdpRxQueueStateCreated) {
+    //     XdpIfCloseInterfaceOffloadHandle(
+    //         XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
+    //     RxQueue->InterfaceOffloadHandle = NULL;
+    // }
 
     if (RxQueue->InterfaceRxQueue != NULL) {
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH);
-        XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue);
+        // if (RxQueue->State == XdpRxQueueStateCreated) {
+        //     XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue); // !!!TODO
+        // }
         RxQueue->State = XdpRxQueueStateUnbound;
         XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE);
 
-        RxQueue->InterfaceRxDispatch = NULL;
-        RxQueue->InterfaceRxQueue = NULL;
+        // RxQueue->InterfaceRxDispatch = NULL; // !!!TODO
+        // RxQueue->InterfaceRxQueue = NULL; // !!!TODO
     } else {
-        ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
+        ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
         ASSERT(RxQueue->InterfaceRxDispatch == NULL);
         ASSERT(RxQueue->InterfaceRxQueue == NULL);
     }
@@ -814,8 +964,10 @@ XdpRxQueueAttachInterface(
     UINT32 BufferSize, FrameSize, FrameOffset;
     UINT8 BufferAlignment, FrameAlignment;
 
-    ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
-    ASSERT(RxQueue->InterfaceRxQueue == NULL);
+    ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
+    // ASSERT(RxQueue->InterfaceRxQueue == NULL); // !!!TODO
+    ASSERT(RxQueue->InterfaceRxQueue != NULL); // !!!TODO
+    ASSERT(RxQueue->InterfaceOffloadHandle != NULL); // !!!TODO
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
@@ -826,8 +978,10 @@ XdpRxQueueAttachInterface(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
     }
 
-    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
+    // RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch; // !!!TODO
 
+    // !!!TODO
+    XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue);
     Status =
         XdpIfCreateRxQueue(
             RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
@@ -835,6 +989,7 @@ XdpRxQueueAttachInterface(
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
+
 
     //
     // Ensure the interface driver has registered its capabilities.
@@ -897,6 +1052,9 @@ XdpRxQueueAttachInterface(
         XdpRxQueueGetExtension(ConfigActivate, &ExtensionInfo, &RxQueue->FragmentExtension);
     }
 
+    // !!!TODO
+    XdpIfCloseInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
     Status =
         XdpIfOpenInterfaceOffloadHandle(
             XdpIfGetIfSetHandle(RxQueue->Binding), &RxQueue->Key.HookId,
@@ -905,7 +1063,7 @@ XdpRxQueueAttachInterface(
         goto Exit;
     }
 
-    RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch;
+    // RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch; // !!!TODO
 
     if (ValidationRoutine != NULL) {
         Status = ValidationRoutine(RxQueue, ValidationContext);
@@ -918,6 +1076,7 @@ XdpRxQueueAttachInterface(
 
     XdpRxQueueNotifyClients(RxQueue, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
 
+    // !!!TODO
     Status =
         XdpIfActivateRxQueue(
             RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
@@ -934,7 +1093,7 @@ XdpRxQueueAttachInterface(
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
+        ASSERT(RxQueue->State == XdpRxQueueStateUnbound || RxQueue->State == XdpRxQueueStateCreated);
         XdpRxQueueDetachInterface(RxQueue);
     }
 
@@ -1034,17 +1193,21 @@ XdpRxQueueCreate(
         goto Exit;
     }
 
+    XdpInitializeReferenceCount(&RxQueue->InterlockedReferenceCount);
     XdpInitializeReferenceCount(&RxQueue->ReferenceCount);
-    RxQueue->State = XdpRxQueueStateUnbound;
+    RxQueue->State = XdpRxQueueStateCreated;
     XdpIfInitializeClientEntry(&RxQueue->BindingClientEntry);
     InitializeListHead(&RxQueue->ProgramBindings);
-    InitializeListHead(&RxQueue->NotifyClients);
+    InitializeListHead(&RxQueue->Notify.Clients);
     XdpQueueSyncInitialize(&RxQueue->Sync);
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
+
+    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch; // !!!TODO
+    RxQueue->ConfigActivate.Dispatch = &XdpRxConfigActivateDispatch; // !!!TODO
 
     Status =
         RtlUnicodeStringPrintf(
@@ -1077,6 +1240,37 @@ XdpRxQueueCreate(
     Status =
         XdpIfRegisterClient(
             Binding, &RxQueueBindingClient, &RxQueue->Key, &RxQueue->BindingClientEntry);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    // !!!TODO
+    Status =
+        XdpIfCreateRxQueue(
+            RxQueue->Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate,
+            &RxQueue->InterfaceRxQueue, &RxQueue->InterfaceRxDispatch);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    // !!!TODO
+    // Status =
+    //     XdpIfActivateRxQueue(
+    //         RxQueue->Binding, RxQueue->InterfaceRxQueue, (XDP_RX_QUEUE_HANDLE)&RxQueue->Dispatch,
+    //         (XDP_RX_QUEUE_CONFIG_ACTIVATE) &RxQueue->ConfigActivate);
+    // if (!NT_SUCCESS(Status)) {
+    //     TraceError(
+    //         TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
+    //         RxQueue, Status);
+    //     goto Exit;
+    // }
+    // RxQueue->State = XdpRxQueueStateActive;
+
+    // !!!TODO
+    Status =
+        XdpIfOpenInterfaceOffloadHandle(
+            XdpIfGetIfSetHandle(RxQueue->Binding), &RxQueue->Key.HookId,
+            &RxQueue->InterfaceOffloadHandle);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1151,13 +1345,14 @@ VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry,
-    _In_ XDP_RX_QUEUE_NOTIFY *NotifyRoutine
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
     )
 {
     NotifyEntry->NotifyRoutine = NotifyRoutine;
-    InsertTailList(&RxQueue->NotifyClients, &NotifyEntry->Link);
+    InsertTailList(&RxQueue->Notify.Clients, &NotifyEntry->Link);
 
-    if (RxQueue->InterfaceRxQueue != NULL) {
+    // !!!TODO
+    if (RxQueue->InterfaceRxQueue != NULL && RxQueue->State == XdpRxQueueStateActive) {
         NotifyRoutine(NotifyEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
     }
 }
@@ -1194,7 +1389,7 @@ XdpRxQueueEnableChecksumOffload(
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
-    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
+    } else if (RxQueue->State == XdpRxQueueStateCreated) {
         const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
         if (IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
             XdpExtensionSetEnableEntry(
@@ -1345,6 +1540,14 @@ XdpRxQueueGetInterfacePollHandle(
     return RxQueue->InterfaceRxPollHandle;
 }
 
+XDP_IF_OFFLOAD_HANDLE
+XdpRxQueueGetInterfaceOffloadHandle(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    return RxQueue->InterfaceOffloadHandle;
+}
+
 XDP_RX_QUEUE_CONFIG_ACTIVATE
 XdpRxQueueGetConfig(
     _In_ XDP_RX_QUEUE *RxQueue
@@ -1370,14 +1573,30 @@ XdpRxQueueGetStatsFromInspectionContext(
     return XdpRxQueueGetStats(RxQueue);
 }
 
-VOID
+BOOLEAN
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
     if (XdpDecrementReferenceCount(&RxQueue->ReferenceCount)) {
         TraceInfo(TRACE_CORE, "Deleting RxQueue=%p", RxQueue);
+
+        // !!!TODO
+        if (RxQueue->InterfaceOffloadHandle != NULL) {
+            XdpIfCloseInterfaceOffloadHandle(
+                XdpIfGetIfSetHandle(RxQueue->Binding), RxQueue->InterfaceOffloadHandle);
+            RxQueue->InterfaceOffloadHandle = NULL;
+        }
+
+        // !!!TODO
+        if (RxQueue->InterfaceRxQueue != NULL) {
+            XdpIfDeleteRxQueue(RxQueue->Binding, RxQueue->InterfaceRxQueue);
+        }
+
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
+
+
+
         if (RxQueue->PcwInstance != NULL) {
             PcwCloseInstance(RxQueue->PcwInstance);
             RxQueue->PcwInstance = NULL;
@@ -1392,8 +1611,10 @@ XdpRxQueueDereference(
             XdpExtensionSetCleanup(RxQueue->FrameExtensionSet);
             RxQueue->FrameExtensionSet = NULL;
         }
-        ExFreePoolWithTag(RxQueue, XDP_POOLTAG_RXQUEUE);
+        XdpRxQueueInterlockedDereference(RxQueue);
+        return TRUE;
     }
+    return FALSE;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)

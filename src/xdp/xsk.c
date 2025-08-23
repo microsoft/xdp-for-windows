@@ -113,6 +113,12 @@ typedef struct _XSK_RX {
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
     XDP_EXTENSION_SET *FrameExtensionSet;
+    union {
+        struct {
+            UINT8 CurrentConfig : 1;
+        };
+        UINT8 Value;
+    } OffloadChangeFlags;
 } XSK_RX;
 
 typedef struct _XSK_TX_XDP {
@@ -1844,6 +1850,61 @@ XskNotifyAttachRxQueue(
     Xsk->Rx.Xdp.Flags.DatapathAttached = TRUE;
 }
 
+static
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XskRxSyncDetach(
+    _In_opt_ VOID *Context
+    )
+{
+    XSK *Xsk = Context;
+    ASSERT(Xsk);
+    Xsk->Rx.Xdp.Flags.DatapathAttached = FALSE;
+}
+
+static
+VOID
+XskDetachRxIf(
+    _In_ XSK *Xsk
+    )
+{
+    KIRQL OldIrql;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    if (Xsk->Rx.Xdp.Queue != NULL) {
+        if (Xsk->Rx.Xdp.Flags.NotificationsRegistered) {
+            XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
+            XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
+            Xsk->Rx.Xdp.Flags.NotificationsRegistered = FALSE;
+        }
+
+        XskNotifyDetachRxQueue(Xsk);
+        XskNotifyDetachRxQueueComplete(Xsk);
+        XdpRxQueueDereference(Xsk->Rx.Xdp.Queue);
+        Xsk->Rx.Xdp.Queue = NULL;
+    }
+
+    if (Xsk->Rx.Xdp.IfHandle != NULL) {
+        XdpIfDereferenceBinding(Xsk->Rx.Xdp.IfHandle);
+
+        //
+        // Synchronize with non-binding-workers while clearing the interface
+        // handle.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        Xsk->Rx.Xdp.IfHandle = NULL;
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+
+    if (Xsk->State >= XskActive) {
+        XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
+        XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
+    }
+
+    TraceExitSuccess(TRACE_XSK);
+}
+
 VOID
 XskNotifyRxQueue(
     _In_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
@@ -1853,6 +1914,7 @@ XskNotifyRxQueue(
     XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Rx.Xdp.QueueNotificationEntry);
 
     TraceInfo(TRACE_XSK, "Xsk=%p NotificationType=%u", Xsk, NotificationType);
+    KIRQL OldIrql;
 
     switch (NotificationType) {
 
@@ -1864,10 +1926,32 @@ XskNotifyRxQueue(
         XskNotifyDetachRxQueue(Xsk);
         break;
 
+    case XDP_RX_QUEUE_NOTIFICATION_DELETE:
+        XskDetachRxIf(Xsk);
+        break;
+
     case XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE:
         XskNotifyDetachRxQueueComplete(Xsk);
         break;
 
+    case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
+        // !!!TODO
+        XSK_SHARED_RING *Shared;
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+
+        //
+        // Set the offload changed flag if any offloads sensitive to current
+        // config changes are enabled.
+        //
+
+        Shared = Xsk->Rx.Ring.Shared;
+        if (Shared != NULL && Xsk->Rx.OffloadFlags.Checksum) {
+            Xsk->Rx.OffloadChangeFlags.CurrentConfig = TRUE;
+            InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
+        }
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        break;
     }
 }
 
@@ -2121,61 +2205,6 @@ XskCleanupDma(
         Xsk->Tx.DmaAdapter->DmaOperations->PutDmaAdapter(Xsk->Tx.DmaAdapter);
         Xsk->Tx.DmaAdapter = NULL;
     }
-}
-
-static
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-XskRxSyncDetach(
-    _In_opt_ VOID *Context
-    )
-{
-    XSK *Xsk = Context;
-    ASSERT(Xsk);
-    Xsk->Rx.Xdp.Flags.DatapathAttached = FALSE;
-}
-
-static
-VOID
-XskDetachRxIf(
-    _In_ XSK *Xsk
-    )
-{
-    KIRQL OldIrql;
-
-    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
-
-    if (Xsk->Rx.Xdp.Queue != NULL) {
-        if (Xsk->Rx.Xdp.Flags.NotificationsRegistered) {
-            XdpRxQueueSync(Xsk->Rx.Xdp.Queue, XskRxSyncDetach, Xsk);
-            XdpRxQueueDeregisterNotifications(Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry);
-            Xsk->Rx.Xdp.Flags.NotificationsRegistered = FALSE;
-        }
-
-        XskNotifyDetachRxQueue(Xsk);
-        XskNotifyDetachRxQueueComplete(Xsk);
-        XdpRxQueueDereference(Xsk->Rx.Xdp.Queue);
-        Xsk->Rx.Xdp.Queue = NULL;
-    }
-
-    if (Xsk->Rx.Xdp.IfHandle != NULL) {
-        XdpIfDereferenceBinding(Xsk->Rx.Xdp.IfHandle);
-
-        //
-        // Synchronize with non-binding-workers while clearing the interface
-        // handle.
-        //
-        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-        Xsk->Rx.Xdp.IfHandle = NULL;
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-    }
-
-    if (Xsk->State >= XskActive) {
-        XskKernelRingSetError(&Xsk->Rx.Ring, XSK_ERROR_INTERFACE_DETACH);
-        XskKernelRingSetError(&Xsk->Rx.FillRing, XSK_ERROR_INTERFACE_DETACH);
-    }
-
-    TraceExitSuccess(TRACE_XSK);
 }
 
 static
@@ -4184,6 +4213,19 @@ XskSockoptGetTxOffloadHandle(
     return XdpTxQueueGetInterfaceOffloadHandle(Xsk->Tx.Xdp.Queue);
 }
 
+static
+XDP_IF_OFFLOAD_HANDLE
+XskSockoptGetRxOffloadHandle(
+    _In_ XSK *Xsk
+    )
+{
+    if (Xsk->Rx.Xdp.Queue == NULL) {
+        return NULL;
+    }
+
+    return XdpRxQueueGetInterfaceOffloadHandle(Xsk->Rx.Xdp.Queue);
+}
+
 typedef struct _XSK_OFFLOAD_WORKITEM {
     XDP_BINDING_WORKITEM IfWorkItem;
     XSK *Xsk;
@@ -4207,14 +4249,27 @@ XskGetOffloadWorker(
 
     TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
 
-    if (Xsk->Tx.Xdp.Queue == NULL) {
+    if (WorkItem->OffloadType == XdpTxOffloadChecksum && Xsk->Tx.Xdp.Queue == NULL) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
 
+    if (WorkItem->OffloadType == XdpRxOffloadChecksum && Xsk->Rx.Xdp.Queue == NULL) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+
+    XDP_IF_OFFLOAD_HANDLE OffloadHandle = WorkItem->GetIfOffloadHandle(Xsk);
+    // !!!TODO
+    // if (OffloadHandle == NULL) {
+    //     Status = STATUS_INVALID_DEVICE_STATE;
+    //     goto Exit;
+    // }
+    ASSERT(OffloadHandle != NULL);
+
     Status =
         XdpIfGetInterfaceOffload(
-            XdpIfGetIfSetHandle(Item->BindingHandle), WorkItem->GetIfOffloadHandle(Xsk),
+            XdpIfGetIfSetHandle(Item->BindingHandle), OffloadHandle,
             WorkItem->OffloadType, WorkItem->OutputBuffer, &WorkItem->OffloadParamsSize);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -4260,10 +4315,23 @@ XskSockoptGetOffload(
         }
         WorkItem.IfWorkItem.BindingHandle = Xsk->Tx.Xdp.IfHandle;
         WorkItem.GetIfOffloadHandle = XskSockoptGetTxOffloadHandle;
-        WorkItem.OffloadType = XdpOffloadChecksum;
+        WorkItem.OffloadType = XdpTxOffloadChecksum;
         Ring = Xsk->Tx.Ring.Shared;
         Xsk->Tx.OffloadChangeFlags.CurrentConfig = FALSE;
         ResetChangeFlag = Xsk->Tx.OffloadChangeFlags.Value == 0;
+        break;
+
+    case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM: //!!!TODO
+        if (Xsk->Rx.Xdp.IfHandle == NULL) {
+            Status = STATUS_INVALID_DEVICE_STATE;
+            goto Exit;
+        }
+        WorkItem.IfWorkItem.BindingHandle = Xsk->Rx.Xdp.IfHandle;
+        WorkItem.GetIfOffloadHandle = XskSockoptGetRxOffloadHandle;
+        WorkItem.OffloadType = XdpRxOffloadChecksum;
+        Ring = Xsk->Rx.Ring.Shared;
+        Xsk->Rx.OffloadChangeFlags.CurrentConfig = FALSE;
+        ResetChangeFlag = Xsk->Rx.OffloadChangeFlags.Value == 0;
         break;
 
     default:
@@ -4594,6 +4662,7 @@ XskIrpGetSockopt(
         Status = XskSockoptGetExtension(Xsk, Option, Irp, IrpSp);
         break;
     case XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
+    case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
         Status = XskSockoptGetOffload(Xsk, Option, Irp, IrpSp);
         break;
     default:

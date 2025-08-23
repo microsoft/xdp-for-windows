@@ -63,6 +63,7 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     NBL_QUEUE TxInspectPollNblQueue;
 
     XDP_LWF_GENERIC *Generic;
+    XDP_RX_QUEUE_NOTIFY_HANDLE XdpNotifyHandle;
     struct {
         BOOLEAN Paused : 1;
         BOOLEAN TxInspect : 1;
@@ -130,6 +131,14 @@ VOID
 XdpGenericRxRestart(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ UINT32 NewMtu
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericRxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     );
 
 VOID
