@@ -7060,8 +7060,6 @@ GenericRxChecksumOffloadConfig(BOOLEAN AttachProgram) {
     // Routine Description:
     //     This test verifies the RX checksum offload configuration.
     //
-
-    // !!!TODO
     const auto &If = FnMpIf;
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const BOOLEAN Rx = TRUE, Tx = FALSE;

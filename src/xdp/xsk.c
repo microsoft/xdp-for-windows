@@ -89,6 +89,7 @@ typedef struct _XSK_RX_XDP {
     struct {
         UINT8 NotificationsRegistered : 1;
         UINT8 DatapathAttached : 1;
+        BOOLEAN QueueActive : 1;
     } Flags;
 
     //
@@ -187,6 +188,7 @@ typedef struct _XSK_TX {
         };
         UINT8 Value;
     } OffloadChangeFlags;
+    BOOLEAN Activated;
 } XSK_TX;
 
 typedef struct _XSK {
@@ -2314,6 +2316,30 @@ XskNotifyRxQueue(
     KIRQL OldIrql;
     TraceInfo(TRACE_XSK, "Xsk=%p NotificationType=%u", Xsk, NotificationType);
 
+    if (NotificationType == XDP_RX_QUEUE_NOTIFICATION_DELETE) {
+        //
+        // In case the underlying adapter gets reset, we need the
+        // rundown codepaths to be able to reach this point, which cleans up
+        // any XDPLWF references allocated when we bound the XSK.
+        //
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        if (Xsk->State != XskClosing) {
+            Xsk->State = XskDetached;
+        }
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        XskDetachRxIf(Xsk);
+        return;
+    }
+
+    if (!Xsk->Rx.Xdp.Flags.QueueActive) {
+        //
+        // Since we register for notifications as soon as we bind the xsk,
+        // we need to make sure to wait until the application has activated
+        // the xsk before allow other notifications to be registered.
+        //
+        return;
+    }
+
     switch (NotificationType) {
 
     case XDP_RX_QUEUE_NOTIFICATION_ATTACH:
@@ -2322,15 +2348,6 @@ XskNotifyRxQueue(
 
     case XDP_RX_QUEUE_NOTIFICATION_DETACH:
         XskNotifyDetachRxQueue(Xsk);
-        break;
-
-    case XDP_RX_QUEUE_NOTIFICATION_DELETE:
-        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-        if (Xsk->State != XskClosing) {
-            Xsk->State = XskDetached;
-        }
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        XskDetachRxIf(Xsk);
         break;
 
     case XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE:
@@ -2414,7 +2431,7 @@ XskActivateCommitRxIf(
         Status = STATUS_DELETE_PENDING;
         goto Exit;
     }
-
+    Xsk->Rx.Xdp.Flags.QueueActive = TRUE;
     Status = STATUS_SUCCESS;
 
 Exit:
