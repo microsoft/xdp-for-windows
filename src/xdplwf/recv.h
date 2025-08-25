@@ -79,6 +79,12 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_RX_QUEUE;
 
+typedef struct _XDP_LWF_GENERIC_RX_QUEUE_NOTIFY {
+    XDP_RX_QUEUE_NOTIFY_HANDLE XdpNotifyHandle;
+    LIST_ENTRY Link;
+    XDP_LIFETIME_ENTRY DeleteEntry;
+} XDP_LWF_GENERIC_RX_QUEUE_NOTIFY;
+
 FILTER_RETURN_NET_BUFFER_LISTS XdpGenericReturnNetBufferLists;
 FILTER_RECEIVE_NET_BUFFER_LISTS XdpGenericReceiveNetBufferLists;
 

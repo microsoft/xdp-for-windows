@@ -615,6 +615,20 @@ MpXdpCreateRxQueue(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
+MpXdpCreateRxNotifyQueue(
+    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
+    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
+    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceContext);
+    UNREFERENCED_PARAMETER(Config);
+    UNREFERENCED_PARAMETER(InterfaceRxQueue);
+    return STATUS_SUCCESS;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
 MpXdpActivateRxQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue,
@@ -677,4 +691,13 @@ MpXdpDeleteRxQueue(
     Rq->DeleteComplete = NULL;
     Rq->XdpRxQueue = NULL;
     Rq->FrameRing = NULL;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+MpXdpDeleteRxQueue(
+    _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
+    )
+{
+    UNREFERENCED_PARAMETER(InterfaceRxQueue);
 }

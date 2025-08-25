@@ -1874,6 +1874,10 @@ XskNotifyRxQueue(
         XskNotifyDetachRxQueueComplete(Xsk);
         break;
 
+    case XDP_RX_QUEUE_NOTIFICATION_DELETE:
+        XskDetachRxIf(Xsk);
+        break;
+
     case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
         // !!!TODO
         XSK_SHARED_RING *Shared;

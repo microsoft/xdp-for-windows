@@ -1725,6 +1725,41 @@ Exit:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
+XdpIfCreateRxNotifyQueue(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
+    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxNotifyQueue
+) {
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    NTSTATUS Status;
+
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
+        Interface->IfIndex, Interface->Capabilities.Mode,
+        XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
+
+    *InterfaceRxNotifyQueue = NULL;
+    Status = XdpIfpReferenceProvider(Interface);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status =
+        Interface->XdpDriverApi.InterfaceDispatch->CreateRxNotifyQueue(
+            Interface->XdpDriverApi.InterfaceContext, Config, InterfaceRxNotifyQueue);
+    if (!NT_SUCCESS(Status)) {
+        TraceError(
+            TRACE_CORE,
+            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u CreateRxNotifyQueue failed Status=%!STATUS!",
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            XdpRxQueueGetTargetQueueInfo(Config)->QueueId, Status);
+        goto Exit;
+    }
+}
+
+
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
 XdpIfActivateRxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
@@ -1780,6 +1815,26 @@ XdpIfDeleteRxQueue(
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxQueue);
 
     Interface->XdpDriverApi.InterfaceDispatch->DeleteRxQueue(InterfaceRxQueue);
+
+    XdpIfpDereferenceProvider(Interface);
+
+    TraceExitSuccess(TRACE_CORE);
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpIfDeleteRxNotifyQueue(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
+    )
+{
+    XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+
+    TraceEnter(
+        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
+        Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxNotifyQueue);
+
+    Interface->XdpDriverApi.InterfaceDispatch->DeleteRxNotifyQueue(InterfaceRxNotifyQueue);
 
     XdpIfpDereferenceProvider(Interface);
 
