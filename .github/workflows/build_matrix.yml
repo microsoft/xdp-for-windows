@@ -17,6 +17,18 @@ on:
         required: false
         default: true
         type: boolean
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: false
+        default: ''
+        type: string
+        description: 'The git commit hash (or HEAD of current branch if left empty) of XDP to build.'
+      id:
+        required: false
+        default: ''
+        type: string
+        description: 'With multiple builds with duplicate configurations (e.g. Debug_x64_2022), you can append an ID (e.g. Debug_x64_2022_myid).'
 
 jobs:
   build_matrix:

@@ -46,7 +46,7 @@ jobs:
     runs-on: windows-${{ inputs.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -68,7 +68,8 @@ jobs:
     - name: Prepare for compiling eBPF programs
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose -Platform ${{ inputs.platform }}
     - name: Build
-      run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.platform }} /p:SignMode=TestSign /p:IsAdmin=true
+      # See /tools/build.ps1 for /nodeReuse:false discussion.
+      run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.platform }} /p:SignMode=TestSign /p:IsAdmin=true /nodeReuse:false
     - name: Upload Artifacts
       if: inputs.artifact_path != ''
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
