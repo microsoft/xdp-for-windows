@@ -2245,7 +2245,6 @@ XskNotifyTxQueue(
         //
         KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
         if (Xsk->State != XskClosing) {
-            ASSERT(Xsk->State >= XskBinding && Xsk->State <= XskActive);
             Xsk->State = XskDetached;
         }
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
@@ -2326,6 +2325,10 @@ XskBindRxIf(
         goto Exit;
     }
 
+    XdpRxQueueRegisterNotifications(
+        Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry, XskNotifyRxQueue);
+    Xsk->Rx.Xdp.Flags.NotificationsRegistered = TRUE;
+
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -2361,6 +2364,11 @@ XskNotifyRxQueue(
         break;
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        if (Xsk->State != XskClosing) {
+            Xsk->State = XskDetached;
+        }
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         XskDetachRxIf(Xsk);
         break;
 
@@ -2407,10 +2415,6 @@ XskActivateCommitRxIf(
         Status = STATUS_DELETE_PENDING;
         goto Exit;
     }
-
-    XdpRxQueueRegisterNotifications(
-        Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry, XskNotifyRxQueue);
-    Xsk->Rx.Xdp.Flags.NotificationsRegistered = TRUE;
 
     Status = STATUS_SUCCESS;
 
