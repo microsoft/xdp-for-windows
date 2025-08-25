@@ -2303,6 +2303,60 @@ XskDetachTxIfWorker(
     KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
 }
 
+
+VOID
+XskNotifyRxQueue(
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
+    )
+{
+    XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Rx.Xdp.QueueNotificationEntry);
+    KIRQL OldIrql;
+    TraceInfo(TRACE_XSK, "Xsk=%p NotificationType=%u", Xsk, NotificationType);
+
+    switch (NotificationType) {
+
+    case XDP_RX_QUEUE_NOTIFICATION_ATTACH:
+        XskNotifyAttachRxQueue(Xsk);
+        break;
+
+    case XDP_RX_QUEUE_NOTIFICATION_DETACH:
+        XskNotifyDetachRxQueue(Xsk);
+        break;
+
+    case XDP_RX_QUEUE_NOTIFICATION_DELETE:
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+        if (Xsk->State != XskClosing) {
+            Xsk->State = XskDetached;
+        }
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        XskDetachRxIf(Xsk);
+        break;
+
+    case XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE:
+        XskNotifyDetachRxQueueComplete(Xsk);
+        break;
+
+    case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
+        XSK_SHARED_RING *Shared;
+        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+
+        //
+        // Set the offload changed flag if any offloads sensitive to current
+        // config changes are enabled.
+        //
+
+        Shared = Xsk->Rx.Ring.Shared;
+        if (Shared != NULL && Xsk->Rx.OffloadFlags.Checksum) {
+            Xsk->Rx.OffloadChangeFlags.CurrentConfig = TRUE;
+            InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
+        }
+
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+        break;
+    }
+}
+
 static
 VOID
 XskBindRxIf(
@@ -2341,61 +2395,6 @@ Exit:
 
     WorkItem->CompletionStatus = Status;
     KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
-}
-
-VOID
-XskNotifyRxQueue(
-    _In_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
-    _In_ XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
-    )
-{
-    XSK *Xsk = CONTAINING_RECORD(NotificationEntry, XSK, Rx.Xdp.QueueNotificationEntry);
-
-    TraceInfo(TRACE_XSK, "Xsk=%p NotificationType=%u", Xsk, NotificationType);
-
-    switch (NotificationType) {
-
-    case XDP_RX_QUEUE_NOTIFICATION_ATTACH:
-        XskNotifyAttachRxQueue(Xsk);
-        break;
-
-    case XDP_RX_QUEUE_NOTIFICATION_DETACH:
-        XskNotifyDetachRxQueue(Xsk);
-        break;
-
-    case XDP_RX_QUEUE_NOTIFICATION_DELETE:
-        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-        if (Xsk->State != XskClosing) {
-            Xsk->State = XskDetached;
-        }
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        XskDetachRxIf(Xsk);
-        break;
-
-    case XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE:
-        XskNotifyDetachRxQueueComplete(Xsk);
-        break;
-
-    case XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG:
-        // !!!TODO
-        XSK_SHARED_RING *Shared;
-        KIRQL OldIrql;
-        KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-
-        //
-        // Set the offload changed flag if any offloads sensitive to current
-        // config changes are enabled.
-        //
-
-        Shared = Xsk->Rx.Ring.Shared;
-        if (Shared != NULL && Xsk->Rx.OffloadFlags.Checksum) {
-            Xsk->Rx.OffloadChangeFlags.CurrentConfig = TRUE;
-            InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
-        }
-
-        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
-        break;
-    }
 }
 
 static

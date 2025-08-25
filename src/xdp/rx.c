@@ -765,7 +765,6 @@ XdpRxQueueNotifyWorker(
     _In_ XDP_BINDING_WORKITEM *Item
     )
 {
-    // !!!TODO
     XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Item, XDP_RX_QUEUE, Notify.WorkItem);
     KIRQL OldIrql;
 
@@ -804,7 +803,7 @@ XdpRxQueueNotify(
     KIRQL OldIrql;
     BOOLEAN NeedNotification = FALSE;
 
-    // !!!TODO
+    //
     // This routine can be invoked from arbitrary IRQLs, from PASSIVE_LEVEL to DISPATCH_LEVEL.
     //
 
