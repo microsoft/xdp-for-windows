@@ -254,7 +254,7 @@ VOID
 XdpIfDeleteRxNotifyQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
-    )
+    );
 
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS

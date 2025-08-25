@@ -621,9 +621,13 @@ MpXdpCreateRxNotifyQueue(
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue
     )
 {
-    UNREFERENCED_PARAMETER(InterfaceContext);
-    UNREFERENCED_PARAMETER(Config);
-    UNREFERENCED_PARAMETER(InterfaceRxQueue);
+    const XDP_QUEUE_INFO *QueueInfo;
+    ADAPTER_QUEUE *AdapterQueue;
+    ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)InterfaceContext;
+
+    QueueInfo = XdpRxQueueGetTargetQueueInfo(Config);
+    AdapterQueue = &Adapter->RssQueues[QueueInfo->QueueId];
+    *InterfaceRxQueue = (XDP_INTERFACE_HANDLE)AdapterQueue;
     return STATUS_SUCCESS;
 }
 
