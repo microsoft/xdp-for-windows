@@ -2353,12 +2353,13 @@ XdpGenericRxCreateNotifyQueue(
     NTSTATUS Status;
     XDP_LWF_GENERIC *Generic = (XDP_LWF_GENERIC *)InterfaceContext;
     XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = NULL;
-    RxNotifyQueue = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RxNotifyQueue), POOLTAG_NOTIFY_RECV);
+    RxNotifyQueue = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RxNotifyQueue), POOLTAG_RECV_NOTIFY);
     if (RxNotifyQueue == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
     RxNotifyQueue->XdpNotifyHandle = XdpRxQueueGetNotifyHandle(Config);
+    RxNotifyQueue->Generic = Generic;
     RtlAcquirePushLockExclusive(&Generic->Lock);
     InsertTailList(&Generic->Rx.NotifyQueues, &RxNotifyQueue->Link);
     RtlReleasePushLockExclusive(&Generic->Lock);
@@ -2368,7 +2369,7 @@ XdpGenericRxCreateNotifyQueue(
 Exit:
     if (!NT_SUCCESS(Status)) {
         if (RxNotifyQueue != NULL) {
-            ExFreePoolWithTag(RxNotifyQueue, POOLTAG_NOTIFY_RECV);
+            ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
         }
     }
     return Status;
@@ -2382,7 +2383,7 @@ XdpGenericRxDeleteNotifyQueueEntry(
 {
     XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue;
     RxNotifyQueue = CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, DeleteEntry);
-    ExFreePoolWithTag(RxNotifyQueue, POOLTAG_NOTIFY_RECV);
+    ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -2392,6 +2393,7 @@ XdpGenericRxDeleteNotifyQueue(
     )
 {
     XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = (XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *)InterfaceRxNotifyQueue;
+    XDP_LWF_GENERIC *Generic = RxNotifyQueue->Generic;
     KEVENT DeleteComplete;
     RtlAcquirePushLockExclusive(&Generic->Lock);
     RemoveEntryList(&RxNotifyQueue->Link);
