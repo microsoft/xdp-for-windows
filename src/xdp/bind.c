@@ -1755,6 +1755,13 @@ XdpIfCreateRxNotifyQueue(
             XdpRxQueueGetTargetQueueInfo(Config)->QueueId, Status);
         goto Exit;
     }
+
+    FRE_ASSERT(*InterfaceRxNotifyQueue != NULL);
+
+Exit:
+
+    TraceExitStatus(TRACE_CORE);
+    return Status;
 }
 
 

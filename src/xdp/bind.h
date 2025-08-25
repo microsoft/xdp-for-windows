@@ -250,6 +250,13 @@ XdpIfDeleteRxQueue(
     );
 
 _IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpIfDeleteRxNotifyQueue(
+    _In_ XDP_BINDING_HANDLE BindingHandle,
+    _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
+    )
+
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateTxQueue(
     _In_ XDP_BINDING_HANDLE BindingHandle,

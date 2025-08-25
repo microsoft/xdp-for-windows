@@ -1229,9 +1229,10 @@ XdpRxQueueCreate(
         goto Exit;
     }
 
+    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
     Status =
         XdpIfCreateRxNotifyQueue(
-            Binding, &RxQueue->Config, &RxQueue->InterfaceRxNotifyQueue);
+            Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate, &RxQueue->InterfaceRxNotifyQueue);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -1543,7 +1544,7 @@ XdpRxQueueDereference(
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
 
         if (RxQueue->InterfaceRxNotifyQueue != NULL) {
-            XdpIfCloseInterfaceNotifyQueue(RxQueue->InterfaceRxNotifyQueue);
+            XdpIfDeleteRxNotifyQueue(RxQueue->Binding, RxQueue->InterfaceRxNotifyQueue);
             RxQueue->InterfaceRxNotifyQueue = NULL;
         }
 
