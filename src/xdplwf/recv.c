@@ -2375,17 +2375,6 @@ Exit:
     return Status;
 }
 
-static
-VOID
-XdpGenericRxDeleteNotifyQueueEntry(
-    _In_ XDP_LIFETIME_ENTRY *Entry
-    )
-{
-    XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue;
-    RxNotifyQueue = CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, DeleteEntry);
-    ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
-}
-
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XdpGenericRxDeleteNotifyQueue(
@@ -2394,12 +2383,10 @@ XdpGenericRxDeleteNotifyQueue(
 {
     XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = (XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *)InterfaceRxNotifyQueue;
     XDP_LWF_GENERIC *Generic = RxNotifyQueue->Generic;
-    KEVENT DeleteComplete;
     RtlAcquirePushLockExclusive(&Generic->Lock);
     RemoveEntryList(&RxNotifyQueue->Link);
     RtlReleasePushLockExclusive(&Generic->Lock);
-    XdpLifetimeDelete(XdpGenericRxDeleteNotifyQueueEntry, &RxNotifyQueue->DeleteEntry);
-    KeWaitForSingleObject(&DeleteComplete, Executive, KernelMode, FALSE, NULL);
+    ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
     TraceExitSuccess(TRACE_GENERIC);
 }
 
