@@ -695,7 +695,7 @@ MpXdpDeleteRxQueue(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-MpXdpDeleteRxQueue(
+MpXdpDeleteRxNotifyQueue(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
     )
 {
