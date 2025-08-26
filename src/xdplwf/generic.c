@@ -651,6 +651,7 @@ XdpGenericAttachInterface(
     ExInitializePushLock(&Generic->Lock);
     InitializeListHead(&Generic->Rx.Queues);
     InitializeListHead(&Generic->Tx.Queues);
+    InitializeListHead(&Generic->Rx.NotifyQueues);
     KeInitializeEvent(&Generic->InterfaceRemovedEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->CleanupEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
