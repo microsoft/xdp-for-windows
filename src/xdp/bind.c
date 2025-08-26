@@ -468,24 +468,18 @@ XdpIfpOpenInterface(
 
     if (CapabilitiesEx->Header.Revision < XDP_CAPABILITIES_EX_REVISION_1 ||
         CapabilitiesEx->Header.Size < XDP_SIZEOF_CAPABILITIES_EX_REVISION_1) {
-        TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Invalid capabilities",
-            Interface->IfIndex, Interface->Capabilities.Mode);
-        Status = STATUS_NOT_SUPPORTED;
-        goto Exit;
+        LOG_AND_BAIL_ON_ERROR(Status, STATUS_NOT_SUPPORTED, 
+                              "IfIndex=%u Mode=%!XDP_MODE! Invalid capabilities",
+                              Interface->IfIndex, Interface->Capabilities.Mode);
     }
 
     ASSERT(Interface->Nmr == NULL);
 
     Interface->Nmr =
         ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Interface->Nmr), XDP_POOLTAG_NMR);
-    if (Interface->Nmr == NULL) {
-        TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! NMR allocation failed",
-            Interface->IfIndex, Interface->Capabilities.Mode);
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NULL(Interface->Nmr, Status, STATUS_NO_MEMORY,
+                         "IfIndex=%u Mode=%!XDP_MODE! NMR allocation failed",
+                         Interface->IfIndex, Interface->Capabilities.Mode);
 
     if (!XdpIsFeOrLater() && Interface->Capabilities.Mode == XDP_INTERFACE_MODE_NATIVE) {
         TraceWarn(TRACE_CORE, "Opening a native XDP interface on an unsupported OS");
@@ -513,20 +507,14 @@ XdpIfpOpenInterface(
         XdpRequestClientDispatch(
             CapabilitiesEx, GetInterfaceContext, GetInterfaceDispatch,
             Interface, &InterfaceContext, &InterfaceDispatch);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NTSTATUS(Status, "Failed to request client dispatch");
 
     Interface->XdpDriverApi.InterfaceContext = InterfaceContext;
     Interface->XdpDriverApi.InterfaceDispatch = InterfaceDispatch;
 
     Status = XdpIfpInvokeDriverOpenInterface(Interface, InterfaceContext, InterfaceDispatch);
-    if (!NT_SUCCESS(Status)) {
-        TraceError(
-            TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! Interface open failed",
-            Interface->IfIndex, Interface->Capabilities.Mode);
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NTSTATUS(Status, "IfIndex=%u Mode=%!XDP_MODE! Interface open failed",
+                             Interface->IfIndex, Interface->Capabilities.Mode);
 
     Status = STATUS_SUCCESS;
 

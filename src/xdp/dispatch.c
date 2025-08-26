@@ -81,10 +81,8 @@ XdpIrpCreate(
     XDP_FILE_CREATE_ROUTINE *CreateRoutine = NULL;
 
 #ifdef _WIN64
-    if (IoIs32bitProcess(Irp)) {
-        Status = STATUS_NOT_SUPPORTED;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_CONDITION(IoIs32bitProcess(Irp), Status, STATUS_NOT_SUPPORTED,
+                              "32-bit processes not supported");
 #endif
 
     EaBuffer = Irp->AssociatedIrp.SystemBuffer;
@@ -93,10 +91,8 @@ XdpIrpCreate(
         return STATUS_SUCCESS;
     }
 
-    if (EaBuffer->NextEntryOffset != 0) {
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_CONDITION(EaBuffer->NextEntryOffset != 0, Status, STATUS_INVALID_PARAMETER,
+                              "Multiple EA entries not supported");
 
     Disposition = (UCHAR)(IrpSp->Parameters.Create.Options >> 24);
 
@@ -105,15 +101,14 @@ XdpIrpCreate(
     ActualEaName.Buffer = EaBuffer->EaName;
 
     RtlInitString(&ExpectedEaName, XDP_OPEN_PACKET_NAME);
-    if (!RtlEqualString(&ExpectedEaName, &ActualEaName, FALSE)) {
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_CONDITION(!RtlEqualString(&ExpectedEaName, &ActualEaName, FALSE), 
+                              Status, STATUS_INVALID_PARAMETER,
+                              "Invalid EA name");
 
-    if (EaBuffer->EaValueLength < sizeof(XDP_OPEN_PACKET)) {
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_CONDITION(EaBuffer->EaValueLength < sizeof(XDP_OPEN_PACKET), 
+                              Status, STATUS_INVALID_PARAMETER,
+                              "EA value too small: got %u, need %u", 
+                              EaBuffer->EaValueLength, (UINT32)sizeof(XDP_OPEN_PACKET));
     OpenPacket = (XDP_OPEN_PACKET *)(EaBuffer->EaName + EaBuffer->EaNameLength + 1);
 
     switch (OpenPacket->ObjectType) {
