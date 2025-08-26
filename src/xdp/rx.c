@@ -1299,6 +1299,18 @@ XdpRxQueueRegisterNotifications(
 }
 
 VOID
+XdpRxQueueInvokeAttachmentNotification(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
+)
+{
+    if (RxQueue->InterfaceRxQueue != NULL) {
+        NotifyRoutine(NotifyEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
+    }
+}
+
+VOID
 XdpRxQueueDeregisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry

@@ -57,6 +57,13 @@ XdpRxQueueRegisterNotifications(
     );
 
 VOID
+XdpRxQueueInvokeAttachmentNotification(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
+);
+
+VOID
 XdpRxQueueDeregisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry
