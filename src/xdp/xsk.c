@@ -2432,6 +2432,9 @@ XskActivateCommitRxIf(
         goto Exit;
     }
     Xsk->Rx.Xdp.Flags.QueueActive = TRUE;
+    if (Xsk->Rx.Xdp.Queue->InterfaceRxQueue != NULL) {
+        XskNotifyRxQueue(&Xsk->Rx.Xdp.QueueNotificationEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
+    }
     Status = STATUS_SUCCESS;
 
 Exit:

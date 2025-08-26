@@ -1290,6 +1290,9 @@ XdpProgramBindingAttach(
     XdpRxQueueRegisterNotifications(
         ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
         XdpProgramRxQueueNotify);
+    if (ProgramBinding->RxQueue->InterfaceRxQueue != NULL) {
+        XdpProgramRxQueueNotify(&ProgramBinding->RxQueueNotificationEntry, XDP_RX_QUEUE_NOTIFICATION_ATTACH);
+    }
 
     ASSERT(
         !IsListEmpty(&ProgramBinding->RxQueueEntry) &&
