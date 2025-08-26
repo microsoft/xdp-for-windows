@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "miniport.tmh"
 
 NDIS_STRING RegRSS = NDIS_STRING_CONST("*RSS");
 NDIS_STRING RegNumRssQueues = NDIS_STRING_CONST("*NumRssQueues");
@@ -627,7 +626,7 @@ MpUnload(
 
     TraceExitSuccess(TRACE_CONTROL);
 
-    WPP_CLEANUP(DriverObject);
+    XdpMpTraceCleanup();
 }
 
 _Function_class_(DRIVER_INITIALIZE)
@@ -644,7 +643,11 @@ DriverEntry(
 
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
-    WPP_INIT_TRACING(DriverObject, RegistryPath);
+
+    Status = XdpMpTraceInitialize();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
     ExInitializePushLock(&MpGlobalContext.Lock);
     InitializeListHead(&MpGlobalContext.AdapterList);
 

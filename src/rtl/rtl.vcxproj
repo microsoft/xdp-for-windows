@@ -24,9 +24,6 @@
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
-      <WppEnabled >true</WppEnabled>
-      <WppScanConfigurationData>$(SolutionDir)src\xdp\inc\xdptrace.h</WppScanConfigurationData>
-      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />

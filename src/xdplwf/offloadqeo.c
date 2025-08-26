@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "offloadqeo.tmh"
 
 static
 NTSTATUS

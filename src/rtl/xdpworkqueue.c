@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xdpworkqueue.tmh"
 
 #pragma warning(disable:4701) // OldIrql for XdpWorkQueueReleaseLock is initialized.
 

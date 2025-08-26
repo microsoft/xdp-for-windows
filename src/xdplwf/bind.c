@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "bind.tmh"
 
 #define FILTER_FRIENDLY_NAME        L"XDP Lightweight Filter"
 #define FILTER_UNIQUE_NAME          L"{c0be1ebc-74b8-4ba9-8c1e-ecd227e2be3b}"

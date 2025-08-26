@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xdplifetime.tmh"
 
 static XDP_WORK_QUEUE *XdpLifetimeQueue;
 static KDPC *XdpLifetimeDpcs;

@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "generic.tmh"
 
 #define DELAY_DETACH_DEFAULT_TIMEOUT_SEC (5 * 60)
 #define DELAY_DETACH_RX 0x1

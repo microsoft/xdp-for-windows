@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "oid.tmh"
 
 typedef struct _XDP_OID_CLONE {
     NDIS_OID_REQUEST *OriginalRequest;
