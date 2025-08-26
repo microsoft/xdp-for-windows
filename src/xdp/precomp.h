@@ -79,6 +79,8 @@
 #include <xdpversion.h>
 #include <xdpworkqueue.h>
 
+#include "inc/xdperror.h"
+
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #include "xdpp.h"

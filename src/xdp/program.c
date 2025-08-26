@@ -786,20 +786,13 @@ XdpProgramCompileNewProgram(
     }
 
     Status = RtlSizeTMult(sizeof(XDP_RULE), RuleCount, &AllocationSize);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NTSTATUS(Status, "Failed to calculate rule allocation size multiplication");
 
     Status = RtlSizeTAdd(FIELD_OFFSET(XDP_PROGRAM, Rules), AllocationSize, &AllocationSize);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NTSTATUS(Status, "Failed to calculate total program allocation size");
 
     NewProgram = ExAllocatePoolZero(NonPagedPoolNx, AllocationSize, XDP_POOLTAG_PROGRAM);
-    if (NewProgram == NULL) {
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NULL(NewProgram, Status, STATUS_NO_MEMORY, "Failed to allocate memory for new program");
 
     Entry = BindingListHead->Flink;
     while (Entry != BindingListHead) {
@@ -896,27 +889,21 @@ XdpProgramCapturePortSet(
     NTSTATUS Status;
 
     __try {
-        if (UserPortSet->Reserved != NULL) {
-            Status = STATUS_INVALID_PARAMETER;
-            goto Exit;
-        }
+        LOG_AND_BAIL_ON_CONDITION(UserPortSet->Reserved != NULL, Status, STATUS_INVALID_PARAMETER, 
+                                  "UserPortSet Reserved field must be NULL");
 
         KernelPortSet->Reserved =
             IoAllocateMdl(
                 (VOID *)UserPortSet->PortSet, XDP_PORT_SET_BUFFER_SIZE, FALSE, FALSE, NULL);
-        if (KernelPortSet->Reserved == NULL) {
-            Status = STATUS_INSUFFICIENT_RESOURCES;
-            goto Exit;
-        }
+        LOG_AND_BAIL_ON_NULL(KernelPortSet->Reserved, Status, STATUS_INSUFFICIENT_RESOURCES, 
+                             "Failed to allocate MDL for port set");
 
         MmProbeAndLockPages(KernelPortSet->Reserved, RequestorMode, IoReadAccess);
 
         KernelPortSet->PortSet =
             MmGetSystemAddressForMdlSafe(KernelPortSet->Reserved, LowPagePriority);
-        if (KernelPortSet->PortSet == NULL) {
-            Status = STATUS_INSUFFICIENT_RESOURCES;
-            goto Exit;
-        }
+        LOG_AND_BAIL_ON_NULL(KernelPortSet->PortSet, Status, STATUS_INSUFFICIENT_RESOURCES, 
+                             "Failed to get system address for port set MDL");
 
         Status = STATUS_SUCCESS;
     } __except(EXCEPTION_EXECUTE_HANDLER) {
