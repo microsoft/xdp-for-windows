@@ -77,6 +77,7 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_STATE State;
     XDP_RX_CAPABILITIES InterfaceRxCapabilities;
     XDP_INTERFACE_HANDLE InterfaceRxQueue;
+    XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue;
     const XDP_INTERFACE_RX_QUEUE_DISPATCH *InterfaceRxDispatch;
     NDIS_HANDLE InterfaceRxPollHandle;
 
@@ -1221,6 +1222,14 @@ XdpRxQueueCreate(
         goto Exit;
     }
 
+    RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
+    Status =
+        XdpIfCreateRxNotifyQueue(
+            Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate, &RxQueue->InterfaceRxNotifyQueue);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     *NewRxQueue = RxQueue;
     Status = STATUS_SUCCESS;
 
@@ -1540,7 +1549,13 @@ XdpRxQueueDereference(
             RxQueue->InterfaceOffloadHandle = NULL;
         }
 
+        if (RxQueue->InterfaceRxNotifyQueue != NULL) {
+            XdpIfDeleteRxNotifyQueue(RxQueue->Binding, RxQueue->InterfaceRxNotifyQueue);
+            RxQueue->InterfaceRxNotifyQueue = NULL;
+        }
+
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
+
         if (RxQueue->PcwInstance != NULL) {
             PcwCloseInstance(RxQueue->PcwInstance);
             RxQueue->PcwInstance = NULL;
