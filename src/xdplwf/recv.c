@@ -2121,19 +2121,18 @@ XdpGenericRxNotifyOffloadChange(
     _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     )
 {
-    LIST_ENTRY *Entry = Generic->Rx.Queues.Flink;
+    LIST_ENTRY *Entry = Generic->Rx.NotifyQueues.Flink;
 
     TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
 
     UNREFERENCED_PARAMETER(Offload);
 
-    while (Entry != &Generic->Rx.Queues) {
-        XDP_LWF_GENERIC_RX_QUEUE *RxQueue =
-            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE, Link);
+    while (Entry != &Generic->Rx.NotifyQueues) {
+        XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue =
+            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, Link);
         Entry = Entry->Flink;
-
         XdpRxQueueNotify(
-            RxQueue->XdpNotifyHandle, XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
+            RxNotifyQueue->XdpNotifyHandle, XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
     }
 
     TraceExitSuccess(TRACE_GENERIC);
@@ -2228,8 +2227,6 @@ XdpGenericRxCreateQueue(
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
-
-    RxQueue->XdpNotifyHandle = XdpRxQueueGetNotifyHandle(Config);
 
     PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
