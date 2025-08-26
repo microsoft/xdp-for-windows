@@ -237,11 +237,8 @@ CreateNdisRssParamsFromXdpRssParams(
 
     NdisRssParams =
         ExAllocatePoolZero(NonPagedPoolNx, NdisRssParamsLength, POOLTAG_OFFLOAD);
-    if (NdisRssParams == NULL) {
-        TraceError(TRACE_LWF, "Failed to allocate NDIS RSS params");
-        Status = STATUS_NO_MEMORY;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NULL(NdisRssParams, Status, STATUS_NO_MEMORY, 
+                         "Failed to allocate NDIS RSS params");
 
     NdisRssParams->Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
     NdisRssParams->Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
@@ -314,25 +311,20 @@ InitializeXdpRssParamsFromNdisRssParams(
         //
         // TODO: handle revision 3 DefaultProcessorNumber.
         //
-        TraceError(
-            TRACE_LWF,
-            "Unsupported NDIS RSS params NdisRssParamsLength=%u Type=%u Revision=%u Size=%u",
-            NdisRssParamsLength, NdisRssParams->Header.Type,
-            NdisRssParams->Header.Revision, NdisRssParams->Header.Size);
         ASSERT(FALSE);
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
+        LOG_AND_BAIL_ON_ERROR(Status, STATUS_INVALID_PARAMETER,
+                              "Unsupported NDIS RSS params NdisRssParamsLength=%u Type=%u Revision=%u Size=%u",
+                              NdisRssParamsLength, NdisRssParams->Header.Type,
+                              NdisRssParams->Header.Revision, NdisRssParams->Header.Size);
     }
 
-    if (NdisRssParamsLength < (NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2 +
-            NdisRssParams->IndirectionTableSize + NdisRssParams->HashSecretKeySize)) {
-        TraceError(
-            TRACE_LWF,
-            "NDIS RSS param length too small NdisRssParamsLength=%u",
-            NdisRssParamsLength);
+    ULONG RequiredLength = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2 +
+                          NdisRssParams->IndirectionTableSize + NdisRssParams->HashSecretKeySize;
+    if (NdisRssParamsLength < RequiredLength) {
         ASSERT(FALSE);
-        Status = STATUS_INVALID_PARAMETER;
-        goto Exit;
+        LOG_AND_BAIL_ON_ERROR(Status, STATUS_INVALID_PARAMETER,
+                              "NDIS RSS param length too small NdisRssParamsLength=%u Required=%u",
+                              NdisRssParamsLength, RequiredLength);
     }
 
     if (XdpLwfOffloadIsNdisRssEnabled(NdisRssParams)) {
