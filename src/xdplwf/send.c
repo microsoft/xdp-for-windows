@@ -36,11 +36,11 @@ typedef struct _NBL_TX_CONTEXT {
     XDP_TX_FRAME_COMPLETION_CONTEXT CompletionContext;
 } NBL_TX_CONTEXT;
 
-_Static_assert(
+static_assert(
     FIELD_OFFSET(NBL_TX_CONTEXT, TxQueue) ==
     FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionCompletionContext),
     "NBL_TX_CONTEXT TxQueue offset must match XDP_LWF_GENERIC_INJECTION_CONTEXT InjectionCompletionContext offset");
-_Static_assert(
+static_assert(
     FIELD_OFFSET(NBL_TX_CONTEXT, InjectionType) ==
     FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType),
     "NBL_TX_CONTEXT InjectionType offset must match XDP_LWF_GENERIC_INJECTION_CONTEXT InjectionType offset");
@@ -866,8 +866,8 @@ XdpGenericTxCreateQueue(
     }
 
     // NBL context only aligns at void*. Ensure our packed structs are aligned.
-    _Static_assert(__alignof(NBL_TX_CONTEXT) <= __alignof(VOID *), "NBL_TX_CONTEXT alignment must not exceed VOID* alignment");
-    _Static_assert(__alignof(MDL) <= __alignof(NBL_TX_CONTEXT), "MDL alignment must not exceed NBL_TX_CONTEXT alignment");
+    static_assert(__alignof(NBL_TX_CONTEXT) <= __alignof(VOID *), "NBL_TX_CONTEXT alignment must not exceed VOID* alignment");
+    static_assert(__alignof(MDL) <= __alignof(NBL_TX_CONTEXT), "MDL alignment must not exceed NBL_TX_CONTEXT alignment");
     PoolParams.ContextSize = (USHORT)(MdlSize + sizeof(NBL_TX_CONTEXT));
 
     TxQueue->NblPool = NdisAllocateNetBufferListPool(Generic->NdisFilterHandle, &PoolParams);

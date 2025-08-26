@@ -29,11 +29,7 @@ typedef enum _XDP_CREATE_PROGRAM_FLAGS {
 } XDP_CREATE_PROGRAM_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XDP_CREATE_PROGRAM_FLAGS);
-#ifdef __cplusplus
 static_assert(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32), "XDP_CREATE_PROGRAM_FLAGS must be same size as UINT32");
-#else
-_Static_assert(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32), "XDP_CREATE_PROGRAM_FLAGS must be same size as UINT32");
-#endif
 
 #if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
 #include <xdp/xdpapi_v1.h>

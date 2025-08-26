@@ -31,11 +31,7 @@ typedef union _XSK_BUFFER_ADDRESS {
 } XSK_BUFFER_ADDRESS;
 #pragma warning(pop)
 
-#ifdef __cplusplus
 static_assert(sizeof(XSK_BUFFER_ADDRESS) == sizeof(UINT64), "XSK_BUFFER_ADDRESS must be same size as UINT64");
-#else
-_Static_assert(sizeof(XSK_BUFFER_ADDRESS) == sizeof(UINT64), "XSK_BUFFER_ADDRESS must be same size as UINT64");
-#endif
 
 typedef struct _XSK_BUFFER_DESCRIPTOR {
     XSK_BUFFER_ADDRESS Address;
@@ -53,11 +49,7 @@ typedef struct _XSK_FRAME_DESCRIPTOR {
 //
 // Ensure frame-unaware apps can treat the frame ring as a buffer ring.
 //
-#ifdef __cplusplus
 static_assert(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0, "Buffer must be at offset 0 in XSK_FRAME_DESCRIPTOR");
-#else
-_Static_assert(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0, "Buffer must be at offset 0 in XSK_FRAME_DESCRIPTOR");
-#endif
 
 typedef enum _XSK_RING_FLAGS {
     XSK_RING_FLAG_NONE = 0x0,
@@ -68,11 +60,7 @@ typedef enum _XSK_RING_FLAGS {
 } XSK_RING_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_RING_FLAGS);
-#ifdef __cplusplus
 static_assert(sizeof(XSK_RING_FLAGS) == sizeof(UINT32), "XSK_RING_FLAGS must be same size as UINT32");
-#else
-_Static_assert(sizeof(XSK_RING_FLAGS) == sizeof(UINT32), "XSK_RING_FLAGS must be same size as UINT32");
-#endif
 
 typedef enum _XSK_BIND_FLAGS {
     XSK_BIND_FLAG_NONE = 0x0,
@@ -83,22 +71,14 @@ typedef enum _XSK_BIND_FLAGS {
 } XSK_BIND_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_BIND_FLAGS)
-#ifdef __cplusplus
 static_assert(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32), "XSK_BIND_FLAGS must be same size as UINT32");
-#else
-_Static_assert(sizeof(XSK_BIND_FLAGS) == sizeof(UINT32), "XSK_BIND_FLAGS must be same size as UINT32");
-#endif
 
 typedef enum _XSK_ACTIVATE_FLAGS {
     XSK_ACTIVATE_FLAG_NONE = 0x0,
 } XSK_ACTIVATE_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_ACTIVATE_FLAGS)
-#ifdef __cplusplus
 static_assert(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32), "XSK_ACTIVATE_FLAGS must be same size as UINT32");
-#else
-_Static_assert(sizeof(XSK_ACTIVATE_FLAGS) == sizeof(UINT32), "XSK_ACTIVATE_FLAGS must be same size as UINT32");
-#endif
 
 typedef enum _XSK_NOTIFY_FLAGS {
     XSK_NOTIFY_FLAG_NONE = 0x0,
@@ -109,11 +89,7 @@ typedef enum _XSK_NOTIFY_FLAGS {
 } XSK_NOTIFY_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_FLAGS)
-#ifdef __cplusplus
 static_assert(sizeof(XSK_NOTIFY_FLAGS) == sizeof(UINT32), "XSK_NOTIFY_FLAGS must be same size as UINT32");
-#else
-_Static_assert(sizeof(XSK_NOTIFY_FLAGS) == sizeof(UINT32), "XSK_NOTIFY_FLAGS must be same size as UINT32");
-#endif
 
 typedef enum _XSK_NOTIFY_RESULT_FLAGS {
     XSK_NOTIFY_RESULT_FLAG_NONE = 0x0,
@@ -122,11 +98,7 @@ typedef enum _XSK_NOTIFY_RESULT_FLAGS {
 } XSK_NOTIFY_RESULT_FLAGS;
 
 DEFINE_ENUM_FLAG_OPERATORS(XSK_NOTIFY_RESULT_FLAGS)
-#ifdef __cplusplus
 static_assert(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32), "XSK_NOTIFY_RESULT_FLAGS must be same size as UINT32");
-#else
-_Static_assert(sizeof(XSK_NOTIFY_RESULT_FLAGS) == sizeof(UINT32), "XSK_NOTIFY_RESULT_FLAGS must be same size as UINT32");
-#endif
 
 //
 // Socket options

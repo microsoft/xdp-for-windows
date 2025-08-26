@@ -14,11 +14,7 @@ typedef struct _XDP_FRAME_RX_ACTION {
     UINT8 RxAction;
 } XDP_FRAME_RX_ACTION;
 
-#ifdef __cplusplus
 static_assert(sizeof(XDP_FRAME_RX_ACTION) == 1, "XDP_FRAME_RX_ACTION must be exactly 1 byte");
-#else
-_Static_assert(sizeof(XDP_FRAME_RX_ACTION) == 1, "XDP_FRAME_RX_ACTION must be exactly 1 byte");
-#endif
 
 #pragma warning(pop)
 

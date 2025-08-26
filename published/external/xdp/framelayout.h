@@ -55,11 +55,7 @@ typedef struct _XDP_FRAME_LAYOUT {
 } XDP_FRAME_LAYOUT;
 #include <poppack.h>
 
-#ifdef __cplusplus
 static_assert(sizeof(XDP_FRAME_LAYOUT) == 5, "XDP_FRAME_LAYOUT must be exactly 5 bytes");
-#else
-_Static_assert(sizeof(XDP_FRAME_LAYOUT) == 5, "XDP_FRAME_LAYOUT must be exactly 5 bytes");
-#endif
 
 #pragma warning(pop)
 

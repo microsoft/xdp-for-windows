@@ -396,7 +396,7 @@ XdpGenericAttachDatapath(
     }
     RtlReleasePushLockExclusive(&Generic->Lock);
 
-    _Static_assert(RTL_NUMBER_OF(ReadyEvents) <= THREAD_WAIT_OBJECTS, "ReadyEvents array must not exceed THREAD_WAIT_OBJECTS limit");
+    static_assert(RTL_NUMBER_OF(ReadyEvents) <= THREAD_WAIT_OBJECTS, "ReadyEvents array must not exceed THREAD_WAIT_OBJECTS limit");
     ASSERT(ReadyEventCount > 0 && ReadyEventCount <= RTL_NUMBER_OF(ReadyEvents));
 
     if (NeedRestart) {

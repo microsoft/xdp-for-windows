@@ -14,11 +14,7 @@ typedef struct _XDP_FRAME_FRAGMENT {
     UINT8 FragmentBufferCount;
 } XDP_FRAME_FRAGMENT;
 
-#ifdef __cplusplus
 static_assert(sizeof(XDP_FRAME_FRAGMENT) == 1, "XDP_FRAME_FRAGMENT must be exactly 1 byte");
-#else
-_Static_assert(sizeof(XDP_FRAME_FRAGMENT) == 1, "XDP_FRAME_FRAGMENT must be exactly 1 byte");
-#endif
 
 #pragma warning(pop)
 

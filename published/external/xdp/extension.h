@@ -20,11 +20,7 @@ typedef struct _XDP_EXTENSION {
     UINT16 Reserved;
 } XDP_EXTENSION;
 
-#ifdef __cplusplus
 static_assert(sizeof(XDP_EXTENSION) == 2, "XDP_EXTENSION must be exactly 2 bytes");
-#else
-_Static_assert(sizeof(XDP_EXTENSION) == 2, "XDP_EXTENSION must be exactly 2 bytes");
-#endif
 
 #pragma warning(pop)
 
