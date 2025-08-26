@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xsk.tmh"
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 

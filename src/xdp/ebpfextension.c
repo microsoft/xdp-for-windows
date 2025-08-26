@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "ebpfextension.tmh"
 
 typedef struct _EBPF_EXTENSION_PROVIDER {
     NPI_PROVIDER_CHARACTERISTICS Characteristics;

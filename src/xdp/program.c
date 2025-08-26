@@ -10,7 +10,6 @@
 #include "precomp.h"
 #include "ebpfstore.h"
 #include "programinspect.h"
-#include "program.tmh"
 
 typedef struct _EBPF_PROG_TEST_RUN_CONTEXT {
     char* Data;

@@ -8,7 +8,6 @@
 //
 
 #include "precomp.h"
-#include "ring.tmh"
 
 NTSTATUS
 XdpRingAllocate(
