@@ -14,7 +14,11 @@ typedef struct _XDP_TX_FRAME_COMPLETION_CONTEXT {
     VOID *Context;
 } XDP_TX_FRAME_COMPLETION_CONTEXT;
 
-C_ASSERT(sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT) == sizeof(VOID *));
+#ifdef __cplusplus
+static_assert(sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT) == sizeof(VOID *), "XDP_TX_FRAME_COMPLETION_CONTEXT must be same size as pointer");
+#else
+_Static_assert(sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT) == sizeof(VOID *), "XDP_TX_FRAME_COMPLETION_CONTEXT must be same size as pointer");
+#endif
 
 #pragma warning(pop)
 

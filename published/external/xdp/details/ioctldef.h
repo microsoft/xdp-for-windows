@@ -40,7 +40,11 @@ typedef struct _XDP_FILE_FULL_EA_INFORMATION {
 
 #define XDP_INFINITE MAXUINT32
 #ifdef INFINITE
-C_ASSERT(INFINITE == XDP_INFINITE);
+#ifdef __cplusplus
+static_assert(INFINITE == XDP_INFINITE, "INFINITE must equal XDP_INFINITE");
+#else
+_Static_assert(INFINITE == XDP_INFINITE, "INFINITE must equal XDP_INFINITE");
+#endif
 #endif
 
 extern CONST GUID DECLSPEC_SELECTANY XDP_DEVICE_CLASS_GUID = { /* 28f93d3f-4c0a-4a7c-8ff1-96b24e19b856 */
