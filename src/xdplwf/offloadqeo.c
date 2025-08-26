@@ -92,27 +92,27 @@ XdpLwfOffloadQeoConvertXdpToNdis(
     NdisConnection->NextPacketNumber = XdpConnection->NextPacketNumber;
     NdisConnection->ConnectionIdLength = XdpConnection->ConnectionIdLength;
 
-    C_ASSERT(sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address));
+    _Static_assert(sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address), "NdisConnection Address must be at least as large as XdpConnection Address");
     RtlCopyMemory(
         NdisConnection->Address, XdpConnection->Address,
         sizeof(XdpConnection->Address));
 
-    C_ASSERT(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId));
+    _Static_assert(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId), "NdisConnection ConnectionId must be at least as large as XdpConnection ConnectionId");
     RtlCopyMemory(
         NdisConnection->ConnectionId, XdpConnection->ConnectionId,
         sizeof(XdpConnection->ConnectionId));
 
-    C_ASSERT(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey));
+    _Static_assert(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey), "NdisConnection PayloadKey must be at least as large as XdpConnection PayloadKey");
     RtlCopyMemory(
         NdisConnection->PayloadKey, XdpConnection->PayloadKey,
         sizeof(XdpConnection->PayloadKey));
 
-    C_ASSERT(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey));
+    _Static_assert(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey), "NdisConnection HeaderKey must be at least as large as XdpConnection HeaderKey");
     RtlCopyMemory(
         NdisConnection->HeaderKey, XdpConnection->HeaderKey,
         sizeof(XdpConnection->HeaderKey));
 
-    C_ASSERT(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv));
+    _Static_assert(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv), "NdisConnection PayloadIv must be at least as large as XdpConnection PayloadIv");
     RtlCopyMemory(
         NdisConnection->PayloadIv, XdpConnection->PayloadIv,
         sizeof(XdpConnection->PayloadIv));

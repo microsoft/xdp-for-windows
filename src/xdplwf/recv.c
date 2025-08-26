@@ -25,8 +25,8 @@
 
 #define DEFINE_MDL_AND_PFNS(_Name, _Size) \
     MDL _Name; PFN_NUMBER _Name##Pfns[ADDRESS_AND_SIZE_TO_SPAN_PAGES(PAGE_SIZE - 1, (_Size))]
-C_ASSERT(__alignof(MDL) % __alignof(PFN_NUMBER) == 0);
-C_ASSERT(sizeof(MDL) % __alignof(PFN_NUMBER) == 0);
+_Static_assert(__alignof(MDL) % __alignof(PFN_NUMBER) == 0, "MDL alignment must be multiple of PFN_NUMBER alignment");
+_Static_assert(sizeof(MDL) % __alignof(PFN_NUMBER) == 0, "MDL size must be multiple of PFN_NUMBER alignment");
 
 typedef struct _XDP_LWF_GENERIC_RX_FRAME_CONTEXT {
     NET_BUFFER *Nb;
@@ -53,18 +53,22 @@ typedef struct _NBL_RX_TX_CONTEXT {
     };
 } NBL_RX_TX_CONTEXT;
 
-C_ASSERT(
+_Static_assert(
     FIELD_OFFSET(NBL_RX_TX_CONTEXT, RxQueue) ==
-    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionCompletionContext));
-C_ASSERT(
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionCompletionContext),
+    "NBL_RX_TX_CONTEXT RxQueue offset must match XDP_LWF_GENERIC_INJECTION_CONTEXT InjectionCompletionContext offset");
+_Static_assert(
     FIELD_OFFSET(NBL_RX_TX_CONTEXT, InjectionType) ==
-    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType));
-C_ASSERT(
+    FIELD_OFFSET(XDP_LWF_GENERIC_INJECTION_CONTEXT, InjectionType),
+    "NBL_RX_TX_CONTEXT InjectionType offset must match XDP_LWF_GENERIC_INJECTION_CONTEXT InjectionType offset");
+_Static_assert(
    (FIELD_OFFSET(NBL_RX_TX_CONTEXT, Gso.Headers) + sizeof(ETHERNET_HEADER)) %
-        TYPE_ALIGNMENT(UINT32) == 0);
+        TYPE_ALIGNMENT(UINT32) == 0,
+   "NBL_RX_TX_CONTEXT Gso.Headers + ETHERNET_HEADER must be UINT32-aligned");
 
 #define RX_TX_CONTEXT_SIZE sizeof(NBL_RX_TX_CONTEXT)
-C_ASSERT(RX_TX_CONTEXT_SIZE % MEMORY_ALLOCATION_ALIGNMENT == 0);
+_Static_assert(RX_TX_CONTEXT_SIZE % MEMORY_ALLOCATION_ALIGNMENT == 0,
+               "RX_TX_CONTEXT_SIZE must be memory allocation aligned");
 
 static UINT32 RxMaxTxBuffers = RECV_DEFAULT_MAX_TX_BUFFERS;
 
