@@ -4353,7 +4353,7 @@ XskSockoptGetOffload(
         ResetChangeFlag = Xsk->Tx.OffloadChangeFlags.Value == 0;
         break;
 
-    case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM: //!!!TODO
+    case XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM:
         if (Xsk->Rx.Xdp.IfHandle == NULL) {
             Status = STATUS_INVALID_DEVICE_STATE;
             goto Exit;
