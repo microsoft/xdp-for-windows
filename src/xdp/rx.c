@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "rx.tmh"
 
 
 static XDP_REG_WATCHER_CLIENT_ENTRY XdpRxRegWatcherEntry;
