@@ -2113,6 +2113,31 @@ XdpGenericRxRestart(
     TraceExitSuccess(TRACE_GENERIC);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericRxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
+    )
+{
+    LIST_ENTRY *Entry = Generic->Rx.NotifyQueues.Flink;
+
+    TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
+
+    UNREFERENCED_PARAMETER(Offload);
+
+    while (Entry != &Generic->Rx.NotifyQueues) {
+        XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue =
+            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, Link);
+        Entry = Entry->Flink;
+        XdpRxQueueNotify(
+            RxNotifyQueue->XdpNotifyHandle, XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
+    }
+
+    TraceExitSuccess(TRACE_GENERIC);
+}
+
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpGenericRxCreateQueue(
@@ -2312,6 +2337,54 @@ Exit:
     TraceExitStatus(TRACE_GENERIC);
 
     return Status;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+XdpGenericRxCreateNotifyQueue(
+    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
+    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
+    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxNotifyQueue
+    )
+{
+    NTSTATUS Status;
+    XDP_LWF_GENERIC *Generic = (XDP_LWF_GENERIC *)InterfaceContext;
+    XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = NULL;
+    RxNotifyQueue = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RxNotifyQueue), POOLTAG_RECV_NOTIFY);
+    if (RxNotifyQueue == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+    RxNotifyQueue->XdpNotifyHandle = XdpRxQueueGetNotifyHandle(Config);
+    RxNotifyQueue->Generic = Generic;
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    InsertTailList(&Generic->Rx.NotifyQueues, &RxNotifyQueue->Link);
+    RtlReleasePushLockExclusive(&Generic->Lock);
+
+    *InterfaceRxNotifyQueue = (XDP_INTERFACE_HANDLE)RxNotifyQueue;
+    Status = STATUS_SUCCESS;
+Exit:
+    if (!NT_SUCCESS(Status)) {
+        if (RxNotifyQueue != NULL) {
+            ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
+        }
+    }
+    return Status;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpGenericRxDeleteNotifyQueue(
+    _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
+    )
+{
+    XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = (XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *)InterfaceRxNotifyQueue;
+    XDP_LWF_GENERIC *Generic = RxNotifyQueue->Generic;
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    RemoveEntryList(&RxNotifyQueue->Link);
+    RtlReleasePushLockExclusive(&Generic->Lock);
+    ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
+    TraceExitSuccess(TRACE_GENERIC);
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
