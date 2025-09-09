@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "tx.tmh"
 
 //
 // This module configures XDP transmit queues on interfaces.

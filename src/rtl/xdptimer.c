@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xdptimer.tmh"
 
 typedef struct _EX_TIMER EX_TIMER;
 typedef struct _IO_WORKITEM IO_WORKITEM;

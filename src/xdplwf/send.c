@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "send.tmh"
 
 #define MAX_TX_BUFFER_LENGTH 65536
 #define DEFAULT_TX_FRAME_COUNT 32

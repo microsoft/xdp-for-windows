@@ -5,54 +5,84 @@
 
 #pragma once
 
+#include <TraceLoggingProvider.h>
+#include <evntrace.h>
+
 //
-// Tracing Definitions:
-//
-// Control GUID:
+// TraceLogging Provider GUID:
 // {D6143B62-9FD6-44BA-BA02-FAD9EA0C263D}
+// (Using the same GUID as the previous WPP provider for compatibility)
 //
-#define WPP_CONTROL_GUIDS                           \
-    WPP_DEFINE_CONTROL_GUID(                        \
-        FunctionalTestTraceGuid,                    \
-        (D6143B62,9FD6,44BA,BA02,FAD9EA0C263D),     \
-        WPP_DEFINE_BIT(TRACE_FUNCTIONAL)            \
-        )
+TRACELOGGING_DECLARE_PROVIDER(FunctionalTestTraceProvider);
 
 //
-// The following system defined definitions may be used:
+// Trace flags matching the original WPP flags
 //
-// TRACE_LEVEL_FATAL = 1        // Abnormal exit or termination.
-// TRACE_LEVEL_ERROR = 2        // Severe errors that need logging.
-// TRACE_LEVEL_WARNING = 3      // Warnings such as allocation failures.
-// TRACE_LEVEL_INFORMATION = 4  // Including non-error cases.
-// TRACE_LEVEL_VERBOSE = 5      // Detailed traces from intermediate steps.
+#define TRACE_FUNCTIONAL  0x0001
+
 //
-// begin_wpp config
-//
-// USEPREFIX(TraceFatal,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceFatal{LEVEL=TRACE_LEVEL_FATAL,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// USEPREFIX(TraceError,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceError{LEVEL=TRACE_LEVEL_ERROR,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// USEPREFIX(TraceWarn,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceWarn{LEVEL=TRACE_LEVEL_WARNING,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// USEPREFIX(TraceInfo,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceInfo{LEVEL=TRACE_LEVEL_INFORMATION,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// USEPREFIX(TraceVerbose,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceVerbose{LEVEL=TRACE_LEVEL_VERBOSE,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// USEPREFIX(TraceEnter,"%!STDPREFIX! %!FUNC!:%!LINE! --->%!SPACE!");
-// FUNC TraceEnter{LEVEL=TRACE_LEVEL_VERBOSE,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// USEPREFIX(TraceExit,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE! ");
-// FUNC TraceExit{LEVEL=TRACE_LEVEL_VERBOSE,FLAGS=TRACE_FUNCTIONAL}(MSG,...);
-//
-// end_wpp
+// TraceLogging macros that replace the WPP trace functions
+// These maintain the same interface as the original WPP macros
 //
 
-#define WPP_LEVEL_FLAGS_ENABLED(LEVEL, FLAGS) \
-    (WPP_LEVEL_ENABLED(FLAGS) && (WPP_CONTROL(WPP_BIT_ ## FLAGS).Level >= LEVEL))
-#define WPP_LEVEL_FLAGS_LOGGER(LEVEL, FLAGS) WPP_LEVEL_LOGGER(FLAGS)
+#define TraceFatal(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Fatal", \
+        TraceLoggingLevel(WINEVENT_LEVEL_CRITICAL), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+#define TraceError(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Error", \
+        TraceLoggingLevel(WINEVENT_LEVEL_ERROR), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+#define TraceWarn(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Warning", \
+        TraceLoggingLevel(WINEVENT_LEVEL_WARNING), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+#define TraceInfo(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Information", \
+        TraceLoggingLevel(WINEVENT_LEVEL_INFO), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+#define TraceVerbose(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Verbose", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+#define TraceEnter(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Enter", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+#define TraceExit(...) \
+    TraceLoggingWrite(FunctionalTestTraceProvider, \
+        "Exit", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(TRACE_FUNCTIONAL), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"))
+
+//
+// Initialization and cleanup functions
+//
+NTSTATUS FunctionalTestTraceInitialize(VOID);
+VOID FunctionalTestTraceCleanup(VOID);
