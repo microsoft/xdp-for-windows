@@ -240,12 +240,13 @@ jobs:
         exclude:
         - windows: 2022
           platform: arm64
+        - testDriver: FNMP
+          enableTxInspect: enableTxInspect
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
-    if: ${{ matrix.testDriver == 'XDPMP' || matrix.enableTxInspect != 'enableTxInspect' }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
