@@ -102,7 +102,10 @@ param (
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI"
+    [string]$XdpInstaller = "MSI",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$TxInspect = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -127,6 +130,8 @@ if (!(Test-Path $SpinXsk)) {
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 $StartTime = Get-Date
+$WsaRioProcess = $null
+$WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 
 while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes)) {
 
@@ -216,6 +221,26 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         if ($Driver -eq "FNMP") {
             $Args += "-UseFnmp"
         }
+
+        if ($TxInspect) {
+
+            # Assuming 192.168.100.2:1234 is the XDPMP IP address based on snippet in xskperf.ps1:
+            #     if ($Adapter.InterfaceDescription -like "XDPMP*") {
+            #       $RemoteAddress = "192.168.100.2:1234"
+            #     }
+
+            $WsaRioCpu = 7
+            $XskGroup = 0
+            $IoSize = 64
+            $UdpSize = $IoSize - 8 - 20 - 14
+            $TxInspectContentionCount = 1
+            $ArgList =
+                "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup -CPU $WsaRioCpu " +
+                "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
+            Write-Verbose "$WsaRio $ArgList"
+            $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
+        }
+
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args
         if ($LastExitCode -ne 0) {
@@ -244,6 +269,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             }
             & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        }
+        if ($WsaRioProcess) {
+            Stop-Process -InputObject $WsaRioProcess
         }
     }
 }
