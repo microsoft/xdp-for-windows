@@ -241,6 +241,7 @@ jobs:
         - windows: 2022
           platform: arm64
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
+    if: ${{ !(matrix.testDriver != 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect') }}
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -290,7 +291,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: ${{ always() }}
       with:
-        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}
+        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
