@@ -229,7 +229,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             #       $RemoteAddress = "192.168.100.2:1234"
             #     }
 
-            $WsaRioCpu = 7
+            $WsaRioCpu = 0
             $XskGroup = 0
             $IoSize = 64
             $UdpSize = $IoSize - 8 - 20 - 14
