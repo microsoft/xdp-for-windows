@@ -3,7 +3,7 @@
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
     <XdpMinorVersion>1</XdpMinorVersion>
-    <XdpPatchVersion>0</XdpPatchVersion>
+    <XdpPatchVersion>1</XdpPatchVersion>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Undocked project properties -->
@@ -15,7 +15,7 @@
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
-    <XdpWdkVersion>10.0.26100.2161</XdpWdkVersion>
+    <XdpWdkVersion>10.0.26100.4204</XdpWdkVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Platform)' != 'x64'">
     <RestoreAdditionalProjectSources>$(SolutionDir)artifacts/nuget</RestoreAdditionalProjectSources>
