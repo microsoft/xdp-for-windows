@@ -561,7 +561,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
