@@ -1618,6 +1618,8 @@ XdpGenericReceivePostInspectNbs(
         FrameRing->InterfaceReserved == FrameRing->ProducerIndex ||
         FrameRing->InterfaceReserved == FrameRing->ProducerIndex - 1);
 
+    NET_BUFFER_LIST *CachedNextNbl = NULL;
+
     while (NbHead != NbTail) {
         XDP_FRAME *Frame;
         XDP_RX_ACTION XdpRxAction;
@@ -1662,6 +1664,7 @@ XdpGenericReceivePostInspectNbs(
         //
         if (NET_BUFFER_LIST_FIRST_NB(NblHead) == NbHead) {
             ActionNbl = NblHead;
+            CachedNextNbl = NET_BUFFER_LIST_NEXT_NBL(ActionNbl);
         }
 
         //
@@ -1672,6 +1675,10 @@ XdpGenericReceivePostInspectNbs(
 
         if (NbHead == NULL) {
             NblHead = NET_BUFFER_LIST_NEXT_NBL(NblHead);
+
+            if (NblHead == NULL) {
+                NblHead = CachedNextNbl;
+            }
 
             if (NblHead != NULL) {
                 NbHead = NET_BUFFER_LIST_FIRST_NB(NblHead);
@@ -1687,6 +1694,12 @@ XdpGenericReceivePostInspectNbs(
         // Now that we've finished dereferencing ActionNbl, apply the RX action.
         //
         if (ActionNbl != NULL) {
+            //
+            // Note: Invoking these functions could disconnect the NBL chain we are currently traversing.
+            //       This would be OK if there was only 1 NB per NBL entry (typical for RX). But for TX,
+            //       we must be more careful to avoid disconnecting the NBL chain while Nblhead is still
+            //       pointing to ActionNbl.
+            //
             switch (XdpRxAction) {
 
             case XDP_RX_ACTION_PASS:
