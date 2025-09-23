@@ -559,7 +559,7 @@ jobs:
   #       iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
 
   Release_Branch_Requirements:
-    name: Complete
+    name: Release Branch Requirements
     if: always()
     needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
@@ -572,7 +572,7 @@ jobs:
         jobs: ${{ toJSON(needs) }}
 
   Non_Release_Branch_Requirements:
-    name: Complete
+    name: Non Release Branch Requirements
     if: always()
     needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
     runs-on: ubuntu-latest
