@@ -622,10 +622,36 @@ jobs:
   #       }
   #       iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
 
+  Release_Branch_Requirements:
+    name: Release Branch Requirements
+    if: always()
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
+    runs-on: ubuntu-latest
+    permissions: {} # No need for any permissions.
+    steps:
+    - name: Decide whether the needed jobs succeeded or failed
+      if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON(needs) }}
+
+  Non_Release_Branch_Requirements:
+    name: Non Release Branch Requirements
+    if: always()
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
+    runs-on: ubuntu-latest
+    permissions: {} # No need for any permissions.
+    steps:
+    - name: Decide whether the needed jobs succeeded or failed
+      if: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON(needs) }}
+
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
+    needs: [Release_Branch_Requirements, Non_Release_Branch_Requirements]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
