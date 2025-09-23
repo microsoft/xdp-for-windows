@@ -63,8 +63,9 @@ jobs:
     - name: Decide whether the needed jobs succeeded or failed (Release)
       uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
       with:
-        jobs: ${{ toJSON('["test-job2"]') }}
+        allowed-failures: test-job1
+        jobs: ${{ toJSON(needs) }}
     - name: Decide whether the needed jobs succeeded or failed (Non Release)
       uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
       with:
-        jobs: ${{ toJSON('["test-job2", "test-job1"]') }}
+        jobs: ${{ toJSON(needs) }}
