@@ -37,6 +37,10 @@ jobs:
     steps:
       - name: Print ref
         run: echo ${{ github.ref }}
+      - name: Print base ref
+        run: echo ${{ github.base_ref }}
+      - name: Print head ref
+        run: echo ${{ github.head_ref }}
       - name: Should fail
         run: exit 1
 
@@ -49,40 +53,18 @@ jobs:
       - name: Should pass
         run: exit 0
 
-  Release_Branch_Requirements:
-    name: Release Branch Requirements
-    if: always()
-    needs: [test-job1, test-job2]
-    runs-on: ubuntu-latest
-    permissions: {} # No need for any permissions.
-    steps:
-    - name: Decide whether the needed jobs succeeded or failed
-      if: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.base_ref, 'refs/heads/release/') }}
-      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
-      with:
-        jobs: ${{ toJSON(needs) }}
-
-  Non_Release_Branch_Requirements:
-    name: Non Release Branch Requirements
-    if: always()
-    needs: [test-job1, test-job2]
-    runs-on: ubuntu-latest
-    permissions: {} # No need for any permissions.
-    steps:
-    - name: Decide whether the needed jobs succeeded or failed
-      if: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.base_ref, 'refs/heads/release/') }}
-      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
-      with:
-        jobs: ${{ toJSON(needs) }}
-
   Complete:
     name: Complete
     if: always()
-    needs: [Release_Branch_Requirements, Non_Release_Branch_Requirements]
+    needs: [test-job1, test-job2]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
-    - name: Decide whether the needed jobs succeeded or failed
+    - name: Decide whether the needed jobs succeeded or failed (Release)
       uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
       with:
-        jobs: ${{ toJSON(needs) }}
+        jobs: ${{ toJSON('["test-job2"]') }}
+    - name: Decide whether the needed jobs succeeded or failed (Non Release)
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON('["test-job2", "test-job1"]') }}
