@@ -565,20 +565,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
-    - name: Echo ref
-      run: echo "${{ github.ref }}"
-    - name: Echo base ref
-      run: echo "${{ github.base_ref }}"
-    - name: Echo head ref
-      run: echo "${{ github.head_ref }}"
     - name: Decide whether the needed jobs succeeded or failed (Release)
-      if: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.base_ref, 'refs/heads/release/') || startsWith(github.head_ref, 'refs/heads/release/') }}
+      if: ${{ contains(github.ref, 'release') || contains(github.base_ref, 'release') || contains(github.head_ref, 'release') }}
       uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
       with:
         jobs: ${{ toJSON(needs) }}
         allowed-failures: perf_tests
     - name: Decide whether the needed jobs succeeded or failed (Non Release)
-      if: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.base_ref, 'refs/heads/release/') && !startsWith(github.head_ref, 'refs/heads/release/') }}
+      if: ${{ !contains(github.ref, 'release') && !contains(github.base_ref, 'release') && !contains(github.head_ref, 'release') }}
       uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
       with:
         jobs: ${{ toJSON(needs) }}
