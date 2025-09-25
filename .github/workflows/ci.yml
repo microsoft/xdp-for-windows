@@ -573,3 +573,7 @@ jobs:
         allowed-failures: perf_tests
     - name: Decide whether the needed jobs succeeded or failed (Non Release)
       if: ${{ !contains(github.ref, 'release') && !contains(github.base_ref, 'release') && !contains(github.head_ref, 'release') }}
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON(needs) }}
+        
