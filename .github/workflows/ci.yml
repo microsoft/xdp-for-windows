@@ -236,9 +236,12 @@ jobs:
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
+        enableTxInspect: [enableTxInspect, disableTxInspect]
         exclude:
         - windows: 2022
           platform: arm64
+        - testDriver: FNMP
+          enableTxInspect: enableTxInspect
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
      - self-hosted
@@ -260,13 +263,23 @@ jobs:
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
+    - name: Run spinxsk (PR, with TxInspect)
+      if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
+      shell: PowerShell
+      timeout-minutes: 20
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet -TxInspect
     - name: Run spinxsk (PR)
-      if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+      if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
+    - name: Run spinxsk (main, with TxInspect)
+      if: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
+      shell: PowerShell
+      timeout-minutes: 70
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet -TxInspect
     - name: Run spinxsk (main)
-      if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'}}
+      if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
       run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
@@ -279,7 +292,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: ${{ always() }}
       with:
-        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}
+        name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
