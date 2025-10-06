@@ -26,6 +26,9 @@
   <Target Name="Catalog" Condition="'$(BuildStage)' == 'Catalog'" AfterTargets="Build" >
       <MSBuild Projects="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2Cat=true"/>
   </Target>
+  <Target Name="PackageMsi" Condition="'$(BuildStage)' == 'Package'" AfterTargets="Package" >
+      <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
+  </Target>
   <ItemGroup Condition="'$(BuildStage)' == 'AllPackage'">
     <ProjectReference Include="$(SolutionDir)src\nuget\nuget.vcxproj">
       <Project>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</Project>
