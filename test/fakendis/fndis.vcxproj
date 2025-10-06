@@ -5,6 +5,7 @@
     <ClCompile Include="poll.c" />
     <ClCompile Include="pollbackchannel.c" />
     <ClCompile Include="polldpc.c" />
+    <ClCompile Include="trace.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h" />
@@ -36,9 +37,6 @@
         NDIS685=1;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>$(ProjectDir)trace.h</WppScanConfigurationData>
-      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
     <Link>
       <ModuleDefinitionFile>fndis.def</ModuleDefinitionFile>

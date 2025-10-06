@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "rx.tmh"
 
 static
 VOID
