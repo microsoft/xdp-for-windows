@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="WixToolset.Sdk">
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{93635a7b-565e-4b41-af67-5b375756b227}</ProjectGuid>
     <ImportUndocked>false</ImportUndocked>
@@ -42,6 +42,8 @@
     <PackageReference Include="WixToolset.UI.wixext" />
     <PackageReference Include="WixToolset.Util.wixext" />
   </ItemGroup>
+  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(XdpWixVer)" />
+  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(XdpWixVer)" />
   <Target Name="SignMsi" Condition="'$(BuildStage)' != 'Binary' and '$(SignMode)' != 'Off'" AfterTargets="Build">
     <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.vcxproj" Targets="SignMsi"/>
   </Target>
