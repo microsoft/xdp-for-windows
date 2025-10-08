@@ -14,7 +14,6 @@
     <PackageVersion Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="$(XdpWdkVersion)" Condition="'$(Platform)' != '$(HostPlatform)'"/>
     <PackageVersion Include="Microsoft.Windows.WDK.$(Platform)" Version="$(XdpWdkVersion)" />
     <PackageVersion Include="win-net-test" Version="1.3.0" />
-    <PackageVersion Include="WixToolset.Sdk" Version="$(XdpWixVer)" />
     <PackageVersion Include="WixToolset.UI.wixext" Version="$(XdpWixVer)" />
     <PackageVersion Include="WixToolset.Util.wixext" Version="$(XdpWixVer)" />
   </ItemGroup>
