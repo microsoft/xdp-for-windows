@@ -63,7 +63,7 @@ jobs:
     needs: resolve_base
     permissions:
       security-events: write  # For CodeQL (even though it is not enabled)
-    uses: ./.github/workflows/build_matrix.yml
+    uses: ./.github/workflows/build_matrix.yml@${{ needs.resolve_base.outputs.base_ref }}
     with:
       ref: ${{ needs.resolve_base.outputs.base_ref }}
       id: "baseref"
