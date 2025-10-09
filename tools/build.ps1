@@ -82,7 +82,7 @@ if (!$NoRestore) {
     Write-Verbose "Restoring packages [$Sln]"
     msbuild.exe $Sln `
         /t:restore `
-        /p:RestoreConfigFile=src\nuget.config `
+        /p:RestoreConfigFile=tools\nuget.config `
         /p:Configuration=$Config `
         /p:Platform=$Platform
     if (!$?) {

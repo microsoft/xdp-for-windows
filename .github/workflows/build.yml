@@ -65,7 +65,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose -Platform ${{ inputs.platform }}
     - name: Nuget Restore
-      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ inputs.config }} /p:Platform=${{ inputs.platform }}
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=tools/nuget.config /p:Configuration=${{ inputs.config }} /p:Platform=${{ inputs.platform }}
     - name: Prepare for compiling eBPF programs
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose -Platform ${{ inputs.platform }}
     - name: Build
