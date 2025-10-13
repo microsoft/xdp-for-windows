@@ -70,11 +70,9 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 1. Cherry pick necessary changes to Release/X.Y.Z
 2. Ensure changes propagate properly to our internal mirror of XDP-for-windows in ADO
 3. Create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick
-4. Official pipeline in ADO should kick off upon the existance of the new tag
+4. Official pipeline in ADO should kick off upon the existence of the new tag
 5. Grab the built artifacts: MSI, Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
 6. Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
-
-
 
 ## Publishing a new Release
 
