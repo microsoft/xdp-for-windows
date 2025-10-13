@@ -73,6 +73,7 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 4. Official pipeline in ADO should kick off upon the existence of the new tag
 5. Grab the built artifacts: MSI, Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
 6. Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
+7. Upload the XDP + Runtime Nuget pkgs to Nuget.org as well.
 
 ## Publishing a new Release
 
