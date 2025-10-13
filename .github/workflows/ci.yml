@@ -491,7 +491,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        downlevel_release: [1.0.2, 1.1.0]
+        downlevel_release: [1.0.2, 1.1.2]
         windows: [2022, Prerelease]
         configuration: [Release]
         platform: [x64]
