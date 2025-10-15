@@ -75,7 +75,8 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 5. Grab the built artifacts: MSI, Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
 6. Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
 7. Upload the XDP + Runtime Nuget pkgs to Nuget.org as well
-8. Update the downlevel test matrix in main to point to X.Y.(Z + 1) once all artifacts are uploaded
+8. Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release
+9. Update the downlevel test matrix in main to point to X.Y.(Z + 1) once all artifacts are uploaded
 
 ## Publishing a new Release
 
