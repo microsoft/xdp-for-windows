@@ -15,10 +15,12 @@ XDP for Windows is a high-performance packet processing framework inspired by Li
 - Implements shared memory rings for high-speed packet transfer between kernel and user mode.
 - Supports eBPF (experimental) for programmable packet processing.
 
-### 2. XDP API headers / xdpapi.dll (User Mode APIs)
-- A stateless user-mode library that exposes the XDP API to applications.
-- Translates API calls into IOCTLs and manages shared memory with the kernel driver.
+### 2. XDP API Headers (User Mode APIs)
+- Header-only APIs that expose the XDP API to applications (available for `XDP_API_VERSION_3` or later).
+- Inline functions translate API calls into IOCTLs and manage shared memory with the kernel driver.
 - Used by applications to configure XDP programs, manage queues, and interact with AF_XDP sockets.
+- Applications can freely compile these header-only implementations into their own user or kernel mode code.
+- **Backward Compatibility**: For applications using `XDP_API_VERSION_1` or `XDP_API_VERSION_2`, a stateless user-mode library (`xdpapi.dll`) is provided but is deprecated. New applications should use `XDP_API_VERSION_3` or later.
 
 ### 3. AF_XDP Sockets
 - User-mode API for high-speed packet I/O, similar to Linux AF_XDP.

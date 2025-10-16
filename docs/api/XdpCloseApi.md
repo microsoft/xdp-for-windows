@@ -1,8 +1,8 @@
-# XdpOpenApi function
+# XdpCloseApi function
 
-Releases the reference to the API returned by [`XdpOpenApi`](XdpOpenApi.md). This routine is exported by the `xdpapi` DLL.
+Releases the reference to the API returned by [`XdpOpenApi`](XdpOpenApi.md). This routine is exported by the `xdpapi.dll` library.
 
-** This API is deprecated. **
+**This API is deprecated.** It is provided only for backward compatibility with applications using `XDP_API_VERSION_1` or `XDP_API_VERSION_2`. New applications should use `XDP_API_VERSION_3` or later, which provides header-only API implementations that do not require the `xdpapi.dll` library.
 
 ## Syntax
 

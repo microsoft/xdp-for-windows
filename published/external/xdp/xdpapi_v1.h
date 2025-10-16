@@ -10,6 +10,11 @@
 // This file contains declarations and definitions for the original XDP API.
 // It relies on xdpapi.dll to provide an implementation of most routines.
 //
+// NOTE: This API is deprecated and provided only for backward compatibility
+// with XDP_API_VERSION_1 and XDP_API_VERSION_2. New applications should use
+// XDP_API_VERSION_3 or later, which provides header-only implementations that
+// consumers can freely compile into their own user or kernel mode code.
+//
 
 #ifdef __cplusplus
 extern "C" {
