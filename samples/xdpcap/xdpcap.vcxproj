@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="xdpcap.c" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{3a8d65c2-61e6-4fd6-cb34-641f568496fb}</ProjectGuid>
+    <TargetName>xdpcap</TargetName>
+    <UndockedType>exe</UndockedType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)submodules\cxplat\inc;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+</Project>
