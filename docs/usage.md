@@ -6,7 +6,7 @@
 
 ## Installation
 
-XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
+XDP for Windows consists of a driver (xdp.sys) and header-only user mode APIs. For backward compatibility with older applications, a user mode library (xdpapi.dll) is also provided, but its use is not recommended for new applications.
 
 ### Install the Latest (1.x) Official
 
@@ -127,7 +127,9 @@ To collect XDP installer traces, append `/l*v filename.log` to the MSI command l
 ## Configuration
 
 XDP is in a passive state upon installation. XDP can be configured via a set of
-usermode APIs exported from `xdpapi.dll`.
+user mode APIs provided in XDP headers. These APIs are header-only implementations (using inline functions) that issue IOCTLs to the XDP driver.
+
+**Note:** For backward compatibility, older applications using `XDP_API_VERSION_1` or `XDP_API_VERSION_2` may use the deprecated `xdpapi.dll` library. New applications should use `XDP_API_VERSION_3` or later, which provides all APIs as header-only implementations.
 
 ### XDP Queues
 
@@ -152,8 +154,10 @@ AF_XDP is the API for redirecting traffic to a usermode application. To use the 
 include the following headers:
 
 - afxdp.h (AF_XDP sockets API)
-- xdpapi.h (XDP API)
+- xdpapi.h (XDP API - header-only implementation for `XDP_API_VERSION_3` or later)
 - afxdp_helper.h (optional AF_XDP helpers)
+
+These headers provide inline function implementations that interact directly with the XDP driver via IOCTLs, eliminating the need for a separate DLL.
 
 ## Generic XDP
 
