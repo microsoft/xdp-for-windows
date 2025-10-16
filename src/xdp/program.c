@@ -955,6 +955,7 @@ XdpProgramDelete(
 
         if (ProgramBinding->RxQueue != NULL) {
             XdpRxQueueDereference(ProgramBinding->RxQueue);
+            ProgramBinding->RxQueue = NULL;
         }
 
         RemoveEntryList(&ProgramBinding->Link);
@@ -993,8 +994,12 @@ XdpProgramRxQueueNotify(
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
         XdpProgramDetachRxQueue(ProgramBinding);
-        break;
 
+        if (ProgramBinding->RxQueue != NULL) {
+            XdpRxQueueDereference(ProgramBinding->RxQueue);
+            ProgramBinding->RxQueue = NULL;
+        }
+        break;
     }
 }
 
@@ -1285,6 +1290,10 @@ XdpProgramBindingAttach(
     XdpRxQueueRegisterNotifications(
         ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
         XdpProgramRxQueueNotify);
+    XdpRxQueueInvokeAttachmentNotification(
+        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
+        XdpProgramRxQueueNotify);
+
 
     ASSERT(
         !IsListEmpty(&ProgramBinding->RxQueueEntry) &&
