@@ -3,7 +3,7 @@
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
     <XdpMinorVersion>1</XdpMinorVersion>
-    <XdpPatchVersion>2</XdpPatchVersion>
+    <XdpPatchVersion>3</XdpPatchVersion>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Undocked project properties -->
