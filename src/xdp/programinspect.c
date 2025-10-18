@@ -1463,7 +1463,7 @@ XdpProgramValidateRule(
     //
     RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
 
-    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_INNER_IPV6_DST_MASK_UDP) {
+    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST_MASK) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
