@@ -4,7 +4,7 @@
 //
 
 #include <xdpapi.h>
-
+#include <ws2tcpip.h>
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -123,6 +123,8 @@ ParseArgs(
                 Rule.Match = XDP_MATCH_ALL;
             } else if (!_stricmp(ArgV[i], "UdpDstPort")) {
                 Rule.Match = XDP_MATCH_UDP_DST;
+            } else if (!_stricmp(ArgV[i], "IcmpEchoReplyIpv4")) {
+                Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK;
             } else {
                 LOGERR("Invalid MatchType");
                 goto Usage;
@@ -151,6 +153,36 @@ ParseArgs(
                 Rule.Pattern.Port = _byteswap_ushort((UINT16)atoi(ArgV[i]));
             } else {
                 LOGERR("Unexpected UdpDstPort");
+            }
+        } else if (!_stricmp(ArgV[i], "-IcmpDstIpv4")) {
+            if (++i >= ArgC) {
+                LOGERR("Missing IcmpDstIpv4");
+                goto Usage;
+            }
+            if (Rule.Match == XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK) {
+                const char* ipStr = ArgV[i];
+                printf("Parsing IP address: %s\n", ipStr);
+
+                // Parse dotted-quad into IN_ADDR (network byte order)
+                int rc = InetPtonA(AF_INET, ipStr, &Rule.Pattern.IpMask.Address.Ipv4);
+                if (rc != 1) {
+                    if (rc == 0) {
+                        printf("Invalid IPv4 address format: %s\n", ipStr);
+                    } else {
+                        printf("InetPtonA error: %d\n", WSAGetLastError());
+                    }
+                    return 1;
+                }
+                // Sanity check: print back out
+                char buf[INET_ADDRSTRLEN] = {0};
+                if (InetNtopA(AF_INET, &Rule.Pattern.IpMask.Address.Ipv4, buf, (DWORD)sizeof(buf)) == NULL) {
+                    return 1;
+                }
+                // Note: S_un.S_addr is in network byte order; use ntohl for host-endian display.
+                printf("Parsed IPv4 (string): %s\n", buf);
+                printf("Parsed IPv4 (hex, host order): 0x%08X\n", ntohl(Rule.Pattern.IpMask.Address.Ipv4.S_un.S_addr));
+            } else {
+                LOGERR("Unexpected IcmpDstIpv4");
             }
         } else {
             LOGERR("Unexpected parameter \"%s\"", ArgV[i]);

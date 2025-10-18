@@ -47,6 +47,8 @@ typedef struct _XDP_PROGRAM_FRAME_STORAGE {
     union {
         UDP_HDR UdpHdr;
         TCP_HDR TcpHdr;
+        ICMP_HEADER Icmpv4Hdr;
+        ICMPV6_HEADER Icmpv6Hdr;
     };
     UINT8 TcpHdrOptions[40]; // Up to 40B options/paddings
     // Invariant header + 1 for SourceCidLength + 2x CIDS
@@ -86,6 +88,10 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
             UINT32 QuicCached : 1;
             UINT32 QuicValid : 1;
             UINT32 QuicIsLongHeader : 1;
+            UINT32 Icmp4Cached : 1;
+            UINT32 Icmp4Valid : 1;
+            UINT32 Icmp6Cached : 1;
+            UINT32 Icmp6Valid : 1;
         };
         UINT32 Flags;
     };
@@ -102,6 +108,8 @@ typedef struct _XDP_PROGRAM_FRAME_CACHE {
     union {
         UDP_HDR *UdpHdr;
         TCP_HDR *TcpHdr;
+        ICMP_HEADER *Icmpv4Hdr;
+        ICMPV6_HEADER *Icmpv6Hdr;
     };
     UINT8 *TcpHdrOptions;
     UINT8 QuicCidLength;
