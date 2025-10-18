@@ -1297,7 +1297,7 @@ XdpInspect(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
             }
-            constexpr IN6_ADDR FullMask6_Init = {
+            IN6_ADDR FullMask6_Init = {
                 { 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
                   0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF }
             };

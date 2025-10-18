@@ -171,12 +171,12 @@ ParseArgs(
                     } else {
                         printf("InetPtonA error: %d\n", WSAGetLastError());
                     }
-                    return 1;
+                    return;
                 }
                 // Sanity check: print back out
                 char buf[INET_ADDRSTRLEN] = {0};
                 if (InetNtopA(AF_INET, &Rule.Pattern.IpMask.Address.Ipv4, buf, (DWORD)sizeof(buf)) == NULL) {
-                    return 1;
+                    return;
                 }
                 // Note: S_un.S_addr is in network byte order; use ntohl for host-endian display.
                 printf("Parsed IPv4 (string): %s\n", buf);
