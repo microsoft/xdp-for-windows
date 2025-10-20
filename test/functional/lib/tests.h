@@ -49,6 +49,11 @@ GenericRxMatchIpPrefix(
     );
 
 VOID
+GenericRxMatchIcmpEchoReply(
+    _In_ ADDRESS_FAMILY Af
+    )
+
+VOID
 GenericRxMatchInnerIpPrefix(
     _In_ UINT16 AddressFamily
     );
