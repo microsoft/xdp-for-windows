@@ -3654,8 +3654,11 @@ GenericRxMatchIcmpEchoReply(
     // Verify we don't do anything with the ICMP packet if it's NOT a reply.
     //
     ProgramHandle.reset();
-    Icmp4Hdr->Type = 8;
-    Icmp6Hdr->Type = 128;
+    if (Af == AF_INET) {
+        Icmp4Hdr->Type = 8;
+    } else {
+        Icmp6Hdr->Type = 128;
+    }
 
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
@@ -3671,8 +3674,11 @@ GenericRxMatchIcmpEchoReply(
     // Verify we don't do anything with the ICMP packet in the case of an IP mismatch.
     //
     ProgramHandle.reset();
-    Icmp4Hdr->Type = 0;
-    Icmp6Hdr->Type = 129;
+    if (Af == AF_INET) {
+        Icmp4Hdr->Type = 0;
+    } else {
+        Icmp6Hdr->Type = 129;
+    }
     *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
 
     ProgramHandle =
