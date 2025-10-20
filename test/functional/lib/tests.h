@@ -51,7 +51,7 @@ GenericRxMatchIpPrefix(
 VOID
 GenericRxMatchIcmpEchoReply(
     _In_ ADDRESS_FAMILY Af
-    )
+    );
 
 VOID
 GenericRxMatchInnerIpPrefix(
