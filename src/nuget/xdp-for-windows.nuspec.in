@@ -20,6 +20,6 @@
         <file src="{binpath_anyarch}\xdpbpfexport.exe" target="build\native\bin\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpapi.lib" target="build\native\lib\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpnmr.lib" target="build\native\lib\{anyarch}"/>
-        <file src="{rootpath}\readme.md" target="."/>
+        <file src="{rootpath}\readme.md" target="README.md"/>
     </files>
 </package>

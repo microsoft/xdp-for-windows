@@ -29,6 +29,6 @@
         <file src="{binpath_anyarch}\xdp\xdpapi.dll" target="runtime\native"/>
         <file src="{binpath_anyarch}\xdpapi.pdb" target="runtime\native"/>
         <file src="{rootpath}\tools\xdptrace.wprp" target="runtime\native"/>
-        <file src="{rootpath}\readme.md" target="."/>
+        <file src="{rootpath}\readme.md" target="README.md"/>
     </files>
 </package>
