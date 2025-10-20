@@ -74,7 +74,7 @@ function Get-BuildBranch {
 }
 
 function Is-ReleaseBuild {
-    return ((Get-BuildBranch) -match '^release/|^tags/')
+    return ((Get-BuildBranch) -match '^tags/v\d+\.\d+\.\d+$')
 }
 
 function Get-VsTestPath {
