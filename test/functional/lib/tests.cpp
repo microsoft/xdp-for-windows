@@ -3626,7 +3626,7 @@ GenericRxMatchIcmpEchoReply(
         Icmp4Hdr->Code = 0;
         Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
     } else {
-        IPV6_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
+        IPV6_HEADER *IpHeader = (IPV6_HEADER *)PktBuffer;
         IpHeader->NextHeader = IPPROTO_ICMPV6;
         PktBuffer = IpHeader + 1;
         Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
