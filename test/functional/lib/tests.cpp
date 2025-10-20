@@ -3576,6 +3576,118 @@ GenericRxMatchIpPrefix(
 }
 
 VOID
+GenericRxMatchIcmpEchoReply(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    XDP_INET_ADDR LocalIp, RemoteIp;
+
+    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    wil::unique_handle ProgramHandle;
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    UCHAR UdpPayload[] = "GenericRxMatchIcmpEchoReply";
+    CHAR RecvPayload[sizeof(UdpPayload)] = {0};
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    XDP_RULE Rule;
+
+    void* PktBuffer = &UdpFrame;
+    ETHERNET_HEADER *EtherHeader = (ETHERNET_HEADER *) PktBuffer;
+    PktBuffer = EtherHeader + 1;
+
+    ICMPV4_HEADER *Icmp4Hdr;
+    ICMPV6_HEADER *Icmp6Hdr;
+    if (Af == AF_INET) {
+        IPV4_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
+        IpHeader->Protocol = IPPROTO_ICMP;
+        PktBuffer = IpHeader + 1;
+        Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
+        Icmp4Hdr->Type = 0;
+        Icmp4Hdr->Code = 0;
+        Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
+    } else {
+        IPV6_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
+        IpHeader->NextHeader = IPPROTO_ICMPV6;
+        PktBuffer = IpHeader + 1;
+        Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
+        Icmp6Hdr->Type = 129;
+        Icmp6Hdr->Code = 0;
+        Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
+    }
+
+    Rule.Pattern.IpMask.Address = LocalIp;
+    Rule.Action = XDP_PROGRAM_ACTION_DROP;
+
+    //
+    // Verify we drop a matched ICMP echo reply packet.
+    //
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(FAILED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
+
+    //
+    // Verify we don't do anything with the ICMP packet if it's NOT a reply.
+    //
+    ProgramHandle.reset();
+    Icmp4Hdr->Type = 8;
+    Icmp6Hdr->Type = 128;
+
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
+    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+
+    //
+    // Verify we don't do anything with the ICMP packet in the case of an IP mismatch.
+    //
+    ProgramHandle.reset();
+    Icmp4Hdr->Type = 0;
+    Icmp6Hdr->Type = 129;
+    *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
+
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_EQUAL(
+        sizeof(UdpPayload),
+        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
+    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+}
+
+
+VOID
 GenericRxMatchInnerIpPrefix(
     _In_ ADDRESS_FAMILY Af
     )
