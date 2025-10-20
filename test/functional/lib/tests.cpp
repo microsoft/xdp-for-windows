@@ -3655,8 +3655,10 @@ GenericRxMatchIcmpEchoReply(
     //
     ProgramHandle.reset();
     if (Af == AF_INET) {
+        Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
         Icmp4Hdr->Type = 8;
     } else {
+        Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
         Icmp6Hdr->Type = 128;
     }
 
@@ -3675,8 +3677,10 @@ GenericRxMatchIcmpEchoReply(
     //
     ProgramHandle.reset();
     if (Af == AF_INET) {
+        Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
         Icmp4Hdr->Type = 0;
     } else {
+        Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
         Icmp6Hdr->Type = 129;
     }
     *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
