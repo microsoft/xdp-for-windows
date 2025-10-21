@@ -3678,7 +3678,16 @@ GenericRxMatchIcmpEchoReply(
     Rule.Action = XDP_PROGRAM_ACTION_DROP;
 
     //
-    // Verify we drop a matched ICMP echo reply packet.
+    // Verify we can successfully indicate an echo reply frame without the XDP program attached.
+    //
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+    SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+
+    //
+    // Verify we drop a matched ICMP echo reply packet once the XDP program is attached.
     //
     ProgramHandle =
         CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
