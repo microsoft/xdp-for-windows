@@ -3659,6 +3659,7 @@ GenericRxMatchIcmpEchoReply(
     if (Af == AF_INET) {
         IPV4_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
         IpHeader->Protocol = IPPROTO_ICMP;
+        IpHeader->HeaderChecksum = PktChecksum(0, IpHeader, sizeof(*IpHeader));
         PktBuffer = IpHeader + 1;
         Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
         Icmp4Hdr->Type = 0;
@@ -3684,7 +3685,7 @@ GenericRxMatchIcmpEchoReply(
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_TRUE(
-    SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 
     //
     // Verify we drop a matched ICMP echo reply packet once the XDP program is attached.
