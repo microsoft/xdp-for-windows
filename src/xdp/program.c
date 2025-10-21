@@ -598,7 +598,7 @@ XdpProgramTrace(
         case XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST:
             TraceInfo(
                 TRACE_CORE,
-                "Program=%p Rule[%u]=XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST Ip=%!IPADDR!",
+                "Program=%p Rule[%u]=XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST Ip=%!IPV6ADDR!",
                 Program, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte);
             break;
 
