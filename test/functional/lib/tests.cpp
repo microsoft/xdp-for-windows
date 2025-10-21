@@ -2289,6 +2289,45 @@ CreateUdpSocket(
 
 static
 unique_fnsock
+CreateIcmpSocket(
+    _In_ ADDRESS_FAMILY Af,
+    _In_opt_ const TestInterface *If,
+    _Out_ UINT16 *LocalPort
+    )
+{
+    if (If != NULL) {
+        //
+        // Ensure the local UDP stack has finished initializing the interface.
+        //
+        WaitForWfpQuarantine(*If);
+    }
+
+    unique_fnsock Socket;
+    if (Af == AF_INET) {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMP, &Socket));
+    } else {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMPV6, &Socket));
+    }
+    TEST_NOT_NULL(Socket.get());
+
+    SOCKADDR_INET Address = {0};
+    Address.si_family = Af;
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+
+    INT AddressLength = sizeof(Address);
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+
+    INT TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    *LocalPort = SS_PORT(&Address);
+    return Socket;
+}
+
+static
+unique_fnsock
 CreateTcpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_ const TestInterface *If,
@@ -3585,7 +3624,7 @@ GenericRxMatchIcmpEchoReply(
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     XDP_INET_ADDR LocalIp, RemoteIp;
 
-    auto UdpSocket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto IcmpSocket = CreateIcmpSocket(Af, &If, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     wil::unique_handle ProgramHandle;
 
@@ -3647,13 +3686,15 @@ GenericRxMatchIcmpEchoReply(
     RX_FRAME Frame;
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_TRUE(FAILED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_TRUE(FAILED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
     TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
 
     //
     // Verify we don't do anything with the ICMP packet if it's NOT a reply.
     //
     ProgramHandle.reset();
+
+    // Set frame to wrong code for echo reply (set it to echo instead)
     if (Af == AF_INET) {
         Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
         Icmp4Hdr->Type = 8;
@@ -3668,12 +3709,14 @@ GenericRxMatchIcmpEchoReply(
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_TRUE(
-        SUCCEEDED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 
     //
     // Verify we don't do anything with the ICMP packet in the case of an IP mismatch.
     //
     ProgramHandle.reset();
+
+    // Set frame back to the correct code
     if (Af == AF_INET) {
         Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
         Icmp4Hdr->Type = 0;
@@ -3681,6 +3724,8 @@ GenericRxMatchIcmpEchoReply(
         Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
         Icmp6Hdr->Type = 129;
     }
+
+    // Screw up the Ip address
     *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
 
     ProgramHandle =
@@ -3689,7 +3734,7 @@ GenericRxMatchIcmpEchoReply(
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_TRUE(
-        SUCCEEDED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 }
 
 
