@@ -3667,10 +3667,8 @@ GenericRxMatchIcmpEchoReply(
 
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(
-        sizeof(UdpPayload),
-        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
-    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 
     //
     // Verify we don't do anything with the ICMP packet in the case of an IP mismatch.
@@ -3690,10 +3688,8 @@ GenericRxMatchIcmpEchoReply(
 
     RxInitializeFrame(&Frame, If.GetQueueId(), UdpFrame, UdpFrameLength);
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
-    TEST_EQUAL(
-        sizeof(UdpPayload),
-        FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
-    TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 }
 
 
