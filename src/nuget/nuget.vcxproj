@@ -26,7 +26,7 @@
   <PropertyGroup Condition="'$(NugetPlatforms)' == ''">
     <NugetPlatforms>$(Platform)</NugetPlatforms>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(NugetPlatforms)' != '' AND '$(NugetPlatforms)' != '$(Platform)'">
+  <PropertyGroup Condition="$(BuildStage) == 'AllPackage'">
     <!-- If targetting multiple platforms, use a platform-independent output directory. -->
     <OutDir>$(UndockedOut)bin\$(Configuration)\packages\</OutDir>
   </PropertyGroup>
@@ -38,7 +38,7 @@
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
-  <Target Name="CleanNuget" BeforeTargets="Clean" Condition="$(BuildStage) == '' OR $(BuildStage) == 'AllPackage'">
+  <Target Name="CleanNuget" BeforeTargets="Clean" Condition="$(BuildStage) == '' OR $(BuildStage) == 'Package' OR $(BuildStage) == 'AllPackage'">
      <ItemGroup>
        <FilesToDelete Include="$(OutDir)Microsoft.XDP-for-Windows.*.nupkg"/>
      </ItemGroup>
