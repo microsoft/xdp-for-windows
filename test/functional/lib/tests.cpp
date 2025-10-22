@@ -3664,7 +3664,7 @@ GenericRxMatchIcmpEchoReply(
         Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
         Icmp4Hdr->Type = 0;
         Icmp4Hdr->Code = 0;
-        Icmp4Hdr->Checksum = PktChecksum(0, Icmp4Hdr, UdpFrameLength - sizeof(*IpHeader));
+        Icmp4Hdr->Checksum = PktChecksum(0, Icmp4Hdr, sizeof(UdpFrame) - sizeof(*IpHeader));
         Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
     } else {
         IPV6_HEADER *IpHeader = (IPV6_HEADER *)PktBuffer;
@@ -3673,7 +3673,7 @@ GenericRxMatchIcmpEchoReply(
         Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
         Icmp6Hdr->Type = 129;
         Icmp6Hdr->Code = 0;
-        Icmp6Hdr->Checksum = PktChecksum(0, Icmp6Hdr, UdpFrameLength - sizeof(*IpHeader));
+        Icmp6Hdr->Checksum = PktChecksum(0, Icmp6Hdr, sizeof(UdpFrame) - sizeof(*IpHeader));
         Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
     }
 
