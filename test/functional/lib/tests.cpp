@@ -5635,7 +5635,7 @@ EbpfNetsh()
     CHAR CmdBuff[256] = {0};
 
     TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
-    sprintf_s(CmdBuff, "netsh ebpf show verification file=%s\\bpf\\pass.o type=xdp", Path);
+    sprintf_s(CmdBuff, "netsh ebpf show verification %s\\bpf\\pass.o type=xdp", Path);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
