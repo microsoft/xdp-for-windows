@@ -285,6 +285,7 @@ InvokeSystem(
 {
     INT Result;
 
+    printf("system(%s)\n", Command);
     TraceVerbose("system(%s)", Command);
     Result = system(Command);
     TraceVerbose("system(%s) returned %u", Command, Result);
@@ -5632,10 +5633,21 @@ EbpfNetsh()
     // Verify XDP metadata is registered with eBPF via store APIs.
     //
     CHAR Path[MAX_PATH];
+    CHAR FilePath[MAX_PATH];
     CHAR CmdBuff[256] = {0};
 
     TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
-    sprintf_s(CmdBuff, "netsh ebpf show verification %s\\bpf\\pass.o type=xdp", Path);
+    sprintf_s(FilePath, "%s\\bpf\\pass.o", Path);
+    sprintf_s(CmdBuff, "netsh ebpf show verification %s type=xdp", FilePath);
+    
+    //
+    // Verify the BPF object file exists before running netsh command.
+    //
+    printf("Verifying with cmd: %s\n", CmdBuff);
+    DWORD FileAttributes = GetFileAttributesA(FilePath);
+    TEST_TRUE(FileAttributes != INVALID_FILE_ATTRIBUTES);
+    TEST_TRUE(!(FileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
