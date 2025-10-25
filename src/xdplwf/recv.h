@@ -78,12 +78,20 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_RX_QUEUE;
 
+typedef struct _XDP_LWF_GENERIC_RX_QUEUE_NOTIFY {
+    XDP_LWF_GENERIC *Generic;
+    XDP_RX_QUEUE_NOTIFY_HANDLE XdpNotifyHandle;
+    LIST_ENTRY Link;
+} XDP_LWF_GENERIC_RX_QUEUE_NOTIFY;
+
 FILTER_RETURN_NET_BUFFER_LISTS XdpGenericReturnNetBufferLists;
 FILTER_RECEIVE_NET_BUFFER_LISTS XdpGenericReceiveNetBufferLists;
 
 XDP_CREATE_RX_QUEUE XdpGenericRxCreateQueue;
+XDP_CREATE_RX_NOTIFY_QUEUE XdpGenericRxCreateNotifyQueue;
 XDP_ACTIVATE_RX_QUEUE XdpGenericRxActivateQueue;
 XDP_DELETE_RX_QUEUE XdpGenericRxDeleteQueue;
+XDP_DELETE_RX_NOTIFY_QUEUE XdpGenericRxDeleteNotifyQueue;
 
 #define XDP_LWF_GENERIC_INSPECT_FLAG_DISPATCH   0x1
 #define XDP_LWF_GENERIC_INSPECT_FLAG_RESOURCES  0x2
@@ -130,6 +138,14 @@ VOID
 XdpGenericRxRestart(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ UINT32 NewMtu
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericRxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     );
 
 VOID
