@@ -60,7 +60,17 @@ When using the runtime nuget package instead of the runtime MSI, run the followi
 xdp-setup.ps1 -Install xdpebpf
 ```
 
-The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development). Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages.
+The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development).
+
+```Powershell
+xdp-setup.ps1 -Install xdpebpfexport
+```
+
+Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages. This tool populates eBPF registry keys with information about the XDP program type and helper functions. 
+
+eBPF-for-Windows will look in the HKCU (Current User) registry store first, and if the required values are present, it will use those configurations. If the values are not present in HKCU, then it will fall back to looking in the HKLM (Local Machine) registry.
+
+For development scenarios, configuring the registry store in just the HKCU location is usually sufficient. For runtime usage, the registry store configuration will depend on how eBPF-for-Windows is installed and how its registry store is configured. Using the eBPF-for-Windows MSI installer will install registry entries into both HKCU and HKLM stores, which is the same approach used by the XDP MSI.
 
 ### Version Upgrade
 
