@@ -1,8 +1,8 @@
 <Project>
-  <PropertyGroup>
     <!-- Disable CPM for dynamically generated BPF projects in artifacts directory -->
-    <ManagePackageVersionsCentrally Condition="!$(MSBuildProjectDirectory.Contains('\artifacts\'))">true</ManagePackageVersionsCentrally>
-    <CentralPackageTransitivePinningEnabled Condition="!$(MSBuildProjectDirectory.Contains('\artifacts\'))">true</CentralPackageTransitivePinningEnabled>
+  <PropertyGroup Condition="!$(MSBuildProjectDirectory.Contains('\artifacts\'))">  
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="eBPF-for-Windows.arm64" Version="$(XdpEbpfVersion)" />
