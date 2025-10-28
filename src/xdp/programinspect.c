@@ -10,6 +10,10 @@
 #include "precomp.h"
 #include "programinspect.h"
 
+#define ICMP4_ECHOREPLY_TYPE 0
+#define ICMP4_ECHOREPLY_CODE 0
+#define ICMP6_ECHOREPLY_TYPE 129
+#define ICMP6_ECHOREPLY_CODE 0
 #define TCP_HDR_LEN_TO_BYTES(x) (((UINT64)(x)) * 4)
 
 //
@@ -1272,21 +1276,18 @@ XdpInspect(
             break;
 
         case XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST:
-            if (!(FrameCache.Icmp4Cached || FrameCache.Ip4Cached)) {
+            if (!FrameCache.Icmp4Cached) {
                 XdpParseFrame(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
             }
-            IN_ADDR FullMask = {};
-            FullMask.S_un.S_addr = htonl(0xFFFFFFFF);
             if (FrameCache.Icmp4Valid &&
                 FrameCache.Ip4Valid &&
-                FrameCache.Icmpv4Hdr->Type == 0 &&
-                FrameCache.Icmpv4Hdr->Code == 0 &&
-                Ipv4PrefixMatch(
+                FrameCache.Icmpv4Hdr->Type == ICMP4_ECHOREPLY_TYPE &&
+                FrameCache.Icmpv4Hdr->Code == ICMP4_ECHOREPLY_CODE &&
+                IN4_ADDR_EQUAL(
                     &FrameCache.Ip4Hdr->DestinationAddress,
-                    &Rule->Pattern.IpMask.Address.Ipv4,
-                    &FullMask)) {
+                    &Rule->Pattern.IpMask.Address.Ipv4)) {
                 Matched = TRUE;
             }
             break;
@@ -1297,18 +1298,13 @@ XdpInspect(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
             }
-            IN6_ADDR FullMask6_Init = {
-                { 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-                  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF }
-            };
             if (FrameCache.Icmp6Valid &&
                 FrameCache.Ip6Valid &&
-                FrameCache.Icmpv6Hdr->Type == 129 &&
-                FrameCache.Icmpv6Hdr->Code == 0 &&
-                Ipv6PrefixMatch(
+                FrameCache.Icmpv6Hdr->Type == ICMP6_ECHOREPLY_TYPE &&
+                FrameCache.Icmpv6Hdr->Code == ICMP6_ECHOREPLY_CODE &&
+                IN6_ADDR_EQUAL(
                     &FrameCache.Ip6Hdr->DestinationAddress,
-                    &Rule->Pattern.IpMask.Address.Ipv6,
-                    &FullMask6_Init)) {
+                    &Rule->Pattern.IpMask.Address.Ipv6)) {
                 Matched = TRUE;
             }
             break;
