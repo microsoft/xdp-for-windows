@@ -105,10 +105,6 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
 
-        # Debug - show registry output
-        reg.exe query "HKCU\Software\ebpf" /s
-        reg.exe query "HKLM\Software\ebpf" /s
-
         Write-Verbose "installing fnmp..."
         & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
         Write-Verbose "installed fnmp."

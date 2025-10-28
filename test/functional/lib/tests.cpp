@@ -159,9 +159,9 @@ using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<de
 //
 struct XdpProgramDeleter {
     UINT32 IfIndex;
-    
+
     XdpProgramDeleter(UINT32 ifIndex = 0) : IfIndex(ifIndex) {}
-    
+
     void operator()(bpf_object* bpfObject) {
         if (IfIndex != 0) {
             int ErrnoResult = bpf_xdp_detach(IfIndex, 0, NULL);
@@ -169,7 +169,7 @@ struct XdpProgramDeleter {
                 TraceError("bpf_xdp_detach failed: %d, errno=%d", ErrnoResult, errno);
             }
         }
-        
+
         if (bpfObject) {
             bpf_object__close(bpfObject);
         }
@@ -274,7 +274,6 @@ InvokeSystem(
 {
     INT Result;
 
-    printf("system(%s)\n", Command);
     TraceVerbose("system(%s)", Command);
     Result = system(Command);
     TraceVerbose("system(%s) returned %u", Command, Result);
@@ -5622,21 +5621,10 @@ EbpfNetsh()
     // Verify XDP metadata is registered with eBPF via store APIs.
     //
     CHAR Path[MAX_PATH];
-    CHAR FilePath[MAX_PATH];
     CHAR CmdBuff[256] = {0};
 
     TEST_HRESULT(GetCurrentBinaryPath(Path, RTL_NUMBER_OF(Path)));
-    sprintf_s(FilePath, "%s\\bpf\\pass.o", Path);
-    sprintf_s(CmdBuff, "netsh ebpf show verification %s type=xdp", FilePath);
-    
-    //
-    // Verify the BPF object file exists before running netsh command.
-    //
-    printf("Verifying with cmd: %s\n", CmdBuff);
-    DWORD FileAttributes = GetFileAttributesA(FilePath);
-    TEST_TRUE(FileAttributes != INVALID_FILE_ATTRIBUTES);
-    TEST_TRUE(!(FileAttributes & FILE_ATTRIBUTE_DIRECTORY));
-
+    sprintf_s(CmdBuff, "netsh ebpf show verification file=%s\\bpf\\pass.o", Path);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
