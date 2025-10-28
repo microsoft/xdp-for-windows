@@ -154,16 +154,6 @@ template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
 
-// //
-// // bpf_xdp_detach function (equivalent to calling bpf_xdp_attach with fd=-1)
-// //
-// static
-// int
-// bpf_xdp_detach(int ifindex, UINT32 flags = 0, const void* opts = NULL)
-// {
-//     return bpf_xdp_attach(ifindex, -1, flags, opts);
-// }
-
 //
 // Custom deleter for XDP program attachment that detaches the program
 //
@@ -187,7 +177,6 @@ struct XdpProgramDeleter {
 };
 
 using unique_xdp_program = wistd::unique_ptr<bpf_object, XdpProgramDeleter>;
-
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
