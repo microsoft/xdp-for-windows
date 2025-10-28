@@ -124,7 +124,7 @@ ParseArgs(
             } else if (!_stricmp(ArgV[i], "UdpDstPort")) {
                 Rule.Match = XDP_MATCH_UDP_DST;
             } else if (!_stricmp(ArgV[i], "IcmpEchoReplyIpv4")) {
-                Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK;
+                Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
             } else {
                 LOGERR("Invalid MatchType");
                 goto Usage;
@@ -159,7 +159,7 @@ ParseArgs(
                 LOGERR("Missing IcmpDstIpv4");
                 goto Usage;
             }
-            if (Rule.Match == XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK) {
+            if (Rule.Match == XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST) {
                 const char* ipStr = ArgV[i];
                 printf("Parsing IP address: %s\n", ipStr);
 

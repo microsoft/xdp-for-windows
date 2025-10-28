@@ -588,17 +588,17 @@ XdpProgramTrace(
                 Program, i, ntohs(Rule->Pattern.NextHeader));
             break;
 
-        case XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK:
+        case XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST:
             TraceInfo(
                 TRACE_CORE,
-                "Program=%p Rule[%u]=XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK Ip=%!IPADDR!",
+                "Program=%p Rule[%u]=XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST Ip=%!IPADDR!",
                 Program, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr);
             break;
 
-        case XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST_MASK:
+        case XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST:
             TraceInfo(
                 TRACE_CORE,
-                "Program=%p Rule[%u]=XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST_MASK Ip=%!IPV6ADDR!",
+                "Program=%p Rule[%u]=XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST Ip=%!IPV6ADDR!",
                 Program, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte);
             break;
 

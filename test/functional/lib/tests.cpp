@@ -2289,6 +2289,45 @@ CreateUdpSocket(
 
 static
 unique_fnsock
+CreateIcmpSocket(
+    _In_ ADDRESS_FAMILY Af,
+    _In_opt_ const TestInterface *If,
+    _Out_ UINT16 *LocalPort
+    )
+{
+    if (If != NULL) {
+        //
+        // Ensure the local UDP stack has finished initializing the interface.
+        //
+        WaitForWfpQuarantine(*If);
+    }
+
+    unique_fnsock Socket;
+    if (Af == AF_INET) {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMP, &Socket));
+    } else {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMPV6, &Socket));
+    }
+    TEST_NOT_NULL(Socket.get());
+
+    SOCKADDR_INET Address = {0};
+    Address.si_family = Af;
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+
+    INT AddressLength = sizeof(Address);
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+
+    INT TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    *LocalPort = SS_PORT(&Address);
+    return Socket;
+}
+
+static
+unique_fnsock
 CreateTcpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_ const TestInterface *If,
@@ -2672,6 +2711,141 @@ BindingTest(
         WaitForWfpQuarantine(If);
     }
 }
+
+
+//
+// Helper functions for building ICMP echo reply frames
+//
+UCHAR* ConstructIcmpv4EchoReplyFrame(
+    _In_ CONST ETHERNET_ADDRESS* LocalHw,
+    _In_ CONST ETHERNET_ADDRESS* RemoteHw,
+    _In_ CONST VOID* LocalIp,
+    _In_ CONST VOID* RemoteIp,
+    _Out_ UINT32* FrameSize
+    )
+{
+    UCHAR IcmpPayload[] = "GenericIcmpEchoReplyPayload";
+    UCHAR IcmpFrame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
+    void* PktBuffer = &IcmpFrame;
+    // Fill Ethernet headers.
+    ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
+    EthernetHeader->Destination = *LocalHw;
+    EthernetHeader->Source = *RemoteHw;
+    EthernetHeader->Type = htons(ETHERNET_TYPE_IPV4);
+    PktBuffer = EthernetHeader + 1;
+
+    // Fill IP and ICMP headers
+    IPV4_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
+    IpHeader->Version = IPV4_VERSION;
+    IpHeader->HeaderLength = sizeof(*IpHeader) >> 2;
+    IpHeader->TotalLength = htons(sizeof(*IpHeader) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload));
+    IpHeader->Protocol = IPPROTO_ICMP;
+    IpHeader->TimeToLive = 1;
+    UINT8 AddressLength = sizeof(IN_ADDR);
+    RtlCopyMemory(&IpHeader->SourceAddress, RemoteIp, AddressLength);
+    RtlCopyMemory(&IpHeader->DestinationAddress, LocalIp, AddressLength);
+    IpHeader->HeaderChecksum = PktChecksum(0, IpHeader, sizeof(*IpHeader));
+    PktBuffer = IpHeader + 1;
+    ICMPV4_HEADER *Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
+    Icmp4Hdr->Type = 0;
+    Icmp4Hdr->Code = 0;
+    PktBuffer = Icmp4Hdr + 1;
+
+    // Fill ICMP payload
+    UCHAR *payloadptr = (UCHAR *)PktBuffer;
+    for (int i = 0; i < sizeof(IcmpPayload); i++) {
+        *payloadptr = IcmpPayload[i];
+        payloadptr = payloadptr + 1;
+    }
+    Icmp4Hdr->Checksum = PktChecksum(0, Icmp4Hdr, sizeof(*Icmp4Hdr) + sizeof(IcmpPayload));
+
+    auto heapBuf = new UCHAR[sizeof(IcmpFrame)];
+    std::memcpy(heapBuf, IcmpFrame, sizeof(IcmpFrame));
+    *FrameSize = sizeof(IcmpFrame);
+    return heapBuf;
+}
+
+UCHAR* ConstructIcmpv6EchoReplyFrame(
+    _In_ CONST ETHERNET_ADDRESS* LocalHw,
+    _In_ CONST ETHERNET_ADDRESS* RemoteHw,
+    _In_ CONST VOID* LocalIp,
+    _In_ CONST VOID* RemoteIp,
+    _Out_ UINT32* FrameSize
+    )
+{
+    UCHAR IcmpPayload[] = "GenericIcmpEchoReplyPayload";
+    UCHAR IcmpFrame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
+    void* PktBuffer = &IcmpFrame;
+
+    // Fill Ethernet headers.
+    ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
+    EthernetHeader->Destination = *LocalHw;
+    EthernetHeader->Source = *RemoteHw;
+    EthernetHeader->Type = htons(ETHERNET_TYPE_IPV6);
+    PktBuffer = EthernetHeader + 1;
+
+    // Fill IP and ICMP headers
+    IPV6_HEADER *IpHeader = (IPV6_HEADER *)PktBuffer;
+    IpHeader->VersionClassFlow = IPV6_VERSION;
+    IpHeader->PayloadLength = htons(sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload));
+    IpHeader->NextHeader = IPPROTO_ICMPV6;
+    IpHeader->HopLimit = 1;
+    UINT8 AddressLength = sizeof(IN6_ADDR);
+    RtlCopyMemory(&IpHeader->SourceAddress, RemoteIp, AddressLength);
+    RtlCopyMemory(&IpHeader->DestinationAddress, LocalIp, AddressLength);
+    PktBuffer = IpHeader + 1;
+    ICMPV6_HEADER *Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
+    Icmp6Hdr->Type = 129;
+    Icmp6Hdr->Code = 0;
+    PktBuffer = Icmp6Hdr + 1;
+
+    // Fill ICMP payload
+    UCHAR *payloadptr = (UCHAR *)PktBuffer;
+    for (int i = 0; i < sizeof(IcmpPayload); i++) {
+        *payloadptr = IcmpPayload[i];
+        payloadptr = payloadptr + 1;
+    }
+
+    //
+    // Prepare data to compute ICMPV6 checksum
+    // Data for checksum calculation: { IPV6 pseudo header + ICMPv6 header (0 for cxsum) + ICMPv6 payload }
+    //
+    Icmp6Hdr->Checksum = 0;
+    UCHAR CheckSumData[2 * sizeof(IN6_ADDR) + sizeof(UINT32) + sizeof(UINT32) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
+    void* ptr = &CheckSumData;
+    IN6_ADDR *src = (IN6_ADDR*) ptr;
+    *src = IpHeader->SourceAddress;
+    ptr = src + 1;
+    IN6_ADDR *dst = (IN6_ADDR*) ptr;
+    *dst = IpHeader->DestinationAddress;
+    ptr = dst + 1;
+    UINT16 UpperLayerPacketLen = sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload);
+    UINT32 *upperlayerpacketlen = (UINT32 *) ptr;
+    *upperlayerpacketlen = htons(UpperLayerPacketLen);
+    ptr = upperlayerpacketlen + 1;
+    UCHAR* reserved = (UCHAR*) ptr;
+    // zeroes for reserved bits
+    ptr = reserved + 3;
+    UCHAR* nextheader = (UCHAR* ) ptr;
+    *nextheader = IPPROTO_ICMPV6;
+    ptr = nextheader + 1;
+    ICMPV6_HEADER* icmpv6header = (ICMPV6_HEADER*) ptr;
+    *icmpv6header = *Icmp6Hdr;
+    ptr = icmpv6header + 1;
+    payloadptr = (UCHAR*) ptr;
+    for (int j = 0; j < sizeof(IcmpPayload); j++) {
+        *payloadptr = IcmpPayload[j];
+        payloadptr = payloadptr + 1;
+    }
+    Icmp6Hdr->Checksum = PktChecksum(0, CheckSumData, sizeof(CheckSumData));
+
+    auto heapBuf = new UCHAR[sizeof(IcmpFrame)];
+    std::memcpy(heapBuf, IcmpFrame, sizeof(IcmpFrame));
+    *FrameSize = sizeof(IcmpFrame);
+    return heapBuf;
+}
+
+
 
 VOID
 GenericBinding()
@@ -3573,6 +3747,92 @@ GenericRxMatchIpPrefix(
         sizeof(UdpPayload),
         FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+}
+
+VOID
+GenericRxMatchIcmpEchoReply(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    XDP_INET_ADDR LocalIp, RemoteIp;
+
+    auto IcmpSocket = CreateIcmpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    wil::unique_handle ProgramHandle;
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    XDP_RULE Rule;
+    CHAR RecvPayload[100] = {0};
+    UCHAR* IcmpFrame;
+    UINT32 FrameSize;
+    if (Af == AF_INET) {
+        Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
+        IcmpFrame = ConstructIcmpv4EchoReplyFrame(
+            &LocalHw,
+            &RemoteHw,
+            &LocalIp,
+            &RemoteIp,
+            &FrameSize
+        );
+    } else {
+        Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
+        IcmpFrame = ConstructIcmpv6EchoReplyFrame(
+            &LocalHw,
+            &RemoteHw,
+            &LocalIp,
+            &RemoteIp,
+            &FrameSize
+        );
+    }
+    Rule.Pattern.IpMask.Address = LocalIp;
+    Rule.Action = XDP_PROGRAM_ACTION_DROP;
+    RX_FRAME Frame;
+
+    //
+    // Verify we can successfully indicate an echo reply frame without the XDP program attached.
+    //
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+
+    //
+    // Verify we drop a matched ICMP echo reply packet once the XDP program is attached.
+    //
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(FAILED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
+    ProgramHandle.reset();
+
+    //
+    // Verify we allow an echo reply to pass through if it does not match the IP in the rule.
+    //
+    *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    delete[] IcmpFrame;
 }
 
 VOID

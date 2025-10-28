@@ -1271,7 +1271,7 @@ XdpInspect(
             }
             break;
 
-        case XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST_MASK:
+        case XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST:
             if (!(FrameCache.Icmp4Cached || FrameCache.Ip4Cached)) {
                 XdpParseFrame(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
@@ -1291,7 +1291,7 @@ XdpInspect(
             }
             break;
 
-        case XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST_MASK:
+        case XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST:
             if (!FrameCache.Icmp6Cached) {
                 XdpParseFrame(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
@@ -1463,7 +1463,7 @@ XdpProgramValidateRule(
     //
     RtlZeroMemory(ValidatedRule, sizeof(*ValidatedRule));
 
-    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST_MASK) {
+    if (UserRule->Match < XDP_MATCH_ALL || UserRule->Match > XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
