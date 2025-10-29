@@ -1303,6 +1303,10 @@ XdpInspect(
                     &FrameCache, &Program->FrameStorage);
             }
 
+            if (!FrameCache.IpPayloadValid) {
+                break;
+            }
+
             if (!FrameCache.Icmp4Cached) {
                 XdpParseIcmpHeader(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
@@ -1325,6 +1329,10 @@ XdpInspect(
                 XdpParseFrame(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache, &Program->FrameStorage);
+            }
+
+            if (!FrameCache.IpPayloadValid) {
+                break;
             }
 
             if (!FrameCache.Icmp6Cached) {
