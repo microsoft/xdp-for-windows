@@ -860,6 +860,12 @@ DetachXdpProgram(
         //
         ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
 
+        //
+        // Detach the XDP program from the interface before closing the object.
+        //
+        TraceVerbose("bpf_xdp_detach(%d, 0, NULL)", ifindex);
+        bpf_xdp_detach(ifindex, 0, NULL);
+
         TraceVerbose("bpf_object__close(%p)", BpfObject);
         bpf_object__close(BpfObject);
 

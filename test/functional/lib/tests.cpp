@@ -153,6 +153,30 @@ FreeMem(
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
+
+//
+// Custom deleter for XDP program attachment that detaches the program
+//
+struct XdpProgramDeleter {
+    UINT32 IfIndex;
+
+    XdpProgramDeleter(UINT32 ifIndex = 0) : IfIndex(ifIndex) {}
+
+    void operator()(bpf_object* bpfObject) {
+        if (IfIndex != 0) {
+            int ErrnoResult = bpf_xdp_detach(IfIndex, 0, NULL);
+            if (ErrnoResult != 0) {
+                TraceError("bpf_xdp_detach failed: %d, errno=%d", ErrnoResult, errno);
+            }
+        }
+
+        if (bpfObject) {
+            bpf_object__close(bpfObject);
+        }
+    }
+};
+
+using unique_xdp_program = wistd::unique_ptr<bpf_object, XdpProgramDeleter>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
@@ -5607,7 +5631,7 @@ EbpfNetsh()
 static
 HRESULT
 TryAttachEbpfXdpProgram(
-    _Out_ unique_bpf_object &BpfObject,
+    _Out_ unique_xdp_program &BpfProgram,
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
     _In_ const CHAR *BpfProgramName,
@@ -5619,6 +5643,7 @@ TryAttachEbpfXdpProgram(
     bpf_program *Program;
     int ProgramFd;
     int ErrnoResult;
+    unique_bpf_object BpfObject;
 
     Result = GetCurrentBinaryPath(BpfAbsoluteFileName, RTL_NUMBER_OF(BpfAbsoluteFileName));
     if (FAILED(Result)) {
@@ -5670,15 +5695,17 @@ TryAttachEbpfXdpProgram(
 
 Exit:
 
-    if (FAILED(Result)) {
-        BpfObject.reset();
+    if (SUCCEEDED(Result)) {
+        BpfProgram = unique_xdp_program(BpfObject.release(), XdpProgramDeleter(If.GetIfIndex()));
+    } else {
+        BpfProgram.reset();
     }
 
     return Result;
 }
 
 static
-unique_bpf_object
+unique_xdp_program
 AttachEbpfXdpProgram(
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
@@ -5686,7 +5713,7 @@ AttachEbpfXdpProgram(
     _In_ INT AttachFlags = 0
     )
 {
-    unique_bpf_object BpfObject;
+    unique_xdp_program BpfProgram;
     HRESULT Result;
 
     //
@@ -5697,7 +5724,7 @@ AttachEbpfXdpProgram(
     Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = TryAttachEbpfXdpProgram(
-            BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
+            BpfProgram, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
         if (Result == S_OK) {
             break;
         }
@@ -5705,7 +5732,7 @@ AttachEbpfXdpProgram(
 
     TEST_HRESULT(Result);
 
-    return BpfObject;
+    return BpfProgram;
 }
 
 VOID
@@ -5713,10 +5740,10 @@ GenericRxEbpfAttach()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
-    unique_bpf_object BpfObjectReplacement;
-    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
+    unique_xdp_program BpfProgramReplacement;
+    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfProgramReplacement, If, "\\bpf\\pass.sys", "pass")));
 
     //
     // eBPF doesn't wait for the pass.sys driver to completely unload after
@@ -5724,7 +5751,7 @@ GenericRxEbpfAttach()
     // retrying with the replace flag.
     //
     CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
-    BpfObjectReplacement =
+    BpfProgramReplacement =
         AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
 
@@ -5736,7 +5763,7 @@ GenericRxEbpfDrop()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfDrop";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5765,7 +5792,7 @@ GenericRxEbpfPass()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfPass";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5790,7 +5817,7 @@ GenericRxEbpfTx()
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfTx";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -5820,7 +5847,7 @@ GenericRxEbpfPayload()
     const UINT32 Trailer = 17;
     const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5861,8 +5888,8 @@ ProgTestRunRxEbpfPayload()
     const UCHAR UdpPayload[] = "ProgTestRunRxEbpfPayload";
     bpf_test_run_opts Opts = {};
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
-    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfObject.get(), "allow_ipv6"));
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfProgram.get(), "allow_ipv6"));
 
     // Build a v6 packet and verify it is allowed.
     UCHAR UdpFrameV6[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
@@ -5920,13 +5947,13 @@ GenericRxEbpfIfIndex()
     const UCHAR Payload[] = "GenericRxEbpfIfIndex";
     UINT32 Zero = 0;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     // Get the interface_map fd.
-    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "interface_map");
+    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "interface_map");
     TEST_NOT_EQUAL(interface_map_fd, ebpf_fd_invalid);
 
     // Update the interface_map with the interface index of the test interface.
@@ -5952,7 +5979,7 @@ GenericRxEbpfIfIndex()
         LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
 
     // Validate that the dropped_packet_map contains a non-0 entry for the IfIndex.
-    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "dropped_packet_map");
+    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "dropped_packet_map");
     TEST_NOT_EQUAL(dropped_packet_map_fd, ebpf_fd_invalid);
 
     UINT64 DroppedPacketCount = 0;
@@ -5985,7 +6012,7 @@ GenericRxEbpfFragments()
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -6024,7 +6051,7 @@ GenericRxEbpfUnload()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));

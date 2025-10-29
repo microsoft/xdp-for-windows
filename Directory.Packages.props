@@ -1,5 +1,6 @@
 <Project>
-  <PropertyGroup>
+    <!-- Disable CPM for dynamically generated BPF projects in artifacts directory -->
+  <PropertyGroup Condition="!$(MSBuildProjectDirectory.Contains('\artifacts\'))">  
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
