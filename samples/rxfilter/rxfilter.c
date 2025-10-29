@@ -43,6 +43,20 @@ CONST CHAR *UsageText =
 "       -UdpDstPort <Port>\n"
 "           The UDP destination port\n"
 "\n"
+"   IcmpEchoReplyIpv4 \n"
+"\n"
+"       Matches all ICMPv4 echo reply frames with the specified IPv4 destination address\n"
+"\n"
+"       -IcmpDstIpv4 <IPv4 address>\n"
+"           The destination IPv4 address\n"
+"\n"
+"   IcmpEchoReplyIpv6 \n"
+"\n"
+"       Matches all ICMPv6 echo reply frames with the specified IPv6 destination address\n"
+"\n"
+"       -IcmpDstIpv6 <IPv6 address>\n"
+"           The destination IPv6 address\n"
+"\n"
 "OPTIONS:\n"
 "\n"
 "   -XdpMode <Mode>\n"
@@ -57,6 +71,7 @@ CONST CHAR *UsageText =
 "\n"
 "   rxfilter.exe -IfIndex 6 -QueueId 0 -MatchType All -Action Drop\n"
 "   rxfilter.exe -IfIndex 6 -QueueId * -MatchType UdpDstPort -UdpDstPort 53 -Action Drop\n"
+"   rxfilter.exe -IfIndex 6 -QueueId * -MatchType IcmpEchoReplyIpv4 -IcmpDstIpv4 '172.169.0.22' -Action Drop\n"
 ;
 
 #define LOGERR(...) \
@@ -125,6 +140,8 @@ ParseArgs(
                 Rule.Match = XDP_MATCH_UDP_DST;
             } else if (!_stricmp(ArgV[i], "IcmpEchoReplyIpv4")) {
                 Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
+            } else if (!_stricmp(ArgV[i], "IcmpEchoReplyIpv6")) {
+                Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
             } else {
                 LOGERR("Invalid MatchType");
                 goto Usage;
@@ -160,29 +177,43 @@ ParseArgs(
                 goto Usage;
             }
             if (Rule.Match == XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST) {
-                const char* ipStr = ArgV[i];
-                printf("Parsing IP address: %s\n", ipStr);
+                const char *IpStr = ArgV[i];
 
                 // Parse dotted-quad into IN_ADDR (network byte order)
-                int rc = InetPtonA(AF_INET, ipStr, &Rule.Pattern.IpMask.Address.Ipv4);
+                int rc = inet_pton(AF_INET, IpStr, &Rule.Pattern.IpMask.Address.Ipv4);
                 if (rc != 1) {
                     if (rc == 0) {
-                        printf("Invalid IPv4 address format: %s\n", ipStr);
+                        LOGERR("Invalid IPv4 address format: %s\n", IpStr);
                     } else {
-                        printf("InetPtonA error: %d\n", WSAGetLastError());
+                        LOGERR("InetPtonA error: %d\n", WSAGetLastError());
                     }
-                    return;
+                    goto Usage;
                 }
-                // Sanity check: print back out
-                char buf[INET_ADDRSTRLEN] = {0};
-                if (InetNtopA(AF_INET, &Rule.Pattern.IpMask.Address.Ipv4, buf, (DWORD)sizeof(buf)) == NULL) {
-                    return;
-                }
-                // Note: S_un.S_addr is in network byte order; use ntohl for host-endian display.
-                printf("Parsed IPv4 (string): %s\n", buf);
-                printf("Parsed IPv4 (hex, host order): 0x%08X\n", ntohl(Rule.Pattern.IpMask.Address.Ipv4.S_un.S_addr));
             } else {
                 LOGERR("Unexpected IcmpDstIpv4");
+                goto Usage;
+            }
+        } else if (!_stricmp(ArgV[i], "-IcmpDstIpv6")) {
+            if (++i >= ArgC) {
+                LOGERR("Missing IcmpDstIpv6");
+                goto Usage;
+            }
+            if (Rule.Match == XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST) {
+                const char *IpStr = ArgV[i];
+
+                // Parse dotted-quad into IN_ADDR (network byte order)
+                int rc = inet_pton(AF_INET6, IpStr, &Rule.Pattern.IpMask.Address.Ipv6);
+                if (rc != 1) {
+                    if (rc == 0) {
+                        LOGERR("Invalid IPv6 address format: %s\n", IpStr);
+                    } else {
+                        LOGERR("InetPtonA error: %d\n", WSAGetLastError());
+                    }
+                    goto Usage;
+                }
+            } else {
+                LOGERR("Unexpected IcmpDstIpv6");
+                goto Usage;
             }
         } else {
             LOGERR("Unexpected parameter \"%s\"", ArgV[i]);
