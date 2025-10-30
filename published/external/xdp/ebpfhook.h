@@ -29,6 +29,13 @@ typedef enum _xdp_action {
 } xdp_action_t;
 
 /**
+ * @brief XDP program flags.
+ *
+ * These flags can be set during program load to indicate program capabilities.
+ */
+#define BPF_F_XDP_HAS_FRAGS (1U << 5) ///< Program can handle multi-buffer (discontiguous) XDP frames.
+
+/**
  * @brief Handle an incoming packet as early as possible.
  *
  * Program type: \ref EBPF_PROGRAM_TYPE_XDP

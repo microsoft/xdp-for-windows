@@ -200,6 +200,7 @@ static
 XDP_RX_ACTION
 XdpInvokeEbpf(
     _In_ HANDLE EbpfTarget,
+    _In_ UINT32 ProgramFlags,
     _In_ XDP_INSPECTION_CONTEXT *InspectionContext,
     _In_ XDP_FRAME *Frame,
     _In_opt_ XDP_RING *FragmentRing,
@@ -225,10 +226,16 @@ XdpInvokeEbpf(
 
     //
     // Fragmented frames require special handling for eBPF programs using direct
-    // packet access. On Linux, the program must be loaded with a specific flag
-    // in order to inspect discontiguous packets. On Windows, discontiguous
-    // frames are always inspected by default, at least until a program flag API
-    // is supported by eBPF-for-Windows.
+    // packet access. To match Linux behavior, the program must be loaded with
+    // BPF_F_XDP_HAS_FRAGS flag to inspect discontiguous packets.
+    //
+    // On Linux, this flag signals the program can handle multi-buffer XDP frames
+    // (e.g., jumbo frames split across pages). On Windows, discontiguous frames
+    // may arise from MDL splits in generic XDP mode. The same flag is reused to
+    // signal discontiguous buffer support across platforms.
+    //
+    // Without this flag, eBPF programs using direct packet access cannot safely
+    // inspect fragmented frames, so we drop them.
     //
     // https://github.com/microsoft/ebpf-for-windows/issues/3576
     // https://github.com/microsoft/xdp-for-windows/issues/517
@@ -236,6 +243,19 @@ XdpInvokeEbpf(
     if (FragmentRing != NULL &&
         XdpGetFragmentExtension(Frame, FragmentExtension)->FragmentBufferCount != 0) {
         STAT_INC(RxQueueStats, InspectFramesDiscontiguous);
+
+        //
+        // Check if the program has the BPF_F_XDP_HAS_FRAGS flag set.
+        // If not, drop the discontiguous frame to match Linux behavior.
+        //
+        if ((ProgramFlags & BPF_F_XDP_HAS_FRAGS) == 0) {
+            TraceVerbose(
+                TRACE_CORE,
+                "Dropping discontiguous frame: program lacks BPF_F_XDP_HAS_FRAGS flag");
+            RxAction = XDP_RX_ACTION_DROP;
+            STAT_INC(RxQueueStats, InspectFramesDropped);
+            goto Exit;
+        }
     }
 
     Buffer = &Frame->Buffer;
@@ -308,7 +328,8 @@ XdpInspectEbpf(
 
     return
         XdpInvokeEbpf(
-            Program->Rules[0].Ebpf.Target, InspectionContext, Frame, FragmentRing,
+            Program->Rules[0].Ebpf.Target, Program->Rules[0].Ebpf.Flags,
+            InspectionContext, Frame, FragmentRing,
             FragmentExtension, FragmentIndex, VirtualAddressExtension);
 }
 
@@ -1737,6 +1758,25 @@ EbpfProgramOnClientAttach(
     XdpRule.Match = XDP_MATCH_ALL;
     XdpRule.Action = XDP_PROGRAM_ACTION_EBPF;
     XdpRule.Ebpf.Target = (HANDLE)AttachingClient;
+    XdpRule.Ebpf.Flags = 0;
+
+    //
+    // Retrieve program flags from the eBPF extension client.
+    // This depends on ebpf-for-windows issue #3576 being completed, which adds
+    // support for program loading flags including BPF_F_XDP_HAS_FRAGS.
+    //
+    // The program flags are provided through the eBPF extension mechanism and
+    // indicate program capabilities such as handling fragmented/discontiguous frames.
+    //
+    // TODO: Once the ebpf_extension_data_t structure is updated to include
+    // program_flags (or a similar field), retrieve it here. For example:
+    // if (ClientData->header.version >= EBPF_ATTACH_CLIENT_DATA_VERSION_WITH_FLAGS) {
+    //     XdpRule.Ebpf.Flags = ClientData->program_flags;
+    // }
+    //
+    // For now, we assume flags are 0 (no special capabilities) unless the
+    // eBPF-for-Windows package is updated to provide them.
+    //
 
     Status = XdpProgramCreate(&ProgramObject, &OpenParams, KernelMode);
     if (!NT_SUCCESS(Status)) {

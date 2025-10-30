@@ -110,6 +110,7 @@ typedef struct _XDP_REDIRECT_PARAMS {
 
 typedef struct _XDP_EBPF_PARAMS {
     HANDLE Target;
+    UINT32 Flags;
 } XDP_EBPF_PARAMS;
 
 typedef struct _XDP_RULE {
