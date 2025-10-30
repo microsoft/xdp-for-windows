@@ -2833,7 +2833,7 @@ PktBuildIcmp6Frame(
     if (ptr == NULL) {
         return FALSE;
     }
-    *((UINT8*) ptr) = 1;
+    memset(ptr, 0, CheckSumDataLength);
     UCHAR *CheckSumData = (UCHAR*) ptr;
     IN6_ADDR *src = (IN6_ADDR*) ptr;
     *src = IpHeader->SourceAddress;
@@ -2859,8 +2859,9 @@ PktBuildIcmp6Frame(
         *payloadptr = Payload[j];
         payloadptr = payloadptr + 1;
     }
-    Icmp6Hdr->Checksum = PktChecksum(0, CheckSumData, CheckSumDataLength);
 
+    Icmp6Hdr->Checksum = PktChecksum(0, CheckSumData, CheckSumDataLength);
+    free(CheckSumData);
     *BufferSize = TotalLength;
 
     return TRUE;
@@ -3854,7 +3855,6 @@ GenericRxMatchIcmpEchoReply(
     TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
     TEST_TRUE(
         SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
-    delete[] IcmpFrame;
 }
 
 VOID
