@@ -94,6 +94,14 @@ extern "C" {
 #define bpf_be32_to_cpu(x) bpf_ntohl(x)
 #define bpf_be64_to_cpu(x) bpf_ntohll(x)
 
+// Standard network byte order conversion macros
+#ifndef htons
+#define htons(x) bpf_htons(x)
+#define ntohs(x) bpf_ntohs(x)
+#define htonl(x) bpf_htonl(x)
+#define ntohl(x) bpf_ntohl(x)
+#endif
+
 // Legacy compatibility macros
 #ifndef __bpf_ntohs
 #define __bpf_ntohs(x) bpf_ntohs(x)
