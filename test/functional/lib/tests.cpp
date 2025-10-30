@@ -2712,25 +2712,34 @@ BindingTest(
     }
 }
 
-
 //
 // Helper functions for building ICMP echo reply frames
 //
-UCHAR* ConstructIcmpv4EchoReplyFrame(
-    _In_ CONST ETHERNET_ADDRESS* LocalHw,
-    _In_ CONST ETHERNET_ADDRESS* RemoteHw,
-    _In_ CONST VOID* LocalIp,
-    _In_ CONST VOID* RemoteIp,
-    _Out_ UINT32* FrameSize
+
+inline
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildIcmp4Frame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource
     )
 {
-    UCHAR IcmpPayload[] = "GenericIcmpEchoReplyPayload";
-    UCHAR IcmpFrame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
-    void* PktBuffer = &IcmpFrame;
+    CONST UINT32 TotalLength = sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + PayloadLength;
+    if (*BufferSize < TotalLength) {
+        return FALSE;
+    }
+    void *PktBuffer = Buffer;
+
     // Fill Ethernet headers.
     ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
-    EthernetHeader->Destination = *LocalHw;
-    EthernetHeader->Source = *RemoteHw;
+    EthernetHeader->Destination = *EthernetDestination;
+    EthernetHeader->Source = *EthernetSource;
     EthernetHeader->Type = htons(ETHERNET_TYPE_IPV4);
     PktBuffer = EthernetHeader + 1;
 
@@ -2738,12 +2747,12 @@ UCHAR* ConstructIcmpv4EchoReplyFrame(
     IPV4_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
     IpHeader->Version = IPV4_VERSION;
     IpHeader->HeaderLength = sizeof(*IpHeader) >> 2;
-    IpHeader->TotalLength = htons(sizeof(*IpHeader) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload));
+    IpHeader->TotalLength = htons(sizeof(*IpHeader) + sizeof(ICMPV4_HEADER) + PayloadLength);
     IpHeader->Protocol = IPPROTO_ICMP;
     IpHeader->TimeToLive = 1;
     UINT8 AddressLength = sizeof(IN_ADDR);
-    RtlCopyMemory(&IpHeader->SourceAddress, RemoteIp, AddressLength);
-    RtlCopyMemory(&IpHeader->DestinationAddress, LocalIp, AddressLength);
+    RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+    RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
     IpHeader->HeaderChecksum = PktChecksum(0, IpHeader, sizeof(*IpHeader));
     PktBuffer = IpHeader + 1;
     ICMPV4_HEADER *Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
@@ -2753,46 +2762,54 @@ UCHAR* ConstructIcmpv4EchoReplyFrame(
 
     // Fill ICMP payload
     UCHAR *payloadptr = (UCHAR *)PktBuffer;
-    for (int i = 0; i < sizeof(IcmpPayload); i++) {
-        *payloadptr = IcmpPayload[i];
+    for (int i = 0; i < PayloadLength; i++) {
+        *payloadptr = Payload[i];
         payloadptr = payloadptr + 1;
     }
-    Icmp4Hdr->Checksum = PktChecksum(0, Icmp4Hdr, sizeof(*Icmp4Hdr) + sizeof(IcmpPayload));
+    Icmp4Hdr->Checksum = PktChecksum(0, Icmp4Hdr, sizeof(*Icmp4Hdr) + PayloadLength);
 
-    auto heapBuf = new UCHAR[sizeof(IcmpFrame)];
-    std::memcpy(heapBuf, IcmpFrame, sizeof(IcmpFrame));
-    *FrameSize = sizeof(IcmpFrame);
-    return heapBuf;
+    *BufferSize = TotalLength;
+
+    return TRUE;
 }
 
-UCHAR* ConstructIcmpv6EchoReplyFrame(
-    _In_ CONST ETHERNET_ADDRESS* LocalHw,
-    _In_ CONST ETHERNET_ADDRESS* RemoteHw,
-    _In_ CONST VOID* LocalIp,
-    _In_ CONST VOID* RemoteIp,
-    _Out_ UINT32* FrameSize
+inline
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildIcmp6Frame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource
     )
 {
-    UCHAR IcmpPayload[] = "GenericIcmpEchoReplyPayload";
-    UCHAR IcmpFrame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
-    void* PktBuffer = &IcmpFrame;
+    CONST UINT32 TotalLength = sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + PayloadLength;
+    if (*BufferSize < TotalLength) {
+        return FALSE;
+    }
+
+    void* PktBuffer = Buffer;
 
     // Fill Ethernet headers.
     ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
-    EthernetHeader->Destination = *LocalHw;
-    EthernetHeader->Source = *RemoteHw;
+    EthernetHeader->Destination = *EthernetDestination;
+    EthernetHeader->Source = *EthernetSource;
     EthernetHeader->Type = htons(ETHERNET_TYPE_IPV6);
     PktBuffer = EthernetHeader + 1;
 
     // Fill IP and ICMP headers
     IPV6_HEADER *IpHeader = (IPV6_HEADER *)PktBuffer;
     IpHeader->VersionClassFlow = IPV6_VERSION;
-    IpHeader->PayloadLength = htons(sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload));
+    IpHeader->PayloadLength = htons(sizeof(ICMPV6_HEADER) + PayloadLength);
     IpHeader->NextHeader = IPPROTO_ICMPV6;
     IpHeader->HopLimit = 1;
     UINT8 AddressLength = sizeof(IN6_ADDR);
-    RtlCopyMemory(&IpHeader->SourceAddress, RemoteIp, AddressLength);
-    RtlCopyMemory(&IpHeader->DestinationAddress, LocalIp, AddressLength);
+    RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+    RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
     PktBuffer = IpHeader + 1;
     ICMPV6_HEADER *Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
     Icmp6Hdr->Type = 129;
@@ -2801,8 +2818,8 @@ UCHAR* ConstructIcmpv6EchoReplyFrame(
 
     // Fill ICMP payload
     UCHAR *payloadptr = (UCHAR *)PktBuffer;
-    for (int i = 0; i < sizeof(IcmpPayload); i++) {
-        *payloadptr = IcmpPayload[i];
+    for (int i = 0; i < PayloadLength; i++) {
+        *payloadptr = Payload[i];
         payloadptr = payloadptr + 1;
     }
 
@@ -2811,15 +2828,20 @@ UCHAR* ConstructIcmpv6EchoReplyFrame(
     // Data for checksum calculation: { IPV6 pseudo header + ICMPv6 header (0 for cxsum) + ICMPv6 payload }
     //
     Icmp6Hdr->Checksum = 0;
-    UCHAR CheckSumData[2 * sizeof(IN6_ADDR) + sizeof(UINT32) + sizeof(UINT32) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
-    void* ptr = &CheckSumData;
+    UINT16 CheckSumDataLength = 2 * sizeof(IN6_ADDR) + sizeof(UINT32) + sizeof(UINT32) + sizeof(ICMPV6_HEADER) + PayloadLength;
+    void *ptr = malloc(CheckSumDataLength);
+    if (ptr == NULL) {
+        return FALSE;
+    }
+    *((UINT8*) ptr) = 1;
+    UCHAR *CheckSumData = (UCHAR*) ptr;
     IN6_ADDR *src = (IN6_ADDR*) ptr;
     *src = IpHeader->SourceAddress;
     ptr = src + 1;
     IN6_ADDR *dst = (IN6_ADDR*) ptr;
     *dst = IpHeader->DestinationAddress;
     ptr = dst + 1;
-    UINT16 UpperLayerPacketLen = sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload);
+    UINT16 UpperLayerPacketLen = sizeof(ICMPV6_HEADER) + PayloadLength;
     UINT32 *upperlayerpacketlen = (UINT32 *) ptr;
     *upperlayerpacketlen = htons(UpperLayerPacketLen);
     ptr = upperlayerpacketlen + 1;
@@ -2833,19 +2855,16 @@ UCHAR* ConstructIcmpv6EchoReplyFrame(
     *icmpv6header = *Icmp6Hdr;
     ptr = icmpv6header + 1;
     payloadptr = (UCHAR*) ptr;
-    for (int j = 0; j < sizeof(IcmpPayload); j++) {
-        *payloadptr = IcmpPayload[j];
+    for (int j = 0; j < PayloadLength; j++) {
+        *payloadptr = Payload[j];
         payloadptr = payloadptr + 1;
     }
-    Icmp6Hdr->Checksum = PktChecksum(0, CheckSumData, sizeof(CheckSumData));
+    Icmp6Hdr->Checksum = PktChecksum(0, CheckSumData, CheckSumDataLength);
 
-    auto heapBuf = new UCHAR[sizeof(IcmpFrame)];
-    std::memcpy(heapBuf, IcmpFrame, sizeof(IcmpFrame));
-    *FrameSize = sizeof(IcmpFrame);
-    return heapBuf;
+    *BufferSize = TotalLength;
+
+    return TRUE;
 }
-
-
 
 VOID
 GenericBinding()
@@ -3775,27 +3794,30 @@ GenericRxMatchIcmpEchoReply(
     }
 
     XDP_RULE Rule;
+    const UCHAR IcmpPayload[] = "GenericIcmpPayload";
     CHAR RecvPayload[100] = {0};
-    UCHAR* IcmpFrame;
+    UCHAR *IcmpFrame;
     UINT32 FrameSize;
     if (Af == AF_INET) {
         Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
-        IcmpFrame = ConstructIcmpv4EchoReplyFrame(
-            &LocalHw,
-            &RemoteHw,
-            &LocalIp,
-            &RemoteIp,
-            &FrameSize
-        );
+        UCHAR Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
+        UINT32 PacketBufferLength = sizeof(Frame);
+        TEST_TRUE(
+            PktBuildIcmp4Frame(
+                Frame, &PacketBufferLength, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                &RemoteHw, &LocalIp, &RemoteIp));
+        IcmpFrame = Frame;
+        FrameSize = PacketBufferLength;
     } else {
         Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
-        IcmpFrame = ConstructIcmpv6EchoReplyFrame(
-            &LocalHw,
-            &RemoteHw,
-            &LocalIp,
-            &RemoteIp,
-            &FrameSize
-        );
+        UCHAR Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
+        UINT32 PacketBufferLength = sizeof(Frame);
+        TEST_TRUE(
+            PktBuildIcmp6Frame(
+                Frame, &PacketBufferLength, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                &RemoteHw, &LocalIp, &RemoteIp));
+        IcmpFrame = Frame;
+        FrameSize = PacketBufferLength;
     }
     Rule.Pattern.IpMask.Address = LocalIp;
     Rule.Action = XDP_PROGRAM_ACTION_DROP;

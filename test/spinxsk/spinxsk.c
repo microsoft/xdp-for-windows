@@ -2138,6 +2138,18 @@ void BuildRandomUdpFrame(
         &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
 }
 
+// void BuildRandomICMPFrame(
+
+//     )
+// {
+//     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+//     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+//     const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+//     INET_ADDR localIp = {0};
+//     INET_ADDR remoteIp = {0};
+//     FillIpAddresses(af, &localIp, &remoteIp);
+// }
+
 VOID
 BuildRandomTcpFrame(
     _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
