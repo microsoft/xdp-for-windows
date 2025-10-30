@@ -6012,6 +6012,12 @@ GenericRxEbpfFragments()
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
+    //
+    // TODO: This test needs to be updated to load the eBPF program with
+    // BPF_F_XDP_HAS_FRAGS flag set, or it will drop discontiguous frames
+    // (matching Linux behavior). The flag should be set via
+    // bpf_program__set_flags() before bpf_object__load().
+    //
     unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
@@ -6029,6 +6035,11 @@ GenericRxEbpfFragments()
     // XDP-for-Windows has limited eBPF support for fragments: the first buffer
     // is visible to eBPF programs, and the remaining fragments (if any) are
     // inaccessible.
+    //
+    // As of the BPF_F_XDP_HAS_FRAGS feature, eBPF programs must explicitly set
+    // this flag to inspect discontiguous frames. Programs without this flag will
+    // have discontiguous frames dropped to match Linux behavior and prevent
+    // unsafe direct packet access.
     //
     // Actions apply to the entire frame, not just to the first fragement.
     //
