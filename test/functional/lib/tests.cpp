@@ -6041,7 +6041,7 @@ GenericRxEbpfFragments()
     // have discontiguous frames dropped to match Linux behavior and prevent
     // unsafe direct packet access.
     //
-    // Actions apply to the entire frame, not just to the first fragement.
+    // Actions apply to the entire frame, not just to the first fragment.
     //
     UINT32 MaskSize = Buffers[0].DataLength + Buffers[1].DataLength;
     CxPlatVector<UCHAR> Mask(MaskSize, 0xFF);
