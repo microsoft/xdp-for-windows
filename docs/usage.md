@@ -60,7 +60,14 @@ When using the runtime nuget package instead of the runtime MSI, run the followi
 xdp-setup.ps1 -Install xdpebpf
 ```
 
-The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development).
+The eBPF headers for XDP are available in the XDP SDK NuGet package:
+- `xdp/ebpfhook.h` - XDP eBPF program types and context structures
+- `xdp/bpf_helpers.h` - BPF helper functions and map definitions
+- `xdp/bpf_endian.h` - Byte order conversion macros
+- `xdp/net/if_ether.h` - Ethernet protocol definitions
+- `xdp/net/ip.h` - IP protocol definitions
+
+For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development).
 
 ```Powershell
 xdp-setup.ps1 -Install xdpebpfexport
