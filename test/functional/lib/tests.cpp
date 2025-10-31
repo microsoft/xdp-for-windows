@@ -3798,27 +3798,25 @@ GenericRxMatchIcmpEchoReply(
     const UCHAR IcmpPayload[] = "GenericIcmpPayload";
     CHAR RecvPayload[100] = {0};
     UCHAR *IcmpFrame;
-    UINT32 FrameSize;
+    UCHAR Icmp4Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
+    UCHAR Icmp6Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
+    UINT32 FrameSize = 0;
     if (Af == AF_INET) {
         Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
-        UCHAR TmpFrame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
-        UINT32 PacketBufferLength = sizeof(TmpFrame);
+        FrameSize = sizeof(Icmp4Frame);
         TEST_TRUE(
             PktBuildIcmp4Frame(
-                TmpFrame, &PacketBufferLength, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                Icmp4Frame, &FrameSize, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
                 &RemoteHw, &LocalIp, &RemoteIp));
-        IcmpFrame = TmpFrame;
-        FrameSize = PacketBufferLength;
+        IcmpFrame = Icmp4Frame;
     } else {
+        FrameSize = sizeof(Icmp6Frame);
         Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
-        UCHAR TmpFrame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
-        UINT32 PacketBufferLength = sizeof(TmpFrame);
         TEST_TRUE(
             PktBuildIcmp6Frame(
-                TmpFrame, &PacketBufferLength, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                Icmp6Frame, &FrameSize, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
                 &RemoteHw, &LocalIp, &RemoteIp));
-        IcmpFrame = TmpFrame;
-        FrameSize = PacketBufferLength;
+        IcmpFrame = Icmp6Frame;
     }
     Rule.Pattern.IpMask.Address = LocalIp;
     Rule.Action = XDP_PROGRAM_ACTION_DROP;
