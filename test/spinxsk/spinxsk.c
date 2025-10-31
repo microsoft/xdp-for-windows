@@ -107,6 +107,159 @@ CHAR *HELP =
 #define ADMIN_THREAD_TIMEOUT_SEC 1
 #define WATCHDOG_THREAD_TIMEOUT_SEC 10
 
+inline
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildIcmp4Frame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource
+    )
+{
+    CONST UINT32 TotalLength = sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + PayloadLength;
+    if (*BufferSize < TotalLength) {
+        return FALSE;
+    }
+    void *PktBuffer = Buffer;
+
+    // Fill Ethernet headers.
+    ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
+    EthernetHeader->Destination = *EthernetDestination;
+    EthernetHeader->Source = *EthernetSource;
+    EthernetHeader->Type = htons(ETHERNET_TYPE_IPV4);
+    PktBuffer = EthernetHeader + 1;
+
+    // Fill IP and ICMP headers
+    IPV4_HEADER *IpHeader = (IPV4_HEADER *)PktBuffer;
+    IpHeader->Version = IPV4_VERSION;
+    IpHeader->HeaderLength = sizeof(*IpHeader) >> 2;
+    IpHeader->TotalLength = htons(sizeof(*IpHeader) + sizeof(ICMPV4_HEADER) + PayloadLength);
+    IpHeader->Protocol = IPPROTO_ICMP;
+    IpHeader->TimeToLive = 1;
+    UINT8 AddressLength = sizeof(IN_ADDR);
+    RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+    RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
+    IpHeader->HeaderChecksum = PktChecksum(0, IpHeader, sizeof(*IpHeader));
+    PktBuffer = IpHeader + 1;
+    ICMPV4_HEADER *Icmp4Hdr = (ICMPV4_HEADER *) PktBuffer;
+    Icmp4Hdr->Type = 0;
+    Icmp4Hdr->Code = 0;
+    PktBuffer = Icmp4Hdr + 1;
+
+    // Fill ICMP payload
+    UCHAR *payloadptr = (UCHAR *)PktBuffer;
+    for (int i = 0; i < PayloadLength; i++) {
+        *payloadptr = Payload[i];
+        payloadptr = payloadptr + 1;
+    }
+    Icmp4Hdr->Checksum = PktChecksum(0, Icmp4Hdr, sizeof(*Icmp4Hdr) + PayloadLength);
+
+    *BufferSize = TotalLength;
+
+    return TRUE;
+}
+
+inline
+_Success_(return != FALSE)
+BOOLEAN
+PktBuildIcmp6Frame(
+    _Out_ VOID *Buffer,
+    _Inout_ UINT32 *BufferSize,
+    _In_ CONST UCHAR *Payload,
+    _In_ UINT16 PayloadLength,
+    _In_ CONST ETHERNET_ADDRESS *EthernetDestination,
+    _In_ CONST ETHERNET_ADDRESS *EthernetSource,
+    _In_ CONST VOID *IpDestination,
+    _In_ CONST VOID *IpSource
+    )
+{
+    CONST UINT32 TotalLength = sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + PayloadLength;
+    if (*BufferSize < TotalLength) {
+        return FALSE;
+    }
+
+    void* PktBuffer = Buffer;
+
+    // Fill Ethernet headers.
+    ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
+    EthernetHeader->Destination = *EthernetDestination;
+    EthernetHeader->Source = *EthernetSource;
+    EthernetHeader->Type = htons(ETHERNET_TYPE_IPV6);
+    PktBuffer = EthernetHeader + 1;
+
+    // Fill IP and ICMP headers
+    IPV6_HEADER *IpHeader = (IPV6_HEADER *)PktBuffer;
+    IpHeader->VersionClassFlow = IPV6_VERSION;
+    IpHeader->PayloadLength = htons(sizeof(ICMPV6_HEADER) + PayloadLength);
+    IpHeader->NextHeader = IPPROTO_ICMPV6;
+    IpHeader->HopLimit = 1;
+    UINT8 AddressLength = sizeof(IN6_ADDR);
+    RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
+    RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
+    PktBuffer = IpHeader + 1;
+    ICMPV6_HEADER *Icmp6Hdr = (ICMPV6_HEADER *) PktBuffer;
+    Icmp6Hdr->Type = 129;
+    Icmp6Hdr->Code = 0;
+    PktBuffer = Icmp6Hdr + 1;
+
+    // Fill ICMP payload
+    UCHAR *payloadptr = (UCHAR *)PktBuffer;
+    for (int i = 0; i < PayloadLength; i++) {
+        *payloadptr = Payload[i];
+        payloadptr = payloadptr + 1;
+    }
+
+    //
+    // Prepare data to compute ICMPV6 checksum
+    // Data for checksum calculation: { IPV6 pseudo header + ICMPv6 header (0 for cxsum) + ICMPv6 payload }
+    //
+    Icmp6Hdr->Checksum = 0;
+    UINT16 CheckSumDataLength = 2 * sizeof(IN6_ADDR) + sizeof(UINT32) + sizeof(UINT32) + sizeof(ICMPV6_HEADER) + PayloadLength;
+    void *ptr = malloc(CheckSumDataLength);
+    if (ptr == NULL) {
+        return FALSE;
+    }
+    memset(ptr, 0, CheckSumDataLength);
+    UCHAR *CheckSumData = (UCHAR*) ptr;
+    IN6_ADDR *src = (IN6_ADDR*) ptr;
+    *src = IpHeader->SourceAddress;
+    ptr = src + 1;
+    IN6_ADDR *dst = (IN6_ADDR*) ptr;
+    *dst = IpHeader->DestinationAddress;
+    ptr = dst + 1;
+    UINT16 UpperLayerPacketLen = sizeof(ICMPV6_HEADER) + PayloadLength;
+    UINT32 *upperlayerpacketlen = (UINT32 *) ptr;
+    *upperlayerpacketlen = htons(UpperLayerPacketLen);
+    ptr = upperlayerpacketlen + 1;
+    UCHAR* reserved = (UCHAR*) ptr;
+    // zeroes for reserved bits
+    ptr = reserved + 3;
+    UCHAR* nextheader = (UCHAR* ) ptr;
+    *nextheader = IPPROTO_ICMPV6;
+    ptr = nextheader + 1;
+    ICMPV6_HEADER* icmpv6header = (ICMPV6_HEADER*) ptr;
+    *icmpv6header = *Icmp6Hdr;
+    ptr = icmpv6header + 1;
+    payloadptr = (UCHAR*) ptr;
+    for (int j = 0; j < PayloadLength; j++) {
+        *payloadptr = Payload[j];
+        payloadptr = payloadptr + 1;
+    }
+
+    Icmp6Hdr->Checksum = PktChecksum(0, CheckSumData, CheckSumDataLength);
+    free(CheckSumData);
+    *BufferSize = TotalLength;
+
+    return TRUE;
+}
+
+
+
 typedef struct QUEUE_CONTEXT QUEUE_CONTEXT;
 
 typedef enum {
@@ -2138,17 +2291,30 @@ void BuildRandomUdpFrame(
         &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
 }
 
-// void BuildRandomICMPFrame(
+void BuildRandomICMPFrame(
+    _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
+    _In_ UINT32* FrameLength,
+    _In_reads_bytes_(PayloadLength) UCHAR* Payload,
+    _In_ const UINT16 PayloadLength
+    )
+{
+    const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+    const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+    INET_ADDR localIp = {0};
+    INET_ADDR remoteIp = {0};
+    FillIpAddresses(af, &localIp, &remoteIp);
 
-//     )
-// {
-//     const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
-//     const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
-//     const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
-//     INET_ADDR localIp = {0};
-//     INET_ADDR remoteIp = {0};
-//     FillIpAddresses(af, &localIp, &remoteIp);
-// }
+    if (af == AF_INET) {
+        ASSERT_FRE(PktBuildIcmp4Frame(
+            Frame, FrameLength, Payload, PayloadLength,
+            &localMac, &remoteMac, &localIp, &remoteIp));
+    } else {
+        ASSERT_FRE(PktBuildIcmp6Frame(
+            Frame, FrameLength, Payload, PayloadLength,
+            &localMac, &remoteMac, &localIp, &remoteIp));
+    }
+}
 
 VOID
 BuildRandomTcpFrame(
@@ -2305,11 +2471,13 @@ InjectFnmpRxFrames(
         //
         // Build a transport frame
         //
-        frameType = RandUlong() % 3;
+        frameType = RandUlong() % 4;
         if (frameType == 0) {
             BuildRandomUdpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else if (frameType == 1) {
             BuildRandomTcpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
+        } else if (frameType == 2) {
+            BuildRandomICMPFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else {
             //
             // Send pure chaos - the frame buffer has already be randomly initilized.
