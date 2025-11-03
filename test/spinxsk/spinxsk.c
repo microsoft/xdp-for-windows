@@ -131,6 +131,7 @@ PktBuildIcmp4Frame(
         return FALSE;
     }
     void *PktBuffer = Buffer;
+    RtlZeroMemory(PktBuffer, TotalLength);
 
     // Fill Ethernet headers.
     ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
@@ -182,8 +183,8 @@ PktBuildIcmp6Frame(
     if (*BufferSize < TotalLength) {
         return FALSE;
     }
-
     void* PktBuffer = Buffer;
+    RtlZeroMemory(PktBuffer, TotalLength);
 
     // Fill Ethernet headers.
     ETHERNET_HEADER *EthernetHeader = (ETHERNET_HEADER *) PktBuffer;
@@ -222,12 +223,11 @@ PktBuildIcmp6Frame(
 
     UINT16 UpperLayerPacketLen = sizeof(ICMPV6_HEADER) + PayloadLength;
 
-    UINT32 UpperLayerPacketLen2 = htons(UpperLayerPacketLen);
-    Checksum += PktPartialChecksum(&UpperLayerPacketLen2, sizeof(UINT32));
+    UpperLayerPacketLen = htons(UpperLayerPacketLen);
+    Checksum += PktPartialChecksum(&UpperLayerPacketLen, sizeof(UpperLayerPacketLen));
     Checksum += (IpHeader->NextHeader << 8);
 
     // ICMPv6 header
-    Icmp6Hdr->Checksum = 0;
     Checksum += PktPartialChecksum(Icmp6Hdr, sizeof(*Icmp6Hdr));
 
     // Payload
