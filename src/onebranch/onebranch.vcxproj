@@ -29,7 +29,10 @@
   <Target Name="PackageMsi" Condition="'$(BuildStage)' == 'Package'" AfterTargets="Package" >
       <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
   </Target>
-  <ItemGroup Condition="'$(BuildStage)' == 'AllPackage'">
+  <!-- Build the SDK NuGet package twice: once for each architecture in the package stage,
+    and once for the all architectures stage. The latter AllPackage stage is not fully
+    plumbed through OneBranch as of November 2025. -->
+  <ItemGroup Condition="'$(BuildStage)' == 'Package' or '$(BuildStage)' == 'AllPackage'">
     <ProjectReference Include="$(SolutionDir)src\nuget\nuget.vcxproj">
       <Project>{fbf60d12-183d-42d1-b884-8b9fa4f1273f}</Project>
       <Private>false</Private>
