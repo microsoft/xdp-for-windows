@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xdpregistry.tmh"
 
 __declspec(code_seg("PAGE"))
 NTSTATUS

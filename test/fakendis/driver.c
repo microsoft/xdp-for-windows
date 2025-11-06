@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "driver.tmh"
 
 typedef struct _FNDIS_EXPORT_ENTRY {
     UNICODE_STRING Name;
@@ -157,7 +156,7 @@ DriverUnload(
 
     TraceExitSuccess(TRACE_CONTROL);
 
-    WPP_CLEANUP(DriverObject);
+    FndisTraceCleanup();
 }
 
 _Function_class_(DRIVER_INITIALIZE)
@@ -175,7 +174,11 @@ DriverEntry(
     UNREFERENCED_PARAMETER(RegistryPath);
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
-    WPP_INIT_TRACING(DriverObject, RegistryPath);
+    
+    Status = FndisTraceInitialize();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
     RtlInitUnicodeString(&DeviceName, FNDIS_DEVICE_NAME);
 
     TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);

@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "offload.tmh"
 
 static XDP_OPEN_INTERFACE_OFFLOAD_HANDLE XdpLwfOpenInterfaceOffloadHandle;
 static XDP_GET_INTERFACE_OFFLOAD_CAPABILITIES XdpLwfGetInterfaceOffloadCapabilities;
