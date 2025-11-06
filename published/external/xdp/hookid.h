@@ -30,11 +30,12 @@ typedef struct _XDP_HOOK_ID {
     XDP_HOOK_SUBLAYER SubLayer;
 } XDP_HOOK_ID;
 
-C_ASSERT(
+static_assert(
     sizeof(XDP_HOOK_ID) ==
         sizeof(XDP_HOOK_LAYER) +
         sizeof(XDP_HOOK_DATAPATH_DIRECTION) +
-        sizeof(XDP_HOOK_SUBLAYER));
+        sizeof(XDP_HOOK_SUBLAYER),
+    "XDP_HOOK_ID size must equal sum of its components");
 
 #ifdef __cplusplus
 } // extern "C"
