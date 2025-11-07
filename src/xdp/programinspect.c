@@ -1361,7 +1361,7 @@ XdpInspect(
                     &FrameCache, &Program->FrameStorage);
             }
 
-            if (!FrameCache.IpPayloadValid || FrameCache.Ip6Valid) {
+            if (!FrameCache.IpPayloadValid || !FrameCache.Ip6Valid) {
                 break;
             }
 
