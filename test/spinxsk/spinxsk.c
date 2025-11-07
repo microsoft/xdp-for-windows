@@ -2116,7 +2116,8 @@ BuildRandomQuicPacket(
         destConnId, destConnIdLength, srcConnId, srcConnIdLength, useShortHeader));
 }
 
-void BuildRandomUdpFrame(
+VOID
+BuildRandomUdpFrame(
     _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
     _In_ UINT32* FrameLength,
     _In_reads_bytes_(PayloadLength) UCHAR* Payload,
@@ -2138,28 +2139,29 @@ void BuildRandomUdpFrame(
         &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
 }
 
-void BuildRandomICMPFrame(
+VOID
+BuildRandomICMPFrame(
     _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
     _In_ UINT32* FrameLength,
     _In_reads_bytes_(PayloadLength) UCHAR* Payload,
     _In_ const UINT16 PayloadLength
     )
 {
-    const ETHERNET_ADDRESS localMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
-    const ETHERNET_ADDRESS remoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS LocalMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS RemoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
     const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
-    INET_ADDR localIp = {0};
-    INET_ADDR remoteIp = {0};
-    FillIpAddresses(af, &localIp, &remoteIp);
+    INET_ADDR LocalIp = {0};
+    INET_ADDR RemoteIp = {0};
+    FillIpAddresses(af, &LocalIp, &RemoteIp);
 
     if (af == AF_INET) {
         ASSERT_FRE(PktBuildIcmp4Frame(
             Frame, FrameLength, Payload, PayloadLength,
-            &localMac, &remoteMac, &localIp, &remoteIp));
+            &LocalMac, &RemoteMac, &LocalIp, &RemoteIp));
     } else {
         ASSERT_FRE(PktBuildIcmp6Frame(
             Frame, FrameLength, Payload, PayloadLength,
-            &localMac, &remoteMac, &localIp, &remoteIp));
+            &LocalMac, &RemoteMac, &LocalIp, &RemoteIp));
     }
 }
 

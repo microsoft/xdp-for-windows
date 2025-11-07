@@ -236,8 +236,6 @@ XdpParseFragmentedUdp(
             VirtualAddressExtension, &Storage->UdpHdr, sizeof(Storage->UdpHdr), &Cache->UdpHdr);
 }
 
-
-
 static
 VOID
 XdpParseFragmentedIcmpHeader(
@@ -277,7 +275,7 @@ XdpParseFragmentedIcmpHeader(
 
 static
 VOID
-XdpParseIcmpHeader(
+XdpParseIcmp4Header(
     _In_ XDP_FRAME *Frame,
     _In_opt_ XDP_RING *FragmentRing,
     _In_opt_ XDP_EXTENSION *FragmentExtension,
@@ -292,7 +290,6 @@ XdpParseIcmpHeader(
     XDP_BUFFER *Buffer = Payload->Buffer;
     UCHAR *Va = XdpGetVirtualAddressExtension(Buffer, VirtualAddressExtension)->VirtualAddress + Buffer->DataOffset;
     FrameCache->Icmp4Cached = TRUE;
-    FrameCache->Icmp6Cached = TRUE;
 
     IPPROTO IpProto = IPPROTO_MAX;
     if (FrameCache->Ip4Valid) {
@@ -302,7 +299,40 @@ XdpParseIcmpHeader(
         }
         FrameCache->Icmp4Valid = TRUE;
         FrameCache->Icmpv4Hdr = (ICMP_HEADER *) &Va[BufferDataOffset];
-    } else if (FrameCache->Ip6Valid) {
+    } else {
+        return;
+    }
+
+BufferTooSmall:
+
+    if (FragmentRing != NULL) {
+        ASSERT(FragmentExtension);
+        XdpParseFragmentedIcmpHeader(
+            Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
+            IpProto, FrameStore, FrameCache);
+    }
+}
+
+static
+VOID
+XdpParseIcmp6Header(
+    _In_ XDP_FRAME *Frame,
+    _In_opt_ XDP_RING *FragmentRing,
+    _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FragmentIndex,
+    _In_ XDP_EXTENSION *VirtualAddressExtension,
+    _In_ XDP_PROGRAM_PAYLOAD_CACHE *Payload,
+    _Inout_ XDP_PROGRAM_FRAME_STORAGE *FrameStore,
+    _Inout_ XDP_PROGRAM_FRAME_CACHE *FrameCache
+    )
+{
+    UINT32 BufferDataOffset = Payload->BufferDataOffset;
+    XDP_BUFFER *Buffer = Payload->Buffer;
+    UCHAR *Va = XdpGetVirtualAddressExtension(Buffer, VirtualAddressExtension)->VirtualAddress + Buffer->DataOffset;
+    FrameCache->Icmp6Cached = TRUE;
+
+    IPPROTO IpProto = IPPROTO_MAX;
+    if (FrameCache->Ip6Valid) {
         IpProto = FrameCache->Ip6Hdr->NextHeader;
         if (Buffer->DataLength < BufferDataOffset + sizeof(*FrameCache->Icmpv6Hdr)) {
             goto BufferTooSmall;
@@ -1308,18 +1338,18 @@ XdpInspect(
             }
 
             if (!FrameCache.Icmp4Cached) {
-                XdpParseIcmpHeader(
+                XdpParseIcmp4Header(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache.IpPayload, &Program->FrameStorage, &FrameCache);
             }
 
             if (FrameCache.Icmp4Valid &&
-                FrameCache.Ip4Valid &&
                 FrameCache.Icmpv4Hdr->Type == ICMP4_ECHOREPLY_TYPE &&
                 FrameCache.Icmpv4Hdr->Code == ICMP4_ECHOREPLY_CODE &&
                 IN4_ADDR_EQUAL(
                     &FrameCache.Ip4Hdr->DestinationAddress,
                     &Rule->Pattern.IpMask.Address.Ipv4)) {
+                ASSERT(FrameCache.Ip4Valid);
                 Matched = TRUE;
             }
             break;
@@ -1336,18 +1366,18 @@ XdpInspect(
             }
 
             if (!FrameCache.Icmp6Cached) {
-                XdpParseIcmpHeader(
+                XdpParseIcmp6Header(
                     Frame, FragmentRing, FragmentExtension, FragmentIndex, VirtualAddressExtension,
                     &FrameCache.IpPayload, &Program->FrameStorage, &FrameCache);
             }
 
             if (FrameCache.Icmp6Valid &&
-                FrameCache.Ip6Valid &&
                 FrameCache.Icmpv6Hdr->Type == ICMP6_ECHOREPLY_TYPE &&
                 FrameCache.Icmpv6Hdr->Code == ICMP6_ECHOREPLY_CODE &&
                 IN6_ADDR_EQUAL(
                     &FrameCache.Ip6Hdr->DestinationAddress,
                     &Rule->Pattern.IpMask.Address.Ipv6)) {
+                ASSERT(FrameCache.Ip6Valid);
                 Matched = TRUE;
             }
             break;
