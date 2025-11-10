@@ -717,7 +717,7 @@ AttachXdpProgram(
         rule.Match = XDP_MATCH_ALL;
 
         if (!(RandUlong() % 2)) {
-            rule.Match = RandUlong() % (XDP_MATCH_INNER_IPV6_DST_MASK_UDP + 1);
+            rule.Match = RandUlong() % (XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST + 1);
         }
 
         if (!(RandUlong() % 128)) {
@@ -2122,7 +2122,8 @@ BuildRandomQuicPacket(
         destConnId, destConnIdLength, srcConnId, srcConnIdLength, useShortHeader));
 }
 
-void BuildRandomUdpFrame(
+VOID
+BuildRandomUdpFrame(
     _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
     _In_ UINT32* FrameLength,
     _In_reads_bytes_(PayloadLength) UCHAR* Payload,
@@ -2142,6 +2143,32 @@ void BuildRandomUdpFrame(
     ASSERT_FRE(PktBuildUdpFrame(
         Frame, FrameLength, Payload, PayloadLength,
         &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
+}
+
+VOID
+BuildRandomICMPFrame(
+    _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
+    _In_ UINT32* FrameLength,
+    _In_reads_bytes_(PayloadLength) UCHAR* Payload,
+    _In_ const UINT16 PayloadLength
+    )
+{
+    const ETHERNET_ADDRESS LocalMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS RemoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+    const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+    INET_ADDR LocalIp = {0};
+    INET_ADDR RemoteIp = {0};
+    FillIpAddresses(af, &LocalIp, &RemoteIp);
+
+    if (af == AF_INET) {
+        ASSERT_FRE(PktBuildIcmp4Frame(
+            Frame, FrameLength, Payload, PayloadLength,
+            &LocalMac, &RemoteMac, &LocalIp, &RemoteIp));
+    } else {
+        ASSERT_FRE(PktBuildIcmp6Frame(
+            Frame, FrameLength, Payload, PayloadLength,
+            &LocalMac, &RemoteMac, &LocalIp, &RemoteIp));
+    }
 }
 
 VOID
@@ -2299,11 +2326,13 @@ InjectFnmpRxFrames(
         //
         // Build a transport frame
         //
-        frameType = RandUlong() % 3;
+        frameType = RandUlong() % 4;
         if (frameType == 0) {
             BuildRandomUdpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else if (frameType == 1) {
             BuildRandomTcpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
+        } else if (frameType == 2) {
+            BuildRandomICMPFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else {
             //
             // Send pure chaos - the frame buffer has already be randomly initilized.
