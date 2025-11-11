@@ -207,9 +207,7 @@ XdpIfpDereferenceInterface(
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
-        if (Interface->Capabilities.CapabilitiesEx != NULL) {
-            ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
-        }
+        ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
         ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
     }
 }
@@ -1392,6 +1390,7 @@ XdpIfAddInterfaces(
                 NonPagedPoolNx, AddIf->InterfaceCapabilities->CapabilitiesEx->Header.Size,
                 XDP_POOLTAG_IF);
         if (MutableCapabilities->CapabilitiesEx == NULL) {
+            ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
