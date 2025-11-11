@@ -207,7 +207,9 @@ XdpIfpDereferenceInterface(
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
-        ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
+        if (Interface->Capabilities.CapabilitiesEx != NULL) {
+            ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
+        }
         ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
     }
 }
