@@ -207,6 +207,7 @@ XdpIfpDereferenceInterface(
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
+        ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
         ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
     }
 }
@@ -1349,6 +1350,7 @@ XdpIfAddInterfaces(
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_ADD_INTERFACE *AddIf = &Interfaces[Index];
         XDP_INTERFACE *Interface = NULL;
+        XDP_CAPABILITIES_INTERNAL *MutableCapabilities;
 
         if (!XdpValidateCapabilitiesEx(
                 AddIf->InterfaceCapabilities->CapabilitiesEx,
@@ -1372,15 +1374,34 @@ XdpIfAddInterfaces(
         Interface->XdpIfApi.RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
         Interface->XdpIfApi.InterfaceContext = AddIf->InterfaceContext;
         Interface->XdpDriverApi.OpenConfig.Dispatch = &XdpOpenDispatch;
+        InitializeListHead(&Interface->Clients);
+
+        //
+        // Temporarily alias the const interface capabilities field to allow
+        // copying and fixing up pointers during initialization.
+        //
+        MutableCapabilities = (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities;
         RtlCopyMemory(
-            (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities,
+            MutableCapabilities,
             AddIf->InterfaceCapabilities,
             sizeof(Interface->Capabilities));
-        InitializeListHead(&Interface->Clients);
+        MutableCapabilities->CapabilitiesEx =
+            ExAllocatePoolZero(
+                NonPagedPoolNx, AddIf->InterfaceCapabilities->CapabilitiesEx->Header.Size,
+                XDP_POOLTAG_IF);
+        if (MutableCapabilities->CapabilitiesEx == NULL) {
+            Status = STATUS_NO_MEMORY;
+            goto Exit;
+        }
+        RtlCopyMemory(
+            (VOID *)MutableCapabilities->CapabilitiesEx,
+            AddIf->InterfaceCapabilities->CapabilitiesEx,
+            AddIf->InterfaceCapabilities->CapabilitiesEx->Header.Size);
 
         Interface->WorkQueue =
             XdpCreateWorkQueue(XdpIfpInterfaceWorker, DISPATCH_LEVEL, XdpDriverObject, NULL);
         if (Interface->WorkQueue == NULL) {
+            ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
             ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
             Status = STATUS_NO_MEMORY;
             goto Exit;
