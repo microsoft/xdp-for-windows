@@ -207,8 +207,12 @@ XdpIfpDereferenceInterface(
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
-        ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
-        ExFreePoolWithTag((VOID *)Interface->Capabilities.Hooks, XDP_POOLTAG_IF);
+        if (Interface->Capabilities.CapabilitiesEx != NULL) {
+            ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
+        }
+        if (Interface->Capabilities.Hooks != NULL) {
+            ExFreePoolWithTag((VOID *)Interface->Capabilities.Hooks, XDP_POOLTAG_IF);
+        }
         ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
     }
 }
@@ -1338,7 +1342,6 @@ XdpIfAddInterfaces(
 {
     NTSTATUS Status;
     XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *)InterfaceSetHandle;
-    XDP_INTERFACE *NewInterface = NULL;
 
     //
     // This function is invoked by an interface provider (e.g. NDIS6 via XdpLwf)
@@ -1351,6 +1354,7 @@ XdpIfAddInterfaces(
 
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_ADD_INTERFACE *AddIf = &Interfaces[Index];
+        XDP_INTERFACE *Interface = NULL;
         XDP_CAPABILITIES_INTERNAL *MutableCapabilities;
 
         if (!XdpValidateCapabilitiesEx(
@@ -1363,29 +1367,29 @@ XdpIfAddInterfaces(
             goto Exit;
         }
 
-        NewInterface = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*NewInterface), XDP_POOLTAG_IF);
-        if (NewInterface == NULL) {
+        Interface = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Interface), XDP_POOLTAG_IF);
+        if (Interface == NULL) {
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
-        XdpInitializeReferenceCount(&NewInterface->ReferenceCount);
-        NewInterface->IfIndex = IfSet->IfIndex;
-        NewInterface->IfSet = IfSet;
-        NewInterface->XdpIfApi.RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
-        NewInterface->XdpIfApi.InterfaceContext = AddIf->InterfaceContext;
-        NewInterface->XdpDriverApi.OpenConfig.Dispatch = &XdpOpenDispatch;
-        InitializeListHead(&NewInterface->Clients);
+        XdpInitializeReferenceCount(&Interface->ReferenceCount);
+        Interface->IfIndex = IfSet->IfIndex;
+        Interface->IfSet = IfSet;
+        Interface->XdpIfApi.RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
+        Interface->XdpIfApi.InterfaceContext = AddIf->InterfaceContext;
+        Interface->XdpDriverApi.OpenConfig.Dispatch = &XdpOpenDispatch;
+        InitializeListHead(&Interface->Clients);
 
         //
         // Temporarily alias the const interface capabilities field to allow
         // copying and fixing up pointers during initialization.
         //
-        MutableCapabilities = (XDP_CAPABILITIES_INTERNAL *)&NewInterface->Capabilities;
+        MutableCapabilities = (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities;
         RtlCopyMemory(
             MutableCapabilities,
             AddIf->InterfaceCapabilities,
-            sizeof(NewInterface->Capabilities));
+            sizeof(Interface->Capabilities));
         MutableCapabilities->Hooks = NULL;
         MutableCapabilities->CapabilitiesEx = NULL;
 
@@ -1395,6 +1399,7 @@ XdpIfAddInterfaces(
                 MutableCapabilities->HookCount * sizeof(MutableCapabilities->Hooks[0]),
                 XDP_POOLTAG_IF);
         if (MutableCapabilities->Hooks == NULL) {
+            XdpIfpDereferenceInterface(Interface);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
@@ -1407,6 +1412,7 @@ XdpIfAddInterfaces(
             ExAllocatePoolZero(
                 NonPagedPoolNx, AddIf->InterfaceCapabilities->CapabilitiesSize, XDP_POOLTAG_IF);
         if (MutableCapabilities->CapabilitiesEx == NULL) {
+            XdpIfpDereferenceInterface(Interface);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
@@ -1415,39 +1421,29 @@ XdpIfAddInterfaces(
             AddIf->InterfaceCapabilities->CapabilitiesEx,
             MutableCapabilities->CapabilitiesSize);
 
-        NewInterface->WorkQueue =
+        Interface->WorkQueue =
             XdpCreateWorkQueue(XdpIfpInterfaceWorker, DISPATCH_LEVEL, XdpDriverObject, NULL);
-        if (NewInterface->WorkQueue == NULL) {
+        if (Interface->WorkQueue == NULL) {
+            XdpIfpDereferenceInterface(Interface);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
 
         TraceVerbose(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! XdpIfInterfaceContext=%p Added",
-            NewInterface->IfIndex, NewInterface->Capabilities.Mode,
-            NewInterface->XdpIfApi.InterfaceContext);
+            Interface->IfIndex, Interface->Capabilities.Mode,
+            Interface->XdpIfApi.InterfaceContext);
 
         XdpIfpReferenceIfSet(IfSet);
-        ASSERT(IfSet->Interfaces[NewInterface->Capabilities.Mode] == NULL);
-        IfSet->Interfaces[NewInterface->Capabilities.Mode] = NewInterface;
-        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)NewInterface;
-        NewInterface = NULL;
+        ASSERT(IfSet->Interfaces[Interface->Capabilities.Mode] == NULL);
+        IfSet->Interfaces[Interface->Capabilities.Mode] = Interface;
+        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Interface;
+        Interface = NULL;
     }
 
     Status = STATUS_SUCCESS;
 
 Exit:
-
-    if (NewInterface != NULL) {
-        ASSERT(!NT_SUCCESS(Status));
-        if (NewInterface->Capabilities.CapabilitiesEx != NULL) {
-            ExFreePoolWithTag((VOID *)NewInterface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
-        }
-        if (NewInterface->Capabilities.Hooks != NULL) {
-            ExFreePoolWithTag((VOID *)NewInterface->Capabilities.Hooks, XDP_POOLTAG_IF);
-        }
-        ExFreePoolWithTag(NewInterface, XDP_POOLTAG_IF);
-    }
 
     if (!NT_SUCCESS(Status)) {
         for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
