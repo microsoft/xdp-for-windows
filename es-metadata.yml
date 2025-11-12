@@ -5,4 +5,4 @@ accountableOwners:
 routing:
   defaultAreaPath:
     org: microsoft
-    path: OS\Core\IO Fabrics\Transports Security and SDN\eBPF
+    path: OS\Core\IO Fabrics\Transports Security and SDN\eBPF\XDP
