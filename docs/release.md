@@ -61,6 +61,7 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 > **Note** - TODO
 
 * [JIT elevate](https://repos.opensource.microsoft.com/orgs/microsoft/repos/xdp-for-windows/jit) to admin, create a `release/major.minor` branch, then revoke JIT.
+* Create a PR updating the version number in `main` to the next `major.minor.0` release.
 * Authorize the new branch in the [OneBranch.Official](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2407) and [OneBranch.PullRequest](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2404) internal pipelines under **OneBranch Resources** -> **Manage Authorized Branches**.
 * Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release. If creating a new major release branch, do not modify the V1 link nor create any new links.
 * Add the test artifacts of the new release to the downlevel tests for main and
