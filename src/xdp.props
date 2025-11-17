@@ -2,7 +2,7 @@
   <PropertyGroup Label="Version">
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
-    <XdpMinorVersion>2</XdpMinorVersion>
+    <XdpMinorVersion>3</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
   </PropertyGroup>
   <PropertyGroup>
