@@ -65,19 +65,21 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 * Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release. If creating a new major release branch, do not modify the V1 link nor create any new links.
 * Add the test artifacts of the new release to the downlevel tests for main and
   any other active release branches.
+* Update this release process documentation as necessary.
 
 ## Servicing a new Release Branch
 
-1. Cherry pick necessary changes to Release/X.Y
-2. Bump the version in xdp.props XML to X.Y.(Z + 1), where Z is the current latest
-2. Ensure all changes propagate properly to our internal mirror of XDP-for-windows in ADO: https://microsoft.visualstudio.com/undock/_git/xdp-for-windows
-3. Create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick by drafting a new release
-4. Official pipeline in ADO should kick off upon the existence of the new tag: https://microsoft.visualstudio.com/undock/_build?definitionId=134506
-5. Grab the built artifacts: MSI, Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
-6. Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
-7. Upload the XDP + Runtime Nuget pkgs to Nuget.org as well
-8. Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release
-9. Update the downlevel test matrix in main to point to X.Y.(Z + 1) once all artifacts are uploaded
+* Cherry pick necessary changes to Release/X.Y
+* Bump the version in xdp.props XML to X.Y.(Z + 1), where Z is the current latest
+* Ensure all changes propagate properly to our internal mirror of XDP-for-windows in ADO: https://microsoft.visualstudio.com/undock/_git/xdp-for-windows
+* Create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick by drafting a new release
+* Official pipeline in ADO should kick off upon the existence of the new tag: https://microsoft.visualstudio.com/undock/_build?definitionId=134506
+* Grab the built artifacts: MSI, Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
+* Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
+* Upload the XDP + Runtime Nuget pkgs to Nuget.org as well
+* Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release
+* Update the downlevel test matrix in main to point to X.Y.(Z + 1) once all artifacts are uploaded
+* Update this release process documentation as necessary.
 
 ## Publishing a new Release
 
