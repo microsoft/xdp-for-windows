@@ -3825,7 +3825,12 @@ XskSetTxOffloadChecksumWorker(
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
 
-    WorkItem->CompletionStatus = XdpTxQueueEnableChecksumOffload(Xsk->Tx.Xdp.Queue);
+    if (Xsk->Tx.Xdp.Queue != NULL) {
+        WorkItem->CompletionStatus = XdpTxQueueEnableChecksumOffload(Xsk->Tx.Xdp.Queue);
+    } else {
+        WorkItem->CompletionStatus = STATUS_INVALID_DEVICE_STATE;
+    }
+
     KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
 }
 
@@ -3837,7 +3842,13 @@ XskSetRxOffloadChecksumWorker(
 {
     XSK_BINDING_WORKITEM *WorkItem = (XSK_BINDING_WORKITEM *)Item;
     XSK *Xsk = WorkItem->Xsk;
-    WorkItem->CompletionStatus = XdpRxQueueEnableChecksumOffload(Xsk->Rx.Xdp.Queue);
+
+    if (Xsk->Rx.Xdp.Queue != NULL) {
+        WorkItem->CompletionStatus = XdpRxQueueEnableChecksumOffload(Xsk->Rx.Xdp.Queue);
+    } else {
+        WorkItem->CompletionStatus = STATUS_INVALID_DEVICE_STATE;
+    }
+
     KeSetEvent(&WorkItem->CompletionEvent, 0, FALSE);
 }
 
