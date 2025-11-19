@@ -85,3 +85,5 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 ## Publishing a new Release
 
 > **Note** - TODO
+
+* [JIT elevate](https://repos.opensource.microsoft.com/orgs/microsoft/repos/xdp-for-windows/jit) to admin, create a `v1.2.3` tag, corresponding to the major.minor.patch version numbers, optionally with a `-prerelease1` suffix, then revoke JIT. Ensure the naming of any prerelease suffix has the expected precedence, such as by incrementing `1` to `2` for a second prerelease tag.
