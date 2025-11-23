@@ -49,24 +49,16 @@ XdpIrpInterfaceOffloadRssGetCapabilities(
         XdpIfGetInterfaceOffloadCapabilities(
             InterfaceObject->IfSetHandle, InterfaceObject->InterfaceOffloadHandle,
             XdpOffloadRss, &RssCapabilities, &RssCapabilitiesSize);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_NTSTATUS(Status, "Failed to get interface RSS offload capabilities");
 
     if ((OutputBufferLength == 0) && (Irp->Flags & IRP_INPUT_OPERATION) == 0) {
         *BytesReturned = RssCapabilitiesSize;
-        Status = STATUS_BUFFER_OVERFLOW;
-        goto Exit;
+        LOG_AND_BAIL_ON_ERROR(Status, STATUS_BUFFER_OVERFLOW, "Output buffer length query");
     }
 
-    if (OutputBufferLength < RssCapabilitiesSize) {
-        TraceError(
-            TRACE_CORE,
-            "Interface=%p Output buffer length too small OutputBufferLength=%llu RequiredSize=%u",
-            InterfaceObject, (UINT64)OutputBufferLength, RssCapabilitiesSize);
-        Status = STATUS_BUFFER_TOO_SMALL;
-        goto Exit;
-    }
+    LOG_AND_BAIL_ON_CONDITION(OutputBufferLength < RssCapabilitiesSize, Status, STATUS_BUFFER_TOO_SMALL,
+                              "Output buffer too small: OutputBufferLength=%llu RequiredSize=%u", 
+                              (UINT64)OutputBufferLength, RssCapabilitiesSize);
 
     RtlCopyMemory(OutputBuffer, &RssCapabilities, RssCapabilitiesSize);
     *BytesReturned = RssCapabilitiesSize;

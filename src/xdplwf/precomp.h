@@ -57,6 +57,8 @@
 #include <xdptrace.h>
 #include <xdpworkqueue.h>
 
+#include "inc/xdperror.h"
+
 #ifndef NDIS_RUNTIME_VERSION_688
 #define NDIS_RUNTIME_VERSION_688 ((6 << 16) | 88)
 #endif
