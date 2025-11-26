@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "recv.tmh"
 
 #define RECV_MAX_FRAGMENTS 64
 #define RECV_TX_INSPECT_BATCH_SIZE 64

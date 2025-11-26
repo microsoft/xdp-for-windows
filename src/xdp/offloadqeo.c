@@ -8,7 +8,6 @@
 //
 
 #include "precomp.h"
-#include "offloadqeo.tmh"
 
 typedef enum _XDP_OFFLOAD_QEO_CONNECTION_STATE {
     XdpOffloadQeoInvalid,
