@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "offloadrss.tmh"
 
 #define RSS_HASH_SECRET_KEY_MAX_SIZE NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2
 

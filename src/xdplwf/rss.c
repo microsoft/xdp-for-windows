@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "rss.tmh"
 
 static
 VOID
