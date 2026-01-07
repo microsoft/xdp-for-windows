@@ -1353,7 +1353,10 @@ XdpRxQueueEnableChecksumOffload(
         Status = STATUS_SUCCESS;
     } else if (RxQueue->State == XdpRxQueueStateUnbound) {
         const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
-        if (IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
+        if (RTL_CONTAINS_FIELD(
+                IfCapabilities->CapabilitiesEx, IfCapabilities->CapabilitiesEx->Header.Size,
+                RxChecksumSupported) &&
+            IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
             XdpExtensionSetEnableEntry(
                 RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
             XdpExtensionSetEnableEntry(

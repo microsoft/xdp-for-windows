@@ -73,8 +73,16 @@ function Get-BuildBranch {
     }
 }
 
+function Get-BuildTag {
+    if (((Get-BuildBranch) -match '^tags/v(\d+\.\d+\.\d+.*)$')) {
+        return $Matches[1]
+    }
+
+    return $null
+}
+
 function Is-ReleaseBuild {
-    return ((Get-BuildBranch) -match '^release/|^tags/')
+    return Get-BuildTag -ne $null
 }
 
 function Get-VsTestPath {
@@ -105,7 +113,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfVersion {
-    return "0.21.0"
+    return "1.0.0-rc1"
 }
 
 # Returns the eBPF MSI full path
@@ -200,7 +208,13 @@ function Get-XdpBuildVersionString {
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
 
-    if (!(Is-ReleaseBuild)) {
+    if (Is-ReleaseBuild) {
+        $TagVersion = Get-BuildTag
+        if (!($TagVersion.StartsWith($VersionString))) {
+            Write-Error "Tag version $TagVersion mismatches expected version $VersionString"
+        }
+        $VersionString = $TagVersion
+    } else {
         $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 

@@ -16,7 +16,7 @@ XDP consists of several components:
     * Network Module Registrar (NMR)
     * Miscellaneous kernel APIs
 
-2. The `xdpapi.dll` user mode library. This library exports wrapper routines to provide a developer-friendly API. The library itself is stateless: it simply translates requests from its C export routines into the required formats to issue IOCTLs to the XDP driver. It relies on the XDP driver to perform all validation, enforce security constraints, etc.
+2. The `xdpapi.dll` user mode library (deprecated, provided only for backward compatibility with `XDP_API_VERSION_1` and `XDP_API_VERSION_2`). This library exports wrapper routines to provide a developer-friendly API. The library itself is stateless: it simply translates requests from its C export routines into the required formats to issue IOCTLs to the XDP driver. It relies on the XDP driver to perform all validation, enforce security constraints, etc. New applications should use `XDP_API_VERSION_3` or later, which provides header-only API implementations that consumers can freely compile into their own user or kernel mode code.
 3. The `xdp.inf` and `xdp.cat` driver package files. These are digitally signed, non-executable files used to install and uninstall XDP.
 
 All threat mitigations are enforced solely in the `xdp.sys` driver. The rest of this document explores the `xdp.sys` interfaces and their potential threat vectors.

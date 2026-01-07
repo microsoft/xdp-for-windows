@@ -207,6 +207,12 @@ XdpIfpDereferenceInterface(
         if (Interface->WorkQueue != NULL) {
             XdpShutdownWorkQueue(Interface->WorkQueue, FALSE);
         }
+        if (Interface->Capabilities.CapabilitiesEx != NULL) {
+            ExFreePoolWithTag((VOID *)Interface->Capabilities.CapabilitiesEx, XDP_POOLTAG_IF);
+        }
+        if (Interface->Capabilities.Hooks != NULL) {
+            ExFreePoolWithTag((VOID *)Interface->Capabilities.Hooks, XDP_POOLTAG_IF);
+        }
         ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
     }
 }
@@ -1349,6 +1355,7 @@ XdpIfAddInterfaces(
     for (UINT32 Index = 0; Index < InterfaceCount; Index++) {
         XDP_ADD_INTERFACE *AddIf = &Interfaces[Index];
         XDP_INTERFACE *Interface = NULL;
+        XDP_CAPABILITIES_INTERNAL *MutableCapabilities;
 
         if (!XdpValidateCapabilitiesEx(
                 AddIf->InterfaceCapabilities->CapabilitiesEx,
@@ -1372,29 +1379,66 @@ XdpIfAddInterfaces(
         Interface->XdpIfApi.RemoveInterfaceComplete = AddIf->RemoveInterfaceComplete;
         Interface->XdpIfApi.InterfaceContext = AddIf->InterfaceContext;
         Interface->XdpDriverApi.OpenConfig.Dispatch = &XdpOpenDispatch;
+        InitializeListHead(&Interface->Clients);
+
+        //
+        // Temporarily alias the const interface capabilities field to allow
+        // copying and fixing up pointers during initialization.
+        //
+        MutableCapabilities = (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities;
         RtlCopyMemory(
-            (XDP_CAPABILITIES_INTERNAL *)&Interface->Capabilities,
+            MutableCapabilities,
             AddIf->InterfaceCapabilities,
             sizeof(Interface->Capabilities));
-        InitializeListHead(&Interface->Clients);
+        MutableCapabilities->Hooks = NULL;
+        MutableCapabilities->CapabilitiesEx = NULL;
+
+        MutableCapabilities->Hooks =
+            ExAllocatePoolZero(
+                NonPagedPoolNx,
+                MutableCapabilities->HookCount * sizeof(MutableCapabilities->Hooks[0]),
+                XDP_POOLTAG_IF);
+        if (MutableCapabilities->Hooks == NULL) {
+            XdpIfpDereferenceInterface(Interface);
+            Status = STATUS_NO_MEMORY;
+            goto Exit;
+        }
+        RtlCopyMemory(
+            (VOID *)MutableCapabilities->Hooks,
+            AddIf->InterfaceCapabilities->Hooks,
+            MutableCapabilities->HookCount * sizeof(MutableCapabilities->Hooks[0]));
+
+        MutableCapabilities->CapabilitiesEx =
+            ExAllocatePoolZero(
+                NonPagedPoolNx, AddIf->InterfaceCapabilities->CapabilitiesSize, XDP_POOLTAG_IF);
+        if (MutableCapabilities->CapabilitiesEx == NULL) {
+            XdpIfpDereferenceInterface(Interface);
+            Status = STATUS_NO_MEMORY;
+            goto Exit;
+        }
+        RtlCopyMemory(
+            (VOID *)MutableCapabilities->CapabilitiesEx,
+            AddIf->InterfaceCapabilities->CapabilitiesEx,
+            MutableCapabilities->CapabilitiesSize);
 
         Interface->WorkQueue =
             XdpCreateWorkQueue(XdpIfpInterfaceWorker, DISPATCH_LEVEL, XdpDriverObject, NULL);
         if (Interface->WorkQueue == NULL) {
-            ExFreePoolWithTag(Interface, XDP_POOLTAG_IF);
+            XdpIfpDereferenceInterface(Interface);
             Status = STATUS_NO_MEMORY;
             goto Exit;
         }
-
-        XdpIfpReferenceIfSet(IfSet);
-        ASSERT(IfSet->Interfaces[Interface->Capabilities.Mode] == NULL);
-        IfSet->Interfaces[Interface->Capabilities.Mode] = Interface;
-        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Interface;
 
         TraceVerbose(
             TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! XdpIfInterfaceContext=%p Added",
             Interface->IfIndex, Interface->Capabilities.Mode,
             Interface->XdpIfApi.InterfaceContext);
+
+        XdpIfpReferenceIfSet(IfSet);
+        ASSERT(IfSet->Interfaces[Interface->Capabilities.Mode] == NULL);
+        IfSet->Interfaces[Interface->Capabilities.Mode] = Interface;
+        *AddIf->InterfaceHandle = (XDPIF_INTERFACE_HANDLE)Interface;
+        Interface = NULL;
     }
 
     Status = STATUS_SUCCESS;

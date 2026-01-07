@@ -6,7 +6,7 @@
 
 ## Installation
 
-XDP for Windows consists of a usermode library (xdpapi.dll) and a driver (xdp.sys).
+XDP for Windows consists of a driver (xdp.sys) and header-only user mode APIs. For backward compatibility with older applications, a user mode library (xdpapi.dll) is also provided, but its use is not recommended for new applications.
 
 ### Install the Latest (1.x) Official
 
@@ -60,7 +60,17 @@ When using the runtime nuget package instead of the runtime MSI, run the followi
 xdp-setup.ps1 -Install xdpebpf
 ```
 
-The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development). Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages.
+The eBPF hook headers for XDP are available in `xdp/ebpfhook.h`. For general eBPF usage documentation, see [eBPF Getting Started](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#using-ebpf-in-development).
+
+```Powershell
+xdp-setup.ps1 -Install xdpebpfexport
+```
+
+Developers will also need to execute `xdpbpfexport.exe` prior to verifying and compiling XDP eBPF programs; the binary is included in XDP developer NuGet packages. This tool populates eBPF registry keys with information about the XDP program type and helper functions. 
+
+eBPF-for-Windows will look in the HKCU (Current User) registry store first, and if the required values are present, it will use those configurations. If the values are not present in HKCU, then it will fall back to looking in the HKLM (Local Machine) registry.
+
+For development scenarios, configuring the registry store in just the HKCU location is usually sufficient. For runtime usage, the registry store configuration will depend on how eBPF-for-Windows is installed and how its registry store is configured. Using the eBPF-for-Windows MSI installer will install registry entries into both HKCU and HKLM stores, which is the same approach used by the XDP MSI.
 
 ### Version Upgrade
 
@@ -127,7 +137,9 @@ To collect XDP installer traces, append `/l*v filename.log` to the MSI command l
 ## Configuration
 
 XDP is in a passive state upon installation. XDP can be configured via a set of
-usermode APIs exported from `xdpapi.dll`.
+user mode APIs provided in XDP headers. These APIs are header-only implementations (using inline functions) that issue IOCTLs to the XDP driver.
+
+**Note:** For backward compatibility, older applications using `XDP_API_VERSION_1` or `XDP_API_VERSION_2` may use the deprecated `xdpapi.dll` library. New applications should use `XDP_API_VERSION_3` or later, which provides all APIs as header-only implementations.
 
 ### XDP Queues
 
@@ -152,8 +164,10 @@ AF_XDP is the API for redirecting traffic to a usermode application. To use the 
 include the following headers:
 
 - afxdp.h (AF_XDP sockets API)
-- xdpapi.h (XDP API)
+- xdpapi.h (XDP API - header-only implementation for `XDP_API_VERSION_3` or later)
 - afxdp_helper.h (optional AF_XDP helpers)
+
+These headers provide inline function implementations that interact directly with the XDP driver via IOCTLs, eliminating the need for a separate DLL.
 
 ## Generic XDP
 

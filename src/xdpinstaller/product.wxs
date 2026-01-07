@@ -31,17 +31,20 @@ SPDX-License-Identifier: MIT
         <InstallExecuteSequence>
             <!--Rollback sequence-->
             <Custom Action="xdp_uninstall_rollback" Before="xdp_install" Condition="NOT Installed" />
+            <Custom Action="xdp_ebpf_export_uninstall_rollback" Before="xdp_ebpf_export_install" Condition="NOT Installed" />
             <Custom Action="xdp_ebpf_uninstall_rollback" Before="xdp_ebpf_install" Condition="NOT Installed" />
             <Custom Action="xdp_pa_uninstall_rollback" Before="xdp_pa_install" Condition="NOT Installed" />
 
             <!--Install sequence-->
             <Custom Action="xdp_install" After="InstallFiles" Condition="NOT Installed" />
-            <Custom Action="xdp_ebpf_install" After="xdp_install" Condition="(&amp;xdp_ebpf=3) AND NOT(!xdp_ebpf=3)" />
+            <Custom Action="xdp_ebpf_export_install" After="xdp_install" Condition="(&amp;xdp_ebpf=3) AND NOT(!xdp_ebpf=3)" />
+            <Custom Action="xdp_ebpf_install" After="xdp_ebpf_export_install" Condition="(&amp;xdp_ebpf=3) AND NOT(!xdp_ebpf=3)" />
             <Custom Action="xdp_pa_install" After="xdp_install" Condition="(&amp;xdp_pa=3) AND NOT(!xdp_pa=3)" />
 
             <!--Uninstall sequence-->
             <Custom Action="xdp_pa_uninstall" After="InstallInitialize" Condition="(&amp;xdp_pa=2) AND (!xdp_pa=3)" />
-            <Custom Action="xdp_ebpf_uninstall" After="xdp_pa_uninstall" Condition="(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)" />
+            <Custom Action="xdp_ebpf_export_uninstall" After="xdp_pa_uninstall" Condition="(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)" />
+            <Custom Action="xdp_ebpf_uninstall" After="xdp_ebpf_export_uninstall" Condition="(&amp;xdp_ebpf=2) AND (!xdp_ebpf=3)" />
             <Custom Action="xdp_uninstall" After="xdp_ebpf_uninstall" Condition="REMOVE=&quot;ALL&quot;" />
         </InstallExecuteSequence>
 
@@ -124,6 +127,16 @@ SPDX-License-Identifier: MIT
 
         <SetProperty Id="xdp_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdp -Verbose&quot;" Before="xdp_uninstall_rollback" Sequence="execute" />
         <CustomAction Id="xdp_uninstall_rollback" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="no" BinaryRef="Wix4UtilCA_X86" />
+
+        <!-- Install/Uninstall/Rollback the eBPF export of the XDP eBPF installation. This must impersonate to configure the HKCU store. -->
+        <SetProperty Id="xdp_ebpf_export_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdpebpfexport -Verbose&quot;" Before="xdp_ebpf_export_install" Sequence="execute" />
+        <CustomAction Id="xdp_ebpf_export_install" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="yes" BinaryRef="Wix4UtilCA_X86" />
+
+        <SetProperty Id="xdp_ebpf_export_uninstall" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdpebpfexport -Verbose&quot;" Before="xdp_ebpf_export_uninstall" Sequence="execute" />
+        <CustomAction Id="xdp_ebpf_export_uninstall" DllEntry="WixQuietExec64" Execute="deferred" Return="ignore" Impersonate="yes" BinaryRef="Wix4UtilCA_X86" />
+
+        <SetProperty Id="xdp_ebpf_export_uninstall_rollback" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Uninstall xdpebpfexport -Verbose&quot;" Before="xdp_ebpf_export_uninstall_rollback" Sequence="execute" />
+        <CustomAction Id="xdp_ebpf_export_uninstall_rollback" DllEntry="WixQuietExec64" Execute="rollback" Return="ignore" Impersonate="yes" BinaryRef="Wix4UtilCA_X86" />
 
         <!-- Install/Uninstall/Rollback the XDP eBPF installation -->
         <SetProperty Id="xdp_ebpf_install" Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -ExecutionPolicy Bypass &quot;&amp; '[#xdp_setup_ps1]' -Install xdpebpf -Verbose&quot;" Before="xdp_ebpf_install" Sequence="execute" />

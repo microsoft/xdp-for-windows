@@ -315,6 +315,14 @@ public:
         GenericRxMatchIpPrefix(AF_INET6);
     }
 
+    TEST_METHOD(GenericRxMatchIcmpEchoReplyV4) {
+        GenericRxMatchIcmpEchoReply(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxMatchIcmpEchoReplyV6) {
+        GenericRxMatchIcmpEchoReply(AF_INET6);
+    }
+
     TEST_METHOD(GenericRxMatchInnerIpPrefixV4Udp) {
         GenericRxMatchInnerIpPrefix(AF_INET);
     }

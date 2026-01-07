@@ -153,6 +153,30 @@ FreeMem(
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
+
+//
+// Custom deleter for XDP program attachment that detaches the program
+//
+struct XdpProgramDeleter {
+    UINT32 IfIndex;
+
+    XdpProgramDeleter(UINT32 ifIndex = 0) : IfIndex(ifIndex) {}
+
+    void operator()(bpf_object* bpfObject) {
+        if (IfIndex != 0) {
+            int ErrnoResult = bpf_xdp_detach(IfIndex, 0, NULL);
+            if (ErrnoResult != 0) {
+                TraceError("bpf_xdp_detach failed: %d, errno=%d", ErrnoResult, errno);
+            }
+        }
+
+        if (bpfObject) {
+            bpf_object__close(bpfObject);
+        }
+    }
+};
+
+using unique_xdp_program = wistd::unique_ptr<bpf_object, XdpProgramDeleter>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
@@ -2289,6 +2313,45 @@ CreateUdpSocket(
 
 static
 unique_fnsock
+CreateIcmpSocket(
+    _In_ ADDRESS_FAMILY Af,
+    _In_opt_ const TestInterface *If,
+    _Out_ UINT16 *LocalPort
+    )
+{
+    if (If != NULL) {
+        //
+        // Ensure the local UDP stack has finished initializing the interface.
+        //
+        WaitForWfpQuarantine(*If);
+    }
+
+    unique_fnsock Socket;
+    if (Af == AF_INET) {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMP, &Socket));
+    } else {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMPV6, &Socket));
+    }
+    TEST_NOT_NULL(Socket.get());
+
+    SOCKADDR_INET Address = {0};
+    Address.si_family = Af;
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+
+    INT AddressLength = sizeof(Address);
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+
+    INT TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    *LocalPort = SS_PORT(&Address);
+    return Socket;
+}
+
+static
+unique_fnsock
 CreateTcpSocket(
     _In_ ADDRESS_FAMILY Af,
     _In_ const TestInterface *If,
@@ -3573,6 +3636,92 @@ GenericRxMatchIpPrefix(
         sizeof(UdpPayload),
         FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+}
+
+VOID
+GenericRxMatchIcmpEchoReply(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    XDP_INET_ADDR LocalIp, RemoteIp;
+
+    auto IcmpSocket = CreateIcmpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    wil::unique_handle ProgramHandle;
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    XDP_RULE Rule;
+    const UCHAR IcmpPayload[] = "GenericIcmpPayload";
+    CHAR RecvPayload[100] = {0};
+    UCHAR *IcmpFrame;
+    UCHAR Icmp4Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
+    UCHAR Icmp6Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
+    UINT32 FrameSize = 0;
+    if (Af == AF_INET) {
+        Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
+        FrameSize = sizeof(Icmp4Frame);
+        TEST_TRUE(
+            PktBuildIcmp4Frame(
+                Icmp4Frame, &FrameSize, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                &RemoteHw, &LocalIp, &RemoteIp));
+        IcmpFrame = Icmp4Frame;
+    } else {
+        FrameSize = sizeof(Icmp6Frame);
+        Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
+        TEST_TRUE(
+            PktBuildIcmp6Frame(
+                Icmp6Frame, &FrameSize, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                &RemoteHw, &LocalIp, &RemoteIp));
+        IcmpFrame = Icmp6Frame;
+    }
+    Rule.Pattern.IpMask.Address = LocalIp;
+    Rule.Action = XDP_PROGRAM_ACTION_DROP;
+    RX_FRAME Frame;
+
+    //
+    // Verify we can successfully indicate an echo reply frame without the XDP program attached.
+    //
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+
+    //
+    // Verify we drop a matched ICMP echo reply packet once the XDP program is attached.
+    //
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(FAILED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
+    ProgramHandle.reset();
+
+    //
+    // Verify we allow an echo reply to pass through if it does not match the IP in the rule.
+    //
+    *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 }
 
 VOID
@@ -5607,7 +5756,7 @@ EbpfNetsh()
 static
 HRESULT
 TryAttachEbpfXdpProgram(
-    _Out_ unique_bpf_object &BpfObject,
+    _Out_ unique_xdp_program &BpfProgram,
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
     _In_ const CHAR *BpfProgramName,
@@ -5619,6 +5768,7 @@ TryAttachEbpfXdpProgram(
     bpf_program *Program;
     int ProgramFd;
     int ErrnoResult;
+    unique_bpf_object BpfObject;
 
     Result = GetCurrentBinaryPath(BpfAbsoluteFileName, RTL_NUMBER_OF(BpfAbsoluteFileName));
     if (FAILED(Result)) {
@@ -5670,15 +5820,17 @@ TryAttachEbpfXdpProgram(
 
 Exit:
 
-    if (FAILED(Result)) {
-        BpfObject.reset();
+    if (SUCCEEDED(Result)) {
+        BpfProgram = unique_xdp_program(BpfObject.release(), XdpProgramDeleter(If.GetIfIndex()));
+    } else {
+        BpfProgram.reset();
     }
 
     return Result;
 }
 
 static
-unique_bpf_object
+unique_xdp_program
 AttachEbpfXdpProgram(
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
@@ -5686,7 +5838,7 @@ AttachEbpfXdpProgram(
     _In_ INT AttachFlags = 0
     )
 {
-    unique_bpf_object BpfObject;
+    unique_xdp_program BpfProgram;
     HRESULT Result;
 
     //
@@ -5697,7 +5849,7 @@ AttachEbpfXdpProgram(
     Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = TryAttachEbpfXdpProgram(
-            BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
+            BpfProgram, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
         if (Result == S_OK) {
             break;
         }
@@ -5705,7 +5857,7 @@ AttachEbpfXdpProgram(
 
     TEST_HRESULT(Result);
 
-    return BpfObject;
+    return BpfProgram;
 }
 
 VOID
@@ -5713,10 +5865,10 @@ GenericRxEbpfAttach()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
-    unique_bpf_object BpfObjectReplacement;
-    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
+    unique_xdp_program BpfProgramReplacement;
+    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfProgramReplacement, If, "\\bpf\\pass.sys", "pass")));
 
     //
     // eBPF doesn't wait for the pass.sys driver to completely unload after
@@ -5724,7 +5876,7 @@ GenericRxEbpfAttach()
     // retrying with the replace flag.
     //
     CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
-    BpfObjectReplacement =
+    BpfProgramReplacement =
         AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
 
@@ -5736,7 +5888,7 @@ GenericRxEbpfDrop()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfDrop";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5765,7 +5917,7 @@ GenericRxEbpfPass()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfPass";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5790,7 +5942,7 @@ GenericRxEbpfTx()
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfTx";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -5820,7 +5972,7 @@ GenericRxEbpfPayload()
     const UINT32 Trailer = 17;
     const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5861,8 +6013,8 @@ ProgTestRunRxEbpfPayload()
     const UCHAR UdpPayload[] = "ProgTestRunRxEbpfPayload";
     bpf_test_run_opts Opts = {};
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
-    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfObject.get(), "allow_ipv6"));
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfProgram.get(), "allow_ipv6"));
 
     // Build a v6 packet and verify it is allowed.
     UCHAR UdpFrameV6[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
@@ -5920,13 +6072,13 @@ GenericRxEbpfIfIndex()
     const UCHAR Payload[] = "GenericRxEbpfIfIndex";
     UINT32 Zero = 0;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     // Get the interface_map fd.
-    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "interface_map");
+    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "interface_map");
     TEST_NOT_EQUAL(interface_map_fd, ebpf_fd_invalid);
 
     // Update the interface_map with the interface index of the test interface.
@@ -5952,7 +6104,7 @@ GenericRxEbpfIfIndex()
         LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
 
     // Validate that the dropped_packet_map contains a non-0 entry for the IfIndex.
-    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "dropped_packet_map");
+    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "dropped_packet_map");
     TEST_NOT_EQUAL(dropped_packet_map_fd, ebpf_fd_invalid);
 
     UINT64 DroppedPacketCount = 0;
@@ -5985,7 +6137,7 @@ GenericRxEbpfFragments()
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -6024,7 +6176,7 @@ GenericRxEbpfUnload()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
