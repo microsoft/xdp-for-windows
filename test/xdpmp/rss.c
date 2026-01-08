@@ -129,7 +129,7 @@ MpPopulateRssQueues(
     NDIS_STATUS Status;
     SIZE_T AllocationSize;
 
-    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(Adapter->MiniportHandle, "NdisMiniportHandle"));
 
     AllocationSize = sizeof(*Adapter->RssQueues) * Adapter->NumRssQueues;
 
@@ -138,8 +138,8 @@ MpPopulateRssQueues(
             NonPagedPoolNxCacheAligned, AllocationSize, POOLTAG_QUEUE);
     if (Adapter->RssQueues == NULL) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p MpPopulateRssQueues failed to allocate RssQueues",
-            Adapter->MiniportHandle);
+            TRACE_CONTROL,
+            TraceLoggingPointer(Adapter->MiniportHandle, "NdisMiniportHandle"));
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
@@ -170,7 +170,7 @@ MpPopulateRssQueues(
 
 Exit:
 
-    TraceExitStatus(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL, Status);
 
     return Status;
 }

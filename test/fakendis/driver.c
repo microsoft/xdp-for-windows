@@ -145,7 +145,7 @@ DriverUnload(
     _In_ PDRIVER_OBJECT DriverObject
     )
 {
-    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(DriverObject, "DriverObject"));
 
     NdisPollCpuStop();
     NdisPollStop();
@@ -181,7 +181,7 @@ DriverEntry(
     }
     RtlInitUnicodeString(&DeviceName, FNDIS_DEVICE_NAME);
 
-    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(DriverObject, "DriverObject"));
 
     Status =
         IoCreateDevice(
@@ -215,7 +215,7 @@ DriverEntry(
 
 Exit:
 
-    TraceExitStatus(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL, Status);
 
     if (!NT_SUCCESS(Status)) {
         DriverUnload(DriverObject);
