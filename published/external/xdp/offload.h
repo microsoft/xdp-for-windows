@@ -32,7 +32,7 @@ typedef struct _XDP_FRAME_GSO {
     } DUMMYUNIONNAME;
 } XDP_FRAME_GSO;
 
-C_ASSERT(sizeof(XDP_FRAME_GSO) == 4);
+static_assert(sizeof(XDP_FRAME_GSO) == 4, "== 4 bytes");
 
 #pragma warning(pop)
 
@@ -51,7 +51,7 @@ typedef struct _XDP_FRAME_GRO {
     } DUMMYUNIONNAME;
 } XDP_FRAME_GRO;
 
-C_ASSERT(sizeof(XDP_FRAME_GRO) == 2);
+static_assert(sizeof(XDP_FRAME_GRO) == 2, "== 2 bytes");
 
 typedef struct _XDP_FRAME_GRO_TIMESTAMP {
     union {
@@ -61,13 +61,13 @@ typedef struct _XDP_FRAME_GRO_TIMESTAMP {
     } DUMMYUNIONNAME;
 } XDP_FRAME_GRO_TIMESTAMP;
 
-C_ASSERT(sizeof(XDP_FRAME_GRO_TIMESTAMP) == 4);
+static_assert(sizeof(XDP_FRAME_GRO_TIMESTAMP) == 4, "== 4 bytes");
 
 typedef struct _XDP_FRAME_TIMESTAMP {
     UINT64 Timestamp;
 } XDP_FRAME_TIMESTAMP;
 
-C_ASSERT(sizeof(XDP_FRAME_TIMESTAMP) == 8);
+static_assert(sizeof(XDP_FRAME_TIMESTAMP) == 8, "== 8 bytes");
 
 #pragma warning(pop)
 

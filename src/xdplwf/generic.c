@@ -396,7 +396,9 @@ XdpGenericAttachDatapath(
     }
     RtlReleasePushLockExclusive(&Generic->Lock);
 
-    C_ASSERT(RTL_NUMBER_OF(ReadyEvents) <= THREAD_WAIT_OBJECTS);
+    static_assert(
+        RTL_NUMBER_OF(ReadyEvents) <= THREAD_WAIT_OBJECTS,
+        "<= THREAD_WAIT_OBJECTS");
     ASSERT(ReadyEventCount > 0 && ReadyEventCount <= RTL_NUMBER_OF(ReadyEvents));
 
     if (NeedRestart) {

@@ -14,7 +14,9 @@ typedef struct _XDP_BUFFER_LOGICAL_ADDRESS {
     UINT64 LogicalAddress;
 } XDP_BUFFER_LOGICAL_ADDRESS;
 
-C_ASSERT(sizeof(XDP_BUFFER_LOGICAL_ADDRESS) == sizeof(VOID *));
+static_assert(
+    sizeof(XDP_BUFFER_LOGICAL_ADDRESS) == sizeof(VOID *),
+    "== sizeof(VOID *)");
 
 #pragma warning(pop)
 

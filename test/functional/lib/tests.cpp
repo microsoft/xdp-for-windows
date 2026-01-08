@@ -99,8 +99,8 @@ static const XDP_HOOK_ID XdpInspectTxL2 =
 // Interval between polling attempts.
 //
 #define POLL_INTERVAL_MS 10
-C_ASSERT(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS);
-C_ASSERT(POLL_INTERVAL_MS * 5 <= MP_RESTART_TIMEOUT_MS);
+static_assert(POLL_INTERVAL_MS * 5 <= TEST_TIMEOUT_ASYNC_MS, "<= TEST_TIMEOUT");
+static_assert(POLL_INTERVAL_MS * 5 <= MP_RESTART_TIMEOUT_MS, "<= MP_RESTART");
 
 class TestInterface;
 
@@ -1451,7 +1451,9 @@ SocketGetTxDesc(
     // For legacy/simple applications, the TX ring can be defined simply as a
     // buffer, and the frame descriptor is simply a higher level abstraction.
     //
-    C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0);
+    static_assert(
+        FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0,
+        "Buffer at offset 0");
 
     return &SocketGetTxFrameDesc(Socket, Index)->Buffer;
 }
@@ -1467,7 +1469,9 @@ SocketGetRxDesc(
     // For legacy/simple applications, the RX ring can be defined simply as a
     // buffer, and the frame descriptor is simply a higher level abstraction.
     //
-    C_ASSERT(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0);
+    static_assert(
+        FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0,
+        "Buffer at offset 0");
 
     return &SocketGetRxFrameDesc(Socket, Index)->Buffer;
 }
@@ -6473,8 +6477,8 @@ GenericTxMtu()
     auto Xsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), FALSE, TRUE, XDP_GENERIC);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
     const UINT32 TestMtu = 2048;
-    C_ASSERT(TestMtu != FNMP_DEFAULT_MTU);
-    C_ASSERT(TestMtu < DEFAULT_UMEM_CHUNK_SIZE);
+    static_assert(TestMtu != FNMP_DEFAULT_MTU, "!= FNMP_DEFAULT_MTU");
+    static_assert(TestMtu < DEFAULT_UMEM_CHUNK_SIZE, "< DEFAULT_UMEM_CHUNK_SIZE");
 
     auto MtuReset = MpSetMtu(If, GenericMp, TestMtu);
 
@@ -9163,23 +9167,33 @@ OffloadQeoConnection()
             TEST_EQUAL(Connection.NextPacketNumber, NdisConnection->NextPacketNumber);
             TEST_EQUAL(Connection.ConnectionIdLength, NdisConnection->ConnectionIdLength);
 
-            C_ASSERT(sizeof(Connection.Address) == sizeof(NdisConnection->Address));
+            static_assert(
+                sizeof(Connection.Address) == sizeof(NdisConnection->Address),
+                "same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.Address, NdisConnection->Address, sizeof(Connection.Address)));
 
-            C_ASSERT(sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId));
+            static_assert(
+                sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId),
+                "same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.ConnectionId, NdisConnection->ConnectionId, Connection.ConnectionIdLength));
 
-            C_ASSERT(sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey));
+            static_assert(
+                sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey),
+                "same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.PayloadKey, NdisConnection->PayloadKey, sizeof(Connection.PayloadKey)));
 
-            C_ASSERT(sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey));
+            static_assert(
+                sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey),
+                "same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.HeaderKey, NdisConnection->HeaderKey, sizeof(Connection.HeaderKey)));
 
-            C_ASSERT(sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv));
+            static_assert(
+                sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv),
+                "same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.PayloadIv, NdisConnection->PayloadIv, sizeof(Connection.PayloadIv)));
 
@@ -9337,23 +9351,33 @@ OffloadQeoRevert(
     TEST_EQUAL(Connection.NextPacketNumber, NdisConnection->NextPacketNumber);
     TEST_EQUAL(Connection.ConnectionIdLength, NdisConnection->ConnectionIdLength);
 
-    C_ASSERT(sizeof(Connection.Address) == sizeof(NdisConnection->Address));
+    static_assert(
+        sizeof(Connection.Address) == sizeof(NdisConnection->Address),
+        "same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.Address, NdisConnection->Address, sizeof(Connection.Address)));
 
-    C_ASSERT(sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId));
+    static_assert(
+        sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId),
+        "same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.ConnectionId, NdisConnection->ConnectionId, Connection.ConnectionIdLength));
 
-    C_ASSERT(sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey));
+    static_assert(
+        sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey),
+        "same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.PayloadKey, NdisConnection->PayloadKey, sizeof(Connection.PayloadKey)));
 
-    C_ASSERT(sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey));
+    static_assert(
+        sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey),
+        "same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.HeaderKey, NdisConnection->HeaderKey, sizeof(Connection.HeaderKey)));
 
-    C_ASSERT(sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv));
+    static_assert(
+        sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv),
+        "same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.PayloadIv, NdisConnection->PayloadIv, sizeof(Connection.PayloadIv)));
 

@@ -24,7 +24,7 @@ typedef INT64 XDP_REFERENCE_COUNT;
 //
 
 #define RtlAcquireFenceAfterReleaseOp(Ptr)            \
-    C_ASSERT(sizeof(*(Ptr)) == 8);                    \
+    static_assert(sizeof(*(Ptr)) == 8, "== 8 bytes"); \
     __ldar64((volatile unsigned __int64 *)(Ptr))
 
 #else

@@ -57,7 +57,8 @@ typedef struct _NDIS_POLL_CPU_EC {
     //
     KDPC CrossCpuDpc;
 } NDIS_POLL_CPU_EC, *PNDIS_POLL_CPU_EC;
-C_ASSERT(sizeof(NDIS_POLL_CPU_EC) <= RTL_FIELD_SIZE(NDIS_POLL_QUEUE, Reserved));
+static_assert(sizeof(NDIS_POLL_CPU_EC) <= RTL_FIELD_SIZE(NDIS_POLL_QUEUE, Reserved), 
+               "<= Reserved");
 
 _IRQL_requires_(DISPATCH_LEVEL)
 VOID

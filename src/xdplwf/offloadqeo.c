@@ -92,27 +92,37 @@ XdpLwfOffloadQeoConvertXdpToNdis(
     NdisConnection->NextPacketNumber = XdpConnection->NextPacketNumber;
     NdisConnection->ConnectionIdLength = XdpConnection->ConnectionIdLength;
 
-    C_ASSERT(sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address));
+    static_assert(
+        sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address),
+        ">= Xdp Address");
     RtlCopyMemory(
         NdisConnection->Address, XdpConnection->Address,
         sizeof(XdpConnection->Address));
 
-    C_ASSERT(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId));
+    static_assert(
+        sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId),
+        ">= Xdp ConnectionId");
     RtlCopyMemory(
         NdisConnection->ConnectionId, XdpConnection->ConnectionId,
         sizeof(XdpConnection->ConnectionId));
 
-    C_ASSERT(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey));
+    static_assert(
+        sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey),
+        ">= Xdp PayloadKey");
     RtlCopyMemory(
         NdisConnection->PayloadKey, XdpConnection->PayloadKey,
         sizeof(XdpConnection->PayloadKey));
 
-    C_ASSERT(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey));
+    static_assert(
+        sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey),
+        ">= Xdp HeaderKey");
     RtlCopyMemory(
         NdisConnection->HeaderKey, XdpConnection->HeaderKey,
         sizeof(XdpConnection->HeaderKey));
 
-    C_ASSERT(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv));
+    static_assert(
+        sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv),
+        ">= Xdp PayloadIv");
     RtlCopyMemory(
         NdisConnection->PayloadIv, XdpConnection->PayloadIv,
         sizeof(XdpConnection->PayloadIv));

@@ -10,7 +10,8 @@ typedef struct _XDP_OID_CLONE {
     NDIS_OID_REQUEST *OriginalRequest;
 } XDP_OID_CLONE;
 
-C_ASSERT(sizeof(XDP_OID_CLONE) <= RTL_FIELD_SIZE(NDIS_OID_REQUEST, SourceReserved));
+static_assert(sizeof(XDP_OID_CLONE) <= RTL_FIELD_SIZE(NDIS_OID_REQUEST, SourceReserved), 
+               "<= SourceReserved");
 
 typedef struct _XDP_OID_REQUEST {
     NDIS_OID_REQUEST Oid;
