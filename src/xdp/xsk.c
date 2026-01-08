@@ -855,7 +855,9 @@ XskFillTx(
                 const XDP_FRAME_CHECKSUM *XskChecksum =
                     RTL_PTR_ADD(XskFrame, Xsk->Tx.ChecksumExtensionOffset);
 
-                static_assert(sizeof(*XdpChecksum) == sizeof(*XskChecksum), "XdpChecksum and XskChecksum must have same size");
+                static_assert(
+                    sizeof(*XdpChecksum) == sizeof(*XskChecksum),
+                    "XdpChecksum and XskChecksum must have same size");
                 ASSERT(Xsk->Tx.Xdp.ChecksumExtension.Reserved != 0);
 
                 //
@@ -5265,7 +5267,9 @@ XskReceiveSingleFrame(
                 XdpGetChecksumExtension(Frame, &Xsk->Rx.Xdp.ChecksumExtension);
             XDP_FRAME_CHECKSUM *XskChecksum =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.ChecksumExtensionOffset);
-            static_assert(sizeof(*XdpChecksum) == sizeof(*XskChecksum), "XdpChecksum and XskChecksum must have same size");
+            static_assert(
+                sizeof(*XdpChecksum) == sizeof(*XskChecksum),
+                "XdpChecksum and XskChecksum must have same size");
             ASSERT(Xsk->Rx.Xdp.ChecksumExtension.Reserved != 0);
 
             //

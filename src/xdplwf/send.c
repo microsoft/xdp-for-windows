@@ -866,8 +866,12 @@ XdpGenericTxCreateQueue(
     }
 
     // NBL context only aligns at void*. Ensure our packed structs are aligned.
-    static_assert(__alignof(NBL_TX_CONTEXT) <= __alignof(VOID *), "NBL_TX_CONTEXT alignment must not exceed VOID* alignment");
-    static_assert(__alignof(MDL) <= __alignof(NBL_TX_CONTEXT), "MDL alignment must not exceed NBL_TX_CONTEXT alignment");
+    static_assert(
+        __alignof(NBL_TX_CONTEXT) <= __alignof(VOID *),
+        "NBL_TX_CONTEXT alignment must not exceed VOID* alignment");
+    static_assert(
+        __alignof(MDL) <= __alignof(NBL_TX_CONTEXT),
+        "MDL alignment must not exceed NBL_TX_CONTEXT alignment");
     PoolParams.ContextSize = (USHORT)(MdlSize + sizeof(NBL_TX_CONTEXT));
 
     TxQueue->NblPool = NdisAllocateNetBufferListPool(Generic->NdisFilterHandle, &PoolParams);

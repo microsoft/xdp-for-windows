@@ -1427,7 +1427,9 @@ SocketGetTxDesc(
     // For legacy/simple applications, the TX ring can be defined simply as a
     // buffer, and the frame descriptor is simply a higher level abstraction.
     //
-    static_assert(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0, "Buffer must be at offset 0 in XSK_FRAME_DESCRIPTOR");
+    static_assert(
+        FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0,
+        "Buffer must be at offset 0 in XSK_FRAME_DESCRIPTOR");
 
     return &SocketGetTxFrameDesc(Socket, Index)->Buffer;
 }
@@ -1443,7 +1445,9 @@ SocketGetRxDesc(
     // For legacy/simple applications, the RX ring can be defined simply as a
     // buffer, and the frame descriptor is simply a higher level abstraction.
     //
-    static_assert(FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0, "Buffer must be at offset 0 in XSK_FRAME_DESCRIPTOR");
+    static_assert(
+        FIELD_OFFSET(XSK_FRAME_DESCRIPTOR, Buffer) == 0,
+        "Buffer must be at offset 0 in XSK_FRAME_DESCRIPTOR");
 
     return &SocketGetRxFrameDesc(Socket, Index)->Buffer;
 }
@@ -9011,23 +9015,33 @@ OffloadQeoConnection()
             TEST_EQUAL(Connection.NextPacketNumber, NdisConnection->NextPacketNumber);
             TEST_EQUAL(Connection.ConnectionIdLength, NdisConnection->ConnectionIdLength);
 
-            static_assert(sizeof(Connection.Address) == sizeof(NdisConnection->Address), "Connection.Address and NdisConnection->Address must have same size");
+            static_assert(
+                sizeof(Connection.Address) == sizeof(NdisConnection->Address),
+                "Connection.Address and NdisConnection->Address must have same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.Address, NdisConnection->Address, sizeof(Connection.Address)));
 
-            static_assert(sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId), "Connection.ConnectionId and NdisConnection->ConnectionId must have same size");
+            static_assert(
+                sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId),
+                "Connection.ConnectionId and NdisConnection->ConnectionId must have same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.ConnectionId, NdisConnection->ConnectionId, Connection.ConnectionIdLength));
 
-            static_assert(sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey), "Connection.PayloadKey and NdisConnection->PayloadKey must have same size");
+            static_assert(
+                sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey),
+                "Connection.PayloadKey and NdisConnection->PayloadKey must have same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.PayloadKey, NdisConnection->PayloadKey, sizeof(Connection.PayloadKey)));
 
-            static_assert(sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey), "Connection.HeaderKey and NdisConnection->HeaderKey must have same size");
+            static_assert(
+                sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey),
+                "Connection.HeaderKey and NdisConnection->HeaderKey must have same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.HeaderKey, NdisConnection->HeaderKey, sizeof(Connection.HeaderKey)));
 
-            static_assert(sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv), "Connection.PayloadIv and NdisConnection->PayloadIv must have same size");
+            static_assert(
+                sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv),
+                "Connection.PayloadIv and NdisConnection->PayloadIv must have same size");
             TEST_TRUE(RtlEqualMemory(
                 Connection.PayloadIv, NdisConnection->PayloadIv, sizeof(Connection.PayloadIv)));
 
@@ -9185,23 +9199,33 @@ OffloadQeoRevert(
     TEST_EQUAL(Connection.NextPacketNumber, NdisConnection->NextPacketNumber);
     TEST_EQUAL(Connection.ConnectionIdLength, NdisConnection->ConnectionIdLength);
 
-    static_assert(sizeof(Connection.Address) == sizeof(NdisConnection->Address), "Connection.Address and NdisConnection->Address must have same size");
+    static_assert(
+        sizeof(Connection.Address) == sizeof(NdisConnection->Address),
+        "Connection.Address and NdisConnection->Address must have same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.Address, NdisConnection->Address, sizeof(Connection.Address)));
 
-    static_assert(sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId), "Connection.ConnectionId and NdisConnection->ConnectionId must have same size");
+    static_assert(
+        sizeof(Connection.ConnectionId) == sizeof(NdisConnection->ConnectionId),
+        "Connection.ConnectionId and NdisConnection->ConnectionId must have same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.ConnectionId, NdisConnection->ConnectionId, Connection.ConnectionIdLength));
 
-    static_assert(sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey), "Connection.PayloadKey and NdisConnection->PayloadKey must have same size");
+    static_assert(
+        sizeof(Connection.PayloadKey) == sizeof(NdisConnection->PayloadKey),
+        "Connection.PayloadKey and NdisConnection->PayloadKey must have same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.PayloadKey, NdisConnection->PayloadKey, sizeof(Connection.PayloadKey)));
 
-    static_assert(sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey), "Connection.HeaderKey and NdisConnection->HeaderKey must have same size");
+    static_assert(
+        sizeof(Connection.HeaderKey) == sizeof(NdisConnection->HeaderKey),
+        "Connection.HeaderKey and NdisConnection->HeaderKey must have same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.HeaderKey, NdisConnection->HeaderKey, sizeof(Connection.HeaderKey)));
 
-    static_assert(sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv), "Connection.PayloadIv and NdisConnection->PayloadIv must have same size");
+    static_assert(
+        sizeof(Connection.PayloadIv) == sizeof(NdisConnection->PayloadIv),
+        "Connection.PayloadIv and NdisConnection->PayloadIv must have same size");
     TEST_TRUE(RtlEqualMemory(
         Connection.PayloadIv, NdisConnection->PayloadIv, sizeof(Connection.PayloadIv)));
 

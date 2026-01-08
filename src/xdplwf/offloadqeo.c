@@ -92,27 +92,37 @@ XdpLwfOffloadQeoConvertXdpToNdis(
     NdisConnection->NextPacketNumber = XdpConnection->NextPacketNumber;
     NdisConnection->ConnectionIdLength = XdpConnection->ConnectionIdLength;
 
-    static_assert(sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address), "NdisConnection Address must be at least as large as XdpConnection Address");
+    static_assert(
+        sizeof(NdisConnection->Address) >= sizeof(XdpConnection->Address),
+        "NdisConnection Address must be at least as large as XdpConnection Address");
     RtlCopyMemory(
         NdisConnection->Address, XdpConnection->Address,
         sizeof(XdpConnection->Address));
 
-    static_assert(sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId), "NdisConnection ConnectionId must be at least as large as XdpConnection ConnectionId");
+    static_assert(
+        sizeof(NdisConnection->ConnectionId) >= sizeof(XdpConnection->ConnectionId),
+        "NdisConnection ConnectionId must be at least as large as XdpConnection ConnectionId");
     RtlCopyMemory(
         NdisConnection->ConnectionId, XdpConnection->ConnectionId,
         sizeof(XdpConnection->ConnectionId));
 
-    static_assert(sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey), "NdisConnection PayloadKey must be at least as large as XdpConnection PayloadKey");
+    static_assert(
+        sizeof(NdisConnection->PayloadKey) >= sizeof(XdpConnection->PayloadKey),
+        "NdisConnection PayloadKey must be at least as large as XdpConnection PayloadKey");
     RtlCopyMemory(
         NdisConnection->PayloadKey, XdpConnection->PayloadKey,
         sizeof(XdpConnection->PayloadKey));
 
-    static_assert(sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey), "NdisConnection HeaderKey must be at least as large as XdpConnection HeaderKey");
+    static_assert(
+        sizeof(NdisConnection->HeaderKey) >= sizeof(XdpConnection->HeaderKey),
+        "NdisConnection HeaderKey must be at least as large as XdpConnection HeaderKey");
     RtlCopyMemory(
         NdisConnection->HeaderKey, XdpConnection->HeaderKey,
         sizeof(XdpConnection->HeaderKey));
 
-    static_assert(sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv), "NdisConnection PayloadIv must be at least as large as XdpConnection PayloadIv");
+    static_assert(
+        sizeof(NdisConnection->PayloadIv) >= sizeof(XdpConnection->PayloadIv),
+        "NdisConnection PayloadIv must be at least as large as XdpConnection PayloadIv");
     RtlCopyMemory(
         NdisConnection->PayloadIv, XdpConnection->PayloadIv,
         sizeof(XdpConnection->PayloadIv));
