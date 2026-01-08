@@ -839,7 +839,7 @@ XskFillTx(
                 const XDP_FRAME_LAYOUT *XskLayout =
                     RTL_PTR_ADD(XskFrame, Xsk->Tx.LayoutExtensionOffset);
 
-                static_assert(sizeof(*XdpLayout) == sizeof(*XskLayout), "XdpLayout and XskLayout must have same size");
+                static_assert(sizeof(*XdpLayout) == sizeof(*XskLayout), "same size");
                 ASSERT(Xsk->Tx.Xdp.LayoutExtension.Reserved != 0);
 
                 //
@@ -857,7 +857,7 @@ XskFillTx(
 
                 static_assert(
                     sizeof(*XdpChecksum) == sizeof(*XskChecksum),
-                    "XdpChecksum and XskChecksum must have same size");
+                    "same size");
                 ASSERT(Xsk->Tx.Xdp.ChecksumExtension.Reserved != 0);
 
                 //
@@ -5253,7 +5253,7 @@ XskReceiveSingleFrame(
                 XdpGetLayoutExtension(Frame, &Xsk->Rx.Xdp.LayoutExtension);
             XDP_FRAME_LAYOUT *XskLayout =
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.LayoutExtensionOffset);
-            static_assert(sizeof(*XdpLayout) == sizeof(*XskLayout), "XdpLayout and XskLayout must have same size");
+            static_assert(sizeof(*XdpLayout) == sizeof(*XskLayout), "same size");
             ASSERT(Xsk->Rx.Xdp.LayoutExtension.Reserved != 0);
 
             //
@@ -5269,7 +5269,7 @@ XskReceiveSingleFrame(
                 RTL_PTR_ADD(XskFrame, Xsk->Rx.ChecksumExtensionOffset);
             static_assert(
                 sizeof(*XdpChecksum) == sizeof(*XskChecksum),
-                "XdpChecksum and XskChecksum must have same size");
+                "same size");
             ASSERT(Xsk->Rx.Xdp.ChecksumExtension.Reserved != 0);
 
             //

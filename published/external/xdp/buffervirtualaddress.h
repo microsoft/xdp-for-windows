@@ -16,7 +16,7 @@ typedef struct XDP_BUFFER_VIRTUAL_ADDRESS {
 
 static_assert(
     sizeof(XDP_BUFFER_VIRTUAL_ADDRESS) == sizeof(VOID *),
-    "XDP_BUFFER_VIRTUAL_ADDRESS must be same size as pointer");
+    "== sizeof(VOID *)");
 
 #pragma warning(pop)
 

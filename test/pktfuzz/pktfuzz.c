@@ -15,7 +15,7 @@ typedef struct _XDP_FRAME_WITH_EXTENSIONS {
 static_assert(
     FIELD_OFFSET(XDP_FRAME_WITH_EXTENSIONS, BufferVirtualAddress) ==
     RTL_SIZEOF_THROUGH_FIELD(XDP_FRAME_WITH_EXTENSIONS, Frame.Buffer),
-    "BufferVirtualAddress must be at correct offset in XDP_FRAME_WITH_EXTENSIONS");
+    "offset correct");
 
 typedef struct _XDP_FRAME_RING {
     XDP_RING Ring;
@@ -25,7 +25,7 @@ typedef struct _XDP_FRAME_RING {
 static_assert(
     FIELD_OFFSET(XDP_FRAME_RING, Frames) ==
     RTL_SIZEOF_THROUGH_FIELD(XDP_FRAME_RING, Ring),
-    "Frames must be at correct offset in XDP_FRAME_RING");
+    "offset correct");
 
 typedef struct _XDP_BUFFER_WITH_EXTENSIONS {
     XDP_BUFFER Buffer;
@@ -35,7 +35,7 @@ typedef struct _XDP_BUFFER_WITH_EXTENSIONS {
 static_assert(
     FIELD_OFFSET(XDP_BUFFER_WITH_EXTENSIONS, BufferVirtualAddress) ==
     RTL_SIZEOF_THROUGH_FIELD(XDP_BUFFER_WITH_EXTENSIONS, Buffer),
-    "BufferVirtualAddress must be at correct offset in XDP_BUFFER_WITH_EXTENSIONS");
+    "offset correct");
 
 typedef struct _XDP_FRAGMENT_RING {
     XDP_RING Ring;
@@ -45,7 +45,7 @@ typedef struct _XDP_FRAGMENT_RING {
 static_assert(
     FIELD_OFFSET(XDP_FRAGMENT_RING, Buffers) ==
     RTL_SIZEOF_THROUGH_FIELD(XDP_FRAGMENT_RING, Ring),
-    "Buffers must be at correct offset in XDP_FRAGMENT_RING");
+    "offset correct");
 
 typedef struct _PKTFUZZ_BUFFER_METADATA {
     UINT8 DataOffset;

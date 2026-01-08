@@ -35,7 +35,7 @@ static_assert(
         sizeof(XDP_HOOK_LAYER) +
         sizeof(XDP_HOOK_DATAPATH_DIRECTION) +
         sizeof(XDP_HOOK_SUBLAYER),
-    "XDP_HOOK_ID size must equal sum of its components");
+    "== sum of components");
 
 #ifdef __cplusplus
 } // extern "C"

@@ -32,7 +32,7 @@ typedef struct _XDP_FRAME_GSO {
     } DUMMYUNIONNAME;
 } XDP_FRAME_GSO;
 
-static_assert(sizeof(XDP_FRAME_GSO) == 4, "XDP_FRAME_GSO must be exactly 4 bytes");
+static_assert(sizeof(XDP_FRAME_GSO) == 4, "== 4 bytes");
 
 #pragma warning(pop)
 
@@ -51,7 +51,7 @@ typedef struct _XDP_FRAME_GRO {
     } DUMMYUNIONNAME;
 } XDP_FRAME_GRO;
 
-static_assert(sizeof(XDP_FRAME_GRO) == 2, "XDP_FRAME_GRO must be exactly 2 bytes");
+static_assert(sizeof(XDP_FRAME_GRO) == 2, "== 2 bytes");
 
 typedef struct _XDP_FRAME_GRO_TIMESTAMP {
     union {
@@ -61,13 +61,13 @@ typedef struct _XDP_FRAME_GRO_TIMESTAMP {
     } DUMMYUNIONNAME;
 } XDP_FRAME_GRO_TIMESTAMP;
 
-static_assert(sizeof(XDP_FRAME_GRO_TIMESTAMP) == 4, "XDP_FRAME_GRO_TIMESTAMP must be exactly 4 bytes");
+static_assert(sizeof(XDP_FRAME_GRO_TIMESTAMP) == 4, "== 4 bytes");
 
 typedef struct _XDP_FRAME_TIMESTAMP {
     UINT64 Timestamp;
 } XDP_FRAME_TIMESTAMP;
 
-static_assert(sizeof(XDP_FRAME_TIMESTAMP) == 8, "XDP_FRAME_TIMESTAMP must be exactly 8 bytes");
+static_assert(sizeof(XDP_FRAME_TIMESTAMP) == 8, "== 8 bytes");
 
 #pragma warning(pop)
 

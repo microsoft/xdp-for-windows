@@ -28,7 +28,7 @@ typedef struct DECLSPEC_CACHEALIGN _XDP_RING {
 
 #pragma warning(pop)
 
-static_assert(sizeof(XDP_RING) == SYSTEM_CACHE_ALIGNMENT_SIZE, "XDP_RING must be cache-aligned");
+static_assert(sizeof(XDP_RING) == SYSTEM_CACHE_ALIGNMENT_SIZE, "cache-aligned");
 
 inline
 VOID *
@@ -69,7 +69,7 @@ typedef struct _XDP_BUFFER {
     //
 } XDP_BUFFER;
 
-static_assert(sizeof(XDP_BUFFER) == 16, "XDP_BUFFER must be exactly 16 bytes");
+static_assert(sizeof(XDP_BUFFER) == 16, "== 16 bytes");
 
 typedef struct _XDP_FRAME {
     XDP_BUFFER Buffer;

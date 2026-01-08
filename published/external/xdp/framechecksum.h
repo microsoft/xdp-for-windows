@@ -34,7 +34,7 @@ typedef struct _XDP_FRAME_CHECKSUM {
     UINT8 Reserved : 4;
 } XDP_FRAME_CHECKSUM;
 
-static_assert(sizeof(XDP_FRAME_CHECKSUM) == 1, "XDP_FRAME_CHECKSUM must be exactly 1 byte");
+static_assert(sizeof(XDP_FRAME_CHECKSUM) == 1, "== 1 byte");
 
 #pragma warning(pop)
 

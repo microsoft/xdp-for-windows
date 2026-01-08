@@ -11,7 +11,7 @@ typedef struct _XDP_OID_CLONE {
 } XDP_OID_CLONE;
 
 static_assert(sizeof(XDP_OID_CLONE) <= RTL_FIELD_SIZE(NDIS_OID_REQUEST, SourceReserved), 
-               "XDP_OID_CLONE must fit in NDIS_OID_REQUEST SourceReserved field");
+               "<= SourceReserved");
 
 typedef struct _XDP_OID_REQUEST {
     NDIS_OID_REQUEST Oid;

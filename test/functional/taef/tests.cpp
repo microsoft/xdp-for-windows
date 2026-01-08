@@ -42,7 +42,7 @@
 //
 // Ensure our build system is defaulting to the latest supported API version.
 //
-static_assert(XDP_API_VERSION == XDP_API_VERSION_LATEST, "XDP_API_VERSION must equal XDP_API_VERSION_LATEST");
+static_assert(XDP_API_VERSION == XDP_API_VERSION_LATEST, "== LATEST");
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

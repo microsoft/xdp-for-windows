@@ -15,7 +15,7 @@ typedef struct _XDP_BUFFER_MDL {
     SIZE_T MdlOffset;
 } XDP_BUFFER_MDL;
 
-static_assert(sizeof(XDP_BUFFER_MDL) == 2 * sizeof(VOID *), "XDP_BUFFER_MDL must be 2 pointer sizes");
+static_assert(sizeof(XDP_BUFFER_MDL) == 2 * sizeof(VOID *), "== 2 * sizeof(VOID *)");
 
 #pragma warning(pop)
 

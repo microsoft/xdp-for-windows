@@ -16,7 +16,7 @@ typedef struct _XDP_TX_FRAME_COMPLETION_CONTEXT {
 
 static_assert(
     sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT) == sizeof(VOID *),
-    "XDP_TX_FRAME_COMPLETION_CONTEXT must be same size as pointer");
+    "== sizeof(VOID *)");
 
 #pragma warning(pop)
 
