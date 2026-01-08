@@ -115,7 +115,7 @@ XdpIrpInterfaceOffloadQeoSet(
     BOOLEAN RundownAcquired = FALSE;
     BOOLEAN LockHeld = FALSE;
 
-    TraceEnter(TRACE_CORE, "Interface=%p", InterfaceObject);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(InterfaceObject, "Interface"));
 
     InitializeListHead(&QeoParams.Connections);
     QeoParams.ConnectionCount = 0;
@@ -154,8 +154,8 @@ XdpIrpInterfaceOffloadQeoSet(
             InputBufferLength < ConnectionsIn->Header.Size) {
             TraceError(
                 TRACE_CORE,
-                "Interface=%p Input buffer length too small InputBufferLength=%u",
-                InterfaceObject, InputBufferLength);
+                TraceLoggingPointer(InterfaceObject, "Interface"),
+                TraceLoggingUInt32(InputBufferLength, "InputBufferLength"));
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -163,8 +163,10 @@ XdpIrpInterfaceOffloadQeoSet(
         if (ConnectionsIn->Header.Revision != XDP_QUIC_CONNECTION_REVISION_1 ||
             ConnectionsIn->Header.Size < XDP_SIZEOF_QUIC_CONNECTION_REVISION_1) {
             TraceError(
-                TRACE_CORE, "Interface=%p Unsupported revision Revision=%u Size=%u",
-                InterfaceObject, ConnectionsIn->Header.Revision, ConnectionsIn->Header.Size);
+                TRACE_CORE,
+                TraceLoggingPointer(InterfaceObject, "Interface"),
+                TraceLoggingUInt32(ConnectionsIn->Header.Revision, "Revision"),
+                TraceLoggingUInt32(ConnectionsIn->Header.Size, "Size"));
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -317,7 +319,7 @@ Exit:
         Irp->IoStatus.Information = OutputBufferLength;
     }
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     return Status;
 }
@@ -394,9 +396,10 @@ XdpOffloadQeoRevertSettings(
             if (!NT_SUCCESS(Status) || FAILED(Connection->Offload.Params.Status)) {
                 TraceError(
                     TRACE_CORE,
-                    "Failed to revert QEO connection from interface "
-                    "IfSetHandle=%p InterfaceOffloadHandle=%p Status=%!STATUS! Connection.Status=%!HRESULT!",
-                    IfSetHandle, InterfaceOffloadHandle, Status, Connection->Offload.Params.Status);
+                    TraceLoggingPointer(IfSetHandle, "IfSetHandle"),
+                    TraceLoggingPointer(InterfaceOffloadHandle, "InterfaceOffloadHandle"),
+                    TraceLoggingNTStatus(Status, "Status"),
+                    TraceLoggingHResult(Connection->Offload.Params.Status, "ConnectionStatus"));
             }
 
             XdpOffloadQeoInvalidateConnection(QeoSettings, Connection);
