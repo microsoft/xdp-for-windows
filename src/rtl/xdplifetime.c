@@ -44,7 +44,7 @@ XdpLifetimeWorker(
     KEVENT Event;
     UINT32 Index;
 
-    TraceEnter(TRACE_RTL, "WorkQueueHead=%p", WorkQueueHead);
+    TraceEnter(TRACE_RTL, TraceLoggingPointer(WorkQueueHead, "WorkQueueHead"));
 
     //
     // Before deleting the entries, sweep across all processors, ensuring all
@@ -69,7 +69,7 @@ XdpLifetimeWorker(
         XDP_LIFETIME_ENTRY *Entry = CONTAINING_RECORD(WorkQueueHead, XDP_LIFETIME_ENTRY, Link);
         WorkQueueHead = WorkQueueHead->Next;
 
-        TraceVerbose(TRACE_RTL, "Entry=%p completed", Entry);
+        TraceVerbose(TRACE_RTL, TraceLoggingPointer(Entry, "Entry"));
         Entry->DeleteRoutine(Entry);
     }
 
@@ -82,7 +82,7 @@ XdpLifetimeDelete(
     _In_ XDP_LIFETIME_ENTRY *Entry
     )
 {
-    TraceVerbose(TRACE_RTL, "Entry=%p requested", Entry);
+    TraceVerbose(TRACE_RTL, TraceLoggingPointer(Entry, "Entry"));
     Entry->DeleteRoutine = DeleteRoutine;
     XdpInsertWorkQueue(XdpLifetimeQueue, &Entry->Link);
 }

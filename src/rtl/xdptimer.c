@@ -347,7 +347,7 @@ XdpTimerWorker(
     KIRQL OldIrql;
     KEVENT *CancelEvent = NULL;
 
-    TraceEnter(TRACE_RTL, "Timer=%p IoObject=%p", Timer, IoObject);
+    TraceEnter(TRACE_RTL, TraceLoggingPointer(Timer, "Timer"), TraceLoggingPointer(IoObject, "IoObject"));
 
     UNREFERENCED_PARAMETER(IoWorkItem);
     ASSERT(Timer);

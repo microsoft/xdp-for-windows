@@ -27,11 +27,8 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
 
 //
 // TraceLogging macros that replace the WPP trace functions
-// These maintain the same interface as the original WPP macros
+// These accept variadic TraceLogging field arguments to log all parameters
 //
-
-// For now, create simple pass-through versions that maintain compatibility
-// TODO: Can be enhanced to capture individual parameters rather than formatting strings
 
 #define TraceFatal(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
@@ -39,7 +36,8 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_CRITICAL), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceError(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
@@ -47,7 +45,8 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_ERROR), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceWarn(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
@@ -55,7 +54,8 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_WARNING), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceInfo(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
@@ -63,7 +63,8 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_INFO), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceVerbose(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
@@ -71,7 +72,8 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceEnter(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
@@ -79,28 +81,31 @@ TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 //
 // Special macros for function exit
 //
-#define TraceExitSuccess(Flags) \
+#define TraceExitSuccess(Flags, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
         "ExitSuccess", \
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
         TraceLoggingUInt32(__LINE__, "Line"), \
-        TraceLoggingString("STATUS_SUCCESS", "Status"))
+        TraceLoggingString("STATUS_SUCCESS", "Status"), \
+        __VA_ARGS__)
 
-#define TraceExitStatus(Flags, Status) \
+#define TraceExitStatus(Flags, Status, ...) \
     TraceLoggingWrite(XdpTraceProvider, \
         "ExitStatus", \
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
         TraceLoggingUInt32(__LINE__, "Line"), \
-        TraceLoggingNTStatus(Status, "Status"))
+        TraceLoggingNTStatus(Status, "Status"), \
+        __VA_ARGS__)
 
 //
 // Helper functions for complex data types

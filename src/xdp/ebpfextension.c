@@ -77,7 +77,7 @@ EbpfExtensionDetachClientCompletion(
     _In_ EBPF_EXTENSION_CLIENT *Client
     )
 {
-    TraceEnter(TRACE_CORE, "Client=%p", Client);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(Client, "Client"));
 
     ASSERT(Client != NULL);
     _Analysis_assume_(Client != NULL);
@@ -104,7 +104,7 @@ EbpfExtensionProviderAttachClient(
     EBPF_EXTENSION_CLIENT *Client = NULL;
     const ebpf_extension_dispatch_table_t *ClientDispatch = ClientNpiDispatch;
 
-    TraceEnter(TRACE_CORE, "ProviderContext=%p", ProviderContext);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(ProviderContext, "ProviderContext"));
 
     if ((ProviderBindingContext == NULL) || (ProviderDispatch == NULL) || (Provider == NULL)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -148,9 +148,10 @@ Exit:
     }
 
     TraceVerbose(
-        TRACE_CORE, "ProviderContext=%p ProviderBindingContext=%p",
-        ProviderContext, NT_SUCCESS(Status) ? *ProviderBindingContext : NULL);
-    TraceExitStatus(TRACE_CORE);
+        TRACE_CORE,
+        TraceLoggingPointer(ProviderContext, "ProviderContext"),
+        TraceLoggingPointer(NT_SUCCESS(Status) ? *ProviderBindingContext : NULL, "ProviderBindingContext"));
+    TraceExitStatus(TRACE_CORE, Status);
     return Status;
 }
 
@@ -164,7 +165,7 @@ EbpfExtensionProviderDetachClient(
     EBPF_EXTENSION_PROVIDER *Provider = Client->ProviderContext;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    TraceEnter(TRACE_CORE, "ProviderBindingContext=%p", ProviderBindingContext);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(ProviderBindingContext, "ProviderBindingContext"));
 
     if (!NT_VERIFY(Client != NULL)) {
         Status = STATUS_INVALID_PARAMETER;
@@ -178,7 +179,7 @@ EbpfExtensionProviderDetachClient(
 
 Exit:
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
     return Status;
 }
 
@@ -188,7 +189,7 @@ EbpfExtensionProviderCleanup(
     _Frees_ptr_ VOID *ProviderBindingContext
     )
 {
-    TraceEnter(TRACE_CORE, "ProviderBindingContext=%p", ProviderBindingContext);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(ProviderBindingContext, "ProviderBindingContext"));
 
     ExFreePoolWithTag(ProviderBindingContext, XDP_POOLTAG_EBPF_NMR);
 
@@ -200,7 +201,7 @@ EbpfExtensionProviderUnregister(
     _Frees_ptr_opt_ EBPF_EXTENSION_PROVIDER *ProviderContext
     )
 {
-    TraceEnter(TRACE_CORE, "ProviderContext=%p", ProviderContext);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(ProviderContext, "ProviderContext"));
 
     if (ProviderContext != NULL) {
         NTSTATUS Status = NmrDeregisterProvider(ProviderContext->NmrProviderHandle);
@@ -229,7 +230,7 @@ EbpfExtensionProviderRegister(
     EBPF_EXTENSION_PROVIDER *Provider = NULL;
     NPI_PROVIDER_CHARACTERISTICS *Characteristics;
 
-    TraceEnter(TRACE_CORE, "Parameters=%p", Parameters);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(Parameters, "Parameters"));
 
     Provider = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Provider), XDP_POOLTAG_EBPF_NMR);
     if (Provider == NULL) {
@@ -254,7 +255,7 @@ EbpfExtensionProviderRegister(
 
     Status = NmrRegisterProvider(Characteristics, Provider, &Provider->NmrProviderHandle);
     if (!NT_SUCCESS(Status)) {
-        TraceError(TRACE_CORE, "NmrRegisterProvider failed Status=%!STATUS!", Status);
+        TraceError(TRACE_CORE, TraceLoggingNTStatus(Status, "Status"));
         goto Exit;
     }
 
@@ -268,10 +269,11 @@ Exit:
 
     if (NT_SUCCESS(Status)) {
         TraceVerbose(
-            TRACE_CORE, "ModuleId=%!GUID! ProviderContext=%p",
-            &Parameters->ProviderModuleId->Guid, *ProviderContext);
+            TRACE_CORE,
+            TraceLoggingGuid(Parameters->ProviderModuleId->Guid, "ModuleId"),
+            TraceLoggingPointer(*ProviderContext, "ProviderContext"));
     }
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
     return Status;
 }

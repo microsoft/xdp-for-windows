@@ -23,7 +23,7 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
 
 //
 // TraceLogging macros that replace the WPP trace functions
-// These maintain the same interface as the original WPP macros
+// These accept variadic TraceLogging field arguments to log all parameters
 //
 
 #define TraceFatal(Flags, ...) \
@@ -32,7 +32,8 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_CRITICAL), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceError(Flags, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
@@ -40,7 +41,8 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_ERROR), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceWarn(Flags, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
@@ -48,7 +50,8 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_WARNING), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceInfo(Flags, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
@@ -56,7 +59,8 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_INFO), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceVerbose(Flags, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
@@ -64,7 +68,8 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 #define TraceEnter(Flags, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
@@ -72,25 +77,28 @@ TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
-        TraceLoggingUInt32(__LINE__, "Line"))
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
-#define TraceExitSuccess(Flags) \
+#define TraceExitSuccess(Flags, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
         "ExitSuccess", \
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
         TraceLoggingUInt32(__LINE__, "Line"), \
-        TraceLoggingString("STATUS_SUCCESS", "Status"))
+        TraceLoggingString("STATUS_SUCCESS", "Status"), \
+        __VA_ARGS__)
 
-#define TraceExitStatus(Flags, Status) \
+#define TraceExitStatus(Flags, Status, ...) \
     TraceLoggingWrite(FndisTraceProvider, \
         "ExitStatus", \
         TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
         TraceLoggingKeyword(Flags), \
         TraceLoggingString(__FUNCTION__, "Function"), \
         TraceLoggingUInt32(__LINE__, "Line"), \
-        TraceLoggingNTStatus(Status, "Status"))
+        TraceLoggingNTStatus(Status, "Status"), \
+        __VA_ARGS__)
 
 //
 // Helper functions for complex data types

@@ -22,8 +22,10 @@ XdpRingAllocate(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "ElementSize=%u ElementCount=%u Alignment=%u",
-        ElementSize, ElementCount, Alignment);
+        TRACE_CORE,
+        TraceLoggingUInt32(ElementSize, "ElementSize"),
+        TraceLoggingUInt32(ElementCount, "ElementCount"),
+        TraceLoggingUInt32(Alignment, "Alignment"));
 
     Padding = ALIGN_UP_BY((UINT64)ElementSize, Alignment) - ElementSize;
     Status = RtlUInt32Add(ElementSize, (UINT32)Padding, &ElementSize);
@@ -58,7 +60,7 @@ XdpRingAllocate(
 
 Exit:
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     return Status;
 }
