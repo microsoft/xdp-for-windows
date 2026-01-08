@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "rx.tmh"
 
 
 static XDP_REG_WATCHER_CLIENT_ENTRY XdpRxRegWatcherEntry;
@@ -508,9 +507,10 @@ XdpRxQueueRegisterExtensionVersion(
 
     TraceInfo(
         TRACE_CORE,
-        "RxQueue=%p ExtensionName=%S ExtensionVersion=%u ExtensionType=%!EXTENSION_TYPE!",
-        RxQueue, ExtensionInfo->ExtensionName, ExtensionInfo->ExtensionVersion,
-        ExtensionInfo->ExtensionType);
+        TraceLoggingPointer(RxQueue, "RxQueue"),
+        TraceLoggingWideString(ExtensionInfo->ExtensionName, "ExtensionName"),
+        TraceLoggingUInt32(ExtensionInfo->ExtensionVersion, "ExtensionVersion"),
+        TraceLoggingUInt32(ExtensionInfo->ExtensionType, "ExtensionType"));
     XdpExtensionSetRegisterEntry(Set, ExtensionInfo);
 }
 
@@ -713,8 +713,9 @@ XdpRxQueueNotifyClients(
     LIST_ENTRY *Entry = RxQueue->NotifyClients.Flink;
 
     TraceInfo(
-        TRACE_CORE, "RxQueue=%p NotificationType=%!RX_QUEUE_NOTIFICATION_TYPE!",
-        RxQueue, NotificationType);
+        TRACE_CORE,
+        TraceLoggingPointer(RxQueue, "RxQueue"),
+        TraceLoggingUInt32(NotificationType, "NotificationType"));
 
     while (Entry != &RxQueue->NotifyClients) {
         XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotifyEntry;
@@ -817,7 +818,7 @@ XdpRxQueueAttachInterface(
     ASSERT(RxQueue->State == XdpRxQueueStateUnbound);
     ASSERT(RxQueue->InterfaceRxQueue == NULL);
 
-    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(RxQueue, "RxQueue"));
 
     if (RxQueue->IsChecksumOffloadEnabled) {
         XdpExtensionSetEnableEntry(
@@ -924,8 +925,9 @@ XdpRxQueueAttachInterface(
             ConfigActivate);
     if (!NT_SUCCESS(Status)) {
         TraceError(
-            TRACE_CORE, "RxQueue=%p XdpIfActivateRxQueue failed Status=%!STATUS!",
-            RxQueue, Status);
+            TRACE_CORE,
+            TraceLoggingPointer(RxQueue, "RxQueue"),
+            TraceLoggingNTStatus(Status, "Status"));
         goto Exit;
     }
 
@@ -938,7 +940,7 @@ Exit:
         XdpRxQueueDetachInterface(RxQueue);
     }
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     return Status;
 }
@@ -1088,8 +1090,11 @@ Exit:
 
     TraceInfo(
         TRACE_CORE,
-        "RxQueue=%p Hook={%!HOOK_LAYER!, %!HOOK_DIR!, %!HOOK_SUBLAYER!} Status=%!STATUS!",
-        RxQueue, HookId->Layer, HookId->Direction, HookId->SubLayer, Status);
+        TraceLoggingPointer(RxQueue, "RxQueue"),
+        TraceLoggingUInt32(HookId->Layer, "Layer"),
+        TraceLoggingUInt32(HookId->Direction, "Direction"),
+        TraceLoggingUInt32(HookId->SubLayer, "SubLayer"),
+        TraceLoggingNTStatus(Status, "Status"));
 
     if (!NT_SUCCESS(Status)) {
         if (RxQueue != NULL) {
@@ -1186,7 +1191,7 @@ XdpRxQueueEnableChecksumOffload(
 {
     NTSTATUS Status;
 
-    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(RxQueue, "RxQueue"));
 
     if (RxQueue->IsChecksumOffloadEnabled) {
         ASSERT(XdpExtensionSetIsExtensionEnabled(
@@ -1213,7 +1218,7 @@ XdpRxQueueEnableChecksumOffload(
         Status = STATUS_INVALID_DEVICE_STATE;
     }
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     return Status;
 }
@@ -1276,7 +1281,10 @@ XdpRxQueueSetProgram(
     NTSTATUS Status;
 
     TraceEnter(
-        TRACE_CORE, "RxQueue=%p Program=%p OldProgram=%p", RxQueue, Program, RxQueue->Program);
+        TRACE_CORE,
+        TraceLoggingPointer(RxQueue, "RxQueue"),
+        TraceLoggingPointer(Program, "Program"),
+        TraceLoggingPointer(RxQueue->Program, "OldProgram"));
 
     if (Program != NULL && RxQueue->Program != NULL) {
         if (ValidationRoutine != NULL) {
@@ -1320,7 +1328,7 @@ XdpRxQueueSetProgram(
 
 Exit:
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
     return Status;
 }
 
@@ -1379,7 +1387,7 @@ XdpRxQueueDereference(
     )
 {
     if (XdpDecrementReferenceCount(&RxQueue->ReferenceCount)) {
-        TraceInfo(TRACE_CORE, "Deleting RxQueue=%p", RxQueue);
+        TraceInfo(TRACE_CORE, TraceLoggingPointer(RxQueue, "RxQueue"));
         XdpIfDeregisterClient(RxQueue->Binding, &RxQueue->BindingClientEntry);
         if (RxQueue->PcwInstance != NULL) {
             PcwCloseInstance(RxQueue->PcwInstance);
@@ -1423,7 +1431,7 @@ XdpRxStart(
 {
     NTSTATUS Status;
 
-    TraceEnter(TRACE_CORE, "-");
+    TraceEnter(TRACE_CORE);
 
     XdpRegWatcherAddClient(XdpRegWatcher, XdpRxRegistryUpdate, &XdpRxRegWatcherEntry);
 
@@ -1434,7 +1442,7 @@ XdpRxStart(
 
 Exit:
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     return Status;
 }

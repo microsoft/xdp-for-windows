@@ -5,105 +5,137 @@
 
 #pragma once
 
+#include <TraceLoggingProvider.h>
+#include <evntrace.h>
+
 //
-// Tracing Definitions:
-//
-// Control GUID:
+// TraceLogging Provider GUID:
 // {D6143B60-9FD6-44BA-BA02-FAD9EA0C263D}
+// (Using the same GUID as the previous WPP provider for compatibility)
 //
-#define WPP_CONTROL_GUIDS                           \
-    WPP_DEFINE_CONTROL_GUID(                        \
-        FndisTraceGuid,                             \
-        (D6143B60,9FD6,44BA,BA02,FAD9EA0C263D),     \
-        WPP_DEFINE_BIT(TRACE_CONTROL)               \
-        WPP_DEFINE_BIT(TRACE_DATAPATH)              \
-        )
+TRACELOGGING_DECLARE_PROVIDER(FndisTraceProvider);
 
 //
-// The following system defined definitions may be used:
+// Trace flags matching the original WPP flags
 //
-// TRACE_LEVEL_FATAL = 1        // Abnormal exit or termination.
-// TRACE_LEVEL_ERROR = 2        // Severe errors that need logging.
-// TRACE_LEVEL_WARNING = 3      // Warnings such as allocation failures.
-// TRACE_LEVEL_INFORMATION = 4  // Including non-error cases.
-// TRACE_LEVEL_VERBOSE = 5      // Detailed traces from intermediate steps.
-//
-// begin_wpp config
-//
-// USEPREFIX(TraceFatal,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceFatal{LEVEL=TRACE_LEVEL_FATAL}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceError,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceError{LEVEL=TRACE_LEVEL_ERROR}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceWarn,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceWarn{LEVEL=TRACE_LEVEL_WARNING}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceInfo,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceInfo{LEVEL=TRACE_LEVEL_INFORMATION}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceVerbose,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceVerbose{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceEnter,"%!STDPREFIX! %!FUNC!:%!LINE! --->%!SPACE!");
-// FUNC TraceEnter{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceExitSuccess,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE! ");
-// FUNC TraceExitSuccess{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,...);
-// USESUFFIX (TraceExitSuccess, "STATUS_SUCCESS");
-//
-// USEPREFIX(TraceExitStatus,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE!");
-// FUNC TraceExitStatus{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS);
-// USESUFFIX (TraceExitStatus, "%!STATUS!", Status);
-//
-// DEFINE_CPLX_TYPE(HEXDUMP, WPP_LOGHEXDUMP, WPP_HEXDUMP, ItemHEXDump, "s", _HEX_, 0, 2);
-//
-// end_wpp
-//
-
-#define WPP_LEVEL_FLAGS_ENABLED(LEVEL, FLAGS) \
-    (WPP_LEVEL_ENABLED(FLAGS) && (WPP_CONTROL(WPP_BIT_ ## FLAGS).Level >= LEVEL))
-#define WPP_LEVEL_FLAGS_LOGGER(LEVEL, FLAGS) WPP_LEVEL_LOGGER(FLAGS)
+#define TRACE_CONTROL   0x0001
+#define TRACE_DATAPATH  0x0002
 
 //
-// Opt-in to a WPP recorder feature that enables independent evaluation of
-// conditions to decide if a message needs to be sent to the recorder, an
-// enabled session, or both.
+// TraceLogging macros that replace the WPP trace functions
+// These accept variadic TraceLogging field arguments to log all parameters
 //
-#define ENABLE_WPP_TRACE_FILTERING_WITH_WPP_RECORDER 1
+
+#define TraceFatal(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "Fatal", \
+        TraceLoggingLevel(WINEVENT_LEVEL_CRITICAL), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceError(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "Error", \
+        TraceLoggingLevel(WINEVENT_LEVEL_ERROR), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceWarn(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "Warning", \
+        TraceLoggingLevel(WINEVENT_LEVEL_WARNING), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceInfo(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "Information", \
+        TraceLoggingLevel(WINEVENT_LEVEL_INFO), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceVerbose(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "Verbose", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceEnter(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "Enter", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceExitSuccess(Flags, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "ExitSuccess", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        TraceLoggingString("STATUS_SUCCESS", "Status"), \
+        __VA_ARGS__)
+
+#define TraceExitStatus(Flags, Status, ...) \
+    TraceLoggingWrite(FndisTraceProvider, \
+        "ExitStatus", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        TraceLoggingNTStatus(Status, "Status"), \
+        __VA_ARGS__)
 
 //
-// Logger and Enabled macros that support custom recorders. They simply delegate
-// to the default.
+// Helper functions for complex data types
 //
-#define WPP_IFRLOG_LEVEL_FLAGS_ENABLED(IFRLOG, LEVEL, FLAGS) WPP_LEVEL_FLAGS_ENABLED(LEVEL, FLAGS)
-#define WPP_IFRLOG_LEVEL_FLAGS_LOGGER(IFRLOG, LEVEL, FLAGS)  WPP_LEVEL_FLAGS_LOGGER(LEVEL, FLAGS)
-
-#define WPP_LOGHEXDUMP(x) \
-    WPP_LOGPAIR(sizeof(UINT16), &(x).Length) \
-    WPP_LOGPAIR((x).Length, (x).Buffer)
-
-typedef struct _WPP_HEXDUMP {
+typedef struct _TRACE_HEXDUMP {
     const VOID *Buffer;
     UINT16 Length;
-} WPP_HEXDUMP;
+} TRACE_HEXDUMP;
 
 FORCEINLINE
-WPP_HEXDUMP
-WppHexDump(
+TRACE_HEXDUMP
+TraceHexDump(
     _In_ const VOID *Buffer,
     _In_ SIZE_T Length
     )
 {
-    WPP_HEXDUMP WppHexDump;
+    TRACE_HEXDUMP TraceHexDump;
 
-    WppHexDump.Buffer = Buffer;
+    TraceHexDump.Buffer = Buffer;
 
     if (Buffer == NULL) {
-        WppHexDump.Length = 0;
+        TraceHexDump.Length = 0;
     } else  {
-        WppHexDump.Length = (UINT16)min(Length, MAXUINT16);
+        TraceHexDump.Length = (UINT16)min(Length, MAXUINT16);
     }
 
-    return WppHexDump;
+    return TraceHexDump;
 }
+
+//
+// Helper macros for logging complex data
+//
+#define TraceLoggingHexDump(data, name) \
+    TraceLoggingBinary((data).Buffer, (data).Length, name)
+
+//
+// Initialization and cleanup functions
+//
+NTSTATUS FndisTraceInitialize(VOID);
+VOID FndisTraceCleanup(VOID);

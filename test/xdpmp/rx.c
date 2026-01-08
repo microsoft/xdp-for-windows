@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "rx.tmh"
 
 static
 VOID
@@ -443,7 +442,7 @@ MpInitializeReceiveQueue(
     const ADAPTER_CONTEXT *Adapter = RssQueue->Adapter;
     const UINT32 PatternLength = min(Adapter->RxDataLength, Adapter->RxPatternLength);
 
-    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", Adapter->MiniportHandle);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(Adapter->MiniportHandle, "NdisMiniportHandle"));
 
     Rq->NumBuffers = Adapter->NumRxBuffers;
     Rq->BufferLength = Adapter->RxBufferLength;
@@ -557,7 +556,7 @@ MpInitializeReceiveQueue(
 
 Exit:
 
-    TraceExitStatus(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL, Status);
 
     return Status;
 }

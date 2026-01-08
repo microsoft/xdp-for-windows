@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "dispatch.tmh"
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _Must_inspect_result_
@@ -440,9 +439,11 @@ XdpStart(
     }
 
     TraceInfo(
-        TRACE_CORE, "XdpVersion=%s OsVersion=%u.%u.%u",
-        XDP_VERSION_STR, XdpOsVersion.dwMajorVersion, XdpOsVersion.dwMinorVersion,
-        XdpOsVersion.dwBuildNumber);
+        TRACE_CORE,
+        TraceLoggingString(XDP_VERSION_STR, "XdpVersion"),
+        TraceLoggingUInt32(XdpOsVersion.dwMajorVersion, "MajorVersion"),
+        TraceLoggingUInt32(XdpOsVersion.dwMinorVersion, "MinorVersion"),
+        TraceLoggingUInt32(XdpOsVersion.dwBuildNumber, "BuildNumber"));
 
     //
     // Load initial configuration before doing anything else.
@@ -516,7 +517,7 @@ XdpNotifyDriverStart(
     UNICODE_STRING CallbackObjectName;
     PCALLBACK_OBJECT CallbackObject = NULL;
 
-    TraceEnter(TRACE_CORE, "-");
+    TraceEnter(TRACE_CORE);
 
     RtlInitUnicodeString(&CallbackObjectName, XDP_DRIVER_START_CALLBACK_NAME);
     InitializeObjectAttributes(
@@ -536,7 +537,7 @@ Exit:
         ObDereferenceObject(CallbackObject);
     }
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     return Status;
 }
@@ -555,10 +556,14 @@ DriverEntry(
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
 
-    WPP_INIT_TRACING(XdpDriverObject, RegistryPath);
     EventRegisterMicrosoft_XDP();
 
-    TraceEnter(TRACE_CORE, "DriverObject=%p", DriverObject);
+    Status = XdpTraceInitialize();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(DriverObject, "DriverObject"));
 
     if (wcscat_s(
             XdpParametersKeyStorage, RTL_NUMBER_OF(XdpParametersKeyStorage),
@@ -599,7 +604,7 @@ DriverEntry(
 
 Exit:
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
     if (!NT_SUCCESS(Status)) {
         DriverUnload(DriverObject);
@@ -616,14 +621,14 @@ DriverUnload(
 {
     NTSTATUS Status = STATUS_SUCCESS;
 
-    TraceEnter(TRACE_CORE, "DriverObject=%p", DriverObject);
+    TraceEnter(TRACE_CORE, TraceLoggingPointer(DriverObject, "DriverObject"));
 
     XdpLwfStop();
     XdpStop();
     XdpRtlStop();
 
-    TraceExitStatus(TRACE_CORE);
+    TraceExitStatus(TRACE_CORE, Status);
 
+    XdpTraceCleanup();
     EventUnregisterMicrosoft_XDP();
-    WPP_CLEANUP(XdpDriverObject);
 }
