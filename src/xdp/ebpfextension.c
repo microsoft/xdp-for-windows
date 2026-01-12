@@ -150,7 +150,9 @@ Exit:
     TraceVerbose(
         TRACE_CORE,
         TraceLoggingPointer(ProviderContext, "ProviderContext"),
-        TraceLoggingPointer(NT_SUCCESS(Status) ? *ProviderBindingContext : NULL, "ProviderBindingContext"));
+        TraceLoggingPointer(
+            NT_SUCCESS(Status) ? *ProviderBindingContext : NULL,
+            "ProviderBindingContext"));
     TraceExitStatus(TRACE_CORE, Status);
     return Status;
 }

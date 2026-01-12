@@ -122,17 +122,17 @@ TraceHexDump(
     _In_ SIZE_T Length
     )
 {
-    TRACE_HEXDUMP TraceHexDump;
+    TRACE_HEXDUMP Dump;
 
-    TraceHexDump.Buffer = Buffer;
+    Dump.Buffer = Buffer;
 
     if (Buffer == NULL) {
-        TraceHexDump.Length = 0;
+        Dump.Length = 0;
     } else  {
-        TraceHexDump.Length = (UINT16)min(Length, MAXUINT16);
+        Dump.Length = (UINT16)min(Length, MAXUINT16);
     }
 
-    return TraceHexDump;
+    return Dump;
 }
 
 //
