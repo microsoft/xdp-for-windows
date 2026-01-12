@@ -442,10 +442,13 @@ FuzzProgTestRunXdpEbpfProgram()
     //
     ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
 
-    TraceVerbose(TraceLoggingString(Path, "Path"));
+    TraceVerbose(
+        TraceLoggingString("bpf_object__open", "Function"),
+        TraceLoggingString(Path, "Path"));
     BpfObject = bpf_object__open(Path);
     if (BpfObject == NULL) {
         TraceVerbose(
+            TraceLoggingString("bpf_object__open failed", "Message"),
             TraceLoggingString(Path, "Path"),
             TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
@@ -453,26 +456,37 @@ FuzzProgTestRunXdpEbpfProgram()
     }
 
     TraceVerbose(
+        TraceLoggingString("bpf_object__next_program", "Function"),
         TraceLoggingPointer(BpfObject, "BpfObject"),
         TraceLoggingPointer(NULL, "PrevProgram"));
     BpfProgram = bpf_object__next_program(BpfObject, NULL);
     if (BpfProgram == NULL) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_object__next_program failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
 
-    TraceVerbose(TraceLoggingPointer(BpfObject, "BpfObject"));
+    TraceVerbose(
+        TraceLoggingString("bpf_object__load", "Function"),
+        TraceLoggingPointer(BpfObject, "BpfObject"));
     if (bpf_object__load(BpfObject) < 0) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_object__load failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
 
-    TraceVerbose(TraceLoggingPointer(BpfProgram, "BpfProgram"));
+    TraceVerbose(
+        TraceLoggingString("bpf_program__fd", "Function"),
+        TraceLoggingPointer(BpfProgram, "BpfProgram"));
     ProgramFd = bpf_program__fd(BpfProgram);
     if (ProgramFd < 0) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_program__fd failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
@@ -535,7 +549,9 @@ Exit:
 
     // There is no other use of the loaded program. Unload before exiting.
     if (BpfObject != NULL) {
-        TraceVerbose(TraceLoggingPointer(BpfObject, "BpfObject"));
+        TraceVerbose(
+            TraceLoggingString("bpf_object__close", "Function"),
+            TraceLoggingPointer(BpfObject, "BpfObject"));
         bpf_object__close(BpfObject);
     }
 
@@ -613,10 +629,13 @@ AttachXdpEbpfProgram(
     //
     ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
 
-    TraceVerbose(TraceLoggingString(Path, "Path"));
+    TraceVerbose(
+        TraceLoggingString("bpf_object__open", "Function"),
+        TraceLoggingString(Path, "Path"));
     BpfObject = bpf_object__open(Path);
     if (BpfObject == NULL) {
         TraceVerbose(
+            TraceLoggingString("bpf_object__open failed", "Message"),
             TraceLoggingString(Path, "Path"),
             TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
@@ -624,35 +643,49 @@ AttachXdpEbpfProgram(
     }
 
     TraceVerbose(
+        TraceLoggingString("bpf_object__next_program", "Function"),
         TraceLoggingPointer(BpfObject, "BpfObject"),
         TraceLoggingPointer(NULL, "PrevProgram"));
     BpfProgram = bpf_object__next_program(BpfObject, NULL);
     if (BpfProgram == NULL) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_object__next_program failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
 
     TraceVerbose(
+        TraceLoggingString("bpf_program__set_type", "Function"),
         TraceLoggingPointer(BpfProgram, "BpfProgram"),
         TraceLoggingInt32(BPF_PROG_TYPE_XDP, "ProgType"));
     if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_program__set_type failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
 
-    TraceVerbose(TraceLoggingPointer(BpfObject, "BpfObject"));
+    TraceVerbose(
+        TraceLoggingString("bpf_object__load", "Function"),
+        TraceLoggingPointer(BpfObject, "BpfObject"));
     if (bpf_object__load(BpfObject) < 0) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_object__load failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
 
-    TraceVerbose(TraceLoggingPointer(BpfProgram, "BpfProgram"));
+    TraceVerbose(
+        TraceLoggingString("bpf_program__fd", "Function"),
+        TraceLoggingPointer(BpfProgram, "BpfProgram"));
     ProgramFd = bpf_program__fd(BpfProgram);
     if (ProgramFd < 0) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_program__fd failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
@@ -670,12 +703,15 @@ AttachXdpEbpfProgram(
     }
 
     TraceVerbose(
+        TraceLoggingString("bpf_xdp_attach", "Function"),
         TraceLoggingUInt32(IfIndex, "IfIndex"),
         TraceLoggingInt32(ProgramFd, "ProgramFd"),
         TraceLoggingHexUInt32(AttachFlags, "AttachFlags"),
         TraceLoggingPointer(NULL, "OldProgramFd"));
     if (bpf_xdp_attach(IfIndex, ProgramFd, AttachFlags, NULL) < 0) {
-        TraceVerbose(TraceLoggingInt32(errno, "errno"));
+        TraceVerbose(
+            TraceLoggingString("bpf_xdp_attach failed", "Message"),
+            TraceLoggingInt32(errno, "errno"));
         Result = E_FAIL;
         goto Exit;
     }
@@ -695,7 +731,9 @@ Exit:
 
     if (FAILED(Result)) {
         if (BpfObject != NULL) {
-            TraceVerbose(TraceLoggingPointer(BpfObject, "BpfObject"));
+            TraceVerbose(
+                TraceLoggingString("bpf_object__close", "Function"),
+                TraceLoggingPointer(BpfObject, "BpfObject"));
             bpf_object__close(BpfObject);
         }
     }
@@ -873,7 +911,9 @@ DetachXdpProgram(
         //
         ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
 
-        TraceVerbose(TraceLoggingPointer(BpfObject, "BpfObject"));
+        TraceVerbose(
+            TraceLoggingString("bpf_object__close", "Function"),
+            TraceLoggingPointer(BpfObject, "BpfObject"));
         bpf_object__close(BpfObject);
 
         ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
@@ -1846,6 +1886,7 @@ InitializeDatapath(
 
     if (Datapath->flags.rx) {
         TraceVerbose(
+            TraceLoggingString("RX ring initialized", "Message"),
             TraceLoggingUInt32(queue->queueId, "queueId"),
             TraceLoggingPointer(Datapath->threadHandle, "threadHandle"),
             TraceLoggingUInt32(ringInfo.Rx.Size, "RxSize"),
@@ -1867,6 +1908,7 @@ InitializeDatapath(
     }
     if (Datapath->flags.tx) {
         TraceVerbose(
+            TraceLoggingString("TX ring initialized", "Message"),
             TraceLoggingUInt32(queue->queueId, "queueId"),
             TraceLoggingPointer(Datapath->threadHandle, "threadHandle"),
             TraceLoggingUInt32(ringInfo.Tx.Size, "TxSize"),
@@ -2281,12 +2323,15 @@ InjectFnmpRxFrames(
 
     if (frame == NULL || payload == NULL) {
         TraceWarn(
+            TraceLoggingString("Allocation failure", "Message"),
             TraceLoggingPointer(frame, "frame"),
             TraceLoggingPointer(payload, "payload"));
         goto Exit;
     }
 
-    TraceVerbose(TraceLoggingInt32(NumFrames, "NumFrames"));
+    TraceVerbose(
+        TraceLoggingString("Injecting frames", "Message"),
+        TraceLoggingInt32(NumFrames, "NumFrames"));
 
     for (UINT32 i = 0; i < NumFrames; i++) {
         const UINT32 backfill = RandUlong() % (FNMP_FRAME_MAX_BACKFILL + 1);
@@ -2353,7 +2398,9 @@ InjectFnmpRxFrames(
 
         status = FnMpRxEnqueue(Fnmp, &fnmpFrame);
         if (FAILED(status)) {
-            TraceWarn(TraceLoggingHexUInt32(status, "status"));
+            TraceWarn(
+                TraceLoggingString("FnMpRxEnqueue failed", "Message"),
+                TraceLoggingHexUInt32(status, "status"));
         }
     }
 
@@ -2364,6 +2411,7 @@ InjectFnmpRxFrames(
 
     status = FnMpRxFlush(Fnmp, &flushOptions);
     TraceVerbose(
+        TraceLoggingString("Done injecting frames", "Message"),
         TraceLoggingInt32(NumFrames, "NumFrames"),
         TraceLoggingHexUInt32(status, "status"));
 
@@ -2518,6 +2566,7 @@ XskFuzzerWorkerFn(
         if (ScenarioConfigComplete(scenarioConfig)) {
             if (WaitForSingleObject(scenarioConfig->completeEvent, 0) != WAIT_OBJECT_0) {
                 TraceVerbose(
+                    TraceLoggingString("Marking socket setup complete", "Message"),
                     TraceLoggingUInt32(queue->queueId, "queueId"),
                     TraceLoggingPointer(fuzzer->threadHandle, "threadHandle"));
                 SetEvent(scenarioConfig->completeEvent);
@@ -2649,13 +2698,16 @@ QueueWorkerFn(
 
         ++numIterations;
         TraceVerbose(
+            TraceLoggingString("Queue iteration", "Message"),
             TraceLoggingUInt32(queueWorker->queueId, "queueId"),
             TraceLoggingUInt64(numIterations, "iter"));
 
         QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
 
         if (!SUCCEEDED(InitializeQueue(queueWorker->queueId, &queue))) {
-            TraceVerbose(TraceLoggingUInt32(queueWorker->queueId, "queueId"));
+            TraceVerbose(
+                TraceLoggingString("Failed to setup queue", "Message"),
+                TraceLoggingUInt32(queueWorker->queueId, "queueId"));
             continue;
         }
 
@@ -2670,7 +2722,9 @@ QueueWorkerFn(
         //
         // Wait until fuzzers have successfully configured the socket/s.
         //
-        TraceVerbose(TraceLoggingUInt32(queue->queueId, "queueId"));
+        TraceVerbose(
+            TraceLoggingString("Waiting for sockets to be configured", "Message"),
+            TraceLoggingUInt32(queue->queueId, "queueId"));
         ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, 500);
 
         if (ret == WAIT_OBJECT_0) {
@@ -2691,12 +2745,16 @@ QueueWorkerFn(
             //
             // Let datapath thread/s pump datapath for set duration.
             //
-            TraceVerbose(TraceLoggingUInt32(queue->queueId, "queueId"));
+            TraceVerbose(
+                TraceLoggingString("Letting datapath pump", "Message"),
+                TraceLoggingUInt32(queue->queueId, "queueId"));
 
             //
             // Signal and wait for datapath thread/s to return.
             //
-            TraceVerbose(TraceLoggingUInt32(queue->queueId, "queueId"));
+            TraceVerbose(
+                TraceLoggingString("Waiting for datapath threads", "Message"),
+                TraceLoggingUInt32(queue->queueId, "queueId"));
             WriteNoFence((LONG *)&queue->datapathShared.state, ThreadStateReturn);
             if (queue->datapath1.threadHandle != NULL) {
                 #pragma warning(push)
@@ -2719,7 +2777,9 @@ QueueWorkerFn(
         //
         // Signal and wait for fuzzer threads to return.
         //
-        TraceVerbose(TraceLoggingUInt32(queue->queueId, "queueId"));
+        TraceVerbose(
+            TraceLoggingString("Waiting for fuzzer threads", "Message"),
+            TraceLoggingUInt32(queue->queueId, "queueId"));
         WriteNoFence((LONG*)&queue->fuzzerShared.state, ThreadStateReturn);
         for (UINT32 i = 0; i < queue->fuzzerCount; i++) {
             #pragma warning(push)
