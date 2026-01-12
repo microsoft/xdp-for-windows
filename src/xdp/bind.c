@@ -16,7 +16,6 @@
 //
 
 #include "precomp.h"
-#include "bind.tmh"
 
 typedef struct _XDP_INTERFACE_SET XDP_INTERFACE_SET;
 typedef struct _XDP_INTERFACE_NMR XDP_INTERFACE_NMR;

@@ -13,6 +13,7 @@
     <ClCompile Include="redirect.c" />
     <ClCompile Include="ring.c" />
     <ClCompile Include="rx.c" />
+    <ClCompile Include="trace.c" />
     <ClCompile Include="tx.c" />
     <ClCompile Include="xsk.c" />
   </ItemGroup>
@@ -122,9 +123,6 @@
         XDP_BUILD_VERSION=$(BUILD_BUILDID);
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>$(SolutionDir)src\xdp\inc\xdptrace.h</WppScanConfigurationData>
-      <WppRecorderEnabled>true</WppRecorderEnabled>
     </ClCompile>
     <Link>
       <AdditionalDependencies>

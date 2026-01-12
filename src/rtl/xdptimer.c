@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xdptimer.tmh"
 
 typedef struct _EX_TIMER EX_TIMER;
 typedef struct _IO_WORKITEM IO_WORKITEM;
@@ -348,7 +347,10 @@ XdpTimerWorker(
     KIRQL OldIrql;
     KEVENT *CancelEvent = NULL;
 
-    TraceEnter(TRACE_RTL, "Timer=%p IoObject=%p", Timer, IoObject);
+    TraceEnter(
+        TRACE_RTL,
+        TraceLoggingPointer(Timer, "Timer"),
+        TraceLoggingPointer(IoObject, "IoObject"));
 
     UNREFERENCED_PARAMETER(IoWorkItem);
     ASSERT(Timer);

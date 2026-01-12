@@ -8,7 +8,6 @@
 //
 
 #include "precomp.h"
-#include "offload.tmh"
 
 static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceDeviceIoControl;
 static XDP_FILE_IRP_ROUTINE XdpIrpInterfaceClose;

@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "xdpregistry.tmh"
 
 __declspec(code_seg("PAGE"))
 NTSTATUS
@@ -64,8 +63,10 @@ Exit:
 
     TraceInfo(
         TRACE_RTL,
-        "KeyName=%S ValueName=%S Value=%u Status=%!STATUS!",
-        KeyName, ValueName, NT_SUCCESS(Status) ? *ValueData : 0, Status);
+        TraceLoggingWideString(KeyName, "KeyName"),
+        TraceLoggingWideString(ValueName, "ValueName"),
+        TraceLoggingUInt32(NT_SUCCESS(Status) ? *ValueData : 0, "Value"),
+        TraceLoggingNTStatus(Status, "Status"));
 
     return Status;
 }
@@ -149,7 +150,7 @@ XdpRegWatcherNotify(
     XDP_REG_WATCHER *Watcher = Context;
     KEVENT *DeletedEvent = NULL;
 
-    TraceEnter(TRACE_RTL, "Watcher=%p", Watcher);
+    TraceEnter(TRACE_RTL, TraceLoggingPointer(Watcher, "Watcher"));
 
     RtlAcquirePushLockExclusive(&Watcher->Lock);
 
@@ -165,8 +166,8 @@ XdpRegWatcherNotify(
         if (!NT_SUCCESS(Status)) {
             TraceWarn(
                 TRACE_RTL,
-                "Failed to re-register Watcher=%p Status=%!STATUS!",
-                Watcher, Status);
+                TraceLoggingPointer(Watcher, "Watcher"),
+                TraceLoggingNTStatus(Status, "Status"));
 
             //
             // We failed to register for the next one-shot notification, so try

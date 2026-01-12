@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "miniport.tmh"
 
 NDIS_STRING RegRSS = NDIS_STRING_CONST("*RSS");
 NDIS_STRING RegNumRssQueues = NDIS_STRING_CONST("*NumRssQueues");
@@ -254,7 +253,7 @@ MpInitialize(
 
     UNREFERENCED_PARAMETER(MiniportDriverContext);
 
-    TraceEnter(TRACE_CONTROL, "NdisMiniportHandle=%p", NdisMiniportHandle);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"));
 
     //
     // Affinitize XDPMP allocations to NUMA node 0 by default.
@@ -270,7 +269,9 @@ MpInitialize(
     }
 
     TraceInfo(
-        TRACE_CONTROL, "Adapter=%p allocated IfIndex=%u", Adapter, InitParameters->IfIndex);
+        TRACE_CONTROL,
+        TraceLoggingPointer(Adapter, "Adapter"),
+        TraceLoggingUInt32(InitParameters->IfIndex, "IfIndex"));
 
     NdisZeroMemory(&AdapterAttributes, sizeof(NDIS_MINIPORT_ADAPTER_ATTRIBUTES));
 
@@ -300,8 +301,9 @@ MpInitialize(
     Status = NdisMSetMiniportAttributes(NdisMiniportHandle, &AdapterAttributes);
     if (Status != NDIS_STATUS_SUCCESS) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p NdisMSetMiniportAttributes failed Status=%!STATUS!",
-            NdisMiniportHandle, Status);
+            TRACE_CONTROL,
+            TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"),
+            TraceLoggingNTStatus(Status, "Status"));
         goto Exit;
     }
 
@@ -382,8 +384,9 @@ MpInitialize(
             (NDIS_MINIPORT_ADAPTER_ATTRIBUTES *)&GeneralAttributes);
     if (Status != NDIS_STATUS_SUCCESS) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p NdisMSetMiniportAttributes failed Status=%!STATUS!",
-            NdisMiniportHandle, Status);
+            TRACE_CONTROL,
+            TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"),
+            TraceLoggingNTStatus(Status, "Status"));
         goto Exit;
     }
 
@@ -396,8 +399,9 @@ MpInitialize(
     Adapter->MdlSize = ALIGN_UP_BY(Adapter->MdlSize, MEMORY_ALLOCATION_ALIGNMENT);
     if (Adapter->MdlSize > MAXUSHORT) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p Error: MdlSize too large MdlSize=%lu",
-            NdisMiniportHandle, Adapter->MdlSize);
+            TRACE_CONTROL,
+            TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"),
+            TraceLoggingUInt32(Adapter->MdlSize, "MdlSize"));
         Status = STATUS_INVALID_BUFFER_SIZE;
         goto Exit;
     }
@@ -418,8 +422,8 @@ MpInitialize(
             &NetBufferListPoolParameters);
     if (Adapter->RxNblPool == NULL) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p NdisAllocateNetBufferListPool failed",
-            NdisMiniportHandle);
+            TRACE_CONTROL,
+            TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"));
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
@@ -432,8 +436,8 @@ MpInitialize(
     RssProcessorInfo = ExAllocatePoolZero(NonPagedPoolNx, Size, POOLTAG_RSS);
     if (RssProcessorInfo == NULL) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p Failed to allocate RssProcessorInfo",
-            NdisMiniportHandle);
+            TRACE_CONTROL,
+            TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"));
         Status = NDIS_STATUS_RESOURCES;
         goto Exit;
     }
@@ -443,8 +447,9 @@ MpInitialize(
             NdisMiniportHandle, RssProcessorInfo, &Size);
     if (Status != NDIS_STATUS_SUCCESS) {
         TraceError(
-            TRACE_CONTROL, "NdisMiniportHandle=%p NdisGetRssProcessorInformation failed Status=%!STATUS!",
-            NdisMiniportHandle, Status);
+            TRACE_CONTROL,
+            TraceLoggingPointer(NdisMiniportHandle, "NdisMiniportHandle"),
+            TraceLoggingNTStatus(Status, "Status"));
         goto Exit;
     }
 
@@ -469,7 +474,7 @@ MpInitialize(
         // Failure to register with XDP is not fatal, but it does mean that XDP
         // cannot be used on the interface.
         //
-        TraceWarn(TRACE_CONTROL, "XdpRegisterInterface failed with %!STATUS! (XDP cannot be used on this interface)", Status);
+        TraceWarn(TRACE_CONTROL, TraceLoggingNTStatus(Status, "Status"));
         Status = NDIS_STATUS_SUCCESS;
     }
 
@@ -485,7 +490,7 @@ Exit:
 
     KeRevertToUserGroupAffinityThread(&OldAffinity);
 
-    TraceExitStatus(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL, Status);
 
     return Status;
 }
@@ -500,7 +505,7 @@ MpHalt(
 
     UNREFERENCED_PARAMETER(HaltAction);
 
-    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(Adapter, "Adapter"));
 
     StopHwDatapath(Adapter);
 
@@ -519,7 +524,7 @@ MpShutdown(
 
     UNREFERENCED_PARAMETER(ShutdownAction);
 
-    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(Adapter, "Adapter"));
 
     StopHwDatapath(Adapter);
 
@@ -546,7 +551,7 @@ MpRestart(
 
     UNREFERENCED_PARAMETER(RestartParameters);
 
-    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(Adapter, "Adapter"));
 
     ExReInitializeRundownProtectionCacheAware(Adapter->NblRundown);
 
@@ -564,7 +569,7 @@ MpPause(
     ADAPTER_CONTEXT *Adapter = (ADAPTER_CONTEXT *)MiniportAdapterContext;
     UNREFERENCED_PARAMETER(PauseParameters);
 
-    TraceEnter(TRACE_CONTROL, "Adapter=%p", Adapter);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(Adapter, "Adapter"));
 
     ExWaitForRundownProtectionReleaseCacheAware(Adapter->NblRundown);
 
@@ -617,7 +622,7 @@ MpUnload(
     _In_ DRIVER_OBJECT *DriverObject
     )
 {
-    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(DriverObject, "DriverObject"));
 
     if (MpGlobalContext.NdisMiniportDriverHandle != NULL)
     {
@@ -627,7 +632,7 @@ MpUnload(
 
     TraceExitSuccess(TRACE_CONTROL);
 
-    WPP_CLEANUP(DriverObject);
+    XdpMpTraceCleanup();
 }
 
 _Function_class_(DRIVER_INITIALIZE)
@@ -644,11 +649,15 @@ DriverEntry(
 
 #pragma prefast(suppress : __WARNING_BANNED_MEM_ALLOCATION_UNSAFE, "Non executable pool is enabled via -DPOOL_NX_OPTIN_AUTO=1.")
     ExInitializeDriverRuntime(0);
-    WPP_INIT_TRACING(DriverObject, RegistryPath);
+
+    Status = XdpMpTraceInitialize();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
     ExInitializePushLock(&MpGlobalContext.Lock);
     InitializeListHead(&MpGlobalContext.AdapterList);
 
-    TraceEnter(TRACE_CONTROL, "DriverObject=%p", DriverObject);
+    TraceEnter(TRACE_CONTROL, TraceLoggingPointer(DriverObject, "DriverObject"));
 
     XdpInitializeExtensionInfo(
         &MpSupportedXdpExtensions.VirtualAddress,
@@ -731,7 +740,7 @@ DriverEntry(
 
 Exit:
 
-    TraceExitStatus(TRACE_CONTROL);
+    TraceExitStatus(TRACE_CONTROL, Status);
 
     if (Status != NDIS_STATUS_SUCCESS) {
         MpUnload(DriverObject);
@@ -750,7 +759,7 @@ MpFreeAdapter(
         Adapter->NblRundown = NULL;
     }
 
-    TraceInfo(TRACE_CONTROL, "Adapter=%p freed", Adapter);
+    TraceInfo(TRACE_CONTROL, TraceLoggingPointer(Adapter, "Adapter"));
     ExFreePool(Adapter);
 }
 

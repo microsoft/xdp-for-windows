@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "offloadtask.tmh"
 
 UINT16
 XdpOffloadChecksumNb(

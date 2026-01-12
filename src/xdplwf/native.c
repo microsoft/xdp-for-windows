@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "native.tmh"
 
 static
 CONST

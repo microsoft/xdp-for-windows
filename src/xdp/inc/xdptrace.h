@@ -5,121 +5,147 @@
 
 #pragma once
 
+#include <TraceLoggingProvider.h>
+#include <evntrace.h>
+
 //
-// Tracing Definitions:
-//
-// Control GUID:
+// TraceLogging Provider GUID:
 // {D6143B5C-9FD6-44BA-BA02-FAD9EA0C263D}
+// (Reusing the same GUID as the previous WPP provider for compatibility)
 //
-#define WPP_CONTROL_GUIDS                           \
-    WPP_DEFINE_CONTROL_GUID(                        \
-        XdpTraceGuid,                               \
-        (D6143B5C,9FD6,44BA,BA02,FAD9EA0C263D),     \
-        WPP_DEFINE_BIT(TRACE_CORE)                  \
-        WPP_DEFINE_BIT(TRACE_XSK)                   \
-        WPP_DEFINE_BIT(TRACE_GENERIC)               \
-        WPP_DEFINE_BIT(TRACE_NATIVE)                \
-        WPP_DEFINE_BIT(TRACE_RTL)                   \
-        WPP_DEFINE_BIT(TRACE_LWF)                   \
-        )
+TRACELOGGING_DECLARE_PROVIDER(XdpTraceProvider);
 
 //
-// The following system defined definitions may be used:
+// Trace flags matching the original WPP flags
 //
-// TRACE_LEVEL_FATAL = 1        // Abnormal exit or termination.
-// TRACE_LEVEL_ERROR = 2        // Severe errors that need logging.
-// TRACE_LEVEL_WARNING = 3      // Warnings such as allocation failures.
-// TRACE_LEVEL_INFORMATION = 4  // Including non-error cases.
-// TRACE_LEVEL_VERBOSE = 5      // Detailed traces from intermediate steps.
-//
-// begin_wpp config
-//
-// USEPREFIX(TraceFatal,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceFatal{LEVEL=TRACE_LEVEL_FATAL}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceError,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceError{LEVEL=TRACE_LEVEL_ERROR}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceWarn,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceWarn{LEVEL=TRACE_LEVEL_WARNING}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceInfo,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceInfo{LEVEL=TRACE_LEVEL_INFORMATION}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceVerbose,"%!STDPREFIX! %!FUNC!:%!LINE!%!SPACE!");
-// FUNC TraceVerbose{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceEnter,"%!STDPREFIX! %!FUNC!:%!LINE! --->%!SPACE!");
-// FUNC TraceEnter{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,MSG,...);
-//
-// USEPREFIX(TraceExitSuccess,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE! ");
-// FUNC TraceExitSuccess{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS,...);
-// USESUFFIX (TraceExitSuccess, "STATUS_SUCCESS");
-//
-// USEPREFIX(TraceExitStatus,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE!");
-// FUNC TraceExitStatus{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS);
-// USESUFFIX (TraceExitStatus, "%!STATUS!", Status);
-//
-// CUSTOM_TYPE(EXTENSION_TYPE, ItemEnum(_XDP_EXTENSION_TYPE));
-// CUSTOM_TYPE(HOOK_LAYER, ItemEnum(_XDP_HOOK_LAYER));
-// CUSTOM_TYPE(HOOK_DIR, ItemEnum(_XDP_HOOK_DATAPATH_DIRECTION));
-// CUSTOM_TYPE(HOOK_SUBLAYER, ItemEnum(_XDP_HOOK_SUBLAYER));
-// CUSTOM_TYPE(RX_QUEUE_NOTIFICATION_TYPE, ItemEnum(_XDP_RX_QUEUE_NOTIFICATION_TYPE));
-// CUSTOM_TYPE(TX_QUEUE_NOTIFICATION_TYPE, ItemEnum(_XDP_TX_QUEUE_NOTIFICATION_TYPE));
-// CUSTOM_TYPE(XDP_MODE, ItemEnum(_XDP_INTERFACE_MODE));
-// CUSTOM_TYPE(REDIRECT_TARGET_TYPE, ItemEnum(_XDP_REDIRECT_TARGET_TYPE));
-// CUSTOM_TYPE(OID_REQUEST_INTERFACE, ItemEnum(_XDP_OID_REQUEST_INTERFACE));
-// CUSTOM_TYPE(OID_ACTION, ItemEnum(_XDP_OID_ACTION));
-//
-// DEFINE_CPLX_TYPE(HEXDUMP, WPP_LOGHEXDUMP, WPP_HEXDUMP, ItemHEXDump, "s", _HEX_, 0, 2);
-// DEFINE_CPLX_TYPE(IPV6ADDR, WPP_LOGIPV6, const UCHAR *, ItemIPV6Addr, "s", _IPV6_, 0);
-// end_wpp
-//
-
-#define WPP_LEVEL_FLAGS_ENABLED(LEVEL, FLAGS) \
-    (WPP_LEVEL_ENABLED(FLAGS) && (WPP_CONTROL(WPP_BIT_ ## FLAGS).Level >= LEVEL))
-#define WPP_LEVEL_FLAGS_LOGGER(LEVEL, FLAGS) WPP_LEVEL_LOGGER(FLAGS)
+#define TRACE_CORE      0x0001
+#define TRACE_XSK       0x0002
+#define TRACE_GENERIC   0x0004
+#define TRACE_NATIVE    0x0008
+#define TRACE_RTL       0x0010
+#define TRACE_LWF       0x0020
 
 //
-// Opt-in to a WPP recorder feature that enables independent evaluation of
-// conditions to decide if a message needs to be sent to the recorder, an
-// enabled session, or both.
+// TraceLogging macros that replace the WPP trace functions
+// These accept variadic TraceLogging field arguments to log all parameters
 //
-#define ENABLE_WPP_TRACE_FILTERING_WITH_WPP_RECORDER 1
+
+#define TraceFatal(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "Fatal", \
+        TraceLoggingLevel(WINEVENT_LEVEL_CRITICAL), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceError(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "Error", \
+        TraceLoggingLevel(WINEVENT_LEVEL_ERROR), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceWarn(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "Warning", \
+        TraceLoggingLevel(WINEVENT_LEVEL_WARNING), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceInfo(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "Information", \
+        TraceLoggingLevel(WINEVENT_LEVEL_INFO), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceVerbose(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "Verbose", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
+
+#define TraceEnter(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "Enter", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        __VA_ARGS__)
 
 //
-// Logger and Enabled macros that support custom recorders. They simply delegate
-// to the default.
+// Special macros for function exit
 //
-#define WPP_IFRLOG_LEVEL_FLAGS_ENABLED(IFRLOG, LEVEL, FLAGS) WPP_LEVEL_FLAGS_ENABLED(LEVEL, FLAGS)
-#define WPP_IFRLOG_LEVEL_FLAGS_LOGGER(IFRLOG, LEVEL, FLAGS)  WPP_LEVEL_FLAGS_LOGGER(LEVEL, FLAGS)
+#define TraceExitSuccess(Flags, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "ExitSuccess", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        TraceLoggingString("STATUS_SUCCESS", "Status"), \
+        __VA_ARGS__)
 
-#define WPP_LOGHEXDUMP(x) \
-    WPP_LOGPAIR(sizeof(UINT16), &(x).Length) \
-    WPP_LOGPAIR((x).Length, (x).Buffer)
-#define WPP_LOGIPV6(x) WPP_LOGPAIR(16, (x))
+#define TraceExitStatus(Flags, Status, ...) \
+    TraceLoggingWrite(XdpTraceProvider, \
+        "ExitStatus", \
+        TraceLoggingLevel(WINEVENT_LEVEL_VERBOSE), \
+        TraceLoggingKeyword(Flags), \
+        TraceLoggingString(__FUNCTION__, "Function"), \
+        TraceLoggingUInt32(__LINE__, "Line"), \
+        TraceLoggingNTStatus(Status, "Status"), \
+        __VA_ARGS__)
 
-typedef struct _WPP_HEXDUMP {
+//
+// Helper functions for complex data types
+//
+typedef struct _TRACE_HEXDUMP {
     const VOID *Buffer;
     UINT16 Length;
-} WPP_HEXDUMP;
+} TRACE_HEXDUMP;
 
 FORCEINLINE
-WPP_HEXDUMP
-WppHexDump(
+TRACE_HEXDUMP
+TraceHexDump(
     _In_ const VOID *Buffer,
     _In_ SIZE_T Length
     )
 {
-    WPP_HEXDUMP WppHexDump;
+    TRACE_HEXDUMP Dump;
 
-    WppHexDump.Buffer = Buffer;
+    Dump.Buffer = Buffer;
 
     if (Buffer == NULL) {
-        WppHexDump.Length = 0;
+        Dump.Length = 0;
     } else  {
-        WppHexDump.Length = (UINT16)min(Length, MAXUINT16);
+        Dump.Length = (UINT16)min(Length, MAXUINT16);
     }
 
-    return WppHexDump;
+    return Dump;
 }
+
+//
+// Helper macros for logging complex data
+//
+#define TraceLoggingHexDump(data, name) \
+    TraceLoggingBinary((data).Buffer, (data).Length, name)
+
+#define TraceLoggingIPv6Address(addr, name) \
+    TraceLoggingBinary(addr, 16, name)
+
+//
+// Initialization and cleanup functions
+//
+NTSTATUS XdpTraceInitialize(VOID);
+VOID XdpTraceCleanup(VOID);
