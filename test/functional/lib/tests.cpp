@@ -24,6 +24,7 @@
 
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
+#pragma warning(disable:28182) // Dereferencing NULL pointer.
 #include <wil/resource.h>
 #pragma warning(pop)
 
