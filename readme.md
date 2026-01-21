@@ -7,6 +7,7 @@ used to send and receive packets at high rates by bypassing most of the OS netwo
 
 ## Documentation
 
+* **[Getting Started](./docs/getting-started.md)** - New to XDP? Start here!
 * [Usage](./docs/usage.md)
 * [Architecture](./docs/architecture.md)
 * [Development](./docs/development.md)
