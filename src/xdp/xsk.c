@@ -3566,6 +3566,14 @@ XskSockoptSetRingSize(
                 ExtensionSet, &ExtensionInfo, &Extension);
             Xsk->Rx.ChecksumExtensionOffset = Extension.Reserved;
         }
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME,
+            XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        if (XdpExtensionSetIsExtensionEnabled(ExtensionSet, ExtensionInfo.ExtensionName)) {
+            XdpExtensionSetGetExtension(
+                ExtensionSet, &ExtensionInfo, &Extension);
+            Xsk->Rx.OriginalLengthExtensionOffset = Extension.Reserved;
+        }
         break;
     }
     }
