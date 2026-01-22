@@ -234,6 +234,21 @@ XskGetNotifyAsyncResult(
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     );
 
+#define XSK_SOCKOPT_RX_ORIGINAL_LENGTH 1008
+
+#pragma warning(push)
+#pragma warning(default:4820) // warn if the compiler inserted padding
+
+typedef struct _XSK_FRAME_ORIGINAL_LENGTH {
+    UINT32 OriginalLength;
+} XSK_FRAME_ORIGINAL_LENGTH;
+
+#pragma warning(pop)
+
+#define XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION 1009
+#define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME L"ms_xsk_frame_original_length"
+#define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1 1U
+
 #include <xdp/details/afxdp.h>
 
 #endif

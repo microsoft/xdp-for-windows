@@ -158,6 +158,26 @@ typedef enum _XSK_ERROR {
 #define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 15
 ```
 
+### `XSK_SOCKOPT_RX_ORIGINAL_LENGTH`
+
+- **Supports**: Set
+- **Optval type**: `UINT32`
+- **Description**: Sets whether AF_XDP reports the original length of each frame,
+prior to any truncation. This option requires the socket is bound and the RX
+frame ring size is not set. This option enables the `XSK_FRAME_ORIGINAL_LENGTH`
+extension in each frame descriptor. When enabled, the original length of the
+frame is reported in the frame descriptor.
+
+### `XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION`
+
+- **Supports**: Get
+- **Optval type**: `UINT16`
+- **Description**: Gets the `XSK_FRAME_ORIGINAL_LENGTH` descriptor extension for
+the RX frame ring. This requires the socket is bound, the RX ring size is set,
+and at least one socket option has enabled the frame layout extension. The
+returned value is the offset of the `XSK_FRAME_ORIGINAL_LENGTH` structure from
+the start of each RX frame descriptor.
+
 ## See Also
 
 [AF_XDP](../afxdp.md)  

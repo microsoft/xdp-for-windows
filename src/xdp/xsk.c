@@ -107,11 +107,13 @@ typedef struct _XSK_RX {
     union {
         struct {
             UINT8 Checksum : 1;
+            UINT8 OriginalLength : 1;
         };
         UINT8 Value;
-    } OffloadFlags;
+    } ExtensionFlags;
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
+    UINT16 OriginalLengthExtensionOffset;
     XDP_EXTENSION_SET *FrameExtensionSet;
 } XSK_RX;
 
@@ -276,6 +278,14 @@ static const XDP_EXTENSION_REGISTRATION XskRxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = sizeof(XDP_FRAME_CHECKSUM),
         .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
+        .InternalExtension      = TRUE,
+    },
+    {
+        .Info.ExtensionName     = XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME,
+        .Info.ExtensionVersion  = XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XSK_FRAME_ORIGINAL_LENGTH),
+        .Alignment              = __alignof(XSK_FRAME_ORIGINAL_LENGTH),
         .InternalExtension      = TRUE,
     },
 };
@@ -3998,7 +4008,7 @@ XskSockoptSetRxOffloadChecksum(
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
-    if (Xsk->Rx.OffloadFlags.Checksum || Xsk->Rx.Xdp.Queue == NULL ||
+    if (Xsk->Rx.ExtensionFlags.Checksum || Xsk->Rx.Xdp.Queue == NULL ||
         Xsk->Rx.Ring.Size != 0 || Xsk->Rx.FillRing.Size != 0) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
@@ -4029,7 +4039,84 @@ XskSockoptSetRxOffloadChecksum(
     XdpExtensionSetEnableEntry(Xsk->Rx.FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
     XdpExtensionSetEnableEntry(Xsk->Rx.FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
 
-    Xsk->Rx.OffloadFlags.Checksum = TRUE;
+    Xsk->Rx.ExtensionFlags.Checksum = TRUE;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (IsLockHeld) {
+        KeReleaseSpinLock(&Xsk->Lock, OldIrql);
+    }
+    if (IsPushLockHeld) {
+        RtlReleasePushLockExclusive(&Xsk->PushLock);
+    }
+
+    TraceExitStatus(TRACE_XSK);
+
+    return Status;
+}
+
+static
+NTSTATUS
+XskSockoptSetRxOriginalLength(
+    _In_ XSK *Xsk,
+    _In_ XSK_SET_SOCKOPT_IN *Sockopt,
+    _In_ KPROCESSOR_MODE RequestorMode
+    )
+{
+    NTSTATUS Status;
+    const VOID *SockoptIn;
+    UINT32 SockoptInSize;
+    UINT32 Enabled;
+    KIRQL OldIrql = {0};
+    BOOLEAN IsLockHeld = FALSE;
+    BOOLEAN IsPushLockHeld = FALSE;
+
+    TraceEnter(TRACE_XSK, "Xsk=%p", Xsk);
+
+    //
+    // This is a nested buffer not copied by IO manager, so it needs special care.
+    //
+    SockoptIn = Sockopt->InputBuffer;
+    SockoptInSize = Sockopt->InputBufferLength;
+
+    if (SockoptInSize < sizeof(Enabled)) {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    __try {
+        if (RequestorMode != KernelMode) {
+            ProbeForRead((VOID*)SockoptIn, SockoptInSize, PROBE_ALIGNMENT(UINT32));
+        }
+        RtlCopyVolatileMemory(&Enabled, SockoptIn, sizeof(Enabled));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Status = GetExceptionCode();
+        goto Exit;
+    }
+
+    RtlAcquirePushLockExclusive(&Xsk->PushLock);
+    IsPushLockHeld = TRUE;
+    KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
+    IsLockHeld = TRUE;
+
+    if (Xsk->State != XskBound) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (Xsk->Rx.ExtensionFlags.OriginalLength || Xsk->Rx.Xdp.Queue == NULL ||
+        Xsk->Rx.Ring.Size != 0 || Xsk->Rx.FillRing.Size != 0) {
+        Status = STATUS_INVALID_DEVICE_STATE;
+        goto Exit;
+    }
+    if (!Enabled) {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    XdpExtensionSetEnableEntry(Xsk->Rx.FrameExtensionSet, XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME);
+
+    Xsk->Rx.ExtensionFlags.OriginalLength = TRUE;
     Status = STATUS_SUCCESS;
 
 Exit:
@@ -4148,6 +4235,13 @@ XskSockoptGetExtension(
         XdpInitializeExtensionInfo(
             &ExtensionInfo, XDP_FRAME_EXTENSION_LAYOUT_NAME,
             XDP_FRAME_EXTENSION_LAYOUT_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        break;
+
+    case XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION:
+        ExtensionSet = Xsk->Rx.FrameExtensionSet;
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME,
+            XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         break;
 
     default:
@@ -4777,6 +4871,9 @@ XskIrpSetSockopt(
     case XSK_SOCKOPT_RX_OFFLOAD_CHECKSUM:
         Status = XskSockoptSetRxOffloadChecksum(Xsk, Sockopt, Irp->RequestorMode);
         break;
+    case XSK_SOCKOPT_RX_ORIGINAL_LENGTH:
+        Status = XskSockoptSetRxOriginalLength(Xsk, Sockopt, Irp->RequestorMode);
+        break;
 #if !defined(XDP_OFFICIAL_BUILD)
     case XSK_SOCKOPT_POLL_MODE:
         Status = XskSockoptSetPollMode(Xsk, Sockopt, Irp->RequestorMode);
@@ -5256,7 +5353,7 @@ XskReceiveSingleFrame(
     WriteUInt64NoFence(&XskBuffer->Address.AddressAndOffset, XskBufferAddress.AddressAndOffset);
     WriteUInt32NoFence(&XskBuffer->Length, UmemOffset - Xsk->Umem->Reg.Headroom + CopyLength);
 
-    if (Xsk->Rx.OffloadFlags.Value != 0) {
+    if (Xsk->Rx.ExtensionFlags.Value != 0) {
         if (Xsk->Rx.LayoutExtensionOffset != 0) {
             const XDP_FRAME_LAYOUT *XdpLayout =
                 XdpGetLayoutExtension(Frame, &Xsk->Rx.Xdp.LayoutExtension);
@@ -5284,6 +5381,15 @@ XskReceiveSingleFrame(
             // so that user mode apps may read it.
             //
             RtlCopyVolatileMemory(XskChecksum, XdpChecksum, sizeof(*XdpChecksum));
+        }
+        if (Xsk->Rx.ExtensionFlags.OriginalLength) {
+            ASSERT(Xsk->Rx.OriginalLengthExtensionOffset != 0);
+            XSK_FRAME_ORIGINAL_LENGTH *XskOriginalLength =
+                RTL_PTR_ADD(XskFrame, Xsk->Rx.OriginalLengthExtensionOffset);
+            C_ASSERT(sizeof(XskOriginalLength->OriginalLength) == sizeof(Buffer->DataLength));
+            RtlCopyVolatileMemory(
+                &XskOriginalLength->OriginalLength, &Buffer->DataLength,
+                sizeof(XskOriginalLength->OriginalLength));
         }
     }
 
