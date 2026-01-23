@@ -236,6 +236,8 @@ GenericRxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
     );
 
+VOID
+GenericRxOriginalLength();
 
 VOID
 GenericTxChecksumOffloadConfig();
