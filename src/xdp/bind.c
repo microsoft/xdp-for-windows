@@ -1775,7 +1775,7 @@ XdpIfCreateOffloadNotificationRef(
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxNotifyQueue
 ) {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
-    XDP_INTERFACE_SET *IfSet = XdpIfGetIfSetHandle(BindingHandle);
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *) XdpIfGetIfSetHandle(BindingHandle);
     NTSTATUS Status;
 
     TraceEnter(TRACE_CORE, "IfIndex=%u IfSet=%p Mode=%!XDP_MODE!",
@@ -1874,13 +1874,13 @@ XdpIfDeleteRxQueue(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XdpIfDeleteRxNotifyQueue(
+XdpIfDeleteOffloadNotificationRef(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
-    XDP_INTERFACE_SET *IfSet = XdpIfGetIfSetHandle(BindingHandle);
+    XDP_INTERFACE_SET *IfSet = (XDP_INTERFACE_SET *) XdpIfGetIfSetHandle(BindingHandle);
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",

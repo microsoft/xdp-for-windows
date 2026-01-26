@@ -251,7 +251,7 @@ XdpIfDeleteRxQueue(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
-XdpIfDeleteRxNotifyQueue(
+XdpIfDeleteOffloadNotificationRef(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
     );

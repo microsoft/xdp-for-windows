@@ -1553,7 +1553,7 @@ XdpRxQueueDereference(
         }
 
         if (RxQueue->InterfaceRxNotifyQueue != NULL) {
-            XdpIfDeleteRxNotifyQueue(RxQueue->Binding, RxQueue->InterfaceRxNotifyQueue);
+            XdpIfDeleteOffloadNotificationRef(RxQueue->Binding, RxQueue->InterfaceRxNotifyQueue);
             RxQueue->InterfaceRxNotifyQueue = NULL;
         }
 
