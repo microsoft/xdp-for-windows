@@ -263,8 +263,8 @@ typedef struct _XDP_OFFLOAD_DISPATCH {
     XDP_SET_QUEUE_OFFLOAD *SetQueueOffload;
     XDP_CLOSE_QUEUE_OFFLOAD_HANDLE *CloseQueueOffloadHandle;
     XDP_OPEN_INTERFACE_OFFLOAD_HANDLE *OpenInterfaceOffloadHandle;
-    XDP_CREATE_NOTIFY_OFFLOAD_REF *CreateOffloadNotifyHandle;
-    XDP_DELETE_NOTIFY_OFFLOAD_REF *DeleteOffloadNotifyHandle;
+    XDP_CREATE_NOTIFY_OFFLOAD_REF *CreateOffloadNotifyRef;
+    XDP_DELETE_NOTIFY_OFFLOAD_REF *DeleteOffloadNotifyRef;
     XDP_GET_INTERFACE_OFFLOAD_CAPABILITIES *GetInterfaceOffloadCapabilities;
     XDP_GET_INTERFACE_OFFLOAD *GetInterfaceOffload;
     XDP_SET_INTERFACE_OFFLOAD *SetInterfaceOffload;

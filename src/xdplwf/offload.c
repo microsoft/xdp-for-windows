@@ -16,8 +16,8 @@ static XDP_DELETE_NOTIFY_OFFLOAD_REF XdpGenericRxDeleteNotifyOffloadRef;
 
 CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
     .OpenInterfaceOffloadHandle = XdpLwfOpenInterfaceOffloadHandle,
-    .CreateOffloadNotifyHandle = XdpGenericRxCreateNotifyOffloadRef,
-    .DeleteOffloadNotifyHandle = XdpGenericRxDeleteNotifyOffloadRef,
+    .CreateOffloadNotifyRef = XdpGenericRxCreateNotifyOffloadRef,
+    .DeleteOffloadNotifyRef = XdpGenericRxDeleteNotifyOffloadRef,
     .GetInterfaceOffloadCapabilities = XdpLwfGetInterfaceOffloadCapabilities,
     .GetInterfaceOffload = XdpLwfGetInterfaceOffload,
     .SetInterfaceOffload = XdpLwfSetInterfaceOffload,

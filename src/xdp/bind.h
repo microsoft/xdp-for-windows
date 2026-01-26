@@ -228,7 +228,7 @@ XdpIfCreateRxQueue(
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIfCreateOffloadNotificationRef(
-    _In_ XDP_IFSET_HANDLE IfSetHandle,
+    _In_ XDP_BINDING_HANDLE BindingHandle,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxNotifyQueue
     );

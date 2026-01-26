@@ -1788,7 +1788,7 @@ XdpIfCreateOffloadNotificationRef(
     }
 
     Status =
-        IfSet->OffloadDispatch->CreateOffloadNotifyHandle(
+        IfSet->OffloadDispatch->CreateOffloadNotifyRef(
             Interface->XdpDriverApi.InterfaceContext, Config, InterfaceRxNotifyQueue);
 
     if (!NT_SUCCESS(Status)) {
@@ -1886,7 +1886,7 @@ XdpIfDeleteRxNotifyQueue(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxNotifyQueue);
 
-    IfSet->OffloadDispatch->DeleteOffloadNotifyHandle(InterfaceRxNotifyQueue);
+    IfSet->OffloadDispatch->DeleteOffloadNotifyRef(InterfaceRxNotifyQueue);
 
     XdpIfpDereferenceProvider(Interface);
 
