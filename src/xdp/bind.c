@@ -1769,18 +1769,17 @@ Exit:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XdpIfCreateRxNotifyQueue(
+XdpIfCreateOffloadNotificationRef(
     _In_ XDP_BINDING_HANDLE BindingHandle,
     _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
     _Out_ XDP_INTERFACE_HANDLE *InterfaceRxNotifyQueue
 ) {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE_SET *IfSet = XdpIfGetIfSetHandle(BindingHandle);
     NTSTATUS Status;
 
-    TraceEnter(
-        TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u",
-        Interface->IfIndex, Interface->Capabilities.Mode,
-        XdpRxQueueGetTargetQueueInfo(Config)->QueueId);
+    TraceEnter(TRACE_CORE, "IfIndex=%u IfSet=%p Mode=%!XDP_MODE!",
+        Interface->IfIndex, IfSet, Interface->Capabilities.Mode);
 
     *InterfaceRxNotifyQueue = NULL;
     Status = XdpIfpReferenceProvider(Interface);
@@ -1789,8 +1788,9 @@ XdpIfCreateRxNotifyQueue(
     }
 
     Status =
-        Interface->XdpDriverApi.InterfaceDispatch->CreateRxNotifyQueue(
+        IfSet->OffloadDispatch->CreateOffloadNotifyHandle(
             Interface->XdpDriverApi.InterfaceContext, Config, InterfaceRxNotifyQueue);
+
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE,
@@ -1880,12 +1880,13 @@ XdpIfDeleteRxNotifyQueue(
     )
 {
     XDP_INTERFACE *Interface = (XDP_INTERFACE *)BindingHandle;
+    XDP_INTERFACE_SET *IfSet = XdpIfGetIfSetHandle(BindingHandle);
 
     TraceEnter(
         TRACE_CORE, "IfIndex=%u Mode=%!XDP_MODE! InterfaceQueue=%p",
         Interface->IfIndex, Interface->Capabilities.Mode, InterfaceRxNotifyQueue);
 
-    Interface->XdpDriverApi.InterfaceDispatch->DeleteRxNotifyQueue(InterfaceRxNotifyQueue);
+    IfSet->OffloadDispatch->DeleteOffloadNotifyHandle(InterfaceRxNotifyQueue);
 
     XdpIfpDereferenceProvider(Interface);
 

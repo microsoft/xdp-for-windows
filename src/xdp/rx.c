@@ -1224,8 +1224,8 @@ XdpRxQueueCreate(
 
     RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
     Status =
-        XdpIfCreateRxNotifyQueue(
-            Binding, (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate, &RxQueue->InterfaceRxNotifyQueue);
+        XdpIfCreateOffloadNotificationRef(
+            BindXdpIfGetIfSetHandle(RxQueue->Binding), (XDP_RX_QUEUE_CONFIG_CREATE)&RxQueue->ConfigCreate, &RxQueue->InterfaceRxNotifyQueue);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
