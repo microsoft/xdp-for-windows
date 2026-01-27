@@ -1789,7 +1789,7 @@ XdpIfCreateOffloadNotificationRef(
 
     Status =
         IfSet->OffloadDispatch->CreateOffloadNotifyRef(
-            Interface->XdpDriverApi.InterfaceContext, Config, InterfaceRxNotifyQueue);
+            IfSet->XdpIfInterfaceSetContext, Config, InterfaceRxNotifyQueue);
 
     if (!NT_SUCCESS(Status)) {
         TraceError(

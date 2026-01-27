@@ -49,7 +49,8 @@ XdpGenericRxCreateNotifyOffloadRef(
     )
 {
     NTSTATUS Status;
-    XDP_LWF_GENERIC *Generic = (XDP_LWF_GENERIC *)InterfaceContext;
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)InterfaceContext;
+    XDP_LWF_GENERIC *Generic = &Filter->Generic;
     XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = NULL;
     RxNotifyQueue = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RxNotifyQueue), POOLTAG_RECV_NOTIFY);
     if (RxNotifyQueue == NULL) {
