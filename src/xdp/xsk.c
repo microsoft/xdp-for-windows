@@ -2374,7 +2374,7 @@ XskNotifyRxQueue(
         //
 
         Shared = Xsk->Rx.Ring.Shared;
-        if (Shared != NULL && Xsk->Rx.OffloadFlags.Checksum) {
+        if (Shared != NULL && Xsk->Rx.ExtensionFlags.Checksum) {
             Xsk->Rx.OffloadChangeFlags.CurrentConfig = TRUE;
             InterlockedOrNoFence((LONG *)&Shared->Flags, XSK_RING_FLAG_OFFLOAD_CHANGED);
         }
