@@ -235,6 +235,10 @@ public:
         ::GenericRxChecksumOffloadConfig(TRUE);
     }
 
+    TEST_METHOD(GenericRxOriginalLength) {
+        ::GenericRxOriginalLength();
+    }
+
     TEST_METHOD(GenericRxTcpControlV4) {
         GenericRxTcpControl(AF_INET);
     }

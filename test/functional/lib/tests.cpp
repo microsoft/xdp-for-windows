@@ -24,6 +24,7 @@
 
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
+#pragma warning(disable:28182) // Dereferencing NULL pointer.
 #include <wil/resource.h>
 #pragma warning(pop)
 
@@ -222,6 +223,8 @@ typedef struct {
     UINT16 RxFrameLayoutExtension;
     BOOLEAN RxFrameChecksumExtensionEnabled;
     UINT16 RxFrameChecksumExtension;
+    BOOLEAN RxOriginalLengthExtensionEnabled;
+    UINT16 RxOriginalLengthExtension;
 } MY_EXTENSIONS;
 
 typedef struct {
@@ -1277,6 +1280,17 @@ EnableRxChecksumOffload(
 
 static
 VOID
+EnableRxOriginalLength(
+    MY_SOCKET *Socket
+    )
+{
+    UINT32 Enabled = TRUE;
+    SetSockopt(Socket->Handle.get(), XSK_SOCKOPT_RX_ORIGINAL_LENGTH, &Enabled, sizeof(Enabled));
+    Socket->Extensions.RxOriginalLengthExtensionEnabled = TRUE;
+}
+
+static
+VOID
 XskSetupPreActivate(
     _Inout_ MY_SOCKET *Socket,
     _In_ BOOLEAN Rx,
@@ -1342,6 +1356,13 @@ XskSetupPreActivate(
         GetSockopt(
             Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION,
             &Socket->Extensions.RxFrameChecksumExtension, &OptionLength);
+    }
+
+    if (Socket->Extensions.RxOriginalLengthExtensionEnabled) {
+        OptionLength = sizeof(Socket->Extensions.RxOriginalLengthExtension);
+        GetSockopt(
+            Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION,
+            &Socket->Extensions.RxOriginalLengthExtension, &OptionLength);
     }
 }
 
@@ -6890,6 +6911,60 @@ GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
 
+VOID
+GenericRxOriginalLength()
+{
+    auto If = FnMpIf;
+    const ADDRESS_FAMILY Af = AF_INET;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    EnableRxOriginalLength(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+    Xsk.RxProgram =
+        SocketAttachRxProgram(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
+    RemotePort = htons(4321);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    RX_FRAME RxFrame;
+    UCHAR UdpPayload[] = "GenericRxOriginalLength";
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+    MpRxFlush(GenericMp);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
+    TEST_TRUE(Xsk.Extensions.RxOriginalLengthExtension != 0);
+
+    XSK_FRAME_ORIGINAL_LENGTH *OriginalLength =
+        (XSK_FRAME_ORIGINAL_LENGTH *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxOriginalLengthExtension);
+
+    TEST_EQUAL(UdpFrameLength, OriginalLength->OriginalLength);
+
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+}
 
 VOID
 GenericTxChecksumOffloadTcp(
