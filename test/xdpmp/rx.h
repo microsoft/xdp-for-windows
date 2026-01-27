@@ -40,7 +40,5 @@ MpCleanupReceiveQueue(
     );
 
 XDP_CREATE_RX_QUEUE     MpXdpCreateRxQueue;
-XDP_CREATE_RX_NOTIFY_QUEUE MpXdpCreateRxNotifyQueue;
 XDP_ACTIVATE_RX_QUEUE   MpXdpActivateRxQueue;
 XDP_DELETE_RX_QUEUE     MpXdpDeleteRxQueue;
-XDP_DELETE_RX_NOTIFY_QUEUE MpXdpDeleteRxNotifyQueue;

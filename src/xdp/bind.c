@@ -1794,7 +1794,7 @@ XdpIfCreateOffloadNotificationRef(
     if (!NT_SUCCESS(Status)) {
         TraceError(
             TRACE_CORE,
-            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u CreateRxNotifyQueue failed Status=%!STATUS!",
+            "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u XdpIfCreateOffloadNotificationRef failed Status=%!STATUS!",
             Interface->IfIndex, Interface->Capabilities.Mode,
             XdpRxQueueGetTargetQueueInfo(Config)->QueueId, Status);
         goto Exit;

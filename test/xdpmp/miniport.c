@@ -131,10 +131,8 @@ static const XDP_INTERFACE_DISPATCH MpXdpDispatch = {
         .Size           = XDP_SIZEOF_INTERFACE_DISPATCH_REVISION_1
     },
     .CreateRxQueue      = MpXdpCreateRxQueue,
-    .CreateRxNotifyQueue = MpXdpCreateRxNotifyQueue,
     .ActivateRxQueue    = MpXdpActivateRxQueue,
     .DeleteRxQueue      = MpXdpDeleteRxQueue,
-    .DeleteRxNotifyQueue = MpXdpDeleteRxNotifyQueue,
     .CreateTxQueue      = MpXdpCreateTxQueue,
     .ActivateTxQueue    = MpXdpActivateTxQueue,
     .DeleteTxQueue      = MpXdpDeleteTxQueue,

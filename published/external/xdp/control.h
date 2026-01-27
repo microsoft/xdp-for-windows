@@ -140,15 +140,6 @@ XDP_CREATE_RX_QUEUE(
 typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
-XDP_CREATE_RX_NOTIFY_QUEUE(
-    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
-    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
-    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue
-    );
-
-typedef
-_IRQL_requires_(PASSIVE_LEVEL)
-NTSTATUS
 XDP_ACTIVATE_RX_QUEUE(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue,
     _In_ XDP_RX_QUEUE_HANDLE XdpRxQueue,
@@ -159,13 +150,6 @@ typedef
 _IRQL_requires_(PASSIVE_LEVEL)
 VOID
 XDP_DELETE_RX_QUEUE(
-    _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
-    );
-
-typedef
-_IRQL_requires_(PASSIVE_LEVEL)
-VOID
-XDP_DELETE_RX_NOTIFY_QUEUE(
     _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
     );
 
@@ -204,10 +188,8 @@ typedef struct _XDP_INTERFACE_DISPATCH {
     XDP_OPEN_INTERFACE      *OpenInterface;
     XDP_CLOSE_INTERFACE     *CloseInterface;
     XDP_CREATE_RX_QUEUE     *CreateRxQueue;
-    XDP_CREATE_RX_NOTIFY_QUEUE *CreateRxNotifyQueue;
     XDP_ACTIVATE_RX_QUEUE   *ActivateRxQueue;
     XDP_DELETE_RX_QUEUE     *DeleteRxQueue;
-    XDP_DELETE_RX_NOTIFY_QUEUE *DeleteRxNotifyQueue;
     XDP_CREATE_TX_QUEUE     *CreateTxQueue;
     XDP_ACTIVATE_TX_QUEUE   *ActivateTxQueue;
     XDP_DELETE_TX_QUEUE     *DeleteTxQueue;
