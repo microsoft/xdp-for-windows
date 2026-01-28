@@ -1437,6 +1437,14 @@ XdpGenericReceivePreinspectNb(
         }
     }
 
+    if (RxQueue->Flags.TimestampOffloadEnabled) {
+        NET_BUFFER_LIST_TIMESTAMP NblTimestamp;
+        XDP_FRAME_TIMESTAMP *TimestampExt =
+            XdpGetTimestampExtension(Frame, &RxQueue->FrameTimestampExtension);
+        NdisGetNblTimestampInfo(Nbl, &NblTimestamp);
+        TimestampExt->Timestamp = NblTimestamp.Timestamp;
+    }
+
     //
     // NDIS components may request that packets sent locally be looped back
     // on the receive path. Skip inspection of these packets.
@@ -2341,6 +2349,7 @@ XdpGenericRxActivateQueue(
     RxQueue->FrameRing = XdpRxQueueGetFrameRing(Config);
     RxQueue->FragmentRing = XdpRxQueueGetFragmentRing(Config);
     RxQueue->Flags.ChecksumOffloadEnabled = XdpRxQueueIsChecksumOffloadEnabled(Config);
+    RxQueue->Flags.TimestampOffloadEnabled = XdpRxQueueIsTimestampOffloadEnabled(Config);
 
     ASSERT(RxQueue->FrameRing->InterfaceReserved == RxQueue->FrameRing->ProducerIndex);
 
@@ -2375,6 +2384,13 @@ XdpGenericRxActivateQueue(
             &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameChecksumExtension);
+    }
+
+    if (RxQueue->Flags.TimestampOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+            XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameTimestampExtension);
     }
 
     WritePointerRelease(&RxQueue->XdpRxQueue, XdpRxQueue);

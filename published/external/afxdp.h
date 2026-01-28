@@ -164,9 +164,16 @@ typedef enum _XSK_ERROR {
 #define XSK_SOCKOPT_RX_PROCESSOR_AFFINITY 14
 #define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 15
 
+
+
+
 #if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
 #include <xdp/afxdp_v1.h>
 #else
+
+#include <xdp/framechecksum.h>
+#include <xdp/framelayout.h>
+#include <xdp/frametimestamp.h>
 
 XDP_STATUS
 XskCreate(
@@ -248,6 +255,30 @@ typedef struct _XSK_FRAME_ORIGINAL_LENGTH {
 #define XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION 1009
 #define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME L"ms_xsk_frame_original_length"
 #define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1 1U
+
+//
+// XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION
+//
+// Supports: get
+// Optval type: UINT16
+// Description: Gets the XDP_FRAME_TIMESTAMP descriptor extension for the RX
+//              frame ring. This requires the socket is bound, the RX ring size
+//              is set. The returned value is the offset of the
+//              XDP_FRAME_TIMESTAMP structure from the start of each RX descriptor.
+//
+#define XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION 1010
+
+//
+// XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP
+//
+// Supports: set
+// Optval type: UINT32
+// Description: Sets whether timestamp receive offload is enabled. This
+//              option requires the socket is bound and the RX frame ring size
+//              is not set. This option enables the XDP_FRAME_TIMESTAMP extension
+//              on the RX frame ring.
+//
+#define XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP 1011
 
 #include <xdp/details/afxdp.h>
 

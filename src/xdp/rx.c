@@ -87,6 +87,7 @@ typedef struct _XDP_RX_QUEUE {
     XDP_RX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
 
     BOOLEAN IsChecksumOffloadEnabled;
+    BOOLEAN IsTimestampOffloadEnabled;
 
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
     PCW_INSTANCE *PcwInstance;
@@ -647,6 +648,16 @@ XdpRxQueueIsChecksumOffloadEnabled(
     return RxQueue->IsChecksumOffloadEnabled;
 }
 
+BOOLEAN
+XdpRxQueueIsTimestampOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    )
+{
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromConfigActivate(RxQueueConfig);
+
+    return RxQueue->IsTimestampOffloadEnabled;
+}
+
 
 BOOLEAN
 XdpRxQueueIsLayoutExtensionEnabled(
@@ -1205,6 +1216,41 @@ XdpRxQueueEnableChecksumOffload(
             XdpExtensionSetEnableEntry(
                 RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
             RxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+NTSTATUS
+XdpRxQueueEnableTimestampOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
+
+    if (RxQueue->IsTimestampOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
+        const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
+        if (RTL_CONTAINS_FIELD(
+                IfCapabilities->CapabilitiesEx, IfCapabilities->CapabilitiesEx->Header.Size,
+                RxTimestampSupported) &&
+            IfCapabilities->CapabilitiesEx->RxTimestampSupported) {
+            XdpExtensionSetEnableEntry(
+                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
+            RxQueue->IsTimestampOffloadEnabled = TRUE;
             Status = STATUS_SUCCESS;
         } else {
             Status = STATUS_NOT_SUPPORTED;
