@@ -249,6 +249,8 @@ typedef struct _XSK_FRAME_ORIGINAL_LENGTH {
 #define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME L"ms_xsk_frame_original_length"
 #define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1 1U
 
+#define XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM 1010
+
 #include <xdp/details/afxdp.h>
 
 #endif
