@@ -39,6 +39,7 @@ struct _XDP_CAPABILITIES_EX {
     XDP_VERSION DdkDriverApiVersion;
     GUID InstanceId;
     BOOLEAN RxChecksumSupported;
+    BOOLEAN RxTimestampSupported;
 } XDP_CAPABILITIES_EX;
 
 #define XDP_CAPABILITIES_EX_REVISION_1 1

@@ -168,6 +168,10 @@ typedef enum _XSK_ERROR {
 #include <xdp/afxdp_v1.h>
 #else
 
+#include <xdp/framechecksum.h>
+#include <xdp/framelayout.h>
+#include <xdp/frametimestamp.h>
+
 XDP_STATUS
 XskCreate(
     _Out_ HANDLE* Socket
@@ -248,6 +252,9 @@ typedef struct _XSK_FRAME_ORIGINAL_LENGTH {
 #define XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION 1009
 #define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME L"ms_xsk_frame_original_length"
 #define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1 1U
+
+#define XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP 1011
+#define XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION 1012
 
 #include <xdp/details/afxdp.h>
 

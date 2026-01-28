@@ -1615,6 +1615,11 @@ FuzzSocketMisc(
     }
 
     if (RandUlong() % 2) {
+        UINT32 Enabled = RandUlong() % 2;
+        XskSetSockopt(Sock, XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    }
+
+    if (RandUlong() % 2) {
         XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
         UINT32 timeoutMs = 0;
         XSK_NOTIFY_RESULT_FLAGS notifyResult;
@@ -1692,7 +1697,7 @@ FuzzSocketMisc(
         UINT16 Extension;
         UINT32 Option = 0;
 
-        switch (RandUlong() % 3) {
+        switch (RandUlong() % 4) {
         case 0:
             Option = XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION;
             break;
@@ -1701,6 +1706,9 @@ FuzzSocketMisc(
             break;
         case 2:
             Option = XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION;
+            break;
+        case 3:
+            Option = XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION;
             break;
         }
 

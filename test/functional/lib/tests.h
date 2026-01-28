@@ -209,6 +209,12 @@ VOID
 GenericRxChecksumOffloadExtensions();
 
 VOID
+GenericRxTimestampOffloadExtensions();
+
+VOID
+GenericRxTimestampOffload();
+
+VOID
 GenericTxChecksumOffloadIp();
 
 VOID
