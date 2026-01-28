@@ -2343,9 +2343,9 @@ XskNotifyRxQueue(
 
     if (!Xsk->Rx.Xdp.Flags.QueueActive) {
         //
-        // Since we register for notifications as soon as we bind the xsk,
+        // Since we register for notifications as soon as we bind the XSK,
         // we need to make sure to wait until the application has activated
-        // the xsk before allow other notifications to be registered.
+        // the XSK before we allow other notifications to be registered.
         //
         return;
     }
