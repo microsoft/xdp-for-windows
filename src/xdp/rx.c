@@ -398,6 +398,14 @@ static const XDP_EXTENSION_REGISTRATION XdpRxFrameExtensions[] = {
         .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
         .InternalExtension      = TRUE,
     },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_TIMESTAMP),
+        .Alignment              = __alignof(XDP_FRAME_TIMESTAMP),
+        .InternalExtension      = TRUE,
+    },
 };
 
 static const XDP_EXTENSION_REGISTRATION XdpRxBufferExtensions[] = {

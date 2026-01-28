@@ -85,6 +85,7 @@ typedef struct _XSK_RX_XDP {
     XDP_EXTENSION RxActionExtension;
     XDP_EXTENSION LayoutExtension;
     XDP_EXTENSION ChecksumExtension;
+    XDP_EXTENSION TimestampExtension;
     NDIS_POLL_BACKCHANNEL *PollHandle;
     struct {
         UINT8 NotificationsRegistered : 1;
@@ -288,6 +289,14 @@ static const XDP_EXTENSION_REGISTRATION XskRxFrameExtensions[] = {
         .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
         .Size                   = sizeof(XSK_FRAME_ORIGINAL_LENGTH),
         .Alignment              = __alignof(XSK_FRAME_ORIGINAL_LENGTH),
+        .InternalExtension      = TRUE,
+    },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_TIMESTAMP),
+        .Alignment              = __alignof(XDP_FRAME_TIMESTAMP),
         .InternalExtension      = TRUE,
     },
 };
@@ -1820,6 +1829,13 @@ XskNotifyAttachRxQueue(
             &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.ChecksumExtension);
+    }
+
+    if (XdpRxQueueIsTimestampOffloadEnabled(Config)) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+            XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Rx.Xdp.TimestampExtension);
     }
 
     if (XdpRxQueueGetMaximumFragments(Config) > 1) {
@@ -5534,6 +5550,16 @@ XskReceiveSingleFrame(
             RtlCopyVolatileMemory(
                 &XskOriginalLength->OriginalLength, &Buffer->DataLength,
                 sizeof(XskOriginalLength->OriginalLength));
+        }
+        if (Xsk->Rx.ExtensionFlags.Timestamp) {
+            const XDP_FRAME_TIMESTAMP *XdpTimestamp =
+                XdpGetTimestampExtension(Frame, &Xsk->Rx.Xdp.TimestampExtension);
+            XDP_FRAME_TIMESTAMP *XskTimestamp =
+                RTL_PTR_ADD(XskFrame, Xsk->Rx.TimestampExtensionOffset);
+            C_ASSERT(sizeof(*XskTimestamp) == sizeof(*XdpTimestamp));
+            ASSERT(Xsk->Rx.Xdp.TimestampExtension.Reserved != 0);
+            ASSERT(Xsk->Rx.TimestampExtensionOffset != 0);
+            RtlCopyVolatileMemory(XskTimestamp, XdpTimestamp, sizeof(*XskTimestamp));
         }
     }
 

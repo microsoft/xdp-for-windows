@@ -6867,7 +6867,8 @@ GenericRxTimestampOffload() {
     ActivateSocket(&Xsk, Rx, Tx);
 
     Xsk.RxProgram =
-        SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+        SocketAttachRxProgram(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
 
     // Inject a frame to receive
     UINT16 RemotePort = htons(4321);
@@ -6879,7 +6880,7 @@ GenericRxTimestampOffload() {
     If.GetIpv4Address(&LocalIp.Ipv4);
     If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
 
-    UCHAR Payload[] = "TimestampTest";
+    UCHAR Payload[] = "GenericRxTimestampOffload";
     UCHAR Frame[UDP_HEADER_STORAGE + sizeof(Payload)];
     UINT32 FrameLength = sizeof(Frame);
 
@@ -6891,6 +6892,7 @@ GenericRxTimestampOffload() {
 
     RX_FRAME RxFrame;
     RxInitializeFrame(&RxFrame, If.GetQueueId(), Frame, FrameLength);
+    RxFrame.Frame.Input.Timestamp.Timestamp = 0x1122334455667788ui64;
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
     MpRxFlush(GenericMp);
 
@@ -6910,7 +6912,7 @@ GenericRxTimestampOffload() {
     XDP_FRAME_TIMESTAMP *Timestamp =
         (XDP_FRAME_TIMESTAMP *)RTL_PTR_ADD(RxDesc, TimestampExtension);
 
-    UNREFERENCED_PARAMETER(Timestamp);
+    TEST_EQUAL(RxFrame.Frame.Input.Timestamp.Timestamp, Timestamp->Timestamp);
 
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
