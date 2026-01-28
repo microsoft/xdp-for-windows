@@ -173,6 +173,11 @@ When adding functional tests:
 - **Missing submodules**: Run `git submodule update --init --recursive`
 - **NuGet restore fails**: Ensure `tools/nuget.config` is used via `/p:RestoreConfigFile=tools/nuget.config`
 
+## Development Environment Notes
+
+- **No `grep`**: The environment is Windows (PowerShell). Do not try to run `grep` in the terminal. Use the `grep_search` tool or `Select-String` (via `run_in_terminal`) instead.
+- **File Editing**: Always **read the file** before editing to ensure you have the exact context (whitespace, indentation) for `replace_string_in_file`. Never guess the content of a file; exact matching is required for search-and-replace operations.
+
 ## Trust These Instructions
 
 These instructions are validated. Only search the codebase if information here is incomplete or found to be in error during execution.
