@@ -666,7 +666,6 @@ XdpRxQueueIsTimestampOffloadEnabled(
     return RxQueue->IsTimestampOffloadEnabled;
 }
 
-
 BOOLEAN
 XdpRxQueueIsLayoutExtensionEnabled(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
@@ -843,6 +842,11 @@ XdpRxQueueAttachInterface(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
         XdpExtensionSetEnableEntry(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+    }
+
+    if (RxQueue->IsTimestampOffloadEnabled) {
+        XdpExtensionSetEnableEntry(
+            RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
     }
 
     RxQueue->ConfigCreate.Dispatch = &XdpRxConfigCreateDispatch;
