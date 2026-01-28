@@ -193,7 +193,7 @@ option enables the `XDP_FRAME_TIMESTAMP` extension on the RX frame ring.
 - **Description**: Gets the `XDP_FRAME_TIMESTAMP` descriptor extension for the
 RX frame ring. This requires the socket is bound and the RX ring size is set.
 The returned value is the offset of the `XDP_FRAME_TIMESTAMP` structure from the
-start of each RX descriptor.
+start of each RX descriptor. The value of the timestamp is provided by the NIC and may be relative to a hardware or software clock. See "Overview of NDIS packet timestamping" on MSDN for details of how to interpret the timestamps.
 
 ## See Also
 
