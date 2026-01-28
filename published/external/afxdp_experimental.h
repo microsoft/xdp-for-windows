@@ -153,7 +153,7 @@ typedef enum _XSK_POLL_MODE {
 // Optval type: XDP_CHECKSUM_CONFIGURATION
 // Description: Returns the RX queue's current checksum offload configuration.
 //
-#define XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM 1008
+#define XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM 1010
 
 #ifdef __cplusplus
 } // extern "C"
