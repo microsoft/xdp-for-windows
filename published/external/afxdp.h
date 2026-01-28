@@ -164,9 +164,6 @@ typedef enum _XSK_ERROR {
 #define XSK_SOCKOPT_RX_PROCESSOR_AFFINITY 14
 #define XSK_SOCKOPT_TX_PROCESSOR_AFFINITY 15
 
-
-
-
 #if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
 #include <xdp/afxdp_v1.h>
 #else
