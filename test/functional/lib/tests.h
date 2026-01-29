@@ -243,7 +243,7 @@ VOID
 GenericTxChecksumOffloadConfig();
 
 VOID
-GenericRxChecksumOffloadConfig();
+GenericRxChecksumOffloadConfig(BOOLEAN AttachProgram);
 
 VOID
 GenericXskWait(

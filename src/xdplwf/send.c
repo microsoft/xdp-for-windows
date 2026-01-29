@@ -702,12 +702,15 @@ XdpGenericTxNotifyOffloadChange(
     _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     )
 {
-    LIST_ENTRY *Entry = Generic->Tx.Queues.Flink;
+    LIST_ENTRY *Entry;
 
     TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
 
     UNREFERENCED_PARAMETER(Offload);
 
+    RtlAcquirePushLockShared(&Generic->Lock);
+
+    Entry = Generic->Tx.Queues.Flink;
     while (Entry != &Generic->Tx.Queues) {
         XDP_LWF_GENERIC_TX_QUEUE *TxQueue =
             CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_TX_QUEUE, Link);
@@ -716,6 +719,8 @@ XdpGenericTxNotifyOffloadChange(
         XdpTxQueueNotify(
             TxQueue->XdpNotifyHandle, XDP_TX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
     }
+
+    RtlReleasePushLockShared(&Generic->Lock);
 
     TraceExitSuccess(TRACE_GENERIC);
 }
