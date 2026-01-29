@@ -1797,6 +1797,7 @@ XdpIfCreateOffloadNotificationRef(
             "IfIndex=%u Mode=%!XDP_MODE! QueueId=%u XdpIfCreateOffloadNotificationRef failed Status=%!STATUS!",
             Interface->IfIndex, Interface->Capabilities.Mode,
             XdpRxQueueGetTargetQueueInfo(Config)->QueueId, Status);
+        XdpIfpDereferenceProvider(Interface);
         goto Exit;
     }
 
