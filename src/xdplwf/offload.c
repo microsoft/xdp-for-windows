@@ -11,14 +11,68 @@ static XDP_GET_INTERFACE_OFFLOAD_CAPABILITIES XdpLwfGetInterfaceOffloadCapabilit
 static XDP_GET_INTERFACE_OFFLOAD XdpLwfGetInterfaceOffload;
 static XDP_SET_INTERFACE_OFFLOAD XdpLwfSetInterfaceOffload;
 static XDP_CLOSE_INTERFACE_OFFLOAD_HANDLE XdpLwfCloseInterfaceOffloadHandle;
+static XDP_CREATE_NOTIFY_OFFLOAD_REF XdpGenericRxCreateNotifyOffloadRef;
+static XDP_DELETE_NOTIFY_OFFLOAD_REF XdpGenericRxDeleteNotifyOffloadRef;
 
 CONST XDP_OFFLOAD_DISPATCH XdpLwfOffloadDispatch = {
     .OpenInterfaceOffloadHandle = XdpLwfOpenInterfaceOffloadHandle,
+    .CreateOffloadNotifyRef = XdpGenericRxCreateNotifyOffloadRef,
+    .DeleteOffloadNotifyRef = XdpGenericRxDeleteNotifyOffloadRef,
     .GetInterfaceOffloadCapabilities = XdpLwfGetInterfaceOffloadCapabilities,
     .GetInterfaceOffload = XdpLwfGetInterfaceOffload,
     .SetInterfaceOffload = XdpLwfSetInterfaceOffload,
     .CloseInterfaceOffloadHandle = XdpLwfCloseInterfaceOffloadHandle,
 };
+
+
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XdpGenericRxDeleteNotifyOffloadRef(
+    _In_ XDP_INTERFACE_HANDLE InterfaceRxNotifyQueue
+    )
+{
+    XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = (XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *)InterfaceRxNotifyQueue;
+    XDP_LWF_GENERIC *Generic = RxNotifyQueue->Generic;
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    RemoveEntryList(&RxNotifyQueue->Link);
+    RtlReleasePushLockExclusive(&Generic->Lock);
+    ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
+    TraceExitSuccess(TRACE_GENERIC);
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+XdpGenericRxCreateNotifyOffloadRef(
+    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
+    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
+    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxNotifyQueue
+    )
+{
+    NTSTATUS Status;
+    XDP_LWF_FILTER *Filter = (XDP_LWF_FILTER *)InterfaceContext;
+    XDP_LWF_GENERIC *Generic = &Filter->Generic;
+    XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue = NULL;
+    RxNotifyQueue = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*RxNotifyQueue), POOLTAG_RECV_NOTIFY);
+    if (RxNotifyQueue == NULL) {
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+    RxNotifyQueue->XdpNotifyHandle = XdpRxQueueGetNotifyHandle(Config);
+    RxNotifyQueue->Generic = Generic;
+    RtlAcquirePushLockExclusive(&Generic->Lock);
+    InsertTailList(&Generic->Rx.NotifyQueues, &RxNotifyQueue->Link);
+    RtlReleasePushLockExclusive(&Generic->Lock);
+
+    *InterfaceRxNotifyQueue = (XDP_INTERFACE_HANDLE)RxNotifyQueue;
+    Status = STATUS_SUCCESS;
+Exit:
+    if (!NT_SUCCESS(Status)) {
+        if (RxNotifyQueue != NULL) {
+            ExFreePoolWithTag(RxNotifyQueue, POOLTAG_RECV_NOTIFY);
+        }
+    }
+    return Status;
+}
 
 static
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -198,7 +252,8 @@ XdpLwfGetInterfaceOffload(
         ASSERT(OffloadParams != NULL);
         Status = XdpLwfOffloadRssGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
-    case XdpOffloadChecksum:
+    case XdpRxOffloadChecksum:
+    case XdpTxOffloadChecksum:
         ASSERT(OffloadParams != NULL);
         Status = XdpLwfOffloadChecksumGet(Filter, OffloadContext, OffloadParams, OffloadParamsSize);
         break;
