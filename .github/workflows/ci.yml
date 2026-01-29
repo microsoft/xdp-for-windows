@@ -366,65 +366,6 @@ jobs:
       shell: PowerShell
       run: tools\xskperfcompare.ps1 -DataFile1 baseref/artifacts/logs/xskperfsuite.csv -DataFile2 artifacts/logs/xskperfsuite.csv
 
-  downlevel_functional_tests:
-    name: Downlevel Functional Tests
-    needs: build
-    env:
-      Runtime: 25 # minutes. Update timeout-minutes with any changes.
-      Iters: 1
-    strategy:
-      fail-fast: false
-      matrix:
-        downlevel_release: []
-        windows: [2019, 2022, Prerelease]
-        configuration: [Release]
-        platform: [x64]
-    runs-on:
-     - self-hosted
-     - "1ES.Pool=xdp-ci-functional-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      with:
-        sparse-checkout: tools
-    - name: Check Drivers
-      shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
-    - name: Prepare Machine
-      shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
-    - name: Download Artifacts
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
-      with:
-        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/bin
-    - name: Download Downlevel Tests
-      shell: PowerShell
-      run: |
-        Invoke-WebRequest -Uri "https://github.com/microsoft/xdp-for-windows/releases/download/v${{ matrix.downlevel_release }}/xdp-tests-${{ matrix.platform }}-${{ matrix.downlevel_release }}.zip" -OutFile "artifacts/downlevel-test.zip"
-        Expand-Archive -Path artifacts/downlevel-test.zip -DestinationPath artifacts/downlevel-test/${{ matrix.platform }}
-        tools/merge-artifacts.ps1 -SourcePath artifacts/downlevel-test/${{ matrix.platform }}/bin/* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
-    - name: Run Tests
-      shell: PowerShell
-      timeout-minutes: 25
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }}
-    - name: Convert Logs
-      if: ${{ always() }}
-      timeout-minutes: 15
-      shell: PowerShell
-      run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
-    - name: Upload Logs
-      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
-      if: ${{ always() }}
-      with:
-        name: logs_downlevel_${{ matrix.downlevel_release }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
-        path: artifacts/logs
-    - name: Check Drivers
-      if: ${{ always() }}
-      shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
-
   xskfwdkm_test:
     name: XskFwdKm Test
     needs: build
@@ -561,7 +502,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts, etw]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, perf_tests, xskfwdkm_test, create_artifacts, etw]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
