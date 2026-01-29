@@ -85,7 +85,8 @@ XDP_REMOVE_INTERFACE_COMPLETE(
 typedef enum {
     XdpOffloadRss,
     XdpOffloadQeo,
-    XdpOffloadChecksum,
+    XdpRxOffloadChecksum,
+    XdpTxOffloadChecksum,
 } XDP_INTERFACE_OFFLOAD_TYPE;
 
 typedef enum {
@@ -229,6 +230,22 @@ XDP_SET_INTERFACE_OFFLOAD(
     _In_ UINT32 OffloadParamsSize
     );
 
+typedef
+_IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+XDP_CREATE_NOTIFY_OFFLOAD_REF(
+    _In_ XDP_INTERFACE_HANDLE InterfaceContext,
+    _Inout_ XDP_RX_QUEUE_CONFIG_CREATE Config,
+    _Out_ XDP_INTERFACE_HANDLE *InterfaceRxQueue
+    );
+
+typedef
+_IRQL_requires_(PASSIVE_LEVEL)
+VOID
+XDP_DELETE_NOTIFY_OFFLOAD_REF(
+    _In_ XDP_INTERFACE_HANDLE InterfaceRxQueue
+    );
+
 //
 // Close an interface offload configuration handle.
 // This reverts any offload configuration done or references added via the
@@ -246,6 +263,8 @@ typedef struct _XDP_OFFLOAD_DISPATCH {
     XDP_SET_QUEUE_OFFLOAD *SetQueueOffload;
     XDP_CLOSE_QUEUE_OFFLOAD_HANDLE *CloseQueueOffloadHandle;
     XDP_OPEN_INTERFACE_OFFLOAD_HANDLE *OpenInterfaceOffloadHandle;
+    XDP_CREATE_NOTIFY_OFFLOAD_REF *CreateOffloadNotifyRef;
+    XDP_DELETE_NOTIFY_OFFLOAD_REF *DeleteOffloadNotifyRef;
     XDP_GET_INTERFACE_OFFLOAD_CAPABILITIES *GetInterfaceOffloadCapabilities;
     XDP_GET_INTERFACE_OFFLOAD *GetInterfaceOffload;
     XDP_SET_INTERFACE_OFFLOAD *SetInterfaceOffload;
