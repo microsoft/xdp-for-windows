@@ -2092,7 +2092,10 @@ XdpGenericRxRestartQueue(
     RxQueue->Flags.Paused = FALSE;
     KeReleaseSpinLock(&RxQueue->EcLock, OldIrql);
 
-    ExReInitializeRundownProtection(&RxQueue->NblRundown);
+    if (Generic->Rx.Datapath.Inserted && Generic->Tx.Datapath.Inserted) {
+        ASSERT(!ExAcquireRundownProtection(&RxQueue->NblRundown));
+        ExReInitializeRundownProtection(&RxQueue->NblRundown);
+    }
 
     TraceExitSuccess(TRACE_GENERIC);
 }
@@ -2245,8 +2248,17 @@ XdpGenericRxCreateQueue(
     }
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
+
+    //
+    // Synchronize the per-queue pause state with the generic datapath state.
+    //
     RxQueue->Flags.Paused = Generic->Flags.Paused;
+    if (Generic->Flags.Paused || !Generic->Rx.Datapath.Inserted || !Generic->Tx.Datapath.Inserted) {
+        ExWaitForRundownProtectionRelease(&RxQueue->NblRundown);
+    }
+
     InsertTailList(&Generic->Rx.Queues, &RxQueue->Link);
+
     RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (RxQueue->Flags.TxInspect) {

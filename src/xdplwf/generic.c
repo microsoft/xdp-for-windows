@@ -406,10 +406,20 @@ XdpGenericAttachDatapath(
         XdpGenericRequestRestart(Generic);
     }
 
-    Timeout.QuadPart =
-        -1 * RTL_MILLISEC_TO_100NANOSEC(GENERIC_DATAPATH_RESTART_TIMEOUT_MS);
-    KeWaitForMultipleObjects(
-        ReadyEventCount, ReadyEvents, WaitAll, Executive, KernelMode, FALSE, &Timeout, NULL);
+    if (!XdpLwfFaultInject()) {
+        //
+        // Make a best effort to wait for the datapath(s) to be ready, but don't
+        // block forever on NDIS restarting the data path, which can take an
+        // indeterminate amount of time and risks introducing a deadlock between
+        // our caller and NDIS. The brief wait is simply a courtesy to reduce
+        // the chances the caller will experience drops for the first fraction
+        // of a second after opening a socket.
+        //
+        Timeout.QuadPart =
+            -1 * RTL_MILLISEC_TO_100NANOSEC(GENERIC_DATAPATH_RESTART_TIMEOUT_MS);
+        KeWaitForMultipleObjects(
+            ReadyEventCount, ReadyEvents, WaitAll, Executive, KernelMode, FALSE, &Timeout, NULL);
+    }
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
