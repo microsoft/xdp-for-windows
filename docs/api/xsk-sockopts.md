@@ -130,7 +130,7 @@ typedef enum _XSK_ERROR {
 //
 // Supports: set/get
 // Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
-// Description:
+// Description: 
 //              For set, enables or disables ideal processor profiling.
 //              This option is disabled by default.
 //              For get, returns the ideal processor of the kernel RX data path.
@@ -146,7 +146,7 @@ typedef enum _XSK_ERROR {
 //
 // Supports: set/get
 // Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
-// Description:
+// Description: 
 //              For set, enables or disables ideal processor profiling.
 //              This option is disabled by default.
 //              For get, returns the ideal processor of the kernel TX data path.
@@ -178,12 +178,6 @@ and at least one socket option has enabled the frame layout extension. The
 returned value is the offset of the `XSK_FRAME_ORIGINAL_LENGTH` structure from
 the start of each RX frame descriptor.
 
-### `XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM`
-
-- **Supports**: Get
-- **Optval type**: `XDP_CHECKSUM_CONFIGURATION`
-- **Description**: Returns the RX queue's current checksum offload configuration.
-
 ### `XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP`
 
 - **Supports**: Set
@@ -203,7 +197,7 @@ start of each RX descriptor. The value of the timestamp is provided by the NIC a
 
 ## See Also
 
-[AF_XDP](../afxdp.md)
-[XskSetSockopt](XskSetSockopt.md)
-[XskGetSockopt](XskGetSockopt.md)
-[XskIoctl](XskIoctl.md)
+[AF_XDP](../afxdp.md)  
+[XskSetSockopt](XskSetSockopt.md)  
+[XskGetSockopt](XskGetSockopt.md)  
+[XskIoctl](XskIoctl.md)  

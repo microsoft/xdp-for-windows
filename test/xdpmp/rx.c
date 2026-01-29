@@ -678,4 +678,3 @@ MpXdpDeleteRxQueue(
     Rq->XdpRxQueue = NULL;
     Rq->FrameRing = NULL;
 }
-

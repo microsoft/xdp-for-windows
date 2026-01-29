@@ -80,12 +80,6 @@ typedef struct _XDP_LWF_GENERIC_RX_QUEUE {
     KEVENT *DeleteComplete;
 } XDP_LWF_GENERIC_RX_QUEUE;
 
-typedef struct _XDP_LWF_GENERIC_RX_QUEUE_NOTIFY {
-    XDP_LWF_GENERIC *Generic;
-    XDP_RX_QUEUE_NOTIFY_HANDLE XdpNotifyHandle;
-    LIST_ENTRY Link;
-} XDP_LWF_GENERIC_RX_QUEUE_NOTIFY;
-
 FILTER_RETURN_NET_BUFFER_LISTS XdpGenericReturnNetBufferLists;
 FILTER_RECEIVE_NET_BUFFER_LISTS XdpGenericReceiveNetBufferLists;
 
@@ -138,14 +132,6 @@ VOID
 XdpGenericRxRestart(
     _In_ XDP_LWF_GENERIC *Generic,
     _In_ UINT32 NewMtu
-    );
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_Requires_lock_not_held_(&Generic->Lock)
-VOID
-XdpGenericRxNotifyOffloadChange(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     );
 
 VOID

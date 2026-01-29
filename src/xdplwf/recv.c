@@ -2100,7 +2100,10 @@ XdpGenericRxRestartQueue(
     RxQueue->Flags.Paused = FALSE;
     KeReleaseSpinLock(&RxQueue->EcLock, OldIrql);
 
-    ExReInitializeRundownProtection(&RxQueue->NblRundown);
+    if (Generic->Rx.Datapath.Inserted && Generic->Tx.Datapath.Inserted) {
+        ASSERT(!ExAcquireRundownProtection(&RxQueue->NblRundown));
+        ExReInitializeRundownProtection(&RxQueue->NblRundown);
+    }
 
     TraceExitSuccess(TRACE_GENERIC);
 }
@@ -2129,31 +2132,6 @@ XdpGenericRxRestart(
         Entry = Entry->Flink;
 
         XdpGenericRxRestartQueue(Generic, RxQueue);
-    }
-
-    TraceExitSuccess(TRACE_GENERIC);
-}
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_Requires_lock_not_held_(&Generic->Lock)
-VOID
-XdpGenericRxNotifyOffloadChange(
-    _In_ XDP_LWF_GENERIC *Generic,
-    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
-    )
-{
-    LIST_ENTRY *Entry = Generic->Rx.NotifyQueues.Flink;
-
-    TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
-
-    UNREFERENCED_PARAMETER(Offload);
-
-    while (Entry != &Generic->Rx.NotifyQueues) {
-        XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue =
-            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, Link);
-        Entry = Entry->Flink;
-        XdpRxQueueNotify(
-            RxNotifyQueue->XdpNotifyHandle, XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
     }
 
     TraceExitSuccess(TRACE_GENERIC);
@@ -2278,8 +2256,17 @@ XdpGenericRxCreateQueue(
     }
 
     RtlAcquirePushLockExclusive(&Generic->Lock);
+
+    //
+    // Synchronize the per-queue pause state with the generic datapath state.
+    //
     RxQueue->Flags.Paused = Generic->Flags.Paused;
+    if (Generic->Flags.Paused || !Generic->Rx.Datapath.Inserted || !Generic->Tx.Datapath.Inserted) {
+        ExWaitForRundownProtectionRelease(&RxQueue->NblRundown);
+    }
+
     InsertTailList(&Generic->Rx.Queues, &RxQueue->Link);
+
     RtlReleasePushLockExclusive(&Generic->Lock);
 
     if (RxQueue->Flags.TxInspect) {
