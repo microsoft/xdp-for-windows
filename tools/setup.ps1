@@ -41,6 +41,9 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
+    [int]$DeviceIndex = 0,
+
+    [Parameter(Mandatory = $false)]
     [ValidateSet("MSI", "INF", "NuGet")]
     [string]$XdpInstaller = "MSI",
 
@@ -81,8 +84,10 @@ $XdpMpSys = "$ArtifactsDir\test\xdpmp\xdpmp.sys"
 $XdpMpInf = "$ArtifactsDir\test\xdpmp\xdpmp.inf"
 $XdpMpCert = "$ArtifactsDir\test\xdpmp.cer"
 $XdpMpComponentId = "ms_xdpmp"
-$XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
+$XdpMpDeviceId = "xdpmp$($DeviceIndex)"
+$XdpMpPnpDeviceId = "SWD\$XdpMpDeviceId\$XdpMpDeviceId"
+$XdpMpIfAlias = "XDPMP" + (Get-IfAliasSuffixForDeviceIndex $DeviceIndex)
 $XskFwdKmSys = "$ArtifactsDir\test\xskfwdkm.sys"
 
 # Ensure the output path exists.
@@ -215,14 +220,23 @@ function Install-SignedDriverCertificate($SignedFileName) {
     Install-DriverCertificate $CertFileName
 }
 
+function Wait-For-AdapterByPnpId($PnpId, $WaitForUp=$true) {
+    Write-Verbose "Waiting for `"$PnpId`" adapter to start"
+    $Filter = { $_.PnpDeviceID -eq "$PnpId" -and (!$WaitForUp -or $_.Status -eq "Up") }
+    return Wait-For-Adapters $Filter 1 $WaitForUp
+}
+
 # Helper to wait for an adapter to start.
-function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
-    Write-Verbose "Waiting for $Count `"$IfDesc`" adapter(s) to start"
+function Wait-For-Adapters($Filter, $Count=1, $WaitForUp=$true) {
+    Write-Verbose "Waiting for $Count adapter(s) to start"
     $StartSuccess = $false
+    $Results = $null
     for ($i = 0; $i -lt 100; $i++) {
         $Result = 0
-        $Filter = { $_.InterfaceDescription -like "$IfDesc*" -and (!$WaitForUp -or $_.Status -eq "Up") }
-        try { $Result = ((Get-NetAdapter | where $Filter) | Measure-Object).Count } catch {}
+        try {
+            $Results = Get-NetAdapter | where $Filter
+            $Result = ($Results | Measure-Object).Count
+        } catch {}
         if ($Result -eq $Count) {
             $StartSuccess = $true
             break;
@@ -231,9 +245,10 @@ function Wait-For-Adapters($IfDesc, $Count=1, $WaitForUp=$true) {
     }
     if ($StartSuccess -eq $false) {
         Get-NetAdapter | Format-Table | Out-String | Write-Verbose
-        Write-Error "Failed to start $Count `"$IfDesc`" adapters(s) [$Result/$Count]"
+        Write-Error "Failed to start $Count adapters(s) [$Result/$Count]"
     } else {
-        Write-Verbose "Started $Count `"$IfDesc`" adapter(s)"
+        Write-Verbose "Started $Count adapter(s)"
+        return $Results
     }
 }
 
@@ -491,12 +506,14 @@ function Install-XdpMp {
         Write-Error "$XdpMpSys does not exist!"
     }
 
-    Install-DriverCertificate $XdpMpCert
+    if ($DeviceIndex -eq 0) {
+        Install-DriverCertificate $XdpMpCert
 
-    Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
-    pnputil.exe /install /add-driver $XdpMpInf | Write-Verbose
-    if ($LastExitCode) {
-        Write-Error "pnputil.exe exit code: $LastExitCode"
+        Write-Verbose "pnputil.exe /install /add-driver $XdpMpInf"
+        pnputil.exe /install /add-driver $XdpMpInf | Write-Verbose
+        if ($LastExitCode) {
+            Write-Error "pnputil.exe exit code: $LastExitCode"
+        }
     }
 
     Write-Verbose "dswdevice.exe -i $XdpMpDeviceId $XdpMpComponentId"
@@ -507,19 +524,19 @@ function Install-XdpMp {
 
     # Do not wait for the adapter to fully come up: the default is NDIS polling,
     # which is not available prior to WS2022.
-    Wait-For-Adapters -IfDesc $XdpMpServiceName -WaitForUp $false
+    $Adapter = Wait-For-AdapterByPnpId -PnpId $XdpMpPnpDeviceId -WaitForUp $false
 
     Write-Verbose "Renaming adapter"
-    Rename-NetAdapter-With-Retry $XdpMpServiceName $XdpMpServiceName
+    Rename-NetAdapter-With-Retry $Adapter.InterfaceDescription $XdpMpIfAlias
 
-    Write-Verbose "Get-NetAdapter $XdpMpServiceName"
-    Get-NetAdapter $XdpMpServiceName | Format-Table | Out-String | Write-Verbose
-    $AdapterIndex = (Get-NetAdapter $XdpMpServiceName).ifIndex
+    Write-Verbose "Get-NetAdapter $XdpMpIfAlias"
+    Get-NetAdapter $XdpMpIfAlias | Format-Table | Out-String | Write-Verbose
+    $AdapterIndex = (Get-NetAdapter $XdpMpIfAlias).ifIndex
 
     Write-Verbose "Setting up the adapter"
 
-    Write-Verbose "Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider"
-    Set-NetAdapterAdvancedProperty -Name $XdpMpServiceName -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider
+    Write-Verbose "Set-NetAdapterAdvancedProperty -Name $XdpMpIfAlias -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider"
+    Set-NetAdapterAdvancedProperty -Name $XdpMpIfAlias -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider
 
     if ($XdpmpPollProvider -eq "NDIS") {
         #Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
@@ -527,27 +544,28 @@ function Install-XdpMp {
         Write-Verbose "Skipping NDIS polling configuration"
     }
 
-    Wait-For-Adapters -IfDesc $XdpMpServiceName
+    Wait-For-AdapterByPnpId -PnpId $XdpMpPnpDeviceId -WaitForUp $false
+
+    $IpOffset = Get-XdpmpIpOffsetForDeviceIndex $DeviceIndex
 
     netsh.exe int ipv4 set int $AdapterIndex dadtransmits=0 | Write-Verbose
-    netsh.exe int ipv4 add address $AdapterIndex address=192.168.100.1/24 | Write-Verbose
-    netsh.exe int ipv4 add neighbor $AdapterIndex address=192.168.100.2 neighbor=22-22-22-22-00-02 | Write-Verbose
-
+    netsh.exe int ipv4 add address $AdapterIndex address=192.168.$IpOffset.1/24 | Write-Verbose
+    netsh.exe int ipv4 add neighbor $AdapterIndex address=192.168.$IpOffset.2 neighbor=22-22-22-22-00-02 | Write-Verbose
     netsh.exe int ipv6 set int $AdapterIndex dadtransmits=0 | Write-Verbose
-    netsh.exe int ipv6 add address $AdapterIndex address=fc00::100:1/112 | Write-Verbose
-    netsh.exe int ipv6 add neighbor $AdapterIndex address=fc00::100:2 neighbor=22-22-22-22-00-02 | Write-Verbose
+    netsh.exe int ipv6 add address $AdapterIndex address=fc00::$($IpOffset):1/112 | Write-Verbose
+    netsh.exe int ipv6 add neighbor $AdapterIndex address=fc00::$($IpOffset):2 neighbor=22-22-22-22-00-02 | Write-Verbose
 
     Write-Verbose "Adding firewall rules"
-    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v4" dir=in action=allow protocol=any remoteip=192.168.100.0/24 | Write-Verbose
-    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpServiceName)v6" dir=in action=allow protocol=any remoteip=fc00::100:0/112 | Write-Verbose
+    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpIfAlias)v4" dir=in action=allow protocol=any remoteip=192.168.$IpOffset.0/24 | Write-Verbose
+    netsh.exe advfirewall firewall add rule name="Allow$($XdpMpIfAlias)v6" dir=in action=allow protocol=any remoteip=fc00::$($IpOffset):0/112 | Write-Verbose
 
     Write-Verbose "xdpmp.sys install complete!"
 }
 
 # Uninstalls the xdpmp driver.
 function Uninstall-XdpMp {
-    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v4" | Out-Null
-    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpServiceName)v6" | Out-Null
+    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpIfAlias)v4" | Out-Null
+    netsh.exe advfirewall firewall del rule name="Allow$($XdpMpIfAlias)v6" | Out-Null
 
     Write-Verbose "$DswDevice -u $XdpMpDeviceId"
     cmd.exe /c "$DswDevice -u $XdpMpDeviceId 2>&1" | Write-Verbose
@@ -555,15 +573,17 @@ function Uninstall-XdpMp {
         Write-Host "Deleting $XdpMpDeviceId device failed: $LastExitCode"
     }
 
-    Write-Verbose "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId"
-    cmd.exe /c "$DevCon remove @SWD\$XdpMpDeviceId\$XdpMpDeviceId 2>&1" | Write-Verbose
+    Write-Verbose "$DevCon remove @$XdpMpPnpDeviceId"
+    cmd.exe /c "$DevCon remove @$XdpMpPnpDeviceId 2>&1" | Write-Verbose
     if (!$?) {
         Write-Host "Removing $XdpMpDeviceId device failed: $LastExitCode"
     }
 
-    Cleanup-Service $XdpMpServiceName
+    if ($DeviceIndex -eq 0) {
+        Cleanup-Service $XdpMpServiceName
 
-    Uninstall-Driver "xdpmp.inf"
+        Uninstall-Driver "xdpmp.inf"
+    }
 
     Write-Verbose "xdpmp.sys uninstall complete!"
 }

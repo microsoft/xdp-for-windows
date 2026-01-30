@@ -249,6 +249,43 @@ function Add-Path {
     Refresh-Path
 }
 
+function Get-IfAliasSuffixForDeviceIndex {
+    param (
+        [Parameter()]
+        [int]$DeviceIndex
+    )
+
+    if ($DeviceIndex -eq 0) {
+        return ""
+    } else {
+        return "$DeviceIndex"
+    }
+}
+
+function Get-XdpmpIpOffsetForDeviceIndex {
+    param (
+        [Parameter()]
+        [int]$DeviceIndex
+    )
+
+    return 100 + $DeviceIndex
+}
+
+function Stop-ProcessIgnoreErrors {
+    param (
+        [Parameter()]
+        [System.Diagnostics.Process]$Process
+    )
+
+    try {
+        if (!$Process.HasExited) {
+            Stop-Process -InputObject $Process -ErrorAction SilentlyContinue
+        }
+    } catch {
+        # Ignore errors.
+    }
+}
+
 function Collect-LiveKD {
     param (
         [Parameter()]
