@@ -25,7 +25,10 @@ git submodule update --init --recursive
     - "Desktop development with C++" (via "Workload")
     - Latest Spectre-mitigated libs (via "Individual components")
     - C++ Address Sanitizer (via "Individual components")
-    - C++ Clang Compiler for Windows
+
+- [Clang LLVM](https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-win64.exe)
+  - Make sure clang.exe is in your PATH and that `clang --print-targets | Select-String "bpf"` prints a non-empty output.
+
 - [NuGet Windows x86 Commandline](https://www.nuget.org/downloads)
   - Version 6.3.1 or higher is required by the eBPF-for-Windows project.
 - [Windows WDK and matching SDK](https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
