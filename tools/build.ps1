@@ -35,7 +35,10 @@ param (
 
     [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory=$false)]
-    [string[]]$NugetPlatforms = $Platform
+    [string[]]$NugetPlatforms = $Platform,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SuppressValidation = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -106,6 +109,7 @@ msbuild.exe $Sln `
     /p:SignMode=$SignMode `
     /p:BuildStage=$BuildStage `
     /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `
+    /p:SuppressValidation=$SuppressValidation `
     /t:$($Tasks -join ",") `
     /nodeReuse:false `
     /maxCpuCount
