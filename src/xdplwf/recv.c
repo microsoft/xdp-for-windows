@@ -2137,6 +2137,36 @@ XdpGenericRxRestart(
     TraceExitSuccess(TRACE_GENERIC);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericRxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
+    )
+{
+    LIST_ENTRY *Entry;
+
+    TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
+
+    UNREFERENCED_PARAMETER(Offload);
+
+    RtlAcquirePushLockShared(&Generic->Lock);
+
+    Entry = Generic->Rx.NotifyQueues.Flink;
+    while (Entry != &Generic->Rx.NotifyQueues) {
+        XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue =
+            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, Link);
+        Entry = Entry->Flink;
+        XdpRxQueueNotify(
+            RxNotifyQueue->XdpNotifyHandle, XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
+    }
+
+    RtlReleasePushLockShared(&Generic->Lock);
+
+    TraceExitSuccess(TRACE_GENERIC);
+}
+
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpGenericRxCreateQueue(
