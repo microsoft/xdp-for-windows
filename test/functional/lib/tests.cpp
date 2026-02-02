@@ -1506,18 +1506,8 @@ SocketGetAndFreeRxDesc(
 }
 
 static
-UINT64
-SocketGetTxCompDesc(
-    _In_ const MY_SOCKET *Socket,
-    _In_ UINT32 Index
-    )
-{
-    return *(UINT64 *)XskRingGetElement(&Socket->Rings.Completion, Index);
-}
-
-static
 UINT64 *
-SocketGetTxCompletionDesc(
+SocketGetTxCompDesc(
     _In_ const MY_SOCKET *Socket,
     _In_ UINT32 Index
     )
@@ -1861,6 +1851,17 @@ MpTxAllocateAndGetFrame(
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
     return FrameBuffer;
+}
+
+static
+VOID
+MpTxSetFrame(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Index,
+    _In_ DATA_FRAME *Frame
+    )
+{
+    TEST_HRESULT(FnMpTxSetFrame(Handle.get(), Index, 0, Frame));
 }
 
 static
@@ -6320,7 +6321,7 @@ GenericTxSingleFrame()
     MpTxFlush(GenericMp);
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
 }
 
 VOID
@@ -6371,14 +6372,14 @@ GenericTxOutOfOrder()
     MpTxFlush(GenericMp);
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer1, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer1, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
     XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
 
     MpTxDequeueFrame(GenericMp, 0);
     MpTxFlush(GenericMp);
 
     ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer0, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer0, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
 }
 
 VOID
@@ -6440,7 +6441,7 @@ GenericTxSharing()
         MpTxFlush(GenericMp);
 
         UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-        TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+        TEST_EQUAL(TxBuffer, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
     }
 }
 
@@ -7032,33 +7033,19 @@ GenericTxTimestampOffload() {
     NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
     TEST_EQUAL(0, NotifyResult);
 
-    // Wait for the frame to be transmitted
     auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
-
-    MpTxDequeueFrame(GenericMp, If.GetQueueId());
+    DATA_FRAME UpdateFrame = {};
+    UpdateFrame.Input.Timestamp.Timestamp = 0x123456789ABCDEF0ui64;
+    UpdateFrame.Input.Flags.Timestamp = TRUE;
+    MpTxSetFrame(GenericMp, 0, &UpdateFrame);
+    MpTxDequeueFrame(GenericMp, 0);
     MpTxFlush(GenericMp);
 
-    // Wait for completion
-    UINT32 ConsumerIndex;
-    Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
-    while (!Watchdog.IsExpired()) {
-        NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
-        if (XskRingConsumerReserve(&Xsk.Rings.Completion, 1, &ConsumerIndex)) {
-            break;
-        }
-        CxPlatSleep(POLL_INTERVAL_MS);
-    }
-    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Completion, 1, &ConsumerIndex));
-
-    // Read the timestamp from the TX completion ring.
-    // Note: The test miniport (fnmp) sets a timestamp on TX completion.
-    UINT64 *CompletionDesc = SocketGetTxCompletionDesc(&Xsk, ConsumerIndex);
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
+    UINT64 *CompletionDesc = SocketGetTxCompDesc(&Xsk, ConsumerIndex);
     XDP_FRAME_TIMESTAMP *Timestamp =
         (XDP_FRAME_TIMESTAMP *)RTL_PTR_ADD(CompletionDesc, TimestampExtension);
-
-    // Verify the timestamp is present (non-zero indicates the miniport set one)
-    // The actual timestamp value depends on fnmp's implementation.
-    TEST_TRUE(Timestamp->Timestamp != 0 || TRUE);  // Allow zero if fnmp doesn't set timestamps
+    TEST_EQUAL(UpdateFrame.Input.Timestamp.Timestamp, Timestamp->Timestamp);
 
     XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
 }

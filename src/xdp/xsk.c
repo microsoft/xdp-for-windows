@@ -7,7 +7,6 @@
 #include "xsk.tmh"
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
-#include <xdp/frametimestampextension.h>
 
 typedef enum _XSK_STATE {
     XskUnbound,
@@ -989,6 +988,7 @@ XskFillTxCompletion(
     UINT64 RelativeAddress;
     UMEM_MAPPING *Mapping = XskGetTxMapping(Xsk);
     XDP_TX_FRAME_COMPLETION_CONTEXT *CompletionContext;
+    const XDP_FRAME_TIMESTAMP *XdpTimestamp = NULL;
 
     if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
         XDP_RING *XdpRing = Xsk->Tx.Xdp.CompletionRing;
@@ -1001,7 +1001,6 @@ XskFillTxCompletion(
         //
         ASSERT(XdpRingCount(XdpRing) > 0);
         do {
-            const XDP_FRAME_TIMESTAMP *Timestamp = NULL;
 
             Completion = XdpRingGetElement(XdpRing, XdpRing->ConsumerIndex & XdpRing->Mask);
 
@@ -1032,13 +1031,13 @@ XskFillTxCompletion(
                 RelativeAddress = 0;
             }
 
-            if (Xsk->Tx.Xdp.TimestampCompletionExtension.Reserved != 0) {
-                Timestamp =
+            if (Xsk->Tx.OffloadFlags.Timestamp) {
+                XdpTimestamp =
                     XdpGetTxCompletionTimestampExtension(
                         Completion, &Xsk->Tx.Xdp.TimestampCompletionExtension);
             }
 
-            XskWriteUmemTxCompletion(Xsk, ProducerIndex++, RelativeAddress, Timestamp);
+            XskWriteUmemTxCompletion(Xsk, ProducerIndex++, RelativeAddress, XdpTimestamp);
             XdpRing->ConsumerIndex++;
         } while (XdpRingCount(XdpRing) > 0);
     } else {
@@ -1088,7 +1087,13 @@ XskFillTxCompletion(
                 RelativeAddress = 0;
             }
 
-            XskWriteUmemTxCompletion(Xsk, ProducerIndex++, RelativeAddress, NULL);
+            if (Xsk->Tx.OffloadFlags.Timestamp) {
+                XdpTimestamp =
+                    XdpGetTimestampExtension(
+                        Frame, &Xsk->Tx.Xdp.TimestampCompletionExtension);
+            }
+
+            XskWriteUmemTxCompletion(Xsk, ProducerIndex++, RelativeAddress, XdpTimestamp);
         } while ((XdpRing->ConsumerIndex - ++XdpRing->Reserved) > 0);
     }
 
@@ -2658,10 +2663,17 @@ XskActivateTxIf(
     }
 
     if (XdpTxQueueIsTimestampOffloadEnabled(Config)) {
-        XdpInitializeExtensionInfo(
-            &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
-            XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
-        XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.TimestampCompletionExtension);
+        if (Xsk->Tx.Xdp.Flags.OutOfOrderCompletion) {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+                XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.TimestampCompletionExtension);
+        } else {
+            XdpInitializeExtensionInfo(
+                &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+                XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+            XdpTxQueueGetExtension(Config, &ExtensionInfo, &Xsk->Tx.Xdp.TimestampCompletionExtension);
+        }
     }
 
     Status = XskAllocateTxBounceBuffer(Xsk);

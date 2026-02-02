@@ -287,6 +287,13 @@ static const XDP_EXTENSION_REGISTRATION XdpTxFrameExtensions[] = {
         .Size                   = sizeof(XDP_FRAME_CHECKSUM),
         .Alignment              = __alignof(XDP_FRAME_CHECKSUM),
     },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_FRAME,
+        .Size                   = sizeof(XDP_FRAME_TIMESTAMP),
+        .Alignment              = __alignof(XDP_FRAME_TIMESTAMP),
+    },
 };
 
 static const XDP_EXTENSION_REGISTRATION XdpTxBufferExtensions[] = {
@@ -1286,12 +1293,14 @@ XdpTxQueueEnableTimestampOffload(
     )
 {
     NTSTATUS Status;
+    XDP_EXTENSION_SET *ExtensionSet =
+        TxQueue->InterfaceTxCapabilities.OutOfOrderCompletionEnabled ?
+            TxQueue->TxFrameCompletionExtensionSet : TxQueue->FrameExtensionSet;
 
     TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
 
     if (TxQueue->IsTimestampOffloadEnabled) {
-        ASSERT(XdpExtensionSetIsExtensionEnabled(
-            TxQueue->TxFrameCompletionExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME));
+        ASSERT(XdpExtensionSetIsExtensionEnabled(ExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME));
         Status = STATUS_SUCCESS;
     } else if (TxQueue->State == XdpTxQueueStateCreated) {
         const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(TxQueue->Binding);
@@ -1299,8 +1308,7 @@ XdpTxQueueEnableTimestampOffload(
                 IfCapabilities->CapabilitiesEx, IfCapabilities->CapabilitiesEx->Header.Size,
                 TxTimestampSupported) &&
             IfCapabilities->CapabilitiesEx->TxTimestampSupported) {
-            XdpExtensionSetEnableEntry(
-                TxQueue->TxFrameCompletionExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
+            XdpExtensionSetEnableEntry(ExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
             TxQueue->IsTimestampOffloadEnabled = TRUE;
             Status = STATUS_SUCCESS;
         } else {
