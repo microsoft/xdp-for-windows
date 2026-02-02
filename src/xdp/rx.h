@@ -74,6 +74,11 @@ XdpRxQueueEnableChecksumOffload(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
+NTSTATUS
+XdpRxQueueEnableTimestampOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 VOID
 XdpRxQueueDereference(
     _In_ XDP_RX_QUEUE *RxQueue

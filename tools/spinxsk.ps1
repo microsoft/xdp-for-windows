@@ -95,7 +95,7 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableEbpf = $false,
+    [switch]$EnableEbpf = $true,
 
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,

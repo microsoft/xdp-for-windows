@@ -185,6 +185,23 @@ the start of each RX frame descriptor.
 - **Optval type**: `XDP_CHECKSUM_CONFIGURATION`
 - **Description**: Returns the RX queue's current checksum offload configuration.
 
+### `XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP`
+
+- **Supports**: Set
+- **Optval type**: `UINT32`
+- **Description**: Sets whether timestamp receive offload is enabled. This
+option requires the socket is bound and the RX frame ring size is not set. This
+option enables the `XDP_FRAME_TIMESTAMP` extension on the RX frame ring.
+
+### `XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION`
+
+- **Supports**: Get
+- **Optval type**: `UINT16`
+- **Description**: Gets the `XDP_FRAME_TIMESTAMP` descriptor extension for the
+RX frame ring. This requires the socket is bound and the RX ring size is set.
+The returned value is the offset of the `XDP_FRAME_TIMESTAMP` structure from the
+start of each RX descriptor. The value of the timestamp is provided by the NIC and may be relative to a hardware or software clock. See "Overview of NDIS packet timestamping" on MSDN for details of how to interpret the timestamps.
+
 ## See Also
 
 [AF_XDP](../afxdp.md)
