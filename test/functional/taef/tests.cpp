@@ -187,6 +187,14 @@ public:
         ::GenericRxTimestampOffload();
     }
 
+    TEST_METHOD_PRERELEASE(GenericTxTimestampOffloadExtensions) {
+        ::GenericTxTimestampOffloadExtensions();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericTxTimestampOffload) {
+        ::GenericTxTimestampOffload();
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadIp) {
         ::GenericTxChecksumOffloadIp();
     }

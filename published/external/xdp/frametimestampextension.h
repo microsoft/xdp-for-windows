@@ -13,6 +13,7 @@ EXTERN_C_START
 #define XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1 1U
 
 #include <xdp/extension.h>
+#include <xdp/datapath.h>
 
 inline
 XDP_FRAME_TIMESTAMP *
@@ -22,6 +23,16 @@ XdpGetTimestampExtension(
     )
 {
     return (XDP_FRAME_TIMESTAMP *)XdpGetExtensionData(Frame, Extension);
+}
+
+inline
+XDP_FRAME_TIMESTAMP *
+XdpGetTxCompletionTimestampExtension(
+    _In_ XDP_TX_FRAME_COMPLETION *Completion,
+    _In_ XDP_EXTENSION *Extension
+    )
+{
+    return (XDP_FRAME_TIMESTAMP *)XdpGetExtensionData(Completion, Extension);
 }
 
 EXTERN_C_END

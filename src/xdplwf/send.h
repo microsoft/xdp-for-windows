@@ -29,6 +29,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
     XDP_EXTENSION TxCompletionContextExtension;
     XDP_EXTENSION FrameLayoutExtension;
     XDP_EXTENSION FrameChecksumExtension;
+    XDP_EXTENSION CompletionTimestampExtension;
 
     XDP_LWF_GENERIC_RSS_QUEUE *RssQueue;
     XDP_EC Ec;
@@ -40,6 +41,7 @@ typedef struct _XDP_LWF_GENERIC_TX_QUEUE {
         BOOLEAN RxInject : 1;
         BOOLEAN TxCompletionContextEnabled : 1;
         BOOLEAN ChecksumOffloadEnabled : 1;
+        BOOLEAN TimestampOffloadEnabled : 1;
     } Flags;
 
     KEVENT *PauseComplete;

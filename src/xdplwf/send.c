@@ -351,6 +351,16 @@ XdpGenericCompleteTx(
             *CompletionContext = NblTxContext(Nbl)->CompletionContext;
         }
 
+        if (TxQueue->Flags.TimestampOffloadEnabled) {
+            NET_BUFFER_LIST_TIMESTAMP NblTimestamp;
+            XDP_FRAME_TIMESTAMP *Timestamp =
+                XdpGetTxCompletionTimestampExtension(
+                    Completion, &TxQueue->CompletionTimestampExtension);
+
+            NdisGetNblTimestampInfo(Nbl, &NblTimestamp);
+            Timestamp->Timestamp = NblTimestamp.Timestamp;
+        }
+
         //
         // In lieu of calling MmPrepareMdlForReuse, assert our MDL did not get
         // mapped by the memory manager: the original MDL should have been
@@ -963,6 +973,11 @@ XdpGenericTxCreateQueue(
         XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+    XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
     XdpInitializeTxCapabilitiesSystemMdl(&TxCapabilities);
     TxCapabilities.Header.Size = sizeof(TxCapabilities);
     TxCapabilities.OutOfOrderCompletionEnabled = TRUE;
@@ -1049,6 +1064,7 @@ XdpGenericTxActivateQueue(
 
     TxQueue->Flags.TxCompletionContextEnabled = XdpTxQueueIsTxCompletionContextEnabled(Config);
     TxQueue->Flags.ChecksumOffloadEnabled = XdpTxQueueIsChecksumOffloadEnabled(Config);
+    TxQueue->Flags.TimestampOffloadEnabled = XdpTxQueueIsTimestampOffloadEnabled(Config);
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
         XdpInitializeExtensionInfo(
@@ -1073,6 +1089,13 @@ XdpGenericTxActivateQueue(
             &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->FrameChecksumExtension);
+    }
+
+    if (TxQueue->Flags.TimestampOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+            XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->CompletionTimestampExtension);
     }
 
     WritePointerRelease(&TxQueue->XdpTxQueue, XdpTxQueue);

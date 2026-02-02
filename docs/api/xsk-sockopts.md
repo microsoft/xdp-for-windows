@@ -202,9 +202,19 @@ RX frame ring. This requires the socket is bound and the RX ring size is set.
 The returned value is the offset of the `XDP_FRAME_TIMESTAMP` structure from the
 start of each RX descriptor. The value of the timestamp is provided by the NIC and may be relative to a hardware or software clock. See "Overview of NDIS packet timestamping" on MSDN for details of how to interpret the timestamps.
 
-## See Also
+### `XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP`
 
-[AF_XDP](../afxdp.md)
-[XskSetSockopt](XskSetSockopt.md)
-[XskGetSockopt](XskGetSockopt.md)
-[XskIoctl](XskIoctl.md)
+- **Supports**: Set
+- **Optval type**: `UINT32`
+- **Description**: Sets whether timestamp transmit offload is enabled. This
+option requires the socket is bound and the TX completion ring size is not set. This
+option enables the `XDP_FRAME_TIMESTAMP` extension on the TX completion ring.
+
+### `XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION`
+
+- **Supports**: Get
+- **Optval type**: `UINT16`
+- **Description**: Gets the `XDP_FRAME_TIMESTAMP` descriptor extension for the
+TX completion ring. This requires the socket is bound and the TX completion ring size is set.
+The returned value is the offset of the `XDP_FRAME_TIMESTAMP` structure from the
+start of each TX completion descriptor. The value of the timestamp is provided by the NIC when the frame is transmitted and may be relative to a hardware or software clock. See "Overview of NDIS packet timestamping" on MSDN for details of how to interpret the timestamps.

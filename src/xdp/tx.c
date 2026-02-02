@@ -45,6 +45,7 @@ typedef struct _XDP_TX_QUEUE {
     XDP_TX_QUEUE_CONFIG_CREATE_DETAILS ConfigCreate;
     XDP_TX_QUEUE_CONFIG_ACTIVATE_DETAILS ConfigActivate;
     BOOLEAN IsChecksumOffloadEnabled;
+    BOOLEAN IsTimestampOffloadEnabled;
 
     XDP_IF_OFFLOAD_HANDLE InterfaceOffloadHandle;
 
@@ -327,6 +328,13 @@ static const XDP_EXTENSION_REGISTRATION XdpTxFrameCompletionExtensions[] = {
         .Size                   = sizeof(XDP_TX_FRAME_COMPLETION_CONTEXT),
         .Alignment              = __alignof(XDP_TX_FRAME_COMPLETION_CONTEXT),
     },
+    {
+        .Info.ExtensionName     = XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        .Info.ExtensionVersion  = XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1,
+        .Info.ExtensionType     = XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION,
+        .Size                   = sizeof(XDP_FRAME_TIMESTAMP),
+        .Alignment              = __alignof(XDP_FRAME_TIMESTAMP),
+    },
 };
 
 static
@@ -581,6 +589,16 @@ XdpTxQueueIsChecksumOffloadEnabled(
     XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
 
     return TxQueue->IsChecksumOffloadEnabled;
+}
+
+BOOLEAN
+XdpTxQueueIsTimestampOffloadEnabled(
+    _In_ XDP_TX_QUEUE_CONFIG_ACTIVATE TxQueueConfig
+    )
+{
+    XDP_TX_QUEUE *TxQueue = XdpTxQueueFromConfigActivate(TxQueueConfig);
+
+    return TxQueue->IsTimestampOffloadEnabled;
 }
 
 static
@@ -1249,6 +1267,41 @@ XdpTxQueueEnableChecksumOffload(
             XdpExtensionSetEnableEntry(
                 TxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
             TxQueue->IsChecksumOffloadEnabled = TRUE;
+            Status = STATUS_SUCCESS;
+        } else {
+            Status = STATUS_NOT_SUPPORTED;
+        }
+    } else {
+        Status = STATUS_INVALID_DEVICE_STATE;
+    }
+
+    TraceExitStatus(TRACE_CORE);
+
+    return Status;
+}
+
+NTSTATUS
+XdpTxQueueEnableTimestampOffload(
+    _In_ XDP_TX_QUEUE *TxQueue
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_CORE, "TxQueue=%p", TxQueue);
+
+    if (TxQueue->IsTimestampOffloadEnabled) {
+        ASSERT(XdpExtensionSetIsExtensionEnabled(
+            TxQueue->TxFrameCompletionExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME));
+        Status = STATUS_SUCCESS;
+    } else if (TxQueue->State == XdpTxQueueStateCreated) {
+        const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(TxQueue->Binding);
+        if (RTL_CONTAINS_FIELD(
+                IfCapabilities->CapabilitiesEx, IfCapabilities->CapabilitiesEx->Header.Size,
+                TxTimestampSupported) &&
+            IfCapabilities->CapabilitiesEx->TxTimestampSupported) {
+            XdpExtensionSetEnableEntry(
+                TxQueue->TxFrameCompletionExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
+            TxQueue->IsTimestampOffloadEnabled = TRUE;
             Status = STATUS_SUCCESS;
         } else {
             Status = STATUS_NOT_SUPPORTED;
