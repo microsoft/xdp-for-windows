@@ -25,7 +25,11 @@ git submodule update --init --recursive
     - "Desktop development with C++" (via "Workload")
     - Latest Spectre-mitigated libs (via "Individual components")
     - C++ Address Sanitizer (via "Individual components")
-    - C++ Clang Compiler for Windows
+
+- [Clang LLVM](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/GettingStarted.md#Prerequisites)
+  - Install Clang for Windows 64-bit (version 18.1.8). The latest version of clang that ships with the Visual Studio installer does not support bpf as a target.
+  - Make sure clang.exe is in your PATH and that `clang --print-targets | Select-String "bpf"` prints a non-empty output.
+
 - [NuGet Windows x86 Commandline](https://www.nuget.org/downloads)
   - Version 6.3.1 or higher is required by the eBPF-for-Windows project.
 - [Windows WDK and matching SDK](https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk)
@@ -34,7 +38,7 @@ git submodule update --init --recursive
 
 ### Building
 
-Run in a Visual Studio "Developer Command Prompt":
+Run in a Visual Studio "Developer Command Prompt" (non-admin window):
 
 ```PowerShell
 .\tools\build.ps1
