@@ -52,11 +52,81 @@ typedef struct _XDP_EXTENSION_INFO {
 
 ## Members
 
-TODO
+### Header
+
+An [`XDP_OBJECT_HEADER`](XDP_OBJECT_HEADER.md) that identifies the structure type and version. Must be initialized using [`XdpInitializeExtensionInfo`](XdpInitializeExtensionInfo.md).
+
+### ExtensionName
+
+A null-terminated wide-character string specifying the name of the extension. This name identifies the extension to the XDP platform. Only XDP-defined extensions (with names starting with `ms_`) are currently supported.
+
+Examples:
+- `ms_frame_fragment` - Frame fragment extension
+- `ms_frame_layout` - Frame layout extension
+- `ms_buffer_virtual_address` - Buffer virtual address extension
+
+See [Descriptor Extensions](../descriptor-extensions.md#available-extensions) for more information about extension categories.
+
+### ExtensionVersion
+
+A 32-bit unsigned integer specifying the version of the extension. Each extension defines its own versioning scheme (typically starting at version 1). Applications should specify the version they were built against.
+
+### ExtensionType
+
+An [`XDP_EXTENSION_TYPE`](#xdp_extension_type) value specifying the type of descriptor this extension applies to:
+- `XDP_EXTENSION_TYPE_FRAME` - Frame descriptor extension
+- `XDP_EXTENSION_TYPE_BUFFER` - Buffer descriptor extension  
+- `XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION` - TX frame completion descriptor extension
 
 ## Remarks
 
-TODO
+The `XDP_EXTENSION_INFO` structure is used to declare support for and query XDP descriptor extensions. Extensions enable variable-sized metadata to be attached to frame, buffer, or TX completion descriptors.
+
+### Extension Registration
+
+XDP drivers use this structure to inform the XDP platform which extensions they need:
+
+**For XDP drivers:**
+```c
+XDP_EXTENSION_INFO extensionInfo;
+XdpInitializeExtensionInfo(
+    &extensionInfo,
+    XDP_FRAME_EXTENSION_FRAGMENT_NAME,
+    XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1,
+    XDP_EXTENSION_TYPE_FRAME);
+
+// Drivers register and query extensions via the XDP Driver API during queue creation
+```
+
+**For AF_XDP applications:**
+All V1 extensions are implicitly enabled by the AF_XDP subsystem. Applications do not need to explicitly declare extension version information; they can directly access extension data using the extension getter functions.
+
+### Extension Negotiation
+
+The XDP platform negotiates extensions between sockets/programs and drivers:
+
+**For XDP drivers:**
+1. Drivers declare which extensions they support during queue initialization
+2. The XDP platform enables the intersection of requested and supported extensions
+3. Drivers retrieve [`XDP_EXTENSION`](XDP_EXTENSION.md) handles to access enabled extensions
+
+**For AF_XDP applications:**
+1. All V1 extensions are implicitly enabled by the AF_XDP subsystem
+2. Applications can directly use extension getter functions without explicit registration
+3. Extension availability depends on the underlying driver's support
+
+If an extension is not supported by the underlying driver, it will not be available for use.
+
+### Extension Versioning
+
+Each extension has independent versioning. When requesting an extension, specify the version you support. The XDP platform will:
+- Grant the request if the exact version is available
+- May succeed with a compatible version (implementation-defined)
+- Fail if no compatible version exists
+
+### Available Extensions
+
+XDP for Windows defines several built-in extensions for common use cases such as multi-buffer frames, checksum offload, timestamps, and memory mappings. See [Descriptor Extensions](../descriptor-extensions.md) for detailed information about the extension model and a complete list of available extensions.
 
 ## See Also
 
