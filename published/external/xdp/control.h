@@ -40,6 +40,7 @@ struct _XDP_CAPABILITIES_EX {
     GUID InstanceId;
     BOOLEAN RxChecksumSupported;
     BOOLEAN RxTimestampSupported;
+    BOOLEAN TxTimestampSupported;
 } XDP_CAPABILITIES_EX;
 
 #define XDP_CAPABILITIES_EX_REVISION_1 1

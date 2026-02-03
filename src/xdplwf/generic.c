@@ -702,8 +702,9 @@ XdpGenericAttachInterface(
 
     Generic->Capabilities.CapabilitiesEx.RxChecksumSupported = TRUE;
     Generic->Capabilities.CapabilitiesEx.RxTimestampSupported = TRUE;
+    Generic->Capabilities.CapabilitiesEx.TxTimestampSupported = TRUE;
     Generic->Capabilities.CapabilitiesEx.Header.Size =
-        RTL_SIZEOF_THROUGH_FIELD(XDP_CAPABILITIES_EX, RxTimestampSupported);
+        RTL_SIZEOF_THROUGH_FIELD(XDP_CAPABILITIES_EX, TxTimestampSupported);
 
     Status =
         XdpRegisterInterface(
