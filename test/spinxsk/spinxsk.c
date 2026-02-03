@@ -2697,7 +2697,7 @@ QueueWorkerFn(
         // Wait until fuzzers have successfully configured the socket/s.
         //
         TraceVerbose("q[%u]: waiting for sockets to be configured", queue->queueId);
-        ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, 50);
+        ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, 500);
 
         if (ret == WAIT_OBJECT_0) {
             ++numSuccessfulSetups;
