@@ -27,6 +27,11 @@ typedef struct _XSK_FRAME_DESCRIPTOR {
 } XSK_FRAME_DESCRIPTOR;
 ```
 
+## Remarks
+
+Frame descriptors can have optional [descriptor extensions](../descriptor-extensions.md) attached to carry additional metadata. Extensions are enabled per-socket using the `XSK_SOCKOPT_RX_EXTENSION` and `XSK_SOCKOPT_TX_EXTENSION` socket options.
+
 ## See Also
 
-[AF_XDP](../afxdp.md)
+[AF_XDP](../afxdp.md)  
+[Descriptor Extensions](../descriptor-extensions.md)

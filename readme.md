@@ -11,6 +11,7 @@ used to send and receive packets at high rates by bypassing most of the OS netwo
 * [Architecture](./docs/architecture.md)
 * [Development](./docs/development.md)
 * [AF_XDP API](./docs/afxdp.md)
+* [Descriptor Extensions](./docs/descriptor-extensions.md)
 * [Release and Support](./docs/release.md)
 * [FAQ](./docs/faq.md)
 
