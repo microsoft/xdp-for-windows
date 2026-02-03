@@ -106,7 +106,6 @@ msbuild.exe $Sln `
     /p:SignMode=$SignMode `
     /p:BuildStage=$BuildStage `
     /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `
-    /p:SuppressValidation=$IsAdmin `
     /t:$($Tasks -join ",") `
     /nodeReuse:false `
     /maxCpuCount
