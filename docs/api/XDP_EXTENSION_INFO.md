@@ -84,9 +84,9 @@ The `XDP_EXTENSION_INFO` structure is used to declare support for and query XDP 
 
 ### Extension Registration
 
-Applications and drivers use this structure to inform the XDP platform which extensions they need:
+XDP drivers use this structure to inform the XDP platform which extensions they need:
 
-**For AF_XDP applications:**
+**For XDP drivers:**
 ```c
 XDP_EXTENSION_INFO extensionInfo;
 XdpInitializeExtensionInfo(
@@ -95,22 +95,27 @@ XdpInitializeExtensionInfo(
     XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1,
     XDP_EXTENSION_TYPE_FRAME);
 
-// Register the extension
-XskSetSockopt(socket, XSK_SOCKOPT_RX_EXTENSION, &extensionInfo, sizeof(extensionInfo));
+// Drivers register and query extensions via the XDP Driver API during queue creation
 ```
 
-**For XDP drivers:**
-Drivers use the XDP Driver API to register and query extensions during queue creation.
+**For AF_XDP applications:**
+All V1 extensions are implicitly enabled by the AF_XDP subsystem. Applications do not need to explicitly declare extension version information; they can directly access extension data using the extension getter functions.
 
 ### Extension Negotiation
 
 The XDP platform negotiates extensions between sockets/programs and drivers:
-1. Applications/programs declare which extensions they want to use
-2. Drivers declare which extensions they support
-3. XDP enables the intersection of requested and supported extensions
-4. Both parties retrieve [`XDP_EXTENSION`](XDP_EXTENSION.md) handles to access enabled extensions
 
-If an extension is not supported by the underlying driver, the registration may fail or succeed with the extension disabled, depending on whether the extension is mandatory or optional for the requester.
+**For XDP drivers:**
+1. Drivers declare which extensions they support during queue initialization
+2. The XDP platform enables the intersection of requested and supported extensions
+3. Drivers retrieve [`XDP_EXTENSION`](XDP_EXTENSION.md) handles to access enabled extensions
+
+**For AF_XDP applications:**
+1. All V1 extensions are implicitly enabled by the AF_XDP subsystem
+2. Applications can directly use extension getter functions without explicit registration
+3. Extension availability depends on the underlying driver's support
+
+If an extension is not supported by the underlying driver, it will not be available for use.
 
 ### Extension Versioning
 

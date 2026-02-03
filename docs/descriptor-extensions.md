@@ -109,34 +109,24 @@ Refer to the individual extension API documentation for details on specific exte
 
 ### AF_XDP Socket Applications
 
-AF_XDP applications declare which extensions they need using the `XSK_SOCKOPT_RX_EXTENSION` and `XSK_SOCKOPT_TX_EXTENSION` socket options:
+For AF_XDP applications, all V1 extensions are implicitly enabled by the AF_XDP subsystem. Applications can access extension data directly using the extension getter functions:
 
 ```c
-// Declare support for fragment extension on RX
-XDP_EXTENSION_INFO rxExtensionInfo;
-XdpInitializeExtensionInfo(
-    &rxExtensionInfo,
-    XDP_FRAME_EXTENSION_FRAGMENT_NAME,
-    XDP_FRAME_EXTENSION_FRAGMENT_VERSION_1,
-    XDP_EXTENSION_TYPE_FRAME);
+// Get a frame descriptor from the RX ring
+XSK_FRAME_DESCRIPTOR *frameDesc = /* ... get from RX ring ... */;
 
-UINT32 result = XskSetSockopt(
-    socket,
-    XSK_SOCKOPT_RX_EXTENSION,
-    &rxExtensionInfo,
-    sizeof(rxExtensionInfo));
+// Extensions are implicitly available - use getter functions to access them
+// Note: Extension handles and offsets are managed internally by AF_XDP V1
+XDP_FRAME_FRAGMENT *fragment = (XDP_FRAME_FRAGMENT *)
+    ((BYTE *)frameDesc + /* fragment extension offset */);
 
-// Retrieve the extension handle after binding
-XDP_EXTENSION fragmentExtension;
-UINT32 extensionSize = sizeof(fragmentExtension);
-XskGetSockopt(
-    socket,
-    XSK_SOCKOPT_RX_EXTENSION,
-    &rxExtensionInfo,
-    &extensionSize);
-
-// Extract the extension from the rxExtensionInfo.Extension field
+// Check if frame has additional buffers
+if (fragment->FragmentBufferCount > 0) {
+    // Frame has additional buffers in the fragment ring
+}
 ```
+
+Note: AF_XDP V1 applications rely on the implicit extension layout. Extension offsets are determined by the ring's `ElementStride` and the fixed V1 extension ordering.
 
 ### XDP Drivers
 
