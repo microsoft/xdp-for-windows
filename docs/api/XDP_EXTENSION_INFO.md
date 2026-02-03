@@ -65,7 +65,7 @@ Examples:
 - `ms_frame_layout` - Frame layout extension
 - `ms_buffer_virtual_address` - Buffer virtual address extension
 
-See [Descriptor Extensions](../descriptor-extensions.md#available-extensions) for a complete list of available extension names.
+See [Descriptor Extensions](../descriptor-extensions.md#available-extensions) for more information about extension categories.
 
 ### ExtensionVersion
 

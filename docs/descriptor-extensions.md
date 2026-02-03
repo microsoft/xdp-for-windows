@@ -97,37 +97,13 @@ The `XDP_EXTENSION` structure contains an offset that is added to the descriptor
 
 ## Available Extensions
 
-### Frame Extensions
+XDP for Windows provides built-in extensions for common use cases. Extensions are categorized by the descriptor type they attach to:
 
-Frame extensions attach metadata to complete packets (frames):
+- **Frame extensions**: Attach metadata to complete packets (e.g., fragment counts, checksums, timestamps, protocol layout)
+- **Buffer extensions**: Attach metadata to individual buffers (e.g., virtual/logical addresses, MDLs)
+- **TX completion extensions**: Attach metadata to TX completion descriptors
 
-| Extension | Name | Structure | Purpose |
-|-----------|------|-----------|---------|
-| Fragment | `ms_frame_fragment` | [`XDP_FRAME_FRAGMENT`](api/XDP_FRAME_FRAGMENT.md) | Number of additional buffers in multi-buffer frames |
-| Timestamp | `ms_frame_timestamp` | (Experimental) | Hardware timestamp of packet arrival |
-| Layout | `ms_frame_layout` | [`XDP_FRAME_LAYOUT`](api/XDP_FRAME_LAYOUT.md) | Protocol header layout (IP version, protocol, offsets) |
-| Checksum | `ms_frame_checksum` | [`XDP_FRAME_CHECKSUM`](api/XDP_FRAME_CHECKSUM.md) | Checksum offload information |
-| RX Action | `ms_frame_rx_action` | [`XDP_FRAME_RX_ACTION`](api/XDP_FRAME_RX_ACTION.md) | RX action for eBPF programs (drop, pass, TX) |
-| Interface Context | `ms_frame_interface_context` | [`XDP_FRAME_INTERFACE_CONTEXT`](api/XDP_FRAME_INTERFACE_CONTEXT.md) | Driver-specific frame context |
-
-### Buffer Extensions
-
-Buffer extensions attach metadata to individual buffers within a frame:
-
-| Extension | Name | Structure | Purpose |
-|-----------|------|-----------|---------|
-| Virtual Address | `ms_buffer_virtual_address` | [`XDP_BUFFER_VIRTUAL_ADDRESS`](api/XDP_BUFFER_VIRTUAL_ADDRESS.md) | Virtual address mapping of the buffer |
-| Logical Address | `ms_buffer_logical_address` | [`XDP_BUFFER_LOGICAL_ADDRESS`](api/XDP_BUFFER_LOGICAL_ADDRESS.md) | DMA logical address of the buffer |
-| MDL | `ms_buffer_mdl` | [`XDP_BUFFER_MDL`](api/XDP_BUFFER_MDL.md) | Memory Descriptor List for the buffer |
-| Interface Context | `ms_buffer_interface_context` | [`XDP_BUFFER_INTERFACE_CONTEXT`](api/XDP_BUFFER_INTERFACE_CONTEXT.md) | Driver-specific buffer context |
-
-### TX Completion Extensions
-
-TX completion extensions attach metadata to TX completion descriptors (for out-of-order TX completion):
-
-| Extension | Name | Structure | Purpose |
-|-----------|------|-----------|---------|
-| Completion Context | `ms_tx_frame_completion_context` | [`XDP_TX_FRAME_COMPLETION_CONTEXT`](api/XDP_TX_FRAME_COMPLETION_CONTEXT.md) | Application context for TX completion |
+Refer to the individual extension API documentation for details on specific extensions.
 
 ## Usage Patterns
 
