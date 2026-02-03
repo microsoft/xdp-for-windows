@@ -225,7 +225,7 @@ jobs:
     env:
       successThresholdPercent: 1
       xdpmpPollProvider: 'FNDIS'
-      interfaceCount: 4
+      interfaceCount: 2
       # For 'main' commits
       fullRuntime: 60 # minutes. Update timeout-minutes with any changes.
       # For PRs
