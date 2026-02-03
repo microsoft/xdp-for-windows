@@ -255,29 +255,41 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
                 $WsaRioProcesses += Start-Process $WsaRio -PassThru -ArgumentList $ArgList
             }
 
-            Write-Verbose "$SpinXsk $SpinxskArgs"
-            $SpinxskProcesses += Start-Process $SpinXsk -PassThru -NoNewWindow -ArgumentList $SpinxskArgs -Verbose
-            Write-Verbose "Started SpinXsk process Id $($SpinxskProcesses[$i].Id)"
+            $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $StartInfo.FileName = $SpinXsk
+            $StartInfo.RedirectStandardError = $true
+            $StartInfo.RedirectStandardOutput = $true
+            $StartInfo.UseShellExecute = $false
+            $StartInfo.Arguments = $SpinxskArgs
+            $SpinxskProcess = New-Object System.Diagnostics.Process
+            $SpinxskProcess.StartInfo = $StartInfo
 
-            # To prevent the ExitCode check below erroring if the process exits
-            # before we start waiting on it, we capture the handle here.
-            $IgnoredHandle = $SpinxskProcesses[$i].Handle
+            Write-Verbose "$SpinXsk $SpinxskArgs"
+            $SpinxskProcess.Start() | Out-Null
+            $SpinxskProcesses += $SpinxskProcess
         }
 
         foreach ($SpinxskProcess in $SpinxskProcesses) {
-            Write-Verbose "Waiting for SpinXsk process Id $($SpinxskProcess.Id)..."
-            Wait-Process -InputObject $SpinxskProcess
+            Write-Verbose "Waiting for SpinXsk process ID $($SpinxskProcess.Id)..."
+            $SpinxskProcess.WaitForExit()
+            $StdOutput = $SpinxskProcess.StandardOutput.ReadToEnd()
+            $StdError = $SpinxskProcess.StandardError.ReadToEnd()
+            if (![string]::IsNullOrWhiteSpace($StdOutput)) {
+                Write-Verbose "stdout:`n$StdOutput"
+            }
+            if (![string]::IsNullOrWhiteSpace($StdError)) {
+                Write-Warning "stderr:`n$StdError"
+            }
             if ($SpinxskProcess.ExitCode -ne 0) {
                 throw "SpinXsk failed with $($SpinxskProcess.ExitCode)"
             }
-            Write-Verbose "Done waiting for SpinXsk process Id $($SpinxskProcess.Id)."
         }
     } catch {
         Write-Error "Error: $_"
         exit 1
     } finally {
         foreach ($SpinxskProcess in $SpinxskProcesses) {
-            Write-Verbose "Stopping SpinXsk process Id $($SpinxskProcess.Id)..."
+            Write-Verbose "Stopping SpinXsk process ID $($SpinxskProcess.Id)..."
             Stop-ProcessIgnoreErrors $SpinxskProcess
         }
         for ($i = $InterfaceCount - 1; $i -ge 0; $i--) {
@@ -299,6 +311,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
         foreach ($WsaRioProcess in $WsaRioProcesses) {
+            Write-Verbose "Stopping WsaRio..."
             Stop-ProcessIgnoreErrors $WsaRioProcess
         }
     }

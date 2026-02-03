@@ -279,7 +279,7 @@ function Stop-ProcessIgnoreErrors {
 
     try {
         if (!$Process.HasExited) {
-            Stop-Process -InputObject $Process -ErrorAction SilentlyContinue
+            Stop-Process -InputObject $Process -Force -ErrorAction SilentlyContinue
         }
     } catch {
         # Ignore errors.

@@ -48,7 +48,7 @@
 #define STRUCT_FIELD_OFFSET(structPtr, field) \
     ((UCHAR *)&(structPtr)->field - (UCHAR *)(structPtr))
 
-#define DEFAULT_IO_BATCH 1
+#define DEFAULT_IO_BATCH 8
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_QUEUE_COUNT 4
 #define DEFAULT_FUZZER_COUNT 3
@@ -2444,14 +2444,34 @@ XskDatapathWorkerFn(
     TraceEnter("q[%u]d[0x%p]", queue->queueId, datapath->threadHandle);
 
     if (SUCCEEDED(InitializeDatapath(datapath))) {
+        UINT32 burstSize = 0;
+
         while (!ReadBooleanNoFence(&done)) {
             if (ReadNoFence((LONG *)&datapath->shared->state) == ThreadStateReturn) {
                 break;
             }
 
+            //
+            // Use a random delay to simulate bursts of traffic
+            //
+            if (burstSize == 0) {
+                DWORD status;
+                UINT32 timeoutMs = RandUlong() % 10;
+
+                status = WaitForSingleObject(stopEvent, timeoutMs);
+                if (status != WAIT_TIMEOUT) {
+                    break;
+                }
+
+                burstSize = RandUlong() % 100 + 1;
+            }
+
             if (!ProcessPkts(datapath)) {
                 break;
             }
+
+            ASSERT(burstSize > 0);
+            burstSize--;
         }
 
         if (extraStats) {
@@ -2698,6 +2718,7 @@ QueueWorkerFn(
             // Let datapath thread/s pump datapath for set duration.
             //
             TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
+            WaitForSingleObject(stopEvent, 500);
 
             //
             // Signal and wait for datapath thread/s to return.

@@ -544,7 +544,7 @@ function Install-XdpMp {
         Write-Verbose "Skipping NDIS polling configuration"
     }
 
-    Wait-For-AdapterByPnpId -PnpId $XdpMpPnpDeviceId -WaitForUp $false
+    Wait-For-AdapterByPnpId -PnpId $XdpMpPnpDeviceId -WaitForUp $false | Out-Null
 
     $IpOffset = Get-XdpmpIpOffsetForDeviceIndex $DeviceIndex
 
