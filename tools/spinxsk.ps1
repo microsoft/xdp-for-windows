@@ -18,6 +18,9 @@ more coverage for setup and cleanup.
 .PARAMETER Stats
     Periodic socket statistics output.
 
+.PARAMETER InterfaceCount
+    Number of interfaces to create and spin.
+
 .PARAMETER QueueCount
     Number of queues to spin.
 
@@ -64,6 +67,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$Stats = $false,
+
+    [Parameter(Mandatory = $false)]
+    [Int32]$InterfaceCount = 1,
 
     [Parameter(Mandatory = $false)]
     [Int32]$QueueCount = 2,
@@ -130,10 +136,11 @@ if (!(Test-Path $SpinXsk)) {
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 $StartTime = Get-Date
-$WsaRioProcess = $null
 $WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 
 while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes)) {
+    $WsaRioProcesses = @()
+    $SpinxskProcesses = @()
 
     $ThisIterationMinutes = 10
     if ($Minutes -ne 0) {
@@ -173,86 +180,120 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
 
-        if ($Driver -eq "XDPMP") {
-            Write-Verbose "installing xdpmp..."
-            & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
-            Write-Verbose "installed xdpmp."
-
-            $AdapterName = "XDPMP"
-        } else {
-            Write-Verbose "installing fnmp..."
-            & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
-            Write-Verbose "installed fnmp."
-
-            $AdapterName = "XDPFNMP"
-        }
-
-        Write-Verbose "Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount"
-        Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount
-
         Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
         reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
 
-        $Args = `
-            "-IfIndex", (Get-NetAdapter $AdapterName).ifIndex, `
-            "-QueueCount", $QueueCount, `
-            "-Minutes", $ThisIterationMinutes, `
-            "-GlobalConcurrentWorkers", $GlobalConcurrentWorkerCount
-        if ($Stats) {
-            $Args += "-Stats"
-        }
-        if ($FuzzerCount -ne 0) {
-            $Args += "-FuzzerCount", $FuzzerCount
-        }
-        if ($CleanDatapath) {
-            $Args += "-CleanDatapath"
-        }
-        if ($SuccessThresholdPercent -ge 0) {
-            $Args += "-SuccessThresholdPercent", $SuccessThresholdPercent
-        }
-        if ($BreakOnWatchdog) {
-            $Args += "-WatchdogCmd", "break"
-        } else {
-            $Args += "-WatchdogCmd", "$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula"
-        }
-        if ($EnableEbpf) {
-            $Args += "-EnableEbpf"
-        }
-        if ($Driver -eq "FNMP") {
-            $Args += "-UseFnmp"
+        $InterfaceIndices = @()
+
+        for ($i = 0; $i -lt $InterfaceCount; $i++) {
+            if ($Driver -eq "XDPMP") {
+                Write-Verbose "installing xdpmp instance $i..."
+                & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform -DeviceIndex $i
+                Write-Verbose "installed xdpmp instance $i."
+
+                $AdapterName = "XDPMP"
+            } else {
+                Write-Verbose "installing fnmp instance $i..."
+                & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform -DeviceIndex $i
+                Write-Verbose "installed fnmp instance $i."
+
+                $AdapterName = "XDPFNMP"
+            }
+
+            $AdapterName += (Get-IfAliasSuffixForDeviceIndex $i)
+            $InterfaceIndices += (Get-NetAdapter -Name $AdapterName).ifIndex
+
+            Write-Verbose "Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount"
+            Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount
         }
 
-        if ($TxInspect) {
+        for ($i = 0; $i -lt $InterfaceCount; $i++) {
+            $SpinxskArgs = `
+                "-IfIndex", $InterfaceIndices[$i], `
+                "-QueueCount", $QueueCount, `
+                "-Minutes", $ThisIterationMinutes, `
+                "-GlobalConcurrentWorkers", $GlobalConcurrentWorkerCount
+            if ($Stats) {
+                $SpinxskArgs += "-Stats"
+            }
+            if ($FuzzerCount -ne 0) {
+                $SpinxskArgs += "-FuzzerCount", $FuzzerCount
+            }
+            if ($CleanDatapath) {
+                $SpinxskArgs += "-CleanDatapath"
+            }
+            if ($SuccessThresholdPercent -ge 0) {
+                $SpinxskArgs += "-SuccessThresholdPercent", $SuccessThresholdPercent
+            }
+            if ($BreakOnWatchdog) {
+                $SpinxskArgs += "-WatchdogCmd", "break"
+            } else {
+                $SpinxskArgs += "-WatchdogCmd", "`"$LiveKD -o $LogsDir\spinxsk_watchdog.dmp -k $KD -ml -accepteula`""
+            }
+            if ($EnableEbpf) {
+                $SpinxskArgs += "-EnableEbpf"
+            }
+            if ($Driver -eq "FNMP") {
+                $SpinxskArgs += "-UseFnmp"
+            }
 
-            # Assuming 192.168.100.2:1234 is the XDPMP IP address based on snippet in xskperf.ps1:
-            #     if ($Adapter.InterfaceDescription -like "XDPMP*") {
-            #       $RemoteAddress = "192.168.100.2:1234"
-            #     }
+            if ($TxInspect) {
 
-            $XskGroup = 0
-            $IoSize = 64
-            $UdpSize = $IoSize - 8 - 20 - 14
-            $TxInspectContentionCount = 2
-            $ArgList =
-                "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup " +
-                "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
-            Write-Verbose "$WsaRio $ArgList"
-            $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
+                # Assuming 192.168.100.2:1234 is the XDPMP IP address based on snippet in xskperf.ps1:
+                #     if ($Adapter.InterfaceDescription -like "XDPMP*") {
+                #       $RemoteAddress = "192.168.100.2:1234"
+                #     }
+
+                $XskGroup = 0
+                $IoSize = 64
+                $UdpSize = $IoSize - 8 - 20 - 14
+                $TxInspectContentionCount = 2
+                $ArgList =
+                    "Winsock Send -Target 192.168.$(Get-XdpmpIpOffsetForDeviceIndex $i).2:1234 -Group $XskGroup " +
+                    "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
+                Write-Verbose "$WsaRio $ArgList"
+                $WsaRioProcesses += Start-Process $WsaRio -PassThru -ArgumentList $ArgList
+            }
+
+            $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $StartInfo.FileName = $SpinXsk
+            $StartInfo.RedirectStandardError = $true
+            $StartInfo.RedirectStandardOutput = $true
+            $StartInfo.UseShellExecute = $false
+            $StartInfo.Arguments = $SpinxskArgs
+            $SpinxskProcess = New-Object System.Diagnostics.Process
+            $SpinxskProcess.StartInfo = $StartInfo
+
+            Write-Verbose "$SpinXsk $SpinxskArgs"
+            $SpinxskProcess.Start() | Out-Null
+            $SpinxskProcesses += $SpinxskProcess
         }
 
-        Write-Verbose "$SpinXsk $Args"
-        & $SpinXsk $Args
-        if ($LastExitCode -ne 0) {
-            throw "SpinXsk failed with $LastExitCode"
+        foreach ($SpinxskProcess in $SpinxskProcesses) {
+            Write-Verbose "Waiting for SpinXsk process ID $($SpinxskProcess.Id)..."
+            $SpinxskProcess.WaitForExit()
+            $StdOutput = $SpinxskProcess.StandardOutput.ReadToEnd()
+            $StdError = $SpinxskProcess.StandardError.ReadToEnd()
+            if (![string]::IsNullOrWhiteSpace($StdOutput)) {
+                Write-Verbose "stdout:`n$StdOutput"
+            }
+            if (![string]::IsNullOrWhiteSpace($StdError)) {
+                Write-Warning "stderr:`n$StdError"
+            }
+            if ($SpinxskProcess.ExitCode -ne 0) {
+                throw "SpinXsk failed with $($SpinxskProcess.ExitCode)"
+            }
         }
     } catch {
         Write-Error "Error: $_"
         exit 1
     } finally {
-        if ($Driver -eq "XDPMP") {
-            & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
-        } else {
-            & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        foreach ($SpinxskProcess in $SpinxskProcesses) {
+            Write-Verbose "Stopping SpinXsk process ID $($SpinxskProcess.Id)..."
+            Stop-ProcessIgnoreErrors $SpinxskProcess
+        }
+        for ($i = $InterfaceCount - 1; $i -ge 0; $i--) {
+            & "$RootDir\tools\setup.ps1" -Uninstall $Driver -Config $Config -Platform $Platform -DeviceIndex $i -ErrorAction 'Continue'
         }
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
@@ -269,8 +310,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             & "$RootDir\tools\log.ps1" -Stop -Name spinxskebpf_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
-        if ($WsaRioProcess) {
-            Stop-Process -InputObject $WsaRioProcess
+        foreach ($WsaRioProcess in $WsaRioProcesses) {
+            Write-Verbose "Stopping WsaRio..."
+            Stop-ProcessIgnoreErrors $WsaRioProcess
         }
     }
 }
