@@ -1366,30 +1366,42 @@ XdpRxQueueEnableChecksumOffload(
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
-    if (RxQueue->IsChecksumOffloadEnabled) {
+    if (RxQueue->State == XdpRxQueueStateUnbound) {
+        if (!RxQueue->IsChecksumOffloadEnabled) {
+            const XDP_CAPABILITIES_INTERNAL *IfCapabilities =
+                XdpIfGetCapabilities(RxQueue->Binding);
+            if (RTL_CONTAINS_FIELD(
+                    IfCapabilities->CapabilitiesEx,
+                    IfCapabilities->CapabilitiesEx->Header.Size,
+                    RxChecksumSupported) &&
+                IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
+                XdpExtensionSetEnableEntry(
+                    RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
+                XdpExtensionSetEnableEntry(
+                    RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
+                RxQueue->IsChecksumOffloadEnabled = TRUE;
+            } else {
+                Status = STATUS_NOT_SUPPORTED;
+                goto Exit;
+            }
+        }
+
+        //
+        // Already enabled, or just enabled above. Extensions may have been
+        // re-initialized by a detach and will be re-enabled at the next attach.
+        //
+        Status = STATUS_SUCCESS;
+    } else if (RxQueue->IsChecksumOffloadEnabled) {
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME));
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME));
         Status = STATUS_SUCCESS;
-    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
-        const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
-        if (RTL_CONTAINS_FIELD(
-                IfCapabilities->CapabilitiesEx, IfCapabilities->CapabilitiesEx->Header.Size,
-                RxChecksumSupported) &&
-            IfCapabilities->CapabilitiesEx->RxChecksumSupported) {
-            XdpExtensionSetEnableEntry(
-                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_LAYOUT_NAME);
-            XdpExtensionSetEnableEntry(
-                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_CHECKSUM_NAME);
-            RxQueue->IsChecksumOffloadEnabled = TRUE;
-            Status = STATUS_SUCCESS;
-        } else {
-            Status = STATUS_NOT_SUPPORTED;
-        }
     } else {
         Status = STATUS_INVALID_DEVICE_STATE;
     }
+
+Exit:
 
     TraceExitStatus(TRACE_CORE);
 
@@ -1405,26 +1417,34 @@ XdpRxQueueEnableTimestampOffload(
 
     TraceEnter(TRACE_CORE, "RxQueue=%p", RxQueue);
 
-    if (RxQueue->IsTimestampOffloadEnabled) {
+    if (RxQueue->State == XdpRxQueueStateUnbound) {
+        if (!RxQueue->IsTimestampOffloadEnabled) {
+            const XDP_CAPABILITIES_INTERNAL *IfCapabilities =
+                XdpIfGetCapabilities(RxQueue->Binding);
+            if (RTL_CONTAINS_FIELD(
+                    IfCapabilities->CapabilitiesEx,
+                    IfCapabilities->CapabilitiesEx->Header.Size,
+                    RxTimestampSupported) &&
+                IfCapabilities->CapabilitiesEx->RxTimestampSupported) {
+                XdpExtensionSetEnableEntry(
+                    RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
+                RxQueue->IsTimestampOffloadEnabled = TRUE;
+            } else {
+                Status = STATUS_NOT_SUPPORTED;
+                goto Exit;
+            }
+        }
+
+        Status = STATUS_SUCCESS;
+    } else if (RxQueue->IsTimestampOffloadEnabled) {
         ASSERT(XdpExtensionSetIsExtensionEnabled(
             RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME));
         Status = STATUS_SUCCESS;
-    } else if (RxQueue->State == XdpRxQueueStateUnbound) {
-        const XDP_CAPABILITIES_INTERNAL *IfCapabilities = XdpIfGetCapabilities(RxQueue->Binding);
-        if (RTL_CONTAINS_FIELD(
-                IfCapabilities->CapabilitiesEx, IfCapabilities->CapabilitiesEx->Header.Size,
-                RxTimestampSupported) &&
-            IfCapabilities->CapabilitiesEx->RxTimestampSupported) {
-            XdpExtensionSetEnableEntry(
-                RxQueue->FrameExtensionSet, XDP_FRAME_EXTENSION_TIMESTAMP_NAME);
-            RxQueue->IsTimestampOffloadEnabled = TRUE;
-            Status = STATUS_SUCCESS;
-        } else {
-            Status = STATUS_NOT_SUPPORTED;
-        }
     } else {
         Status = STATUS_INVALID_DEVICE_STATE;
     }
+
+Exit:
 
     TraceExitStatus(TRACE_CORE);
 
