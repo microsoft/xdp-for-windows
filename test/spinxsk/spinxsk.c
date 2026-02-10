@@ -48,7 +48,7 @@
 #define STRUCT_FIELD_OFFSET(structPtr, field) \
     ((UCHAR *)&(structPtr)->field - (UCHAR *)(structPtr))
 
-#define DEFAULT_IO_BATCH 1
+#define DEFAULT_IO_BATCH 8
 #define DEFAULT_DURATION ULONG_MAX
 #define DEFAULT_QUEUE_COUNT 4
 #define DEFAULT_FUZZER_COUNT 3
@@ -136,8 +136,12 @@ typedef struct {
     //
     BOOLEAN isSockRxSet;
     BOOLEAN isSockTxSet;
+    BOOLEAN isSockRxFillSet;
+    BOOLEAN isSockTxCompSet;
     BOOLEAN isSharedUmemSockRxSet;
     BOOLEAN isSharedUmemSockTxSet;
+    BOOLEAN isSharedUmemSockRxFillSet;
+    BOOLEAN isSharedUmemSockTxCompSet;
     BOOLEAN isSockBound;
     BOOLEAN isSockActivated;
     BOOLEAN isSharedUmemSockBound;
@@ -253,6 +257,8 @@ typedef struct {
     ULONG rxTotal;
     ULONG txSuccess;
     ULONG txTotal;
+    ULONG rxFillSuccess;
+    ULONG txCompSuccess;
     ULONG bindSuccess;
     ULONG bindTotal;
     ULONG activateSuccess;
@@ -261,6 +267,8 @@ typedef struct {
     ULONG sharedRxTotal;
     ULONG sharedTxSuccess;
     ULONG sharedTxTotal;
+    ULONG sharedRxFillSuccess;
+    ULONG sharedTxCompSuccess;
     ULONG sharedBindSuccess;
     ULONG sharedBindTotal;
     ULONG sharedActivateSuccess;
@@ -1505,13 +1513,15 @@ FuzzSocketRxTxSetup(
     _In_ BOOLEAN RequiresRx,
     _In_ BOOLEAN RequiresTx,
     _Inout_ BOOLEAN *WasRxSet,
-    _Inout_ BOOLEAN *WasTxSet
+    _Inout_ BOOLEAN *WasTxSet,
+    _Inout_ BOOLEAN *WasRxFillSet,
+    _Inout_ BOOLEAN *WasTxCompSet
     )
 {
     HRESULT res;
     UINT32 ringSize;
 
-    if (RequiresRx) {
+    if (RequiresRx || !(RandUlong() % 100)) {
         if (RandUlong() % 2) {
             FuzzRingSize(Queue, &ringSize);
             res =
@@ -1523,7 +1533,7 @@ FuzzSocketRxTxSetup(
         }
     }
 
-    if (RequiresTx) {
+    if (RequiresTx || !(RandUlong() % 100)) {
         if (RandUlong() % 2) {
             FuzzRingSize(Queue, &ringSize);
             res =
@@ -1535,18 +1545,28 @@ FuzzSocketRxTxSetup(
         }
     }
 
-    if (RandUlong() % 2) {
-        FuzzRingSize(Queue, &ringSize);
-        res =
-            XskSetSockopt(
-                Sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &ringSize, sizeof(ringSize));
+    if (RequiresRx || !(RandUlong() % 100)) {
+        if (RandUlong() % 2) {
+            FuzzRingSize(Queue, &ringSize);
+            res =
+                XskSetSockopt(
+                    Sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &ringSize, sizeof(ringSize));
+            if (SUCCEEDED(res)) {
+                WriteBooleanRelease(WasRxFillSet, TRUE);
+            }
+        }
     }
 
-    if (RandUlong() % 2) {
-        FuzzRingSize(Queue, &ringSize);
-        res =
-            XskSetSockopt(
-                Sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &ringSize, sizeof(ringSize));
+    if (RequiresTx || !(RandUlong() % 100)) {
+        if (RandUlong() % 2) {
+            FuzzRingSize(Queue, &ringSize);
+            res =
+                XskSetSockopt(
+                    Sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &ringSize, sizeof(ringSize));
+            if (SUCCEEDED(res)) {
+                WriteBooleanRelease(WasTxCompSet, TRUE);
+            }
+        }
     }
 }
 
@@ -2473,14 +2493,34 @@ XskDatapathWorkerFn(
     TraceEnter("q[%u]d[0x%p]", queue->queueId, datapath->threadHandle);
 
     if (SUCCEEDED(InitializeDatapath(datapath))) {
+        UINT32 burstSize = 0;
+
         while (!ReadBooleanNoFence(&done)) {
             if (ReadNoFence((LONG *)&datapath->shared->state) == ThreadStateReturn) {
                 break;
             }
 
+            //
+            // Use a random delay to simulate bursts of traffic
+            //
+            if (burstSize == 0) {
+                DWORD status;
+                UINT32 timeoutMs = RandUlong() % 10;
+
+                status = WaitForSingleObject(stopEvent, timeoutMs);
+                if (status != WAIT_TIMEOUT) {
+                    break;
+                }
+
+                burstSize = RandUlong() % 100 + 1;
+            }
+
             if (!ProcessPkts(datapath)) {
                 break;
             }
+
+            ASSERT(burstSize > 0);
+            burstSize--;
         }
 
         if (extraStats) {
@@ -2529,14 +2569,16 @@ XskFuzzerWorkerFn(
         FuzzSocketRxTxSetup(
             queue, queue->sock,
             scenarioConfig->sockRx, scenarioConfig->sockTx,
-            &scenarioConfig->isSockRxSet, &scenarioConfig->isSockTxSet);
+            &scenarioConfig->isSockRxSet, &scenarioConfig->isSockTxSet,
+            &scenarioConfig->isSockRxFillSet, &scenarioConfig->isSockTxCompSet);
         FuzzSocketMisc(queue, queue->sock, &queue->rxProgramSet);
 
         if (queue->sharedUmemSock != NULL) {
             FuzzSocketRxTxSetup(
                 queue, queue->sharedUmemSock,
                 scenarioConfig->sharedUmemSockRx, scenarioConfig->sharedUmemSockTx,
-                &scenarioConfig->isSharedUmemSockRxSet, &scenarioConfig->isSharedUmemSockTxSet);
+                &scenarioConfig->isSharedUmemSockRxSet, &scenarioConfig->isSharedUmemSockTxSet,
+                &scenarioConfig->isSharedUmemSockRxFillSet, &scenarioConfig->isSharedUmemSockTxCompSet);
             FuzzSocketMisc(queue, queue->sharedUmemSock, &queue->sharedUmemRxProgramSet);
         }
 
@@ -2595,11 +2637,17 @@ UpdateSetupStats(
         if (Queue->scenarioConfig.isSockRxSet) {
             ++QueueWorker->setupStats.rxSuccess;
         }
+        if (Queue->scenarioConfig.isSockRxFillSet) {
+            ++QueueWorker->setupStats.rxFillSuccess;
+        }
     }
     if (Queue->scenarioConfig.sockTx) {
         ++QueueWorker->setupStats.txTotal;
         if (Queue->scenarioConfig.isSockTxSet) {
             ++QueueWorker->setupStats.txSuccess;
+        }
+        if (Queue->scenarioConfig.isSockTxCompSet) {
+            ++QueueWorker->setupStats.txCompSuccess;
         }
     }
     if (Queue->scenarioConfig.isSockBound) {
@@ -2613,11 +2661,17 @@ UpdateSetupStats(
         if (Queue->scenarioConfig.isSharedUmemSockRxSet) {
             ++QueueWorker->setupStats.sharedRxSuccess;
         }
+        if (Queue->scenarioConfig.isSharedUmemSockRxFillSet) {
+            ++QueueWorker->setupStats.sharedRxFillSuccess;
+        }
     }
     if (Queue->scenarioConfig.sharedUmemSockTx) {
         ++QueueWorker->setupStats.sharedTxTotal;
         if (Queue->scenarioConfig.isSharedUmemSockTxSet) {
             ++QueueWorker->setupStats.sharedTxSuccess;
+        }
+        if (Queue->scenarioConfig.isSharedUmemSockTxCompSet) {
+            ++QueueWorker->setupStats.sharedTxCompSuccess;
         }
     }
     if (Queue->scenarioConfig.sharedUmemSockRx || Queue->scenarioConfig.sharedUmemSockTx) {
@@ -2643,6 +2697,15 @@ PrintSetupStats(
 {
     SETUP_STATS *setupStats = &QueueWorker->setupStats;
 
+    //
+    // Summarize RX and TX success if their respective submission and completion
+    // rings are set successfully.
+    //
+    BOOLEAN rxSuccess = setupStats->rxSuccess && setupStats->rxFillSuccess;
+    BOOLEAN txSuccess = setupStats->txSuccess && setupStats->txCompSuccess;
+    BOOLEAN sharedRxSuccess = setupStats->sharedRxSuccess && setupStats->sharedRxFillSuccess;
+    BOOLEAN sharedTxSuccess = setupStats->sharedTxSuccess && setupStats->sharedTxCompSuccess;
+
     printf(
         "\tbreakdown\n"
         "\tinit:           (%lu / %lu) %lu%%\n"
@@ -2657,12 +2720,12 @@ PrintSetupStats(
         "\tsharedActivate: (%lu / %lu) %lu%%\n",
         setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
         setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
-        setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
-        setupStats->txSuccess, setupStats->txTotal, Pct(setupStats->txSuccess, setupStats->txTotal),
+        rxSuccess, setupStats->rxTotal, Pct(rxSuccess, setupStats->rxTotal),
+        txSuccess, setupStats->txTotal, Pct(txSuccess, setupStats->txTotal),
         setupStats->bindSuccess, setupStats->bindTotal, Pct(setupStats->bindSuccess, setupStats->bindTotal),
         setupStats->activateSuccess, setupStats->activateTotal, Pct(setupStats->activateSuccess, setupStats->activateTotal),
-        setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
-        setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
+        sharedRxSuccess, setupStats->sharedRxTotal, Pct(sharedRxSuccess, setupStats->sharedRxTotal),
+        sharedTxSuccess, setupStats->sharedTxTotal, Pct(sharedTxSuccess, setupStats->sharedTxTotal),
         setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal),
         setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal, Pct(setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal));
 }
@@ -2727,6 +2790,7 @@ QueueWorkerFn(
             // Let datapath thread/s pump datapath for set duration.
             //
             TraceVerbose("q[%u]: letting datapath pump", queue->queueId);
+            WaitForSingleObject(stopEvent, 500);
 
             //
             // Signal and wait for datapath thread/s to return.
