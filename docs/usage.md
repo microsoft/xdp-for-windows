@@ -2,23 +2,23 @@
 
 ## Prerequisites
 
-- Windows Server 2019 or 2022
+- Windows Server 2019 or 2022, x64
 
 ## Installation
 
 XDP for Windows consists of a driver (xdp.sys) and header-only user mode APIs. For backward compatibility with older applications, a user mode library (xdpapi.dll) is also provided, but its use is not recommended for new applications.
 
-### Install the Latest (1.x) Official
+The runtime is installed from a [`Microsoft.XDP-for-Windows.Runtime.<arch>`](https://www.nuget.org/packages?q=Microsoft.XDP-for-Windows.Runtime) nuget package. The package must first be restored or its contents otherwise extracted, and then the following command installs the base `xdp` runtime components:
+
+```Powershell
+xdp-setup.ps1 -Install xdp
+```
+
+### Install older (version < v1.3.0) Official MSI
 
 ```PowerShell
 Invoke-WebRequest https://aka.ms/xdp-v1.msi -OutFile xdp.msi
 msiexec.exe /i xdp.msi /quiet
-```
-
-Optionally, the runtime may be installed from a [`XDP-for-Windows-Runtime.<arch>`](https://www.nuget.org/packages?q=xdp-for-windows.runtime) nuget package. The package must first be restored or its contents otherwise extracted, and then the following command installs the base `xdp` runtime components:
-
-```Powershell
-xdp-setup.ps1 -Install xdp
 ```
 
 ### Install a Test Version
