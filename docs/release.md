@@ -50,6 +50,7 @@ The following are the official releases of XDP-for-Windows.
 |   --    |     --    |       --     |       --       |
 | [v1.0](https://github.com/microsoft/xdp-for-windows/tree/release/1.0) | Jul 26, 2023 | Aug 7, 2023 | Feb 7, 2025 |
 | [v1.1](https://github.com/microsoft/xdp-for-windows/tree/release/1.1) | Dec 2, 2024 | Jan 7, 2025 | July 7, 2026 |
+| [v1.3](https://github.com/microsoft/xdp-for-windows/tree/release/1.3) | Feb 23, 2026 | Feb 23, 2026 | August 23, 2027 |
 |   TBD    |     TBD    |       TBD     |       TBD       |
 
 # Release Process
@@ -75,10 +76,10 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 * Ensure all changes propagate properly to our internal mirror of XDP-for-windows in ADO: https://microsoft.visualstudio.com/undock/_git/xdp-for-windows
 * Create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick by drafting a new release
 * Official pipeline in ADO should kick off upon the existence of the new tag: https://microsoft.visualstudio.com/undock/_build?definitionId=134506
-* Grab the built artifacts: MSI, Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
+* Grab the built artifacts: MSI (for version < 1.3), Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
 * Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
 * Upload the XDP + Runtime Nuget pkgs to Nuget.org as well
-* Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release
+* Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release (for version < 1.3).
 * Update the downlevel test matrix in main to point to X.Y.(Z + 1) once all artifacts are uploaded
 * Update this release process documentation as necessary.
 
