@@ -88,12 +88,12 @@ jobs:
         repository: microsoft/xdp-for-windows
         submodules: recursive
     - name: Download x64 Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.config }}_x64
         path: artifacts/bin
     - name: Download arm64 Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.config }}_arm64
         path: artifacts/bin
@@ -104,7 +104,7 @@ jobs:
     - name: Build AllPackage
       run: msbuild xdp.sln /m  /t:onebranch /p:Configuration=${{ matrix.config }} /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
     - name: Upload Artifacts
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       with:
         name: bin_allpackage_${{ matrix.config }}
         path: |
@@ -146,7 +146,7 @@ jobs:
     - name: Build AllPackage
       run: msbuild xdp.sln /m  /t:onebranch /p:configuration=${{ matrix.config }} /p:platform=${{ matrix.platform }} /p:SignMode=Off /p:IsAdmin=true /p:BuildStage=AllPackage
     - name: Upload Artifacts
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       with:
         name: onebranch_bin_${{ matrix.config }}_${{ matrix.platform }}
         path: |
@@ -190,7 +190,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -210,7 +210,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_func_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -260,7 +260,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -290,7 +290,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name spinxsk_${{ matrix.testDriver }} -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_stress_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}
@@ -319,7 +319,7 @@ jobs:
       with:
         sparse-checkout: tools
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -327,7 +327,7 @@ jobs:
       shell: PowerShell
       run: tools/pktfuzz.ps1 -Minutes 10 -Workers 8 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_pktfuzz_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -396,7 +396,7 @@ jobs:
         sparse-checkout: |
           tools
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -404,7 +404,7 @@ jobs:
       shell: PowerShell
       run: tools/ringperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_ringperf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -431,7 +431,7 @@ jobs:
         sparse-checkout: |
           tools
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -448,14 +448,14 @@ jobs:
       shell: PowerShell
       run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Native -RawResultsFile artifacts/perf/rxfilterperf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}.json -CommitHash ${{ github.sha }}
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/logs
         if-no-files-found: ignore
     - name: Upload Perf Data
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       with:
         name: perfdata_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/perf
@@ -472,7 +472,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         path: artifacts/perf
         pattern: perfdata_*
@@ -512,7 +512,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -532,7 +532,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xdpfunc* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_downlevel_${{ matrix.downlevel_release }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -570,7 +570,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -583,7 +583,7 @@ jobs:
       shell: PowerShell
       run: tools/log.ps1 -Convert -Name xskfwdkm -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       if: ${{ always() }}
       with:
         name: logs_xskfwdkm_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
@@ -606,7 +606,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     - name: Download Artifacts
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
@@ -614,7 +614,7 @@ jobs:
       shell: PowerShell
       run: tools/create-test-archive.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Release Artifacts
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       with:
         name: release_artifacts_${{ matrix.configuration }}_${{ matrix.platform }}
         path: |
