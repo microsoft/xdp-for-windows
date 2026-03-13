@@ -77,6 +77,9 @@ RunChild(
     XSK_RING TxRing;
     XSK_RING TxCompRing;
     UINT32 RingIndex;
+    HANDLE CreatedXsk;
+    HANDLE CreatedProgram;
+    XDP_RULE Rule = {0};
 
     //
     // Connect to the named pipe created by the parent to receive the
@@ -110,6 +113,26 @@ RunChild(
     LOGINFO(
         "[Child] Running with duplicated handles: Socket=%p Program=%p IfIndex=%u",
         Socket, Program, Params.IfIndex);
+
+    //
+    // For sanity, verify this restricted process can't create sockets or
+    // programs.
+    //
+
+    if (XskCreate(&CreatedXsk) != HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)) {
+        LOGERR("[Child] XskCreate was not denied access");
+        return 1;
+    }
+
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_PASS;
+
+    if (XdpCreateProgram(
+            Params.IfIndex, &XdpInspectRxL2, 0, XDP_CREATE_PROGRAM_FLAG_NONE, &Rule, 1,
+            &CreatedProgram) != HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)) {
+        LOGERR("[Child] XdpCreateProgram was not denied access");
+        return 1;
+    }
 
     //
     // Register our frame buffer with the AF_XDP socket. The parent created
