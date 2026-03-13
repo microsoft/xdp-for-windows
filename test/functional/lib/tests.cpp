@@ -9984,6 +9984,101 @@ OidPassthru()
     }
 }
 
+VOID
+GenericXskUmemReg()
+{
+    HRESULT Result;
+    XSK_UMEM_REG UmemReg;
+    const XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC;
+
+    //
+    // Verify UMEM can be registered on an unbound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM can be registered on a bound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM cannot be registered twice on the same socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+
+    //
+    // Verify UMEM cannot be registered on an activated socket.
+    //
+    {
+        MY_SOCKET Socket = {0};
+        Socket.Handle = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&Socket.Umem.Reg, UmemBuffer.get());
+        SetUmem(Socket.Handle.get(), &Socket.Umem.Reg);
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.Handle.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        ActivateSocket(&Socket, TRUE, TRUE);
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.Handle.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+}
+
 /**
  * TODO:
  *

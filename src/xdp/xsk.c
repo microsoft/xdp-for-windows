@@ -3428,7 +3428,7 @@ XskSockoptSetUmem(
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     IsLockHeld = TRUE;
 
-    if (Xsk->State != XskUnbound) {
+    if (Xsk->State >= XskActivating) {
         Status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }

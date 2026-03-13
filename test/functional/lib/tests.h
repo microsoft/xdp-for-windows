@@ -329,3 +329,6 @@ OffloadQeoOidFailure(
 
 VOID
 OidPassthru();
+
+VOID
+GenericXskUmemReg();

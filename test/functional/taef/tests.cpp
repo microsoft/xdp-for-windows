@@ -711,4 +711,8 @@ public:
     TEST_METHOD(OidPassthru) {
         ::OidPassthru();
     }
+
+    TEST_METHOD(GenericXskUmemReg) {
+        ::GenericXskUmemReg();
+    }
 };
