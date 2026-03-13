@@ -10,8 +10,9 @@ AF_XDP sockets can be configured and queried using socket options.
 //
 // Supports: set
 // Optval type: XSK_UMEM_REG
-// Description: Register a UMEM to a socket. A socket intending to share an
-//              already registered UMEM must not register a UMEM itself.
+// Description: Register a UMEM to a socket. Can be set in any state prior to
+//              activation. A socket intending to share an already registered
+//              UMEM must not register a UMEM itself.
 //
 
 #define XSK_SOCKOPT_UMEM_REG 1
