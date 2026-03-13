@@ -10068,7 +10068,7 @@ GenericXskUmemReg()
         } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
         TEST_HRESULT(BindResult);
 
-        ActivateSocket(&Socket, TRUE, FALSE);
+        ActivateSocket(&Socket, TRUE, TRUE);
 
         auto UmemBuffer2 = AllocUmemBuffer();
         XSK_UMEM_REG UmemReg2;
