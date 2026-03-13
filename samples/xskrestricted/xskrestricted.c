@@ -19,7 +19,7 @@
 //   6. Parent resumes the child, which configures rings and forwards packets.
 //
 // Usage:
-//   xskrestricted.exe <IfIndex>
+//   xskrestricted.exe <IfIndex> [-TimeoutSeconds <Seconds>]
 //
 
 #include <xdpapi.h>
@@ -48,6 +48,7 @@ typedef struct _XSKRESTRICTED_CHILD_PARAMS {
     UINT64 SocketHandle;
     UINT64 ProgramHandle;
     UINT32 IfIndex;
+    UINT32 TimeoutSeconds;
 } XSKRESTRICTED_CHILD_PARAMS;
 
 //
@@ -187,9 +188,20 @@ RunChild(
 
     //
     // RX-to-TX forwarding loop: receive frames, swap MAC addresses, and
-    // transmit them back.
+    // transmit them back. If a timeout was specified, exit after the deadline.
     //
+    {
+    ULONGLONG Deadline = 0;
+    if (Params.TimeoutSeconds > 0) {
+        Deadline = GetTickCount64() + ((ULONGLONG)Params.TimeoutSeconds * 1000);
+        LOGINFO("[Child] Will exit after %u seconds", Params.TimeoutSeconds);
+    }
+
     for (;;) {
+        if (Deadline != 0 && GetTickCount64() >= Deadline) {
+            LOGINFO("[Child] Timeout reached, exiting");
+            break;
+        }
         if (XskRingConsumerReserve(&RxRing, 1, &RingIndex) == 1) {
             XSK_BUFFER_DESCRIPTOR *RxBuffer;
             XSK_BUFFER_DESCRIPTOR *TxBuffer;
@@ -241,6 +253,13 @@ RunChild(
             XskRingProducerSubmit(&RxFillRing, 1);
         }
     }
+    }
+
+    LOGINFO("[Child] Exiting successfully");
+    CloseHandle(Socket);
+    CloseHandle(Program);
+
+    return 0;
 }
 
 //
@@ -251,7 +270,8 @@ RunChild(
 static
 INT
 RunParent(
-    _In_ UINT32 IfIndex
+    _In_ UINT32 IfIndex,
+    _In_ UINT32 TimeoutSeconds
     )
 {
     HRESULT Result;
@@ -477,6 +497,7 @@ RunParent(
     ChildParams.SocketHandle = (UINT64)(ULONG_PTR)ChildSocket;
     ChildParams.ProgramHandle = (UINT64)(ULONG_PTR)ChildProgram;
     ChildParams.IfIndex = IfIndex;
+    ChildParams.TimeoutSeconds = TimeoutSeconds;
 
     if (!WriteFile(PipeHandle, &ChildParams, sizeof(ChildParams), &BytesWritten, NULL) ||
         BytesWritten != sizeof(ChildParams)) {
@@ -560,23 +581,38 @@ main(
         // Parent mode: create XDP objects and spawn restricted child.
         //
         UINT32 IfIndex = (UINT32)atoi(argv[1]);
+        UINT32 TimeoutSeconds = 0;
 
         if (IfIndex == 0) {
             LOGERR("Invalid IfIndex");
             return 1;
         }
 
-        return RunParent(IfIndex);
+        //
+        // Check for optional -TimeoutSeconds argument.
+        //
+        for (INT i = 2; i < argc - 1; i++) {
+            if (_stricmp(argv[i], "-TimeoutSeconds") == 0) {
+                TimeoutSeconds = (UINT32)atoi(argv[i + 1]);
+                break;
+            }
+        }
+
+        return RunParent(IfIndex, TimeoutSeconds);
     }
 
     fprintf(
         stderr,
         "Usage:\n"
-        "  xskrestricted.exe <IfIndex>\n"
+        "  xskrestricted.exe <IfIndex> [-TimeoutSeconds <Seconds>]\n"
         "\n"
         "Creates an AF_XDP socket and XDP program, then spawns a child process\n"
         "with a restricted token and duplicates the handles into it. The child\n"
-        "forwards UDP port 1234 traffic back to the sender.\n");
+        "forwards UDP port 1234 traffic back to the sender.\n"
+        "\n"
+        "Options:\n"
+        "  -TimeoutSeconds <Seconds>  Exit after the specified number of seconds.\n"
+        "                             If 0 or omitted, run indefinitely.\n");
 
     return 1;
 }
