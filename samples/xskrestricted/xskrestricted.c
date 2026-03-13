@@ -511,6 +511,7 @@ Exit:
         CloseHandle(ProcessInfo.hThread);
     }
     if (PipeHandle != INVALID_HANDLE_VALUE) {
+        _Analysis_assume_(PipeHandle != NULL);
         CloseHandle(PipeHandle);
     }
     if (Program != NULL) {
