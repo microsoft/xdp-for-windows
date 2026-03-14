@@ -332,9 +332,6 @@ RunParent(
         PipeName, ARRAYSIZE(PipeName), _TRUNCATE,
         L"\\\\.\\pipe\\xskrestricted_%u", GetCurrentProcessId());
 
-    //
-    // Allow the restricted child to read the pipe by granting Everyone access.
-    //
     ZeroMemory(&PipeSa, sizeof(PipeSa));
     PipeSa.nLength = sizeof(PipeSa);
     PipeSa.bInheritHandle = FALSE;
