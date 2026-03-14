@@ -593,6 +593,58 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
 
+  xskrestricted_test:
+    name: XskRestricted Test
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2022, Prerelease]
+        configuration: [Release, Debug]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2022
+          platform: arm64
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        sparse-checkout: tools
+    - name: Check Drivers
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run XskRestricted
+      shell: PowerShell
+      timeout-minutes: 5
+      run: tools/xskrestricted.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
+    - name: Convert Logs
+      if: ${{ always() }}
+      timeout-minutes: 15
+      shell: PowerShell
+      run: tools/log.ps1 -Convert -Name xskrestricted -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+      if: ${{ always() }}
+      with:
+        name: logs_xskrestricted_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+
   create_artifacts:
     name: Create Release Artifacts
     needs: build
@@ -639,7 +691,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, downlevel_functional_tests, create_artifacts]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskrestricted_test, downlevel_functional_tests, create_artifacts]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
