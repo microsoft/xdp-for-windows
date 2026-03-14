@@ -49,6 +49,14 @@ UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 
 #define MAX_GSO_SIZE 62000
 
+#define DEFAULT_RATE_SIM_INTERVAL 1000 // 1ms
+
+#if DBG
+#define DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL 10     /* 10 Kpps */
+#else
+#define DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL 1000   /* 1 Mpps */
+#endif
+
 //
 // The driver only supports the driver API version in the DDK or higher.
 // Drivers can set lower values for backwards compatibility.
@@ -1039,9 +1047,9 @@ MpReadConfiguration(
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxPatternCopy, &Adapter->RxPatternCopy);
     Adapter->RxPatternCopy = !!Adapter->RxPatternCopy;
 
-    Adapter->RateSim.IntervalUs = 1000;             // 1ms
-    Adapter->RateSim.RxFramesPerInterval = 1000;    // 1Mpps
-    Adapter->RateSim.TxFramesPerInterval = 1000;    // 1Mpps
+    Adapter->RateSim.IntervalUs = DEFAULT_RATE_SIM_INTERVAL;
+    Adapter->RateSim.RxFramesPerInterval = DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL;
+    Adapter->RateSim.TxFramesPerInterval = DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL;
 
     Adapter->PollProvider = PollProviderNdis;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegPollProvider, &Adapter->PollProvider);
