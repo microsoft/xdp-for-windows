@@ -98,7 +98,7 @@ jobs:
         name: bin_${{ matrix.config }}_arm64
         path: artifacts/bin
     - name: Setup MSBuild.exe
-      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
     - name: Nuget Restore
       run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=tools/nuget.config /p:Configuration=${{ matrix.config }} /p:Platform=x64
     - name: Build AllPackage
@@ -132,7 +132,7 @@ jobs:
         submodules: recursive
         ref: ${{ inputs.ref }}
     - name: Setup MSBuild.exe
-      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
       with:
         msbuild-architecture: x64
     - name: Nuget Restore
@@ -621,7 +621,7 @@ jobs:
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
     - name: Download Artifacts
-      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
