@@ -6,11 +6,6 @@ on:
 
 permissions: read-all
 
-env:
-  # Release branches to exclude from scheduled CI runs.
-  EXCLUDED_BRANCHES: |
-    release/1.0
-
 jobs:
   trigger:
     name: Trigger CI for release branches
@@ -23,18 +18,13 @@ jobs:
       with:
         repository: microsoft/xdp-for-windows
         fetch-depth: 0
-    - name: Trigger CI for each release branch
+    - name: Trigger CI for each supported release branch
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        excluded=$(echo "$EXCLUDED_BRANCHES" | sed '/^\s*$/d' | tr -d '[:space:]' | paste -sd '|' -)
-        branches=$(git branch -r --list 'origin/release/*' | sed 's| *origin/||')
+        branches=$(jq -r '.branches[] | select(.supported) | .branch' release-branches.json)
         for branch in $branches; do
-          if echo "$branch" | grep -qE "^($excluded)$"; then
-            echo "Skipping $branch"
-            continue
-          fi
           echo "Triggering CI for $branch"
           gh workflow run ci.yml --ref "$branch"
         done
