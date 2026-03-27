@@ -1,0 +1,40 @@
+name: CI (Scheduled Release Branches)
+
+on:
+  schedule:
+    - cron: '47 3 * * 1' # Weekly on Sunday night (3:47 AM UTC Monday); non-round minute to avoid thundering herd
+
+permissions: read-all
+
+env:
+  # Release branches to exclude from scheduled CI runs.
+  EXCLUDED_BRANCHES: |
+    release/1.0
+
+jobs:
+  trigger:
+    name: Trigger CI for release branches
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 0
+    - name: Trigger CI for each release branch
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        excluded=$(echo "$EXCLUDED_BRANCHES" | sed '/^\s*$/d' | tr -d '[:space:]' | paste -sd '|' -)
+        branches=$(git branch -r --list 'origin/release/*' | sed 's| *origin/||')
+        for branch in $branches; do
+          if echo "$branch" | grep -qE "^($excluded)$"; then
+            echo "Skipping $branch"
+            continue
+          fi
+          echo "Triggering CI for $branch"
+          gh workflow run ci.yml --ref "$branch"
+        done
