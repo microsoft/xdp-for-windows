@@ -2819,7 +2819,7 @@ XskClose(
 
         KeWaitForSingleObject(
             &WorkItem.CompletionEvent, Executive, KernelMode, FALSE, NULL);
-        ASSERT(Xsk->Tx.Xdp.IfHandle == NULL);
+        ASSERT(Xsk->Rx.Xdp.IfHandle == NULL);
 
         KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
     }
