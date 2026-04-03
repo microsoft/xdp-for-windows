@@ -489,16 +489,35 @@ jobs:
         Install-Module -Name FormatMarkdownTable -Force -AllowClobber -Scope CurrentUser -Repository PSGallery -Verbose
         tools/summarize-perf.ps1 -Files artifacts/perf/*.json | Format-MarkdownTableTableStyle -Property ScenarioName, Platform, CommitHash, MetricName, Average, Minimum, Maximum -DoNotCopyToClipboard -ShowMarkdown -HideStandardOutput >> $env:GITHUB_STEP_SUMMARY
 
+  resolve_downlevel_releases:
+    name: Resolve downlevel releases
+    runs-on: ubuntu-latest
+    outputs:
+      downlevel_release: ${{ steps.resolve.outputs.downlevel_release }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        sparse-checkout: release-branches.json
+    - name: Resolve downlevel releases from release-branches.json
+      id: resolve
+      shell: bash
+      run: |
+        releases=$(jq -c '[.branches[] | select(.downlevel_test_version != null) | .downlevel_test_version]' release-branches.json)
+        echo "downlevel_release=$releases"
+        echo "downlevel_release=$releases" >> "$GITHUB_OUTPUT"
+
   downlevel_functional_tests:
     name: Downlevel Functional Tests
-    needs: build
+    needs: [build, resolve_downlevel_releases]
     env:
       Runtime: 25 # minutes. Update timeout-minutes with any changes.
       Iters: 1
     strategy:
       fail-fast: false
       matrix:
-        downlevel_release: [1.1.2, 1.3.0]
+        downlevel_release: ${{ fromJson(needs.resolve_downlevel_releases.outputs.downlevel_release) }}
         windows: [2022, Prerelease]
         configuration: [Release]
         platform: [x64]
