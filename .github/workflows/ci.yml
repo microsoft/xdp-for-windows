@@ -178,6 +178,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+     - "JobId=func_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -248,6 +249,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
+     - "JobId=stress_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -313,6 +315,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-fuzz-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}"
+     - "JobId=pktfuzz_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -353,6 +356,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
+     - "JobId=xskperf_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -389,6 +393,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
+     - "JobId=ringperf_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -424,6 +429,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
+     - "JobId=rxfilter_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -519,6 +525,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}-Functional"
+     - "JobId=downlevel_${{ matrix.downlevel_release }}_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -577,6 +584,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+     - "JobId=xskfwdkm_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -628,6 +636,7 @@ jobs:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+     - "JobId=xskrestricted_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
