@@ -109,11 +109,15 @@ Exit:
 
     if (!NT_SUCCESS(Status)) {
         if (Timer != NULL) {
+            //
+            // XdpTimerDereference releases the rundown protection when the
+            // reference count reaches zero, so do not release it again.
+            //
             XdpTimerDereference(Timer);
             Timer = NULL;
+        } else {
+            ExReleaseRundownProtection(&XdpRtlRundown);
         }
-
-        ExReleaseRundownProtection(&XdpRtlRundown);
     }
 
     return Timer;
