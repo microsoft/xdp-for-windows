@@ -279,15 +279,16 @@ XdpGenericBuildTxNbl(
 
             case XdpFrameLayer4TypeUdp:
                 const UDP_HDR *Udp = Layer4Header;
+                const UINT16 UdpLen = ntohs(Udp->uh_ulen);
 
                 if (*NextHeader != IPPROTO_UDP ||
                     Buffer->DataLength < Layer4HeaderOffset + sizeof(*Udp) ||
-                    Udp->uh_ulen < sizeof(*Udp) ||
+                    UdpLen < sizeof(*Udp) ||
                     /* N.B. The UDP datagram length is only validated to fit within the frame's
                             buffer, in order to prevent memory access violations by NDIS drivers
                             further in the send path. It is not compared to the IP packet's length,
                             which may result in the frame eventually being dropped by a receiver. */
-                    Buffer->DataLength < ntohs(Udp->uh_ulen)) {
+                    Buffer->DataLength < UdpLen) {
                     goto InvalidOffload;
                 }
                 ChecksumInfo->Transmit.UdpChecksum = TRUE;
