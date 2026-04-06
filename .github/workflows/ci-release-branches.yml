@@ -1,6 +1,7 @@
-name: CI (Scheduled Release Branches)
+name: CI (Release Branches)
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '47 3 * * 1' # Weekly on Sunday night (3:47 AM UTC Monday); non-round minute to avoid thundering herd
 
