@@ -168,11 +168,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, Prerelease]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
         - windows: 2022
+          platform: arm64
+        - windows: 2025
           platform: arm64
     runs-on:
      - self-hosted
@@ -234,13 +236,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, Prerelease]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
         enableTxInspect: [enableTxInspect, disableTxInspect]
         exclude:
         - windows: 2022
+          platform: arm64
+        - windows: 2025
           platform: arm64
         - testDriver: FNMP
           enableTxInspect: enableTxInspect
@@ -308,7 +312,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022] # ASAN is currently buggy on Prerelease and 2019.
+        windows: [2022, 2025] # ASAN is currently buggy on Prerelease and 2019.
         configuration: [Release, Debug]
         platform: [x64]
     runs-on:
@@ -346,11 +350,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, Prerelease]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release]
         platform: [x64, arm64]
         exclude:
         - windows: 2022
+          platform: arm64
+        - windows: 2025
           platform: arm64
     runs-on:
      - self-hosted
@@ -518,7 +524,7 @@ jobs:
       fail-fast: false
       matrix:
         downlevel_release: ${{ fromJson(needs.resolve_downlevel_releases.outputs.downlevel_release) }}
-        windows: [2022, Prerelease]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release]
         platform: [x64]
     runs-on:
@@ -574,11 +580,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, Prerelease]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
         - windows: 2022
+          platform: arm64
+        - windows: 2025
           platform: arm64
     runs-on:
      - self-hosted
@@ -626,11 +634,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, Prerelease]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
         - windows: 2022
+          platform: arm64
+        - windows: 2025
           platform: arm64
     runs-on:
      - self-hosted
