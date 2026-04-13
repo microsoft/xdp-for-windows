@@ -3074,14 +3074,21 @@ XskIrpActivateSocket(
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
     }
-    if ((Xsk->Rx.Xdp.Queue == NULL) != (Xsk->Rx.Ring.Size == 0) ||
-        (Xsk->Rx.Xdp.Queue == NULL) != (Xsk->Rx.FillRing.Size == 0)) {
+    //
+    // For each datapath direction, require all rings be set if the path is
+    // bound. If the direction was not bound, only require the RX/TX rings
+    // themselves not be set: many examples of binding the fill/completion rings
+    // accumulated before a stricter API could be enforced.
+    if ((Xsk->Rx.Xdp.Queue == NULL && Xsk->Rx.Ring.Size > 0) ||
+        (Xsk->Rx.Xdp.Queue != NULL &&
+        (Xsk->Rx.Ring.Size == 0 || Xsk->Rx.FillRing.Size == 0))) {
         Status = STATUS_INVALID_DEVICE_STATE;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
     }
-    if ((Xsk->Tx.Xdp.Queue == NULL) != (Xsk->Tx.Ring.Size == 0) ||
-        (Xsk->Tx.Xdp.Queue == NULL) != (Xsk->Tx.CompletionRing.Size == 0)) {
+    if ((Xsk->Tx.Xdp.Queue == NULL && Xsk->Tx.Ring.Size > 0) ||
+        (Xsk->Tx.Xdp.Queue != NULL &&
+        (Xsk->Tx.Ring.Size == 0 || Xsk->Tx.CompletionRing.Size == 0))) {
         Status = STATUS_INVALID_DEVICE_STATE;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
@@ -5426,7 +5433,6 @@ XskPoke(
 
         if (Flags & XSK_NOTIFY_FLAG_POKE_RX) {
             ASSERT(Xsk->Rx.Ring.Size > 0);
-            ASSERT(Xsk->Rx.FillRing.Size > 0);
             //
             // TODO: Driver poke routine for zero copy RX.
             //
