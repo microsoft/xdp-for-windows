@@ -197,7 +197,6 @@ typedef struct _XSK_TX {
         };
         UINT8 Value;
     } OffloadChangeFlags;
-    BOOLEAN Activated;
 } XSK_TX;
 
 typedef struct _XSK {
@@ -3075,14 +3074,14 @@ XskIrpActivateSocket(
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
     }
-    if (Xsk->Rx.Xdp.Queue != NULL &&
-        (Xsk->Rx.Ring.Size == 0 || Xsk->Rx.FillRing.Size == 0)) {
+    if ((Xsk->Rx.Xdp.Queue == NULL) != (Xsk->Rx.Ring.Size == 0) ||
+        (Xsk->Rx.Xdp.Queue == NULL) != (Xsk->Rx.FillRing.Size == 0)) {
         Status = STATUS_INVALID_DEVICE_STATE;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
     }
-    if (Xsk->Tx.Xdp.Queue != NULL &&
-        (Xsk->Tx.Ring.Size == 0 || Xsk->Tx.CompletionRing.Size == 0)) {
+    if ((Xsk->Tx.Xdp.Queue == NULL) != (Xsk->Tx.Ring.Size == 0) ||
+        (Xsk->Tx.Xdp.Queue == NULL) != (Xsk->Tx.CompletionRing.Size == 0)) {
         Status = STATUS_INVALID_DEVICE_STATE;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
