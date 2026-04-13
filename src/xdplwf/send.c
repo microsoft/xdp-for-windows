@@ -279,15 +279,16 @@ XdpGenericBuildTxNbl(
 
             case XdpFrameLayer4TypeUdp:
                 const UDP_HDR *Udp = Layer4Header;
+                const UINT16 UdpLen = ntohs(Udp->uh_ulen);
 
                 if (*NextHeader != IPPROTO_UDP ||
                     Buffer->DataLength < Layer4HeaderOffset + sizeof(*Udp) ||
-                    Udp->uh_ulen < sizeof(*Udp) ||
+                    UdpLen < sizeof(*Udp) ||
                     /* N.B. The UDP datagram length is only validated to fit within the frame's
                             buffer, in order to prevent memory access violations by NDIS drivers
                             further in the send path. It is not compared to the IP packet's length,
                             which may result in the frame eventually being dropped by a receiver. */
-                    Buffer->DataLength < ntohs(Udp->uh_ulen)) {
+                    Buffer->DataLength < UdpLen) {
                     goto InvalidOffload;
                 }
                 ChecksumInfo->Transmit.UdpChecksum = TRUE;
@@ -349,6 +350,16 @@ XdpGenericCompleteTx(
                 XdpGetTxCompletionContextExtension(
                     Completion, &TxQueue->TxCompletionContextExtension);
             *CompletionContext = NblTxContext(Nbl)->CompletionContext;
+        }
+
+        if (TxQueue->Flags.TimestampOffloadEnabled) {
+            NET_BUFFER_LIST_TIMESTAMP NblTimestamp;
+            XDP_FRAME_TIMESTAMP *Timestamp =
+                XdpGetTxCompletionTimestampExtension(
+                    Completion, &TxQueue->CompletionTimestampExtension);
+
+            NdisGetNblTimestampInfo(Nbl, &NblTimestamp);
+            Timestamp->Timestamp = NblTimestamp.Timestamp;
         }
 
         //
@@ -702,12 +713,15 @@ XdpGenericTxNotifyOffloadChange(
     _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
     )
 {
-    LIST_ENTRY *Entry = Generic->Tx.Queues.Flink;
+    LIST_ENTRY *Entry;
 
     TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
 
     UNREFERENCED_PARAMETER(Offload);
 
+    RtlAcquirePushLockShared(&Generic->Lock);
+
+    Entry = Generic->Tx.Queues.Flink;
     while (Entry != &Generic->Tx.Queues) {
         XDP_LWF_GENERIC_TX_QUEUE *TxQueue =
             CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_TX_QUEUE, Link);
@@ -716,6 +730,8 @@ XdpGenericTxNotifyOffloadChange(
         XdpTxQueueNotify(
             TxQueue->XdpNotifyHandle, XDP_TX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
     }
+
+    RtlReleasePushLockShared(&Generic->Lock);
 
     TraceExitSuccess(TRACE_GENERIC);
 }
@@ -958,6 +974,11 @@ XdpGenericTxCreateQueue(
         XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+    XdpTxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
     XdpInitializeTxCapabilitiesSystemMdl(&TxCapabilities);
     TxCapabilities.Header.Size = sizeof(TxCapabilities);
     TxCapabilities.OutOfOrderCompletionEnabled = TRUE;
@@ -1044,6 +1065,7 @@ XdpGenericTxActivateQueue(
 
     TxQueue->Flags.TxCompletionContextEnabled = XdpTxQueueIsTxCompletionContextEnabled(Config);
     TxQueue->Flags.ChecksumOffloadEnabled = XdpTxQueueIsChecksumOffloadEnabled(Config);
+    TxQueue->Flags.TimestampOffloadEnabled = XdpTxQueueIsTimestampOffloadEnabled(Config);
 
     if (TxQueue->Flags.TxCompletionContextEnabled) {
         XdpInitializeExtensionInfo(
@@ -1068,6 +1090,13 @@ XdpGenericTxActivateQueue(
             &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->FrameChecksumExtension);
+    }
+
+    if (TxQueue->Flags.TimestampOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+            XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_TX_FRAME_COMPLETION);
+        XdpTxQueueGetExtension(Config, &ExtensionInfo, &TxQueue->CompletionTimestampExtension);
     }
 
     WritePointerRelease(&TxQueue->XdpTxQueue, XdpTxQueue);

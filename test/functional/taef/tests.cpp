@@ -179,6 +179,22 @@ public:
         ::GenericRxChecksumOffloadExtensions();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxTimestampOffloadExtensions) {
+        ::GenericRxTimestampOffloadExtensions();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxTimestampOffload) {
+        ::GenericRxTimestampOffload();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericTxTimestampOffloadExtensions) {
+        ::GenericTxTimestampOffloadExtensions();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericTxTimestampOffload) {
+        ::GenericTxTimestampOffload();
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadIp) {
         ::GenericTxChecksumOffloadIp();
     }
@@ -228,7 +244,11 @@ public:
     }
 
     TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfig) {
-        ::GenericRxChecksumOffloadConfig();
+        ::GenericRxChecksumOffloadConfig(FALSE);
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfigAttachProgram) {
+        ::GenericRxChecksumOffloadConfig(TRUE);
     }
 
     TEST_METHOD(GenericRxOriginalLength) {
@@ -690,5 +710,9 @@ public:
 
     TEST_METHOD(OidPassthru) {
         ::OidPassthru();
+    }
+
+    TEST_METHOD(GenericXskUmemReg) {
+        ::GenericXskUmemReg();
     }
 };

@@ -1506,13 +1506,13 @@ SocketGetAndFreeRxDesc(
 }
 
 static
-UINT64
+UINT64 *
 SocketGetTxCompDesc(
     _In_ const MY_SOCKET *Socket,
     _In_ UINT32 Index
     )
 {
-    return *(UINT64 *)XskRingGetElement(&Socket->Rings.Completion, Index);
+    return (UINT64 *)XskRingGetElement(&Socket->Rings.Completion, Index);
 }
 
 static
@@ -1851,6 +1851,17 @@ MpTxAllocateAndGetFrame(
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
     return FrameBuffer;
+}
+
+static
+VOID
+MpTxSetFrame(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Index,
+    _In_ DATA_FRAME *Frame
+    )
+{
+    TEST_HRESULT(FnMpTxSetFrame(Handle.get(), Index, 0, Frame));
 }
 
 static
@@ -6310,7 +6321,7 @@ GenericTxSingleFrame()
     MpTxFlush(GenericMp);
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
 }
 
 VOID
@@ -6361,14 +6372,14 @@ GenericTxOutOfOrder()
     MpTxFlush(GenericMp);
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer1, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer1, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
     XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
 
     MpTxDequeueFrame(GenericMp, 0);
     MpTxFlush(GenericMp);
 
     ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer0, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer0, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
 }
 
 VOID
@@ -6430,7 +6441,7 @@ GenericTxSharing()
         MpTxFlush(GenericMp);
 
         UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-        TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+        TEST_EQUAL(TxBuffer, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
     }
 }
 
@@ -6806,6 +6817,237 @@ GenericRxChecksumOffloadExtensions() {
     TEST_TRUE(
         Xsk.Rings.Rx.ElementStride >=
             sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_LAYOUT) + sizeof(XDP_FRAME_CHECKSUM));
+}
+
+VOID
+GenericRxTimestampOffloadExtensions() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    UINT16 TimestampExtension;
+    UINT32 OptionLength;
+
+    //
+    // Routine Description:
+    //     Verify that the RX timestamp offload extensions are present when
+    //     timestamp offload is enabled.
+    //
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+    TEST_TRUE(TimestampExtension >= sizeof(XSK_FRAME_DESCRIPTOR));
+
+    TEST_TRUE(
+        Xsk.Rings.Rx.ElementStride >=
+            sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_TIMESTAMP));
+}
+
+VOID
+GenericRxTimestampOffload() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    UINT16 LocalPort;
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    Xsk.RxProgram =
+        SocketAttachRxProgram(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
+    // Inject a frame to receive
+    UINT16 RemotePort = htons(4321);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    UCHAR Payload[] = "GenericRxTimestampOffload";
+    UCHAR Frame[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 FrameLength = sizeof(Frame);
+
+    PktBuildUdpFrame(
+        Frame, &FrameLength, Payload, sizeof(Payload), &LocalHw,
+        &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort);
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    RX_FRAME RxFrame;
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), Frame, FrameLength);
+    RxFrame.Frame.Input.Timestamp.Timestamp = 0x1122334455667788ui64;
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+    MpRxFlush(GenericMp);
+
+    // Receive
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex);
+
+    // Check extension
+    UINT16 TimestampExtension;
+    UINT32 OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+
+    XDP_FRAME_TIMESTAMP *Timestamp =
+        (XDP_FRAME_TIMESTAMP *)RTL_PTR_ADD(RxDesc, TimestampExtension);
+
+    TEST_EQUAL(RxFrame.Frame.Input.Timestamp.Timestamp, Timestamp->Timestamp);
+
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+}
+
+VOID
+GenericTxTimestampOffloadExtensions() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    UINT16 TimestampExtension;
+    UINT32 OptionLength;
+
+    //
+    // Routine Description:
+    //     Verify that the TX timestamp offload extensions are present when
+    //     timestamp offload is enabled. The timestamp extension is on the TX
+    //     completion ring, not the TX frame ring.
+    //
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+    //
+    // The timestamp extension is on the TX completion ring.
+    // Verify offset is valid within the completion ring element.
+    //
+    TEST_TRUE(TimestampExtension >= sizeof(UINT64));
+
+    TEST_TRUE(
+        Xsk.Rings.Completion.ElementStride >=
+            sizeof(UINT64) + sizeof(XDP_FRAME_TIMESTAMP));
+}
+
+VOID
+GenericTxTimestampOffload() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    UINT16 LocalPort;
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    // Build a TX frame
+    UINT16 RemotePort = htons(4321);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    UCHAR Payload[] = "GenericTxTimestampOffload";
+    UINT64 TxBuffer = SocketFreePop(&Xsk);
+    UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+    UINT32 FrameLength = Xsk.Umem.Reg.ChunkSize;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            TxFrame, &FrameLength, Payload, sizeof(Payload), &LocalHw,
+            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    CxPlatVector<UCHAR> Mask(FrameLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, FrameLength);
+
+    // Get timestamp extension offset on the TX completion ring
+    UINT16 TimestampExtension;
+    UINT32 OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+
+    // Produce TX frame (no timestamp is set on the frame - timestamps come on completion)
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+    XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex);
+    TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
+    TxDesc->Buffer.Length = FrameLength;
+
+    XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
+    TEST_EQUAL(0, NotifyResult);
+
+    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    DATA_FRAME UpdateFrame = {};
+    UpdateFrame.Input.Timestamp.Timestamp = 0x123456789ABCDEF0ui64;
+    UpdateFrame.Input.Flags.Timestamp = TRUE;
+    MpTxSetFrame(GenericMp, 0, &UpdateFrame);
+    MpTxDequeueFrame(GenericMp, 0);
+    MpTxFlush(GenericMp);
+
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
+    UINT64 *CompletionDesc = SocketGetTxCompDesc(&Xsk, ConsumerIndex);
+    XDP_FRAME_TIMESTAMP *Timestamp =
+        (XDP_FRAME_TIMESTAMP *)RTL_PTR_ADD(CompletionDesc, TimestampExtension);
+    TEST_EQUAL(UpdateFrame.Input.Timestamp.Timestamp, Timestamp->Timestamp);
+
+    XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
 }
 
 VOID
@@ -7282,12 +7524,93 @@ GenericTxChecksumOffloadConfig()
 }
 
 VOID
-GenericRxChecksumOffloadConfig() {
+GenericRxChecksumOffloadConfig(BOOLEAN AttachProgram) {
     //
     // Routine Description:
     //     This test verifies the RX checksum offload configuration.
     //
-    // NOTE: TODO.
+    const auto &If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    auto PlainXsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    if (AttachProgram) {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+        PlainXsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, PlainXsk.Handle.get());
+    }
+
+    XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+    UINT32 OptionLength;
+
+    TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
+
+    OptionLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, NULL, &OptionLength));
+    TEST_TRUE(OptionLength >= XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1);
+
+    OptionLength = 1;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+            &OptionLength));
+    TEST_TRUE(OptionLength == 0);
+
+    OptionLength = sizeof(ChecksumConfig);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+        &OptionLength);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    TEST_FALSE(ChecksumConfig.Enabled);
+
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+
+    auto OffloadReset = MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the offload change notification to occur.
+
+    //
+    // The offload bit should not be set unless the offload is enabled on the
+    // socket.
+    //
+    TEST_TRUE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
+
+
+    // Verify the current config is updated and the offload change flag has been
+    // cleared.
+
+    OptionLength = sizeof(ChecksumConfig);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+        &OptionLength);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    TEST_TRUE(ChecksumConfig.Enabled);
+    TEST_TRUE(ChecksumConfig.TcpOptions);
+
+    TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
 }
 
 static
@@ -9658,6 +9981,101 @@ OidPassthru()
 
         DefaultLwf.reset(Ctx.Handle.release());
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
+    }
+}
+
+VOID
+GenericXskUmemReg()
+{
+    HRESULT Result;
+    XSK_UMEM_REG UmemReg;
+    const XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC;
+
+    //
+    // Verify UMEM can be registered on an unbound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM can be registered on a bound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM cannot be registered twice on the same socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+
+    //
+    // Verify UMEM cannot be registered on an activated socket.
+    //
+    {
+        MY_SOCKET Socket = {0};
+        Socket.Handle = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&Socket.Umem.Reg, UmemBuffer.get());
+        SetUmem(Socket.Handle.get(), &Socket.Umem.Reg);
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.Handle.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        ActivateSocket(&Socket, TRUE, TRUE);
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.Handle.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
     }
 }
 

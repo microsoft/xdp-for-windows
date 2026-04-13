@@ -1437,6 +1437,14 @@ XdpGenericReceivePreinspectNb(
         }
     }
 
+    if (RxQueue->Flags.TimestampOffloadEnabled) {
+        NET_BUFFER_LIST_TIMESTAMP NblTimestamp;
+        XDP_FRAME_TIMESTAMP *TimestampExt =
+            XdpGetTimestampExtension(Frame, &RxQueue->FrameTimestampExtension);
+        NdisGetNblTimestampInfo(Nbl, &NblTimestamp);
+        TimestampExt->Timestamp = NblTimestamp.Timestamp;
+    }
+
     //
     // NDIS components may request that packets sent locally be looped back
     // on the receive path. Skip inspection of these packets.
@@ -2129,6 +2137,36 @@ XdpGenericRxRestart(
     TraceExitSuccess(TRACE_GENERIC);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_Requires_lock_not_held_(&Generic->Lock)
+VOID
+XdpGenericRxNotifyOffloadChange(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ const XDP_LWF_INTERFACE_OFFLOAD_SETTINGS *Offload
+    )
+{
+    LIST_ENTRY *Entry;
+
+    TraceEnter(TRACE_GENERIC, "IfIndex=%u Offload=%p", Generic->IfIndex, Offload);
+
+    UNREFERENCED_PARAMETER(Offload);
+
+    RtlAcquirePushLockShared(&Generic->Lock);
+
+    Entry = Generic->Rx.NotifyQueues.Flink;
+    while (Entry != &Generic->Rx.NotifyQueues) {
+        XDP_LWF_GENERIC_RX_QUEUE_NOTIFY *RxNotifyQueue =
+            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC_RX_QUEUE_NOTIFY, Link);
+        Entry = Entry->Flink;
+        XdpRxQueueNotify(
+            RxNotifyQueue->XdpNotifyHandle, XDP_RX_QUEUE_NOTIFY_OFFLOAD_CURRENT_CONFIG, NULL, 0);
+    }
+
+    RtlReleasePushLockShared(&Generic->Lock);
+
+    TraceExitSuccess(TRACE_GENERIC);
+}
+
 _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 XdpGenericRxCreateQueue(
@@ -2303,6 +2341,11 @@ XdpGenericRxCreateQueue(
         XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
     XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
 
+    XdpInitializeExtensionInfo(
+        &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+        XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+    XdpRxQueueRegisterExtensionVersion(Config, &ExtensionInfo);
+
     RxQueue->FragmentLimit = RECV_MAX_FRAGMENTS;
 
     XdpInitializeRxCapabilitiesDriverVa(&RxCapabilities);
@@ -2353,6 +2396,7 @@ XdpGenericRxActivateQueue(
     RxQueue->FrameRing = XdpRxQueueGetFrameRing(Config);
     RxQueue->FragmentRing = XdpRxQueueGetFragmentRing(Config);
     RxQueue->Flags.ChecksumOffloadEnabled = XdpRxQueueIsChecksumOffloadEnabled(Config);
+    RxQueue->Flags.TimestampOffloadEnabled = XdpRxQueueIsTimestampOffloadEnabled(Config);
 
     ASSERT(RxQueue->FrameRing->InterfaceReserved == RxQueue->FrameRing->ProducerIndex);
 
@@ -2387,6 +2431,13 @@ XdpGenericRxActivateQueue(
             &ExtensionInfo, XDP_FRAME_EXTENSION_CHECKSUM_NAME,
             XDP_FRAME_EXTENSION_CHECKSUM_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
         XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameChecksumExtension);
+    }
+
+    if (RxQueue->Flags.TimestampOffloadEnabled) {
+        XdpInitializeExtensionInfo(
+            &ExtensionInfo, XDP_FRAME_EXTENSION_TIMESTAMP_NAME,
+            XDP_FRAME_EXTENSION_TIMESTAMP_VERSION_1, XDP_EXTENSION_TYPE_FRAME);
+        XdpRxQueueGetExtension(Config, &ExtensionInfo, &RxQueue->FrameTimestampExtension);
     }
 
     WritePointerRelease(&RxQueue->XdpRxQueue, XdpRxQueue);

@@ -112,7 +112,7 @@ XdpIrpInterfaceOffloadQeoSet(
     XDP_OFFLOAD_PARAMS_QEO QeoParams = {0};
     const XDP_QUIC_CONNECTION *ConnectionsIn = Irp->AssociatedIrp.SystemBuffer;
     UINT32 InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
-    UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    UINT32 OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     BOOLEAN RundownAcquired = FALSE;
     BOOLEAN LockHeld = FALSE;
 

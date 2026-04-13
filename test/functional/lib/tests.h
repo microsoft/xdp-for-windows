@@ -209,6 +209,18 @@ VOID
 GenericRxChecksumOffloadExtensions();
 
 VOID
+GenericRxTimestampOffloadExtensions();
+
+VOID
+GenericRxTimestampOffload();
+
+VOID
+GenericTxTimestampOffloadExtensions();
+
+VOID
+GenericTxTimestampOffload();
+
+VOID
 GenericTxChecksumOffloadIp();
 
 VOID
@@ -243,7 +255,7 @@ VOID
 GenericTxChecksumOffloadConfig();
 
 VOID
-GenericRxChecksumOffloadConfig();
+GenericRxChecksumOffloadConfig(BOOLEAN AttachProgram);
 
 VOID
 GenericXskWait(
@@ -317,3 +329,6 @@ OffloadQeoOidFailure(
 
 VOID
 OidPassthru();
+
+VOID
+GenericXskUmemReg();

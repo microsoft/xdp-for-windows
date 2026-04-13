@@ -63,12 +63,6 @@ typedef struct _XDP_FRAME_GRO_TIMESTAMP {
 
 C_ASSERT(sizeof(XDP_FRAME_GRO_TIMESTAMP) == 4);
 
-typedef struct _XDP_FRAME_TIMESTAMP {
-    UINT64 Timestamp;
-} XDP_FRAME_TIMESTAMP;
-
-C_ASSERT(sizeof(XDP_FRAME_TIMESTAMP) == 8);
-
 #pragma warning(pop)
 
 EXTERN_C_END

@@ -1,6 +1,6 @@
 <Project>
     <!-- Disable CPM for dynamically generated BPF projects in artifacts directory -->
-  <PropertyGroup Condition="!$(MSBuildProjectDirectory.Contains('\artifacts\'))">  
+  <PropertyGroup Condition="!$(MSBuildProjectDirectory.Contains('\artifacts\'))">
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
@@ -15,7 +15,7 @@
     <PackageVersion Include="Microsoft.Windows.SDK.cpp.$(Platform)" Version="$(XdpWdkVersion)" />
     <PackageVersion Include="Microsoft.Windows.WDK.$(HostPlatform)" Version="$(XdpWdkVersion)" Condition="'$(Platform)' != '$(HostPlatform)'"/>
     <PackageVersion Include="Microsoft.Windows.WDK.$(Platform)" Version="$(XdpWdkVersion)" />
-    <PackageVersion Include="win-net-test" Version="1.4.0" />
+    <PackageVersion Include="win-net-test" Version="1.5.0" />
     <PackageVersion Include="WixToolset.UI.wixext" Version="$(XdpWixVer)" />
     <PackageVersion Include="WixToolset.Util.wixext" Version="$(XdpWixVer)" />
   </ItemGroup>

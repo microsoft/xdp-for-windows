@@ -122,6 +122,11 @@ XdpRxQueueIsChecksumOffloadEnabled(
     );
 
 BOOLEAN
+XdpRxQueueIsTimestampOffloadEnabled(
+    _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
+    );
+
+BOOLEAN
 XdpRxQueueIsLayoutExtensionEnabled(
     _In_ XDP_RX_QUEUE_CONFIG_ACTIVATE RxQueueConfig
     );

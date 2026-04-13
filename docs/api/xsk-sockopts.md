@@ -10,8 +10,9 @@ AF_XDP sockets can be configured and queried using socket options.
 //
 // Supports: set
 // Optval type: XSK_UMEM_REG
-// Description: Register a UMEM to a socket. A socket intending to share an
-//              already registered UMEM must not register a UMEM itself.
+// Description: Register a UMEM to a socket. Can be set in any state prior to
+//              activation. A socket intending to share an already registered
+//              UMEM must not register a UMEM itself.
 //
 
 #define XSK_SOCKOPT_UMEM_REG 1
@@ -130,7 +131,7 @@ typedef enum _XSK_ERROR {
 //
 // Supports: set/get
 // Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
-// Description: 
+// Description:
 //              For set, enables or disables ideal processor profiling.
 //              This option is disabled by default.
 //              For get, returns the ideal processor of the kernel RX data path.
@@ -146,7 +147,7 @@ typedef enum _XSK_ERROR {
 //
 // Supports: set/get
 // Optval type: UINT32 (set) / PROCESSOR_NUMBER (get)
-// Description: 
+// Description:
 //              For set, enables or disables ideal processor profiling.
 //              This option is disabled by default.
 //              For get, returns the ideal processor of the kernel TX data path.
@@ -178,9 +179,50 @@ and at least one socket option has enabled the frame layout extension. The
 returned value is the offset of the `XSK_FRAME_ORIGINAL_LENGTH` structure from
 the start of each RX frame descriptor.
 
+
+### `XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM`
+
+- **Supports**: Get
+- **Optval type**: `XDP_CHECKSUM_CONFIGURATION`
+- **Description**: Returns the RX queue's current checksum offload configuration.
+
+### `XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP`
+
+- **Supports**: Set
+- **Optval type**: `UINT32`
+- **Description**: Sets whether timestamp receive offload is enabled. This
+option requires the socket is bound and the RX frame ring size is not set. This
+option enables the `XDP_FRAME_TIMESTAMP` extension on the RX frame ring.
+
+### `XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION`
+
+- **Supports**: Get
+- **Optval type**: `UINT16`
+- **Description**: Gets the `XDP_FRAME_TIMESTAMP` descriptor extension for the
+RX frame ring. This requires the socket is bound and the RX ring size is set.
+The returned value is the offset of the `XDP_FRAME_TIMESTAMP` structure from the
+start of each RX descriptor. The value of the timestamp is provided by the NIC and may be relative to a hardware or software clock. See "Overview of NDIS packet timestamping" on MSDN for details of how to interpret the timestamps.
+
+### `XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP`
+
+- **Supports**: Set
+- **Optval type**: `UINT32`
+- **Description**: Sets whether timestamp transmit offload is enabled. This
+option requires the socket is bound and the TX completion ring size is not set. This
+option enables the `XDP_FRAME_TIMESTAMP` extension on the TX completion ring.
+
+### `XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION`
+
+- **Supports**: Get
+- **Optval type**: `UINT16`
+- **Description**: Gets the `XDP_FRAME_TIMESTAMP` descriptor extension for the
+TX completion ring. This requires the socket is bound and the TX completion ring size is set.
+The returned value is the offset of the `XDP_FRAME_TIMESTAMP` structure from the
+start of each TX completion descriptor. The value of the timestamp is provided by the NIC when the frame is transmitted and may be relative to a hardware or software clock. See "Overview of NDIS packet timestamping" on MSDN for details of how to interpret the timestamps.
+
 ## See Also
 
-[AF_XDP](../afxdp.md)  
-[XskSetSockopt](XskSetSockopt.md)  
-[XskGetSockopt](XskGetSockopt.md)  
-[XskIoctl](XskIoctl.md)  
+[AF_XDP](../afxdp.md)
+[XskSetSockopt](XskSetSockopt.md)
+[XskGetSockopt](XskGetSockopt.md)
+[XskIoctl](XskIoctl.md)

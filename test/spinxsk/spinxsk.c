@@ -1635,6 +1635,16 @@ FuzzSocketMisc(
     }
 
     if (RandUlong() % 2) {
+        UINT32 Enabled = RandUlong() % 2;
+        XskSetSockopt(Sock, XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    }
+
+    if (RandUlong() % 2) {
+        UINT32 Enabled = RandUlong() % 2;
+        XskSetSockopt(Sock, XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    }
+
+    if (RandUlong() % 2) {
         XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
         UINT32 timeoutMs = 0;
         XSK_NOTIFY_RESULT_FLAGS notifyResult;
@@ -1695,12 +1705,15 @@ FuzzSocketMisc(
         UINT16 Extension;
         UINT32 Option = 0;
 
-        switch (RandUlong() % 2) {
+        switch (RandUlong() % 3) {
         case 0:
             Option = XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION;
             break;
         case 1:
             Option = XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION;
+            break;
+        case 2:
+            Option = XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION;
             break;
         }
 
@@ -1712,7 +1725,7 @@ FuzzSocketMisc(
         UINT16 Extension;
         UINT32 Option = 0;
 
-        switch (RandUlong() % 3) {
+        switch (RandUlong() % 4) {
         case 0:
             Option = XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION;
             break;
@@ -1721,6 +1734,9 @@ FuzzSocketMisc(
             break;
         case 2:
             Option = XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION;
+            break;
+        case 3:
+            Option = XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION;
             break;
         }
 
@@ -1739,6 +1755,19 @@ FuzzSocketMisc(
         }
         XskGetSockopt(
             Sock, XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig, &optSize);
+    }
+
+    if (RandUlong() % 2) {
+        XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+
+        optSize = sizeof(ChecksumConfig);
+        if (!(RandUlong() % 8)) {
+            optSize = 0;
+        } else if (!(RandUlong() % 8)) {
+            optSize = RandUlong() % (sizeof(ChecksumConfig) * 2);
+        }
+        XskGetSockopt(
+            Sock, XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig, &optSize);
     }
 
     if (!cleanDatapath && !(RandUlong() % 3)) {

@@ -58,6 +58,8 @@
 #include <xdp/framelayout.h>
 #include <xdp/framelayoutextension.h>
 #include <xdp/framerxaction.h>
+#include <xdp/frametimestamp.h>
+#include <xdp/frametimestampextension.h>
 #include <xdp/txframecompletioncontext.h>
 
 #include <xdpapi.h>
