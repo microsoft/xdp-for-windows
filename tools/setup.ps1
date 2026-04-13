@@ -390,8 +390,12 @@ function Uninstall-Xdp {
             $XdpSetupPath = "$XdpPath/xdp-setup.ps1"
 
             if (Test-Path "$XdpPath/xdpbpfexport.exe") {
-                Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
-                & $XdpSetupPath -Uninstall xdpebpf
+                try {
+                    Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
+                    & $XdpSetupPath -Uninstall xdpebpf
+                } catch {
+                    Write-Warning "Failed to uninstall xdpebpf component"
+                }
             }
             if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
                 Write-Verbose "$XdpSetupPath -Uninstall xdppa"
@@ -725,6 +729,14 @@ function Uninstall-Ebpf {
 
         if ($Process.ExitCode -eq 0x645) {
             Write-Warning "eBPF is present but the MSI is not installed. Trying to uninstall services and binaries..."
+
+            Write-Verbose "Stop-Service ebpfsvc"
+            try { Stop-Service ebpfsvc -NoWait } catch { }
+            Cleanup-Service ebpfsvc
+
+            Write-Verbose "Stop-Service netebpfext"
+            try { Stop-Service netebpfext -NoWait } catch { }
+            Cleanup-Service netebpfext
 
             Write-Verbose "Stop-Service netebpfext"
             try { Stop-Service netebpfext -NoWait } catch { }
