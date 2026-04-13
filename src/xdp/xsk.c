@@ -114,6 +114,9 @@ typedef struct _XSK_RX {
         };
         UINT8 Value;
     } ExtensionFlags;
+    struct {
+        BOOLEAN Activated : 1;
+    } Flags;
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
     UINT16 OriginalLengthExtensionOffset;
@@ -181,6 +184,9 @@ typedef struct _XSK_TX {
         };
         UINT8 Value;
     } OffloadFlags;
+    struct {
+        BOOLEAN Activated : 1;
+    } Flags;
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
     UINT16 TimestampCompletionExtensionOffset;
@@ -2507,6 +2513,7 @@ XskActivateCommitRxIf(
     XdpRxQueueInvokeAttachmentNotification(
         Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry,
         XskNotifyRxQueue);
+    Xsk->Rx.Flags.Activated = TRUE;
 
     Status = STATUS_SUCCESS;
 
@@ -2727,6 +2734,8 @@ XskActivateCommitTxIf(
     RtlAcquirePushLockExclusive(&Xsk->PollLock);
     Xsk->Tx.Xdp.Flags.QueueActive = TRUE;
     RtlReleasePushLockExclusive(&Xsk->PollLock);
+
+    Xsk->Tx.Flags.Activated = TRUE;
 
     Status = STATUS_SUCCESS;
 
@@ -3074,21 +3083,14 @@ XskIrpActivateSocket(
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
     }
-    //
-    // For each datapath direction, require all rings be set if the path is
-    // bound. If the direction was not bound, only require the RX/TX rings
-    // themselves not be set: many examples of binding the fill/completion rings
-    // accumulated before a stricter API could be enforced.
-    if ((Xsk->Rx.Xdp.Queue == NULL && Xsk->Rx.Ring.Size > 0) ||
-        (Xsk->Rx.Xdp.Queue != NULL &&
-        (Xsk->Rx.Ring.Size == 0 || Xsk->Rx.FillRing.Size == 0))) {
+    if (Xsk->Rx.Xdp.Queue != NULL &&
+        (Xsk->Rx.Ring.Size == 0 || Xsk->Rx.FillRing.Size == 0)) {
         Status = STATUS_INVALID_DEVICE_STATE;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
     }
-    if ((Xsk->Tx.Xdp.Queue == NULL && Xsk->Tx.Ring.Size > 0) ||
-        (Xsk->Tx.Xdp.Queue != NULL &&
-        (Xsk->Tx.Ring.Size == 0 || Xsk->Tx.CompletionRing.Size == 0))) {
+    if (Xsk->Tx.Xdp.Queue != NULL &&
+        (Xsk->Tx.Ring.Size == 0 || Xsk->Tx.CompletionRing.Size == 0)) {
         Status = STATUS_INVALID_DEVICE_STATE;
         KeReleaseSpinLock(&Xsk->Lock, OldIrql);
         goto Exit;
@@ -5398,8 +5400,8 @@ XskNotifyValidateParams(
         return STATUS_INVALID_PARAMETER;
     }
 
-    if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) && Xsk->Rx.Ring.Size == 0) ||
-        (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && Xsk->Tx.Ring.Size == 0)) {
+    if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) && !Xsk->Rx.Flags.Activated) ||
+        (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && !Xsk->Tx.Flags.Activated)) {
         return STATUS_INVALID_DEVICE_STATE;
     }
 
@@ -5433,6 +5435,7 @@ XskPoke(
 
         if (Flags & XSK_NOTIFY_FLAG_POKE_RX) {
             ASSERT(Xsk->Rx.Ring.Size > 0);
+            ASSERT(Xsk->Rx.FillRing.Size > 0);
             //
             // TODO: Driver poke routine for zero copy RX.
             //
