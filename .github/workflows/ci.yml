@@ -174,8 +174,6 @@ jobs:
         exclude:
         - windows: 2022
           platform: arm64
-        - windows: 2025
-          platform: arm64
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -244,8 +242,6 @@ jobs:
         enableTxInspect: [enableTxInspect, disableTxInspect]
         exclude:
         - windows: 2022
-          platform: arm64
-        - windows: 2025
           platform: arm64
         - testDriver: FNMP
           enableTxInspect: enableTxInspect
@@ -356,8 +352,6 @@ jobs:
         platform: [x64, arm64]
         exclude:
         - windows: 2022
-          platform: arm64
-        - windows: 2025
           platform: arm64
     runs-on:
      - self-hosted
@@ -587,8 +581,6 @@ jobs:
         exclude:
         - windows: 2022
           platform: arm64
-        - windows: 2025
-          platform: arm64
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
@@ -640,8 +632,6 @@ jobs:
         platform: [x64, arm64]
         exclude:
         - windows: 2022
-          platform: arm64
-        - windows: 2025
           platform: arm64
     runs-on:
      - self-hosted
