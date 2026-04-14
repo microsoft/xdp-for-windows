@@ -114,6 +114,9 @@ typedef struct _XSK_RX {
         };
         UINT8 Value;
     } ExtensionFlags;
+    struct {
+        BOOLEAN Activated : 1;
+    } Flags;
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
     UINT16 OriginalLengthExtensionOffset;
@@ -181,6 +184,9 @@ typedef struct _XSK_TX {
         };
         UINT8 Value;
     } OffloadFlags;
+    struct {
+        BOOLEAN Activated : 1;
+    } Flags;
     UINT16 LayoutExtensionOffset;
     UINT16 ChecksumExtensionOffset;
     UINT16 TimestampCompletionExtensionOffset;
@@ -197,7 +203,6 @@ typedef struct _XSK_TX {
         };
         UINT8 Value;
     } OffloadChangeFlags;
-    BOOLEAN Activated;
 } XSK_TX;
 
 typedef struct _XSK {
@@ -2508,6 +2513,7 @@ XskActivateCommitRxIf(
     XdpRxQueueInvokeAttachmentNotification(
         Xsk->Rx.Xdp.Queue, &Xsk->Rx.Xdp.QueueNotificationEntry,
         XskNotifyRxQueue);
+    Xsk->Rx.Flags.Activated = TRUE;
 
     Status = STATUS_SUCCESS;
 
@@ -2728,6 +2734,8 @@ XskActivateCommitTxIf(
     RtlAcquirePushLockExclusive(&Xsk->PollLock);
     Xsk->Tx.Xdp.Flags.QueueActive = TRUE;
     RtlReleasePushLockExclusive(&Xsk->PollLock);
+
+    Xsk->Tx.Flags.Activated = TRUE;
 
     Status = STATUS_SUCCESS;
 
@@ -5392,8 +5400,8 @@ XskNotifyValidateParams(
         return STATUS_INVALID_PARAMETER;
     }
 
-    if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) && Xsk->Rx.Ring.Size == 0) ||
-        (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && Xsk->Tx.Ring.Size == 0)) {
+    if ((*InFlags & (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_WAIT_RX) && !Xsk->Rx.Flags.Activated) ||
+        (*InFlags & (XSK_NOTIFY_FLAG_POKE_TX | XSK_NOTIFY_FLAG_WAIT_TX) && !Xsk->Tx.Flags.Activated)) {
         return STATUS_INVALID_DEVICE_STATE;
     }
 
