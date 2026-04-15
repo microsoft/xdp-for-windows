@@ -15,7 +15,10 @@ This checks for the presence of any XDP drivers currently loaded.
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [switch]$IgnoreEbpf = $false
+    [switch]$IgnoreEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -40,7 +43,7 @@ function Check-Driver($Driver) {
 function Check-And-Remove-Driver($Driver, $Component) {
     if (Check-Driver $Driver) {
         Write-Host "Detected $Driver is loaded. Uninstalling $Component..."
-        & $RootDir\tools\setup.ps1 -Uninstall $Component -Config $Config -Platform $Platform
+        & $RootDir\tools\setup.ps1 -Uninstall $Component -Config $Config -Platform $Platform -Force:$Force
 
         # Update cached driverquery output.
         $AllDrivers = driverquery /v /fo list
@@ -56,6 +59,14 @@ function Check-And-Remove-Driver($Driver, $Component) {
 Check-And-Remove-Driver "xskfwdkm.sys" "xskfwdkm"
 Check-And-Remove-Driver "fnmp.sys" "fnmp"
 Check-And-Remove-Driver "fnlwf.sys" "fnlwf"
+foreach ($Xdpmp in (Get-NetAdapter -IfDesc "XDPMP*" -IncludeHidden)) {
+    $Xdpmp.PnPDeviceID -match "^SWD\\xdpmp([0-9]+)\\" | Out-Null
+    $DeviceIndex = $Matches[1]
+    if ($DeviceIndex -ne 0) {
+        Write-Host "Detected XDPMP adapter with DeviceIndex $DeviceIndex. Uninstalling xdpmp..."
+        .\tools\setup.ps1 -Uninstall "xdpmp" -Config $Config -Platform $Platform -DeviceIndex $DeviceIndex
+    }
+}
 Check-And-Remove-Driver "xdpmp.sys" "xdpmp"
 Check-And-Remove-Driver "xdp.sys" "xdp"
 Check-And-Remove-Driver "fndis.sys" "fndis"

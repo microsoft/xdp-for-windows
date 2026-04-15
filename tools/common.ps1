@@ -113,7 +113,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfVersion {
-    return "1.0.0-rc1"
+    return "1.1.0"
 }
 
 # Returns the eBPF MSI full path
@@ -247,6 +247,43 @@ function Add-Path {
     )
     [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$NewPath", "Machine")
     Refresh-Path
+}
+
+function Get-IfAliasSuffixForDeviceIndex {
+    param (
+        [Parameter()]
+        [int]$DeviceIndex
+    )
+
+    if ($DeviceIndex -eq 0) {
+        return ""
+    } else {
+        return "$DeviceIndex"
+    }
+}
+
+function Get-XdpmpIpOffsetForDeviceIndex {
+    param (
+        [Parameter()]
+        [int]$DeviceIndex
+    )
+
+    return 100 + $DeviceIndex
+}
+
+function Stop-ProcessIgnoreErrors {
+    param (
+        [Parameter()]
+        [System.Diagnostics.Process]$Process
+    )
+
+    try {
+        if (!$Process.HasExited) {
+            Stop-Process -InputObject $Process -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        # Ignore errors.
+    }
 }
 
 function Collect-LiveKD {
