@@ -15,7 +15,10 @@ This checks for the presence of any XDP drivers currently loaded.
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [switch]$IgnoreEbpf = $false
+    [switch]$IgnoreEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -40,7 +43,7 @@ function Check-Driver($Driver) {
 function Check-And-Remove-Driver($Driver, $Component) {
     if (Check-Driver $Driver) {
         Write-Host "Detected $Driver is loaded. Uninstalling $Component..."
-        & $RootDir\tools\setup.ps1 -Uninstall $Component -Config $Config -Platform $Platform
+        & $RootDir\tools\setup.ps1 -Uninstall $Component -Config $Config -Platform $Platform -Force:$Force
 
         # Update cached driverquery output.
         $AllDrivers = driverquery /v /fo list

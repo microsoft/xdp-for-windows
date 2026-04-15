@@ -17,6 +17,9 @@ This script installs or uninstalls various XDP components.
 
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver.
+
+.PARAMETER Force
+    Force uninstall (best effort) even if parts of the uninstall process fail.
 #>
 
 param (
@@ -51,7 +54,10 @@ param (
     [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$PaLayer = $false
+    [switch]$PaLayer = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -383,6 +389,10 @@ function Uninstall-Xdp {
         Write-Verbose "msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt"
         msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
         Write-Verbose "msiexec.exe returned $LastExitCode"
+
+        if ($LastExitCode -ne 0 -and !$Force) {
+            Write-Error "XDP MSI uninstall failed with status $LastExitCode"
+        }
 
         if ($LastExitCode -eq 0x645) {
             Write-Warning "XDP is present but the MSI is not installed. Trying to use the installation's setup script..."
@@ -725,6 +735,10 @@ function Uninstall-Ebpf {
     }
 
     if ($Process.ExitCode -ne 0) {
+        if (!$Force) {
+            Write-Error "Uninstalling eBPF from $EbpfMsiFullPath failed: $($Process.ExitCode)"
+        }
+
         Write-Warning "Uninstalling eBPF from $EbpfMsiFullPath failed: $($Process.ExitCode)"
 
         if ($Process.ExitCode -eq 0x645) {
