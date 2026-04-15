@@ -83,6 +83,8 @@ CHAR *HELP =
 "                         Default: off\n"
 "   -UseFnmp              Use FnMp to inject packets in the receive path\n"
 "                         Default: off\n"
+"   -BpfDir <path>        Directory containing eBPF programs\n"
+"                         Default: \"\"\n"
 ;
 
 #define ASSERT_FRE(expr) \
@@ -301,6 +303,7 @@ UINT32 globalConcurrentWorkerCount = DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT;
 ULONGLONG perfFreq;
 CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
+CONST CHAR *bpfDir = "";
 
 ULONG
 RandUlong(
@@ -436,13 +439,10 @@ FuzzProgTestRunXdpEbpfProgram()
     OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
     ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
 
-    Result = GetCurrentBinaryPath(Path, sizeof(Path));
-    if (FAILED(Result)) {
-        goto Exit;
-    }
+    ProgramRelativePath = "\\allow_ipv6.sys";
 
-    ProgramRelativePath = "\\bpf\\allow_ipv6.sys";
-
+    Path[0] = '\0';
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), bpfDir) == 0);
     ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
 
     //
@@ -536,6 +536,8 @@ FuzzProgTestRunXdpEbpfProgram()
     // Don't care about the return value here.
     bpf_prog_test_run_opts(ProgramFd, &Opts);
 
+    Result = S_OK;
+
 Exit:
 
     // There is no other use of the loaded program. Unload before exiting.
@@ -591,25 +593,22 @@ AttachXdpEbpfProgram(
     OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
     ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
 
-    Result = GetCurrentBinaryPath(Path, sizeof(Path));
-    if (FAILED(Result)) {
-        goto Exit;
-    }
-
     switch (RandUlong() % 3) {
     case 0:
-        ProgramRelativePath = "\\bpf\\drop.sys";
+        ProgramRelativePath = "\\drop.sys";
         break;
     case 1:
-        ProgramRelativePath = "\\bpf\\pass.sys";
+        ProgramRelativePath = "\\pass.sys";
         break;
     case 2:
-        ProgramRelativePath = "\\bpf\\l1fwd.sys";
+        ProgramRelativePath = "\\l1fwd.sys";
         break;
     default:
         ASSERT_FRE(FALSE);
     }
 
+    Path[0] = '\0';
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), bpfDir) == 0);
     ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
 
     //
@@ -630,13 +629,6 @@ AttachXdpEbpfProgram(
     BpfProgram = bpf_object__next_program(BpfObject, NULL);
     if (BpfProgram == NULL) {
         TraceVerbose("bpf_object__next_program failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_program__set_type(%p, %d)", BpfProgram, BPF_PROG_TYPE_XDP);
-    if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
-        TraceVerbose("bpf_program__set_type failed: %d", errno);
         Result = E_FAIL;
         goto Exit;
     }
@@ -1663,7 +1655,7 @@ FuzzSocketMisc(
         }
 
         if (RandUlong() % 2) {
-            timeoutMs = RandUlong() % 1000;
+            timeoutMs = RandUlong() % 3;
         }
 
         if (RandUlong() % 2) {
@@ -2697,35 +2689,34 @@ PrintSetupStats(
 {
     SETUP_STATS *setupStats = &QueueWorker->setupStats;
 
-    //
-    // Summarize RX and TX success if their respective submission and completion
-    // rings are set successfully.
-    //
-    BOOLEAN rxSuccess = setupStats->rxSuccess && setupStats->rxFillSuccess;
-    BOOLEAN txSuccess = setupStats->txSuccess && setupStats->txCompSuccess;
-    BOOLEAN sharedRxSuccess = setupStats->sharedRxSuccess && setupStats->sharedRxFillSuccess;
-    BOOLEAN sharedTxSuccess = setupStats->sharedTxSuccess && setupStats->sharedTxCompSuccess;
-
     printf(
         "\tbreakdown\n"
         "\tinit:           (%lu / %lu) %lu%%\n"
         "\tumem:           (%lu / %lu) %lu%%\n"
         "\trx:             (%lu / %lu) %lu%%\n"
+        "\trxFill:         (%lu / %lu) %lu%%\n"
         "\ttx:             (%lu / %lu) %lu%%\n"
+        "\ttxComp:         (%lu / %lu) %lu%%\n"
         "\tbind:           (%lu / %lu) %lu%%\n"
         "\tactivate:       (%lu / %lu) %lu%%\n"
         "\tsharedRx:       (%lu / %lu) %lu%%\n"
+        "\tsharedRxFill:   (%lu / %lu) %lu%%\n"
         "\tsharedTx:       (%lu / %lu) %lu%%\n"
+        "\tsharedTxComp:   (%lu / %lu) %lu%%\n"
         "\tsharedBind:     (%lu / %lu) %lu%%\n"
         "\tsharedActivate: (%lu / %lu) %lu%%\n",
         setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
         setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
-        rxSuccess, setupStats->rxTotal, Pct(rxSuccess, setupStats->rxTotal),
-        txSuccess, setupStats->txTotal, Pct(txSuccess, setupStats->txTotal),
+        setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
+        setupStats->rxFillSuccess, setupStats->rxTotal, Pct(setupStats->rxFillSuccess, setupStats->rxTotal),
+        setupStats->txSuccess, setupStats->txTotal, Pct(setupStats->txSuccess, setupStats->txTotal),
+        setupStats->txCompSuccess, setupStats->txTotal, Pct(setupStats->txCompSuccess, setupStats->txTotal),
         setupStats->bindSuccess, setupStats->bindTotal, Pct(setupStats->bindSuccess, setupStats->bindTotal),
         setupStats->activateSuccess, setupStats->activateTotal, Pct(setupStats->activateSuccess, setupStats->activateTotal),
-        sharedRxSuccess, setupStats->sharedRxTotal, Pct(sharedRxSuccess, setupStats->sharedRxTotal),
-        sharedTxSuccess, setupStats->sharedTxTotal, Pct(sharedTxSuccess, setupStats->sharedTxTotal),
+        setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
+        setupStats->sharedRxFillSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxFillSuccess, setupStats->sharedRxTotal),
+        setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
+        setupStats->sharedTxCompSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxCompSuccess, setupStats->sharedTxTotal),
         setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal),
         setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal, Pct(setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal));
 }
@@ -3121,6 +3112,12 @@ ParseArgs(
         } else if (!strcmp(argv[i], "-UseFnmp")) {
             useFnmp = TRUE;
             TraceVerbose("useFnmp=%!BOOLEAN!", useFnmp);
+        } else if (!strcmp(argv[i], "-BpfDir")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            bpfDir = argv[i];
+            TraceVerbose("bpfDir=%s", bpfDir);
         } else {
             Usage();
         }

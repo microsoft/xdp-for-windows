@@ -19,6 +19,7 @@ NDIS_STRING RegRxPattern = NDIS_STRING_CONST("RxPattern");
 NDIS_STRING RegRxPatternCopy = NDIS_STRING_CONST("RxPatternCopy");
 NDIS_STRING RegPollProvider = NDIS_STRING_CONST("PollProvider");
 NDIS_STRING RxRscSegmentCount = NDIS_STRING_CONST("RxRscSegmentCount");
+NDIS_STRING RegMacLastByte = NDIS_STRING_CONST("MACLastByte");
 
 PCSTR MpDriverFriendlyName = "XDPMP";
 UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
@@ -313,12 +314,12 @@ MpInitialize(
         goto Exit;
     }
 
+    NdisMoveMemory(Adapter->MACAddress, MpMacAddressBase, MAC_ADDR_LEN);
+
     Status = MpReadConfiguration(Adapter);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
-
-    NdisMoveMemory(Adapter->MACAddress, MpMacAddressBase, MAC_ADDR_LEN);
 
     Adapter->IfIndex = InitParameters->IfIndex;
 
@@ -944,6 +945,7 @@ MpReadConfiguration(
     NDIS_STATUS Status;
     NDIS_CONFIGURATION_OBJECT ConfigObject;
     NDIS_CONFIGURATION_PARAMETER *ConfigParam;
+    ULONG MacLastByte = Adapter->MACAddress[MAC_ADDR_LEN - 1];
 
     ConfigObject.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
     ConfigObject.Header.Revision = NDIS_CONFIGURATION_OBJECT_REVISION_1;
@@ -1059,6 +1061,8 @@ MpReadConfiguration(
         goto Exit;
     }
 
+    TRY_READ_INT_CONFIGURATION(ConfigHandle, RegMacLastByte, &MacLastByte);
+    Adapter->MACAddress[MAC_ADDR_LEN - 1] = (UCHAR)MacLastByte;
     Adapter->CurrentLookAhead = 0;
     Adapter->CurrentPacketFilter = 0;
 

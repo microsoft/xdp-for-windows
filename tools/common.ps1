@@ -113,7 +113,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfVersion {
-    return "1.0.0-rc1"
+    return "1.1.0"
 }
 
 # Returns the eBPF MSI full path

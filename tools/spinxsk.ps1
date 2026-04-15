@@ -126,6 +126,8 @@ $LogsDir = "$RootDir\artifacts\logs"
 $SpinXsk = "$ArtifactsDir\test\spinxsk.exe"
 $LiveKD = Get-CoreNetCiArtifactPath -Name "livekd64.exe"
 $KD = Get-CoreNetCiArtifactPath -Name "kd.exe"
+$BpfSourceDir = "$ArtifactsDir\test\bpf"
+$SpinxskWorkDir = "$RootDir\artifacts\spinxsk"
 
 # Verify all the files are present.
 if (!(Test-Path $SpinXsk)) {
@@ -141,6 +143,7 @@ $WsaRio = Get-CoreNetCiArtifactPath -Name "wsario.exe"
 while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes)) {
     $WsaRioProcesses = @()
     $SpinxskProcesses = @()
+    $SpinxskInstanceDirs = @()
 
     $ThisIterationMinutes = 10
     if ($Minutes -ne 0) {
@@ -171,6 +174,7 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
 
         if (!$EbpfPreinstalled) {
+            # Always install eBPF because spinxsk links to the eBPF DLL.
             Write-Verbose "installing ebpf..."
             & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
             Write-Verbose "installed ebpf."
@@ -232,6 +236,12 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             }
             if ($EnableEbpf) {
                 $SpinxskArgs += "-EnableEbpf"
+
+                $InstanceDir = "$SpinxskWorkDir\instance_$i"
+                New-Item -ItemType Directory -Force -Path $InstanceDir | Out-Null
+                Copy-Item -Path "$BpfSourceDir\*" -Destination $InstanceDir -Recurse -Force
+                $SpinxskArgs += "-BpfDir", $InstanceDir
+                $SpinxskInstanceDirs += $InstanceDir
             }
             if ($Driver -eq "FNMP") {
                 $SpinxskArgs += "-UseFnmp"
@@ -298,6 +308,11 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
             & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+        }
+        foreach ($InstanceDir in $SpinxskInstanceDirs) {
+            if (Test-Path $InstanceDir) {
+                Remove-Item -Path $InstanceDir -Recurse -Force -ErrorAction 'Continue'
+            }
         }
         if ($XdpmpPollProvider -eq "FNDIS") {
             & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'

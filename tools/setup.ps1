@@ -552,6 +552,9 @@ function Install-XdpMp {
     Write-Verbose "Set-NetAdapterAdvancedProperty -Name $XdpMpIfAlias -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider"
     Set-NetAdapterAdvancedProperty -Name $XdpMpIfAlias -RegistryKeyword PollProvider -DisplayValue $XdpmpPollProvider
 
+    Write-Verbose "Set-NetAdapterAdvancedProperty -Name $XdpMpIfAlias -RegistryKeyword MACLastByte -DisplayValue $DeviceIndex"
+    Set-NetAdapterAdvancedProperty -Name $XdpMpIfAlias -RegistryKeyword MACLastByte -DisplayValue $DeviceIndex
+
     if ($XdpmpPollProvider -eq "NDIS") {
         #Write-Verbose "Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive"
         #Set-NetAdapterDataPathConfiguration -Name $XdpMpServiceName -Profile Passive
