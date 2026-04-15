@@ -172,7 +172,10 @@ typedef struct {
     PROGRAM_HANDLE_TYPE Type;
     union {
         HANDLE Handle;
-        struct bpf_object *BpfObject;
+        struct {
+            struct bpf_object *BpfObject;
+            UINT32 EbpfProgramIndex;
+        };
     };
 } PROGRAM_HANDLE;
 
@@ -305,6 +308,20 @@ CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
 CONST CHAR *bpfDir = "";
 
+typedef struct {
+    const CHAR *FileName;
+    LONG InUse;
+    struct bpf_object *BpfObject;
+    int ProgramFd;
+} EBPF_PROGRAM_ENTRY;
+
+EBPF_PROGRAM_ENTRY EbpfProgramTable[] = {
+    { "\\drop.sys", 0, NULL, -1 },
+    { "\\pass.sys", 0, NULL, -1 },
+    { "\\l1fwd.sys", 0, NULL, -1 },
+    { "\\allow_ipv6.sys", 0, NULL, -1 },
+};
+
 ULONG
 RandUlong(
     VOID
@@ -417,15 +434,131 @@ FuzzHookId(
 }
 
 HRESULT
+TryLoadEbpfProgram(
+    _In_ UINT32 ProgramIndex,
+    _Out_ struct bpf_object **OutBpfObject,
+    _Out_ int *OutProgramFd
+    )
+{
+    EBPF_PROGRAM_ENTRY *Entry;
+    CHAR Path[MAX_PATH];
+    struct bpf_program *BpfProgram;
+    int OriginalThreadPriority;
+
+    ASSERT_FRE(ProgramIndex < RTL_NUMBER_OF(EbpfProgramTable));
+    Entry = &EbpfProgramTable[ProgramIndex];
+
+    *OutBpfObject = NULL;
+    *OutProgramFd = -1;
+
+    //
+    // Try to acquire exclusive access to this program slot, because otherwise
+    // eBPF will block waiting for other instances of this program driver to
+    // unload, resulting in a lack of productive spinning.
+    //
+    if (InterlockedCompareExchange(&Entry->InUse, TRUE, FALSE) != 0) {
+        return HRESULT_FROM_WIN32(ERROR_BUSY);
+    }
+
+    //
+    // Build the program path.
+    //
+    Path[0] = '\0';
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), bpfDir) == 0);
+    ASSERT_FRE(strcat_s(Path, sizeof(Path), Entry->FileName) == 0);
+
+    //
+    // To work around control path delays caused by eBPF's epoch implementation,
+    // boost this thread's priority when invoking eBPF APIs.
+    //
+    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
+    TraceVerbose("bpf_object__open(%s)", Path);
+    Entry->BpfObject = bpf_object__open(Path);
+    if (Entry->BpfObject == NULL) {
+        TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
+        goto Fail;
+    }
+
+    TraceVerbose("bpf_object__next_program(%p, %p)", Entry->BpfObject, NULL);
+    BpfProgram = bpf_object__next_program(Entry->BpfObject, NULL);
+    if (BpfProgram == NULL) {
+        TraceVerbose("bpf_object__next_program failed: %d", errno);
+        goto Fail;
+    }
+
+    TraceVerbose("bpf_object__load(%p)", Entry->BpfObject);
+    if (bpf_object__load(Entry->BpfObject) < 0) {
+        TraceVerbose("bpf_object__load failed: %d", errno);
+        goto Fail;
+    }
+
+    TraceVerbose("bpf_program__fd(%p)", BpfProgram);
+    Entry->ProgramFd = bpf_program__fd(BpfProgram);
+    if (Entry->ProgramFd < 0) {
+        TraceVerbose("bpf_program__fd failed: %d", errno);
+        goto Fail;
+    }
+
+    *OutBpfObject = Entry->BpfObject;
+    *OutProgramFd = Entry->ProgramFd;
+
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+    return S_OK;
+
+Fail:
+
+    if (Entry->BpfObject != NULL) {
+        TraceVerbose("bpf_object__close(%p)", Entry->BpfObject);
+        bpf_object__close(Entry->BpfObject);
+        Entry->BpfObject = NULL;
+    }
+    Entry->ProgramFd = -1;
+    InterlockedExchange(&Entry->InUse, FALSE);
+
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+    return E_FAIL;
+}
+
+VOID
+ReleaseEbpfProgram(
+    _In_ UINT32 ProgramIndex
+    )
+{
+    EBPF_PROGRAM_ENTRY *Entry;
+    int OriginalThreadPriority;
+
+    ASSERT_FRE(ProgramIndex < RTL_NUMBER_OF(EbpfProgramTable));
+    Entry = &EbpfProgramTable[ProgramIndex];
+    ASSERT_FRE(Entry->BpfObject != NULL);
+
+    //
+    // To work around control path delays caused by eBPF's epoch implementation,
+    // boost this thread's priority when invoking eBPF APIs.
+    //
+    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
+    TraceVerbose("bpf_object__close(%p) [program %u]", Entry->BpfObject, ProgramIndex);
+    bpf_object__close(Entry->BpfObject);
+    Entry->BpfObject = NULL;
+    Entry->ProgramFd = -1;
+
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+
+    InterlockedExchange(&Entry->InUse, FALSE);
+}
+
+HRESULT
 FuzzProgTestRunXdpEbpfProgram()
 {
     HRESULT Result;
-    CHAR Path[MAX_PATH];
-    const CHAR *ProgramRelativePath = NULL;
     struct bpf_object *BpfObject = NULL;
-    struct bpf_program *BpfProgram = NULL;
     int ProgramFd;
-    int OriginalThreadPriority;
+    ULONG ProgramIndex;
     int PacketInSize = 100;
     UCHAR* PacketIn = NULL;
     int PacketOutSize = 100;
@@ -436,50 +569,10 @@ FuzzProgTestRunXdpEbpfProgram()
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
     }
 
-    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
-    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
-
-    ProgramRelativePath = "\\allow_ipv6.sys";
-
-    Path[0] = '\0';
-    ASSERT_FRE(strcat_s(Path, sizeof(Path), bpfDir) == 0);
-    ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
-
-    //
-    // To work around control path delays caused by eBPF's epoch implementation,
-    // boost this thread's priority when invoking eBPF APIs.
-    //
-    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
-
-    TraceVerbose("bpf_object__open(%s)", Path);
-    BpfObject = bpf_object__open(Path);
-    if (BpfObject == NULL) {
-        TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_object__next_program(%p, %p)", BpfObject, NULL);
-    BpfProgram = bpf_object__next_program(BpfObject, NULL);
-    if (BpfProgram == NULL) {
-        TraceVerbose("bpf_object__next_program failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_object__load(%p)", BpfObject);
-    if (bpf_object__load(BpfObject) < 0) {
-        TraceVerbose("bpf_object__load failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_program__fd(%p)", BpfProgram);
-    ProgramFd = bpf_program__fd(BpfProgram);
-    if (ProgramFd < 0) {
-        TraceVerbose("bpf_program__fd failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
+    ProgramIndex = RandUlong() % RTL_NUMBER_OF(EbpfProgramTable);
+    Result = TryLoadEbpfProgram(ProgramIndex, &BpfObject, &ProgramFd);
+    if (FAILED(Result)) {
+        return Result;
     }
 
     switch (RandUlong() % 3) {
@@ -540,13 +633,7 @@ FuzzProgTestRunXdpEbpfProgram()
 
 Exit:
 
-    // There is no other use of the loaded program. Unload before exiting.
-    if (BpfObject != NULL) {
-        TraceVerbose("bpf_object__close(%p)", BpfObject);
-        bpf_object__close(BpfObject);
-    }
-
-    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+    ReleaseEbpfProgram(ProgramIndex);
 
     if (PacketIn != NULL) {
         free(PacketIn);
@@ -566,14 +653,11 @@ AttachXdpEbpfProgram(
     )
 {
     HRESULT Result;
-    CHAR Path[MAX_PATH];
-    const CHAR *ProgramRelativePath = NULL;
     struct bpf_object *BpfObject = NULL;
-    struct bpf_program *BpfProgram = NULL;
     NET_IFINDEX IfIndex = ifindex;
     int ProgramFd;
     int AttachFlags = 0;
-    int OriginalThreadPriority;
+    UINT32 ProgramIndex;
 
     //
     // Since eBPF does not support per-queue programs, attach to the entire
@@ -590,62 +674,10 @@ AttachXdpEbpfProgram(
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
     }
 
-    OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
-    ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
-
-    switch (RandUlong() % 3) {
-    case 0:
-        ProgramRelativePath = "\\drop.sys";
-        break;
-    case 1:
-        ProgramRelativePath = "\\pass.sys";
-        break;
-    case 2:
-        ProgramRelativePath = "\\l1fwd.sys";
-        break;
-    default:
-        ASSERT_FRE(FALSE);
-    }
-
-    Path[0] = '\0';
-    ASSERT_FRE(strcat_s(Path, sizeof(Path), bpfDir) == 0);
-    ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
-
-    //
-    // To work around control path delays caused by eBPF's epoch implementation,
-    // boost this thread's priority when invoking eBPF APIs.
-    //
-    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
-
-    TraceVerbose("bpf_object__open(%s)", Path);
-    BpfObject = bpf_object__open(Path);
-    if (BpfObject == NULL) {
-        TraceVerbose("bpf_object__open(%s) failed: %d", Path, errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_object__next_program(%p, %p)", BpfObject, NULL);
-    BpfProgram = bpf_object__next_program(BpfObject, NULL);
-    if (BpfProgram == NULL) {
-        TraceVerbose("bpf_object__next_program failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_object__load(%p)", BpfObject);
-    if (bpf_object__load(BpfObject) < 0) {
-        TraceVerbose("bpf_object__load failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
-    }
-
-    TraceVerbose("bpf_program__fd(%p)", BpfProgram);
-    ProgramFd = bpf_program__fd(BpfProgram);
-    if (ProgramFd < 0) {
-        TraceVerbose("bpf_program__fd failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
+    ProgramIndex = RandUlong() % RTL_NUMBER_OF(EbpfProgramTable);
+    Result = TryLoadEbpfProgram(ProgramIndex, &BpfObject, &ProgramFd);
+    if (FAILED(Result)) {
+        return Result;
     }
 
     if ((RandUlong() % 2) == 0) {
@@ -671,6 +703,7 @@ AttachXdpEbpfProgram(
     if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
         RxProgramSet->Handles[RxProgramSet->HandleCount].Type = ProgramHandleEbpf;
         RxProgramSet->Handles[RxProgramSet->HandleCount].BpfObject = BpfObject;
+        RxProgramSet->Handles[RxProgramSet->HandleCount].EbpfProgramIndex = ProgramIndex;
         RxProgramSet->HandleCount++;
         Result = S_OK;
     } else {
@@ -681,13 +714,8 @@ AttachXdpEbpfProgram(
 Exit:
 
     if (FAILED(Result)) {
-        if (BpfObject != NULL) {
-            TraceVerbose("bpf_object__close(%p)", BpfObject);
-            bpf_object__close(BpfObject);
-        }
+        ReleaseEbpfProgram(ProgramIndex);
     }
-
-    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
 
     return Result;
 }
@@ -824,7 +852,8 @@ DetachXdpProgram(
     )
 {
     HANDLE Handle = NULL;
-    struct bpf_object *BpfObject = NULL;
+    UINT32 EbpfProgramIndex = 0;
+    BOOLEAN DetachEbpf = FALSE;
 
     EnterCriticalSection(&RxProgramSet->Lock);
     if (RxProgramSet->HandleCount > 0) {
@@ -836,7 +865,8 @@ DetachXdpProgram(
             break;
 
         case ProgramHandleEbpf:
-            BpfObject = RxProgramSet->Handles[detachIndex].BpfObject;
+            EbpfProgramIndex = RxProgramSet->Handles[detachIndex].EbpfProgramIndex;
+            DetachEbpf = TRUE;
             break;
 
         default:
@@ -850,7 +880,7 @@ DetachXdpProgram(
         ASSERT_FRE(CloseHandle(Handle));
     }
 
-    if (BpfObject != NULL) {
+    if (DetachEbpf) {
         int OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
         ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
 
@@ -866,10 +896,9 @@ DetachXdpProgram(
         TraceVerbose("bpf_xdp_detach(%d, 0, NULL)", ifindex);
         bpf_xdp_detach(ifindex, 0, NULL);
 
-        TraceVerbose("bpf_object__close(%p)", BpfObject);
-        bpf_object__close(BpfObject);
-
         ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+
+        ReleaseEbpfProgram(EbpfProgramIndex);
     }
 }
 
@@ -2595,7 +2624,11 @@ XskFuzzerWorkerFn(
                     queue->queueId, fuzzer->threadHandle);
                 SetEvent(scenarioConfig->completeEvent);
             }
-            WaitForSingleObject(stopEvent, 50);
+            //
+            // Reduce the rate of fuzzing once the scenario is complete to give threads exercising
+            // intermediate states priority.
+            //
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
         }
     }
 
@@ -2946,6 +2979,13 @@ AdminFn(
         TraceVerbose("admin iter");
 
         if (!cleanDatapath && !(RandUlong() % 10)) {
+            //
+            // Restart the network adapter. When fault injection is enabled,
+            // XDP may not successfully rebind to the adapter after the restart,
+            // so this function should ideally restart the adapter until XDP
+            // appears to have a successful binding. Over long enough runtimes,
+            // the failure case is currently amortized to an acceptable level.
+            //
             INT exitCode;
             TraceVerbose("admin: restart adapter");
             RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
