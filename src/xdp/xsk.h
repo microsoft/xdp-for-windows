@@ -47,6 +47,12 @@ XskCanBypass(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
+BOOLEAN
+XskCanRedirect(
+    _In_ HANDLE XskHandle,
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 VOID
 XskDereferenceDatapathHandle(
     _In_ HANDLE XskHandle

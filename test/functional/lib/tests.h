@@ -200,6 +200,9 @@ VOID
 GenericRxEbpfXskMapControlPath();
 
 VOID
+GenericRxEbpfXskRedirectCloseSocket();
+
+VOID
 GenericTxToRxInject();
 
 VOID

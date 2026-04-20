@@ -6572,6 +6572,103 @@ GenericRxEbpfXskMapControlPath()
 }
 
 VOID
+GenericRxEbpfXskRedirectCloseSocket()
+{
+    auto If = FnMpIf;
+
+    //
+    // Test each possible fallback action (XDP_PASS, XDP_DROP, XDP_TX) when the
+    // XSK socket is closed while still inserted in the XSKMAP. Use a single
+    // BPF program with a configurable fallback via an array map.
+    //
+    struct {
+        UINT32 FallbackAction;
+        BOOLEAN ExpectPass;
+    } TestCases[] = {
+        { XDP_PASS, TRUE  },
+        { XDP_DROP, FALSE },
+        { XDP_TX,   FALSE },
+    };
+
+    for (UINT32 tc = 0; tc < RTL_NUMBER_OF(TestCases); tc++) {
+        unique_fnmp_handle GenericMp;
+        unique_fnlwf_handle FnLwf;
+        UCHAR Payload[64];
+        sprintf_s((CHAR *)Payload, sizeof(Payload), "XskRedirectCloseSocket_%u", tc);
+        UINT32 PayloadLength = (UINT32)strlen((CHAR *)Payload) + 1;
+
+        unique_xdp_program BpfProgram =
+            AttachEbpfXdpProgram(
+                If, "\\bpf\\xsk_redirect_fallback.sys", "xsk_redirect_fallback");
+
+        //
+        // Set the fallback action in the fallback_map.
+        //
+        fd_t fallback_map_fd =
+            bpf_object__find_map_fd_by_name(BpfProgram.get(), "fallback_map");
+        TEST_NOT_EQUAL(fallback_map_fd, ebpf_fd_invalid);
+
+        UINT32 Zero = 0;
+        UINT32 FallbackAction = TestCases[tc].FallbackAction;
+        TEST_EQUAL(0, bpf_map_update_elem(fallback_map_fd, &Zero, &FallbackAction, BPF_ANY));
+
+        fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
+        TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
+
+        UINT32 QueueId = If.GetQueueId();
+
+        //
+        // Create an XSK, insert it into the map, then close the XSK while the
+        // map entry still references it.
+        //
+        {
+            auto Xsk =
+                CreateAndActivateSocket(
+                    If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+            HANDLE XskHandle = Xsk.Handle.get();
+            TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
+        }
+
+        //
+        // The XSK is now closed. Send a packet and verify the fallback behavior.
+        //
+        GenericMp = MpOpenGeneric(If.GetIfIndex());
+        FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+        CxPlatVector<UCHAR> Mask(PayloadLength, 0xFF);
+        auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), PayloadLength);
+
+        RX_FRAME Frame;
+        RxInitializeFrame(&Frame, If.GetQueueId(), Payload, PayloadLength);
+        TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+        MpRxFlush(GenericMp);
+
+        CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+        UINT32 FrameLength = 0;
+        HRESULT LwfResult = LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL);
+
+        if (TestCases[tc].ExpectPass) {
+            //
+            // Fallback is XDP_PASS: the packet should reach the LWF.
+            //
+            TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), LwfResult);
+        } else {
+            //
+            // Fallback is XDP_DROP or XDP_TX: the packet should not reach the LWF.
+            //
+            TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), LwfResult);
+        }
+
+        //
+        // Clean up the stale map entry.
+        //
+        bpf_map_delete_elem(xsk_map_fd, &QueueId);
+    }
+}
+
+VOID
 GenericTxToRxInject()
 {
     auto If = FnMpIf;

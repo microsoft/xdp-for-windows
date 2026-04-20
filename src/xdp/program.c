@@ -24,6 +24,7 @@ typedef struct _EBPF_XDP_MD {
     EBPF_CONTEXT_HEADER;
     xdp_md_t Base;
     EBPF_PROG_TEST_RUN_CONTEXT* ProgTestRunContext;
+    XDP_INSPECTION_CONTEXT *InspectionContext;
     VOID *RedirectTarget;
     XDP_REDIRECT_TARGET_TYPE RedirectTargetType;
 } EBPF_XDP_MD;
@@ -253,6 +254,7 @@ XdpInvokeEbpf(
     XdpMd.Base.data_meta = 0;
     XdpMd.Base.ingress_ifindex = InspectionContext->IfIndex;
     XdpMd.Base.rx_queue_index = InspectionContext->QueueId;
+    XdpMd.InspectionContext = InspectionContext;
     XdpMd.RedirectTarget = NULL;
 
     ebpf_program_batch_invoke_function_t EbpfInvokeProgram =
@@ -709,9 +711,11 @@ EbpfXdpRedirectMap(
     )
 {
     intptr_t const FallbackAction = (intptr_t)(Flags & REDIRECT_FALLBACK_MASK);
+    intptr_t ReturnAction = FallbackAction;
     EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(ProgramContext, EBPF_XDP_MD, Base);
+    XDP_REDIRECT_CONTEXT *RedirectContext = &XdpMd->InspectionContext->RedirectContext;
     VOID *Value = NULL;
-    intptr_t ReturnAction;
+    HANDLE Xsk;
 
     UNREFERENCED_PARAMETER(Reserved4);
     UNREFERENCED_PARAMETER(Reserved5);
@@ -720,9 +724,13 @@ EbpfXdpRedirectMap(
         //
         // Unsupported flags are set.
         //
-        ReturnAction = FallbackAction;
         goto Exit;
     }
+
+    //
+    // Review: is it worth caching the most recent key/value lookup per
+    // inspection batch and skipping the following validation?
+    //
 
     //
     // Look up the XSK handle in the map using the eBPF runtime's find_element.
@@ -730,12 +738,17 @@ EbpfXdpRedirectMap(
     // which returns the XSK handle stored at the given key.
     //
     if (XdpXskmapFindElement(Map, &Key, &Value) != EBPF_SUCCESS) {
-        ReturnAction = FallbackAction;
         goto Exit;
     }
 
     ASSERT(Value != NULL);
-    XdpMd->RedirectTarget = *(HANDLE *)Value;
+    Xsk = *(HANDLE *)Value;
+
+    if (!XskCanRedirect(Xsk, XdpRxQueueFromRedirectContext(RedirectContext))) {
+        goto Exit;
+    }
+
+    XdpMd->RedirectTarget = Xsk;
     XdpMd->RedirectTargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     ReturnAction = XDP_REDIRECT;
 

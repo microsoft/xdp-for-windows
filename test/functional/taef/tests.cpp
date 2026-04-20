@@ -664,6 +664,10 @@ public:
         ::GenericRxEbpfXskMapControlPath();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectCloseSocket) {
+        ::GenericRxEbpfXskRedirectCloseSocket();
+    }
+
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);
     }
