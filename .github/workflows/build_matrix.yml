@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [2022]
+        os: [2022, 2025-vs2026]
         config: [Release, Debug]
         platform: [x64, arm64]
     uses: ./.github/workflows/build.yml
