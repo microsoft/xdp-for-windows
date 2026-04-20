@@ -644,6 +644,14 @@ public:
         ::GenericRxEbpfUnload();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirect) {
+        ::GenericRxEbpfXskRedirect();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectFallback) {
+        ::GenericRxEbpfXskRedirectFallback();
+    }
+
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);
     }

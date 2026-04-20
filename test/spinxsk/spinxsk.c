@@ -569,12 +569,6 @@ AttachXdpEbpfProgram(
     // Since eBPF does not support per-queue programs, attach to the entire
     // interface.
     //
-    UNREFERENCED_PARAMETER(Queue);
-
-    //
-    // Since eBPF does not yet support AF_XDP, ignore the socket.
-    //
-    UNREFERENCED_PARAMETER(Sock);
 
     if (!enableEbpf) {
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
@@ -588,7 +582,7 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
-    switch (RandUlong() % 3) {
+    switch (RandUlong() % 4) {
     case 0:
         ProgramRelativePath = "\\bpf\\drop.sys";
         break;
@@ -597,6 +591,9 @@ AttachXdpEbpfProgram(
         break;
     case 2:
         ProgramRelativePath = "\\bpf\\l1fwd.sys";
+        break;
+    case 3:
+        ProgramRelativePath = "\\bpf\\xsk_redirect.sys";
         break;
     default:
         ASSERT_FRE(FALSE);
@@ -665,6 +662,21 @@ AttachXdpEbpfProgram(
         TraceVerbose("bpf_xdp_attach failed: %d", errno);
         Result = E_FAIL;
         goto Exit;
+    }
+
+    //
+    // If the xsk_redirect program was loaded, populate the XSKMAP with the
+    // XSK socket handle at the queue index.
+    //
+    if (ProgramRelativePath != NULL &&
+        strcmp(ProgramRelativePath, "\\bpf\\xsk_redirect.sys") == 0 &&
+        Sock != NULL) {
+        int XskMapFd = bpf_object__find_map_fd_by_name(BpfObject, "xsk_map");
+        if (XskMapFd >= 0) {
+            UINT32 QueueId = Queue->queueId;
+            TraceVerbose("Populating xsk_map[%u] with XSK handle", QueueId);
+            bpf_map_update_elem(XskMapFd, &QueueId, &Sock, 0 /* BPF_ANY */);
+        }
     }
 
     EnterCriticalSection(&RxProgramSet->Lock);

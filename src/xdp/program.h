@@ -16,6 +16,7 @@ typedef struct _XDP_INSPECTION_CONTEXT {
     XDP_INSPECTION_EBPF_CONTEXT EbpfContext;
     XDP_REDIRECT_CONTEXT RedirectContext;
     ULONG IfIndex;
+    UINT32 QueueId;
 } XDP_INSPECTION_CONTEXT;
 
 //

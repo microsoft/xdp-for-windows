@@ -6215,6 +6215,107 @@ GenericRxEbpfUnload()
 }
 
 VOID
+GenericRxEbpfXskRedirect()
+{
+    auto If = FnMpIf;
+    unique_fnmp_handle GenericMp;
+    const UCHAR Payload[] = "GenericRxEbpfXskRedirect";
+
+    //
+    // Create and activate an XSK socket for RX on the test interface.
+    //
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Attach the eBPF XSK redirect program.
+    //
+    unique_xdp_program BpfProgram =
+        AttachEbpfXdpProgram(If, "\\bpf\\xsk_redirect.sys", "xsk_redirect");
+
+    //
+    // Get the xsk_map FD and populate it with the XSK handle at the queue index.
+    //
+    fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
+    TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
+
+    UINT32 QueueId = If.GetQueueId();
+    HANDLE XskHandle = Xsk.Handle.get();
+    TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    //
+    // Produce one XSK fill descriptor.
+    //
+    SocketProduceRxFill(&Xsk, 1);
+
+    //
+    // Build one frame and indicate it.
+    //
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    TEST_HRESULT(TryMpRxFlush(GenericMp));
+
+    //
+    // Wait for the frame to arrive at XSK.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+
+    //
+    // Verify the frame was redirected to XSK.
+    //
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(sizeof(Payload), RxDesc->Length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
+            Payload,
+            sizeof(Payload)));
+}
+
+VOID
+GenericRxEbpfXskRedirectFallback()
+{
+    auto If = FnMpIf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfXskRedirectFallback";
+
+    //
+    // Attach the eBPF XSK redirect program without populating the map.
+    // The fallback action is XDP_PASS, so packets should pass through.
+    //
+    unique_xdp_program BpfProgram =
+        AttachEbpfXdpProgram(If, "\\bpf\\xsk_redirect.sys", "xsk_redirect");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    //
+    // Packet should pass through since the map entry is empty and
+    // the fallback action is XDP_PASS.
+    //
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
 GenericTxToRxInject()
 {
     auto If = FnMpIf;

@@ -15,6 +15,7 @@
     <ClCompile Include="rx.c" />
     <ClCompile Include="tx.c" />
     <ClCompile Include="xsk.c" />
+    <ClCompile Include="xskmap.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h" />

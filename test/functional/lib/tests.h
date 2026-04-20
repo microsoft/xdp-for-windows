@@ -185,6 +185,12 @@ VOID
 GenericRxEbpfUnload();
 
 VOID
+GenericRxEbpfXskRedirect();
+
+VOID
+GenericRxEbpfXskRedirectFallback();
+
+VOID
 GenericTxToRxInject();
 
 VOID
