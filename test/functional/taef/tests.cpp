@@ -652,6 +652,18 @@ public:
         ::GenericRxEbpfXskRedirectFallback();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectReplace) {
+        ::GenericRxEbpfXskRedirectReplace();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectDelete) {
+        ::GenericRxEbpfXskRedirectDelete();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskMapControlPath) {
+        ::GenericRxEbpfXskMapControlPath();
+    }
+
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);
     }

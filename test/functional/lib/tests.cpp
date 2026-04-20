@@ -6316,6 +6316,262 @@ GenericRxEbpfXskRedirectFallback()
 }
 
 VOID
+GenericRxEbpfXskRedirectReplace()
+{
+    auto If = FnMpIf;
+    unique_fnmp_handle GenericMp;
+    const UCHAR Payload[] = "GenericRxEbpfXskRedirectReplace";
+
+    //
+    // Create two XSK sockets. We'll redirect to the first, then replace the
+    // map entry with the second and verify the redirect target changes.
+    //
+    auto Xsk1 =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+    auto Xsk2 =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    unique_xdp_program BpfProgram =
+        AttachEbpfXdpProgram(If, "\\bpf\\xsk_redirect.sys", "xsk_redirect");
+
+    fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
+    TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    //
+    // Set the map entry to the first XSK.
+    //
+    UINT32 QueueId = If.GetQueueId();
+    HANDLE XskHandle1 = Xsk1.Handle.get();
+    TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle1, BPF_ANY));
+
+    SocketProduceRxFill(&Xsk1, 1);
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    TEST_HRESULT(TryMpRxFlush(GenericMp));
+
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk1.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk1.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk1, ConsumerIndex);
+    TEST_EQUAL(sizeof(Payload), RxDesc->Length);
+
+    //
+    // Replace the map entry with the second XSK.
+    //
+    HANDLE XskHandle2 = Xsk2.Handle.get();
+    TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle2, BPF_ANY));
+
+    SocketProduceRxFill(&Xsk2, 1);
+
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    TEST_HRESULT(TryMpRxFlush(GenericMp));
+
+    ConsumerIndex = SocketConsumerReserve(&Xsk2.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk2.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    RxDesc = SocketGetAndFreeRxDesc(&Xsk2, ConsumerIndex);
+    TEST_EQUAL(sizeof(Payload), RxDesc->Length);
+}
+
+VOID
+GenericRxEbpfXskRedirectDelete()
+{
+    auto If = FnMpIf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfXskRedirectDelete";
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    unique_xdp_program BpfProgram =
+        AttachEbpfXdpProgram(If, "\\bpf\\xsk_redirect.sys", "xsk_redirect");
+
+    fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
+    TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    //
+    // Populate the map entry, then delete it.
+    //
+    UINT32 QueueId = If.GetQueueId();
+    HANDLE XskHandle = Xsk.Handle.get();
+    TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
+    TEST_EQUAL(0, bpf_map_delete_elem(xsk_map_fd, &QueueId));
+
+    //
+    // After deletion, bpf_redirect_map should fall back to XDP_PASS.
+    //
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+}
+
+VOID
+GenericRxEbpfXskMapControlPath()
+{
+    auto If = FnMpIf;
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    unique_xdp_program BpfProgram =
+        AttachEbpfXdpProgram(If, "\\bpf\\xsk_redirect.sys", "xsk_redirect");
+
+    fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
+    TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
+
+    //
+    // Verify lookup on a non-existent key returns an error.
+    //
+    UINT32 QueueId = If.GetQueueId();
+    HANDLE LookupValue = NULL;
+    TEST_NOT_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
+
+    //
+    // Insert an entry and verify lookup succeeds.
+    //
+    HANDLE XskHandle = Xsk.Handle.get();
+    TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
+    TEST_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
+
+    //
+    // Delete the entry and verify lookup fails again.
+    //
+    TEST_EQUAL(0, bpf_map_delete_elem(xsk_map_fd, &QueueId));
+    TEST_NOT_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
+
+    //
+    // Verify deleting a non-existent key returns an error.
+    //
+    TEST_NOT_EQUAL(0, bpf_map_delete_elem(xsk_map_fd, &QueueId));
+
+    //
+    // Verify that BPF programs cannot perform CRUD operations on the XSKMAP.
+    // The eBPF runtime blocks these at runtime because updates_original_value
+    // is TRUE. Load a BPF program that attempts bpf_map_lookup_elem,
+    // bpf_map_update_elem, and bpf_map_delete_elem on the XSKMAP, run it via
+    // bpf_prog_test_run, and verify each operation failed.
+    //
+    {
+        CHAR BpfPath[MAX_PATH];
+        TEST_HRESULT(GetCurrentBinaryPath(BpfPath, RTL_NUMBER_OF(BpfPath)));
+        TEST_EQUAL(0, strcat_s(BpfPath, sizeof(BpfPath), "\\bpf\\xsk_map_lookup.sys"));
+
+        unique_bpf_object CrudProgram(bpf_object__open(BpfPath));
+        TEST_NOT_EQUAL(CrudProgram.get(), nullptr);
+        TEST_EQUAL(0, bpf_object__load(CrudProgram.get()));
+
+        bpf_program *CrudBpfProg =
+            bpf_object__find_program_by_name(CrudProgram.get(), "xsk_map_crud");
+        TEST_NOT_EQUAL(CrudBpfProg, nullptr);
+
+        fd_t CrudProgFd = bpf_program__fd(CrudBpfProg);
+        TEST_NOT_EQUAL(CrudProgFd, ebpf_fd_invalid);
+
+        UCHAR DummyPacket[64] = {0};
+        UCHAR DummyPacketOut[64] = {0};
+        xdp_md_t ContextIn = {0};
+        xdp_md_t ContextOut = {0};
+        ContextIn.ingress_ifindex = If.GetIfIndex();
+        ContextIn.rx_queue_index = If.GetQueueId();
+
+        bpf_test_run_opts Opts = {};
+        Opts.data_in = DummyPacket;
+        Opts.data_size_in = sizeof(DummyPacket);
+        Opts.data_out = DummyPacketOut;
+        Opts.data_size_out = sizeof(DummyPacketOut);
+        Opts.ctx_in = &ContextIn;
+        Opts.ctx_size_in = sizeof(ContextIn);
+        Opts.ctx_out = &ContextOut;
+        Opts.ctx_size_out = sizeof(ContextOut);
+
+        TEST_EQUAL(0, bpf_prog_test_run_opts(CrudProgFd, &Opts));
+        TEST_EQUAL(Opts.retval, (UINT32)XDP_PASS);
+
+        //
+        // Read back the results from the results_map.
+        //
+        fd_t ResultsMapFd =
+            bpf_object__find_map_fd_by_name(CrudProgram.get(), "results_map");
+        TEST_NOT_EQUAL(ResultsMapFd, ebpf_fd_invalid);
+
+        int64_t ResultValue = 0;
+        UINT32 ResultKey;
+
+        //
+        // results_map[0]: bpf_map_lookup_elem should have returned NULL (1).
+        //
+        ResultKey = 0;
+        TEST_EQUAL(0, bpf_map_lookup_elem(ResultsMapFd, &ResultKey, &ResultValue));
+        TEST_EQUAL(1, ResultValue);
+
+        //
+        // results_map[1]: bpf_map_update_elem should have returned non-zero.
+        //
+        ResultKey = 1;
+        TEST_EQUAL(0, bpf_map_lookup_elem(ResultsMapFd, &ResultKey, &ResultValue));
+        TEST_NOT_EQUAL(0, ResultValue);
+
+        //
+        // results_map[2]: bpf_map_delete_elem should have returned non-zero.
+        //
+        ResultKey = 2;
+        TEST_EQUAL(0, bpf_map_lookup_elem(ResultsMapFd, &ResultKey, &ResultValue));
+        TEST_NOT_EQUAL(0, ResultValue);
+    }
+
+    //
+    // Use bpf_prog_test_run to invoke the redirect program without a map entry
+    // and verify it returns the fallback action (XDP_PASS).
+    //
+    {
+        fd_t ProgFd = bpf_program__fd(
+            bpf_object__find_program_by_name(BpfProgram.get(), "xsk_redirect"));
+        TEST_NOT_EQUAL(ProgFd, ebpf_fd_invalid);
+
+        UCHAR DummyPacket[64] = {0};
+        UCHAR DummyPacketOut[64] = {0};
+        xdp_md_t ContextIn = {0};
+        xdp_md_t ContextOut = {0};
+        ContextIn.ingress_ifindex = If.GetIfIndex();
+        ContextIn.rx_queue_index = If.GetQueueId();
+
+        bpf_test_run_opts Opts = {};
+        Opts.data_in = DummyPacket;
+        Opts.data_size_in = sizeof(DummyPacket);
+        Opts.data_out = DummyPacketOut;
+        Opts.data_size_out = sizeof(DummyPacketOut);
+        Opts.ctx_in = &ContextIn;
+        Opts.ctx_size_in = sizeof(ContextIn);
+        Opts.ctx_out = &ContextOut;
+        Opts.ctx_size_out = sizeof(ContextOut);
+
+        TEST_EQUAL(0, bpf_prog_test_run_opts(ProgFd, &Opts));
+        TEST_EQUAL(Opts.retval, (UINT32)XDP_PASS);
+    }
+}
+
+VOID
 GenericTxToRxInject()
 {
     auto If = FnMpIf;

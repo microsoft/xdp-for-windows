@@ -13,9 +13,9 @@
 //
 struct
 {
-    __uint(type, 17 /* BPF_MAP_TYPE_XSKMAP */);
+    __uint(type, BPF_MAP_TYPE_XSKMAP);
     __type(key, uint32_t);
-    __type(value, uint32_t);
+    __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
 

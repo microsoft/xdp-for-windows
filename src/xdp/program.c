@@ -13,6 +13,7 @@
 #include "program.tmh"
 
 #define REDIRECT_FALLBACK_MASK 0x3
+#define REDIRECT_VALID_FLAGS_MASK (REDIRECT_FALLBACK_MASK)
 
 typedef struct _EBPF_PROG_TEST_RUN_CONTEXT {
     char* Data;
@@ -290,7 +291,6 @@ XdpInvokeEbpf(
         break;
 
     default:
-        ASSERT(FALSE);
         __fallthrough;
     case XDP_DROP:
         RxAction = XDP_RX_ACTION_DROP;
@@ -683,21 +683,40 @@ XdpProgramTraceObject(
 }
 
 static
-intptr_t
-EbpfXdpRedirectMap(
+int
+EbpfXdpAdjustHead(
     _Inout_ xdp_md_t *Context,
-    _In_ const void *Map,
-    _In_ uint32_t Key,
-    _In_ uint64_t Flags
+    _In_ int Delta
     )
 {
-    static const uint64_t SupportedFlagsMask = REDIRECT_FALLBACK_MASK;
-    EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(Context, EBPF_XDP_MD, Base);
-    VOID *Value = NULL;
+    //
+    // Not implemented. Any return < 0 is an error.
+    //
+    UNREFERENCED_PARAMETER(Context);
+    UNREFERENCED_PARAMETER(Delta);
+    return -1;
+}
+
+static
+intptr_t
+EbpfXdpRedirectMap(
+    _In_ const void *Map,
+    _In_ uint32_t Key,
+    _In_ uint64_t Flags,
+    _In_ uint64_t Reserved4,
+    _In_ uint64_t Reserved5,
+    _In_ void *ProgramContext /* Implicitly forwarded by eBPF as the 6th param. */
+    )
+{
     intptr_t const FallbackAction = (intptr_t)(Flags & REDIRECT_FALLBACK_MASK);
+    EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(ProgramContext, EBPF_XDP_MD, Base);
+    VOID *Value = NULL;
     intptr_t ReturnAction;
 
-    if (Flags & ~SupportedFlagsMask) {
+    UNREFERENCED_PARAMETER(Reserved4);
+    UNREFERENCED_PARAMETER(Reserved5);
+
+    if (Flags & ~REDIRECT_VALID_FLAGS_MASK) {
         //
         // Unsupported flags are set.
         //
@@ -726,6 +745,7 @@ Exit:
 }
 
 static const VOID *EbpfXdpHelperFunctions[] = {
+    (VOID *)EbpfXdpAdjustHead,
     (VOID *)EbpfXdpRedirectMap,
 };
 

@@ -19,11 +19,18 @@
 #include "xskmap.tmh"
 
 //
-// Per-map context for an XSKMAP instance. Minimal: just tracks max_entries
-// for validation.
+// Per-binding context for the XSKMAP provider. Created when the eBPF runtime
+// attaches as a client; stores a copy of the client's dispatch table.
+//
+typedef struct _XDP_XSKMAP_BINDING_CONTEXT {
+    ebpf_base_map_client_dispatch_table_t ClientDispatch;
+} XDP_XSKMAP_BINDING_CONTEXT;
+
+//
+// Per-map context for an XSKMAP instance.
 //
 typedef struct _XDP_XSKMAP_CONTEXT {
-    UINT32 MaxEntries;
+    ebpf_base_map_client_dispatch_table_t *ClientDispatch;
 } XDP_XSKMAP_CONTEXT;
 
 //
@@ -42,30 +49,24 @@ static const NPI_MODULEID EbpfXskmapProviderModuleId = {
 };
 
 static EBPF_EXTENSION_PROVIDER *EbpfXskmapProvider;
-static const EBPF_EXTENSION_CLIENT *EbpfXskmapClient;
+
+//
+// Offset within the eBPF map structure where the provider context (map_context)
+// is stored. Set during client attach; used by XdpXskmapFindElement to derive
+// the XDP_XSKMAP_CONTEXT from a raw map pointer.
+//
+// N.B. The eBPF contract guarantees all maps share the same context offset.
+//
+static ULONG64 XdpXskmapContextOffset;
 
 static
-_Ret_maybenull_
-ebpf_base_map_client_dispatch_table_t *
-XdpXskmapGetClientDispatch(
-    VOID
+XDP_XSKMAP_BINDING_CONTEXT *
+XdpXskmapGetBindingContext(
+    _In_ void *BindingContext
     )
 {
-    const EBPF_EXTENSION_CLIENT *Client = EbpfXskmapClient;
-    const ebpf_extension_data_t *ClientExtData;
-    const ebpf_map_client_data_t *ClientData;
-
-    if (Client == NULL) {
-        return NULL;
-    }
-
-    ClientExtData = EbpfExtensionClientGetClientData(Client);
-    if (ClientExtData == NULL) {
-        return NULL;
-    }
-
-    ClientData = (const ebpf_map_client_data_t *)ClientExtData;
-    return ClientData->base_client_table;
+    return (XDP_XSKMAP_BINDING_CONTEXT *)EbpfExtensionClientGetProviderData(
+        (const EBPF_EXTENSION_CLIENT *)BindingContext);
 }
 
 static
@@ -81,10 +82,9 @@ XdpXskmapProcessCreate(
     )
 {
     XDP_XSKMAP_CONTEXT *Context = NULL;
-    ebpf_base_map_client_dispatch_table_t *ClientDispatch;
+    XDP_XSKMAP_BINDING_CONTEXT *Binding = XdpXskmapGetBindingContext(BindingContext);
 
-    UNREFERENCED_PARAMETER(BindingContext);
-    UNREFERENCED_PARAMETER(ValueSize);
+    UNREFERENCED_PARAMETER(MaxEntries);
 
     TraceEnter(
         TRACE_CORE, "MapType=%u KeySize=%u ValueSize=%u MaxEntries=%u",
@@ -97,11 +97,7 @@ XdpXskmapProcessCreate(
         return EBPF_INVALID_ARGUMENT;
     }
 
-    if (KeySize != sizeof(UINT32)) {
-        return EBPF_INVALID_ARGUMENT;
-    }
-
-    if (MaxEntries == 0) {
+    if (KeySize != sizeof(UINT32) || ValueSize != sizeof(HANDLE)) {
         return EBPF_INVALID_ARGUMENT;
     }
 
@@ -110,20 +106,15 @@ XdpXskmapProcessCreate(
     //
     *ActualValueSize = sizeof(HANDLE);
 
-    ClientDispatch = XdpXskmapGetClientDispatch();
-    if (ClientDispatch == NULL) {
-        return EBPF_OPERATION_NOT_SUPPORTED;
-    }
-
     //
     // Allocate the per-map context using epoch-protected allocation.
     //
-    Context = ClientDispatch->epoch_allocate_with_tag(sizeof(*Context), XDP_POOLTAG_MAP);
+    Context = Binding->ClientDispatch.epoch_allocate_with_tag(sizeof(*Context), XDP_POOLTAG_MAP);
     if (Context == NULL) {
         return EBPF_NO_MEMORY;
     }
 
-    Context->MaxEntries = MaxEntries;
+    Context->ClientDispatch = &Binding->ClientDispatch;
     *MapContext = Context;
 
     TraceExitSuccess(TRACE_CORE);
@@ -138,7 +129,6 @@ XdpXskmapProcessDelete(
     )
 {
     XDP_XSKMAP_CONTEXT *Context = (XDP_XSKMAP_CONTEXT *)MapContext;
-    ebpf_base_map_client_dispatch_table_t *ClientDispatch;
 
     UNREFERENCED_PARAMETER(BindingContext);
 
@@ -150,10 +140,7 @@ XdpXskmapProcessDelete(
     // dereferenced by the time we get here.
     //
 
-    ClientDispatch = XdpXskmapGetClientDispatch();
-    if (ClientDispatch != NULL) {
-        ClientDispatch->epoch_free(Context);
-    }
+    Context->ClientDispatch->epoch_free(Context);
 
     TraceExitSuccess(TRACE_CORE);
 }
@@ -202,10 +189,15 @@ XdpXskmapProcessFindElement(
     UNREFERENCED_PARAMETER(Key);
     UNREFERENCED_PARAMETER(OutValueSize);
     UNREFERENCED_PARAMETER(OutValue);
-    UNREFERENCED_PARAMETER(Flags);
 
     //
-    // The base array map handles the lookup. The in_value contains the stored
+    // The eBPF runtime blocks BPF program lookups on maps with
+    // updates_original_value set. Assert this invariant.
+    //
+    ASSERT(!(Flags & EBPF_MAP_OPERATION_HELPER));
+
+    //
+    // The base map handles the lookup. The in_value contains the stored
     // HANDLE. Validate it is non-NULL.
     //
     if (InValueSize != sizeof(HANDLE) || InValue == NULL) {
@@ -244,9 +236,8 @@ XdpXskmapProcessAddElement(
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
 
     //
-    // XSKMAP updates from BPF programs are not supported. The eBPF runtime
-    // enforces this because updates_original_value is set to TRUE in the
-    // provider properties.
+    // The eBPF runtime blocks BPF program updates on maps with
+    // updates_original_value set. Assert this invariant.
     //
     ASSERT(!(Flags & EBPF_MAP_OPERATION_HELPER));
 
@@ -306,9 +297,14 @@ XdpXskmapProcessDeleteElement(
     UNREFERENCED_PARAMETER(MapContext);
     UNREFERENCED_PARAMETER(KeySize);
     UNREFERENCED_PARAMETER(Key);
-    UNREFERENCED_PARAMETER(Flags);
 
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
+
+    //
+    // The eBPF runtime blocks BPF program deletes on maps with
+    // updates_original_value set (except during map cleanup).
+    //
+    ASSERT(!(Flags & EBPF_MAP_OPERATION_HELPER));
 
     //
     // The Value parameter contains the entry being removed from the base map.
@@ -352,7 +348,8 @@ static ebpf_map_provider_data_t XdpXskmapProviderData = {
 };
 
 //
-// Client attach callback: capture the client for use by bpf_redirect_map.
+// Client attach callback: create a per-binding context with a copy of the
+// client's dispatch table.
 //
 static
 NTSTATUS
@@ -361,11 +358,34 @@ XdpXskmapOnClientAttach(
     _In_ const EBPF_EXTENSION_PROVIDER *AttachingProvider
     )
 {
+    const ebpf_extension_data_t *ClientExtData;
+    const ebpf_map_client_data_t *ClientData;
+    XDP_XSKMAP_BINDING_CONTEXT *Binding;
+
     UNREFERENCED_PARAMETER(AttachingProvider);
 
     TraceEnter(TRACE_CORE, "Client=%p", AttachingClient);
 
-    EbpfXskmapClient = AttachingClient;
+    ClientExtData = EbpfExtensionClientGetClientData(AttachingClient);
+    if (ClientExtData == NULL) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    ClientData = (const ebpf_map_client_data_t *)ClientExtData;
+
+    Binding = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Binding), XDP_POOLTAG_EBPF_NMR);
+    if (Binding == NULL) {
+        return STATUS_NO_MEMORY;
+    }
+
+    RtlCopyMemory(
+        &Binding->ClientDispatch, ClientData->base_client_table,
+        min(sizeof(Binding->ClientDispatch), ClientData->base_client_table->header.total_size));
+
+    WriteULong64NoFence(
+        (volatile UINT64 *)&XdpXskmapContextOffset, ClientData->map_context_offset);
+
+    EbpfExtensionClientSetProviderData(AttachingClient, Binding);
 
     TraceExitSuccess(TRACE_CORE);
     return STATUS_SUCCESS;
@@ -377,12 +397,13 @@ XdpXskmapOnClientDetach(
     _In_ const EBPF_EXTENSION_CLIENT *DetachingClient
     )
 {
-    UNREFERENCED_PARAMETER(DetachingClient);
+    XDP_XSKMAP_BINDING_CONTEXT *Binding = EbpfExtensionClientGetProviderData(DetachingClient);
 
     TraceEnter(TRACE_CORE, "Client=%p", DetachingClient);
 
-    EbpfXskmapClient = NULL;
-    EbpfExtensionDetachClientCompletion((EBPF_EXTENSION_CLIENT *)DetachingClient);
+    if (Binding != NULL) {
+        ExFreePoolWithTag(Binding, XDP_POOLTAG_EBPF_NMR);
+    }
 
     TraceExitSuccess(TRACE_CORE);
     return STATUS_SUCCESS;
@@ -395,18 +416,14 @@ XdpXskmapFindElement(
     _Outptr_ VOID **Value
     )
 {
-    ebpf_base_map_client_dispatch_table_t *ClientDispatch;
+    XDP_XSKMAP_CONTEXT *Context;
 
-    ClientDispatch = XdpXskmapGetClientDispatch();
-    if (ClientDispatch == NULL) {
+    Context = *(XDP_XSKMAP_CONTEXT **)MAP_CONTEXT(Map, ReadULong64NoFence(&XdpXskmapContextOffset));
+    if (Context == NULL) {
         return EBPF_OPERATION_NOT_SUPPORTED;
     }
 
-    //
-    // Use the eBPF runtime's map find_element to look up the value in the base
-    // array map. This returns a pointer to the stored HANDLE value.
-    //
-    return ClientDispatch->find_element_function(Map, Key, (uint8_t **)Value);
+    return Context->ClientDispatch->find_element_function(Map, Key, (uint8_t **)Value);
 }
 
 NTSTATUS

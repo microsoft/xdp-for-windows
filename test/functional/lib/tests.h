@@ -191,6 +191,15 @@ VOID
 GenericRxEbpfXskRedirectFallback();
 
 VOID
+GenericRxEbpfXskRedirectReplace();
+
+VOID
+GenericRxEbpfXskRedirectDelete();
+
+VOID
+GenericRxEbpfXskMapControlPath();
+
+VOID
 GenericTxToRxInject();
 
 VOID

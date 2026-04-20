@@ -5,13 +5,6 @@
 
 #pragma once
 
-//
-// BPF_MAP_TYPE_XSKMAP for AF_XDP socket redirection.
-// This map type is not defined in the eBPF-for-Windows headers.
-// The value matches the Linux kernel BPF_MAP_TYPE_XSKMAP.
-//
-#define BPF_MAP_TYPE_XSKMAP 17
-
 NTSTATUS
 XdpXskmapStart(
     VOID
