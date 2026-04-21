@@ -50,9 +50,14 @@ msiexec.exe /x xdp-for-windows.msi /quiet
 
 ### Enable eBPF Support
 
-**Note** eBPF support is experimental and is not officially supported by XDP.
+For comprehensive documentation, see the [eBPF Integration Guide](ebpf.md) and
+[eBPF Redirect Map (XSKMAP)](ebpf-redirect-map.md).
 
-Starting with XDP version 1.1, experimental eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
+> **Note:** The built-in rules-based program API (`XDP_RULE` / `XDP_MATCH_TYPE`
+> / `XdpCreateProgram`) is deprecated and planned for removal. All users should
+> migrate to eBPF programs.
+
+Starting with XDP version 1.1, eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
 
 When using the runtime nuget package instead of the runtime MSI, run the following command after [installing eBPF-for-Windows](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/InstallEbpf.md) and the base `xdp` component:
 

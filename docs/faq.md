@@ -17,9 +17,10 @@ We are not source compatible with Linux, partly due to differences in the underl
 
 > Do you support eBPF programs?
 
-We do not officially support eBPF programs yet. We are [integrating](https://github.com/microsoft/xdp-for-windows/issues/7) with the
-[eBPF for Windows project](https://github.com/microsoft/ebpf-for-windows), which is also in a pre-release stage. In the meantime, we
-have built a barebones [program](/published/external/xdp/program.h) module.
+Yes. XDP supports eBPF programs through [integration](https://github.com/microsoft/xdp-for-windows/issues/7) with the
+[eBPF for Windows project](https://github.com/microsoft/ebpf-for-windows). See the [eBPF Integration Guide](ebpf.md) for details.
+
+The built-in rules-based program API (`XDP_RULE` / `XDP_MATCH_TYPE` / `XdpCreateProgram`) is deprecated and planned for removal. All users should migrate to eBPF programs. See the [eBPF Integration Guide](ebpf.md) and [eBPF Redirect Map (XSKMAP)](ebpf-redirect-map.md) documentation for details.
 
 > What versions of Windows does XDP support?
 

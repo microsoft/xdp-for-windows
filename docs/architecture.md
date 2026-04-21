@@ -13,7 +13,7 @@ XDP for Windows is a high-performance packet processing framework inspired by Li
   - **Native XDP**: Requires NIC driver support for maximum performance and direct data path access.
 - Provides programmable hook points for packet inspection, modification, and redirection.
 - Implements shared memory rings for high-speed packet transfer between kernel and user mode.
-- Supports eBPF (experimental) for programmable packet processing.
+- Supports [eBPF](./ebpf.md) for programmable packet processing.
 
 ### 2. XDP API Headers (User Mode APIs)
 - Header-only APIs that expose the XDP API to applications (available for `XDP_API_VERSION_3` or later).
@@ -48,7 +48,8 @@ XDP for Windows is a high-performance packet processing framework inspired by Li
 - The driver is signed and uses standard Windows security mechanisms.
 
 ## Extensibility
-- XDP for Windows is designed to be extensible via eBPF (experimental) and a primitive built-in rules-based program engine.
+- XDP for Windows is designed to be extensible via [eBPF programs](./ebpf.md) through integration with [eBPF for Windows](https://github.com/microsoft/ebpf-for-windows).
+- The legacy built-in rules-based program engine is deprecated and planned for removal. See the [eBPF Integration Guide](./ebpf.md) for migration guidance.
 - New hook points and interface types can be added as needed.
 
 ## Comparison to Linux XDP
@@ -60,6 +61,8 @@ XDP for Windows is a high-performance packet processing framework inspired by Li
 ## References
 - [Usage Guide](./usage.md)
 - [AF_XDP API](./afxdp.md)
+- [eBPF Integration Guide](./ebpf.md)
+- [eBPF Redirect Map (XSKMAP)](./ebpf-redirect-map.md)
 - [FAQ](./faq.md)
 - [Threat Model](./threat-model.md)
 
