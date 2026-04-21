@@ -203,6 +203,9 @@ VOID
 GenericRxEbpfXskRedirectCloseSocket();
 
 VOID
+GenericRxEbpfXskRedirectQueueMismatch();
+
+VOID
 GenericTxToRxInject();
 
 VOID

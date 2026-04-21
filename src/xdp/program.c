@@ -714,6 +714,7 @@ EbpfXdpRedirectMap(
     intptr_t ReturnAction = FallbackAction;
     EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(ProgramContext, EBPF_XDP_MD, Base);
     XDP_REDIRECT_CONTEXT *RedirectContext = &XdpMd->InspectionContext->RedirectContext;
+    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromRedirectContext(RedirectContext);
     VOID *Value = NULL;
     HANDLE Xsk;
 
@@ -738,19 +739,26 @@ EbpfXdpRedirectMap(
     // which returns the XSK handle stored at the given key.
     //
     if (XdpXskmapFindElement(Map, &Key, &Value) != EBPF_SUCCESS) {
+        STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapLookupFailures);
+        EventWriteEbpfRedirectMapLookupFailure(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, Key, (UINT32)FallbackAction);
         goto Exit;
     }
 
     ASSERT(Value != NULL);
     Xsk = *(HANDLE *)Value;
 
-    if (!XskCanRedirect(Xsk, XdpRxQueueFromRedirectContext(RedirectContext))) {
+    if (!XskCanRedirect(Xsk, RxQueue)) {
+        STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapRedirectFailures);
+        EventWriteEbpfRedirectMapRedirectFailure(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, Key, Xsk, (UINT32)FallbackAction);
         goto Exit;
     }
 
     XdpMd->RedirectTarget = Xsk;
     XdpMd->RedirectTargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
     ReturnAction = XDP_REDIRECT;
+    EventWriteEbpfRedirectMapSuccess(&MICROSOFT_XDP_PROVIDER, RxQueue, Key, Xsk);
 
 Exit:
 

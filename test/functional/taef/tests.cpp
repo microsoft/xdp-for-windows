@@ -668,6 +668,10 @@ public:
         ::GenericRxEbpfXskRedirectCloseSocket();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectQueueMismatch) {
+        ::GenericRxEbpfXskRedirectQueueMismatch();
+    }
+
     TEST_METHOD(GenericLoopbackV4) {
         GenericLoopback(AF_INET);
     }

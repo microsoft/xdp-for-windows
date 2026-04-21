@@ -158,6 +158,32 @@
             detailLevel="standard"
             defaultScale="1"
             />
+          <counter
+            id="11"
+            uri="Microsoft.Xdp.RxQueue.EbpfXskMapLookupFailures"
+            name="eBPF XSK Map Lookup Failures"
+            nameID="2044"
+            field="EbpfXskMapLookupFailures"
+            description="eBPF redirect_map calls where the XSKMAP lookup failed."
+            descriptionID="2046"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
+          <counter
+            id="12"
+            uri="Microsoft.Xdp.RxQueue.EbpfXskMapRedirectFailures"
+            name="eBPF XSK Map Redirect Failures"
+            nameID="2048"
+            field="EbpfXskMapRedirectFailures"
+            description="eBPF redirect_map calls where the XSK was found but redirect failed due to invalid socket state."
+            descriptionID="2050"
+            type="perf_counter_rawcount"
+            aggregate="sum"
+            detailLevel="standard"
+            defaultScale="1"
+            />
         </counterSet>
         <counterSet
           guid="{10672701-093b-4b91-8b76-8f53afd07cd0}"

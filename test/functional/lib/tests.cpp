@@ -1945,19 +1945,19 @@ static
 HRESULT
 LwfRxGetFrame(
     _In_ const unique_fnlwf_handle &Handle,
-    _In_ UINT32 Index,
+    _In_ UINT32 FrameIndex,
     _Inout_ UINT32 *FrameBufferLength,
     _Out_opt_ DATA_FRAME *Frame
     )
 {
-    return FnLwfRxGetFrame(Handle.get(), Index, FrameBufferLength, Frame);
+    return FnLwfRxGetFrame(Handle.get(), FrameIndex, FrameBufferLength, Frame);
 }
 
 static
 unique_malloc_ptr<DATA_FRAME>
 LwfRxAllocateAndGetFrame(
     _In_ const unique_fnlwf_handle &Handle,
-    _In_ UINT32 Index
+    _In_ UINT32 FrameIndex
     )
 {
     unique_malloc_ptr<DATA_FRAME> FrameBuffer;
@@ -1969,7 +1969,7 @@ LwfRxAllocateAndGetFrame(
     // Poll FNLWF for RX: the driver doesn't support overlapped IO.
     //
     do {
-        Result = LwfRxGetFrame(Handle, Index, &FrameLength, NULL);
+        Result = LwfRxGetFrame(Handle, FrameIndex, &FrameLength, NULL);
         if (Result != HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
             break;
         }
@@ -1980,7 +1980,7 @@ LwfRxAllocateAndGetFrame(
     FrameBuffer.reset((DATA_FRAME *)AllocMem(FrameLength));
     TEST_NOT_NULL(FrameBuffer.get());
 
-    TEST_HRESULT(LwfRxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
+    TEST_HRESULT(LwfRxGetFrame(Handle, FrameIndex, &FrameLength, FrameBuffer.get()));
 
     return FrameBuffer;
 }
@@ -1989,7 +1989,7 @@ static
 VOID
 LwfRxDequeueFrame(
     _In_ const unique_fnlwf_handle &Handle,
-    _In_ UINT32 Index
+    _In_ UINT32 FrameIndex
     )
 {
     HRESULT Result;
@@ -1999,7 +1999,7 @@ LwfRxDequeueFrame(
     // Poll FNLWF for RX: the driver doesn't support overlapped IO.
     //
     do {
-        Result = FnLwfRxDequeueFrame(Handle.get(), Index);
+        Result = FnLwfRxDequeueFrame(Handle.get(), FrameIndex);
     } while (!Watchdog.IsExpired() && Result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND));
 
     TEST_HRESULT(Result);
@@ -5938,7 +5938,7 @@ GenericRxEbpfDrop()
     UINT32 FrameLength = 0;
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+        LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL));
 }
 
 VOID
@@ -5962,8 +5962,8 @@ GenericRxEbpfPass()
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
-    LwfRxDequeueFrame(FnLwf, If.GetQueueId());
+    LwfRxAllocateAndGetFrame(FnLwf, 0);
+    LwfRxDequeueFrame(FnLwf, 0);
     LwfRxFlush(FnLwf);
 }
 
@@ -6030,8 +6030,8 @@ GenericRxEbpfPayload()
     TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
     MpRxFlush(GenericMp);
 
-    LwfRxAllocateAndGetFrame(FnLwf, If.GetQueueId());
-    LwfRxDequeueFrame(FnLwf, If.GetQueueId());
+    LwfRxAllocateAndGetFrame(FnLwf, 0);
+    LwfRxDequeueFrame(FnLwf, 0);
     LwfRxFlush(FnLwf);
 }
 
@@ -6133,7 +6133,7 @@ GenericRxEbpfIfIndex()
     // Packet should be dropped.
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+        LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL));
 
     // Validate that the dropped_packet_map contains a non-0 entry for the IfIndex.
     fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "dropped_packet_map");
@@ -6155,7 +6155,7 @@ GenericRxEbpfIfIndex()
     // Packet should not be dropped.
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_MORE_DATA),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+        LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL));
 }
 
 VOID
@@ -6312,7 +6312,7 @@ GenericRxEbpfXskRedirectFallback()
     UINT32 FrameLength = 0;
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_MORE_DATA),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+        LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL));
 }
 
 VOID
@@ -6422,7 +6422,7 @@ GenericRxEbpfXskRedirectDelete()
     UINT32 FrameLength = 0;
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_MORE_DATA),
-        LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
+        LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL));
 }
 
 VOID
@@ -6571,31 +6571,36 @@ GenericRxEbpfXskMapControlPath()
     }
 }
 
+static
 VOID
-GenericRxEbpfXskRedirectCloseSocket()
+GenericRxEbpfXskRedirectFallbackHelper(
+    _In_ BOOLEAN CloseSocket,
+    _In_ BOOLEAN QueueMismatch
+    )
 {
     auto If = FnMpIf;
 
     //
     // Test each possible fallback action (XDP_PASS, XDP_DROP, XDP_TX) when the
-    // XSK socket is closed while still inserted in the XSKMAP. Use a single
-    // BPF program with a configurable fallback via an array map.
+    // eBPF redirect to an XSK fails. The redirect can fail because the XSK was
+    // closed (stale map entry) or because the XSK is bound to a different queue
+    // than the current receive queue.
     //
     struct {
         UINT32 FallbackAction;
         BOOLEAN ExpectPass;
+        BOOLEAN ExpectTx;
     } TestCases[] = {
-        { XDP_PASS, TRUE  },
-        { XDP_DROP, FALSE },
-        { XDP_TX,   FALSE },
+        { XDP_PASS, TRUE,  FALSE },
+        { XDP_DROP, FALSE, FALSE },
+        { XDP_TX,   FALSE, TRUE  },
     };
 
     for (UINT32 tc = 0; tc < RTL_NUMBER_OF(TestCases); tc++) {
         unique_fnmp_handle GenericMp;
         unique_fnlwf_handle FnLwf;
-        UCHAR Payload[64];
-        sprintf_s((CHAR *)Payload, sizeof(Payload), "XskRedirectCloseSocket_%u", tc);
-        UINT32 PayloadLength = (UINT32)strlen((CHAR *)Payload) + 1;
+        UCHAR Payload[] = "GenericRxEbpfXskRedirectFallbackHelper";
+        UINT32 PayloadLength = sizeof(Payload);
 
         unique_xdp_program BpfProgram =
             AttachEbpfXdpProgram(
@@ -6615,39 +6620,65 @@ GenericRxEbpfXskRedirectCloseSocket()
         fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
         TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
 
-        UINT32 QueueId = If.GetQueueId();
+        //
+        // The map key and indication queue differ by scenario:
+        //  - CloseSocket: XSK bound to queue 0, map key = 0, indicate on queue 0.
+        //  - QueueMismatch: XSK bound to queue 0, map key = 1, indicate on queue 1.
+        //
+        UINT32 MapKey = QueueMismatch ? If.GetQueueId() + 1 : If.GetQueueId();
+        UINT32 IndicateQueueId = MapKey;
 
-        //
-        // Create an XSK, insert it into the map, then close the XSK while the
-        // map entry still references it.
-        //
+        MY_SOCKET Xsk;
         {
-            auto Xsk =
+            auto XskTemp =
                 CreateAndActivateSocket(
                     If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
-            HANDLE XskHandle = Xsk.Handle.get();
-            TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
+            HANDLE XskHandle = XskTemp.Handle.get();
+            TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &MapKey, &XskHandle, BPF_ANY));
+
+            if (CloseSocket) {
+                //
+                // XSK destroyed at end of scope; map entry becomes stale.
+                //
+            } else {
+                SocketProduceRxFill(&XskTemp, 1);
+                Xsk = std::move(XskTemp);
+            }
         }
 
-        //
-        // The XSK is now closed. Send a packet and verify the fallback behavior.
-        //
         GenericMp = MpOpenGeneric(If.GetIfIndex());
         FnLwf = LwfOpenDefault(If.GetIfIndex());
 
         CxPlatVector<UCHAR> Mask(PayloadLength, 0xFF);
         auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), PayloadLength);
 
+        //
+        // For XDP_TX, set a TX filter so we can verify the packet is bounced
+        // back out the miniport.
+        //
+        unique_fnmp_filter_handle MpFilter;
+        if (TestCases[tc].ExpectTx) {
+            MpFilter = MpTxFilter(GenericMp, Payload, Mask.data(), PayloadLength);
+        }
+
         RX_FRAME Frame;
-        RxInitializeFrame(&Frame, If.GetQueueId(), Payload, PayloadLength);
+        RxInitializeFrame(&Frame, IndicateQueueId, Payload, PayloadLength);
         TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
         MpRxFlush(GenericMp);
 
         CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
+        //
+        // If the XSK is still open, verify no packet was delivered to it.
+        //
+        if (!CloseSocket) {
+            UINT32 ConsumerIndex;
+            TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+        }
+
         UINT32 FrameLength = 0;
-        HRESULT LwfResult = LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL);
+        HRESULT LwfResult = LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL);
 
         if (TestCases[tc].ExpectPass) {
             //
@@ -6656,16 +6687,41 @@ GenericRxEbpfXskRedirectCloseSocket()
             TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_MORE_DATA), LwfResult);
         } else {
             //
-            // Fallback is XDP_DROP or XDP_TX: the packet should not reach the LWF.
+            // Fallback is XDP_DROP or XDP_TX: the packet should not reach
+            // the LWF.
             //
             TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_NOT_FOUND), LwfResult);
         }
 
-        //
-        // Clean up the stale map entry.
-        //
-        bpf_map_delete_elem(xsk_map_fd, &QueueId);
+        if (TestCases[tc].ExpectTx) {
+            //
+            // Fallback is XDP_TX: verify the packet was bounced back out
+            // the miniport TX path.
+            //
+            auto TxFrame = MpTxAllocateAndGetFrame(GenericMp, 0);
+            MpTxDequeueFrame(GenericMp, 0);
+            MpTxFlush(GenericMp);
+        } else {
+            //
+            // Fallback is XDP_PASS or XDP_DROP: verify no TX occurred.
+            //
+            MpTxVerifyNoFrame(GenericMp, 0);
+        }
+
+        bpf_map_delete_elem(xsk_map_fd, &MapKey);
     }
+}
+
+VOID
+GenericRxEbpfXskRedirectCloseSocket()
+{
+    GenericRxEbpfXskRedirectFallbackHelper(TRUE, FALSE);
+}
+
+VOID
+GenericRxEbpfXskRedirectQueueMismatch()
+{
+    GenericRxEbpfXskRedirectFallbackHelper(FALSE, TRUE);
 }
 
 VOID
