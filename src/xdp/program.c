@@ -713,13 +713,25 @@ EbpfXdpRedirectMap(
     intptr_t const FallbackAction = (intptr_t)(Flags & REDIRECT_FALLBACK_MASK);
     intptr_t ReturnAction = FallbackAction;
     EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(ProgramContext, EBPF_XDP_MD, Base);
+    BOOLEAN IsProgTestRun = XdpMd->ProgTestRunContext != NULL;
     XDP_REDIRECT_CONTEXT *RedirectContext = &XdpMd->InspectionContext->RedirectContext;
-    XDP_RX_QUEUE *RxQueue = XdpRxQueueFromRedirectContext(RedirectContext);
+    XDP_RX_QUEUE *RxQueue;
     VOID *Value = NULL;
     HANDLE Xsk;
 
     UNREFERENCED_PARAMETER(Reserved4);
     UNREFERENCED_PARAMETER(Reserved5);
+
+    if (IsProgTestRun) {
+        //
+        // N.B. RxQueue and other nontrivial structures are not present in
+        // eBPF prog_test_run callbacks.
+        //
+        RxQueue = NULL;
+    } else {
+        RxQueue = XdpRxQueueFromRedirectContext(RedirectContext);
+        ASSERT(RxQueue != NULL);
+    }
 
     if (Flags & ~REDIRECT_VALID_FLAGS_MASK) {
         //
@@ -739,7 +751,9 @@ EbpfXdpRedirectMap(
     // which returns the XSK handle stored at the given key.
     //
     if (XdpXskmapFindElement(Map, &Key, &Value) != EBPF_SUCCESS) {
-        STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapLookupFailures);
+        if (RxQueue != NULL) {
+            STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapLookupFailures);
+        }
         EventWriteEbpfRedirectMapLookupFailure(
             &MICROSOFT_XDP_PROVIDER, RxQueue, Key, (UINT32)FallbackAction);
         goto Exit;
@@ -748,8 +762,10 @@ EbpfXdpRedirectMap(
     ASSERT(Value != NULL);
     Xsk = *(HANDLE *)Value;
 
-    if (!XskCanRedirect(Xsk, RxQueue)) {
-        STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapRedirectFailures);
+    if (!IsProgTestRun && !XskCanRedirect(Xsk, RxQueue)) {
+        if (RxQueue != NULL) {
+            STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapRedirectFailures);
+        }
         EventWriteEbpfRedirectMapRedirectFailure(
             &MICROSOFT_XDP_PROVIDER, RxQueue, Key, Xsk, (UINT32)FallbackAction);
         goto Exit;
