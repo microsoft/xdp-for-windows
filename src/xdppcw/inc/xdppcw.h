@@ -20,6 +20,8 @@ typedef struct _XDP_PCW_RX_QUEUE {
     UINT64 InspectFramesRedirected;
     UINT64 InspectFramesForwarded;
     UINT64 InspectFramesDiscontiguous;
+    UINT64 EbpfXskMapLookupFailures;
+    UINT64 EbpfXskMapRedirectFailures;
 } XDP_PCW_RX_QUEUE;
 
 typedef struct _XDP_PCW_LWF_RX_QUEUE {

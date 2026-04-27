@@ -4,9 +4,10 @@
     <ClCompile Include="xskrestricted.c" />
   </ItemGroup>
   <PropertyGroup>
-    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <ProjectGuid>{EAC6D867-EF75-4284-8603-6D202B7C7F93}</ProjectGuid>
     <TargetName>xskrestricted</TargetName>
     <UndockedType>exe</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>

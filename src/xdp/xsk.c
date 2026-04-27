@@ -1971,6 +1971,17 @@ XskCanBypass(
     return TRUE;
 }
 
+BOOLEAN
+XskCanRedirect(
+    _In_ HANDLE XskHandle,
+    _In_ XDP_RX_QUEUE *RxQueue
+    )
+{
+    XSK *Xsk = (XSK *)XskHandle;
+
+    return Xsk->State == XskActive && Xsk->Rx.Xdp.Queue == RxQueue;
+}
+
 static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_

@@ -315,6 +315,57 @@
                 outType="win:HexInt32"
                 />
           </template>
+          <template tid="tid_EbpfRedirectMapLookupFailure">
+            <data
+                inType="win:Pointer"
+                name="RxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Key"
+                />
+            <data
+                inType="win:UInt32"
+                name="FallbackAction"
+                />
+          </template>
+          <template tid="tid_EbpfRedirectMapRedirectFailure">
+            <data
+                inType="win:Pointer"
+                name="RxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Key"
+                />
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="FallbackAction"
+                />
+          </template>
+          <template tid="tid_EbpfRedirectMapSuccess">
+            <data
+                inType="win:Pointer"
+                name="RxQueue"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Key"
+                />
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+          </template>
           <template tid="tid_GenericRxInspectRing">
             <data
                 inType="win:Pointer"
@@ -555,6 +606,36 @@
               />
           <event
               channel="CHID_XDP"
+              keywords="Rx Ebpf"
+              level="XdpPerFrame"
+              message="$(string.EbpfRedirectMapLookupFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfRedirectMapLookupFailure"
+              template="tid_EbpfRedirectMapLookupFailure"
+              value="23"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Rx Ebpf"
+              level="XdpPerFrame"
+              message="$(string.EbpfRedirectMapRedirectFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfRedirectMapRedirectFailure"
+              template="tid_EbpfRedirectMapRedirectFailure"
+              value="24"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Rx Ebpf"
+              level="XdpPerFrame"
+              message="$(string.EbpfRedirectMapSuccess.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfRedirectMapSuccess"
+              template="tid_EbpfRedirectMapSuccess"
+              value="25"
+              />
+          <event
+              channel="CHID_XDP"
               keywords="Generic Rx"
               level="XdpPerFrame"
               message="$(string.GenericRxInspectRingStart.EventMessage)"
@@ -659,6 +740,18 @@
         <string
             id="EbpfProgramFailure.EventMessage"
             value="[ebpf][%1] program failed EbpfResult=%2"
+            />
+        <string
+            id="EbpfRedirectMapLookupFailure.EventMessage"
+            value="[ebpf][%1] bpf_redirect_map lookup failed Key=%2 FallbackAction=%3"
+            />
+        <string
+            id="EbpfRedirectMapRedirectFailure.EventMessage"
+            value="[ebpf][%1] bpf_redirect_map redirect failed Key=%2 Xsk=%3 FallbackAction=%4"
+            />
+        <string
+            id="EbpfRedirectMapSuccess.EventMessage"
+            value="[ebpf][%1] bpf_redirect_map success Key=%2 Xsk=%3"
             />
         <string
             id="GenericRxInspectRingStart.EventMessage"

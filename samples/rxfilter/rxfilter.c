@@ -4,84 +4,56 @@
 //
 
 #include <xdpapi.h>
-#include <ws2tcpip.h>
-#include <assert.h>
-#include <math.h>
+#pragma warning(push)
+#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+#pragma warning(pop)
 #include <stdio.h>
 #include <stdlib.h>
-
-CONST CHAR *UsageText =
-"rxfilter.exe -IfIndex <IfIndex> -QueueId <QueueId> [OPTIONS] RULE_PARAMS\n"
-"\n"
-"Filters RX traffic using an XDP program. Traffic that does not match the\n"
-"filter will be allowed to pass through.\n"
-"\n"
-"RULE_PARAMS:\n"
-"\n"
-"   -MatchType <Type>\n"
-"\n"
-"       The frame filter type. Each of the supported types and their parameters\n"
-"       are listed under FILTER_TYPES.\n"
-"\n"
-"   -Action <Action>\n"
-"\n"
-"       The action to perform on matching frames:\n"
-"       - Pass: Allow the frame to pass through XDP\n"
-"       - Drop: Drop the frame\n"
-"       - L2Fwd: Forward the frame back to the L2 sender\n"
-"\n"
-"FILTER_TYPES:\n"
-"\n"
-"   All\n"
-"\n"
-"       Matches all frames.\n"
-"\n"
-"   UdpDstPort\n"
-"\n"
-"       Matches all UDP frames with the specified destination port\n"
-"\n"
-"       -UdpDstPort <Port>\n"
-"           The UDP destination port\n"
-"\n"
-"   IcmpEchoReplyIpv4 \n"
-"\n"
-"       Matches all ICMPv4 echo reply frames with the specified IPv4 destination address\n"
-"\n"
-"       -IcmpDstIpv4 <IPv4 address>\n"
-"           The destination IPv4 address\n"
-"\n"
-"   IcmpEchoReplyIpv6 \n"
-"\n"
-"       Matches all ICMPv6 echo reply frames with the specified IPv6 destination address\n"
-"\n"
-"       -IcmpDstIpv6 <IPv6 address>\n"
-"           The destination IPv6 address\n"
-"\n"
-"OPTIONS:\n"
-"\n"
-"   -XdpMode <Mode>\n"
-"\n"
-"       The XDP interface provider mode:\n"
-"       - System: The system determines the ideal XDP provider\n"
-"       - Generic: Use the generic XDP interface provider\n"
-"       - Native: Use the native XDP interface provider\n"
-"       Default: System\n"
-"\n"
-"Examples:\n"
-"\n"
-"   rxfilter.exe -IfIndex 6 -QueueId 0 -MatchType All -Action Drop\n"
-"   rxfilter.exe -IfIndex 6 -QueueId * -MatchType UdpDstPort -UdpDstPort 53 -Action Drop\n"
-"   rxfilter.exe -IfIndex 6 -QueueId * -MatchType IcmpEchoReplyIpv4 -IcmpDstIpv4 '172.169.0.22' -Action Drop\n"
-;
+#include <winsock2.h>
 
 #define LOGERR(...) \
     fprintf(stderr, "ERR: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n")
 
-UINT32 IfIndex;
-UINT32 QueueId;
-XDP_RULE Rule;
-XDP_CREATE_PROGRAM_FLAGS ProgramFlags;
+CONST CHAR *UsageText =
+"rxfilter.exe -IfIndex <IfIndex> -BpfProgram <path.sys> -ProgramName <name> [OPTIONS]\n"
+"\n"
+"Filters RX traffic using an eBPF XDP program. The specified compiled eBPF\n"
+"program (.sys) is loaded and attached to the given network interface.\n"
+"\n"
+"OPTIONS:\n"
+"\n"
+"   -IfIndex <IfIndex>\n"
+"       The network interface index to attach the program to.\n"
+"\n"
+"   -BpfProgram <path.sys>\n"
+"       Path to the compiled eBPF program (.sys native driver).\n"
+"\n"
+"   -ProgramName <name>\n"
+"       The function name of the eBPF program entry point.\n"
+"\n"
+"   -UdpDstPort <Port>\n"
+"       For udp_filter: the UDP destination port to filter.\n"
+"\n"
+"   -Action <Action>\n"
+"       For udp_filter: the action on match (Drop or Pass). Default: Drop.\n"
+"\n"
+"Examples:\n"
+"\n"
+"   rxfilter.exe -IfIndex 6 -BpfProgram rxfilter_drop_all.sys -ProgramName drop_all\n"
+"   rxfilter.exe -IfIndex 6 -BpfProgram rxfilter_udp.sys -ProgramName udp_filter -UdpDstPort 53 -Action Drop\n"
+"   rxfilter.exe -IfIndex 6 -BpfProgram rxfilter_l2fwd.sys -ProgramName l2fwd\n"
+;
 
+static UINT32 IfIndex;
+static const CHAR *BpfProgramPath;
+static const CHAR *ProgramName;
+static UINT16 UdpDstPort;
+static BOOLEAN UdpDstPortSet;
+static UINT32 MatchAction; // xdp_action_t: 2=DROP, 1=PASS
+
+static
 VOID
 ParseArgs(
     INT ArgC,
@@ -90,13 +62,12 @@ ParseArgs(
 {
     INT i = 1;
 
-    IfIndex = MAXUINT32;
-    QueueId = MAXUINT32;
-    ProgramFlags = 0;
-
-    ZeroMemory(&Rule, sizeof(Rule));
-    Rule.Match = XDP_MATCH_ALL;
-    Rule.Action = XDP_PROGRAM_ACTION_PASS;
+    IfIndex = 0;
+    BpfProgramPath = NULL;
+    ProgramName = NULL;
+    UdpDstPort = 0;
+    UdpDstPortSet = FALSE;
+    MatchAction = 2; // XDP_DROP
 
     while (i < ArgC) {
         if (!_stricmp(ArgV[i], "-IfIndex")) {
@@ -105,114 +76,36 @@ ParseArgs(
                 goto Usage;
             }
             IfIndex = atoi(ArgV[i]);
-        } else if (!_stricmp(ArgV[i], "-QueueId")) {
+        } else if (!_stricmp(ArgV[i], "-BpfProgram")) {
             if (++i >= ArgC) {
-                LOGERR("Missing QueueId");
+                LOGERR("Missing BpfProgram path");
                 goto Usage;
             }
-            if (!_stricmp(ArgV[i], "*")) {
-                ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
-                QueueId = 0;
-            } else {
-                QueueId = atoi(ArgV[i]);
-            }
-        } else if (!_stricmp(ArgV[i], "-XdpMode")) {
+            BpfProgramPath = ArgV[i];
+        } else if (!_stricmp(ArgV[i], "-ProgramName")) {
             if (++i >= ArgC) {
-                LOGERR("Missing XdpMode");
+                LOGERR("Missing ProgramName");
                 goto Usage;
             }
-            if (!_stricmp(ArgV[i], "Generic")) {
-                ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
-            } else if (!_stricmp(ArgV[i], "Native")) {
-                ProgramFlags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
-            } else if (_stricmp(ArgV[i], "System")) {
-                LOGERR("Invalid XdpMode");
-                goto Usage;
-            }
-        } else if (!_stricmp(ArgV[i], "-MatchType")) {
-            if (++i >= ArgC) {
-                LOGERR("Missing MatchType");
-                goto Usage;
-            }
-            if (!_stricmp(ArgV[i], "All")) {
-                Rule.Match = XDP_MATCH_ALL;
-            } else if (!_stricmp(ArgV[i], "UdpDstPort")) {
-                Rule.Match = XDP_MATCH_UDP_DST;
-            } else if (!_stricmp(ArgV[i], "IcmpEchoReplyIpv4")) {
-                Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
-            } else if (!_stricmp(ArgV[i], "IcmpEchoReplyIpv6")) {
-                Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
-            } else {
-                LOGERR("Invalid MatchType");
-                goto Usage;
-            }
-        } else if (!_stricmp(ArgV[i], "-Action")) {
-            if (++i >= ArgC) {
-                LOGERR("Missing Action");
-                goto Usage;
-            }
-            if (!_stricmp(ArgV[i], "Pass")) {
-                Rule.Action = XDP_PROGRAM_ACTION_PASS;
-            } else if (!_stricmp(ArgV[i], "Drop")) {
-                Rule.Action = XDP_PROGRAM_ACTION_DROP;
-            } else if (!_stricmp(ArgV[i], "L2Fwd")) {
-                Rule.Action = XDP_PROGRAM_ACTION_L2FWD;
-            } else {
-                LOGERR("Invalid Action");
-                goto Usage;
-            }
+            ProgramName = ArgV[i];
         } else if (!_stricmp(ArgV[i], "-UdpDstPort")) {
             if (++i >= ArgC) {
                 LOGERR("Missing UdpDstPort");
                 goto Usage;
             }
-            if (Rule.Match == XDP_MATCH_UDP_DST) {
-                Rule.Pattern.Port = _byteswap_ushort((UINT16)atoi(ArgV[i]));
-            } else {
-                LOGERR("Unexpected UdpDstPort");
-            }
-        } else if (!_stricmp(ArgV[i], "-IcmpDstIpv4")) {
+            UdpDstPort = (UINT16)atoi(ArgV[i]);
+            UdpDstPortSet = TRUE;
+        } else if (!_stricmp(ArgV[i], "-Action")) {
             if (++i >= ArgC) {
-                LOGERR("Missing IcmpDstIpv4");
+                LOGERR("Missing Action");
                 goto Usage;
             }
-            if (Rule.Match == XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST) {
-                const char *IpStr = ArgV[i];
-
-                // Parse dotted-quad into IN_ADDR (network byte order)
-                int rc = inet_pton(AF_INET, IpStr, &Rule.Pattern.IpMask.Address.Ipv4);
-                if (rc != 1) {
-                    if (rc == 0) {
-                        LOGERR("Invalid IPv4 address format: %s\n", IpStr);
-                    } else {
-                        LOGERR("InetPtonA error: %d\n", WSAGetLastError());
-                    }
-                    goto Usage;
-                }
+            if (!_stricmp(ArgV[i], "Drop")) {
+                MatchAction = 2; // XDP_DROP
+            } else if (!_stricmp(ArgV[i], "Pass")) {
+                MatchAction = 1; // XDP_PASS
             } else {
-                LOGERR("Unexpected IcmpDstIpv4");
-                goto Usage;
-            }
-        } else if (!_stricmp(ArgV[i], "-IcmpDstIpv6")) {
-            if (++i >= ArgC) {
-                LOGERR("Missing IcmpDstIpv6");
-                goto Usage;
-            }
-            if (Rule.Match == XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST) {
-                const char *IpStr = ArgV[i];
-
-                // Parse dotted-quad into IN_ADDR (network byte order)
-                int rc = inet_pton(AF_INET6, IpStr, &Rule.Pattern.IpMask.Address.Ipv6);
-                if (rc != 1) {
-                    if (rc == 0) {
-                        LOGERR("Invalid IPv6 address format: %s\n", IpStr);
-                    } else {
-                        LOGERR("InetPtonA error: %d\n", WSAGetLastError());
-                    }
-                    goto Usage;
-                }
-            } else {
-                LOGERR("Unexpected IcmpDstIpv6");
+                LOGERR("Invalid Action (use Drop or Pass)");
                 goto Usage;
             }
         } else {
@@ -223,21 +116,25 @@ ParseArgs(
         ++i;
     }
 
-    if (IfIndex == MAXUINT32) {
+    if (IfIndex == 0) {
         LOGERR("IfIndex is required");
         goto Usage;
     }
 
-    if (QueueId == MAXUINT32) {
-        LOGERR("QueueId is required");
+    if (BpfProgramPath == NULL) {
+        LOGERR("BpfProgram is required");
+        goto Usage;
+    }
+
+    if (ProgramName == NULL) {
+        LOGERR("ProgramName is required");
         goto Usage;
     }
 
     return;
 
 Usage:
-
-    printf(UsageText);
+    printf("%s", UsageText);
     exit(1);
 }
 
@@ -248,34 +145,96 @@ main(
     CHAR **argv
     )
 {
-    XDP_STATUS XdpStatus;
-    HANDLE Program;
-    const XDP_HOOK_ID XdpInspectRxL2 = {
-        XDP_HOOK_L2,
-        XDP_HOOK_RX,
-        XDP_HOOK_INSPECT,
-    };
+    struct bpf_object *BpfObject = NULL;
+    struct bpf_program *BpfProgram = NULL;
+    int ProgramFd;
+    int Result;
 
-    //
-    // Parse the command line arguments.
-    //
     ParseArgs(argc, argv);
 
-    //
-    // Create an XDP program using the parsed rule at the L2 inspect hook point.
-    //
-    XdpStatus =
-        XdpCreateProgram(
-            IfIndex, &XdpInspectRxL2, QueueId, ProgramFlags, &Rule, 1, &Program);
-    if (FAILED(XdpStatus)) {
-        LOGERR("XdpCreateProgram failed: %x", XdpStatus);
+    BpfObject = bpf_object__open(BpfProgramPath);
+    if (BpfObject == NULL) {
+        LOGERR("bpf_object__open(%s) failed", BpfProgramPath);
         return 1;
     }
 
+    Result = bpf_object__load(BpfObject);
+    if (Result != 0) {
+        LOGERR("bpf_object__load failed: %d", Result);
+        goto Exit;
+    }
+
+    BpfProgram = bpf_object__find_program_by_name(BpfObject, ProgramName);
+    if (BpfProgram == NULL) {
+        LOGERR("Program '%s' not found in %s", ProgramName, BpfProgramPath);
+        goto Exit;
+    }
+
+    ProgramFd = bpf_program__fd(BpfProgram);
+    if (ProgramFd < 0) {
+        LOGERR("bpf_program__fd failed");
+        goto Exit;
+    }
+
     //
-    // Let XDP filter frames until this process is terminated.
+    // If map-based configuration is needed, populate the maps before
+    // attaching the program.
+    //
+    if (UdpDstPortSet) {
+        fd_t PortMapFd = bpf_object__find_map_fd_by_name(BpfObject, "port_map");
+        fd_t ActionMapFd = bpf_object__find_map_fd_by_name(BpfObject, "action_map");
+
+        if (PortMapFd < 0) {
+            LOGERR("port_map not found in eBPF program");
+            goto Exit;
+        }
+        if (ActionMapFd < 0) {
+            LOGERR("action_map not found in eBPF program");
+            goto Exit;
+        }
+
+        UINT32 Key = 0;
+        UINT16 Port = htons(UdpDstPort);
+
+        Result = bpf_map_update_elem(PortMapFd, &Key, &Port, 0);
+        if (Result != 0) {
+            LOGERR("Failed to set port_map: %d", Result);
+            goto Exit;
+        }
+
+        Result = bpf_map_update_elem(ActionMapFd, &Key, &MatchAction, 0);
+        if (Result != 0) {
+            LOGERR("Failed to set action_map: %d", Result);
+            goto Exit;
+        }
+
+        printf("Configured UDP filter: port=%u action=%s\n",
+            UdpDstPort, MatchAction == 2 ? "DROP" : "PASS");
+    }
+
+    Result = bpf_xdp_attach(IfIndex, ProgramFd, 0, NULL);
+    if (Result != 0) {
+        LOGERR("bpf_xdp_attach(IfIndex=%u) failed: %d", IfIndex, Result);
+        goto Exit;
+    }
+
+    printf("eBPF program '%s' attached to IfIndex %u. Press Ctrl+C to stop.\n",
+        ProgramName, IfIndex);
+
+    //
+    // Let the eBPF program filter frames until this process is terminated.
     //
     Sleep(INFINITE);
 
-    return 0;
+    //
+    // Detach on exit (reached if INFINITE sleep is interrupted).
+    //
+    bpf_xdp_detach(IfIndex, 0, NULL);
+
+Exit:
+    if (BpfObject != NULL) {
+        bpf_object__close(BpfObject);
+    }
+
+    return Result == 0 ? 0 : 1;
 }

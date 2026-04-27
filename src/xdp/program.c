@@ -12,6 +12,9 @@
 #include "programinspect.h"
 #include "program.tmh"
 
+#define REDIRECT_FALLBACK_MASK 0x3
+#define REDIRECT_VALID_FLAGS_MASK (REDIRECT_FALLBACK_MASK)
+
 typedef struct _EBPF_PROG_TEST_RUN_CONTEXT {
     char* Data;
     SIZE_T DataSize;
@@ -21,6 +24,9 @@ typedef struct _EBPF_XDP_MD {
     EBPF_CONTEXT_HEADER;
     xdp_md_t Base;
     EBPF_PROG_TEST_RUN_CONTEXT* ProgTestRunContext;
+    XDP_INSPECTION_CONTEXT *InspectionContext;
+    VOID *RedirectTarget;
+    XDP_REDIRECT_TARGET_TYPE RedirectTargetType;
 } EBPF_XDP_MD;
 
 static __forceinline NTSTATUS EbpfResultToNtStatus(ebpf_result_t Result)
@@ -119,6 +125,7 @@ XdpCreateContext(
         xdp_md_t* xdp_context = (xdp_md_t*)context_in;
         XdpMd->Base.data_meta = xdp_context->data_meta;
         XdpMd->Base.ingress_ifindex = xdp_context->ingress_ifindex;
+        XdpMd->Base.rx_queue_index = xdp_context->rx_queue_index;
     }
 
     *Context = &XdpMd->Base;
@@ -180,6 +187,7 @@ XdpDeleteContext(
         xdp_md_t* XdpContextOut = (xdp_md_t*)ContextOut;
         XdpContextOut->data_meta = XdpMd->Base.data_meta;
         XdpContextOut->ingress_ifindex = XdpMd->Base.ingress_ifindex;
+        XdpContextOut->rx_queue_index = XdpMd->Base.rx_queue_index;
         *ContextSizeOut = context_size;
     } else {
         *ContextSizeOut = 0;
@@ -204,6 +212,7 @@ XdpInvokeEbpf(
     _In_ XDP_FRAME *Frame,
     _In_opt_ XDP_RING *FragmentRing,
     _In_opt_ XDP_EXTENSION *FragmentExtension,
+    _In_ UINT32 FrameIndex,
     _In_ UINT32 FragmentIndex,
     _In_ XDP_EXTENSION *VirtualAddressExtension
     )
@@ -218,8 +227,6 @@ XdpInvokeEbpf(
     ebpf_result_t EbpfResult;
     XDP_RX_ACTION RxAction;
     UINT32 Result;
-
-    UNREFERENCED_PARAMETER(FragmentIndex);
 
     ASSERT((FragmentRing == NULL) || (FragmentExtension != NULL));
 
@@ -246,6 +253,9 @@ XdpInvokeEbpf(
     XdpMd.Base.data_end = Va + Buffer->DataLength;
     XdpMd.Base.data_meta = 0;
     XdpMd.Base.ingress_ifindex = InspectionContext->IfIndex;
+    XdpMd.Base.rx_queue_index = InspectionContext->QueueId;
+    XdpMd.InspectionContext = InspectionContext;
+    XdpMd.RedirectTarget = NULL;
 
     ebpf_program_batch_invoke_function_t EbpfInvokeProgram =
         EbpfExtensionClientGetProgramDispatch(Client)->ebpf_program_batch_invoke_function;
@@ -269,8 +279,20 @@ XdpInvokeEbpf(
         STAT_INC(RxQueueStats, InspectFramesForwarded);
         break;
 
+    case XDP_REDIRECT:
+        if (XdpMd.RedirectTarget != NULL) {
+            XdpRedirect(
+                &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
+                XdpMd.RedirectTargetType, XdpMd.RedirectTarget);
+            RxAction = XDP_RX_ACTION_DROP;
+            STAT_INC(RxQueueStats, InspectFramesRedirected);
+        } else {
+            RxAction = XDP_RX_ACTION_DROP;
+            STAT_INC(RxQueueStats, InspectFramesDropped);
+        }
+        break;
+
     default:
-        ASSERT(FALSE);
         __fallthrough;
     case XDP_DROP:
         RxAction = XDP_RX_ACTION_DROP;
@@ -309,7 +331,7 @@ XdpInspectEbpf(
     return
         XdpInvokeEbpf(
             Program->Rules[0].Ebpf.Target, InspectionContext, Frame, FragmentRing,
-            FragmentExtension, FragmentIndex, VirtualAddressExtension);
+            FragmentExtension, FrameIndex, FragmentIndex, VirtualAddressExtension);
 }
 
 static
@@ -677,8 +699,91 @@ EbpfXdpAdjustHead(
     return -1;
 }
 
+static
+intptr_t
+EbpfXdpRedirectMap(
+    _In_ const void *Map,
+    _In_ uint32_t Key,
+    _In_ uint64_t Flags,
+    _In_ uint64_t Reserved4,
+    _In_ uint64_t Reserved5,
+    _In_ void *ProgramContext /* Implicitly forwarded by eBPF as the 6th param. */
+    )
+{
+    intptr_t const FallbackAction = (intptr_t)(Flags & REDIRECT_FALLBACK_MASK);
+    intptr_t ReturnAction = FallbackAction;
+    EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(ProgramContext, EBPF_XDP_MD, Base);
+    BOOLEAN IsProgTestRun = XdpMd->ProgTestRunContext != NULL;
+    XDP_REDIRECT_CONTEXT *RedirectContext = &XdpMd->InspectionContext->RedirectContext;
+    XDP_RX_QUEUE *RxQueue;
+    VOID *Value = NULL;
+    HANDLE Xsk;
+
+    UNREFERENCED_PARAMETER(Reserved4);
+    UNREFERENCED_PARAMETER(Reserved5);
+
+    if (IsProgTestRun) {
+        //
+        // N.B. RxQueue and other nontrivial structures are not present in
+        // eBPF prog_test_run callbacks.
+        //
+        RxQueue = NULL;
+    } else {
+        RxQueue = XdpRxQueueFromRedirectContext(RedirectContext);
+        ASSERT(RxQueue != NULL);
+    }
+
+    if (Flags & ~REDIRECT_VALID_FLAGS_MASK) {
+        //
+        // Unsupported flags are set.
+        //
+        goto Exit;
+    }
+
+    //
+    // Review: is it worth caching the most recent key/value lookup per
+    // inspection batch and skipping the following validation?
+    //
+
+    //
+    // Look up the XSK handle in the map using the eBPF runtime's find_element.
+    // The map provider's process_map_find_element callback will be invoked,
+    // which returns the XSK handle stored at the given key.
+    //
+    if (XdpXskmapFindElement(Map, &Key, &Value) != EBPF_SUCCESS) {
+        if (RxQueue != NULL) {
+            STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapLookupFailures);
+        }
+        EventWriteEbpfRedirectMapLookupFailure(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, Key, (UINT32)FallbackAction);
+        goto Exit;
+    }
+
+    ASSERT(Value != NULL);
+    Xsk = *(HANDLE *)Value;
+
+    if (!IsProgTestRun && !XskCanRedirect(Xsk, RxQueue)) {
+        if (RxQueue != NULL) {
+            STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapRedirectFailures);
+        }
+        EventWriteEbpfRedirectMapRedirectFailure(
+            &MICROSOFT_XDP_PROVIDER, RxQueue, Key, Xsk, (UINT32)FallbackAction);
+        goto Exit;
+    }
+
+    XdpMd->RedirectTarget = Xsk;
+    XdpMd->RedirectTargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    ReturnAction = XDP_REDIRECT;
+    EventWriteEbpfRedirectMapSuccess(&MICROSOFT_XDP_PROVIDER, RxQueue, Key, Xsk);
+
+Exit:
+
+    return ReturnAction;
+}
+
 static const VOID *EbpfXdpHelperFunctions[] = {
     (VOID *)EbpfXdpAdjustHead,
+    (VOID *)EbpfXdpRedirectMap,
 };
 
 static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
@@ -1834,6 +1939,11 @@ XdpProgramStart(
         if (!NT_SUCCESS(Status)) {
             goto Exit;
         }
+
+        Status = XdpXskmapStart();
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
     }
 
     Status = STATUS_SUCCESS;
@@ -1851,6 +1961,8 @@ XdpProgramStop(
     )
 {
     TraceEnter(TRACE_CORE, "-");
+
+    XdpXskmapStop();
 
     if (EbpfXdpProgramHookProvider != NULL) {
         EbpfExtensionProviderUnregister(EbpfXdpProgramHookProvider);
