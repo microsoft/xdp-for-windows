@@ -1,13 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="xskfwd.c" />
   </ItemGroup>
   <PropertyGroup>
-    <ProjectGuid>{2A9A8060-B806-4BF8-AF21-C89965D49AA0}</ProjectGuid>
-    <TargetName>xskfwd</TargetName>
+    <ProjectGuid>{238cd65b-59d5-4ec5-ba23-630f567395fa}</ProjectGuid>
+    <TargetName>xskfwd-deprecated</TargetName>
     <UndockedType>exe</UndockedType>
-    <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>

@@ -1,22 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="xskfwd.c" />
+    <ClCompile Include="xskrestricted.c" />
   </ItemGroup>
   <PropertyGroup>
-    <ProjectGuid>{2A9A8060-B806-4BF8-AF21-C89965D49AA0}</ProjectGuid>
-    <TargetName>xskfwd</TargetName>
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <TargetName>xskrestricted-deprecated</TargetName>
     <UndockedType>exe</UndockedType>
-    <ImportEbpf>true</ImportEbpf>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemDefinitionGroup>
-    <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(SolutionDir)submodules\cxplat\inc;
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
-    </ClCompile>
     <Link>
       <AdditionalDependencies>ntdll.lib;onecore.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
