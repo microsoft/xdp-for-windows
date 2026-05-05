@@ -15,8 +15,8 @@
 //
 
 #include "precomp.h"
-#include "xskmap.h"
-#include "xskmap.tmh"
+#include "ebpfxskmap.h"
+#include "ebpfxskmap.tmh"
 
 //
 // Per-binding context for the XSKMAP provider. Created when the eBPF runtime
@@ -189,6 +189,7 @@ XdpXskmapProcessFindElement(
     UNREFERENCED_PARAMETER(Key);
     UNREFERENCED_PARAMETER(OutValueSize);
     UNREFERENCED_PARAMETER(OutValue);
+    DBG_UNREFERENCED_PARAMETER(Flags);
 
     //
     // The eBPF runtime blocks BPF program lookups on maps with
@@ -232,6 +233,7 @@ XdpXskmapProcessAddElement(
     UNREFERENCED_PARAMETER(MapContext);
     UNREFERENCED_PARAMETER(KeySize);
     UNREFERENCED_PARAMETER(Key);
+    DBG_UNREFERENCED_PARAMETER(Flags);
 
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
 
@@ -297,6 +299,7 @@ XdpXskmapProcessDeleteElement(
     UNREFERENCED_PARAMETER(MapContext);
     UNREFERENCED_PARAMETER(KeySize);
     UNREFERENCED_PARAMETER(Key);
+    DBG_UNREFERENCED_PARAMETER(Flags);
 
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
 
