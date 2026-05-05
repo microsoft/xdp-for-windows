@@ -23,38 +23,24 @@ msiexec.exe /i xdp.msi /quiet
 
 ### Install a Test Version
 
-If xdp.sys is not an official production-signed release, its test sigining certificate must be installed and test signing must be enabled before installing XDP. Secure boot must be [disabled](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/disabling-secure-boot) before test signing can be enabled.
+If xdp.sys is not an official production-signed release, its test signing certificate must be installed and test signing must be enabled before installing XDP. Secure boot must be [disabled](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/disabling-secure-boot) before test signing can be enabled.
 
-Here's an example set of commands to extract the test signing certificate from an MSI, install it as a trusted certificate, and enable test signing:
+Here's an example set of commands to extract the test signing certificate from the XDP driver package, install it as a trusted certificate, and enable test signing:
 
 ```PowerShell
 $CertFileName = 'xdp.cer'
-Get-AuthenticodeSignature 'xdp-for-windows.msi' | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName
+Get-AuthenticodeSignature 'path\to\xdp.cat' | Select-Object -ExpandProperty SignerCertificate | Export-Certificate -Type CERT -FilePath $CertFileName
 Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\root'
 Import-Certificate -FilePath $CertFileName -CertStoreLocation 'cert:\localmachine\trustedpublisher'
 bcdedit.exe /set testsigning on
 [reboot]
 ```
 
-Install:
-
-```bat
-msiexec.exe /i xdp-for-windows.msi /quiet
-```
-
-Uninstall:
-
-```bat
-msiexec.exe /x xdp-for-windows.msi /quiet
-```
-
 ### Enable eBPF Support
 
 **Note** eBPF support is experimental and is not officially supported by XDP.
 
-Starting with XDP version 1.1, experimental eBPF support can be enabled by appending an `ADDLOCAL=xdp_ebpf` parameter to the `msiexec.exe` install commands.
-
-When using the runtime nuget package instead of the runtime MSI, run the following command after [installing eBPF-for-Windows](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/InstallEbpf.md) and the base `xdp` component:
+Starting with XDP version 1.1, experimental eBPF support can be enabled by running the following command after [installing eBPF-for-Windows](https://github.com/microsoft/ebpf-for-windows/blob/main/docs/InstallEbpf.md) and the base `xdp` component:
 
 ```Powershell
 xdp-setup.ps1 -Install xdpebpf
@@ -70,7 +56,7 @@ Developers will also need to execute `xdpbpfexport.exe` prior to verifying and c
 
 eBPF-for-Windows will look in the HKCU (Current User) registry store first, and if the required values are present, it will use those configurations. If the values are not present in HKCU, then it will fall back to looking in the HKLM (Local Machine) registry.
 
-For development scenarios, configuring the registry store in just the HKCU location is usually sufficient. For runtime usage, the registry store configuration will depend on how eBPF-for-Windows is installed and how its registry store is configured. Using the eBPF-for-Windows MSI installer will install registry entries into both HKCU and HKLM stores, which is the same approach used by the XDP MSI.
+For development scenarios, configuring the registry store in just the HKCU location is usually sufficient. For runtime usage, the registry store configuration will depend on how eBPF-for-Windows is installed and how its registry store is configured.
 
 ### Version Upgrade
 
@@ -129,10 +115,6 @@ including in crash dumps, using the kernel debugger.
 ```
 !rcdrkd.rcdrlogdump xdp
 ```
-
-### Installer logging
-
-To collect XDP installer traces, append `/l*v filename.log` to the MSI command line.
 
 ## Configuration
 

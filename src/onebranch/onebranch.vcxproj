@@ -26,9 +26,6 @@
   <Target Name="Catalog" Condition="'$(BuildStage)' == 'Catalog'" AfterTargets="Build" >
       <MSBuild Projects="$(SolutionDir)src\xdp\xdp.vcxproj" Targets="Inf2Cat" Properties="EnableInf2Cat=true"/>
   </Target>
-  <Target Name="PackageMsi" Condition="'$(BuildStage)' == 'Package'" AfterTargets="Package" >
-      <MSBuild Projects="$(SolutionDir)src\xdpinstaller\xdpinstaller.wixproj" Targets="Build"/>
-  </Target>
   <!-- Build the SDK NuGet package twice: once for each architecture in the package stage,
     and once for the all architectures stage. The latter AllPackage stage is not fully
     plumbed through OneBranch as of November 2025. -->
