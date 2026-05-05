@@ -11,8 +11,6 @@
 #include "precomp.h"
 #include "xskmap.h"
 
-#define POOLTAG_XSKMAP 'mSdX' // XdSm
-
 //
 // Maximum number of entries in an XSKMAP, corresponding to the maximum
 // number of RSS indirection table entries in NDIS.
@@ -20,11 +18,10 @@
 #define XSKMAP_MAX_SIZE 128
 
 //
-// Single global lock protecting all XSKMAPs. Data path lookups acquire it
-// shared, control path inserts/deletes acquire it exclusive. The lookup
-// critical section is a single array load, and writes are infrequent, so
-// contention is negligible while still allowing the data path to scale
-// across CPUs via the reader/writer lock.
+// Single global lock protecting all XSKMAPs. This is for simplicity; the
+// built-in XSKMAP is a late feature addition while eBPF-based XSKMAPs are just
+// being introduced. The eBPF equivalent maps provide full RCU semantics and
+// are the preferred option.
 //
 static PNDIS_RW_LOCK_EX XdpXskMapLock;
 
@@ -65,13 +62,13 @@ XdpXskMapDereference(
             }
         }
 
-        ExFreePoolWithTag(XskMap, POOLTAG_XSKMAP);
+        ExFreePoolWithTag(XskMap, XDP_POOLTAG_XSKMAP);
     }
 }
 
 static XDP_FILE_IRP_ROUTINE XdpXskMapIrpIoControl;
 static XDP_FILE_IRP_ROUTINE XdpXskMapIrpClose;
-static XDP_FILE_DISPATCH XdpXskMapFileDispatch = {
+static const XDP_FILE_DISPATCH XdpXskMapFileDispatch = {
     .IoControl = XdpXskMapIrpIoControl,
     .Close = XdpXskMapIrpClose,
 };
@@ -103,7 +100,7 @@ XdpXskMapIrpCreate(
 
     XskMap =
         (XDP_XSKMAP *)ExAllocatePoolZero(
-            NonPagedPoolNx, sizeof(*XskMap), POOLTAG_XSKMAP);
+            NonPagedPoolNx, sizeof(*XskMap), XDP_POOLTAG_XSKMAP);
     if (XskMap == NULL) {
         Status = STATUS_NO_MEMORY;
         goto Exit;
@@ -243,6 +240,11 @@ XdpXskMapIrpClose(
 
     UNREFERENCED_PARAMETER(Irp);
 
+    //
+    // N.B.: Closing the map handle does not implicitly clear the map; its
+    // entries remain as long as the map is referenced by anything, including by
+    // programs.
+    //
     XdpXskMapDereference(XskMap);
 
     return STATUS_SUCCESS;
