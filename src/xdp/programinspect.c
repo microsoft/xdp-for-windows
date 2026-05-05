@@ -1427,6 +1427,24 @@ XdpInspect(
                         VirtualAddressExtension, &FrameCache, &Program->FrameStorage, RxQueueStats);
                 break;
 
+            case XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID:
+            {
+                UINT32 QueueId =
+                    XdpRxQueueGetQueueIdFromInspectionContext(InspectionContext);
+                VOID *XskTarget =
+                    XdpXskMapLookup(Rule->Redirect.Target, QueueId);
+
+                if (XskTarget != NULL) {
+                    XdpRedirect(
+                        &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
+                        XDP_REDIRECT_TARGET_TYPE_XSK, XskTarget);
+                    STAT_INC(RxQueueStats, InspectFramesRedirected);
+                } else {
+                    STAT_INC(RxQueueStats, InspectFramesDropped);
+                }
+                Action = XDP_RX_ACTION_DROP;
+                break;
+            }
 
             default:
                 ASSERT(FALSE);
@@ -1481,6 +1499,13 @@ XdpProgramDeleteRule(
 
         default:
             ASSERT(FALSE);
+        }
+    }
+
+    if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID) {
+        if (Rule->Redirect.Target != NULL) {
+            XdpXskMapDereferenceDatapathHandle(Rule->Redirect.Target);
+            Rule->Redirect.Target = NULL;
         }
     }
 }
@@ -1582,7 +1607,7 @@ XdpProgramValidateRule(
     }
 
     if (UserRule->Action < XDP_PROGRAM_ACTION_DROP ||
-        UserRule->Action > XDP_PROGRAM_ACTION_EBPF) {
+        UserRule->Action > XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -1595,6 +1620,7 @@ XdpProgramValidateRule(
     //
     switch (UserRule->Action) {
     case XDP_PROGRAM_ACTION_REDIRECT:
+        ValidatedRule->Redirect.TargetType = UserRule->Redirect.TargetType;
         switch (UserRule->Redirect.TargetType) {
 
         case XDP_REDIRECT_TARGET_TYPE_XSK:
@@ -1633,6 +1659,21 @@ XdpProgramValidateRule(
         ASSERT(RuleIndex == 0);
         ValidatedRule->Ebpf.Target = UserRule->Ebpf.Target;
 
+        break;
+
+    case XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID:
+        ValidatedRule->Redirect.TargetType = UserRule->Redirect.TargetType;
+        if (UserRule->Redirect.TargetType != XDP_REDIRECT_TARGET_TYPE_XSKMAP) {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+        Status =
+            XdpXskMapReferenceDatapathHandle(
+                RequestorMode, &UserRule->Redirect.Target, TRUE,
+                &ValidatedRule->Redirect.Target);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
         break;
     }
 

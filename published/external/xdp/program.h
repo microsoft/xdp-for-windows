@@ -95,14 +95,21 @@ typedef enum _XDP_RULE_ACTION {
     XDP_PROGRAM_ACTION_PASS,
     XDP_PROGRAM_ACTION_REDIRECT,
     XDP_PROGRAM_ACTION_L2FWD,
-    //
-    // Reserved.
-    //
-    XDP_PROGRAM_ACTION_EBPF,
+    XDP_PROGRAM_ACTION_EBPF, // Reserved for internal use.
+    XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID,
 } XDP_RULE_ACTION;
 
 typedef enum _XDP_REDIRECT_TARGET_TYPE {
+    //
+    // Redirect frames to the specified XSK.
+    //
     XDP_REDIRECT_TARGET_TYPE_XSK,
+    //
+    // Redirect frames to the XSK at the current receive queue ID in the
+    // specified XSKMAP. If no XSK is found for the queue, the frame is
+    // dropped. Used with XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID.
+    //
+    XDP_REDIRECT_TARGET_TYPE_XSKMAP,
 } XDP_REDIRECT_TARGET_TYPE;
 
 typedef struct _XDP_REDIRECT_PARAMS {

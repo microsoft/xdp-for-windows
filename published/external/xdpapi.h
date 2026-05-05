@@ -52,6 +52,24 @@ XdpInterfaceOpen(
     _Out_ HANDLE *InterfaceHandle
     );
 
+XDP_STATUS
+XdpXskMapCreate(
+    _Out_ HANDLE *XskMap
+    );
+
+XDP_STATUS
+XdpXskMapInsert(
+    _In_ HANDLE XskMap,
+    _In_ UINT32 Key,
+    _In_ HANDLE XskHandle
+    );
+
+XDP_STATUS
+XdpXskMapDelete(
+    _In_ HANDLE XskMap,
+    _In_ UINT32 Key
+    );
+
 #ifdef _KERNEL_MODE
 
 DECLARE_HANDLE(XDP_CALLBACK_HANDLE);

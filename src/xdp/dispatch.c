@@ -129,6 +129,10 @@ XdpIrpCreate(
         CreateRoutine = XdpIrpCreateInterface;
         break;
 
+    case XDP_OBJECT_TYPE_XSKMAP:
+        CreateRoutine = XdpXskMapIrpCreate;
+        break;
+
     default:
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
@@ -399,6 +403,7 @@ XdpStop(
     }
 
     XdpProgramStop();
+    XdpXskMapStop();
     XskStop();
     XdpIfStop();
     XdpTxStop();
@@ -478,6 +483,11 @@ XdpStart(
     }
 
     Status = XskStart();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = XdpXskMapStart();
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

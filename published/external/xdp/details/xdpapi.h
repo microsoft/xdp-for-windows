@@ -78,6 +78,70 @@ XdpInterfaceOpen(
     return _XdpOpen(InterfaceHandle, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
 }
 
+inline
+XDP_STATUS
+XdpXskMapCreate(
+    _Out_ HANDLE *XskMap
+    )
+{
+    CHAR EaBuffer[XDP_OPEN_EA_LENGTH];
+
+    _XdpInitializeEa(XDP_OBJECT_TYPE_XSKMAP, EaBuffer, sizeof(EaBuffer));
+
+    return _XdpOpen(XskMap, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+}
+
+//
+// IOCTLs supported by an XSKMAP file handle.
+//
+#define IOCTL_XSKMAP_INSERT \
+    CTL_CODE(FILE_DEVICE_NETWORK, 0, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+#define IOCTL_XSKMAP_DELETE \
+    CTL_CODE(FILE_DEVICE_NETWORK, 1, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+
+typedef struct _XDP_XSKMAP_INSERT_PARAMS {
+    UINT32 Key;
+    HANDLE XskHandle;
+} XDP_XSKMAP_INSERT_PARAMS;
+
+typedef struct _XDP_XSKMAP_DELETE_PARAMS {
+    UINT32 Key;
+} XDP_XSKMAP_DELETE_PARAMS;
+
+inline
+XDP_STATUS
+XdpXskMapInsert(
+    _In_ HANDLE XskMap,
+    _In_ UINT32 Key,
+    _In_ HANDLE XskHandle
+    )
+{
+    XDP_XSKMAP_INSERT_PARAMS Params;
+
+    Params.Key = Key;
+    Params.XskHandle = XskHandle;
+
+    return
+        _XdpIoctl(
+            XskMap, IOCTL_XSKMAP_INSERT, &Params, sizeof(Params), NULL, 0, NULL, NULL, FALSE);
+}
+
+inline
+XDP_STATUS
+XdpXskMapDelete(
+    _In_ HANDLE XskMap,
+    _In_ UINT32 Key
+    )
+{
+    XDP_XSKMAP_DELETE_PARAMS Params;
+
+    Params.Key = Key;
+
+    return
+        _XdpIoctl(
+            XskMap, IOCTL_XSKMAP_DELETE, &Params, sizeof(Params), NULL, 0, NULL, NULL, FALSE);
+}
+
 //
 // IOCTLs supported by an interface file handle.
 //

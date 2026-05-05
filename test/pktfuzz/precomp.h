@@ -35,4 +35,5 @@
 #include <program.h>
 #include <stubs/rx.h>
 #include <stubs/xsk.h>
+#include <stubs/xskmap.h>
 #include <xdpp.h>

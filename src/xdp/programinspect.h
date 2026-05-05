@@ -127,6 +127,12 @@ typedef struct _XDP_PROGRAM {
     //
     XDP_PROGRAM_FRAME_STORAGE FrameStorage;
 
+    //
+    // Set if any rule uses XDP_REDIRECT_TARGET_TYPE_XSKMAP. The data path holds
+    // the global XSKMAP lock for the duration of each batch when this is set.
+    //
+    BOOLEAN HasXskMap;
+
     DECLSPEC_CACHEALIGN
     UINT32 RuleCount;
     XDP_RULE Rules[0];

@@ -642,6 +642,14 @@ XdpProgramTrace(
                 Program, i, Rule->Ebpf.Target);
             break;
 
+        case XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID "
+                "Target=%p",
+                Program, i, Rule->Redirect.Target);
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -834,6 +842,19 @@ XdpProgramCompileNewProgram(
     }
 
     ASSERT(NewProgram->RuleCount == RuleCount);
+
+    //
+    // Detect if any rule uses XDP_REDIRECT_TARGET_TYPE_XSKMAP so the
+    // data path can acquire the global XSKMAP lock around each batch.
+    //
+    NewProgram->HasXskMap = FALSE;
+    for (UINT32 i = 0; i < NewProgram->RuleCount; i++) {
+        if (NewProgram->Rules[i].Action == XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID) {
+            ASSERT(NewProgram->Rules[i].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSKMAP);
+            NewProgram->HasXskMap = TRUE;
+            break;
+        }
+    }
 
     TraceInfo(TRACE_CORE, "Compiled Program=%p on RxQueue=%p", NewProgram, RxQueue);
     XdpProgramTrace(NewProgram);

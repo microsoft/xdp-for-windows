@@ -4,6 +4,7 @@
 //
 
 #include "precomp.h"
+#include "programinspect.h"
 #include "rx.tmh"
 
 
@@ -126,6 +127,13 @@ XdpRxQueueFromRedirectContext(
     return CONTAINING_RECORD(RedirectContext, XDP_RX_QUEUE, InspectionContext.RedirectContext);
 }
 
+//
+// XdpReceiveBatchStart / XdpReceiveBatchComplete acquire and release the
+// XSKMAP read lock as a pair. The IRQL is balanced across the pair via the
+// LockState saved in the inspection context.
+//
+#pragma warning(push)
+#pragma warning(disable: 28167)
 static
 VOID
 XdpReceiveBatchStart(
@@ -134,6 +142,10 @@ XdpReceiveBatchStart(
 {
     XdbgEnterQueueEc(RxQueue);
     STAT_INC(XdpRxQueueGetStats(RxQueue), InspectBatches);
+
+    if (RxQueue->Program != NULL && RxQueue->Program->HasXskMap) {
+        XdpXskMapAcquireRead(&RxQueue->InspectionContext.XskMapLockState);
+    }
 }
 
 static
@@ -142,8 +154,13 @@ XdpReceiveBatchComplete(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
+    if (RxQueue->Program != NULL && RxQueue->Program->HasXskMap) {
+        XdpXskMapReleaseRead(&RxQueue->InspectionContext.XskMapLockState);
+    }
+
     XdbgExitQueueEc(RxQueue);
 }
+#pragma warning(pop)
 
 static
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -1612,6 +1629,15 @@ XdpRxQueueGetStatsFromInspectionContext(
 {
     XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Context, XDP_RX_QUEUE, InspectionContext);
     return XdpRxQueueGetStats(RxQueue);
+}
+
+UINT32
+XdpRxQueueGetQueueIdFromInspectionContext(
+    _In_ const XDP_INSPECTION_CONTEXT *Context
+    )
+{
+    XDP_RX_QUEUE *RxQueue = CONTAINING_RECORD(Context, XDP_RX_QUEUE, InspectionContext);
+    return RxQueue->Key.QueueId;
 }
 
 VOID
