@@ -1487,16 +1487,13 @@ XdpProgramDeleteRule(
     }
 
     if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
-
         switch (Rule->Redirect.TargetType) {
-
         case XDP_REDIRECT_TARGET_TYPE_XSK:
             if (Rule->Redirect.Target != NULL) {
                 XskDereferenceDatapathHandle(Rule->Redirect.Target);
                 Rule->Redirect.Target = NULL;
             }
             break;
-
         default:
             ASSERT(Rule->Redirect.Target == NULL);
             break;
@@ -1505,14 +1502,12 @@ XdpProgramDeleteRule(
 
     if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID) {
         switch (Rule->Redirect.TargetType) {
-
         case XDP_REDIRECT_TARGET_TYPE_XSKMAP:
             if (Rule->Redirect.Target != NULL) {
                 XdpXskMapDereferenceDatapathHandle(Rule->Redirect.Target);
                 Rule->Redirect.Target = NULL;
             }
             break;
-
         default:
             ASSERT(Rule->Redirect.Target == NULL);
             break;
