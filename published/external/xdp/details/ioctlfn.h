@@ -198,6 +198,91 @@ _XdpOpen(
                 EaLength));
 }
 
+//
+// Open a handle to a specific XDP device by name.
+//
+inline
+XDP_STATUS
+_XdpOpenDevice(
+    _Out_ HANDLE *Handle,
+    _In_ ULONG Disposition,
+    _In_opt_ VOID *EaBuffer,
+    _In_ ULONG EaLength,
+    _In_ const WCHAR *DeviceNameStr
+    )
+{
+    UNICODE_STRING DeviceName;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    IO_STATUS_BLOCK IoStatusBlock;
+
+    RtlInitUnicodeString(&DeviceName, DeviceNameStr);
+    InitializeObjectAttributes(
+        &ObjectAttributes, &DeviceName, OBJ_CASE_INSENSITIVE | _XDP_OPEN_KERNEL_OBJ_FLAGS,
+        NULL, NULL);
+
+    return
+        _XdpConvertNtStatusToXdpStatus(
+#ifdef _KERNEL_MODE
+            ZwCreateFile
+#else
+            NtCreateFile
+#endif
+            (
+                Handle,
+                GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+                &ObjectAttributes,
+                &IoStatusBlock,
+                NULL,
+                0L,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                Disposition,
+                0,
+                EaBuffer,
+                EaLength));
+}
+
+//
+// Open a handle to the per-object-type XDP device. If the caller has declared
+// minimum version compatibility (XDP_MINIMUM_MAJOR_VER / XDP_MINIMUM_MINOR_VER),
+// fall back to the common XDP device when the per-type device is not present
+// (e.g. when running against an older XDP driver).
+//
+inline
+XDP_STATUS
+_XdpOpenObjectType(
+    _Out_ HANDLE *Handle,
+    _In_ ULONG Disposition,
+    _In_opt_ VOID *EaBuffer,
+    _In_ ULONG EaLength,
+    _In_ XDP_OBJECT_TYPE ObjectType
+    )
+{
+    XDP_STATUS Status;
+
+    Status =
+        _XdpOpenDevice(
+            Handle, Disposition, EaBuffer, EaLength,
+            _XdpObjectTypeDeviceName(ObjectType));
+
+#if defined(XDP_MINIMUM_MAJOR_VER) && defined(XDP_MINIMUM_MINOR_VER)
+#ifdef _KERNEL_MODE
+    if (Status == STATUS_OBJECT_NAME_NOT_FOUND ||
+        Status == STATUS_OBJECT_PATH_NOT_FOUND) {
+#else
+    if (Status == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) ||
+        Status == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND)) {
+#endif
+        //
+        // The per-type device does not exist. Fall back to the common XDP
+        // device for backward compatibility with older drivers.
+        //
+        Status = _XdpOpenDevice(Handle, Disposition, EaBuffer, EaLength, XDP_DEVICE_NAME);
+    }
+#endif
+
+    return Status;
+}
+
 inline
 XDP_STATUS
 _XdpIoctl(

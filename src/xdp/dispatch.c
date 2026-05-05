@@ -33,6 +33,7 @@ CONST WCHAR *XDP_PARAMETERS_KEY = XdpParametersKeyStorage;
 
 DRIVER_OBJECT *XdpDriverObject;
 DEVICE_OBJECT *XdpDeviceObject;
+XDP_DEVICE_TABLE_ENTRY XdpDeviceTable[XDP_OBJECT_TYPE_MAX];
 XDP_REG_WATCHER *XdpRegWatcher;
 XDP_REG_WATCHER_CLIENT_ENTRY XdpRegWatcherEntry = {0};
 
@@ -65,9 +66,28 @@ XdpFaultInject(
 #endif
 }
 
+BOOLEAN
+XdpIsXdpDeviceObject(
+    _In_ DEVICE_OBJECT *DeviceObject
+    )
+{
+    if (DeviceObject == XdpDeviceObject) {
+        return TRUE;
+    }
+
+    for (UINT32 i = 0; i < XDP_OBJECT_TYPE_MAX; i++) {
+        if (XdpDeviceTable[i].DeviceObject == DeviceObject) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIrpCreate(
+    _In_ DEVICE_OBJECT *DeviceObject,
     _Inout_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp
     )
@@ -79,6 +99,7 @@ XdpIrpCreate(
     STRING ExpectedEaName;
     STRING ActualEaName = {0};
     XDP_FILE_CREATE_ROUTINE *CreateRoutine = NULL;
+    XDP_DEVICE_EXTENSION *DevExt;
 
 #ifdef _WIN64
     if (IoIs32bitProcess(Irp)) {
@@ -130,6 +151,17 @@ XdpIrpCreate(
         break;
 
     default:
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    //
+    // Validate that the requested object type is allowed on this device.
+    // Per-type devices only allow their corresponding object type. The common
+    // device allows any type for backward compatibility.
+    //
+    DevExt = (XDP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension;
+    if (DevExt->IsPerTypeDevice && OpenPacket->ObjectType != DevExt->AllowedObjectType) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -194,8 +226,7 @@ XdpIrpDispatch(
     IO_STACK_LOCATION *IrpSp;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    UNREFERENCED_PARAMETER(DeviceObject);
-    ASSERT(DeviceObject == XdpDeviceObject);
+    ASSERT(XdpIsXdpDeviceObject(DeviceObject));
     PAGED_CODE();
 
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -207,7 +238,7 @@ XdpIrpDispatch(
 
     switch (IrpSp->MajorFunction) {
     case IRP_MJ_CREATE:
-        Status = XdpIrpCreate(Irp, IrpSp);
+        Status = XdpIrpCreate(DeviceObject, Irp, IrpSp);
         break;
 
     case IRP_MJ_CLEANUP:
@@ -244,8 +275,7 @@ XdpIrpDeviceIoControl(
     XDP_FILE_OBJECT_HEADER *FileHeader;
     NTSTATUS Status;
 
-    UNREFERENCED_PARAMETER(DeviceObject);
-    ASSERT(DeviceObject == XdpDeviceObject);
+    ASSERT(XdpIsXdpDeviceObject(DeviceObject));
     PAGED_CODE();
 
     Irp->IoStatus.Information = 0;
@@ -344,7 +374,7 @@ XdpReferenceObjectByHandle(
         goto Exit;
     }
 
-    if (FileObject->DeviceObject != XdpDeviceObject || FileObject->FsContext == NULL) {
+    if (!XdpIsXdpDeviceObject(FileObject->DeviceObject) || FileObject->FsContext == NULL) {
         Status = STATUS_INVALID_HANDLE;
         goto Exit;
     }
@@ -393,6 +423,13 @@ XdpStop(
     VOID
     )
 {
+    for (UINT32 i = 0; i < XDP_OBJECT_TYPE_MAX; i++) {
+        if (XdpDeviceTable[i].DeviceObject != NULL) {
+            IoDeleteDevice(XdpDeviceTable[i].DeviceObject);
+            XdpDeviceTable[i].DeviceObject = NULL;
+        }
+    }
+
     if (XdpDeviceObject != NULL) {
         IoDeleteDevice(XdpDeviceObject);
         XdpDeviceObject = NULL;
@@ -487,13 +524,68 @@ XdpStart(
         goto Exit;
     }
 
-    Status =
-        IoCreateDeviceSecure(
-            XdpDriverObject, 0, (PUNICODE_STRING)&DeviceName, FILE_DEVICE_NETWORK,
-            FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL, &XDP_DEVICE_CLASS_GUID,
-            &XdpDeviceObject);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
+    //
+    // Create the common XDP device object.
+    //
+    {
+        XDP_DEVICE_EXTENSION *DevExt;
+        Status =
+            IoCreateDeviceSecure(
+                XdpDriverObject, sizeof(XDP_DEVICE_EXTENSION),
+                (PUNICODE_STRING)&DeviceName, FILE_DEVICE_NETWORK,
+                FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL,
+                &XDP_DEVICE_CLASS_GUID, &XdpDeviceObject);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+        DevExt = (XDP_DEVICE_EXTENSION *)XdpDeviceObject->DeviceExtension;
+        DevExt->IsPerTypeDevice = FALSE;
+        DevExt->AllowedObjectType = (XDP_OBJECT_TYPE)0;
+    }
+
+    //
+    // Create per-object-type device objects for finer-grained security ACLs.
+    // Each device has its own device class GUID, allowing independent SDDL
+    // configuration via xdpcfg.exe.
+    //
+    {
+        DECLARE_CONST_UNICODE_STRING(ProgramDevName, XDP_PROGRAM_DEVICE_NAME);
+        DECLARE_CONST_UNICODE_STRING(XskDevName, XDP_XSK_DEVICE_NAME);
+        DECLARE_CONST_UNICODE_STRING(InterfaceDevName, XDP_INTERFACE_DEVICE_NAME);
+
+        struct {
+            XDP_OBJECT_TYPE ObjectType;
+            PCUNICODE_STRING DeviceName;
+            const GUID *DeviceClassGuid;
+        } PerTypeDevices[] = {
+            { XDP_OBJECT_TYPE_PROGRAM,   &ProgramDevName,   &XDP_PROGRAM_DEVICE_CLASS_GUID },
+            { XDP_OBJECT_TYPE_XSK,       &XskDevName,       &XDP_XSK_DEVICE_CLASS_GUID },
+            { XDP_OBJECT_TYPE_INTERFACE, &InterfaceDevName,  &XDP_INTERFACE_DEVICE_CLASS_GUID },
+        };
+
+        C_ASSERT(RTL_NUMBER_OF(PerTypeDevices) == XDP_OBJECT_TYPE_MAX);
+
+        for (UINT32 i = 0; i < RTL_NUMBER_OF(PerTypeDevices); i++) {
+            XDP_DEVICE_EXTENSION *DevExt;
+
+            Status =
+                IoCreateDeviceSecure(
+                    XdpDriverObject, sizeof(XDP_DEVICE_EXTENSION),
+                    (PUNICODE_STRING)PerTypeDevices[i].DeviceName, FILE_DEVICE_NETWORK,
+                    FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL,
+                    PerTypeDevices[i].DeviceClassGuid,
+                    &XdpDeviceTable[i].DeviceObject);
+            if (!NT_SUCCESS(Status)) {
+                goto Exit;
+            }
+
+            DevExt = (XDP_DEVICE_EXTENSION *)XdpDeviceTable[i].DeviceObject->DeviceExtension;
+            DevExt->IsPerTypeDevice = TRUE;
+            DevExt->AllowedObjectType = PerTypeDevices[i].ObjectType;
+
+            XdpDeviceTable[i].ObjectType = PerTypeDevices[i].ObjectType;
+            XdpDeviceTable[i].DeviceClassGuid = PerTypeDevices[i].DeviceClassGuid;
+        }
     }
 
 Exit:

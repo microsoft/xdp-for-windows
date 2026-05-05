@@ -150,13 +150,52 @@ queues using this queue ID space.
 
 ### XDP access control
 
-Access to XDP is restricted to `SYSTEM` and the built-in administrators group by default. The `xdpcfg.exe` tool can be used to add or remove privileges. For example, to grant access to `SYSTEM`, built-in administrators, and the user or group represented by the `S-1-5-21-1626206346-3338949459-3778528156-1001` SID:
+Access to XDP is restricted to `SYSTEM` and the built-in administrators group by default. The `xdpcfg.exe` tool can be used to add or remove privileges.
+
+#### Common device SDDL
+
+To set the SDDL on the common XDP device (applies to all object types when
+per-type devices are not configured):
 
 ```PowerShell
 xdpcfg.exe SetDeviceSddl "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-1626206346-3338949459-3778528156-1001)"
 ```
 
+#### Per-object-type device SDDL
+
+XDP supports finer-grained access control via per-object-type devices. Each XDP
+object type (program, xsk, interface) has its own device object with an
+independent SDDL. This allows, for example, granting a user access to create
+AF_XDP sockets without granting access to configure RSS or attach XDP programs.
+
+```PowerShell
+# Grant a user access to XSK sockets only
+xdpcfg.exe SetDeviceSddl xsk "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
+
+# Grant a user access to XDP programs only
+xdpcfg.exe SetDeviceSddl program "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
+
+# Grant a user access to interface configuration (RSS) only
+xdpcfg.exe SetDeviceSddl interface "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
+```
+
+Supported object types: `program`, `xsk`, `interface`.
+
 The XDP driver must be restarted for these changes to take effect; the configuration is persistent across driver and machine restarts.
+
+#### Backward compatibility
+
+Applications that define `XDP_MINIMUM_MAJOR_VER` and `XDP_MINIMUM_MINOR_VER`
+before including the XDP headers will automatically fall back to the common
+`\Device\xdp` device if the per-type device is not present (e.g. when running
+against an older XDP driver that predates per-object-type devices).
+
+```c
+#define XDP_MINIMUM_MAJOR_VER 1
+#define XDP_MINIMUM_MINOR_VER 4
+#include <xdpapi.h>
+#include <afxdp.h>
+```
 
 ## AF_XDP
 

@@ -155,6 +155,9 @@ VOID
 SecurityAdjustDeviceAcl();
 
 VOID
+SecurityPerObjectDeviceAcl();
+
+VOID
 EbpfNetsh();
 
 VOID

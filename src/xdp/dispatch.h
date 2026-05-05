@@ -38,6 +38,23 @@ typedef struct _XDP_FILE_OBJECT_HEADER {
     XDP_FILE_DISPATCH *Dispatch;
 } XDP_FILE_OBJECT_HEADER;
 
+//
+// Device extension stored in each XDP device object.
+//
+typedef struct _XDP_DEVICE_EXTENSION {
+    BOOLEAN IsPerTypeDevice;
+    XDP_OBJECT_TYPE AllowedObjectType;
+} XDP_DEVICE_EXTENSION;
+
+//
+// Table entry for per-object-type device objects.
+//
+typedef struct _XDP_DEVICE_TABLE_ENTRY {
+    XDP_OBJECT_TYPE ObjectType;
+    const GUID *DeviceClassGuid;
+    DEVICE_OBJECT *DeviceObject;
+} XDP_DEVICE_TABLE_ENTRY;
+
 NTSTATUS
 XdpReferenceObjectByHandle(
     _In_ HANDLE Handle,
@@ -47,8 +64,14 @@ XdpReferenceObjectByHandle(
     _Out_ FILE_OBJECT **XdpFileObject
     );
 
+BOOLEAN
+XdpIsXdpDeviceObject(
+    _In_ DEVICE_OBJECT *DeviceObject
+    );
+
 extern DRIVER_OBJECT *XdpDriverObject;
 extern DEVICE_OBJECT *XdpDeviceObject;
+extern XDP_DEVICE_TABLE_ENTRY XdpDeviceTable[XDP_OBJECT_TYPE_MAX];
 extern const WCHAR *XDP_PARAMETERS_KEY;
 extern XDP_REG_WATCHER *XdpRegWatcher;
 
