@@ -36,6 +36,20 @@ bcdedit.exe /set testsigning on
 [reboot]
 ```
 
+For version 1.1 and older, install and uninstall using the MSI:
+
+Install:
+
+```bat
+msiexec.exe /i xdp-for-windows.msi /quiet
+```
+
+Uninstall:
+
+```bat
+msiexec.exe /x xdp-for-windows.msi /quiet
+```
+
 ### Enable eBPF Support
 
 **Note** eBPF support is experimental and is not officially supported by XDP.
