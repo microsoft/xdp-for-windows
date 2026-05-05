@@ -265,6 +265,13 @@ _XdpOpenObjectType(
             _XdpObjectTypeDeviceName(ObjectType));
 
 #if defined(XDP_MINIMUM_MAJOR_VER) && defined(XDP_MINIMUM_MINOR_VER)
+    //
+    // Per-type device objects were introduced after XDP 1.3, which was the
+    // last version that required all opens to go through the common XDP
+    // device. Only fall back to the common device when the caller's minimum
+    // supported version is <= 1.3.
+    //
+#if (XDP_MINIMUM_MAJOR_VER < 1) || (XDP_MINIMUM_MAJOR_VER == 1 && XDP_MINIMUM_MINOR_VER <= 3)
 #ifdef _KERNEL_MODE
     if (Status == STATUS_OBJECT_NAME_NOT_FOUND ||
         Status == STATUS_OBJECT_PATH_NOT_FOUND) {
@@ -278,6 +285,7 @@ _XdpOpenObjectType(
         //
         Status = _XdpOpenDevice(Handle, Disposition, EaBuffer, EaLength, XDP_DEVICE_NAME);
     }
+#endif
 #endif
 
     return Status;

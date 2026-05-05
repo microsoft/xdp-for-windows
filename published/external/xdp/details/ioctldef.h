@@ -35,9 +35,10 @@ typedef struct _XDP_FILE_FULL_EA_INFORMATION {
 #endif
 
 #define XDP_DEVICE_NAME L"\\Device\\xdp"
-#define XDP_PROGRAM_DEVICE_NAME L"\\Device\\xdpprogram"
-#define XDP_XSK_DEVICE_NAME L"\\Device\\xdpxsk"
-#define XDP_INTERFACE_DEVICE_NAME L"\\Device\\xdpinterface"
+#define XDP_DEVICE_DIRECTORY_NAME L"\\Device\\xdpapi"
+#define XDP_PROGRAM_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\program"
+#define XDP_XSK_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\xsk"
+#define XDP_INTERFACE_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\interface"
 
 #define XDP_OPEN_PACKET_NAME "XdpOpenPacket000"
 
@@ -81,7 +82,6 @@ typedef enum _XDP_OBJECT_TYPE {
     XDP_OBJECT_TYPE_PROGRAM,
     XDP_OBJECT_TYPE_XSK,
     XDP_OBJECT_TYPE_INTERFACE,
-    XDP_OBJECT_TYPE_MAX,
 } XDP_OBJECT_TYPE;
 
 //

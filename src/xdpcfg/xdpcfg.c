@@ -10,6 +10,7 @@
 #include <stdlib.h>
 
 static
+__declspec(noreturn)
 VOID
 Usage(
     VOID
@@ -92,15 +93,13 @@ SetDeviceSddl(
     //
     // SetDeviceSddl <ObjectType> <SDDL>
     //
-    {
-        const GUID *DeviceClassGuid = ParseObjectTypeGuid(ArgV[2]);
-        if (DeviceClassGuid == NULL) {
-            fprintf(stderr, "Unknown object type: %ls\n", ArgV[2]);
-            Usage();
-        }
-
-        return SetDeviceSddlForGuid(DeviceClassGuid, ArgV[3]);
+    const GUID *DeviceClassGuid = ParseObjectTypeGuid(ArgV[2]);
+    if (DeviceClassGuid == NULL) {
+        fprintf(stderr, "Unknown object type: %ls\n", ArgV[2]);
+        Usage();
     }
+
+    return SetDeviceSddlForGuid(DeviceClassGuid, ArgV[3]);
 }
 
 INT

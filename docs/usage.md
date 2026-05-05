@@ -163,39 +163,16 @@ xdpcfg.exe SetDeviceSddl "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-162620634
 
 #### Per-object-type device SDDL
 
-XDP supports finer-grained access control via per-object-type devices. Each XDP
-object type (program, xsk, interface) has its own device object with an
-independent SDDL. This allows, for example, granting a user access to create
-AF_XDP sockets without granting access to configure RSS or attach XDP programs.
+XDP also supports finer-grained access control via per-object-type devices,
+allowing, for example, a user to be granted access to AF_XDP sockets without
+granting access to configure RSS or attach XDP programs:
 
 ```PowerShell
-# Grant a user access to XSK sockets only
-xdpcfg.exe SetDeviceSddl xsk "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
-
-# Grant a user access to XDP programs only
-xdpcfg.exe SetDeviceSddl program "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
-
-# Grant a user access to interface configuration (RSS) only
-xdpcfg.exe SetDeviceSddl interface "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
+xdpcfg.exe SetDeviceSddl xsk       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
 ```
 
-Supported object types: `program`, `xsk`, `interface`.
-
-The XDP driver must be restarted for these changes to take effect; the configuration is persistent across driver and machine restarts.
-
-#### Backward compatibility
-
-Applications that define `XDP_MINIMUM_MAJOR_VER` and `XDP_MINIMUM_MINOR_VER`
-before including the XDP headers will automatically fall back to the common
-`\Device\xdp` device if the per-type device is not present (e.g. when running
-against an older XDP driver that predates per-object-type devices).
-
-```c
-#define XDP_MINIMUM_MAJOR_VER 1
-#define XDP_MINIMUM_MINOR_VER 4
-#include <xdpapi.h>
-#include <afxdp.h>
-```
+See [Per-Object-Type Security](per-object-security.md) for details, including
+the device object layout and backward-compatibility.
 
 ## AF_XDP
 
