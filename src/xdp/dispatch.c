@@ -324,8 +324,10 @@ XdpIrpDeviceIoControl(
     XDP_FILE_OBJECT_HEADER *FileHeader;
     NTSTATUS Status;
 
-    ASSERT(XdpIsXdpDeviceObject(DeviceObject));
     PAGED_CODE();
+
+    ASSERT(XdpIsXdpDeviceObject(DeviceObject));
+    DBG_UNREFERENCED_PARAMETER(DeviceObject);
 
     Irp->IoStatus.Information = 0;
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
