@@ -4,49 +4,29 @@
 //
 
 //
-// This sample demonstrates how to create an AF_XDP socket and attach an eBPF
-// XDP program in a privileged parent process, then duplicate the socket handle
-// into a child process running with a restricted token. The child process uses
-// the duplicated handle to perform RX-to-TX forwarding without needing elevated
+// This sample demonstrates how to create an AF_XDP socket and XDP program in
+// a privileged parent process, then duplicate those handles into a child
+// process running with a restricted token. The child process uses the
+// duplicated handles to perform RX-to-TX forwarding without needing elevated
 // privileges itself.
 //
 // Approach:
-//   1. Parent loads eBPF program, creates AF_XDP socket, populates XSKMAP.
-//   2. Parent attaches eBPF program to the interface.
-//   3. Parent creates a restricted token (Administrators SID disabled).
-//   4. Parent spawns a child process (suspended) with the restricted token.
-//   5. Parent duplicates the socket handle into the child.
-//   6. Parent writes handle value to a named pipe the child reads on startup.
-//   7. Parent resumes the child, which configures rings and forwards packets.
+//   1. Parent creates AF_XDP socket and XDP program (requires admin).
+//   2. Parent creates a restricted token (Administrators SID disabled).
+//   3. Parent spawns a child process (suspended) with the restricted token.
+//   4. Parent duplicates the socket and program handles into the child.
+//   5. Parent writes handle values to a named pipe the child reads on startup.
+//   6. Parent resumes the child, which configures rings and forwards packets.
+//
+// Usage:
+//   xskrestricted.exe <IfIndex> [-TimeoutSeconds <Seconds>]
 //
 
 #include <xdpapi.h>
 #include <afxdp_helper.h>
-#pragma warning(push)
-#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
-#pragma warning(pop)
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
-
-CONST CHAR *UsageText =
-"Usage:\n"
-"  xskrestricted.exe <IfIndex> [-BpfProgram <path.sys>] [-ProgramName <name>]\n"
-"                              [-TimeoutSeconds <Seconds>]\n"
-"\n"
-"Loads an eBPF XDP program, creates an AF_XDP socket, then spawns a child\n"
-"process with a restricted token and duplicates the socket handle into it.\n"
-"The child forwards UDP port 1234 traffic back to the sender.\n"
-"\n"
-"Options:\n"
-"  -BpfProgram <path.sys>      Path to compiled eBPF program.\n"
-"                              Default: xskrestricted_redirect.sys\n"
-"  -ProgramName <name>         eBPF program entry point name.\n"
-"                              Default: xskrestricted_redirect\n"
-"  -TimeoutSeconds <Seconds>   Exit after the specified number of seconds.\n"
-"                              If 0 or omitted, run indefinitely.\n";
 
 #define LOGERR(...) \
     fprintf(stderr, "ERR: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n")
@@ -54,12 +34,19 @@ CONST CHAR *UsageText =
 #define LOGINFO(...) \
     fprintf(stdout, "INFO: "); fprintf(stdout, __VA_ARGS__); fprintf(stdout, "\n")
 
+static const XDP_HOOK_ID XdpInspectRxL2 = {
+    .Layer = XDP_HOOK_L2,
+    .Direction = XDP_HOOK_RX,
+    .SubLayer = XDP_HOOK_INSPECT,
+};
 
 //
 // A simple structure passed from the parent to the child via a named pipe.
+// Contains the duplicated handle values in the child's handle table.
 //
 typedef struct _XSKRESTRICTED_CHILD_PARAMS {
     UINT64 SocketHandle;
+    UINT64 ProgramHandle;
     UINT32 IfIndex;
     UINT32 TimeoutSeconds;
 } XSKRESTRICTED_CHILD_PARAMS;
@@ -79,6 +66,7 @@ RunChild(
     XSKRESTRICTED_CHILD_PARAMS Params;
     DWORD BytesRead;
     HANDLE Socket;
+    HANDLE Program;
     UCHAR Frame[1514];
     XSK_UMEM_REG UmemReg = {0};
     const UINT32 RingSize = 1;
@@ -90,7 +78,13 @@ RunChild(
     XSK_RING TxCompRing;
     UINT32 RingIndex;
     HANDLE CreatedXsk;
+    HANDLE CreatedProgram;
+    XDP_RULE Rule = {0};
 
+    //
+    // Connect to the named pipe created by the parent to receive the
+    // duplicated handle values.
+    //
     PipeHandle =
         CreateFileW(
             PipeName,
@@ -114,21 +108,36 @@ RunChild(
     CloseHandle(PipeHandle);
 
     Socket = (HANDLE)(ULONG_PTR)Params.SocketHandle;
+    Program = (HANDLE)(ULONG_PTR)Params.ProgramHandle;
 
     LOGINFO(
-        "[Child] Running with duplicated socket handle=%p IfIndex=%u",
-        Socket, Params.IfIndex);
+        "[Child] Running with duplicated handles: Socket=%p Program=%p IfIndex=%u",
+        Socket, Program, Params.IfIndex);
 
     //
-    // Verify this restricted process can't create sockets.
+    // For sanity, verify this restricted process can't create sockets or
+    // programs.
     //
+
     if (XskCreate(&CreatedXsk) != HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)) {
         LOGERR("[Child] XskCreate was not denied access");
         return 1;
     }
 
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_PASS;
+
+    if (XdpCreateProgram(
+            Params.IfIndex, &XdpInspectRxL2, 0, XDP_CREATE_PROGRAM_FLAG_NONE, &Rule, 1,
+            &CreatedProgram) != HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)) {
+        LOGERR("[Child] XdpCreateProgram was not denied access");
+        return 1;
+    }
+
     //
-    // Register our frame buffer with the AF_XDP socket.
+    // Register our frame buffer with the AF_XDP socket. The parent created
+    // and bound the socket, but UMEM registration, ring setup, and activation
+    // are done here in the child's address space.
     //
     UmemReg.TotalSize = sizeof(Frame);
     UmemReg.ChunkSize = sizeof(Frame);
@@ -140,6 +149,9 @@ RunChild(
         return 1;
     }
 
+    //
+    // Set ring sizes.
+    //
     Result = XskSetSockopt(Socket, XSK_SOCKOPT_RX_RING_SIZE, &RingSize, sizeof(RingSize));
     if (XDP_FAILED(Result)) {
         LOGERR("[Child] XSK_SOCKOPT_RX_RING_SIZE failed: %x", Result);
@@ -164,12 +176,18 @@ RunChild(
         return 1;
     }
 
+    //
+    // Activate the socket so rings become available.
+    //
     Result = XskActivate(Socket, XSK_ACTIVATE_FLAG_NONE);
     if (XDP_FAILED(Result)) {
         LOGERR("[Child] XskActivate failed: %x", Result);
         return 1;
     }
 
+    //
+    // Retrieve ring info and initialize ring helpers.
+    //
     OptionLength = sizeof(RingInfo);
     Result = XskGetSockopt(Socket, XSK_SOCKOPT_RING_INFO, &RingInfo, &OptionLength);
     if (XDP_FAILED(Result)) {
@@ -191,6 +209,10 @@ RunChild(
 
     LOGINFO("[Child] Forwarding packets (Ctrl+C to stop)...");
 
+    //
+    // RX-to-TX forwarding loop: receive frames, swap MAC addresses, and
+    // transmit them back. If a timeout was specified, exit after the deadline.
+    //
     {
     ULONGLONG Deadline = 0;
     if (Params.TimeoutSeconds > 0) {
@@ -213,6 +235,10 @@ RunChild(
             XskRingProducerReserve(&TxRing, 1, &RingIndex);
             TxBuffer = XskRingGetElement(&TxRing, RingIndex);
 
+            //
+            // Swap source and destination MAC addresses to echo the frame
+            // back to the sender.
+            //
             {
                 UCHAR *FrameData =
                     &Frame[RxBuffer->Address.BaseAddress + RxBuffer->Address.Offset];
@@ -254,30 +280,27 @@ RunChild(
 
     LOGINFO("[Child] Exiting successfully");
     CloseHandle(Socket);
+    CloseHandle(Program);
 
     return 0;
 }
 
 //
-// Parent process: load eBPF program, create AF_XDP socket, populate XSKMAP,
-// create a restricted child process, and duplicate the socket handle.
+// Parent process: create the AF_XDP socket and XDP program, create a
+// restricted child process, duplicate the handles into it, and communicate
+// the handle values via a named pipe.
 //
 static
 INT
 RunParent(
     _In_ UINT32 IfIndex,
-    _In_ const CHAR *BpfProgramPath,
-    _In_ const CHAR *ProgramName,
     _In_ UINT32 TimeoutSeconds
     )
 {
-    HRESULT HResult;
-    int Result;
-    struct bpf_object *BpfObject = NULL;
-    struct bpf_program *BpfProgram = NULL;
-    int ProgramFd;
-    fd_t XskMapFd;
+    HRESULT Result;
     HANDLE Socket = NULL;
+    HANDLE Program = NULL;
+    XDP_RULE Rule = {0};
     HANDLE RestrictedToken = NULL;
     HANDLE CurrentToken = NULL;
     SID_AND_ATTRIBUTES SidsToDisable[1];
@@ -287,6 +310,7 @@ RunParent(
     PROCESS_INFORMATION ProcessInfo;
     WCHAR CommandLine[512];
     HANDLE ChildSocket = NULL;
+    HANDLE ChildProgram = NULL;
     INT ExitCode = 1;
     WCHAR ModulePathW[MAX_PATH];
     HANDLE PipeHandle = INVALID_HANDLE_VALUE;
@@ -294,15 +318,15 @@ RunParent(
     XSKRESTRICTED_CHILD_PARAMS ChildParams;
     DWORD BytesWritten;
     SECURITY_ATTRIBUTES PipeSa;
-    BOOLEAN ProcessCreated = FALSE;
-    UINT32 QueueId = 0;
+    BOOL ProcessCreated = FALSE;
 
     ZeroMemory(&ProcessInfo, sizeof(ProcessInfo));
 
-    LOGINFO("[Parent] Loading eBPF program and creating socket for IfIndex=%u", IfIndex);
+    LOGINFO("[Parent] Creating AF_XDP socket and XDP program for IfIndex=%u", IfIndex);
 
     //
-    // Create a named pipe for communicating with the child.
+    // Create a named pipe with a unique name based on the current process ID.
+    // The child will read its handle values from this pipe on startup.
     //
     _snwprintf_s(
         PipeName, ARRAYSIZE(PipeName), _TRUNCATE,
@@ -317,76 +341,57 @@ RunParent(
             PipeName,
             PIPE_ACCESS_OUTBOUND,
             PIPE_TYPE_BYTE | PIPE_WAIT,
-            1,
+            1,                      // Max instances
             sizeof(XSKRESTRICTED_CHILD_PARAMS),
-            0,
-            0,
+            0,                      // In buffer size
+            0,                      // Default timeout
             &PipeSa);
     if (PipeHandle == INVALID_HANDLE_VALUE) {
         LOGERR("[Parent] CreateNamedPipeW failed: %u", GetLastError());
         goto Exit;
     }
 
-    HResult = XskCreate(&Socket);
-    if (XDP_FAILED(HResult)) {
-        LOGERR("[Parent] XskCreate failed: %x", HResult);
+    //
+    // Create an AF_XDP socket.
+    //
+    Result = XskCreate(&Socket);
+    if (XDP_FAILED(Result)) {
+        LOGERR("[Parent] XskCreate failed: %x", Result);
         goto Exit;
     }
 
-    HResult = XskBind(Socket, IfIndex, QueueId, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX);
-    if (XDP_FAILED(HResult)) {
-        LOGERR("[Parent] XskBind failed: %x", HResult);
+    //
+    // Bind the socket to the specified interface and 0th queue.
+    //
+    Result = XskBind(Socket, IfIndex, 0, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX);
+    if (XDP_FAILED(Result)) {
+        LOGERR("[Parent] XskBind failed: %x", Result);
         goto Exit;
     }
 
     LOGINFO("[Parent] Socket created and bound (handle=%p)", Socket);
 
-    BpfObject = bpf_object__open(BpfProgramPath);
-    if (BpfObject == NULL) {
-        LOGERR("[Parent] bpf_object__open(%s) failed", BpfProgramPath);
+    //
+    // Create an XDP program that redirects UDP port 1234 traffic to the socket.
+    //
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = _byteswap_ushort(1234);
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
+    Rule.Redirect.Target = Socket;
+
+    Result = XdpCreateProgram(IfIndex, &XdpInspectRxL2, 0, 0, &Rule, 1, &Program);
+    if (XDP_FAILED(Result)) {
+        LOGERR("[Parent] XdpCreateProgram failed: %x", Result);
         goto Exit;
     }
 
-    Result = bpf_object__load(BpfObject);
-    if (Result != 0) {
-        LOGERR("[Parent] bpf_object__load failed: %d", Result);
-        goto Exit;
-    }
-
-    BpfProgram = bpf_object__find_program_by_name(BpfObject, ProgramName);
-    if (BpfProgram == NULL) {
-        LOGERR("[Parent] Program '%s' not found", ProgramName);
-        goto Exit;
-    }
-
-    ProgramFd = bpf_program__fd(BpfProgram);
-    if (ProgramFd < 0) {
-        LOGERR("[Parent] bpf_program__fd failed");
-        goto Exit;
-    }
-
-    XskMapFd = bpf_object__find_map_fd_by_name(BpfObject, "xsk_map");
-    if (XskMapFd < 0) {
-        LOGERR("[Parent] xsk_map not found");
-        goto Exit;
-    }
-
-    Result = bpf_map_update_elem(XskMapFd, &QueueId, &Socket, 0);
-    if (Result != 0) {
-        LOGERR("[Parent] bpf_map_update_elem(xsk_map) failed: %d", Result);
-        goto Exit;
-    }
-
-    Result = bpf_xdp_attach(IfIndex, ProgramFd, 0, NULL);
-    if (Result != 0) {
-        LOGERR("[Parent] bpf_xdp_attach failed: %d", Result);
-        goto Exit;
-    }
-
-    LOGINFO("[Parent] eBPF program attached");
+    LOGINFO("[Parent] XDP program created (handle=%p)", Program);
 
     //
     // Create a restricted token by disabling the Administrators group SID.
+    // This demonstrates privilege reduction: the child process cannot create
+    // new XDP objects but can use pre-existing duplicated handles.
     //
     SidSize = SECURITY_MAX_SID_SIZE;
     AdminSid = LocalAlloc(LMEM_FIXED, SidSize);
@@ -409,7 +414,15 @@ RunParent(
     SidsToDisable[0].Attributes = 0;
 
     if (!CreateRestrictedToken(
-            CurrentToken, 0, 1, SidsToDisable, 0, NULL, 0, NULL, &RestrictedToken)) {
+            CurrentToken,
+            0,                      // Flags
+            1,                      // DisableSidCount
+            SidsToDisable,          // SidsToDisable
+            0,                      // DeletePrivilegeCount
+            NULL,                   // PrivilegesToDelete
+            0,                      // RestrictedSidCount
+            NULL,                   // SidsToRestrict
+            &RestrictedToken)) {
         LOGERR("[Parent] CreateRestrictedToken failed: %u", GetLastError());
         goto Exit;
     }
@@ -417,7 +430,8 @@ RunParent(
     LOGINFO("[Parent] Restricted token created (Administrators SID disabled)");
 
     //
-    // Create the child process in a suspended state.
+    // Create the child process in a suspended state. We pass the pipe name
+    // on the command line so the child can read its handle values.
     //
     ZeroMemory(&StartupInfo, sizeof(StartupInfo));
     StartupInfo.cb = sizeof(StartupInfo);
@@ -433,8 +447,17 @@ RunParent(
         ModulePathW, PipeName);
 
     if (!CreateProcessAsUserW(
-            RestrictedToken, NULL, CommandLine, NULL, NULL, FALSE,
-            CREATE_SUSPENDED, NULL, NULL, &StartupInfo, &ProcessInfo)) {
+            RestrictedToken,
+            NULL,                   // Application name (use command line)
+            CommandLine,            // Command line
+            NULL,                   // Process attributes
+            NULL,                   // Thread attributes
+            FALSE,                  // Inherit handles
+            CREATE_SUSPENDED,       // Creation flags
+            NULL,                   // Environment
+            NULL,                   // Current directory
+            &StartupInfo,
+            &ProcessInfo)) {
         LOGERR("[Parent] CreateProcessAsUserW failed: %u", GetLastError());
         goto Exit;
     }
@@ -443,23 +466,56 @@ RunParent(
 
     LOGINFO("[Parent] Child process created (PID=%u), suspended", ProcessInfo.dwProcessId);
 
+    //
+    // Duplicate the AF_XDP socket handle into the child process.
+    //
     if (!DuplicateHandle(
-            GetCurrentProcess(), Socket, ProcessInfo.hProcess, &ChildSocket,
-            0, FALSE, DUPLICATE_SAME_ACCESS)) {
+            GetCurrentProcess(),    // Source process
+            Socket,                 // Source handle
+            ProcessInfo.hProcess,   // Target process
+            &ChildSocket,           // Target handle (value in child's table)
+            0,                      // Desired access (ignored with DUPLICATE_SAME_ACCESS)
+            FALSE,                  // Inherit handle
+            DUPLICATE_SAME_ACCESS)) {
         LOGERR("[Parent] DuplicateHandle(Socket) failed: %u", GetLastError());
         goto Exit;
     }
 
-    LOGINFO("[Parent] Socket handle duplicated into child: %p", ChildSocket);
+    //
+    // Duplicate the XDP program handle into the child process.
+    //
+    if (!DuplicateHandle(
+            GetCurrentProcess(),
+            Program,
+            ProcessInfo.hProcess,
+            &ChildProgram,
+            0,
+            FALSE,
+            DUPLICATE_SAME_ACCESS)) {
+        LOGERR("[Parent] DuplicateHandle(Program) failed: %u", GetLastError());
+        goto Exit;
+    }
 
+    LOGINFO(
+        "[Parent] Handles duplicated into child: Socket=%p Program=%p",
+        ChildSocket, ChildProgram);
+
+    //
+    // Resume the child process. It will connect to the named pipe and read
+    // its parameters.
+    //
     ResumeThread(ProcessInfo.hThread);
 
+    //
+    // Wait for the child to connect, then send the handle values.
+    //
     if (!ConnectNamedPipe(PipeHandle, NULL) && GetLastError() != ERROR_PIPE_CONNECTED) {
         LOGERR("[Parent] ConnectNamedPipe failed: %u", GetLastError());
         goto Exit;
     }
 
     ChildParams.SocketHandle = (UINT64)(ULONG_PTR)ChildSocket;
+    ChildParams.ProgramHandle = (UINT64)(ULONG_PTR)ChildProgram;
     ChildParams.IfIndex = IfIndex;
     ChildParams.TimeoutSeconds = TimeoutSeconds;
 
@@ -469,11 +525,17 @@ RunParent(
         goto Exit;
     }
 
+    //
+    // Close the pipe; the child has its data.
+    //
     CloseHandle(PipeHandle);
     PipeHandle = INVALID_HANDLE_VALUE;
 
     LOGINFO("[Parent] Parameters sent to child, waiting for child to exit...");
 
+    //
+    // Wait for the child process to exit.
+    //
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
 
     {
@@ -484,6 +546,7 @@ RunParent(
     }
 
 Exit:
+
     if (ProcessCreated) {
         CloseHandle(ProcessInfo.hProcess);
         CloseHandle(ProcessInfo.hThread);
@@ -492,11 +555,8 @@ Exit:
         _Analysis_assume_(PipeHandle != NULL);
         CloseHandle(PipeHandle);
     }
-
-    bpf_xdp_detach(IfIndex, 0, NULL);
-
-    if (BpfObject != NULL) {
-        bpf_object__close(BpfObject);
+    if (Program != NULL) {
+        CloseHandle(Program);
     }
     if (Socket != NULL) {
         CloseHandle(Socket);
@@ -522,6 +582,9 @@ main(
     )
 {
     if (argc >= 3 && _stricmp(argv[1], "-child") == 0) {
+        //
+        // Child mode: receive the pipe name, read handle values from the pipe.
+        //
         WCHAR PipeName[128];
 
         if (MultiByteToWideChar(
@@ -534,9 +597,10 @@ main(
     }
 
     if (argc >= 2 && argv[1][0] != '-') {
+        //
+        // Parent mode: create XDP objects and spawn restricted child.
+        //
         UINT32 IfIndex = (UINT32)atoi(argv[1]);
-        const CHAR *BpfProgramPath = "xskrestricted_redirect.sys";
-        const CHAR *ProgramName = "xskrestricted_redirect";
         UINT32 TimeoutSeconds = 0;
 
         if (IfIndex == 0) {
@@ -544,23 +608,31 @@ main(
             return 1;
         }
 
+        //
+        // Check for optional -TimeoutSeconds argument.
+        //
         for (INT i = 2; i < argc - 1; i++) {
-            if (_stricmp(argv[i], "-BpfProgram") == 0) {
-                BpfProgramPath = argv[i + 1];
-                i++;
-            } else if (_stricmp(argv[i], "-ProgramName") == 0) {
-                ProgramName = argv[i + 1];
-                i++;
-            } else if (_stricmp(argv[i], "-TimeoutSeconds") == 0) {
+            if (_stricmp(argv[i], "-TimeoutSeconds") == 0) {
                 TimeoutSeconds = (UINT32)atoi(argv[i + 1]);
-                i++;
+                break;
             }
         }
 
-        return RunParent(IfIndex, BpfProgramPath, ProgramName, TimeoutSeconds);
+        return RunParent(IfIndex, TimeoutSeconds);
     }
 
-    fprintf(stderr, UsageText);
+    fprintf(
+        stderr,
+        "Usage:\n"
+        "  xskrestricted.exe <IfIndex> [-TimeoutSeconds <Seconds>]\n"
+        "\n"
+        "Creates an AF_XDP socket and XDP program, then spawns a child process\n"
+        "with a restricted token and duplicates the handles into it. The child\n"
+        "forwards UDP port 1234 traffic back to the sender.\n"
+        "\n"
+        "Options:\n"
+        "  -TimeoutSeconds <Seconds>  Exit after the specified number of seconds.\n"
+        "                             If 0 or omitted, run indefinitely.\n");
 
     return 1;
 }

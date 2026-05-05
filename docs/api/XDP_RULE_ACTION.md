@@ -1,5 +1,9 @@
 # XDP_RULE_ACTION structure
 
+> **Deprecated:** The built-in rules-based program API is planned for removal.
+> All users should migrate to eBPF programs. See the
+> [eBPF Integration Guide](../ebpf.md) for migration instructions and examples.
+
 Specifies an XDP inspection program rule action.
 
 ## Syntax

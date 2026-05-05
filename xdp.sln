@@ -43,13 +43,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rssconfig", "test\rssconfig
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpetw", "src\xdpetw\xdpetw.vcxproj", "{A87D995B-384F-4853-ABDB-3EC024BE18E3}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rxfilter", "samples\rxfilter\rxfilter.vcxproj", "{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rxfilter-deprecated", "samples\deprecated\rxfilter\rxfilter-deprecated.vcxproj", "{C0C730A8-2DAB-4C28-8C4B-5EFFA6B494DD}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bpf", "test\bpf\bpf.vcxproj", "{5DE7385C-80B3-40CD-97D0-7C24DEC2F95C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpcfg", "src\xdpcfg\xdpcfg.vcxproj", "{E64CCF9C-9D27-4AAC-8119-197FABA5E8C2}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwd", "samples\xskfwd\xskfwd.vcxproj", "{238CD65B-59D5-4EC5-BA23-630F567395FA}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwd-deprecated", "samples\deprecated\xskfwd\xskfwd-deprecated.vcxproj", "{238CD65B-59D5-4EC5-BA23-630F567395FA}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdppcw", "src\xdppcw\xdppcw.vcxproj", "{ED611744-B780-41A2-A995-2C100D86B3A6}"
 EndProject
@@ -65,11 +65,17 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "onebranch", "src\onebranch\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpruntime", "src\xdpruntime\xdpruntime.vcxproj", "{8250C528-6A2C-44E7-AA76-1E6BEC9127A3}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwdkm", "samples\xskfwd\xskfwdkm.vcxproj", "{F722DA97-3252-42F1-92D3-215C99935607}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwdkm-deprecated", "samples\deprecated\xskfwd\xskfwdkm-deprecated.vcxproj", "{F722DA97-3252-42F1-92D3-215C99935607}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ringperf", "test\ringperf\ringperf.vcxproj", "{838975CE-9BC8-4BA8-A129-2C33791BA339}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskrestricted", "samples\xskrestricted\xskrestricted.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskrestricted-deprecated", "samples\deprecated\xskrestricted\xskrestricted-deprecated.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rxfilter", "samples\rxfilter\rxfilter.vcxproj", "{AE14127D-704C-4B54-AE84-FDC5F3A72B99}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskfwd", "samples\xskfwd\xskfwd.vcxproj", "{2A9A8060-B806-4BF8-AF21-C89965D49AA0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskrestricted", "samples\xskrestricted\xskrestricted.vcxproj", "{EAC6D867-EF75-4284-8603-6D202B7C7F93}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -419,6 +425,30 @@ Global
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.Build.0 = Release|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.Deploy.0 = Release|x64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Debug|ARM64.Build.0 = Debug|ARM64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Debug|x64.ActiveCfg = Debug|x64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Debug|x64.Build.0 = Debug|x64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Release|ARM64.ActiveCfg = Release|ARM64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Release|ARM64.Build.0 = Release|ARM64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Release|x64.ActiveCfg = Release|x64
+		{AE14127D-704C-4B54-AE84-FDC5F3A72B99}.Release|x64.Build.0 = Release|x64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Debug|ARM64.Build.0 = Debug|ARM64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Debug|x64.ActiveCfg = Debug|x64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Debug|x64.Build.0 = Debug|x64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Release|ARM64.ActiveCfg = Release|ARM64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Release|ARM64.Build.0 = Release|ARM64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Release|x64.ActiveCfg = Release|x64
+		{2A9A8060-B806-4BF8-AF21-C89965D49AA0}.Release|x64.Build.0 = Release|x64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Debug|ARM64.Build.0 = Debug|ARM64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Debug|x64.ActiveCfg = Debug|x64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Debug|x64.Build.0 = Debug|x64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Release|ARM64.ActiveCfg = Release|ARM64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Release|ARM64.Build.0 = Release|ARM64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Release|x64.ActiveCfg = Release|x64
+		{EAC6D867-EF75-4284-8603-6D202B7C7F93}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

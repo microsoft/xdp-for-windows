@@ -1197,6 +1197,7 @@ XdpRxQueueCreate(
     RxQueue->Binding = Binding;
     RxQueue->Key = Key;
     RxQueue->InspectionContext.IfIndex = XdpIfGetIfIndex(Binding);
+    RxQueue->InspectionContext.QueueId = QueueId;
     XdpInitializeQueueInfo(&RxQueue->QueueInfo, XDP_QUEUE_TYPE_DEFAULT_RSS, QueueId);
     XdbgInitializeQueueEc(RxQueue);
 

@@ -185,6 +185,27 @@ VOID
 GenericRxEbpfUnload();
 
 VOID
+GenericRxEbpfXskRedirect();
+
+VOID
+GenericRxEbpfXskRedirectFallback();
+
+VOID
+GenericRxEbpfXskRedirectReplace();
+
+VOID
+GenericRxEbpfXskRedirectDelete();
+
+VOID
+GenericRxEbpfXskMapControlPath();
+
+VOID
+GenericRxEbpfXskRedirectCloseSocket();
+
+VOID
+GenericRxEbpfXskRedirectQueueMismatch();
+
+VOID
 GenericTxToRxInject();
 
 VOID

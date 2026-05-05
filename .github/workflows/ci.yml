@@ -673,6 +673,53 @@ jobs:
       shell: PowerShell
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
 
+  sample_tests:
+    name: Sample Tests
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2022, 2025]
+        configuration: [Release, Debug]
+        platform: [x64]
+    runs-on: windows-${{ matrix.windows }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        sparse-checkout: tools
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Test rxfilter sample
+      shell: PowerShell
+      timeout-minutes: 5
+      run: tools/sample-rxfilter-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
+    - name: Test xskfwd sample
+      shell: PowerShell
+      timeout-minutes: 5
+      run: tools/sample-xskfwd-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
+    - name: Test xskrestricted sample
+      shell: PowerShell
+      timeout-minutes: 5
+      run: tools/sample-xskrestricted-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
+    - name: Convert Logs
+      if: ${{ always() }}
+      timeout-minutes: 15
+      shell: PowerShell
+      run: tools/log.ps1 -Convert -Name sample_* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      if: ${{ always() }}
+      with:
+        name: logs_samples_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+
   create_artifacts:
     name: Create Release Artifacts
     needs: build
@@ -719,7 +766,7 @@ jobs:
   Complete:
     name: Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskrestricted_test, downlevel_functional_tests, create_artifacts]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskrestricted_test, downlevel_functional_tests, create_artifacts, sample_tests]
     runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:

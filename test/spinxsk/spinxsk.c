@@ -159,15 +159,11 @@ typedef struct {
 
 typedef enum {
     ProgramHandleXdp,
-    ProgramHandleEbpf,
 } PROGRAM_HANDLE_TYPE;
 
 typedef struct {
     PROGRAM_HANDLE_TYPE Type;
-    union {
-        HANDLE Handle;
-        struct bpf_object *BpfObject;
-    };
+    HANDLE Handle;
 } PROGRAM_HANDLE;
 
 typedef struct {
@@ -175,6 +171,21 @@ typedef struct {
     UINT32 HandleCount;
     PROGRAM_HANDLE Handles[8];
 } XSK_PROGRAM_SET;
+
+//
+// Shared interface-level eBPF program set. The eBPF program is attached to the
+// entire interface, while each per-queue worker registers its own XSK socket
+// handle in the shared XSKMAP at its queue index.
+//
+// Threads must call AcquireSharedEbpfMapFd / ReleaseSharedEbpfMapFd to safely
+// use the map FD outside the lock.
+//
+typedef struct {
+    CRITICAL_SECTION Lock;
+    struct bpf_object *BpfObject;
+    int XskMapFd;
+    LONG RefCount;
+} XSK_INTERFACE_EBPF_PROGRAM;
 
 typedef struct {
     HANDLE threadHandle;
@@ -293,6 +304,39 @@ UINT32 globalConcurrentWorkerCount = DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT;
 ULONGLONG perfFreq;
 CONST CHAR *watchdogCmd = "";
 CONST CHAR *powershellPrefix;
+XSK_INTERFACE_EBPF_PROGRAM sharedEbpfProgram;
+
+//
+// Acquire a reference to the shared XSKMAP FD. Returns the FD if available,
+// or -1 if no program is attached. The caller must call ReleaseSharedEbpfMapFd
+// when done with the FD.
+//
+static
+int
+AcquireSharedEbpfMapFd(
+    VOID
+    )
+{
+    int MapFd = -1;
+
+    EnterCriticalSection(&sharedEbpfProgram.Lock);
+    if (sharedEbpfProgram.BpfObject != NULL && sharedEbpfProgram.XskMapFd >= 0) {
+        MapFd = sharedEbpfProgram.XskMapFd;
+        InterlockedIncrement(&sharedEbpfProgram.RefCount);
+    }
+    LeaveCriticalSection(&sharedEbpfProgram.Lock);
+
+    return MapFd;
+}
+
+static
+VOID
+ReleaseSharedEbpfMapFd(
+    VOID
+    )
+{
+    InterlockedDecrement(&sharedEbpfProgram.RefCount);
+}
 
 ULONG
 RandUlong(
@@ -565,19 +609,43 @@ AttachXdpEbpfProgram(
     int AttachFlags = 0;
     int OriginalThreadPriority;
 
+    UNREFERENCED_PARAMETER(Queue);
+    UNREFERENCED_PARAMETER(Sock);
+    UNREFERENCED_PARAMETER(RxProgramSet);
+
     //
     // Since eBPF does not support per-queue programs, attach to the entire
     // interface.
     //
-    UNREFERENCED_PARAMETER(Queue);
-
-    //
-    // Since eBPF does not yet support AF_XDP, ignore the socket.
-    //
-    UNREFERENCED_PARAMETER(Sock);
 
     if (!enableEbpf) {
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
+    }
+
+    //
+    // Only one eBPF program can be attached at a time. If there's already one,
+    // just try to register this queue's socket in the existing map.
+    //
+    {
+        int ExistingMapFd = AcquireSharedEbpfMapFd();
+        if (ExistingMapFd >= 0) {
+            if (Sock != NULL) {
+                UINT32 QueueId = Queue->queueId;
+                bpf_map_update_elem(ExistingMapFd, &QueueId, &Sock, 0);
+            }
+            ReleaseSharedEbpfMapFd();
+            return S_OK;
+        }
+
+        //
+        // Check if an eBPF program is attached but has no map (e.g. drop/pass).
+        //
+        EnterCriticalSection(&sharedEbpfProgram.Lock);
+        if (sharedEbpfProgram.BpfObject != NULL) {
+            LeaveCriticalSection(&sharedEbpfProgram.Lock);
+            return S_OK;
+        }
+        LeaveCriticalSection(&sharedEbpfProgram.Lock);
     }
 
     OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
@@ -588,7 +656,7 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
-    switch (RandUlong() % 3) {
+    switch (RandUlong() % 4) {
     case 0:
         ProgramRelativePath = "\\bpf\\drop.sys";
         break;
@@ -597,6 +665,9 @@ AttachXdpEbpfProgram(
         break;
     case 2:
         ProgramRelativePath = "\\bpf\\l1fwd.sys";
+        break;
+    case 3:
+        ProgramRelativePath = "\\bpf\\xsk_redirect.sys";
         break;
     default:
         ASSERT_FRE(FALSE);
@@ -667,16 +738,31 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
-    EnterCriticalSection(&RxProgramSet->Lock);
-    if (RxProgramSet->HandleCount < RTL_NUMBER_OF(RxProgramSet->Handles)) {
-        RxProgramSet->Handles[RxProgramSet->HandleCount].Type = ProgramHandleEbpf;
-        RxProgramSet->Handles[RxProgramSet->HandleCount].BpfObject = BpfObject;
-        RxProgramSet->HandleCount++;
-        Result = S_OK;
-    } else {
-        Result = E_NOT_SUFFICIENT_BUFFER;
+    //
+    // Store the eBPF program and map FD in the shared interface-level set.
+    //
+    {
+        int XskMapFd = -1;
+        if (ProgramRelativePath != NULL &&
+            strcmp(ProgramRelativePath, "\\bpf\\xsk_redirect.sys") == 0) {
+            XskMapFd = bpf_object__find_map_fd_by_name(BpfObject, "xsk_map");
+        }
+
+        EnterCriticalSection(&sharedEbpfProgram.Lock);
+        sharedEbpfProgram.BpfObject = BpfObject;
+        sharedEbpfProgram.XskMapFd = XskMapFd;
+        LeaveCriticalSection(&sharedEbpfProgram.Lock);
+
+        //
+        // Register this queue's socket in the map.
+        //
+        if (XskMapFd >= 0 && Sock != NULL) {
+            UINT32 QueueId = Queue->queueId;
+            bpf_map_update_elem(XskMapFd, &QueueId, &Sock, 0);
+        }
     }
-    LeaveCriticalSection(&RxProgramSet->Lock);
+
+    BpfObject = NULL; // Ownership transferred to shared set.
 
 Exit:
 
@@ -824,7 +910,6 @@ DetachXdpProgram(
     )
 {
     HANDLE Handle = NULL;
-    struct bpf_object *BpfObject = NULL;
 
     EnterCriticalSection(&RxProgramSet->Lock);
     if (RxProgramSet->HandleCount > 0) {
@@ -833,10 +918,6 @@ DetachXdpProgram(
         switch (RxProgramSet->Handles[detachIndex].Type) {
         case ProgramHandleXdp:
             Handle = RxProgramSet->Handles[detachIndex].Handle;
-            break;
-
-        case ProgramHandleEbpf:
-            BpfObject = RxProgramSet->Handles[detachIndex].BpfObject;
             break;
 
         default:
@@ -848,28 +929,6 @@ DetachXdpProgram(
 
     if (Handle != NULL) {
         ASSERT_FRE(CloseHandle(Handle));
-    }
-
-    if (BpfObject != NULL) {
-        int OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
-        ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
-
-        //
-        // To work around control path delays caused by eBPF's epoch implementation,
-        // boost this thread's priority when invoking eBPF APIs.
-        //
-        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
-
-        //
-        // Detach the XDP program from the interface before closing the object.
-        //
-        TraceVerbose("bpf_xdp_detach(%d, 0, NULL)", ifindex);
-        bpf_xdp_detach(ifindex, 0, NULL);
-
-        TraceVerbose("bpf_object__close(%p)", BpfObject);
-        bpf_object__close(BpfObject);
-
-        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
     }
 }
 
@@ -1761,6 +1820,53 @@ FuzzSocketMisc(
 
     if (!cleanDatapath && !(RandUlong() % 3)) {
         AttachXdpProgram(Queue, Sock, FALSE, RxProgramSet);
+    }
+
+    //
+    // Exercise randomized XSKMAP operations on the shared map to stress the
+    // map control path concurrently with the data path.
+    //
+    if (enableEbpf && !(RandUlong() % 4)) {
+        int MapFd;
+        UINT32 QueueId = Queue->queueId;
+        HANDLE LookupValue;
+
+        MapFd = AcquireSharedEbpfMapFd();
+
+        if (MapFd >= 0) {
+            switch (RandUlong() % 4) {
+            case 0:
+                //
+                // Update this queue's entry with the current socket.
+                //
+                bpf_map_update_elem(MapFd, &QueueId, &Sock, 0);
+                break;
+
+            case 1:
+                //
+                // Lookup this queue's entry.
+                //
+                bpf_map_lookup_elem(MapFd, &QueueId, &LookupValue);
+                break;
+
+            case 2:
+                //
+                // Delete this queue's entry.
+                //
+                bpf_map_delete_elem(MapFd, &QueueId);
+                break;
+
+            case 3:
+                //
+                // Delete then re-add to exercise the replace path.
+                //
+                bpf_map_delete_elem(MapFd, &QueueId);
+                bpf_map_update_elem(MapFd, &QueueId, &Sock, 0);
+                break;
+            }
+
+            ReleaseSharedEbpfMapFd();
+        }
     }
 }
 
@@ -3118,6 +3224,9 @@ main(
     stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     ASSERT_FRE(stopEvent != NULL);
 
+    InitializeCriticalSection(&sharedEbpfProgram.Lock);
+    sharedEbpfProgram.XskMapFd = -1;
+
     workersDoneEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     ASSERT_FRE(workersDoneEvent != NULL);
 
@@ -3210,6 +3319,37 @@ main(
     watchdogThread = NULL;
 
     free(queueWorkers);
+
+    //
+    // Clean up the shared eBPF program. Wait for outstanding references to
+    // drain before closing the BPF object.
+    //
+    if (sharedEbpfProgram.BpfObject != NULL) {
+        int OriginalThreadPriority = GetThreadPriority(GetCurrentThread());
+        ASSERT_FRE(OriginalThreadPriority != THREAD_PRIORITY_ERROR_RETURN);
+        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
+
+        //
+        // Prevent new acquisitions by clearing the map FD under lock.
+        //
+        EnterCriticalSection(&sharedEbpfProgram.Lock);
+        sharedEbpfProgram.XskMapFd = -1;
+        LeaveCriticalSection(&sharedEbpfProgram.Lock);
+
+        //
+        // Wait for any outstanding map FD references to drain.
+        //
+        while (ReadNoFence(&sharedEbpfProgram.RefCount) > 0) {
+            SwitchToThread();
+        }
+
+        bpf_xdp_detach(ifindex, 0, NULL);
+        bpf_object__close(sharedEbpfProgram.BpfObject);
+        sharedEbpfProgram.BpfObject = NULL;
+
+        ASSERT_FRE(SetThreadPriority(GetCurrentThread(), OriginalThreadPriority));
+    }
+    DeleteCriticalSection(&sharedEbpfProgram.Lock);
 
     printf("done\n");
 

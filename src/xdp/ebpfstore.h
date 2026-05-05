@@ -20,17 +20,26 @@ static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
     .meta = FIELD_OFFSET(xdp_md_t, data_meta),
 };
 
-#define XDP_EXT_HELPER_FUNCTION_START EBPF_MAX_GENERAL_HELPER_FUNCTION
-
 // XDP helper function prototype descriptors.
 static const ebpf_helper_function_prototype_t EbpfXdpHelperFunctionPrototype[] = {
     {
         .header = EBPF_HELPER_FUNCTION_PROTOTYPE_HEADER,
-        .helper_id = XDP_EXT_HELPER_FUNCTION_START + 1,
+        .helper_id = BPF_FUNC_xdp_adjust_head,
         .name = "bpf_xdp_adjust_head",
         .return_type = EBPF_RETURN_TYPE_INTEGER,
         .arguments = {
             EBPF_ARGUMENT_TYPE_PTR_TO_CTX,
+            EBPF_ARGUMENT_TYPE_ANYTHING,
+        },
+    },
+    {
+        .header = EBPF_HELPER_FUNCTION_PROTOTYPE_HEADER,
+        .helper_id = BPF_FUNC_redirect_map,
+        .name = "bpf_redirect_map",
+        .return_type = EBPF_RETURN_TYPE_INTEGER,
+        .arguments = {
+            EBPF_ARGUMENT_TYPE_PTR_TO_MAP,
+            EBPF_ARGUMENT_TYPE_ANYTHING,
             EBPF_ARGUMENT_TYPE_ANYTHING,
         },
     },

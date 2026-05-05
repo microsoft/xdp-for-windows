@@ -5,7 +5,7 @@
   </ItemGroup>
   <PropertyGroup>
     <ProjectGuid>{f722da97-3252-42f1-92d3-215c99935607}</ProjectGuid>
-    <TargetName>xskfwdkm</TargetName>
+    <TargetName>xskfwdkm-deprecated</TargetName>
     <UndockedType>sys</UndockedType>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
