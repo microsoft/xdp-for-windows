@@ -41,7 +41,7 @@ XDP_REG_WATCHER *XdpRegWatcher;
 static DEVICE_OBJECT *XdpDeviceObject;
 
 //
-// Handle to the \Device\xdp2 object directory that contains the per-type
+// Handle to the \Device\xdpapi object directory that contains the per-type
 // device objects. Held open for the lifetime of the driver to keep the
 // directory alive.
 //
@@ -120,17 +120,7 @@ XdpIsXdpDeviceObject(
     _In_ DEVICE_OBJECT *DeviceObject
     )
 {
-    if (DeviceObject == XdpDeviceObject) {
-        return TRUE;
-    }
-
-    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpDeviceTable); i++) {
-        if (XdpDeviceTable[i].DeviceObject == DeviceObject) {
-            return TRUE;
-        }
-    }
-
-    return FALSE;
+    return DeviceObject->DriverObject == XdpDriverObject;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -601,7 +591,7 @@ XdpStart(
     XdpDevExt->IsPerTypeDevice = FALSE;
 
     //
-    // Create the \Device\xdp2 object directory to hold the per-type device
+    // Create the \Device\xdpapi object directory to hold the per-type device
     // objects.
     //
     InitializeObjectAttributes(
@@ -616,7 +606,7 @@ XdpStart(
     }
 
     //
-    // Create per-object-type device objects within \Device\xdp2. Each has its
+    // Create per-object-type device objects within \Device\xdpapi. Each has its
     // own device class GUID, allowing independent SDDL configuration via
     // xdpcfg.exe.
     //

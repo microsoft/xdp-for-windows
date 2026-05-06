@@ -10,14 +10,14 @@ of them.
 
 ## Device Objects
 
-Per-type device objects live under the `\Device\xdp2` object directory.
+Per-type device objects live under the `\Device\xdpapi` object directory.
 
 | Object Type | Device Name | Device Class GUID | Description |
 |---|---|---|---|
 | Common | `\Device\xdp` | `28f93d3f-4c0a-4a7c-8ff1-96b24e19b856` | Legacy device; allows any object type |
-| Program | `\Device\xdp2\program` | `6ad95b14-2cb1-4646-ba32-bc090ab436e5` | XDP programs (rules, eBPF) |
-| XSK | `\Device\xdp2\xsk` | `0903d898-39c3-4a0f-8528-13658fb280f3` | AF_XDP sockets |
-| Interface | `\Device\xdp2\interface` | `5f1fa9af-e48e-457a-b556-88492b514662` | Interface configuration (RSS, QEO) |
+| Program | `\Device\xdpapi\program` | `6ad95b14-2cb1-4646-ba32-bc090ab436e5` | XDP programs (rules, eBPF) |
+| XSK | `\Device\xdpapi\xsk` | `0903d898-39c3-4a0f-8528-13658fb280f3` | AF_XDP sockets |
+| Interface | `\Device\xdpapi\interface` | `5f1fa9af-e48e-457a-b556-88492b514662` | Interface configuration (RSS, QEO) |
 
 ## Architecture
 
@@ -44,7 +44,7 @@ object type for backward compatibility.
 The API headers (`xdp/details/xdpapi.h`, `xdp/details/afxdp.h`) use
 `_XdpOpenObjectType()` to open the per-type device. This function:
 
-1. Attempts to open the per-type device under `\Device\xdp2\<type>`.
+1. Attempts to open the per-type device under `\Device\xdpapi\<type>`.
 2. If the application defines `XDP_MINIMUM_MAJOR_VER` and
    `XDP_MINIMUM_MINOR_VER` with a minimum version <= 1.3, and the per-type
    device does not exist, falls back to the common `\Device\xdp` device.
