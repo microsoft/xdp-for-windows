@@ -19,6 +19,12 @@ extern "C" {
 #include <xdp/overlapped.h>
 #include <xdp/status.h>
 
+#ifdef _KERNEL_MODE
+#define _XDP_OPEN_KERNEL_OBJ_FLAGS OBJ_KERNEL_HANDLE
+#else
+#define _XDP_OPEN_KERNEL_OBJ_FLAGS 0
+#endif
+
 inline
 XDP_STATUS
 _XdpCloseHandle(
@@ -151,53 +157,6 @@ _XdpInitializeEa(
     return _XdpInitializeEaVersion(ObjectType, XDP_API_VERSION, EaBuffer, EaLength);
 }
 
-inline
-XDP_STATUS
-_XdpOpen(
-    _Out_ HANDLE *Handle,
-    _In_ ULONG Disposition,
-    _In_opt_ VOID *EaBuffer,
-    _In_ ULONG EaLength
-    )
-{
-    UNICODE_STRING DeviceName;
-    OBJECT_ATTRIBUTES ObjectAttributes;
-    IO_STATUS_BLOCK IoStatusBlock;
-#ifdef _KERNEL_MODE
-#define _XDP_OPEN_KERNEL_OBJ_FLAGS OBJ_KERNEL_HANDLE
-#else
-#define _XDP_OPEN_KERNEL_OBJ_FLAGS 0
-#endif
-
-    //
-    // Open a handle to the XDP device.
-    //
-    RtlInitUnicodeString(&DeviceName, XDP_DEVICE_NAME);
-    InitializeObjectAttributes(
-        &ObjectAttributes, &DeviceName, OBJ_CASE_INSENSITIVE | _XDP_OPEN_KERNEL_OBJ_FLAGS,
-        NULL, NULL);
-
-    return
-        _XdpConvertNtStatusToXdpStatus(
-#ifdef _KERNEL_MODE
-            ZwCreateFile
-#else
-            NtCreateFile
-#endif
-            (
-                Handle,
-                GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
-                &ObjectAttributes,
-                &IoStatusBlock,
-                NULL,
-                0L,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                Disposition,
-                0,
-                EaBuffer,
-                EaLength));
-}
-
 //
 // Open a handle to a specific XDP device by name.
 //
@@ -239,6 +198,18 @@ _XdpOpenDevice(
                 0,
                 EaBuffer,
                 EaLength));
+}
+
+inline
+XDP_STATUS
+_XdpOpen(
+    _Out_ HANDLE *Handle,
+    _In_ ULONG Disposition,
+    _In_opt_ VOID *EaBuffer,
+    _In_ ULONG EaLength
+    )
+{
+    return _XdpOpenDevice(Handle, Disposition, EaBuffer, EaLength, XDP_DEVICE_NAME);
 }
 
 //
@@ -361,6 +332,8 @@ Exit:
 
     return XdpStatus;
 }
+
+#undef _XDP_OPEN_KERNEL_OBJ_FLAGS
 
 #ifdef __cplusplus
 } // extern "C"
