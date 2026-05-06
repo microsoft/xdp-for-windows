@@ -158,6 +158,8 @@ XdpReceiveBatchComplete(
         XdpXskMapReleaseRead(&RxQueue->InspectionContext.XskMapLockState);
     }
 
+    XdpQueueDatapathSync(&RxQueue->Sync);
+
     XdbgExitQueueEc(RxQueue);
 }
 #pragma warning(pop)
@@ -185,8 +187,6 @@ XdppFlushReceive(
     if (RxQueue->FragmentRing != NULL) {
         RxQueue->FragmentRing->ConsumerIndex = RxQueue->FragmentRing->ProducerIndex;
     }
-
-    XdpQueueDatapathSync(&RxQueue->Sync);
 
     XdbgFlushQueueEc(RxQueue);
 }
@@ -318,8 +318,6 @@ XdpRxQueueExclusiveFlush(
 #if DBG
     RxQueue->FrameConsumerIndex = RxQueue->FrameRing->ConsumerIndex;
 #endif
-
-    XdpQueueDatapathSync(&RxQueue->Sync);
 
     XdbgFlushQueueEc(RxQueue);
 }
