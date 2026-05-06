@@ -41,8 +41,8 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI",
+    [ValidateSet("INF", "NuGet")]
+    [string]$XdpInstaller = "NuGet",
 
     [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $false,
@@ -73,7 +73,6 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
 $XdpRuntimeNupkgNativePath = "runtime/native"
 $XdpRuntimeNupkgSetupPath = "$XdpRuntimeNupkgNativePath/xdp-setup.ps1"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
@@ -284,29 +283,7 @@ function Install-Xdp {
     Install-SignedDriverCertificate $XdpCat
     Install-DebugCrt
 
-    if ($XdpInstaller -eq "MSI") {
-        $XdpPath = Get-XdpInstallPath
-        $XdpBinariesPath = $XdpPath
-
-        $AddLocal = @()
-
-        if ($EnableEbpf) {
-            $AddLocal += "xdp_ebpf"
-        }
-        if ($PaLayer) {
-            $AddLocal += "xdp_pa"
-        }
-        if ($AddLocal) {
-            $AddLocal = "ADDLOCAL=$($AddLocal -join ",")"
-        }
-
-        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt"
-        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
-
-        if ($LastExitCode -ne 0) {
-            Write-Error "XDP MSI installation failed: $LastExitCode"
-        }
-    } elseif ($XdpInstaller -eq "NuGet") {
+    if ($XdpInstaller -eq "NuGet") {
         $XdpPath = Get-XdpInstallPath
         $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
@@ -357,57 +334,7 @@ function Install-Xdp {
 
 # Uninstalls the xdp driver.
 function Uninstall-Xdp {
-    if ($XdpInstaller -eq "MSI") {
-        $XdpPath = Get-XdpInstallPath
-
-        if (!(Test-Path $XdpPath)) {
-            Write-Verbose "$XdpPath does not exist. Assuming XDP is not installed."
-            return
-        }
-
-        Write-Verbose "msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt"
-        msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
-        Write-Verbose "msiexec.exe returned $LastExitCode"
-
-        if ($LastExitCode -eq 0x645) {
-            Write-Warning "XDP is present but the MSI is not installed. Trying to use the installation's setup script..."
-
-            $XdpSetupPath = "$XdpPath/xdp-setup.ps1"
-
-            if (Test-Path "$XdpPath/xdpbpfexport.exe") {
-                Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
-                & $XdpSetupPath -Uninstall xdpebpf
-            }
-            if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
-                Write-Verbose "$XdpSetupPath -Uninstall xdppa"
-                & $XdpSetupPath -Uninstall xdppa
-            }
-            if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
-                Write-Verbose "$XdpSetupPath -Uninstall xdp"
-                & $XdpSetupPath -Uninstall xdp
-            }
-
-            Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
-            Remove-Item $XdpPath -Recurse -Force
-
-            $global:LASTEXITCODE = 0
-        }
-
-        if ($LastExitCode -eq 0x666) {
-            Write-Warning "The current version of XDP could not be uninstalled using MSI. Trying the existing installer..."
-
-            $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'XDP for Windows'").IdentifyingNumber
-
-            Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt"
-            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt | Write-Verbose
-            Write-Verbose "msiexe.exe returned $LastExitCode"
-        }
-
-        if ($LastExitCode -ne 0) {
-            Write-Error "XDP MSI uninstall failed with status $LastExitCode" -ErrorAction Continue
-            Uninstall-Failure "xdp_uninstall.dmp"
-        }
-    } elseif ($XdpInstaller -eq "NuGet") {
+    if ($XdpInstaller -eq "NuGet") {
         $XdpPath = Get-XdpInstallPath
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
 
