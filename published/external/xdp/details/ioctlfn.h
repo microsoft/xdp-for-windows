@@ -254,7 +254,7 @@ _XdpOpenObjectType(
         // The per-type device does not exist. Fall back to the common XDP
         // device for backward compatibility with older drivers.
         //
-        Status = _XdpOpenDevice(Handle, Disposition, EaBuffer, EaLength, XDP_DEVICE_NAME);
+        Status = _XdpOpen(Handle, Disposition, EaBuffer, EaLength);
     }
 #endif
 #endif
