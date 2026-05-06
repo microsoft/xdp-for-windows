@@ -201,6 +201,7 @@ XdpFlushReceive(
 
     XdbgEnterQueueEc(RxQueue);
     XdppFlushReceive(RxQueue);
+    XdpQueueDatapathSync(&RxQueue->Sync);
     XdbgExitQueueEc(RxQueue);
 }
 
