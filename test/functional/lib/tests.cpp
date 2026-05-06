@@ -721,10 +721,33 @@ SetDeviceSddl(
     )
 {
     CHAR CmdBuff[256];
+    CHAR XdpBinaryPath[MAX_PATH];
+    UINT32 XdpBinaryPathLength;
+
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
 
-    sprintf_s(CmdBuff, "xdpcfg.exe SetDeviceSddl \"%s\"", Sddl);
-    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+    XdpBinaryPathLength =
+        GetEnvironmentVariableA("_XDP_BINARIES_PATH", XdpBinaryPath, sizeof(XdpBinaryPath));
+
+    if (XdpBinaryPathLength > 0) {
+        //
+        // The XDP runtime was installed via nuget package, which doesn't add
+        // XDP to the system-wide search path; use the path hint provided by
+        // the test setup script, which is currently only set uplevel.
+        //
+        TEST_TRUE(XdpBinaryPathLength <= sizeof(XdpBinaryPath));
+
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", XdpBinaryPath, Sddl);
+        TEST_EQUAL(0, InvokeSystem(CmdBuff));
+    } else {
+        //
+        // There's no XDP path hint, so fall back to using the system search
+        // path. This works only with the MSI installer.
+        //
+        sprintf_s(CmdBuff, "xdpcfg.exe SetDeviceSddl \"%s\"", Sddl);
+        TEST_EQUAL(0, InvokeSystem(CmdBuff));
+    }
 }
 
 static
