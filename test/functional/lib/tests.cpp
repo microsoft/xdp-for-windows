@@ -10092,42 +10092,42 @@ XskMapCreateInsertDelete()
             If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
 
     wil::unique_handle XskMap;
-    TEST_HRESULT(XdpXskMapCreate(&XskMap));
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
     TEST_TRUE(XskMap.get() != NULL);
 
     //
     // Insert XSK at key 0.
     //
-    TEST_HRESULT(XdpXskMapInsert(XskMap.get(), 0, Xsk.Handle.get()));
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), 0, Xsk.Handle.get()));
 
     //
     // Insert XSK at maximum valid key (128 entries, 0-indexed).
     //
-    TEST_HRESULT(XdpXskMapInsert(XskMap.get(), 127, Xsk.Handle.get()));
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), 127, Xsk.Handle.get()));
 
     //
     // Insert at invalid key should fail.
     //
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
-        XdpXskMapInsert(XskMap.get(), 128, Xsk.Handle.get()));
+        XdpMapInsert(XskMap.get(), 128, Xsk.Handle.get()));
 
     //
     // Delete key 0.
     //
-    TEST_HRESULT(XdpXskMapDelete(XskMap.get(), 0));
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), 0));
 
     //
     // Delete at invalid key should fail.
     //
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
-        XdpXskMapDelete(XskMap.get(), 128));
+        XdpMapDelete(XskMap.get(), 128));
 
     //
     // Delete a key that doesn't have an entry (should succeed).
     //
-    TEST_HRESULT(XdpXskMapDelete(XskMap.get(), 1));
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), 1));
 }
 
 VOID
@@ -10162,17 +10162,17 @@ GenericRxXskMapRedirect(
     // Create an XSKMAP and insert the XSK at the queue ID key.
     //
     wil::unique_handle XskMap;
-    TEST_HRESULT(XdpXskMapCreate(&XskMap));
-    TEST_HRESULT(XdpXskMapInsert(XskMap.get(), If.GetQueueId(), Xsk.Handle.get()));
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), If.GetQueueId(), Xsk.Handle.get()));
 
     //
-    // Create an XDP program with redirect_xskmap_queue action.
+    // Create an XDP program with redirect-by-queue-id action.
     //
     XDP_RULE Rule;
     Rule.Match = XDP_MATCH_UDP_DST;
     Rule.Pattern.Port = LocalPort;
-    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID;
-    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
     Rule.Redirect.Target = XskMap.get();
 
     wil::unique_handle ProgramHandle =
@@ -10239,18 +10239,18 @@ GenericRxXskMapRedirectMiss()
     // Insert at a different key instead to verify the miss behavior.
     //
     wil::unique_handle XskMap;
-    TEST_HRESULT(XdpXskMapCreate(&XskMap));
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
     UINT32 WrongKey = (If.GetQueueId() + 1) % 128;
-    TEST_HRESULT(XdpXskMapInsert(XskMap.get(), WrongKey, Xsk.Handle.get()));
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), WrongKey, Xsk.Handle.get()));
 
     //
-    // Create an XDP program with redirect_xskmap_queue action.
+    // Create an XDP program with redirect-by-queue-id action.
     //
     XDP_RULE Rule;
     Rule.Match = XDP_MATCH_UDP_DST;
     Rule.Pattern.Port = LocalPort;
-    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID;
-    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
     Rule.Redirect.Target = XskMap.get();
 
     wil::unique_handle ProgramHandle =

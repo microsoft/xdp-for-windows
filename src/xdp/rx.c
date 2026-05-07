@@ -129,7 +129,7 @@ XdpRxQueueFromRedirectContext(
 
 //
 // XdpReceiveBatchStart / XdpReceiveBatchComplete acquire and release the
-// XSKMAP read lock as a pair. The IRQL is balanced across the pair via the
+// global map read lock as a pair. The IRQL is balanced across the pair via the
 // LockState saved in the inspection context.
 //
 #pragma warning(push)
@@ -143,8 +143,8 @@ XdpReceiveBatchStart(
     XdbgEnterQueueEc(RxQueue);
     STAT_INC(XdpRxQueueGetStats(RxQueue), InspectBatches);
 
-    if (RxQueue->Program != NULL && RxQueue->Program->HasXskMap) {
-        XdpXskMapAcquireRead(&RxQueue->InspectionContext.XskMapLockState);
+    if (RxQueue->Program != NULL && RxQueue->Program->HasMap) {
+        XdpMapAcquireRead(&RxQueue->InspectionContext.MapLockState);
     }
 }
 
@@ -154,8 +154,8 @@ XdpReceiveBatchComplete(
     _In_ XDP_RX_QUEUE *RxQueue
     )
 {
-    if (RxQueue->Program != NULL && RxQueue->Program->HasXskMap) {
-        XdpXskMapReleaseRead(&RxQueue->InspectionContext.XskMapLockState);
+    if (RxQueue->Program != NULL && RxQueue->Program->HasMap) {
+        XdpMapReleaseRead(&RxQueue->InspectionContext.MapLockState);
     }
 
     XdpQueueDatapathSync(&RxQueue->Sync);

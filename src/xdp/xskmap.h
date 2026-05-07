@@ -5,49 +5,30 @@
 
 #pragma once
 
-typedef struct _XDP_REDIRECT_BATCH XDP_REDIRECT_BATCH;
+//
+// XSKMAP: a fixed-size array mapping queue IDs (UINT32 keys) to AF_XDP
+// socket handles. The XSKMAP is plugged into the common XDP map abstraction
+// (see map.h) via XdpXskMapTypeDispatch.
+//
 
-XDP_FILE_CREATE_ROUTINE XdpXskMapIrpCreate;
+//
+// Allocation size for an XSKMAP, used by map.c when creating a new map.
+//
+extern const SIZE_T XdpXskMapAllocationSize;
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-_IRQL_raises_(DISPATCH_LEVEL)
-VOID
-XdpXskMapAcquireRead(
-    _Out_ _IRQL_saves_ LOCK_STATE_EX *LockState
-    );
+//
+// Type dispatch table registered with the common map code.
+//
+extern const XDP_MAP_TYPE_DISPATCH XdpXskMapTypeDispatch;
 
-_IRQL_requires_(DISPATCH_LEVEL)
-VOID
-XdpXskMapReleaseRead(
-    _In_ _IRQL_restores_ LOCK_STATE_EX *LockState
-    );
-
+//
+// Look up the XSK kernel handle stored at Key. Caller must hold the global
+// map read lock (see XdpMapAcquireRead). Returns NULL if no entry exists or
+// if Key is out of range.
+//
 _IRQL_requires_(DISPATCH_LEVEL)
 VOID *
 XdpXskMapLookup(
-    _In_ HANDLE XskMapHandle,
+    _In_ XDP_MAP *Map,
     _In_ UINT32 Key
-    );
-
-NTSTATUS
-XdpXskMapReferenceDatapathHandle(
-    _In_ KPROCESSOR_MODE RequestorMode,
-    _In_ const VOID *HandleBuffer,
-    _In_ BOOLEAN HandleBounced,
-    _Out_ HANDLE *XskMapHandle
-    );
-
-VOID
-XdpXskMapDereferenceDatapathHandle(
-    _In_ HANDLE XskMapHandle
-    );
-
-NTSTATUS
-XdpXskMapStart(
-    VOID
-    );
-
-VOID
-XdpXskMapStop(
-    VOID
     );

@@ -754,8 +754,8 @@ AttachXdpProgram(
             // return an error, which is intentional fuzzing coverage. The map
             // handle may also be NULL if FuzzXskMap has not (yet) created one.
             //
-            rule.Action = XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID;
-            rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP;
+            rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+            rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
             AcquireSRWLockShared(&Queue->xskMapLock);
             rule.Redirect.Target = Queue->xskMap;
             ReleaseSRWLockShared(&Queue->xskMapLock);
@@ -1309,7 +1309,7 @@ FuzzXskMap(
         // (Re)create the map.
         HANDLE newMap = NULL;
         HANDLE oldMap = NULL;
-        XdpXskMapCreate(&newMap);
+        XdpMapCreate(&newMap, XDP_MAP_TYPE_XSKMAP);
 
         AcquireSRWLockExclusive(&queue->xskMapLock);
         oldMap = queue->xskMap;
@@ -1339,7 +1339,7 @@ FuzzXskMap(
             default: xskHandle = queue->sock; break;
             }
             #pragma warning(suppress:6387) // 'xskHandle' could be '0'
-            (void)XdpXskMapInsert(queue->xskMap, key, xskHandle);
+            (void)XdpMapInsert(queue->xskMap, key, xskHandle);
         }
         ReleaseSRWLockShared(&queue->xskMapLock);
     }
@@ -1349,7 +1349,7 @@ FuzzXskMap(
 
         AcquireSRWLockShared(&queue->xskMapLock);
         if (queue->xskMap != NULL) {
-            (void)XdpXskMapDelete(queue->xskMap, key);
+            (void)XdpMapDelete(queue->xskMap, key);
         }
         ReleaseSRWLockShared(&queue->xskMapLock);
     }

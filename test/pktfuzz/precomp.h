@@ -22,6 +22,7 @@
 #include <xdp/framerxaction.h>
 #include <xdp/program.h>
 #include <xdp/rtl.h>
+#include <xdpapi.h>
 
 #include <stubs/ntos.h>
 #include <stubs/ebpf.h>
@@ -35,5 +36,5 @@
 #include <program.h>
 #include <stubs/rx.h>
 #include <stubs/xsk.h>
-#include <stubs/xskmap.h>
+#include <stubs/map.h>
 #include <xdpp.h>

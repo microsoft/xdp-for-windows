@@ -642,14 +642,6 @@ XdpProgramTrace(
                 Program, i, Rule->Ebpf.Target);
             break;
 
-        case XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID:
-            TraceInfo(
-                TRACE_CORE,
-                "Program=%p Rule[%u] Action=XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID "
-                "Target=%p",
-                Program, i, Rule->Redirect.Target);
-            break;
-
         default:
             ASSERT(FALSE);
             break;
@@ -844,14 +836,15 @@ XdpProgramCompileNewProgram(
     ASSERT(NewProgram->RuleCount == RuleCount);
 
     //
-    // Detect if any rule uses XDP_REDIRECT_TARGET_TYPE_XSKMAP so the
-    // data path can acquire the global XSKMAP lock around each batch.
+    // Detect if any rule uses a redirect target type that requires the global
+    // map lock. The data path acquires the lock around each batch when set.
     //
-    NewProgram->HasXskMap = FALSE;
+    NewProgram->HasMap = FALSE;
     for (UINT32 i = 0; i < NewProgram->RuleCount; i++) {
-        if (NewProgram->Rules[i].Action == XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID) {
-            ASSERT(NewProgram->Rules[i].Redirect.TargetType == XDP_REDIRECT_TARGET_TYPE_XSKMAP);
-            NewProgram->HasXskMap = TRUE;
+        if (NewProgram->Rules[i].Action == XDP_PROGRAM_ACTION_REDIRECT &&
+            NewProgram->Rules[i].Redirect.TargetType ==
+                XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID) {
+            NewProgram->HasMap = TRUE;
             break;
         }
     }

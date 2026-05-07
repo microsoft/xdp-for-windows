@@ -153,9 +153,9 @@ main(
     //
     // Create the XSKMAP.
     //
-    XdpStatus = XdpXskMapCreate(&XskMap);
+    XdpStatus = XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP);
     if (FAILED(XdpStatus)) {
-        LOGERR("XdpXskMapCreate failed: %x", XdpStatus);
+        LOGERR("XdpMapCreate failed: %x", XdpStatus);
         return 1;
     }
 
@@ -180,9 +180,9 @@ main(
             return 1;
         }
 
-        XdpStatus = XdpXskMapInsert(XskMap, i, Sockets[i]);
+        XdpStatus = XdpMapInsert(XskMap, i, Sockets[i]);
         if (FAILED(XdpStatus)) {
-            LOGERR("XdpXskMapInsert failed for queue %u: %x", i, XdpStatus);
+            LOGERR("XdpMapInsert failed for queue %u: %x", i, XdpStatus);
             return 1;
         }
 
@@ -202,8 +202,8 @@ main(
         Rule.Match = XDP_MATCH_ALL;
     }
 
-    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID;
-    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
     Rule.Redirect.Target = XskMap;
 
     XdpStatus =

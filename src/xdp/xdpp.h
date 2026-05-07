@@ -32,4 +32,3 @@
 #define XDP_POOLTAG_RXQUEUE             'RpdX' // XdpR
 #define XDP_POOLTAG_TXQUEUE             'TpdX' // XdpT
 #define XDP_POOLTAG_PROGRAM_CONTEXT     'cpdX' // Xdpc
-#define XDP_POOLTAG_XSKMAP              'mSdX' // XdSm
