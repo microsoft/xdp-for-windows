@@ -5855,37 +5855,55 @@ SecurityPerObjectDeviceAcl()
     wil::unique_hlocal_ansistring SidString;
     TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
 
+    CHAR GrantSddl[256];
+    RtlZeroMemory(GrantSddl, sizeof(GrantSddl));
+    sprintf_s(GrantSddl, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
     //
-    // Grant the standard user access only to the XSK per-object-type device.
-    // Verify that the user can create XSK sockets but is denied for other
-    // object types (program, interface).
+    // Define each per-object-type device and the operation that exercises it.
     //
+    struct PER_OBJECT_TYPE {
+        const CHAR *Name;
+        std::function<HRESULT()> TryOpen;
+    };
+    const PER_OBJECT_TYPE ObjectTypes[] = {
+        {
+            "program",
+            [&]() -> HRESULT {
+                wil::unique_handle ProgramHandle;
+                XDP_RULE Rule = {};
+                Rule.Match = XDP_MATCH_ALL;
+                Rule.Action = XDP_PROGRAM_ACTION_PASS;
+                return TryCreateXdpProg(
+                    ProgramHandle, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(),
+                    XDP_GENERIC, &Rule, 1);
+            },
+        },
+        {
+            "xsk",
+            [&]() -> HRESULT {
+                wil::unique_handle Socket;
+                return TryCreateSocket(Socket);
+            },
+        },
+        {
+            "interface",
+            [&]() -> HRESULT {
+                wil::unique_handle Interface;
+                return TryInterfaceOpen(If.GetIfIndex(), Interface);
+            },
+        },
+    };
 
-    CHAR SddlBuff[256];
-    RtlZeroMemory(SddlBuff, sizeof(SddlBuff));
-    sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
-
-    SetObjectDeviceSddl("xsk", SddlBuff);
-    auto ResetXskSddl = wil::scope_exit([&]
+    //
+    // Restore default ACLs on all per-object-type devices when the test exits.
+    //
+    auto ResetSddl = wil::scope_exit([&]
     {
-        SetObjectDeviceSddl("xsk", DEFAULT_XDP_SDDL);
-    });
+        for (auto &Object : ObjectTypes) {
+            SetObjectDeviceSddl(Object.Name, DEFAULT_XDP_SDDL);
+        }
 
-    SetObjectDeviceSddl("program", DEFAULT_XDP_SDDL);
-    auto ResetProgramSddl = wil::scope_exit([&]
-    {
-        SetObjectDeviceSddl("program", DEFAULT_XDP_SDDL);
-    });
-
-    SetObjectDeviceSddl("interface", DEFAULT_XDP_SDDL);
-    auto ResetInterfaceSddl = wil::scope_exit([&]
-    {
-        SetObjectDeviceSddl("interface", DEFAULT_XDP_SDDL);
-    });
-
-    TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
-    auto RestartService = wil::scope_exit([&]
-    {
         HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
         if (FAILED(Result)) {
             TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
@@ -5893,28 +5911,29 @@ SecurityPerObjectDeviceAcl()
     });
 
     //
-    // As the non-admin user, verify that only XSK socket creation is allowed.
+    // For each per-object-type device, grant the standard user access to only
+    // that device. Verify the corresponding operation succeeds and that all
+    // other operations are denied.
     //
-    {
+    for (auto &Granted : ObjectTypes) {
+        for (auto &Object : ObjectTypes) {
+            const CHAR *Sddl = (&Object == &Granted) ? GrantSddl : DEFAULT_XDP_SDDL;
+            SetObjectDeviceSddl(Object.Name, Sddl);
+        }
+
+        TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
         TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
         auto Unimpersonate = wil::scope_exit([&]
         {
             RevertToSelf();
         });
 
-        //
-        // XSK should succeed since we granted the user access to the XSK device.
-        //
-        CreateSocket();
-
-        //
-        // Interface open should be denied since the user was not granted access
-        // to the interface device.
-        //
-        wil::unique_handle Interface;
-        TEST_EQUAL(
-            HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED),
-            TryInterfaceOpen(If.GetIfIndex(), Interface));
+        for (auto &Object : ObjectTypes) {
+            HRESULT ExpectedResult =
+                (&Object == &Granted) ? S_OK : HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED);
+            TEST_EQUAL(ExpectedResult, Object.TryOpen());
+        }
     }
 }
 

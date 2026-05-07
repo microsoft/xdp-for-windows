@@ -164,7 +164,7 @@ allowing, for example, a user to be granted access to AF_XDP sockets without
 granting access to configure RSS or attach XDP programs:
 
 ```PowerShell
-xdpcfg.exe SetDeviceSddl xsk       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
+xdpcfg.exe SetDeviceSddl xsk "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
 ```
 
 See [Per-Object-Type Security](per-object-security.md) for details, including

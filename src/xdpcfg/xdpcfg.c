@@ -79,15 +79,15 @@ SetDeviceSddl(
     _In_ WCHAR **ArgV
     )
 {
-    if (ArgC < 3) {
-        Usage();
-    }
-
     if (ArgC == 3) {
         //
         // Legacy: SetDeviceSddl <SDDL> - applies to the common XDP device.
         //
         return SetDeviceSddlForGuid(&XDP_DEVICE_CLASS_GUID, ArgV[2]);
+    }
+
+    if (ArgC != 4) {
+        Usage();
     }
 
     //
