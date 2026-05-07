@@ -18,6 +18,7 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <functional>
 #include <lm.h>
 #include <sddl.h>
 #include <string.h>
@@ -772,6 +773,29 @@ SetDeviceSddl(
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", XdpBinaryPath, Sddl);
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+}
+
+static
+VOID
+SetObjectDeviceSddl(
+    _In_z_ const CHAR *ObjectType,
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR XdpBinaryPath[MAX_PATH];
+    UINT32 XdpBinaryPathLength;
+    CHAR CmdBuff[256];
+
+    XdpBinaryPathLength =
+        GetEnvironmentVariableA("_XDP_BINARIES_PATH", XdpBinaryPath, sizeof(XdpBinaryPath));
+    TEST_NOT_EQUAL(0, XdpBinaryPathLength);
+    TEST_TRUE(XdpBinaryPathLength <= sizeof(XdpBinaryPath));
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(
+        CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl %s \"%s\"",
+        XdpBinaryPath, ObjectType, Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
@@ -5744,9 +5768,15 @@ SecurityAdjustDeviceAcl()
     sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
 
     SetDeviceSddl(SddlBuff);
+    SetObjectDeviceSddl("program", SddlBuff);
+    SetObjectDeviceSddl("xsk", SddlBuff);
+    SetObjectDeviceSddl("interface", SddlBuff);
     auto ResetSddl = wil::scope_exit([&]
     {
         SetDeviceSddl(DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("program", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("xsk", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("interface", DEFAULT_XDP_SDDL);
 
         HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
         if (FAILED(Result)) {
@@ -5768,6 +5798,143 @@ SecurityAdjustDeviceAcl()
 
         CreateSocket();
         InterfaceOpen(If.GetIfIndex());
+    }
+}
+
+VOID
+SecurityPerObjectDeviceAcl()
+{
+    PCWSTR UserName = L"xdpfnuser2";
+    WCHAR UserPassword[16 + 1];
+    USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
+
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
+
+    CHAR GrantSddl[256];
+    RtlZeroMemory(GrantSddl, sizeof(GrantSddl));
+    sprintf_s(GrantSddl, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    //
+    // Define each per-object-type device and the operation that exercises it.
+    //
+    struct PER_OBJECT_TYPE {
+        const CHAR *Name;
+        std::function<HRESULT()> TryOpen;
+    };
+    const PER_OBJECT_TYPE ObjectTypes[] = {
+        {
+            "program",
+            [&]() -> HRESULT {
+                wil::unique_handle ProgramHandle;
+                XDP_RULE Rule = {};
+                Rule.Match = XDP_MATCH_ALL;
+                Rule.Action = XDP_PROGRAM_ACTION_PASS;
+                return TryCreateXdpProg(
+                    ProgramHandle, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(),
+                    XDP_GENERIC, &Rule, 1);
+            },
+        },
+        {
+            "xsk",
+            [&]() -> HRESULT {
+                wil::unique_handle Socket;
+                return TryCreateSocket(Socket);
+            },
+        },
+        {
+            "interface",
+            [&]() -> HRESULT {
+                wil::unique_handle Interface;
+                return TryInterfaceOpen(If.GetIfIndex(), Interface);
+            },
+        },
+    };
+
+    //
+    // Restore default ACLs on all per-object-type devices when the test exits.
+    //
+    auto ResetSddl = wil::scope_exit([&]
+    {
+        for (auto &Object : ObjectTypes) {
+            SetObjectDeviceSddl(Object.Name, DEFAULT_XDP_SDDL);
+        }
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
+    });
+
+    //
+    // For each per-object-type device, grant the standard user access to only
+    // that device. Verify the corresponding operation succeeds and that all
+    // other operations are denied.
+    //
+    for (auto &Granted : ObjectTypes) {
+        for (auto &Object : ObjectTypes) {
+            const CHAR *Sddl = (&Object == &Granted) ? GrantSddl : DEFAULT_XDP_SDDL;
+            SetObjectDeviceSddl(Object.Name, Sddl);
+        }
+
+        TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        for (auto &Object : ObjectTypes) {
+            HRESULT ExpectedResult =
+                (&Object == &Granted) ? S_OK : HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED);
+            TEST_EQUAL(ExpectedResult, Object.TryOpen());
+        }
     }
 }
 

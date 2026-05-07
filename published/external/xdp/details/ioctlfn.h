@@ -19,6 +19,12 @@ extern "C" {
 #include <xdp/overlapped.h>
 #include <xdp/status.h>
 
+#ifdef _KERNEL_MODE
+#define _XDP_OPEN_KERNEL_OBJ_FLAGS OBJ_KERNEL_HANDLE
+#else
+#define _XDP_OPEN_KERNEL_OBJ_FLAGS 0
+#endif
+
 inline
 XDP_STATUS
 _XdpCloseHandle(
@@ -151,28 +157,24 @@ _XdpInitializeEa(
     return _XdpInitializeEaVersion(ObjectType, XDP_API_VERSION, EaBuffer, EaLength);
 }
 
+//
+// Open a handle to a specific XDP device by name.
+//
 inline
 XDP_STATUS
-_XdpOpen(
+_XdpOpenDevice(
     _Out_ HANDLE *Handle,
     _In_ ULONG Disposition,
     _In_opt_ VOID *EaBuffer,
-    _In_ ULONG EaLength
+    _In_ ULONG EaLength,
+    _In_ const WCHAR *DeviceNameStr
     )
 {
     UNICODE_STRING DeviceName;
     OBJECT_ATTRIBUTES ObjectAttributes;
     IO_STATUS_BLOCK IoStatusBlock;
-#ifdef _KERNEL_MODE
-#define _XDP_OPEN_KERNEL_OBJ_FLAGS OBJ_KERNEL_HANDLE
-#else
-#define _XDP_OPEN_KERNEL_OBJ_FLAGS 0
-#endif
 
-    //
-    // Open a handle to the XDP device.
-    //
-    RtlInitUnicodeString(&DeviceName, XDP_DEVICE_NAME);
+    RtlInitUnicodeString(&DeviceName, DeviceNameStr);
     InitializeObjectAttributes(
         &ObjectAttributes, &DeviceName, OBJ_CASE_INSENSITIVE | _XDP_OPEN_KERNEL_OBJ_FLAGS,
         NULL, NULL);
@@ -196,6 +198,68 @@ _XdpOpen(
                 0,
                 EaBuffer,
                 EaLength));
+}
+
+inline
+XDP_STATUS
+_XdpOpen(
+    _Out_ HANDLE *Handle,
+    _In_ ULONG Disposition,
+    _In_opt_ VOID *EaBuffer,
+    _In_ ULONG EaLength
+    )
+{
+    return _XdpOpenDevice(Handle, Disposition, EaBuffer, EaLength, XDP_DEVICE_NAME);
+}
+
+//
+// Open a handle to the per-object-type XDP device. If the caller has declared
+// minimum version compatibility (XDP_MINIMUM_MAJOR_VER / XDP_MINIMUM_MINOR_VER),
+// fall back to the common XDP device when the per-type device is not present
+// (e.g. when running against an older XDP driver).
+//
+inline
+XDP_STATUS
+_XdpOpenObjectType(
+    _Out_ HANDLE *Handle,
+    _In_ ULONG Disposition,
+    _In_opt_ VOID *EaBuffer,
+    _In_ ULONG EaLength,
+    _In_ XDP_OBJECT_TYPE ObjectType
+    )
+{
+    XDP_STATUS Status;
+
+    Status =
+        _XdpOpenDevice(
+            Handle, Disposition, EaBuffer, EaLength,
+            _XdpObjectTypeDeviceName(ObjectType));
+
+#if defined(XDP_MINIMUM_MAJOR_VER) && defined(XDP_MINIMUM_MINOR_VER)
+    //
+    // Per-type device objects were introduced after XDP 1.3, which was the
+    // last version that required all opens to go through the common XDP
+    // device. Only fall back to the common device when the caller's minimum
+    // supported version is <= 1.3.
+    //
+#if (XDP_MINIMUM_MAJOR_VER < 1) || (XDP_MINIMUM_MAJOR_VER == 1 && XDP_MINIMUM_MINOR_VER <= 3)
+#ifdef _KERNEL_MODE
+    if (Status == STATUS_OBJECT_NAME_NOT_FOUND ||
+        Status == STATUS_OBJECT_PATH_NOT_FOUND) {
+#else
+    if (Status == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) ||
+        Status == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND)) {
+#endif
+        //
+        // The per-type device does not exist. Fall back to the common XDP
+        // device for backward compatibility with older drivers.
+        //
+        Status = _XdpOpen(Handle, Disposition, EaBuffer, EaLength);
+    }
+#endif
+#endif
+
+    return Status;
 }
 
 inline
@@ -268,6 +332,8 @@ Exit:
 
     return XdpStatus;
 }
+
+#undef _XDP_OPEN_KERNEL_OBJ_FLAGS
 
 #ifdef __cplusplus
 } // extern "C"
