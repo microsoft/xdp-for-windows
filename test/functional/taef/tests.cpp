@@ -604,6 +604,10 @@ public:
         ::SecurityAdjustDeviceAcl();
     }
 
+    TEST_METHOD(SecurityPerObjectDeviceAcl) {
+        ::SecurityPerObjectDeviceAcl();
+    }
+
     TEST_METHOD(EbpfNetsh) {
         ::EbpfNetsh();
     }
