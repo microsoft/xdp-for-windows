@@ -18,6 +18,7 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <functional>
 #include <lm.h>
 #include <sddl.h>
 #include <string.h>
