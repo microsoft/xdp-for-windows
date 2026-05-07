@@ -99,7 +99,7 @@ XdpMapCreate(
         _XdpInitializeEa(XDP_OBJECT_TYPE_MAP, EaBuffer, sizeof(EaBuffer));
     MapOpen->Type = Type;
 
-    return _XdpOpen(Map, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    return _XdpOpenObjectType(Map, FILE_CREATE, EaBuffer, sizeof(EaBuffer), XDP_OBJECT_TYPE_MAP);
 }
 
 //

@@ -5894,6 +5894,13 @@ SecurityPerObjectDeviceAcl()
                 return TryInterfaceOpen(If.GetIfIndex(), Interface);
             },
         },
+        {
+            "map",
+            [&]() -> HRESULT {
+                wil::unique_handle Map;
+                return XdpMapCreate(&Map, XDP_MAP_TYPE_XSKMAP);
+            },
+        },
     };
 
     //
