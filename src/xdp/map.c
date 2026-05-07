@@ -156,9 +156,15 @@ XdpMapIrpIoControl(
 
         Params = (XDP_MAP_INSERT_PARAMS *)Irp->AssociatedIrp.SystemBuffer;
 
+        //
+        // METHOD_BUFFERED captures the parameters struct, but Key and Value
+        // remain user pointers. Pass them through to the type-specific
+        // callback, which knows the per-type key/value layout and probes
+        // accordingly.
+        //
         Status =
             Map->TypeDispatch->Insert(
-                Map, Params->Key, Irp->RequestorMode, &Params->Value, TRUE);
+                Map, Irp->RequestorMode, Params->Key, Params->Value);
         break;
     }
 
@@ -173,7 +179,8 @@ XdpMapIrpIoControl(
 
         Params = (XDP_MAP_DELETE_PARAMS *)Irp->AssociatedIrp.SystemBuffer;
 
-        Status = Map->TypeDispatch->Delete(Map, Params->Key);
+        Status =
+            Map->TypeDispatch->Delete(Map, Irp->RequestorMode, Params->Key);
         break;
     }
 
@@ -244,6 +251,28 @@ XdpMapReleaseWrite(
     )
 {
     NdisReleaseRWLock(XdpMapLock, LockState);
+}
+
+NTSTATUS
+XdpMapReadUInt32FromMode(
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ const VOID *Buffer,
+    _Out_ UINT32 *Value
+    )
+{
+    if (RequestorMode == KernelMode) {
+        *Value = *(const UINT32 *)Buffer;
+        return STATUS_SUCCESS;
+    }
+
+    __try {
+        ProbeForRead((VOID *)Buffer, sizeof(UINT32), PROBE_ALIGNMENT(UINT32));
+        *Value = ReadUInt32NoFence((volatile const UINT32 *)Buffer);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return GetExceptionCode();
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS

@@ -1406,8 +1406,11 @@ XdpInspect(
                 {
                     UINT32 QueueId =
                         XdpRxQueueGetQueueIdFromInspectionContext(InspectionContext);
-                    VOID *XskTarget =
-                        XdpXskMapLookup(Rule->Redirect.Target, QueueId);
+                    VOID *XskTarget;
+
+                    ASSERT(
+                        XdpMapGetType(Rule->Redirect.Target) == XDP_MAP_TYPE_XSKMAP);
+                    XskTarget = XdpXskMapLookup(Rule->Redirect.Target, QueueId);
 
                     if (XskTarget != NULL) {
                         XdpRedirect(
@@ -1503,6 +1506,8 @@ XdpProgramDeleteRule(
             break;
         case XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID:
             if (Rule->Redirect.Target != NULL) {
+                ASSERT(
+                    XdpMapGetType(Rule->Redirect.Target) == XDP_MAP_TYPE_XSKMAP);
                 XdpMapDereferenceDatapathHandle(Rule->Redirect.Target);
                 Rule->Redirect.Target = NULL;
             }

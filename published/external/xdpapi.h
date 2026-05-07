@@ -68,14 +68,14 @@ XdpMapCreate(
 XDP_STATUS
 XdpMapInsert(
     _In_ HANDLE Map,
-    _In_ UINT32 Key,
-    _In_ HANDLE Value
+    _In_ const VOID *Key,
+    _In_ const VOID *Value
     );
 
 XDP_STATUS
 XdpMapDelete(
     _In_ HANDLE Map,
-    _In_ UINT32 Key
+    _In_ const VOID *Key
     );
 
 #ifdef _KERNEL_MODE

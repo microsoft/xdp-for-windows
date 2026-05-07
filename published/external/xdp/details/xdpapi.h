@@ -110,21 +110,27 @@ XdpMapCreate(
 #define IOCTL_MAP_DELETE \
     CTL_CODE(FILE_DEVICE_NETWORK, 1, METHOD_BUFFERED, FILE_WRITE_ACCESS)
 
+//
+// Input struct for IOCTL_MAP_INSERT
+//
 typedef struct _XDP_MAP_INSERT_PARAMS {
-    UINT32 Key;
-    HANDLE Value;
+    const VOID *Key;
+    const VOID *Value;
 } XDP_MAP_INSERT_PARAMS;
 
+//
+// Input struct for IOCTL_MAP_DELETE
+//
 typedef struct _XDP_MAP_DELETE_PARAMS {
-    UINT32 Key;
+    const VOID *Key;
 } XDP_MAP_DELETE_PARAMS;
 
 inline
 XDP_STATUS
 XdpMapInsert(
     _In_ HANDLE Map,
-    _In_ UINT32 Key,
-    _In_ HANDLE Value
+    _In_ const VOID *Key,
+    _In_ const VOID *Value
     )
 {
     XDP_MAP_INSERT_PARAMS Params;
@@ -141,7 +147,7 @@ inline
 XDP_STATUS
 XdpMapDelete(
     _In_ HANDLE Map,
-    _In_ UINT32 Key
+    _In_ const VOID *Key
     )
 {
     XDP_MAP_DELETE_PARAMS Params;

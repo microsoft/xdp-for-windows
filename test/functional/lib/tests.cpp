@@ -10095,39 +10095,48 @@ XskMapCreateInsertDelete()
     TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
     TEST_TRUE(XskMap.get() != NULL);
 
+    UINT32 Key;
+    HANDLE Value = Xsk.Handle.get();
+
     //
     // Insert XSK at key 0.
     //
-    TEST_HRESULT(XdpMapInsert(XskMap.get(), 0, Xsk.Handle.get()));
+    Key = 0;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
 
     //
     // Insert XSK at maximum valid key (128 entries, 0-indexed).
     //
-    TEST_HRESULT(XdpMapInsert(XskMap.get(), 127, Xsk.Handle.get()));
+    Key = 127;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
 
     //
     // Insert at invalid key should fail.
     //
+    Key = 128;
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
-        XdpMapInsert(XskMap.get(), 128, Xsk.Handle.get()));
+        XdpMapInsert(XskMap.get(), &Key, &Value));
 
     //
     // Delete key 0.
     //
-    TEST_HRESULT(XdpMapDelete(XskMap.get(), 0));
+    Key = 0;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
 
     //
     // Delete at invalid key should fail.
     //
+    Key = 128;
     TEST_EQUAL(
         HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
-        XdpMapDelete(XskMap.get(), 128));
+        XdpMapDelete(XskMap.get(), &Key));
 
     //
     // Delete a key that doesn't have an entry (should succeed).
     //
-    TEST_HRESULT(XdpMapDelete(XskMap.get(), 1));
+    Key = 1;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
 }
 
 VOID
@@ -10163,7 +10172,9 @@ GenericRxXskMapRedirect(
     //
     wil::unique_handle XskMap;
     TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
-    TEST_HRESULT(XdpMapInsert(XskMap.get(), If.GetQueueId(), Xsk.Handle.get()));
+    UINT32 InsertKey = If.GetQueueId();
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &InsertKey, &InsertValue));
 
     //
     // Create an XDP program with redirect-by-queue-id action.
@@ -10241,7 +10252,8 @@ GenericRxXskMapRedirectMiss()
     wil::unique_handle XskMap;
     TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
     UINT32 WrongKey = (If.GetQueueId() + 1) % 128;
-    TEST_HRESULT(XdpMapInsert(XskMap.get(), WrongKey, Xsk.Handle.get()));
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &WrongKey, &InsertValue));
 
     //
     // Create an XDP program with redirect-by-queue-id action.

@@ -55,29 +55,35 @@ static
 NTSTATUS
 XdpXskMapInsert(
     _In_ XDP_MAP *Map,
-    _In_ UINT32 Key,
     _In_ KPROCESSOR_MODE RequestorMode,
-    _In_ const VOID *ValueHandleBuffer,
-    _In_ BOOLEAN HandleBounced
+    _In_ const VOID *Key,
+    _In_ const VOID *Value
     )
 {
     XDP_XSKMAP *XskMap = CONTAINING_RECORD(Map, XDP_XSKMAP, Map);
+    UINT32 KeyValue;
     HANDLE XskKernelHandle = NULL;
     VOID *OldEntry;
     LOCK_STATE_EX LockState;
     NTSTATUS Status;
 
-    if (Key >= XSKMAP_MAX_SIZE) {
+    Status = XdpMapReadUInt32FromMode(RequestorMode, Key, &KeyValue);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    if (KeyValue >= XSKMAP_MAX_SIZE) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
 
     //
-    // Reference the XSK handle in the context of the calling process.
+    // Reference the XSK handle in the context of the calling process. The
+    // Value buffer is a raw user pointer; XskReferenceDatapathHandle probes
+    // it as required.
     //
     Status =
-        XskReferenceDatapathHandle(
-            RequestorMode, ValueHandleBuffer, HandleBounced, &XskKernelHandle);
+        XskReferenceDatapathHandle(RequestorMode, Value, FALSE, &XskKernelHandle);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
@@ -86,8 +92,8 @@ XdpXskMapInsert(
     // Insert the entry into the map, replacing any existing entry.
     //
     XdpMapAcquireWrite(&LockState);
-    OldEntry = XskMap->Entries[Key];
-    XskMap->Entries[Key] = XskKernelHandle;
+    OldEntry = XskMap->Entries[KeyValue];
+    XskMap->Entries[KeyValue] = XskKernelHandle;
     XdpMapReleaseWrite(&LockState);
 
     //
@@ -108,20 +114,28 @@ static
 NTSTATUS
 XdpXskMapDelete(
     _In_ XDP_MAP *Map,
-    _In_ UINT32 Key
+    _In_ KPROCESSOR_MODE RequestorMode,
+    _In_ const VOID *Key
     )
 {
     XDP_XSKMAP *XskMap = CONTAINING_RECORD(Map, XDP_XSKMAP, Map);
+    UINT32 KeyValue;
     VOID *OldEntry;
     LOCK_STATE_EX LockState;
+    NTSTATUS Status;
 
-    if (Key >= XSKMAP_MAX_SIZE) {
+    Status = XdpMapReadUInt32FromMode(RequestorMode, Key, &KeyValue);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    if (KeyValue >= XSKMAP_MAX_SIZE) {
         return STATUS_INVALID_PARAMETER;
     }
 
     XdpMapAcquireWrite(&LockState);
-    OldEntry = XskMap->Entries[Key];
-    XskMap->Entries[Key] = NULL;
+    OldEntry = XskMap->Entries[KeyValue];
+    XskMap->Entries[KeyValue] = NULL;
     XdpMapReleaseWrite(&LockState);
 
     if (OldEntry != NULL) {

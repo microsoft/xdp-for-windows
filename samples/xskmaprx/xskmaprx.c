@@ -10,6 +10,8 @@
 // inserts the sockets into the map keyed by queue ID, and creates an XDP program
 // that redirects matching traffic to the XSK for the current receive queue.
 //
+// Note: this sample does not demonstrate receiving the redirected packets.
+//
 
 #include <xdpapi.h>
 #include <afxdp.h>
@@ -39,6 +41,11 @@ CONST CHAR *UsageText =
 "       - Native: Use the native XDP interface provider\n"
 "       Default: System\n"
 "\n"
+"   -TimeoutSeconds <Seconds>\n"
+"\n"
+"       Exit cleanly after the given number of seconds. 0 (default) runs\n"
+"       until the process is terminated.\n"
+"\n"
 "Examples:\n"
 "\n"
 "   xskmaprx.exe -IfIndex 6 -QueueCount 4\n"
@@ -52,6 +59,7 @@ UINT32 IfIndex;
 UINT32 QueueCount;
 UINT16 UdpDstPort;
 BOOLEAN UseUdpMatch;
+UINT32 TimeoutSeconds;
 XDP_CREATE_PROGRAM_FLAGS ProgramFlags;
 
 VOID
@@ -66,6 +74,7 @@ ParseArgs(
     QueueCount = 0;
     UdpDstPort = 0;
     UseUdpMatch = FALSE;
+    TimeoutSeconds = 0;
     ProgramFlags = XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES;
 
     while (i < ArgC) {
@@ -105,6 +114,12 @@ ParseArgs(
                 LOGERR("Invalid XdpMode");
                 goto Usage;
             }
+        } else if (!_stricmp(ArgV[i], "-TimeoutSeconds")) {
+            if (++i >= ArgC) {
+                LOGERR("Missing TimeoutSeconds");
+                goto Usage;
+            }
+            TimeoutSeconds = atoi(ArgV[i]);
         } else {
             LOGERR("Unexpected parameter \"%s\"", ArgV[i]);
             goto Usage;
@@ -180,7 +195,7 @@ main(
             return 1;
         }
 
-        XdpStatus = XdpMapInsert(XskMap, i, Sockets[i]);
+        XdpStatus = XdpMapInsert(XskMap, &i, &Sockets[i]);
         if (FAILED(XdpStatus)) {
             LOGERR("XdpMapInsert failed for queue %u: %x", i, XdpStatus);
             return 1;
@@ -215,15 +230,39 @@ main(
     }
 
     printf(
-        "XDP program created. Redirecting %s traffic across %u queues.\n"
-        "Press Ctrl+C to stop.\n",
+        "XDP program created. Redirecting %s traffic across %u queues.\n",
         UseUdpMatch ? "matching UDP" : "all",
         QueueCount);
 
     //
-    // Let XDP redirect frames until this process is terminated.
+    // Let XDP redirect frames until the timeout expires (or forever).
     //
-    Sleep(INFINITE);
+    if (TimeoutSeconds == 0) {
+        printf("Press Ctrl+C to stop.\n");
+        Sleep(INFINITE);
+    } else {
+        printf("Will exit after %u seconds.\n", TimeoutSeconds);
+        Sleep(TimeoutSeconds * 1000);
+    }
+
+    //
+    // Clean up: The XDP program is detached when its handle is closed. The
+    // XSKMAP is freed once its handle is closed and no programs reference it.
+    // Closing each XSK releases the underlying socket resources.
+    //
+    // This can be done in any order: closing a socket handle will release all
+    // user-supplied pinned memory, even if an XSKMAP or program still have a
+    // reference.
+    //
+    CloseHandle(Program);
+    CloseHandle(XskMap);
+    for (UINT32 i = 0; i < QueueCount; i++) {
+#pragma warning(suppress: 6001) // Sockets was zero-initialized by calloc.
+        if (Sockets[i] != NULL) {
+            CloseHandle(Sockets[i]);
+        }
+    }
+    free(Sockets);
 
     return 0;
 }

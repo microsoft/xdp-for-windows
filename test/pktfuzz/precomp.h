@@ -34,7 +34,7 @@
 #include <stubs/dispatch.h>
 #include <extensionset.h>
 #include <program.h>
+#include <stubs/map.h>
 #include <stubs/rx.h>
 #include <stubs/xsk.h>
-#include <stubs/map.h>
 #include <xdpp.h>

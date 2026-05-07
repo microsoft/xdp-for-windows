@@ -1338,8 +1338,7 @@ FuzzXskMap(
             case 1:  xskHandle = queue->xskMap; break;
             default: xskHandle = queue->sock; break;
             }
-            #pragma warning(suppress:6387) // 'xskHandle' could be '0'
-            (void)XdpMapInsert(queue->xskMap, key, xskHandle);
+            (void)XdpMapInsert(queue->xskMap, &key, &xskHandle);
         }
         ReleaseSRWLockShared(&queue->xskMapLock);
     }
@@ -1349,7 +1348,7 @@ FuzzXskMap(
 
         AcquireSRWLockShared(&queue->xskMapLock);
         if (queue->xskMap != NULL) {
-            (void)XdpMapDelete(queue->xskMap, key);
+            (void)XdpMapDelete(queue->xskMap, &key);
         }
         ReleaseSRWLockShared(&queue->xskMapLock);
     }
