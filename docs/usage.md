@@ -146,13 +146,29 @@ queues using this queue ID space.
 
 ### XDP access control
 
-Access to XDP is restricted to `SYSTEM` and the built-in administrators group by default. The `xdpcfg.exe` tool can be used to add or remove privileges. For example, to grant access to `SYSTEM`, built-in administrators, and the user or group represented by the `S-1-5-21-1626206346-3338949459-3778528156-1001` SID:
+Access to XDP is restricted to `SYSTEM` and the built-in administrators group by default. The `xdpcfg.exe` tool can be used to add or remove privileges.
+
+#### Common device SDDL
+
+To set the SDDL on the common XDP device (applies to all object types when
+per-type devices are not configured):
 
 ```PowerShell
 xdpcfg.exe SetDeviceSddl "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-1626206346-3338949459-3778528156-1001)"
 ```
 
-The XDP driver must be restarted for these changes to take effect; the configuration is persistent across driver and machine restarts.
+#### Per-object-type device SDDL
+
+XDP also supports finer-grained access control via per-object-type devices,
+allowing, for example, a user to be granted access to AF_XDP sockets without
+granting access to configure RSS or attach XDP programs:
+
+```PowerShell
+xdpcfg.exe SetDeviceSddl xsk "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;S-1-5-21-...)"
+```
+
+See [Per-Object-Type Security](per-object-security.md) for details, including
+the device object layout and backward-compatibility.
 
 ## AF_XDP
 

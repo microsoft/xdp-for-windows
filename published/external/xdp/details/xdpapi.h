@@ -51,7 +51,7 @@ XdpCreateProgram(
     ProgramOpen->RuleCount = RuleCount;
     ProgramOpen->Rules = Rules;
 
-    return _XdpOpen(Program, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    return _XdpOpenObjectType(Program, FILE_CREATE, EaBuffer, sizeof(EaBuffer), XDP_OBJECT_TYPE_PROGRAM);
 }
 
 //
@@ -75,7 +75,7 @@ XdpInterfaceOpen(
         _XdpInitializeEa(XDP_OBJECT_TYPE_INTERFACE, EaBuffer, sizeof(EaBuffer));
     InterfaceOpen->IfIndex = InterfaceIndex;
 
-    return _XdpOpen(InterfaceHandle, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    return _XdpOpenObjectType(InterfaceHandle, FILE_CREATE, EaBuffer, sizeof(EaBuffer), XDP_OBJECT_TYPE_INTERFACE);
 }
 
 //
