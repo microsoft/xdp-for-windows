@@ -143,6 +143,20 @@ function Check-And-Remove-Driver($Driver, $Component) {
         $script:AllDrivers = driverquery /v /fo list
     }
 
+    if ($Force) {
+        # Components installed via raw `sc.exe create` (fndis, xskfwdkm) leave
+        # behind a service registration after surprise reboots. The Check-Driver
+        # path only sees currently-loaded drivers.
+        $svc = Get-Service -Name $Component -ErrorAction SilentlyContinue
+        if ($svc) {
+            Write-Host "Removing residual $Component service registration..." -ForegroundColor Yellow
+            if ($svc.Status -ne 'Stopped') {
+                try { Stop-Service -Name $Component -Force -ErrorAction Stop } catch { }
+            }
+            sc.exe delete $Component | Write-Verbose
+        }
+    }
+
     if (Check-Driver $Driver) {
         $AllDrivers | Write-Verbose
         Write-Error "$Driver loaded!"

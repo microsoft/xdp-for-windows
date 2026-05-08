@@ -219,7 +219,10 @@ if ($Install -eq "xdpebpf") {
 # Uninstalls the XDP eBPF feature.
 if ($Uninstall -eq "xdpebpf") {
     Write-Verbose "$XdpBpfExport --clear"
-    & $XdpBpfExport --clear
+    # Use cmd.exe to insulate from PowerShell 7+ converting native-command
+    # stderr into terminating errors (which would bypass the explicit
+    # -Force exit-code check below).
+    cmd.exe /c "`"$XdpBpfExport`" --clear 2>&1" | Write-Verbose
     if ($LastExitCode) {
         if ($Force) {
             Write-Warning "$XdpBpfExport --clear exit code: $LastExitCode (ignored due to -Force)"

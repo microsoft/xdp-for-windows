@@ -61,6 +61,19 @@ XDP for Windows is a high-performance Windows packet processing framework inspir
 
 All testing must occur on a separate test machine. Do not try to run tests locally.
 
+> [!IMPORTANT]
+> **Always pass `-ComputerName <machine>` explicitly on every test
+> command.** Do not rely on `Set-XdpRemoteDefault` /
+> `remote-set-default.ps1` alone — the session default lives in the
+> PowerShell global scope and is silently lost when a new terminal is
+> spawned (which happens any time a previous command spawned its own
+> shell, e.g. after `Start-Process`, after a kd session, or whenever the
+> tool host opens a fresh terminal). A test script invoked without
+> `-ComputerName` and without an active session default will run
+> **against the dev machine**, which can damage local state.
+> The session default is a convenience for the human at the keyboard;
+> for AI-driven runs treat `-ComputerName` as required.
+
 ### Running tests against a remote test machine (PREFERRED for AI agents)
 
 The repo's test scripts (`tools\functional.ps1`, `tools\spinxsk.ps1`,
@@ -74,21 +87,24 @@ a remote test machine via PowerShell remoting. See [docs/remote-testing.md](../d
 
 1. **Ask the user for the test machine name once per chat session.** Use a
    clarifying question. Example prompt: *"Which test machine should I run
-   tests on?"*. Accept hostname, FQDN, or IP.
+   tests on?"*. Accept hostname, FQDN, or IP. Remember the value and
+   pass it as `-ComputerName <machine>` on **every** test-script
+   invocation for the rest of the session.
 
-2. **Set the session default so subsequent commands don't need
-   `-ComputerName`:**
+2. **Optionally set the session default for the human's convenience:**
    ```powershell
    .\tools\remote-set-default.ps1 <machine>
    ```
-   This persists for the current PowerShell session.
+   This is *not* a substitute for `-ComputerName` in agent-driven
+   commands (see the IMPORTANT note above). Continue to pass
+   `-ComputerName` explicitly.
 
-3. **Run any test script normally** — it auto-forwards to the remote and
-   streams output back:
+3. **Run any test script with `-ComputerName`** — it auto-forwards to
+   the remote and streams output back:
    ```powershell
-   .\tools\functional.ps1 -ListTestCases
-   .\tools\functional.ps1 -TestCaseFilter "Name=GenericBinding"
-   .\tools\spinxsk.ps1 -Minutes 5
+   .\tools\functional.ps1 -ComputerName <machine> -ListTestCases
+   .\tools\functional.ps1 -ComputerName <machine> -TestCaseFilter "Name=GenericBinding"
+   .\tools\spinxsk.ps1 -ComputerName <machine> -Minutes 5
    ```
 
 4. **Credentials.** On first connect the script auto-adds the host to
