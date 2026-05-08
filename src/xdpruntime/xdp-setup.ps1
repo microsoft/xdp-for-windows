@@ -26,7 +26,12 @@ param (
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
-    [string]$BinaryDirectory = ""
+    [string]$BinaryDirectory = "",
+
+    # When set, treat normally-fatal cleanup errors during -Uninstall as
+    # recoverable warnings.
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -216,7 +221,12 @@ if ($Uninstall -eq "xdpebpf") {
     Write-Verbose "$XdpBpfExport --clear"
     & $XdpBpfExport --clear
     if ($LastExitCode) {
-        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+        if ($Force) {
+            Write-Warning "$XdpBpfExport --clear exit code: $LastExitCode (ignored due to -Force)"
+            $global:LASTEXITCODE = 0
+        } else {
+            Write-Error "$XdpBpfExport exit code: $LastExitCode"
+        }
     }
 
     Write-Verbose "reg.exe delete HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /f"

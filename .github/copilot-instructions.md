@@ -146,6 +146,50 @@ Guidelines for agents:
 * If kd reports "Cannot connect to server" or exits immediately, inform
   the user that no kd head is currently attached to that machine and
   continue without kd.
+* **Keep kd attached across reboots.** After issuing `.reboot`, leave
+  the kd terminal running — secondary breaks (early-boot Driver Verifier
+  hits, watchdog timeouts, follow-on bugchecks from corrupted state)
+  often happen during the next boot and you'll want to see them.
+* **Bugchecks can leave the test machine's disk in a damaged state.**
+  Files written to disk in the seconds before the crash may be
+  truncated, partially written, or filled with NUL bytes. Driver
+  registry keys, INF / catalog files, and PnP metadata are common
+  victims. If `check-drivers.ps1` fails to recover the machine and the
+  failure looks like file/state corruption, try to improve
+  `check-drivers.ps1` (and the helpers it calls) to detect and repair
+  that specific class of corruption explicitly. Avoid adding broad
+  ignore-everything error handling; recovery should be targeted and
+  understandable.
+* **Reinstall-over-corrupt is often the simplest recovery.** When an
+  installer/MSI/INF reports the product is missing from its database
+  but the on-disk binaries and loaded driver are still present, the
+  cleanest fix is to *reinstall* on top of the existing layout (which
+  reseeds the database) and then run the normal uninstall. Prefer this
+  over hand-rolled service/driver teardown when feasible.
+* **Recovery flags must be opt-in.** Behaviors that downgrade errors,
+  reinstall over partial state, or otherwise paper over corruption
+  belong behind a `-Force` (or similarly named) switch on the recovery
+  script (e.g. `tools\check-drivers.ps1 -Force`). Don't change default
+  install/uninstall behavior.
+* **Persist until `check-drivers.ps1` succeeds.** The development loop
+  cannot move on to the next build/test cycle while the test machine is
+  in a broken state. Each bugcheck tends to expose a *slightly
+  different* corruption (NUL-filled scripts last time, a wedged eBPF
+  service this time, something else next time). When `check-drivers.ps1`
+  fails:
+  1. Read the actual error and identify which component / step is
+     stuck.
+  2. Improve `tools\setup.ps1` (or `tools\check-drivers.ps1`) with a
+     **targeted** fix for that specific failure mode — e.g. add a
+     stuck service to the cleanup list, detect a specific MSI exit
+     code, or add a NUL-byte check for a specific file path.
+  3. Re-run `check-drivers.ps1 -Force` and repeat until it reports
+     "No loaded XDP drivers found!".
+  4. Only then return to the build/test/deploy loop.
+
+  Do not stop at "the recovery is partially working" — partial
+  recovery means the next test run will hit the residual broken state
+  and waste another iteration.
 * When the chat session ends or the user moves on, kill the kd
   terminal.
 
