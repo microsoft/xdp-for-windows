@@ -218,16 +218,14 @@ function Invoke-XdpRemoteIfRequested {
         [Parameter(Mandatory = $true)] $InvocationCommand,
         # The PSBoundParameters of the caller.
         [Parameter(Mandatory = $true)] $BoundParameters,
-        # Build config/platform for the deploy step. Callers that have these
-        # parameters should pass them; otherwise the deploy assumes the
-        # default Debug/x64.
-        [string]$Config = 'Debug',
-        [string]$Platform = 'x64',
         # Whether the caller's workflow needs the artifacts\bin tree on the
         # remote. Scripts that only operate on machine state (e.g.
         # prepare-machine.ps1, check-drivers.ps1) should pass $false to
         # avoid pushing large binaries unnecessarily.
-        [bool]$DeployArtifacts = $true
+        [bool]$DeployArtifacts = $true,
+        # Build config/platform for the deploy step.
+        [string]$Config = '',
+        [string]$Platform = ''
     )
 
     $ComputerName = $null
