@@ -44,16 +44,8 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
-<<<<<<< HEAD
-    [int]$DeviceIndex = 0,
-
-    [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI",
-=======
     [ValidateSet("INF", "NuGet")]
     [string]$XdpInstaller = "NuGet",
->>>>>>> main
 
     [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $false,
