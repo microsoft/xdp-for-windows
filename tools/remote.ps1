@@ -411,24 +411,31 @@ function Invoke-XdpRemote {
         # side merges all streams (*>&1) and converts them to plain strings
         # via Out-String -Stream so deserialized error/warning records
         # don't get re-emitted as red errors locally. Piping
-        # Invoke-Command's output directly into Write-Host (instead of
-        # capturing into a variable) preserves the live streaming behavior
-        # PowerShell remoting provides natively.
+        # Invoke-Command's output directly into Write-Host preserves the
+        # live streaming behavior PowerShell remoting provides natively.
+        # The exit code is emitted as a final sentinel line so we don't
+        # need a follow-up call against a runspace that may have already
+        # torn down.
+        $exitCode = 0
+        $sentinel = '##XDP-REMOTE-EXIT##'
         Invoke-Command -Session $session -ScriptBlock {
-            param($Root, $Rel, $ScriptArgs)
+            param($Root, $Rel, $ScriptArgs, $Sentinel)
             Set-Location $Root
             & (Join-Path $Root $Rel) @ScriptArgs *>&1 | Out-String -Stream
-        } -ArgumentList $RemoteRoot, $ScriptPath, $ArgumentList | ForEach-Object {
-            Write-Host $_
+            "$Sentinel $LASTEXITCODE"
+        } -ArgumentList $RemoteRoot, $ScriptPath, $ArgumentList, $sentinel | ForEach-Object {
+            if ($_ -is [string] -and $_.StartsWith($sentinel)) {
+                $val = $_.Substring($sentinel.Length).Trim()
+                if (-not [string]::IsNullOrEmpty($val)) {
+                    [int]::TryParse($val, [ref]$exitCode) | Out-Null
+                }
+            } else {
+                Write-Host $_
+            }
         }
 
-        # Fetch the remote $LASTEXITCODE in a follow-up call so streaming
-        # of the main output isn't blocked waiting for it.
-        $exitCode = Invoke-Command -Session $session -ScriptBlock { $LASTEXITCODE }
-        if ($null -eq $exitCode) { $exitCode = 0 }
-
         if ($exitCode -ne 0) {
-            $global:LASTEXITCODE = [int]$exitCode
+            $global:LASTEXITCODE = $exitCode
             Write-Error "Remote script exited with code $exitCode"
         }
     } finally {
