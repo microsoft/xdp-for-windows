@@ -59,41 +59,26 @@ XDP for Windows is a high-performance Windows packet processing framework inspir
 
 ## Testing
 
-All testing must occur on a separate test machine. Do not try to run tests locally.
+All testing must occur on a separate test machine. Do not try to run
+tests locally. **Always pass `-ComputerName <machine>` explicitly on
+every test command** — see the `xdp-testing` skill below.
 
-### Functional Tests
+For everything else about test execution and bugcheck recovery
+(remote PowerShell setup, kd attach over named pipe, the
+inject/build/bugcheck/`.reboot`/`check-drivers -Force` recovery loop,
+how to derive default test parameters from CI, the persist-until-clean
+recovery doctrine, opt-in `-Force` recovery flags), use the
+[`xdp-testing`](./skills/xdp-testing/SKILL.md) skill. The skill is
+auto-loaded whenever an agent runs any `tools\*.ps1` test or recovery
+command, attaches kd, or analyzes a bugcheck.
 
-1. Prepare test machine (requires admin, enables test signing, may require reboot):
-   ```powershell
-   .\tools\prepare-machine.ps1 -ForFunctionalTest
-   ```
-
-2. Run tests:
-   ```powershell
-   .\tools\functional.ps1 -Config Debug -Platform x64
-   ```
-
-3. Run specific test:
-   ```powershell
-   .\tools\functional.ps1 -TestCaseFilter "Name=GenericBinding"
-   ```
-
-4. List test cases:
-   ```powershell
-   .\tools\functional.ps1 -ListTestCases
-   ```
-
-5. Convert logs after test:
-   ```powershell
-   .\tools\log.ps1 -Convert -Name xdpfunc
-   ```
-
-### Stress Tests (spinxsk)
+Quick reference for the most common scripts:
 
 ```powershell
-.\tools\prepare-machine.ps1 -ForSpinxskTest
-.\tools\spinxsk.ps1 -XdpmpPollProvider FNDIS -QueueCount 2 -Minutes 10
-.\tools\log.ps1 -Convert -Name spinxsk
+.\tools\functional.ps1 -ComputerName <machine> -ListTestCases
+.\tools\functional.ps1 -ComputerName <machine> -TestCaseFilter "Name=GenericBinding"
+.\tools\spinxsk.ps1   -ComputerName <machine> -Minutes 5
+.\tools\check-drivers.ps1 -ComputerName <machine> -Force
 ```
 
 ## Project Layout

@@ -48,7 +48,14 @@ param (
     [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$PaLayer = $false
+    [switch]$PaLayer = $false,
+
+    # When set, propagates -Force to the underlying xdpruntime\xdp-setup.ps1
+    # so that normally-fatal uninstall errors (e.g. xdpbpfexport --clear
+    # failing because the eBPF store registry was wedged by a bugcheck) are
+    # downgraded to warnings. Use only for recovery scenarios.
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -345,15 +352,15 @@ function Uninstall-Xdp {
 
         if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters").PSObject.Properties["XdpEbpfEnabled"]) {
             Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
-            & $XdpSetupPath -Uninstall xdpebpf
+            & $XdpSetupPath -Uninstall xdpebpf -Force:$Force
         }
         if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
             Write-Verbose "$XdpSetupPath -Uninstall xdppa"
-            & $XdpSetupPath -Uninstall xdppa
+            & $XdpSetupPath -Uninstall xdppa -Force:$Force
         }
         if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
             Write-Verbose "$XdpSetupPath -Uninstall xdp"
-            & $XdpSetupPath -Uninstall xdp
+            & $XdpSetupPath -Uninstall xdp -Force:$Force
         }
 
         Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
@@ -632,6 +639,10 @@ function Uninstall-Ebpf {
 
         if ($Process.ExitCode -eq 0x645) {
             Write-Warning "eBPF is present but the MSI is not installed. Trying to uninstall services and binaries..."
+
+            Write-Verbose "Stop-Service ebpfsvc"
+            try { Stop-Service ebpfsvc -NoWait } catch { }
+            Cleanup-Service ebpfsvc
 
             Write-Verbose "Stop-Service netebpfext"
             try { Stop-Service netebpfext -NoWait } catch { }

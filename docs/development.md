@@ -50,6 +50,10 @@ The test machine must have the "artifacts" and "tools" directories from the repo
 by cloning the repo and building the code or by copying them from another system. The
 file layout is assumed to be identical to that of the repo.
 
+For a streamlined dev-machine -> test-machine workflow over PowerShell remoting,
+see [Remote testing](./remote-testing.md). The same test scripts described
+below accept a `-ComputerName` parameter to run against a remote test machine.
+
 ### Running functional tests
 
 One-time setup:
