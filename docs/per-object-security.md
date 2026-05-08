@@ -18,6 +18,7 @@ Per-type device objects live under the `\Device\xdpapi` object directory.
 | Program | `\Device\xdpapi\program` | `6ad95b14-2cb1-4646-ba32-bc090ab436e5` | XDP programs (rules, eBPF) |
 | XSK | `\Device\xdpapi\xsk` | `0903d898-39c3-4a0f-8528-13658fb280f3` | AF_XDP sockets |
 | Interface | `\Device\xdpapi\interface` | `5f1fa9af-e48e-457a-b556-88492b514662` | Interface configuration (RSS, QEO) |
+| Map | `\Device\xdpapi\map` | `6bbd4cfc-90eb-4126-ba25-51d97bba239f` | XDP maps (e.g. XSKMAP) |
 
 ## Architecture
 
@@ -60,7 +61,7 @@ xdpcfg.exe SetDeviceSddl <SDDL>                    # Common device
 xdpcfg.exe SetDeviceSddl <ObjectType> <SDDL>       # Per-type device
 ```
 
-Object types: `program`, `xsk`, `interface`.
+Object types: `program`, `xsk`, `interface`, `map`.
 
 ## Security Model
 

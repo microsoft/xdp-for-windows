@@ -835,6 +835,20 @@ XdpProgramCompileNewProgram(
 
     ASSERT(NewProgram->RuleCount == RuleCount);
 
+    //
+    // Detect if any rule uses a redirect target type that requires the global
+    // map lock. The data path acquires the lock around each batch when set.
+    //
+    NewProgram->HasMap = FALSE;
+    for (UINT32 i = 0; i < NewProgram->RuleCount; i++) {
+        if (NewProgram->Rules[i].Action == XDP_PROGRAM_ACTION_REDIRECT &&
+            NewProgram->Rules[i].Redirect.TargetType ==
+                XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID) {
+            NewProgram->HasMap = TRUE;
+            break;
+        }
+    }
+
     TraceInfo(TRACE_CORE, "Compiled Program=%p on RxQueue=%p", NewProgram, RxQueue);
     XdpProgramTrace(NewProgram);
     *Program = NewProgram;

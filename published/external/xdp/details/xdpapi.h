@@ -79,6 +79,87 @@ XdpInterfaceOpen(
 }
 
 //
+// Parameters for creating an XDP_OBJECT_TYPE_MAP.
+//
+typedef struct _XDP_MAP_OPEN {
+    XDP_MAP_TYPE Type;
+} XDP_MAP_OPEN;
+
+inline
+XDP_STATUS
+XdpMapCreate(
+    _Out_ HANDLE *Map,
+    _In_ XDP_MAP_TYPE Type
+    )
+{
+    XDP_MAP_OPEN *MapOpen;
+    CHAR EaBuffer[XDP_OPEN_EA_LENGTH + sizeof(*MapOpen)];
+
+    MapOpen = (XDP_MAP_OPEN *)
+        _XdpInitializeEa(XDP_OBJECT_TYPE_MAP, EaBuffer, sizeof(EaBuffer));
+    MapOpen->Type = Type;
+
+    return _XdpOpenObjectType(Map, FILE_CREATE, EaBuffer, sizeof(EaBuffer), XDP_OBJECT_TYPE_MAP);
+}
+
+//
+// IOCTLs supported by an XDP map file handle.
+//
+#define IOCTL_MAP_INSERT \
+    CTL_CODE(FILE_DEVICE_NETWORK, 0, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+#define IOCTL_MAP_DELETE \
+    CTL_CODE(FILE_DEVICE_NETWORK, 1, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+
+//
+// Input struct for IOCTL_MAP_INSERT
+//
+typedef struct _XDP_MAP_INSERT_PARAMS {
+    const VOID *Key;
+    const VOID *Value;
+} XDP_MAP_INSERT_PARAMS;
+
+//
+// Input struct for IOCTL_MAP_DELETE
+//
+typedef struct _XDP_MAP_DELETE_PARAMS {
+    const VOID *Key;
+} XDP_MAP_DELETE_PARAMS;
+
+inline
+XDP_STATUS
+XdpMapInsert(
+    _In_ HANDLE Map,
+    _In_ const VOID *Key,
+    _In_ const VOID *Value
+    )
+{
+    XDP_MAP_INSERT_PARAMS Params;
+
+    Params.Key = Key;
+    Params.Value = Value;
+
+    return
+        _XdpIoctl(
+            Map, IOCTL_MAP_INSERT, &Params, sizeof(Params), NULL, 0, NULL, NULL, FALSE);
+}
+
+inline
+XDP_STATUS
+XdpMapDelete(
+    _In_ HANDLE Map,
+    _In_ const VOID *Key
+    )
+{
+    XDP_MAP_DELETE_PARAMS Params;
+
+    Params.Key = Key;
+
+    return
+        _XdpIoctl(
+            Map, IOCTL_MAP_DELETE, &Params, sizeof(Params), NULL, 0, NULL, NULL, FALSE);
+}
+
+//
 // IOCTLs supported by an interface file handle.
 //
 #define IOCTL_INTERFACE_OFFLOAD_RSS_GET \

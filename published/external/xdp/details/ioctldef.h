@@ -39,6 +39,7 @@ typedef struct _XDP_FILE_FULL_EA_INFORMATION {
 #define XDP_PROGRAM_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\program"
 #define XDP_XSK_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\xsk"
 #define XDP_INTERFACE_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\interface"
+#define XDP_MAP_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\map"
 
 #define XDP_OPEN_PACKET_NAME "XdpOpenPacket000"
 
@@ -75,6 +76,13 @@ extern CONST GUID DECLSPEC_SELECTANY XDP_INTERFACE_DEVICE_CLASS_GUID = { /* 5f1f
     {0xb5, 0x56, 0x88, 0x49, 0x2b, 0x51, 0x46, 0x62}
 };
 
+extern CONST GUID DECLSPEC_SELECTANY XDP_MAP_DEVICE_CLASS_GUID = { /* 6bbd4cfc-90eb-4126-ba25-51d97bba239f */
+    0x6bbd4cfc,
+    0x90eb,
+    0x4126,
+    {0xba, 0x25, 0x51, 0xd9, 0x7b, 0xba, 0x23, 0x9f}
+};
+
 //
 // Type of XDP object to create or open.
 //
@@ -82,6 +90,7 @@ typedef enum _XDP_OBJECT_TYPE {
     XDP_OBJECT_TYPE_PROGRAM,
     XDP_OBJECT_TYPE_XSK,
     XDP_OBJECT_TYPE_INTERFACE,
+    XDP_OBJECT_TYPE_MAP,
 } XDP_OBJECT_TYPE;
 
 //
@@ -97,6 +106,7 @@ _XdpObjectTypeDeviceName(
     case XDP_OBJECT_TYPE_PROGRAM:   return XDP_PROGRAM_DEVICE_NAME;
     case XDP_OBJECT_TYPE_XSK:       return XDP_XSK_DEVICE_NAME;
     case XDP_OBJECT_TYPE_INTERFACE: return XDP_INTERFACE_DEVICE_NAME;
+    case XDP_OBJECT_TYPE_MAP:       return XDP_MAP_DEVICE_NAME;
     default:                        return XDP_DEVICE_NAME;
     }
 }
@@ -114,6 +124,7 @@ _XdpObjectTypeDeviceClassGuid(
     case XDP_OBJECT_TYPE_PROGRAM:   return &XDP_PROGRAM_DEVICE_CLASS_GUID;
     case XDP_OBJECT_TYPE_XSK:       return &XDP_XSK_DEVICE_CLASS_GUID;
     case XDP_OBJECT_TYPE_INTERFACE: return &XDP_INTERFACE_DEVICE_CLASS_GUID;
+    case XDP_OBJECT_TYPE_MAP:       return &XDP_MAP_DEVICE_CLASS_GUID;
     default:                        return &XDP_DEVICE_CLASS_GUID;
     }
 }

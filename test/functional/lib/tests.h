@@ -332,3 +332,17 @@ OffloadQeoOidFailure(
 
 VOID
 OidPassthru();
+
+VOID
+GenericXskUmemReg();
+
+VOID
+GenericRxXskMapRedirect(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxXskMapRedirectMiss();
+
+VOID
+XskMapCreateInsertDelete();

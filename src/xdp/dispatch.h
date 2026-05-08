@@ -35,7 +35,7 @@ typedef struct _XDP_FILE_DISPATCH {
 
 typedef struct _XDP_FILE_OBJECT_HEADER {
     XDP_OBJECT_TYPE ObjectType;
-    XDP_FILE_DISPATCH *Dispatch;
+    const XDP_FILE_DISPATCH *Dispatch;
 } XDP_FILE_OBJECT_HEADER;
 
 NTSTATUS

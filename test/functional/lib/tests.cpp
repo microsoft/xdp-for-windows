@@ -5894,6 +5894,13 @@ SecurityPerObjectDeviceAcl()
                 return TryInterfaceOpen(If.GetIfIndex(), Interface);
             },
         },
+        {
+            "map",
+            [&]() -> HRESULT {
+                wil::unique_handle Map;
+                return XdpMapCreate(&Map, XDP_MAP_TYPE_XSKMAP);
+            },
+        },
     };
 
     //
@@ -10149,6 +10156,320 @@ OidPassthru()
         DefaultLwf.reset(Ctx.Handle.release());
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
     }
+}
+
+VOID
+GenericXskUmemReg()
+{
+    HRESULT Result;
+    XSK_UMEM_REG UmemReg;
+    const XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC;
+
+    //
+    // Verify UMEM can be registered on an unbound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM can be registered on a bound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM cannot be registered twice on the same socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+
+    //
+    // Verify UMEM cannot be registered on an activated socket.
+    //
+    {
+        MY_SOCKET Socket = {0};
+        Socket.Handle = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&Socket.Umem.Reg, UmemBuffer.get());
+        SetUmem(Socket.Handle.get(), &Socket.Umem.Reg);
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.Handle.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        ActivateSocket(&Socket, TRUE, TRUE);
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.Handle.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+}
+
+VOID
+XskMapCreateInsertDelete()
+{
+    //
+    // Create an XSKMAP, insert an XSK, delete the entry, and close the map.
+    //
+    auto If = FnMpIf;
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    TEST_TRUE(XskMap.get() != NULL);
+
+    UINT32 Key;
+    HANDLE Value = Xsk.Handle.get();
+
+    //
+    // Insert XSK at key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert XSK at maximum valid key (128 entries, 0-indexed).
+    //
+    Key = 127;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Delete key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete a key that doesn't have an entry (should succeed).
+    //
+    Key = 1;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+}
+
+VOID
+GenericRxXskMapRedirect(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP and insert the XSK at the queue ID key.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 InsertKey = If.GetQueueId();
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &InsertKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirect";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 2);
+
+    //
+    // Indicate a packet on the right RX queue.
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify the packet is received by the XSK socket.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->Length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
+            PacketBuffer,
+            PacketBufferLength));
+}
+
+VOID
+GenericRxXskMapRedirectMiss()
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    ADDRESS_FAMILY Af = AF_INET;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP but do NOT insert any XSK for the current queue ID.
+    // Insert at a different key instead to verify the miss behavior.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 WrongKey = (If.GetQueueId() + 1) % 128;
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &WrongKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirectMiss";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    //
+    // Indicate a packet on the RX queue. The XSKMAP has no entry for this
+    // queue ID, so the packet should be dropped (not received by XSK).
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify no packet is received by the XSK socket.
+    //
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
 }
 
 /**
