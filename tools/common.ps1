@@ -204,6 +204,100 @@ function Get-XdpBuildVersion {
     return $XdpBuildVersion;
 }
 
+# If -ComputerName was passed to a top-level script, forward execution to the
+# remote test machine via tools\remote.ps1 and exit. Returns $true when the
+# command was forwarded (caller should exit), $false otherwise.
+function Get-XdpDefaultRemoteRoot {
+    return 'C:\xdp'
+}
+
+function Invoke-XdpRemoteIfRequested {
+    [CmdletBinding()]
+    param (
+        # The MyInvocation.MyCommand of the caller; used to compute repo-relative path.
+        [Parameter(Mandatory = $true)] $InvocationCommand,
+        # The PSBoundParameters of the caller.
+        [Parameter(Mandatory = $true)] $BoundParameters,
+        # Build config/platform for the deploy step. Callers that have these
+        # parameters should pass them; otherwise the deploy assumes the
+        # default Debug/x64.
+        [string]$Config = 'Debug',
+        [string]$Platform = 'x64',
+        # Whether the caller's workflow needs the artifacts\bin tree on the
+        # remote. Scripts that only operate on machine state (e.g.
+        # prepare-machine.ps1, check-drivers.ps1) should pass $false to
+        # avoid pushing large binaries unnecessarily.
+        [bool]$DeployArtifacts = $true
+    )
+
+    $ComputerName = $null
+    if ($BoundParameters.ContainsKey('ComputerName')) {
+        $ComputerName = [string]$BoundParameters['ComputerName']
+    }
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        # Fall back to a session-scoped default set via
+        # Set-XdpRemoteDefault. Lets developers stop retyping
+        # -ComputerName on every command.
+        $defaultVar = Get-Variable -Name XdpRemoteDefault -Scope Global -ErrorAction SilentlyContinue
+        if ($defaultVar -and -not [string]::IsNullOrEmpty([string]$defaultVar.Value)) {
+            $ComputerName = [string]$defaultVar.Value
+            Write-Host "Using session-default remote computer: $ComputerName" -ForegroundColor DarkGray
+        }
+    }
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        return $false
+    }
+
+    $Credential = $null
+    if ($BoundParameters.ContainsKey('Credential')) { $Credential = $BoundParameters['Credential'] }
+    $RemoteRoot = Get-XdpDefaultRemoteRoot
+    if ($BoundParameters.ContainsKey('RemoteRoot') -and -not [string]::IsNullOrEmpty([string]$BoundParameters['RemoteRoot'])) {
+        $RemoteRoot = [string]$BoundParameters['RemoteRoot']
+    }
+    $SkipDeploy = $false
+    if ($BoundParameters.ContainsKey('SkipDeploy')) { $SkipDeploy = [bool]$BoundParameters['SkipDeploy'] }
+
+    # Strip parameters that are meaningful only on the dev machine before
+    # forwarding to the remote.
+    $remoteArgs = @{}
+    foreach ($key in @($BoundParameters.Keys)) {
+        if ($key -in @('ComputerName','Credential','RemoteRoot','SkipDeploy')) { continue }
+        $remoteArgs[$key] = $BoundParameters[$key]
+    }
+
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $RemoteScript = $InvocationCommand.Path
+    if ([string]::IsNullOrEmpty($RemoteScript)) {
+        Write-Error "Unable to determine caller script path for remote forwarding."
+    }
+    $RelScript = $RemoteScript.Substring($RootDir.Length).TrimStart('\','/')
+
+    $RemoteScriptPs1 = "$RootDir\tools\remote.ps1"
+
+    if (-not $SkipDeploy) {
+        $deployArgs = @{
+            ComputerName = $ComputerName
+            RemoteRoot   = $RemoteRoot
+            Config       = $Config
+            Platform     = $Platform
+        }
+        if (-not $DeployArtifacts) { $deployArgs.SkipArtifacts = $true }
+        if ($Credential) { $deployArgs.Credential = $Credential }
+        & $RemoteScriptPs1 -Deploy @deployArgs
+    }
+
+    $invokeArgs = @{
+        ComputerName = $ComputerName
+        RemoteRoot   = $RemoteRoot
+        ScriptPath   = $RelScript
+        ArgumentList = $remoteArgs
+    }
+    if ($Credential) { $invokeArgs.Credential = $Credential }
+    & $RemoteScriptPs1 -Invoke @invokeArgs
+
+    return $true
+}
+
 function Get-XdpBuildVersionString {
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"

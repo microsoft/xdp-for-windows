@@ -73,7 +73,21 @@ param (
     [switch]$Force = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Cleanup = $false
+    [switch]$Cleanup = $false,
+
+    # Remote execution: when set, deploy + run this script on the named test
+    # machine over PowerShell remoting. See tools\remote.ps1 for setup.
+    [Parameter(Mandatory = $false)]
+    [string]$ComputerName = "",
+
+    [Parameter(Mandatory = $false)]
+    [System.Management.Automation.PSCredential]$Credential,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RemoteRoot = "",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipDeploy
 )
 
 Set-StrictMode -Version 'Latest'
@@ -81,6 +95,16 @@ $ErrorActionPreference = 'Stop'
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
+
+# Build-related setup is for the dev machine only; never forward those
+# scenarios to a remote test machine. Test/runtime setup scenarios honor
+# -ComputerName as usual.
+if (-not $ForBuild -and -not $ForEbpfBuild) {
+    $Forwarded = Invoke-XdpRemoteIfRequested -InvocationCommand $MyInvocation.MyCommand `
+        -BoundParameters $PSBoundParameters -Platform $Platform -DeployArtifacts $false
+    if ($Forwarded -is [array]) { $Forwarded = $Forwarded[-1] }
+    if ($Forwarded) { return }
+}
 
 $ArtifactsDir = "$RootDir\artifacts"
 $NugetDir = "$ArtifactsDir/nuget"

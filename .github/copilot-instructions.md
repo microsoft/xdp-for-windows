@@ -61,6 +61,61 @@ XDP for Windows is a high-performance Windows packet processing framework inspir
 
 All testing must occur on a separate test machine. Do not try to run tests locally.
 
+### Running tests against a remote test machine (PREFERRED for AI agents)
+
+The repo's test scripts (`tools\functional.ps1`, `tools\spinxsk.ps1`,
+`tools\prepare-machine.ps1` for non-build scenarios, `tools\check-drivers.ps1`,
+`tools\rxfilter.ps1`, `tools\rxfilterperf.ps1`, `tools\ringperf.ps1`,
+`tools\xskmaprx.ps1`, `tools\xskfwdkm.ps1`, `tools\pktfuzz.ps1`) all
+support a `-ComputerName` parameter that transparently runs the script on
+a remote test machine via PowerShell remoting. See [docs/remote-testing.md](../docs/remote-testing.md).
+
+**Workflow for AI agents:**
+
+1. **Ask the user for the test machine name once per chat session.** Use a
+   clarifying question. Example prompt: *"Which test machine should I run
+   tests on?"*. Accept hostname, FQDN, or IP.
+
+2. **Set the session default so subsequent commands don't need
+   `-ComputerName`:**
+   ```powershell
+   .\tools\remote-set-default.ps1 <machine>
+   ```
+   This persists for the current PowerShell session.
+
+3. **Run any test script normally** — it auto-forwards to the remote and
+   streams output back:
+   ```powershell
+   .\tools\functional.ps1 -ListTestCases
+   .\tools\functional.ps1 -TestCaseFilter "Name=GenericBinding"
+   .\tools\spinxsk.ps1 -Minutes 5
+   ```
+
+4. **Credentials.** On first connect the script auto-adds the host to
+   WSMan TrustedHosts (UAC prompt) and, if WinRM rejects with auth error,
+   prompts at the **console** (`Read-Host`, no GUI) for username and
+   password. Credentials are then cached in
+   `$global:XdpRemoteCredentialCache` for the rest of the session. Do
+   **not** generate `Get-Credential` calls or store passwords in scripts.
+
+5. **One-time setup on the test machine itself** (must be done by the
+   user, requires elevation):
+   ```powershell
+   .\tools\remote.ps1 -EnableRemoting
+   ```
+   If the user has not done this, the connection will fail with
+   "WinRM client cannot process the request" or similar. Tell them to
+   run `tools\remote.ps1 -EnableRemoting` on the test machine.
+
+6. **Build first.** Remote scripts deploy `artifacts\bin\<plat>_<cfg>\`
+   from the dev machine. Always run `.\tools\build.ps1` (or rely on a
+   recent build) before remote test commands.
+
+**Build-only scripts always run locally and ignore `-ComputerName`:**
+`build.ps1`, `merge-artifacts.ps1`, `publish-nuget.ps1`,
+`prepare-machine.ps1 -ForBuild` / `-ForEbpfBuild`,
+`create-test-archive.ps1`, `update-nuspec.ps1`.
+
 ### Functional Tests
 
 1. Prepare test machine (requires admin, enables test signing, may require reboot):

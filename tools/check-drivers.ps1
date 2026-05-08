@@ -15,7 +15,19 @@ This checks for the presence of any XDP drivers currently loaded.
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [switch]$IgnoreEbpf = $false
+    [switch]$IgnoreEbpf = $false,
+
+    [Parameter(Mandatory = $false)]
+    [string]$ComputerName = "",
+
+    [Parameter(Mandatory = $false)]
+    [System.Management.Automation.PSCredential]$Credential,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RemoteRoot = "",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipDeploy
 )
 
 Set-StrictMode -Version 'Latest'
@@ -23,6 +35,12 @@ $ErrorActionPreference = 'Stop'
 
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
+. $RootDir\tools\common.ps1
+
+$Forwarded = Invoke-XdpRemoteIfRequested -InvocationCommand $MyInvocation.MyCommand `
+    -BoundParameters $PSBoundParameters -Config $Config -Platform $Platform -DeployArtifacts $false
+if ($Forwarded -is [array]) { $Forwarded = $Forwarded[-1] }
+if ($Forwarded) { return }
 
 # Cache driverquery output.
 $AllDrivers = driverquery /v /fo list
