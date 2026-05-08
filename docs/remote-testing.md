@@ -16,7 +16,7 @@ Run this once on the test machine in an **elevated** PowerShell:
 
 This is equivalent to `Enable-PSRemoting -Force -SkipNetworkProfileCheck`,
 plus a few WinRM tweaks (larger envelope, longer idle timeout) so that
-deployment and long test runs complete cleanly.
+deployment and long test runs complete cleanly. If the script is not readily available, the `Enable-PSRemoting` command is sufficient to boostrap the machine.
 
 If the dev box is not in the same domain as the test machine, the dev script
 will automatically add the test machine to the local WSMan TrustedHosts list
