@@ -82,6 +82,11 @@ static XDP_DEVICE_TABLE_ENTRY XdpDeviceTable[] = {
         .DeviceClassGuid = &XDP_INTERFACE_DEVICE_CLASS_GUID,
         .ObjectType = XDP_OBJECT_TYPE_INTERFACE,
     },
+    {
+        .DeviceName = RTL_CONSTANT_STRING(XDP_MAP_DEVICE_NAME),
+        .DeviceClassGuid = &XDP_MAP_DEVICE_CLASS_GUID,
+        .ObjectType = XDP_OBJECT_TYPE_MAP,
+    },
 };
 
 XDP_REG_WATCHER_CLIENT_ENTRY XdpRegWatcherEntry = {0};
@@ -187,6 +192,10 @@ XdpIrpCreate(
 
     case XDP_OBJECT_TYPE_INTERFACE:
         CreateRoutine = XdpIrpCreateInterface;
+        break;
+
+    case XDP_OBJECT_TYPE_MAP:
+        CreateRoutine = XdpMapIrpCreate;
         break;
 
     default:
@@ -482,6 +491,7 @@ XdpStop(
     }
 
     XdpProgramStop();
+    XdpMapStop();
     XskStop();
     XdpIfStop();
     XdpTxStop();
@@ -564,6 +574,11 @@ XdpStart(
     }
 
     Status = XskStart();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    Status = XdpMapStart();
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

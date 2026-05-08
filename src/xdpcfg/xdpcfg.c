@@ -26,7 +26,7 @@ Usage(
         "\n"
         "    SetDeviceSddl <ObjectType> <SDDL>\n"
         "        Set the SDDL on a per-object-type XDP device.\n"
-        "        ObjectType: program | xsk | interface\n");
+        "        ObjectType: program | xsk | interface | map\n");
     exit(EXIT_FAILURE);
 }
 
@@ -42,6 +42,8 @@ ParseObjectTypeGuid(
         return &XDP_XSK_DEVICE_CLASS_GUID;
     } else if (!_wcsicmp(ObjectTypeName, L"interface")) {
         return &XDP_INTERFACE_DEVICE_CLASS_GUID;
+    } else if (!_wcsicmp(ObjectTypeName, L"map")) {
+        return &XDP_MAP_DEVICE_CLASS_GUID;
     } else {
         return NULL;
     }

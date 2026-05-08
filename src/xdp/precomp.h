@@ -97,5 +97,7 @@
 #include "rx.h"
 #include "tx.h"
 #include "xsk.h"
+#include "map.h"
+#include "xskmap.h"
 
 #endif // USER_MODE

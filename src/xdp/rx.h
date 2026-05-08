@@ -156,6 +156,11 @@ XdpRxQueueGetStatsFromInspectionContext(
     _In_ const XDP_INSPECTION_CONTEXT *Context
     );
 
+UINT32
+XdpRxQueueGetQueueIdFromInspectionContext(
+    _In_ const XDP_INSPECTION_CONTEXT *Context
+    );
+
 NTSTATUS
 XdpRxStart(
     VOID
