@@ -1,0 +1,31 @@
+name: CI (Release Branches)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '47 3 * * 1' # Weekly on Sunday night (3:47 AM UTC Monday); non-round minute to avoid thundering herd
+
+permissions: read-all
+
+jobs:
+  trigger:
+    name: Trigger CI for release branches
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 0
+    - name: Trigger CI for each supported release branch
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        branches=$(jq -r '.branches[] | select(.supported) | .branch' release-branches.json)
+        for branch in $branches; do
+          echo "Triggering CI for $branch"
+          gh workflow run ci.yml --ref "$branch"
+        done

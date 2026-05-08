@@ -1,8 +1,8 @@
 # XdpLoadApi function
 
-Dynamically loads XDP, then opens the API and returns an API function table with the rest of the API's functions. This function is provided inline in XDP headers.
+Dynamically loads the `xdpapi.dll` library, then opens the API and returns an API function table with the rest of the API's functions. This function is provided inline in XDP headers.
 
-** This API is deprecated. **
+**This API is deprecated.** It is provided only for backward compatibility with applications using `XDP_API_VERSION_1` or `XDP_API_VERSION_2`. New applications should use `XDP_API_VERSION_3` or later, which provides header-only API implementations that do not require the `xdpapi.dll` library.
 
 ## Syntax
 

@@ -41,7 +41,7 @@
      </Delete>
   </Target>
   <Target Name="BuildNuget" AfterTargets="Build" Condition="$(BuildStage) != 'Binary'">
-      <Exec Command="powershell.exe /c &quot;$(SolutionDir)tools\update-nuspec.ps1 -InputFile xdp-for-windows-runtime.nuspec.in -OutputFile $(IntDir)xdp-for-windows-runtime.nuspec -Platform $(Platform) -Config $(Configuration)&quot;" />
+      <Exec Command="powershell.exe -NonInteractive -ExecutionPolicy Unrestricted -Command &quot;$(SolutionDir)tools\update-nuspec.ps1 -InputFile xdp-for-windows-runtime.nuspec.in -OutputFile $(IntDir)xdp-for-windows-runtime.nuspec -Platform $(Platform) -Config $(Configuration)&quot;" />
       <Exec Command="NuGet.exe pack $(IntDir)xdp-for-windows-runtime.nuspec -OutputDirectory $(OutDir) -BasePath $(ProjectDir) -Properties NoWarn=NU5100,NU5110,NU5111;TreatWarningsAsErrors=true" />
   </Target>
 </Project>

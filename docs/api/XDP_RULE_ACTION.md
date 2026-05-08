@@ -29,6 +29,12 @@ typedef enum _XDP_RULE_ACTION {
     // eBPF program.
     //
     XDP_PROGRAM_ACTION_EBPF,
+    //
+    // Frame must be redirected to the XSK at the current receive queue ID in
+    // the specified XSKMAP. If no XSK is found for the queue, the frame is
+    // dropped.
+    //
+    XDP_PROGRAM_ACTION_REDIRECT_XSKMAP_BY_QUEUEID,
 } XDP_RULE_ACTION;
 
 //
@@ -52,6 +58,7 @@ typedef struct _XDP_REDIRECT_PARAMS {
 typedef struct _XDP_EBPF_PARAMS {
     HANDLE Target;
 } XDP_EBPF_PARAMS;
+
 ```
 
 ## Members

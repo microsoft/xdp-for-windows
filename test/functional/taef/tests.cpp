@@ -179,6 +179,22 @@ public:
         ::GenericRxChecksumOffloadExtensions();
     }
 
+    TEST_METHOD_PRERELEASE(GenericRxTimestampOffloadExtensions) {
+        ::GenericRxTimestampOffloadExtensions();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxTimestampOffload) {
+        ::GenericRxTimestampOffload();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericTxTimestampOffloadExtensions) {
+        ::GenericTxTimestampOffloadExtensions();
+    }
+
+    TEST_METHOD_PRERELEASE(GenericTxTimestampOffload) {
+        ::GenericTxTimestampOffload();
+    }
+
     TEST_METHOD_PRERELEASE(GenericTxChecksumOffloadIp) {
         ::GenericTxChecksumOffloadIp();
     }
@@ -228,7 +244,15 @@ public:
     }
 
     TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfig) {
-        ::GenericRxChecksumOffloadConfig();
+        ::GenericRxChecksumOffloadConfig(FALSE);
+    }
+
+    TEST_METHOD_PRERELEASE(GenericRxChecksumOffloadConfigAttachProgram) {
+        ::GenericRxChecksumOffloadConfig(TRUE);
+    }
+
+    TEST_METHOD(GenericRxOriginalLength) {
+        ::GenericRxOriginalLength();
     }
 
     TEST_METHOD(GenericRxTcpControlV4) {
@@ -309,6 +333,14 @@ public:
 
     TEST_METHOD(GenericRxMatchIpPrefixV6) {
         GenericRxMatchIpPrefix(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxMatchIcmpEchoReplyV4) {
+        GenericRxMatchIcmpEchoReply(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxMatchIcmpEchoReplyV6) {
+        GenericRxMatchIcmpEchoReply(AF_INET6);
     }
 
     TEST_METHOD(GenericRxMatchInnerIpPrefixV4Udp) {
@@ -572,6 +604,10 @@ public:
         ::SecurityAdjustDeviceAcl();
     }
 
+    TEST_METHOD(SecurityPerObjectDeviceAcl) {
+        ::SecurityPerObjectDeviceAcl();
+    }
+
     TEST_METHOD(EbpfNetsh) {
         ::EbpfNetsh();
     }
@@ -678,5 +714,25 @@ public:
 
     TEST_METHOD(OidPassthru) {
         ::OidPassthru();
+    }
+
+    TEST_METHOD(GenericXskUmemReg) {
+        ::GenericXskUmemReg();
+    }
+
+    TEST_METHOD(XskMapCreateInsertDelete) {
+        ::XskMapCreateInsertDelete();
+    }
+
+    TEST_METHOD(GenericRxXskMapRedirectV4) {
+        GenericRxXskMapRedirect(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxXskMapRedirectV6) {
+        GenericRxXskMapRedirect(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxXskMapRedirectMiss) {
+        ::GenericRxXskMapRedirectMiss();
     }
 };

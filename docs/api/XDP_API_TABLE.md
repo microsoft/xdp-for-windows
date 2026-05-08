@@ -1,8 +1,8 @@
 # XDP_API_TABLE structure
 
-A structure containing XDP API functions.
+A structure containing XDP API function pointers from the `xdpapi.dll` library.
 
-** This structure is deprecated. **
+**This structure is deprecated.** It is provided only for backward compatibility with applications using `XDP_API_VERSION_1` or `XDP_API_VERSION_2`. New applications should use `XDP_API_VERSION_3` or later, which provides header-only API implementations that do not require the `xdpapi.dll` library or this function table.
 
 ## Syntax
 

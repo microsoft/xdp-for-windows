@@ -229,6 +229,9 @@ struct QUEUE_CONTEXT {
     HANDLE rss;
     SRWLOCK rssLock;
 
+    HANDLE xskMap;
+    SRWLOCK xskMapLock;
+
     XSK_PROGRAM_SET rxProgramSet;
     XSK_PROGRAM_SET sharedUmemRxProgramSet;
 
@@ -717,14 +720,14 @@ AttachXdpProgram(
         rule.Match = XDP_MATCH_ALL;
 
         if (!(RandUlong() % 2)) {
-            rule.Match = RandUlong() % (XDP_MATCH_INNER_IPV6_DST_MASK_UDP + 1);
+            rule.Match = RandUlong() % (XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST + 1);
         }
 
         if (!(RandUlong() % 128)) {
             rule.Match = (XDP_MATCH_TYPE)RandUlong();
         }
 
-        switch (RandUlong() % 4) {
+        switch (RandUlong() % 5) {
         case 0:
             rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
             rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
@@ -743,6 +746,20 @@ AttachXdpProgram(
 
         case 3:
             return AttachXdpEbpfProgram(Queue, Sock, RxProgramSet);
+
+        case 4:
+            //
+            // Redirect via the queue's XSKMAP. Snapshot the handle under the
+            // lock; if it is concurrently closed/recreated, the driver may
+            // return an error, which is intentional fuzzing coverage. The map
+            // handle may also be NULL if FuzzXskMap has not (yet) created one.
+            //
+            rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+            rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+            AcquireSRWLockShared(&Queue->xskMapLock);
+            rule.Redirect.Target = Queue->xskMap;
+            ReleaseSRWLockShared(&Queue->xskMapLock);
+            break;
         }
     }
 
@@ -860,6 +877,12 @@ DetachXdpProgram(
         //
         ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST));
 
+        //
+        // Detach the XDP program from the interface before closing the object.
+        //
+        TraceVerbose("bpf_xdp_detach(%d, 0, NULL)", ifindex);
+        bpf_xdp_detach(ifindex, 0, NULL);
+
         TraceVerbose("bpf_object__close(%p)", BpfObject);
         bpf_object__close(BpfObject);
 
@@ -935,6 +958,9 @@ CleanupQueue(
     }
     if (Queue->rss != NULL) {
         ASSERT_FRE(CloseHandle(Queue->rss));
+    }
+    if (Queue->xskMap != NULL) {
+        ASSERT_FRE(CloseHandle(Queue->xskMap));
     }
 
     if (Queue->fuzzerShared.pauseEvent != NULL) {
@@ -1259,6 +1285,75 @@ FuzzInterface(
     }
 }
 
+VOID
+FuzzXskMap(
+    _In_ XSK_FUZZER_WORKER *fuzzer,
+    _In_ QUEUE_CONTEXT *queue
+    )
+{
+    UNREFERENCED_PARAMETER(fuzzer);
+
+    if (RandUlong() % 50 == 0) {
+        // Close the map.
+        HANDLE toClose = NULL;
+        AcquireSRWLockExclusive(&queue->xskMapLock);
+        toClose = queue->xskMap;
+        queue->xskMap = NULL;
+        ReleaseSRWLockExclusive(&queue->xskMapLock);
+        if (toClose != NULL) {
+            ASSERT_FRE(CloseHandle(toClose));
+        }
+    }
+
+    if (RandUlong() % 10 == 0) {
+        // (Re)create the map.
+        HANDLE newMap = NULL;
+        HANDLE oldMap = NULL;
+        XdpMapCreate(&newMap, XDP_MAP_TYPE_XSKMAP);
+
+        AcquireSRWLockExclusive(&queue->xskMapLock);
+        oldMap = queue->xskMap;
+        queue->xskMap = newMap;
+        ReleaseSRWLockExclusive(&queue->xskMapLock);
+
+        if (oldMap != NULL) {
+            ASSERT_FRE(CloseHandle(oldMap));
+        }
+    }
+
+    if (RandUlong() % 5 == 0) {
+        //
+        // Use a key that is sometimes out of the supported XSKMAP range to
+        // exercise the parameter validation path. Use the current XSK
+        // socket handle when available, occasionally NULL or the XSKMAP's
+        // own handle to exercise error paths.
+        //
+        UINT32 key = RandUlong() % 200;
+        HANDLE xskHandle;
+
+        AcquireSRWLockShared(&queue->xskMapLock);
+        if (queue->xskMap != NULL) {
+            switch (RandUlong() % 8) {
+            case 0:  xskHandle = NULL; break;
+            case 1:  xskHandle = queue->xskMap; break;
+            default: xskHandle = queue->sock; break;
+            }
+            (void)XdpMapInsert(queue->xskMap, &key, &xskHandle);
+        }
+        ReleaseSRWLockShared(&queue->xskMapLock);
+    }
+
+    if (RandUlong() % 5 == 0) {
+        UINT32 key = RandUlong() % 200;
+
+        AcquireSRWLockShared(&queue->xskMapLock);
+        if (queue->xskMap != NULL) {
+            (void)XdpMapDelete(queue->xskMap, &key);
+        }
+        ReleaseSRWLockShared(&queue->xskMapLock);
+    }
+}
+
 HRESULT
 InitializeQueue(
     _In_ UINT32 QueueId,
@@ -1280,6 +1375,7 @@ InitializeQueue(
     InitializeCriticalSection(&queue->rxProgramSet.Lock);
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
+    InitializeSRWLock(&queue->xskMapLock);
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
@@ -1604,6 +1700,21 @@ FuzzSocketMisc(
     }
 
     if (RandUlong() % 2) {
+        UINT32 Enabled = RandUlong() % 2;
+        XskSetSockopt(Sock, XSK_SOCKOPT_RX_ORIGINAL_LENGTH, &Enabled, sizeof(Enabled));
+    }
+
+    if (RandUlong() % 2) {
+        UINT32 Enabled = RandUlong() % 2;
+        XskSetSockopt(Sock, XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    }
+
+    if (RandUlong() % 2) {
+        UINT32 Enabled = RandUlong() % 2;
+        XskSetSockopt(Sock, XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    }
+
+    if (RandUlong() % 2) {
         XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
         UINT32 timeoutMs = 0;
         XSK_NOTIFY_RESULT_FLAGS notifyResult;
@@ -1664,12 +1775,15 @@ FuzzSocketMisc(
         UINT16 Extension;
         UINT32 Option = 0;
 
-        switch (RandUlong() % 2) {
+        switch (RandUlong() % 3) {
         case 0:
             Option = XSK_SOCKOPT_TX_FRAME_LAYOUT_EXTENSION;
             break;
         case 1:
             Option = XSK_SOCKOPT_TX_FRAME_CHECKSUM_EXTENSION;
+            break;
+        case 2:
+            Option = XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION;
             break;
         }
 
@@ -1681,12 +1795,18 @@ FuzzSocketMisc(
         UINT16 Extension;
         UINT32 Option = 0;
 
-        switch (RandUlong() % 2) {
+        switch (RandUlong() % 4) {
         case 0:
             Option = XSK_SOCKOPT_RX_FRAME_LAYOUT_EXTENSION;
             break;
         case 1:
             Option = XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION;
+            break;
+        case 2:
+            Option = XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION;
+            break;
+        case 3:
+            Option = XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION;
             break;
         }
 
@@ -1705,6 +1825,19 @@ FuzzSocketMisc(
         }
         XskGetSockopt(
             Sock, XSK_SOCKOPT_TX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig, &optSize);
+    }
+
+    if (RandUlong() % 2) {
+        XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+
+        optSize = sizeof(ChecksumConfig);
+        if (!(RandUlong() % 8)) {
+            optSize = 0;
+        } else if (!(RandUlong() % 8)) {
+            optSize = RandUlong() % (sizeof(ChecksumConfig) * 2);
+        }
+        XskGetSockopt(
+            Sock, XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig, &optSize);
     }
 
     if (!cleanDatapath && !(RandUlong() % 3)) {
@@ -2116,7 +2249,8 @@ BuildRandomQuicPacket(
         destConnId, destConnIdLength, srcConnId, srcConnIdLength, useShortHeader));
 }
 
-void BuildRandomUdpFrame(
+VOID
+BuildRandomUdpFrame(
     _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
     _In_ UINT32* FrameLength,
     _In_reads_bytes_(PayloadLength) UCHAR* Payload,
@@ -2136,6 +2270,32 @@ void BuildRandomUdpFrame(
     ASSERT_FRE(PktBuildUdpFrame(
         Frame, FrameLength, Payload, PayloadLength,
         &localMac, &remoteMac, af, &localIp, &remoteIp, localPort, remotePort));
+}
+
+VOID
+BuildRandomICMPFrame(
+    _Out_writes_bytes_(*FrameLength) UCHAR* Frame,
+    _In_ UINT32* FrameLength,
+    _In_reads_bytes_(PayloadLength) UCHAR* Payload,
+    _In_ const UINT16 PayloadLength
+    )
+{
+    const ETHERNET_ADDRESS LocalMac = FNMP_LOCAL_ETHERNET_ADDRESS_INIT;
+    const ETHERNET_ADDRESS RemoteMac = FNMP_NEIGHBOR_ETHERNET_ADDRESS_INIT;
+    const ADDRESS_FAMILY af = (RandUlong() % 2) ? AF_INET : AF_INET6;
+    INET_ADDR LocalIp = {0};
+    INET_ADDR RemoteIp = {0};
+    FillIpAddresses(af, &LocalIp, &RemoteIp);
+
+    if (af == AF_INET) {
+        ASSERT_FRE(PktBuildIcmp4Frame(
+            Frame, FrameLength, Payload, PayloadLength,
+            &LocalMac, &RemoteMac, &LocalIp, &RemoteIp));
+    } else {
+        ASSERT_FRE(PktBuildIcmp6Frame(
+            Frame, FrameLength, Payload, PayloadLength,
+            &LocalMac, &RemoteMac, &LocalIp, &RemoteIp));
+    }
 }
 
 VOID
@@ -2293,11 +2453,13 @@ InjectFnmpRxFrames(
         //
         // Build a transport frame
         //
-        frameType = RandUlong() % 3;
+        frameType = RandUlong() % 4;
         if (frameType == 0) {
             BuildRandomUdpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else if (frameType == 1) {
             BuildRandomTcpFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
+        } else if (frameType == 2) {
+            BuildRandomICMPFrame(&frame[backfill], &frameLength, payload, (UINT16)payloadLength);
         } else {
             //
             // Send pure chaos - the frame buffer has already be randomly initilized.
@@ -2453,6 +2615,8 @@ XskFuzzerWorkerFn(
         FuzzProgTestRunXdpEbpfProgram();
 
         FuzzInterface(fuzzer, queue);
+
+        FuzzXskMap(fuzzer, queue);
 
         FuzzSocketRxTxSetup(
             queue, queue->sock,

@@ -46,25 +46,25 @@ jobs:
     runs-on: windows-${{ inputs.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
         ref: ${{ inputs.ref }}
     - name: Initialize CodeQL
       if: inputs.codeql
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       with:
         languages: c-cpp
     - name: Setup MSBuild.exe
-      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
       with:
         msbuild-architecture: x64
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForBuild -Verbose -Platform ${{ inputs.platform }}
     - name: Nuget Restore
-      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=src/nuget.config /p:Configuration=${{ inputs.config }} /p:Platform=${{ inputs.platform }}
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=tools/nuget.config /p:Configuration=${{ inputs.config }} /p:Platform=${{ inputs.platform }}
     - name: Prepare for compiling eBPF programs
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose -Platform ${{ inputs.platform }}
     - name: Build
@@ -72,7 +72,7 @@ jobs:
       run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.platform }} /p:SignMode=TestSign /p:IsAdmin=true /nodeReuse:false
     - name: Upload Artifacts
       if: inputs.artifact_path != ''
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: ${{inputs.artifact_path}}
         path: |
@@ -82,6 +82,6 @@ jobs:
           !artifacts/bin/**/*.lastcodeanalysissucceeded
     - name: Perform CodeQL Analysis
       if: inputs.codeql
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4
       with:
         category: "/language:c-cpp"

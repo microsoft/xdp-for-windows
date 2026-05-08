@@ -35,6 +35,11 @@ typedef struct _XDP_FILE_FULL_EA_INFORMATION {
 #endif
 
 #define XDP_DEVICE_NAME L"\\Device\\xdp"
+#define XDP_DEVICE_DIRECTORY_NAME L"\\Device\\xdpapi"
+#define XDP_PROGRAM_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\program"
+#define XDP_XSK_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\xsk"
+#define XDP_INTERFACE_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\interface"
+#define XDP_MAP_DEVICE_NAME XDP_DEVICE_DIRECTORY_NAME L"\\map"
 
 #define XDP_OPEN_PACKET_NAME "XdpOpenPacket000"
 
@@ -50,6 +55,34 @@ extern CONST GUID DECLSPEC_SELECTANY XDP_DEVICE_CLASS_GUID = { /* 28f93d3f-4c0a-
     {0x8f, 0xf1, 0x96, 0xb2, 0x4e, 0x19, 0xb8, 0x56}
 };
 
+extern CONST GUID DECLSPEC_SELECTANY XDP_PROGRAM_DEVICE_CLASS_GUID = { /* 6ad95b14-2cb1-4646-ba32-bc090ab436e5 */
+    0x6ad95b14,
+    0x2cb1,
+    0x4646,
+    {0xba, 0x32, 0xbc, 0x09, 0x0a, 0xb4, 0x36, 0xe5}
+};
+
+extern CONST GUID DECLSPEC_SELECTANY XDP_XSK_DEVICE_CLASS_GUID = { /* 0903d898-39c3-4a0f-8528-13658fb280f3 */
+    0x0903d898,
+    0x39c3,
+    0x4a0f,
+    {0x85, 0x28, 0x13, 0x65, 0x8f, 0xb2, 0x80, 0xf3}
+};
+
+extern CONST GUID DECLSPEC_SELECTANY XDP_INTERFACE_DEVICE_CLASS_GUID = { /* 5f1fa9af-e48e-457a-b556-88492b514662 */
+    0x5f1fa9af,
+    0xe48e,
+    0x457a,
+    {0xb5, 0x56, 0x88, 0x49, 0x2b, 0x51, 0x46, 0x62}
+};
+
+extern CONST GUID DECLSPEC_SELECTANY XDP_MAP_DEVICE_CLASS_GUID = { /* 6bbd4cfc-90eb-4126-ba25-51d97bba239f */
+    0x6bbd4cfc,
+    0x90eb,
+    0x4126,
+    {0xba, 0x25, 0x51, 0xd9, 0x7b, 0xba, 0x23, 0x9f}
+};
+
 //
 // Type of XDP object to create or open.
 //
@@ -57,7 +90,44 @@ typedef enum _XDP_OBJECT_TYPE {
     XDP_OBJECT_TYPE_PROGRAM,
     XDP_OBJECT_TYPE_XSK,
     XDP_OBJECT_TYPE_INTERFACE,
+    XDP_OBJECT_TYPE_MAP,
 } XDP_OBJECT_TYPE;
+
+//
+// Map an object type to its per-type device name.
+//
+inline
+const WCHAR *
+_XdpObjectTypeDeviceName(
+    _In_ XDP_OBJECT_TYPE ObjectType
+    )
+{
+    switch (ObjectType) {
+    case XDP_OBJECT_TYPE_PROGRAM:   return XDP_PROGRAM_DEVICE_NAME;
+    case XDP_OBJECT_TYPE_XSK:       return XDP_XSK_DEVICE_NAME;
+    case XDP_OBJECT_TYPE_INTERFACE: return XDP_INTERFACE_DEVICE_NAME;
+    case XDP_OBJECT_TYPE_MAP:       return XDP_MAP_DEVICE_NAME;
+    default:                        return XDP_DEVICE_NAME;
+    }
+}
+
+//
+// Map an object type to its per-type device class GUID.
+//
+inline
+const GUID *
+_XdpObjectTypeDeviceClassGuid(
+    _In_ XDP_OBJECT_TYPE ObjectType
+    )
+{
+    switch (ObjectType) {
+    case XDP_OBJECT_TYPE_PROGRAM:   return &XDP_PROGRAM_DEVICE_CLASS_GUID;
+    case XDP_OBJECT_TYPE_XSK:       return &XDP_XSK_DEVICE_CLASS_GUID;
+    case XDP_OBJECT_TYPE_INTERFACE: return &XDP_INTERFACE_DEVICE_CLASS_GUID;
+    case XDP_OBJECT_TYPE_MAP:       return &XDP_MAP_DEVICE_CLASS_GUID;
+    default:                        return &XDP_DEVICE_CLASS_GUID;
+    }
+}
 
 //
 // XDP open packet, which is our common header for NtCreateFile extended

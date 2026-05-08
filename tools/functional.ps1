@@ -47,8 +47,8 @@ param (
     [switch]$NoPrerelease = $false,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI"
+    [ValidateSet("INF", "NuGet")]
+    [string]$XdpInstaller = "NuGet"
 )
 
 Set-StrictMode -Version 'Latest'

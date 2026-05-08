@@ -49,6 +49,11 @@ GenericRxMatchIpPrefix(
     );
 
 VOID
+GenericRxMatchIcmpEchoReply(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
 GenericRxMatchInnerIpPrefix(
     _In_ UINT16 AddressFamily
     );
@@ -150,6 +155,9 @@ VOID
 SecurityAdjustDeviceAcl();
 
 VOID
+SecurityPerObjectDeviceAcl();
+
+VOID
 EbpfNetsh();
 
 VOID
@@ -204,6 +212,18 @@ VOID
 GenericRxChecksumOffloadExtensions();
 
 VOID
+GenericRxTimestampOffloadExtensions();
+
+VOID
+GenericRxTimestampOffload();
+
+VOID
+GenericTxTimestampOffloadExtensions();
+
+VOID
+GenericTxTimestampOffload();
+
+VOID
 GenericTxChecksumOffloadIp();
 
 VOID
@@ -231,12 +251,14 @@ GenericRxChecksumOffloadUdp(
     ADDRESS_FAMILY Af
     );
 
+VOID
+GenericRxOriginalLength();
 
 VOID
 GenericTxChecksumOffloadConfig();
 
 VOID
-GenericRxChecksumOffloadConfig();
+GenericRxChecksumOffloadConfig(BOOLEAN AttachProgram);
 
 VOID
 GenericXskWait(
@@ -310,3 +332,17 @@ OffloadQeoOidFailure(
 
 VOID
 OidPassthru();
+
+VOID
+GenericXskUmemReg();
+
+VOID
+GenericRxXskMapRedirect(
+    _In_ ADDRESS_FAMILY Af
+    );
+
+VOID
+GenericRxXskMapRedirectMiss();
+
+VOID
+XskMapCreateInsertDelete();

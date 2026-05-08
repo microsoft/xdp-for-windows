@@ -7,9 +7,16 @@ updates:
     schedule:
       interval: "weekly"
       day: "saturday"
-
+    groups:
+      actions:
+        patterns:
+          - "*"
   - package-ecosystem: "gitsubmodule"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "saturday"
+    groups:
+      actions:
+        patterns:
+          - "*"

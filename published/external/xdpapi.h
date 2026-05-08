@@ -31,6 +31,13 @@ typedef enum _XDP_CREATE_PROGRAM_FLAGS {
 DEFINE_ENUM_FLAG_OPERATORS(XDP_CREATE_PROGRAM_FLAGS);
 C_ASSERT(sizeof(XDP_CREATE_PROGRAM_FLAGS) == sizeof(UINT32));
 
+//
+// XDP map types. See docs/maps.md.
+//
+typedef enum _XDP_MAP_TYPE {
+    XDP_MAP_TYPE_XSKMAP = 0,
+} XDP_MAP_TYPE;
+
 #if !defined(XDP_API_VERSION) || (XDP_API_VERSION <= XDP_API_VERSION_2)
 #include <xdp/xdpapi_v1.h>
 #else
@@ -50,6 +57,25 @@ XDP_STATUS
 XdpInterfaceOpen(
     _In_ UINT32 InterfaceIndex,
     _Out_ HANDLE *InterfaceHandle
+    );
+
+XDP_STATUS
+XdpMapCreate(
+    _Out_ HANDLE *Map,
+    _In_ XDP_MAP_TYPE Type
+    );
+
+XDP_STATUS
+XdpMapInsert(
+    _In_ HANDLE Map,
+    _In_ const VOID *Key,
+    _In_ const VOID *Value
+    );
+
+XDP_STATUS
+XdpMapDelete(
+    _In_ HANDLE Map,
+    _In_ const VOID *Key
     );
 
 #ifdef _KERNEL_MODE

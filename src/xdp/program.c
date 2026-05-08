@@ -588,6 +588,20 @@ XdpProgramTrace(
                 Program, i, ntohs(Rule->Pattern.NextHeader));
             break;
 
+        case XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST Ip=%!IPADDR!",
+                Program, i, Rule->Pattern.IpMask.Address.Ipv4.s_addr);
+            break;
+
+        case XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST:
+            TraceInfo(
+                TRACE_CORE,
+                "Program=%p Rule[%u]=XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST Ip=%!IPV6ADDR!",
+                Program, i, Rule->Pattern.IpMask.Address.Ipv6.u.Byte);
+            break;
+
         default:
             ASSERT(FALSE);
             break;
@@ -821,6 +835,20 @@ XdpProgramCompileNewProgram(
 
     ASSERT(NewProgram->RuleCount == RuleCount);
 
+    //
+    // Detect if any rule uses a redirect target type that requires the global
+    // map lock. The data path acquires the lock around each batch when set.
+    //
+    NewProgram->HasMap = FALSE;
+    for (UINT32 i = 0; i < NewProgram->RuleCount; i++) {
+        if (NewProgram->Rules[i].Action == XDP_PROGRAM_ACTION_REDIRECT &&
+            NewProgram->Rules[i].Redirect.TargetType ==
+                XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID) {
+            NewProgram->HasMap = TRUE;
+            break;
+        }
+    }
+
     TraceInfo(TRACE_CORE, "Compiled Program=%p on RxQueue=%p", NewProgram, RxQueue);
     XdpProgramTrace(NewProgram);
     *Program = NewProgram;
@@ -955,6 +983,7 @@ XdpProgramDelete(
 
         if (ProgramBinding->RxQueue != NULL) {
             XdpRxQueueDereference(ProgramBinding->RxQueue);
+            ProgramBinding->RxQueue = NULL;
         }
 
         RemoveEntryList(&ProgramBinding->Link);
@@ -993,8 +1022,12 @@ XdpProgramRxQueueNotify(
 
     case XDP_RX_QUEUE_NOTIFICATION_DELETE:
         XdpProgramDetachRxQueue(ProgramBinding);
-        break;
 
+        if (ProgramBinding->RxQueue != NULL) {
+            XdpRxQueueDereference(ProgramBinding->RxQueue);
+            ProgramBinding->RxQueue = NULL;
+        }
+        break;
     }
 }
 
@@ -1285,6 +1318,10 @@ XdpProgramBindingAttach(
     XdpRxQueueRegisterNotifications(
         ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
         XdpProgramRxQueueNotify);
+    XdpRxQueueInvokeAttachmentNotification(
+        ProgramBinding->RxQueue, &ProgramBinding->RxQueueNotificationEntry,
+        XdpProgramRxQueueNotify);
+
 
     ASSERT(
         !IsListEmpty(&ProgramBinding->RxQueueEntry) &&

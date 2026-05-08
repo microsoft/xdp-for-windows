@@ -18,12 +18,14 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <functional>
 #include <lm.h>
 #include <sddl.h>
 #include <string.h>
 
 #pragma warning(push)
 #pragma warning(disable:26457) // (void) should not be used to ignore return values, use 'std::ignore =' instead (es.48)
+#pragma warning(disable:28182) // Dereferencing NULL pointer.
 #include <wil/resource.h>
 #pragma warning(pop)
 
@@ -153,6 +155,30 @@ FreeMem(
 template <typename T>
 using unique_malloc_ptr = wistd::unique_ptr<T, wil::function_deleter<decltype(&::FreeMem), ::FreeMem>>;
 using unique_bpf_object = wistd::unique_ptr<bpf_object, wil::function_deleter<decltype(&::bpf_object__close), ::bpf_object__close>>;
+
+//
+// Custom deleter for XDP program attachment that detaches the program
+//
+struct XdpProgramDeleter {
+    UINT32 IfIndex;
+
+    XdpProgramDeleter(UINT32 ifIndex = 0) : IfIndex(ifIndex) {}
+
+    void operator()(bpf_object* bpfObject) {
+        if (IfIndex != 0) {
+            int ErrnoResult = bpf_xdp_detach(IfIndex, 0, NULL);
+            if (ErrnoResult != 0) {
+                TraceError("bpf_xdp_detach failed: %d, errno=%d", ErrnoResult, errno);
+            }
+        }
+
+        if (bpfObject) {
+            bpf_object__close(bpfObject);
+        }
+    }
+};
+
+using unique_xdp_program = wistd::unique_ptr<bpf_object, XdpProgramDeleter>;
 using unique_fnmp_handle = wil::unique_any<FNMP_HANDLE, decltype(::FnMpClose), ::FnMpClose>;
 using unique_fnlwf_handle = wil::unique_any<FNLWF_HANDLE, decltype(::FnLwfClose), ::FnLwfClose>;
 using unique_fnmp_filter_handle = wil::unique_any<FNMP_HANDLE, decltype(::MpTxFilterReset), ::MpTxFilterReset>;
@@ -198,6 +224,8 @@ typedef struct {
     UINT16 RxFrameLayoutExtension;
     BOOLEAN RxFrameChecksumExtensionEnabled;
     UINT16 RxFrameChecksumExtension;
+    BOOLEAN RxOriginalLengthExtensionEnabled;
+    UINT16 RxOriginalLengthExtension;
 } MY_EXTENSIONS;
 
 typedef struct {
@@ -749,6 +777,29 @@ SetDeviceSddl(
 }
 
 static
+VOID
+SetObjectDeviceSddl(
+    _In_z_ const CHAR *ObjectType,
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR XdpBinaryPath[MAX_PATH];
+    UINT32 XdpBinaryPathLength;
+    CHAR CmdBuff[256];
+
+    XdpBinaryPathLength =
+        GetEnvironmentVariableA("_XDP_BINARIES_PATH", XdpBinaryPath, sizeof(XdpBinaryPath));
+    TEST_NOT_EQUAL(0, XdpBinaryPathLength);
+    TEST_TRUE(XdpBinaryPathLength <= sizeof(XdpBinaryPath));
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(
+        CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl %s \"%s\"",
+        XdpBinaryPath, ObjectType, Sddl);
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+}
+
+static
 HRESULT
 TryCreateSocket(
     _Inout_ wil::unique_handle &Socket
@@ -1253,6 +1304,17 @@ EnableRxChecksumOffload(
 
 static
 VOID
+EnableRxOriginalLength(
+    MY_SOCKET *Socket
+    )
+{
+    UINT32 Enabled = TRUE;
+    SetSockopt(Socket->Handle.get(), XSK_SOCKOPT_RX_ORIGINAL_LENGTH, &Enabled, sizeof(Enabled));
+    Socket->Extensions.RxOriginalLengthExtensionEnabled = TRUE;
+}
+
+static
+VOID
 XskSetupPreActivate(
     _Inout_ MY_SOCKET *Socket,
     _In_ BOOLEAN Rx,
@@ -1318,6 +1380,13 @@ XskSetupPreActivate(
         GetSockopt(
             Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_CHECKSUM_EXTENSION,
             &Socket->Extensions.RxFrameChecksumExtension, &OptionLength);
+    }
+
+    if (Socket->Extensions.RxOriginalLengthExtensionEnabled) {
+        OptionLength = sizeof(Socket->Extensions.RxOriginalLengthExtension);
+        GetSockopt(
+            Socket->Handle.get(), XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION,
+            &Socket->Extensions.RxOriginalLengthExtension, &OptionLength);
     }
 }
 
@@ -1461,13 +1530,13 @@ SocketGetAndFreeRxDesc(
 }
 
 static
-UINT64
+UINT64 *
 SocketGetTxCompDesc(
     _In_ const MY_SOCKET *Socket,
     _In_ UINT32 Index
     )
 {
-    return *(UINT64 *)XskRingGetElement(&Socket->Rings.Completion, Index);
+    return (UINT64 *)XskRingGetElement(&Socket->Rings.Completion, Index);
 }
 
 static
@@ -1806,6 +1875,17 @@ MpTxAllocateAndGetFrame(
     TEST_HRESULT(MpTxGetFrame(Handle, Index, &FrameLength, FrameBuffer.get()));
 
     return FrameBuffer;
+}
+
+static
+VOID
+MpTxSetFrame(
+    _In_ const unique_fnmp_handle &Handle,
+    _In_ UINT32 Index,
+    _In_ DATA_FRAME *Frame
+    )
+{
+    TEST_HRESULT(FnMpTxSetFrame(Handle.get(), Index, 0, Frame));
 }
 
 static
@@ -2269,6 +2349,45 @@ CreateUdpSocket(
 
     unique_fnsock Socket;
     TEST_HRESULT(FnSockCreate(Af, SOCK_DGRAM, IPPROTO_UDP, &Socket));
+    TEST_NOT_NULL(Socket.get());
+
+    SOCKADDR_INET Address = {0};
+    Address.si_family = Af;
+    TEST_HRESULT(FnSockBind(Socket.get(), (SOCKADDR *)&Address, sizeof(Address)));
+
+    INT AddressLength = sizeof(Address);
+    TEST_HRESULT(FnSockGetSockName(Socket.get(), (SOCKADDR *)&Address, &AddressLength));
+
+    INT TimeoutMs = TEST_TIMEOUT_ASYNC_MS;
+    TEST_HRESULT(
+        FnSockSetSockOpt(
+            Socket.get(), SOL_SOCKET, SO_RCVTIMEO, (CHAR *)&TimeoutMs, sizeof(TimeoutMs)));
+
+    *LocalPort = SS_PORT(&Address);
+    return Socket;
+}
+
+static
+unique_fnsock
+CreateIcmpSocket(
+    _In_ ADDRESS_FAMILY Af,
+    _In_opt_ const TestInterface *If,
+    _Out_ UINT16 *LocalPort
+    )
+{
+    if (If != NULL) {
+        //
+        // Ensure the local UDP stack has finished initializing the interface.
+        //
+        WaitForWfpQuarantine(*If);
+    }
+
+    unique_fnsock Socket;
+    if (Af == AF_INET) {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMP, &Socket));
+    } else {
+        TEST_HRESULT(FnSockCreate(Af, SOCK_RAW, IPPROTO_ICMPV6, &Socket));
+    }
     TEST_NOT_NULL(Socket.get());
 
     SOCKADDR_INET Address = {0};
@@ -3573,6 +3692,92 @@ GenericRxMatchIpPrefix(
         sizeof(UdpPayload),
         FnSockRecv(UdpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0));
     TEST_TRUE(RtlEqualMemory(UdpPayload, RecvPayload, sizeof(UdpPayload)));
+}
+
+VOID
+GenericRxMatchIcmpEchoReply(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    XDP_INET_ADDR LocalIp, RemoteIp;
+
+    auto IcmpSocket = CreateIcmpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    wil::unique_handle ProgramHandle;
+
+    RemotePort = htons(1234);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    XDP_RULE Rule;
+    const UCHAR IcmpPayload[] = "GenericIcmpPayload";
+    CHAR RecvPayload[100] = {0};
+    UCHAR *IcmpFrame;
+    UCHAR Icmp4Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER) + sizeof(ICMPV4_HEADER) + sizeof(IcmpPayload)] = {0};
+    UCHAR Icmp6Frame[sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER) + sizeof(ICMPV6_HEADER) + sizeof(IcmpPayload)] = {0};
+    UINT32 FrameSize = 0;
+    if (Af == AF_INET) {
+        Rule.Match = XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST;
+        FrameSize = sizeof(Icmp4Frame);
+        TEST_TRUE(
+            PktBuildIcmp4Frame(
+                Icmp4Frame, &FrameSize, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                &RemoteHw, &LocalIp, &RemoteIp));
+        IcmpFrame = Icmp4Frame;
+    } else {
+        FrameSize = sizeof(Icmp6Frame);
+        Rule.Match = XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST;
+        TEST_TRUE(
+            PktBuildIcmp6Frame(
+                Icmp6Frame, &FrameSize, IcmpPayload, sizeof(IcmpPayload), &LocalHw,
+                &RemoteHw, &LocalIp, &RemoteIp));
+        IcmpFrame = Icmp6Frame;
+    }
+    Rule.Pattern.IpMask.Address = LocalIp;
+    Rule.Action = XDP_PROGRAM_ACTION_DROP;
+    RX_FRAME Frame;
+
+    //
+    // Verify we can successfully indicate an echo reply frame without the XDP program attached.
+    //
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+
+    //
+    // Verify we drop a matched ICMP echo reply packet once the XDP program is attached.
+    //
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(FAILED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
+    TEST_EQUAL(WSAETIMEDOUT, FnSockGetLastError());
+    ProgramHandle.reset();
+
+    //
+    // Verify we allow an echo reply to pass through if it does not match the IP in the rule.
+    //
+    *(UCHAR *)&Rule.Pattern.IpMask.Address ^= 0xFFu;
+    ProgramHandle =
+        CreateXdpProg(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    RxInitializeFrame(&Frame, If.GetQueueId(), IcmpFrame, FrameSize);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+    TEST_TRUE(
+        SUCCEEDED(FnSockRecv(IcmpSocket.get(), RecvPayload, sizeof(RecvPayload), FALSE, 0)));
 }
 
 VOID
@@ -5563,9 +5768,15 @@ SecurityAdjustDeviceAcl()
     sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
 
     SetDeviceSddl(SddlBuff);
+    SetObjectDeviceSddl("program", SddlBuff);
+    SetObjectDeviceSddl("xsk", SddlBuff);
+    SetObjectDeviceSddl("interface", SddlBuff);
     auto ResetSddl = wil::scope_exit([&]
     {
         SetDeviceSddl(DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("program", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("xsk", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("interface", DEFAULT_XDP_SDDL);
 
         HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
         if (FAILED(Result)) {
@@ -5591,6 +5802,150 @@ SecurityAdjustDeviceAcl()
 }
 
 VOID
+SecurityPerObjectDeviceAcl()
+{
+    PCWSTR UserName = L"xdpfnuser2";
+    WCHAR UserPassword[16 + 1];
+    USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
+
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
+
+    CHAR GrantSddl[256];
+    RtlZeroMemory(GrantSddl, sizeof(GrantSddl));
+    sprintf_s(GrantSddl, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    //
+    // Define each per-object-type device and the operation that exercises it.
+    //
+    struct PER_OBJECT_TYPE {
+        const CHAR *Name;
+        std::function<HRESULT()> TryOpen;
+    };
+    const PER_OBJECT_TYPE ObjectTypes[] = {
+        {
+            "program",
+            [&]() -> HRESULT {
+                wil::unique_handle ProgramHandle;
+                XDP_RULE Rule = {};
+                Rule.Match = XDP_MATCH_ALL;
+                Rule.Action = XDP_PROGRAM_ACTION_PASS;
+                return TryCreateXdpProg(
+                    ProgramHandle, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(),
+                    XDP_GENERIC, &Rule, 1);
+            },
+        },
+        {
+            "xsk",
+            [&]() -> HRESULT {
+                wil::unique_handle Socket;
+                return TryCreateSocket(Socket);
+            },
+        },
+        {
+            "interface",
+            [&]() -> HRESULT {
+                wil::unique_handle Interface;
+                return TryInterfaceOpen(If.GetIfIndex(), Interface);
+            },
+        },
+        {
+            "map",
+            [&]() -> HRESULT {
+                wil::unique_handle Map;
+                return XdpMapCreate(&Map, XDP_MAP_TYPE_XSKMAP);
+            },
+        },
+    };
+
+    //
+    // Restore default ACLs on all per-object-type devices when the test exits.
+    //
+    auto ResetSddl = wil::scope_exit([&]
+    {
+        for (auto &Object : ObjectTypes) {
+            SetObjectDeviceSddl(Object.Name, DEFAULT_XDP_SDDL);
+        }
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
+    });
+
+    //
+    // For each per-object-type device, grant the standard user access to only
+    // that device. Verify the corresponding operation succeeds and that all
+    // other operations are denied.
+    //
+    for (auto &Granted : ObjectTypes) {
+        for (auto &Object : ObjectTypes) {
+            const CHAR *Sddl = (&Object == &Granted) ? GrantSddl : DEFAULT_XDP_SDDL;
+            SetObjectDeviceSddl(Object.Name, Sddl);
+        }
+
+        TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        for (auto &Object : ObjectTypes) {
+            HRESULT ExpectedResult =
+                (&Object == &Granted) ? S_OK : HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED);
+            TEST_EQUAL(ExpectedResult, Object.TryOpen());
+        }
+    }
+}
+
+VOID
 EbpfNetsh()
 {
     //
@@ -5607,7 +5962,7 @@ EbpfNetsh()
 static
 HRESULT
 TryAttachEbpfXdpProgram(
-    _Out_ unique_bpf_object &BpfObject,
+    _Out_ unique_xdp_program &BpfProgram,
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
     _In_ const CHAR *BpfProgramName,
@@ -5619,6 +5974,7 @@ TryAttachEbpfXdpProgram(
     bpf_program *Program;
     int ProgramFd;
     int ErrnoResult;
+    unique_bpf_object BpfObject;
 
     Result = GetCurrentBinaryPath(BpfAbsoluteFileName, RTL_NUMBER_OF(BpfAbsoluteFileName));
     if (FAILED(Result)) {
@@ -5670,15 +6026,17 @@ TryAttachEbpfXdpProgram(
 
 Exit:
 
-    if (FAILED(Result)) {
-        BpfObject.reset();
+    if (SUCCEEDED(Result)) {
+        BpfProgram = unique_xdp_program(BpfObject.release(), XdpProgramDeleter(If.GetIfIndex()));
+    } else {
+        BpfProgram.reset();
     }
 
     return Result;
 }
 
 static
-unique_bpf_object
+unique_xdp_program
 AttachEbpfXdpProgram(
     _In_ const TestInterface &If,
     _In_ const CHAR *BpfRelativeFileName,
@@ -5686,7 +6044,7 @@ AttachEbpfXdpProgram(
     _In_ INT AttachFlags = 0
     )
 {
-    unique_bpf_object BpfObject;
+    unique_xdp_program BpfProgram;
     HRESULT Result;
 
     //
@@ -5697,7 +6055,7 @@ AttachEbpfXdpProgram(
     Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
     do {
         Result = TryAttachEbpfXdpProgram(
-            BpfObject, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
+            BpfProgram, If, BpfRelativeFileName, BpfProgramName, AttachFlags);
         if (Result == S_OK) {
             break;
         }
@@ -5705,7 +6063,7 @@ AttachEbpfXdpProgram(
 
     TEST_HRESULT(Result);
 
-    return BpfObject;
+    return BpfProgram;
 }
 
 VOID
@@ -5713,10 +6071,10 @@ GenericRxEbpfAttach()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
-    unique_bpf_object BpfObjectReplacement;
-    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfObjectReplacement, If, "\\bpf\\pass.sys", "pass")));
+    unique_xdp_program BpfProgramReplacement;
+    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfProgramReplacement, If, "\\bpf\\pass.sys", "pass")));
 
     //
     // eBPF doesn't wait for the pass.sys driver to completely unload after
@@ -5724,7 +6082,7 @@ GenericRxEbpfAttach()
     // retrying with the replace flag.
     //
     CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
-    BpfObjectReplacement =
+    BpfProgramReplacement =
         AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
 }
 
@@ -5736,7 +6094,7 @@ GenericRxEbpfDrop()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfDrop";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5765,7 +6123,7 @@ GenericRxEbpfPass()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfPass";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5790,7 +6148,7 @@ GenericRxEbpfTx()
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfTx";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -5820,7 +6178,7 @@ GenericRxEbpfPayload()
     const UINT32 Trailer = 17;
     const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -5861,8 +6219,8 @@ ProgTestRunRxEbpfPayload()
     const UCHAR UdpPayload[] = "ProgTestRunRxEbpfPayload";
     bpf_test_run_opts Opts = {};
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
-    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfObject.get(), "allow_ipv6"));
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfProgram.get(), "allow_ipv6"));
 
     // Build a v6 packet and verify it is allowed.
     UCHAR UdpFrameV6[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
@@ -5920,13 +6278,13 @@ GenericRxEbpfIfIndex()
     const UCHAR Payload[] = "GenericRxEbpfIfIndex";
     UINT32 Zero = 0;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
 
     // Get the interface_map fd.
-    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "interface_map");
+    fd_t interface_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "interface_map");
     TEST_NOT_EQUAL(interface_map_fd, ebpf_fd_invalid);
 
     // Update the interface_map with the interface index of the test interface.
@@ -5952,7 +6310,7 @@ GenericRxEbpfIfIndex()
         LwfRxGetFrame(FnLwf, If.GetQueueId(), &FrameLength, NULL));
 
     // Validate that the dropped_packet_map contains a non-0 entry for the IfIndex.
-    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfObject.get(), "dropped_packet_map");
+    fd_t dropped_packet_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "dropped_packet_map");
     TEST_NOT_EQUAL(dropped_packet_map_fd, ebpf_fd_invalid);
 
     UINT64 DroppedPacketCount = 0;
@@ -5985,7 +6343,7 @@ GenericRxEbpfFragments()
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -6024,7 +6382,7 @@ GenericRxEbpfUnload()
 {
     auto If = FnMpIf;
 
-    unique_bpf_object BpfObject = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
 
     TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
@@ -6137,7 +6495,7 @@ GenericTxSingleFrame()
     MpTxFlush(GenericMp);
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
 }
 
 VOID
@@ -6188,14 +6546,14 @@ GenericTxOutOfOrder()
     MpTxFlush(GenericMp);
 
     UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer1, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer1, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
     XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
 
     MpTxDequeueFrame(GenericMp, 0);
     MpTxFlush(GenericMp);
 
     ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-    TEST_EQUAL(TxBuffer0, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+    TEST_EQUAL(TxBuffer0, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
 }
 
 VOID
@@ -6257,7 +6615,7 @@ GenericTxSharing()
         MpTxFlush(GenericMp);
 
         UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
-        TEST_EQUAL(TxBuffer, SocketGetTxCompDesc(&Xsk, ConsumerIndex));
+        TEST_EQUAL(TxBuffer, *SocketGetTxCompDesc(&Xsk, ConsumerIndex));
     }
 }
 
@@ -6636,6 +6994,237 @@ GenericRxChecksumOffloadExtensions() {
 }
 
 VOID
+GenericRxTimestampOffloadExtensions() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    UINT16 TimestampExtension;
+    UINT32 OptionLength;
+
+    //
+    // Routine Description:
+    //     Verify that the RX timestamp offload extensions are present when
+    //     timestamp offload is enabled.
+    //
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+    TEST_TRUE(TimestampExtension >= sizeof(XSK_FRAME_DESCRIPTOR));
+
+    TEST_TRUE(
+        Xsk.Rings.Rx.ElementStride >=
+            sizeof(XSK_FRAME_DESCRIPTOR) + sizeof(XDP_FRAME_TIMESTAMP));
+}
+
+VOID
+GenericRxTimestampOffload() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    UINT16 LocalPort;
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    Xsk.RxProgram =
+        SocketAttachRxProgram(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
+    // Inject a frame to receive
+    UINT16 RemotePort = htons(4321);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    UCHAR Payload[] = "GenericRxTimestampOffload";
+    UCHAR Frame[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 FrameLength = sizeof(Frame);
+
+    PktBuildUdpFrame(
+        Frame, &FrameLength, Payload, sizeof(Payload), &LocalHw,
+        &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort);
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    RX_FRAME RxFrame;
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), Frame, FrameLength);
+    RxFrame.Frame.Input.Timestamp.Timestamp = 0x1122334455667788ui64;
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+    MpRxFlush(GenericMp);
+
+    // Receive
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex);
+
+    // Check extension
+    UINT16 TimestampExtension;
+    UINT32 OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+
+    XDP_FRAME_TIMESTAMP *Timestamp =
+        (XDP_FRAME_TIMESTAMP *)RTL_PTR_ADD(RxDesc, TimestampExtension);
+
+    TEST_EQUAL(RxFrame.Frame.Input.Timestamp.Timestamp, Timestamp->Timestamp);
+
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+}
+
+VOID
+GenericTxTimestampOffloadExtensions() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    UINT16 TimestampExtension;
+    UINT32 OptionLength;
+
+    //
+    // Routine Description:
+    //     Verify that the TX timestamp offload extensions are present when
+    //     timestamp offload is enabled. The timestamp extension is on the TX
+    //     completion ring, not the TX frame ring.
+    //
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+
+    OptionLength = sizeof(TimestampExtension);
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+            &OptionLength));
+
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+    //
+    // The timestamp extension is on the TX completion ring.
+    // Verify offset is valid within the completion ring element.
+    //
+    TEST_TRUE(TimestampExtension >= sizeof(UINT64));
+
+    TEST_TRUE(
+        Xsk.Rings.Completion.ElementStride >=
+            sizeof(UINT64) + sizeof(XDP_FRAME_TIMESTAMP));
+}
+
+VOID
+GenericTxTimestampOffload() {
+    auto If = FnMpIf;
+    const BOOLEAN Rx = FALSE, Tx = TRUE;
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    UINT16 LocalPort;
+    auto UdpSocket = CreateUdpSocket(AF_INET, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    UINT32 Enabled = TRUE;
+    SetSockopt(Xsk.Handle.get(), XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP, &Enabled, sizeof(Enabled));
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    // Build a TX frame
+    UINT16 RemotePort = htons(4321);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    UCHAR Payload[] = "GenericTxTimestampOffload";
+    UINT64 TxBuffer = SocketFreePop(&Xsk);
+    UCHAR *TxFrame = Xsk.Umem.Buffer.get() + TxBuffer;
+    UINT32 FrameLength = Xsk.Umem.Reg.ChunkSize;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            TxFrame, &FrameLength, Payload, sizeof(Payload), &LocalHw,
+            &RemoteHw, AF_INET, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    CxPlatVector<UCHAR> Mask(FrameLength, 0xFF);
+    auto MpFilter = MpTxFilter(GenericMp, TxFrame, &Mask, FrameLength);
+
+    // Get timestamp extension offset on the TX completion ring
+    UINT16 TimestampExtension;
+    UINT32 OptionLength = sizeof(TimestampExtension);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION, &TimestampExtension,
+        &OptionLength);
+
+    // Produce TX frame (no timestamp is set on the frame - timestamps come on completion)
+    UINT32 ProducerIndex;
+    TEST_EQUAL(1, XskRingProducerReserve(&Xsk.Rings.Tx, 1, &ProducerIndex));
+    XSK_FRAME_DESCRIPTOR *TxDesc = SocketGetTxFrameDesc(&Xsk, ProducerIndex);
+    TxDesc->Buffer.Address.AddressAndOffset = TxBuffer;
+    TxDesc->Buffer.Length = FrameLength;
+
+    XskRingProducerSubmit(&Xsk.Rings.Tx, 1);
+
+    XSK_NOTIFY_RESULT_FLAGS NotifyResult;
+    NotifySocket(Xsk.Handle.get(), XSK_NOTIFY_FLAG_POKE_TX, 0, &NotifyResult);
+    TEST_EQUAL(0, NotifyResult);
+
+    auto MpTxFrame = MpTxAllocateAndGetFrame(GenericMp, If.GetQueueId());
+    DATA_FRAME UpdateFrame = {};
+    UpdateFrame.Input.Timestamp.Timestamp = 0x123456789ABCDEF0ui64;
+    UpdateFrame.Input.Flags.Timestamp = TRUE;
+    MpTxSetFrame(GenericMp, 0, &UpdateFrame);
+    MpTxDequeueFrame(GenericMp, 0);
+    MpTxFlush(GenericMp);
+
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Completion, 1);
+    UINT64 *CompletionDesc = SocketGetTxCompDesc(&Xsk, ConsumerIndex);
+    XDP_FRAME_TIMESTAMP *Timestamp =
+        (XDP_FRAME_TIMESTAMP *)RTL_PTR_ADD(CompletionDesc, TimestampExtension);
+    TEST_EQUAL(UpdateFrame.Input.Timestamp.Timestamp, Timestamp->Timestamp);
+
+    XskRingConsumerRelease(&Xsk.Rings.Completion, 1);
+}
+
+VOID
 GenericTxChecksumOffloadIp()
 {
     const BOOLEAN Rx = FALSE, Tx = TRUE;
@@ -6738,6 +7327,60 @@ GenericRxChecksumOffloadIp(BOOLEAN TestRebind) {
     XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
 }
 
+VOID
+GenericRxOriginalLength()
+{
+    auto If = FnMpIf;
+    const ADDRESS_FAMILY Af = AF_INET;
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+    UINT16 LocalPort, RemotePort;
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    EnableRxOriginalLength(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+    Xsk.RxProgram =
+        SocketAttachRxProgram(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+
+    RemotePort = htons(4321);
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    RX_FRAME RxFrame;
+    UCHAR UdpPayload[] = "GenericRxOriginalLength";
+    UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
+    UINT32 UdpFrameLength = sizeof(UdpFrame);
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    RxInitializeFrame(&RxFrame, If.GetQueueId(), UdpFrame, UdpFrameLength);
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &RxFrame));
+    MpRxFlush(GenericMp);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, 1, &ConsumerIndex));
+
+    XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
+    TEST_TRUE(Xsk.Extensions.RxOriginalLengthExtension != 0);
+
+    XSK_FRAME_ORIGINAL_LENGTH *OriginalLength =
+        (XSK_FRAME_ORIGINAL_LENGTH *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxOriginalLengthExtension);
+
+    TEST_EQUAL(UdpFrameLength, OriginalLength->OriginalLength);
+
+    XskRingConsumerRelease(&Xsk.Rings.Rx, 1);
+}
 
 VOID
 GenericTxChecksumOffloadTcp(
@@ -7055,12 +7698,93 @@ GenericTxChecksumOffloadConfig()
 }
 
 VOID
-GenericRxChecksumOffloadConfig() {
+GenericRxChecksumOffloadConfig(BOOLEAN AttachProgram) {
     //
     // Routine Description:
     //     This test verifies the RX checksum offload configuration.
     //
-    // NOTE: TODO.
+    const auto &If = FnMpIf;
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const BOOLEAN Rx = TRUE, Tx = FALSE;
+
+    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    EnableRxChecksumOffload(&Xsk);
+    ActivateSocket(&Xsk, Rx, Tx);
+
+    auto PlainXsk = CreateAndActivateSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+
+    if (AttachProgram) {
+        Xsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, Xsk.Handle.get());
+        PlainXsk.RxProgram =
+            SocketAttachRxProgram(If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, PlainXsk.Handle.get());
+    }
+
+    XDP_CHECKSUM_CONFIGURATION ChecksumConfig;
+    UINT32 OptionLength;
+
+    TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
+
+    OptionLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, NULL, &OptionLength));
+    TEST_TRUE(OptionLength >= XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1);
+
+    OptionLength = 1;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER),
+        TryGetSockopt(
+            Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+            &OptionLength));
+    TEST_TRUE(OptionLength == 0);
+
+    OptionLength = sizeof(ChecksumConfig);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+        &OptionLength);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    TEST_FALSE(ChecksumConfig.Enabled);
+
+    NDIS_OFFLOAD_PARAMETERS OffloadParams;
+    InitializeOffloadParameters(&OffloadParams);
+    OffloadParams.IPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.UDPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv4Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+    OffloadParams.TCPIPv6Checksum = NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED;
+
+    auto OffloadReset = MpUpdateTaskOffload(GenericMp, FnOffloadCurrentConfig, &OffloadParams);
+
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS); // Give time for the offload change notification to occur.
+
+    //
+    // The offload bit should not be set unless the offload is enabled on the
+    // socket.
+    //
+    TEST_TRUE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
+
+
+    // Verify the current config is updated and the offload change flag has been
+    // cleared.
+
+    OptionLength = sizeof(ChecksumConfig);
+    GetSockopt(
+        Xsk.Handle.get(), XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM, &ChecksumConfig,
+        &OptionLength);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, OptionLength);
+    TEST_EQUAL(XDP_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Revision);
+    TEST_EQUAL(XDP_SIZEOF_CHECKSUM_CONFIGURATION_REVISION_1, ChecksumConfig.Header.Size);
+    TEST_TRUE(ChecksumConfig.Enabled);
+    TEST_TRUE(ChecksumConfig.TcpOptions);
+
+    TEST_FALSE(XskRingOffloadChanged(&Xsk.Rings.Rx));
+    TEST_FALSE(XskRingOffloadChanged(&PlainXsk.Rings.Rx));
 }
 
 static
@@ -9432,6 +10156,320 @@ OidPassthru()
         DefaultLwf.reset(Ctx.Handle.release());
         TEST_EQUAL(Ctx.InformationBufferLength, CompletionSize);
     }
+}
+
+VOID
+GenericXskUmemReg()
+{
+    HRESULT Result;
+    XSK_UMEM_REG UmemReg;
+    const XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC;
+
+    //
+    // Verify UMEM can be registered on an unbound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM can be registered on a bound socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+    }
+
+    //
+    // Verify UMEM cannot be registered twice on the same socket.
+    //
+    {
+        auto Socket = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&UmemReg, UmemBuffer.get());
+        TEST_HRESULT(TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg, sizeof(UmemReg)));
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+
+    //
+    // Verify UMEM cannot be registered on an activated socket.
+    //
+    {
+        MY_SOCKET Socket = {0};
+        Socket.Handle = CreateSocket();
+        auto UmemBuffer = AllocUmemBuffer();
+        InitUmem(&Socket.Umem.Reg, UmemBuffer.get());
+        SetUmem(Socket.Handle.get(), &Socket.Umem.Reg);
+
+        Stopwatch Watchdog(TEST_TIMEOUT_ASYNC_MS);
+        HRESULT BindResult;
+        do {
+            BindResult =
+                XskBind(
+                    Socket.Handle.get(), FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(),
+                    BindFlags);
+            if (SUCCEEDED(BindResult)) {
+                break;
+            }
+        } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+        TEST_HRESULT(BindResult);
+
+        ActivateSocket(&Socket, TRUE, TRUE);
+
+        auto UmemBuffer2 = AllocUmemBuffer();
+        XSK_UMEM_REG UmemReg2;
+        InitUmem(&UmemReg2, UmemBuffer2.get());
+        Result = TrySetSockopt(
+            Socket.Handle.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
+        TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
+    }
+}
+
+VOID
+XskMapCreateInsertDelete()
+{
+    //
+    // Create an XSKMAP, insert an XSK, delete the entry, and close the map.
+    //
+    auto If = FnMpIf;
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    TEST_TRUE(XskMap.get() != NULL);
+
+    UINT32 Key;
+    HANDLE Value = Xsk.Handle.get();
+
+    //
+    // Insert XSK at key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert XSK at maximum valid key (128 entries, 0-indexed).
+    //
+    Key = 127;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Delete key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete a key that doesn't have an entry (should succeed).
+    //
+    Key = 1;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+}
+
+VOID
+GenericRxXskMapRedirect(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP and insert the XSK at the queue ID key.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 InsertKey = If.GetQueueId();
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &InsertKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirect";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 2);
+
+    //
+    // Indicate a packet on the right RX queue.
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify the packet is received by the XSK socket.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->Length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
+            PacketBuffer,
+            PacketBufferLength));
+}
+
+VOID
+GenericRxXskMapRedirectMiss()
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    ADDRESS_FAMILY Af = AF_INET;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP but do NOT insert any XSK for the current queue ID.
+    // Insert at a different key instead to verify the miss behavior.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 WrongKey = (If.GetQueueId() + 1) % 128;
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &WrongKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirectMiss";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    //
+    // Indicate a packet on the RX queue. The XSKMAP has no entry for this
+    // queue ID, so the packet should be dropped (not received by XSK).
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify no packet is received by the XSK socket.
+    //
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
 }
 
 /**

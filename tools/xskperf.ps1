@@ -241,19 +241,17 @@ try {
         Wait-NetAdapterUpStatus -Name $AdapterName
 
         $RxSimRate = 1
-        $TxSimRate = 1
+        $TxSimRate = 0xFFFFFFFFl
         if (@("RX", "FWD").Contains($Mode) -and -not $TxInspect) {
             $RxSimRate = 0xFFFFFFFFl
             if ($Pacing) {
                 $RxSimRate = 1000
             }
         }
-        if ((@("TX", "FWD").Contains($Mode) -and -not $RxInject) -or
-            ($Mode -eq "RX" -and $TxInspect)) {
-            $TxSimRate = 0xFFFFFFFFl
-            if ($Pacing) {
-                $TxSimRate = 1000
-            }
+        if ($Pacing -and
+            ((@("TX", "FWD").Contains($Mode) -and -not $RxInject) -or
+             ($Mode -eq "RX" -and $TxInspect))) {
+            $TxSimRate = 1000
         }
 
         Write-Verbose "Setting XDPMP rate simulation to RX:$RxSimRate TX:$TxSimRate"

@@ -168,6 +168,10 @@ typedef enum _XSK_ERROR {
 #include <xdp/afxdp_v1.h>
 #else
 
+#include <xdp/framechecksum.h>
+#include <xdp/framelayout.h>
+#include <xdp/frametimestamp.h>
+
 XDP_STATUS
 XskCreate(
     _Out_ HANDLE* Socket
@@ -233,6 +237,27 @@ XskGetNotifyAsyncResult(
     _In_ XDP_OVERLAPPED *Overlapped,
     _Out_ XSK_NOTIFY_RESULT_FLAGS *Result
     );
+
+#define XSK_SOCKOPT_RX_ORIGINAL_LENGTH 1008
+
+#pragma warning(push)
+#pragma warning(default:4820) // warn if the compiler inserted padding
+
+typedef struct _XSK_FRAME_ORIGINAL_LENGTH {
+    UINT32 OriginalLength;
+} XSK_FRAME_ORIGINAL_LENGTH;
+
+#pragma warning(pop)
+
+#define XSK_SOCKOPT_RX_FRAME_ORIGINAL_LENGTH_EXTENSION 1009
+#define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_NAME L"ms_xsk_frame_original_length"
+#define XSK_FRAME_EXTENSION_ORIGINAL_LENGTH_VERSION_1 1U
+
+#define XSK_SOCKOPT_RX_OFFLOAD_CURRENT_CONFIG_CHECKSUM 1010
+#define XSK_SOCKOPT_RX_OFFLOAD_TIMESTAMP 1011
+#define XSK_SOCKOPT_RX_FRAME_TIMESTAMP_EXTENSION 1012
+#define XSK_SOCKOPT_TX_OFFLOAD_TIMESTAMP 1013
+#define XSK_SOCKOPT_TX_FRAME_TIMESTAMP_EXTENSION 1014
 
 #include <xdp/details/afxdp.h>
 

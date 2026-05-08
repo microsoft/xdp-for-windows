@@ -2,7 +2,7 @@
   <PropertyGroup Label="Version">
     <!-- Defines the XDP version numbers -->
     <XdpMajorVersion>1</XdpMajorVersion>
-    <XdpMinorVersion>2</XdpMinorVersion>
+    <XdpMinorVersion>4</XdpMinorVersion>
     <XdpPatchVersion>0</XdpPatchVersion>
   </PropertyGroup>
   <PropertyGroup>
@@ -16,9 +16,8 @@
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
     <!-- eBPF-for-windows version -->
-    <XdpEbpfVersion>0.21.0</XdpEbpfVersion>
+    <XdpEbpfVersion>1.1.0</XdpEbpfVersion>
     <XdpWdkVersion>10.0.26100.4204</XdpWdkVersion>
-    <XdpWixVer>5.0.1</XdpWixVer>
   </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->

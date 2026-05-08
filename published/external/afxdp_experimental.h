@@ -15,9 +15,6 @@
 extern "C" {
 #endif
 
-#include <xdp/framechecksum.h>
-#include <xdp/framelayout.h>
-
 //
 // XSK_SOCKOPT_POLL_MODE
 //

@@ -80,6 +80,11 @@ XdpTxQueueEnableChecksumOffload(
     _In_ XDP_TX_QUEUE *TxQueue
     );
 
+NTSTATUS
+XdpTxQueueEnableTimestampOffload(
+    _In_ XDP_TX_QUEUE *TxQueue
+    );
+
 typedef enum _XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE {
     XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE_XSK,
 } XDP_TX_QUEUE_DATAPATH_CLIENT_TYPE;

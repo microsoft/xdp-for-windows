@@ -29,18 +29,19 @@ typedef enum _XDP_RX_QUEUE_NOTIFICATION_TYPE {
     XDP_RX_QUEUE_NOTIFICATION_DETACH,
     XDP_RX_QUEUE_NOTIFICATION_DETACH_COMPLETE,
     XDP_RX_QUEUE_NOTIFICATION_DELETE,
+    XDP_RX_QUEUE_NOTIFICATION_OFFLOAD_CURRENT_CONFIG,
 } XDP_RX_QUEUE_NOTIFICATION_TYPE;
 
 typedef
 VOID
-XDP_RX_QUEUE_NOTIFY(
+XDP_RX_QUEUE_NOTIFICATION_ROUTINE(
     XDP_RX_QUEUE_NOTIFICATION_ENTRY *NotificationEntry,
     XDP_RX_QUEUE_NOTIFICATION_TYPE NotificationType
     );
 
 typedef struct _XDP_RX_QUEUE_NOTIFY_ENTRY {
     LIST_ENTRY Link;
-    XDP_RX_QUEUE_NOTIFY *NotifyRoutine;
+    XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine;
 } XDP_RX_QUEUE_NOTIFICATION_ENTRY;
 
 VOID
@@ -52,8 +53,15 @@ VOID
 XdpRxQueueRegisterNotifications(
     _In_ XDP_RX_QUEUE *RxQueue,
     _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry,
-    _In_ XDP_RX_QUEUE_NOTIFY *NotifyRoutine
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
     );
+
+VOID
+XdpRxQueueInvokeAttachmentNotification(
+    _In_ XDP_RX_QUEUE *RxQueue,
+    _Inout_ XDP_RX_QUEUE_NOTIFICATION_ENTRY *Entry,
+    _In_ XDP_RX_QUEUE_NOTIFICATION_ROUTINE *NotifyRoutine
+);
 
 VOID
 XdpRxQueueDeregisterNotifications(
@@ -63,6 +71,11 @@ XdpRxQueueDeregisterNotifications(
 
 NTSTATUS
 XdpRxQueueEnableChecksumOffload(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
+NTSTATUS
+XdpRxQueueEnableTimestampOffload(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
@@ -113,6 +126,11 @@ XdpRxQueueGetInterfacePollHandle(
     _In_ XDP_RX_QUEUE *RxQueue
     );
 
+XDP_IF_OFFLOAD_HANDLE
+XdpRxQueueGetInterfaceOffloadHandle(
+    _In_ XDP_RX_QUEUE *RxQueue
+    );
+
 XDP_RX_QUEUE_CONFIG_ACTIVATE
 XdpRxQueueGetConfig(
     _In_ XDP_RX_QUEUE *RxQueue
@@ -135,6 +153,11 @@ XdpRxQueueGetStats(
 
 XDP_PCW_RX_QUEUE *
 XdpRxQueueGetStatsFromInspectionContext(
+    _In_ const XDP_INSPECTION_CONTEXT *Context
+    );
+
+UINT32
+XdpRxQueueGetQueueIdFromInspectionContext(
     _In_ const XDP_INSPECTION_CONTEXT *Context
     );
 

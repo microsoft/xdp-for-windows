@@ -27,7 +27,7 @@ _XskCreateVersion(
 
     _XdpInitializeEaVersion(XDP_OBJECT_TYPE_XSK, ApiVersion, EaBuffer, sizeof(EaBuffer));
 
-    Res = _XdpOpen(Socket, FILE_CREATE, EaBuffer, sizeof(EaBuffer));
+    Res = _XdpOpenObjectType(Socket, FILE_CREATE, EaBuffer, sizeof(EaBuffer), XDP_OBJECT_TYPE_XSK);
     if (XDP_FAILED(Res)) {
         return Res;
     }

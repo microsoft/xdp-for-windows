@@ -1,0 +1,8 @@
+schemaVersion: 0.0.1
+isProduction: true
+accountableOwners:
+  service: 7fa84677-1795-4936-b021-b24d0e7703e6
+routing:
+  defaultAreaPath:
+    org: microsoft
+    path: OS\Core\IO Fabrics\Transports Security and SDN\eBPF\XDP

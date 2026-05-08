@@ -38,6 +38,8 @@ typedef enum _XDP_MATCH_TYPE {
     XDP_MATCH_IP_NEXT_HEADER,
     XDP_MATCH_INNER_IPV4_DST_MASK_UDP,
     XDP_MATCH_INNER_IPV6_DST_MASK_UDP,
+    XDP_MATCH_ICMPV4_ECHO_REPLY_IP_DST,
+    XDP_MATCH_ICMPV6_ECHO_REPLY_IP_DST,
 } XDP_MATCH_TYPE;
 
 typedef union _XDP_INET_ADDR {
@@ -93,14 +95,22 @@ typedef enum _XDP_RULE_ACTION {
     XDP_PROGRAM_ACTION_PASS,
     XDP_PROGRAM_ACTION_REDIRECT,
     XDP_PROGRAM_ACTION_L2FWD,
-    //
-    // Reserved.
-    //
-    XDP_PROGRAM_ACTION_EBPF,
+    XDP_PROGRAM_ACTION_EBPF, // Reserved for internal use.
 } XDP_RULE_ACTION;
 
 typedef enum _XDP_REDIRECT_TARGET_TYPE {
+    //
+    // Redirect frames to the specified XSK.
+    //
     XDP_REDIRECT_TARGET_TYPE_XSK,
+    //
+    // Redirect frames to the XSK at key == current receive queue ID in the
+    // target XSKMAP. If no entry is present at that key, the frame is
+    // dropped. The target must be a map of type XDP_MAP_TYPE_XSKMAP; the
+    // queue-ID interpretation of the key is a property of this target type,
+    // not of the XSKMAP itself.
+    //
+    XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID,
 } XDP_REDIRECT_TARGET_TYPE;
 
 typedef struct _XDP_REDIRECT_PARAMS {

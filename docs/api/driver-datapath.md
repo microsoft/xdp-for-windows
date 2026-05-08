@@ -2,6 +2,8 @@
 
 This file contains declarations for the XDP Driver API data path.
 
+XDP frame and buffer descriptors support optional [descriptor extensions](../descriptor-extensions.md) to carry additional metadata such as timestamps, checksums, and fragment counts.
+
 ## Syntax
 
 ```C

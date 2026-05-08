@@ -2,6 +2,8 @@
 
 The [`afxdp.h`](../published/external/afxdp.h) header declares the AF_XDP sockets interface. AF_XDP sockets are used by user mode applications to receive/inspect/drop/send network traffic via XDP hook points. To receive traffic, packets must be steered to a socket by configuring XDP rules/programs using an interface declared elsewhere. Traffic is passed as flat buffer, L2 frames across this interface using single producer, single consumer shared memory rings.
 
+AF_XDP sockets support [descriptor extensions](descriptor-extensions.md) to attach optional metadata (timestamps, checksums, fragment counts, etc.) to frame and buffer descriptors without changing the base descriptor structures.
+
 ## Overview
 
 AF_XDP provides a high-performance packet interface that allows user-mode applications to bypass the traditional Windows networking stack. Similar to Linux AF_XDP, it uses shared memory rings for zero-copy packet transfer between kernel and user space.

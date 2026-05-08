@@ -18,11 +18,11 @@ This script installs or uninstalls various XDP components.
 param (
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp", "xdpebpf", "xdppa")]
+    [ValidateSet("", "xdp", "xdpebpfexport", "xdpebpf", "xdppa")]
     [string]$Install = "",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("", "xdp", "xdpebpf", "xdppa")]
+    [ValidateSet("", "xdp", "xdpebpfexport", "xdpebpf", "xdppa")]
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
@@ -227,4 +227,24 @@ if ($Uninstall -eq "xdpebpf") {
     Restart-Service xdp -ErrorAction 'Continue'
 
     Write-Verbose "XDP eBPF feature uninstall complete!"
+}
+
+if ($Install -eq "xdpebpfexport") {
+    Write-Verbose "$XdpBpfExport"
+    & $XdpBpfExport
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+    }
+
+    Write-Verbose "XDP eBPF export install complete!"
+}
+
+if ($Uninstall -eq "xdpebpfexport") {
+    Write-Verbose "$XdpBpfExport --clear"
+    & $XdpBpfExport --clear
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport --clear exit code: $LastExitCode"
+    }
+
+    Write-Verbose "XDP eBPF export uninstall complete!"
 }

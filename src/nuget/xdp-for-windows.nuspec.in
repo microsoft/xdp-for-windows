@@ -3,7 +3,7 @@
 <package>
     <metadata>
         <id>Microsoft.XDP-for-Windows.Sdk</id>
-        <title>XDP-for-Windows SDK</title>
+        <title>Microsoft XDP-for-Windows SDK</title>
         <version>{version}</version>
         <authors>Microsoft</authors>
         <requireLicenseAcceptance>true</requireLicenseAcceptance>
@@ -11,8 +11,8 @@
         <copyright>© Microsoft Corporation. All rights reserved.</copyright>
         <projectUrl>https://github.com/microsoft/xdp-for-windows</projectUrl>
         <readme>README.md</readme>
-        <description>XDP-for-Windows SDK</description>
-        <repository type="git" url="https://github.com/microsoft/xdp" commit="{commit}" />
+        <description>Microsoft XDP-for-Windows SDK</description>
+        <repository type="git" url="https://github.com/microsoft/xdp-for-windows" commit="{commit}" />
     </metadata>
     <files>
         <file src="xdp-for-windows.props" target="build\native\Microsoft.XDP-for-Windows.Sdk.props"/>
@@ -20,6 +20,6 @@
         <file src="{binpath_anyarch}\xdpbpfexport.exe" target="build\native\bin\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpapi.lib" target="build\native\lib\{anyarch}"/>
         <file src="{binpath_anyarch}\xdpnmr.lib" target="build\native\lib\{anyarch}"/>
-        <file src="{rootpath}\readme.md" target="."/>
+        <file src="{rootpath}\readme.md" target="README.md"/>
     </files>
 </package>
