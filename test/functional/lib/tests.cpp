@@ -18,6 +18,7 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <functional>
 #include <lm.h>
 #include <sddl.h>
 #include <string.h>
@@ -772,6 +773,29 @@ SetDeviceSddl(
 
     RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
     sprintf_s(CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl \"%s\"", XdpBinaryPath, Sddl);
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+}
+
+static
+VOID
+SetObjectDeviceSddl(
+    _In_z_ const CHAR *ObjectType,
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR XdpBinaryPath[MAX_PATH];
+    UINT32 XdpBinaryPathLength;
+    CHAR CmdBuff[256];
+
+    XdpBinaryPathLength =
+        GetEnvironmentVariableA("_XDP_BINARIES_PATH", XdpBinaryPath, sizeof(XdpBinaryPath));
+    TEST_NOT_EQUAL(0, XdpBinaryPathLength);
+    TEST_TRUE(XdpBinaryPathLength <= sizeof(XdpBinaryPath));
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(
+        CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl %s \"%s\"",
+        XdpBinaryPath, ObjectType, Sddl);
     TEST_EQUAL(0, InvokeSystem(CmdBuff));
 }
 
@@ -5744,9 +5768,15 @@ SecurityAdjustDeviceAcl()
     sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
 
     SetDeviceSddl(SddlBuff);
+    SetObjectDeviceSddl("program", SddlBuff);
+    SetObjectDeviceSddl("xsk", SddlBuff);
+    SetObjectDeviceSddl("interface", SddlBuff);
     auto ResetSddl = wil::scope_exit([&]
     {
         SetDeviceSddl(DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("program", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("xsk", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("interface", DEFAULT_XDP_SDDL);
 
         HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
         if (FAILED(Result)) {
@@ -5768,6 +5798,150 @@ SecurityAdjustDeviceAcl()
 
         CreateSocket();
         InterfaceOpen(If.GetIfIndex());
+    }
+}
+
+VOID
+SecurityPerObjectDeviceAcl()
+{
+    PCWSTR UserName = L"xdpfnuser2";
+    WCHAR UserPassword[16 + 1];
+    USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
+
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
+
+    CHAR GrantSddl[256];
+    RtlZeroMemory(GrantSddl, sizeof(GrantSddl));
+    sprintf_s(GrantSddl, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    //
+    // Define each per-object-type device and the operation that exercises it.
+    //
+    struct PER_OBJECT_TYPE {
+        const CHAR *Name;
+        std::function<HRESULT()> TryOpen;
+    };
+    const PER_OBJECT_TYPE ObjectTypes[] = {
+        {
+            "program",
+            [&]() -> HRESULT {
+                wil::unique_handle ProgramHandle;
+                XDP_RULE Rule = {};
+                Rule.Match = XDP_MATCH_ALL;
+                Rule.Action = XDP_PROGRAM_ACTION_PASS;
+                return TryCreateXdpProg(
+                    ProgramHandle, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(),
+                    XDP_GENERIC, &Rule, 1);
+            },
+        },
+        {
+            "xsk",
+            [&]() -> HRESULT {
+                wil::unique_handle Socket;
+                return TryCreateSocket(Socket);
+            },
+        },
+        {
+            "interface",
+            [&]() -> HRESULT {
+                wil::unique_handle Interface;
+                return TryInterfaceOpen(If.GetIfIndex(), Interface);
+            },
+        },
+        {
+            "map",
+            [&]() -> HRESULT {
+                wil::unique_handle Map;
+                return XdpMapCreate(&Map, XDP_MAP_TYPE_XSKMAP);
+            },
+        },
+    };
+
+    //
+    // Restore default ACLs on all per-object-type devices when the test exits.
+    //
+    auto ResetSddl = wil::scope_exit([&]
+    {
+        for (auto &Object : ObjectTypes) {
+            SetObjectDeviceSddl(Object.Name, DEFAULT_XDP_SDDL);
+        }
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
+    });
+
+    //
+    // For each per-object-type device, grant the standard user access to only
+    // that device. Verify the corresponding operation succeeds and that all
+    // other operations are denied.
+    //
+    for (auto &Granted : ObjectTypes) {
+        for (auto &Object : ObjectTypes) {
+            const CHAR *Sddl = (&Object == &Granted) ? GrantSddl : DEFAULT_XDP_SDDL;
+            SetObjectDeviceSddl(Object.Name, Sddl);
+        }
+
+        TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        for (auto &Object : ObjectTypes) {
+            HRESULT ExpectedResult =
+                (&Object == &Granted) ? S_OK : HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED);
+            TEST_EQUAL(ExpectedResult, Object.TryOpen());
+        }
     }
 }
 
@@ -10077,6 +10251,225 @@ GenericXskUmemReg()
             Socket.Handle.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
         TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
     }
+}
+
+VOID
+XskMapCreateInsertDelete()
+{
+    //
+    // Create an XSKMAP, insert an XSK, delete the entry, and close the map.
+    //
+    auto If = FnMpIf;
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    TEST_TRUE(XskMap.get() != NULL);
+
+    UINT32 Key;
+    HANDLE Value = Xsk.Handle.get();
+
+    //
+    // Insert XSK at key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert XSK at maximum valid key (128 entries, 0-indexed).
+    //
+    Key = 127;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Delete key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete a key that doesn't have an entry (should succeed).
+    //
+    Key = 1;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+}
+
+VOID
+GenericRxXskMapRedirect(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP and insert the XSK at the queue ID key.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 InsertKey = If.GetQueueId();
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &InsertKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirect";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 2);
+
+    //
+    // Indicate a packet on the right RX queue.
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify the packet is received by the XSK socket.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->Length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
+            PacketBuffer,
+            PacketBufferLength));
+}
+
+VOID
+GenericRxXskMapRedirectMiss()
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    ADDRESS_FAMILY Af = AF_INET;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP but do NOT insert any XSK for the current queue ID.
+    // Insert at a different key instead to verify the miss behavior.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 WrongKey = (If.GetQueueId() + 1) % 128;
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &WrongKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirectMiss";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    //
+    // Indicate a packet on the RX queue. The XSKMAP has no entry for this
+    // queue ID, so the packet should be dropped (not received by XSK).
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify no packet is received by the XSK socket.
+    //
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
 }
 
 /**

@@ -604,6 +604,10 @@ public:
         ::SecurityAdjustDeviceAcl();
     }
 
+    TEST_METHOD(SecurityPerObjectDeviceAcl) {
+        ::SecurityPerObjectDeviceAcl();
+    }
+
     TEST_METHOD(EbpfNetsh) {
         ::EbpfNetsh();
     }
@@ -714,5 +718,21 @@ public:
 
     TEST_METHOD(GenericXskUmemReg) {
         ::GenericXskUmemReg();
+    }
+
+    TEST_METHOD(XskMapCreateInsertDelete) {
+        ::XskMapCreateInsertDelete();
+    }
+
+    TEST_METHOD(GenericRxXskMapRedirectV4) {
+        GenericRxXskMapRedirect(AF_INET);
+    }
+
+    TEST_METHOD(GenericRxXskMapRedirectV6) {
+        GenericRxXskMapRedirect(AF_INET6);
+    }
+
+    TEST_METHOD(GenericRxXskMapRedirectMiss) {
+        ::GenericRxXskMapRedirectMiss();
     }
 };

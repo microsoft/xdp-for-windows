@@ -107,8 +107,8 @@ param (
     [switch]$EbpfPreinstalled = $false,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI",
+    [ValidateSet("INF", "NuGet")]
+    [string]$XdpInstaller = "NuGet",
 
     [Parameter(Mandatory = $false)]
     [switch]$TxInspect = $false
