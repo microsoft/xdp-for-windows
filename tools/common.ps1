@@ -276,9 +276,9 @@ function Invoke-XdpRemoteIfRequested {
         $deployArgs = @{
             ComputerName = $ComputerName
             RemoteRoot   = $RemoteRoot
-            Config       = $Config
-            Platform     = $Platform
         }
+        if (-not [string]::IsNullOrEmpty($Config))   { $deployArgs.Config   = $Config }
+        if (-not [string]::IsNullOrEmpty($Platform)) { $deployArgs.Platform = $Platform }
         if (-not $DeployArtifacts) { $deployArgs.SkipArtifacts = $true }
         if ($Credential) { $deployArgs.Credential = $Credential }
         & $RemoteScriptPs1 -Deploy @deployArgs

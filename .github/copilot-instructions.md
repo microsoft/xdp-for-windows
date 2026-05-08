@@ -116,6 +116,39 @@ a remote test machine via PowerShell remoting. See [docs/remote-testing.md](../d
 `prepare-machine.ps1 -ForBuild` / `-ForEbpfBuild`,
 `create-test-archive.ps1`, `update-nuspec.ps1`.
 
+### Monitoring the test machine kernel debugger
+
+Test machines typically have a kd "head" already attached and exposing a
+debug server over a named pipe (started on the head with `.server
+npipe:pipe=<name>`). To watch for breaks/bugchecks during a test run,
+attach a passive **remote** kd client from the dev machine **in a
+separate background terminal**:
+
+```powershell
+# Run in a background terminal (mode=async) before kicking off the test.
+# Replace <pipe-name> with the kd pipe name; defaults to the same value
+# as -ComputerName / Set-XdpRemoteDefault.
+kd.exe -remote npipe:server=localhost,pipe=<pipe-name>
+```
+
+Guidelines for agents:
+
+* Use `-remote npipe:server=localhost,pipe=<name>` — **never**
+  `-k com:pipe,port=...` (that is the serial-pipe transport for VMs and
+  will not connect to a kd debug server).
+* Default `pipe` to the value of `-ComputerName` / `Set-XdpRemoteDefault`.
+  If that fails to connect, ask the user for the correct pipe name once.
+* Run kd as `mode=async` so the test invocation can stream output in
+  parallel.
+* Periodically check the kd terminal for break-in prompts (`kd>` after
+  a break) or bugcheck banners and surface them to the user; otherwise
+  let kd run idle in the background.
+* If kd reports "Cannot connect to server" or exits immediately, inform
+  the user that no kd head is currently attached to that machine and
+  continue without kd.
+* When the chat session ends or the user moves on, kill the kd
+  terminal.
+
 ### Functional Tests
 
 1. Prepare test machine (requires admin, enables test signing, may require reboot):
