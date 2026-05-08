@@ -420,9 +420,18 @@ function Invoke-XdpRemote {
         $sentinel = '##XDP-REMOTE-EXIT##'
         Invoke-Command -Session $session -ScriptBlock {
             param($Root, $Rel, $ScriptArgs, $Sentinel)
+            $ErrorActionPreference = 'Continue'
             Set-Location $Root
-            & (Join-Path $Root $Rel) @ScriptArgs *>&1 | Out-String -Stream
-            "$Sentinel $LASTEXITCODE"
+            try {
+                & (Join-Path $Root $Rel) @ScriptArgs *>&1 | Out-String -Stream
+                $code = $LASTEXITCODE
+            } catch {
+                # Surface the error as text so it streams cleanly, then
+                # mark a non-zero exit code.
+                ($_ | Out-String).TrimEnd()
+                $code = 1
+            }
+            "$Sentinel $code"
         } -ArgumentList $RemoteRoot, $ScriptPath, $ArgumentList, $sentinel | ForEach-Object {
             if ($_ -is [string] -and $_.StartsWith($sentinel)) {
                 $val = $_.Substring($sentinel.Length).Trim()
