@@ -13,7 +13,7 @@ Clear the session default and any cached credentials.
 
 .EXAMPLE
 # Set default; subsequent commands auto-route to this machine:
-.\tools\remote-set-default.ps1 mifriese-ws2022
+.\tools\remote-set-default.ps1 mytesthost
 .\tools\functional.ps1 -ListTestCases
 
 .EXAMPLE
