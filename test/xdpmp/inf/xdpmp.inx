@@ -142,6 +142,14 @@
  HKR, Ndi\Params\PollProvider\Enum,     "0",               0, %POLL_PROVIDER_NDIS%
  HKR, Ndi\Params\PollProvider\Enum,     "1",               0, %POLL_PROVIDER_FNDIS%
 
+; MACLastByte
+ HKR, Ndi\Params\MACLastByte,           ParamDesc,         0, "MACLastByte"
+ HKR, Ndi\Params\MACLastByte,           default,           0, "0"
+ HKR, Ndi\Params\MACLastByte,           type,              0, "int"
+ HKR, Ndi\Params\MACLastByte,           min,               0, "0"
+ HKR, Ndi\Params\MACLastByte,           max,               0, "254"
+ HKR, Ndi\Params\MACLastByte,           step,              0, "1"
+ HKR, Ndi\Params\MACLastByte,           Optional,          0, "0"
 
 [SourceDisksNames]
  ; diskid = description[, [tagfile] [, <unused>, subdir]]

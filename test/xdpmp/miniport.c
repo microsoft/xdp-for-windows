@@ -19,6 +19,7 @@ NDIS_STRING RegRxPattern = NDIS_STRING_CONST("RxPattern");
 NDIS_STRING RegRxPatternCopy = NDIS_STRING_CONST("RxPatternCopy");
 NDIS_STRING RegPollProvider = NDIS_STRING_CONST("PollProvider");
 NDIS_STRING RxRscSegmentCount = NDIS_STRING_CONST("RxRscSegmentCount");
+NDIS_STRING RegMacLastByte = NDIS_STRING_CONST("MACLastByte");
 
 PCSTR MpDriverFriendlyName = "XDPMP";
 UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
@@ -48,6 +49,14 @@ UCHAR MpMacAddressBase[MAC_ADDR_LEN] = {0x22, 0x22, 0x22, 0x22, 0x00, 0x00};
 #define MAX_RX_DATA_LENGTH 65536
 
 #define MAX_GSO_SIZE 62000
+
+#define DEFAULT_RATE_SIM_INTERVAL 1000 // 1ms
+
+#if DBG
+#define DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL 10     /* 10 Kpps */
+#else
+#define DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL 1000   /* 1 Mpps */
+#endif
 
 //
 // The driver only supports the driver API version in the DDK or higher.
@@ -305,12 +314,12 @@ MpInitialize(
         goto Exit;
     }
 
+    NdisMoveMemory(Adapter->MACAddress, MpMacAddressBase, MAC_ADDR_LEN);
+
     Status = MpReadConfiguration(Adapter);
     if (Status != NDIS_STATUS_SUCCESS) {
         goto Exit;
     }
-
-    NdisMoveMemory(Adapter->MACAddress, MpMacAddressBase, MAC_ADDR_LEN);
 
     Adapter->IfIndex = InitParameters->IfIndex;
 
@@ -936,6 +945,7 @@ MpReadConfiguration(
     NDIS_STATUS Status;
     NDIS_CONFIGURATION_OBJECT ConfigObject;
     NDIS_CONFIGURATION_PARAMETER *ConfigParam;
+    ULONG MacLastByte = Adapter->MACAddress[MAC_ADDR_LEN - 1];
 
     ConfigObject.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
     ConfigObject.Header.Revision = NDIS_CONFIGURATION_OBJECT_REVISION_1;
@@ -1039,9 +1049,9 @@ MpReadConfiguration(
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegRxPatternCopy, &Adapter->RxPatternCopy);
     Adapter->RxPatternCopy = !!Adapter->RxPatternCopy;
 
-    Adapter->RateSim.IntervalUs = 1000;             // 1ms
-    Adapter->RateSim.RxFramesPerInterval = 1000;    // 1Mpps
-    Adapter->RateSim.TxFramesPerInterval = 1000;    // 1Mpps
+    Adapter->RateSim.IntervalUs = DEFAULT_RATE_SIM_INTERVAL;
+    Adapter->RateSim.RxFramesPerInterval = DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL;
+    Adapter->RateSim.TxFramesPerInterval = DEFAULT_RATE_SIM_FRAMES_PER_INTERVAL;
 
     Adapter->PollProvider = PollProviderNdis;
     TRY_READ_INT_CONFIGURATION(ConfigHandle, RegPollProvider, &Adapter->PollProvider);
@@ -1051,6 +1061,8 @@ MpReadConfiguration(
         goto Exit;
     }
 
+    TRY_READ_INT_CONFIGURATION(ConfigHandle, RegMacLastByte, &MacLastByte);
+    Adapter->MACAddress[MAC_ADDR_LEN - 1] = (UCHAR)MacLastByte;
     Adapter->CurrentLookAhead = 0;
     Adapter->CurrentPacketFilter = 0;
 
