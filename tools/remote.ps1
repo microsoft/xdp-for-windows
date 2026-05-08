@@ -407,29 +407,28 @@ function Invoke-XdpRemote {
     try {
         Write-Host "Running $ScriptPath on $ComputerName ..." -ForegroundColor Cyan
 
-        # Convert every remote stream (output, error, warning, verbose,
-        # information) to plain text on the remote side. Returning strings
-        # avoids having deserialized ErrorRecord/WarningRecord objects
-        # re-rendered in red on the local console, while preserving line
-        # breaks. The trailing PSCustomObject carries the exit code.
-        $results = Invoke-Command -Session $session -ScriptBlock {
+        # Stream remote output to the local host as it arrives. The remote
+        # side merges all streams (*>&1) and converts them to plain strings
+        # via Out-String -Stream so deserialized error/warning records
+        # don't get re-emitted as red errors locally. Piping
+        # Invoke-Command's output directly into Write-Host (instead of
+        # capturing into a variable) preserves the live streaming behavior
+        # PowerShell remoting provides natively.
+        Invoke-Command -Session $session -ScriptBlock {
             param($Root, $Rel, $ScriptArgs)
             Set-Location $Root
             & (Join-Path $Root $Rel) @ScriptArgs *>&1 | Out-String -Stream
-            [pscustomobject]@{ XdpRemoteExitCode = $LASTEXITCODE }
-        } -ArgumentList $RemoteRoot, $ScriptPath, $ArgumentList
-
-        $exitCode = 0
-        foreach ($item in $results) {
-            if ($item -is [string]) {
-                Write-Host $item
-            } elseif ($item.PSObject.Properties.Match('XdpRemoteExitCode').Count) {
-                if ($null -ne $item.XdpRemoteExitCode) { $exitCode = [int]$item.XdpRemoteExitCode }
-            }
+        } -ArgumentList $RemoteRoot, $ScriptPath, $ArgumentList | ForEach-Object {
+            Write-Host $_
         }
 
+        # Fetch the remote $LASTEXITCODE in a follow-up call so streaming
+        # of the main output isn't blocked waiting for it.
+        $exitCode = Invoke-Command -Session $session -ScriptBlock { $LASTEXITCODE }
+        if ($null -eq $exitCode) { $exitCode = 0 }
+
         if ($exitCode -ne 0) {
-            $global:LASTEXITCODE = $exitCode
+            $global:LASTEXITCODE = [int]$exitCode
             Write-Error "Remote script exited with code $exitCode"
         }
     } finally {

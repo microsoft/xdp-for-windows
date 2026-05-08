@@ -151,6 +151,28 @@ a remote test machine via PowerShell remoting. See [docs/remote-testing.md](../d
 .\tools\log.ps1 -Convert -Name spinxsk
 ```
 
+### Deriving test parameters from CI
+
+When the user asks to run a test (functional, spinxsk, perf, fuzz, etc.)
+without specifying parameters, **derive sensible defaults from the
+matching job in `.github/workflows/ci.yml`** rather than guessing. That
+file is the source of truth for which switches each test is exercised
+with in CI. Examples:
+
+* For spinxsk, CI invokes
+  `tools/spinxsk.ps1 -Verbose -Stats -Driver <XDPMP|FNMP> -Minutes <N>
+  -XdpmpPollProvider <NDIS|FNDIS> -SuccessThresholdPercent <pct>
+  -EnableEbpf [-TxInspect]`. Use those flags (scaling `-Minutes` down for
+  smoke runs as the user requests).
+* For functional tests, mirror the `-Config`, `-Platform`, and any
+  `-TestCaseFilter` / `-XdpInstaller` flags the CI job uses.
+* For perf and fuzz, copy the CI invocation verbatim, only adjusting
+  duration/iteration counts when the user explicitly asks for a shorter
+  run.
+
+If the user explicitly overrides a parameter, respect that and leave
+unspecified parameters at the CI defaults.
+
 ## Project Layout
 
 ```
