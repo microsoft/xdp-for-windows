@@ -44,6 +44,9 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
+    [int]$DeviceIndex = 0,
+
+    [Parameter(Mandatory = $false)]
     [ValidateSet("INF", "NuGet")]
     [string]$XdpInstaller = "NuGet",
 
