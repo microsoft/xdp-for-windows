@@ -67,6 +67,16 @@ recover the machine to a known-good state after a bugcheck.
    **not** generate `Get-Credential` calls or store passwords in
    scripts.
 
+   > [!IMPORTANT]
+   > When run by an agent, console password prompts are invisible to
+   > the user (the terminal is not interactive and any typed
+   > characters would be shown in plaintext). If a test command stalls
+   > waiting for credentials, do **not** send them to the terminal.
+   > Instead, collect username and password through the chat UI
+   > (`vscode_askQuestions`) and pass them to subsequent commands via
+   > the `-Credential` parameter or by pre-populating
+   > `$global:XdpRemoteCredentialCache` before re-running the script.
+
 5. **One-time test-machine setup** (the user must run, requires
    elevation):
    ```powershell
