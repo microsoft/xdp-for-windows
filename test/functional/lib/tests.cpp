@@ -834,11 +834,12 @@ static
 VOID
 InitUmem(
     _Out_ XSK_UMEM_REG *UmemRegistration,
-    VOID *UmemBuffer
+    VOID *UmemBuffer,
+    UINT32 ChunkSize = DEFAULT_UMEM_CHUNK_SIZE
     )
 {
     UmemRegistration->TotalSize = DEFAULT_UMEM_SIZE;
-    UmemRegistration->ChunkSize = DEFAULT_UMEM_CHUNK_SIZE;
+    UmemRegistration->ChunkSize = ChunkSize;
     UmemRegistration->Headroom = DEFAULT_UMEM_HEADROOM;
     UmemRegistration->Address = UmemBuffer;
 }
@@ -1213,11 +1214,12 @@ VOID
 XskSetupPreBind(
     _Inout_ MY_SOCKET *Socket,
     _In_opt_ const XDP_HOOK_ID *RxHookId = nullptr,
-    _In_opt_ const XDP_HOOK_ID *TxHookId = nullptr
+    _In_opt_ const XDP_HOOK_ID *TxHookId = nullptr,
+    _In_opt_ UINT32 ChunkSize = DEFAULT_UMEM_CHUNK_SIZE
     )
 {
     Socket->Umem.Buffer = AllocUmemBuffer();
-    InitUmem(&Socket->Umem.Reg, Socket->Umem.Buffer.get());
+    InitUmem(&Socket->Umem.Reg, Socket->Umem.Buffer.get(), ChunkSize);
     SetUmem(Socket->Handle.get(), &Socket->Umem.Reg);
 
     if (RxHookId != nullptr) {
@@ -1238,14 +1240,15 @@ CreateAndBindSocket(
     XDP_MODE XdpMode,
     XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_NONE,
     const XDP_HOOK_ID *RxHookId = nullptr,
-    const XDP_HOOK_ID *TxHookId = nullptr
+    const XDP_HOOK_ID *TxHookId = nullptr,
+    UINT32 ChunkSize = DEFAULT_UMEM_CHUNK_SIZE
     )
 {
     MY_SOCKET Socket = {0};
 
     Socket.Handle = CreateSocket();
 
-    XskSetupPreBind(&Socket, RxHookId, TxHookId);
+    XskSetupPreBind(&Socket, RxHookId, TxHookId, ChunkSize);
 
     if (Rx) {
         BindFlags |= XSK_BIND_FLAG_RX;
@@ -7337,7 +7340,16 @@ GenericRxOriginalLength()
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
 
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    //
+    // Use a UMEM chunk size that is smaller than the RX indication so that the
+    // XSK frame is truncated, but the original length extension still reports
+    // the full indication size.
+    //
+    const UINT32 ChunkSize = 64;
+    auto Xsk =
+        CreateAndBindSocket(
+            If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC,
+            XSK_BIND_FLAG_NONE, nullptr, nullptr, ChunkSize);
     auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -7354,13 +7366,19 @@ GenericRxOriginalLength()
     If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
 
     RX_FRAME RxFrame;
-    UCHAR UdpPayload[] = "GenericRxOriginalLength";
+    UCHAR UdpPayload[ChunkSize * 4] = "GenericRxOriginalLength";
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
     UINT32 UdpFrameLength = sizeof(UdpFrame);
     TEST_TRUE(
         PktBuildUdpFrame(
             UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
             &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    //
+    // Ensure the indication is larger than the XSK chunk size so truncation
+    // occurs.
+    //
+    TEST_TRUE(UdpFrameLength > ChunkSize);
 
     SocketProduceRxFill(&Xsk, 1);
 
@@ -7373,6 +7391,12 @@ GenericRxOriginalLength()
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxOriginalLengthExtension != 0);
+
+    //
+    // The XSK frame data length should be truncated to the chunk size, but the
+    // original length extension should report the full indication size.
+    //
+    TEST_EQUAL(ChunkSize, RxDesc->Buffer.Length);
 
     XSK_FRAME_ORIGINAL_LENGTH *OriginalLength =
         (XSK_FRAME_ORIGINAL_LENGTH *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxOriginalLengthExtension);

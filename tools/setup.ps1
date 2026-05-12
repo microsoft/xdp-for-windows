@@ -350,17 +350,24 @@ function Uninstall-Xdp {
             return
         }
 
+        # The packaged xdp-setup.ps1 does not necessarily accept -Force, so
+        # only pass it when explicitly requested (recovery scenarios).
+        $ForceArg = @{}
+        if ($Force) {
+            $ForceArg['Force'] = $true
+        }
+
         if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters").PSObject.Properties["XdpEbpfEnabled"]) {
             Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
-            & $XdpSetupPath -Uninstall xdpebpf -Force:$Force
+            & $XdpSetupPath -Uninstall xdpebpf @ForceArg
         }
         if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
             Write-Verbose "$XdpSetupPath -Uninstall xdppa"
-            & $XdpSetupPath -Uninstall xdppa -Force:$Force
+            & $XdpSetupPath -Uninstall xdppa @ForceArg
         }
         if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
             Write-Verbose "$XdpSetupPath -Uninstall xdp"
-            & $XdpSetupPath -Uninstall xdp -Force:$Force
+            & $XdpSetupPath -Uninstall xdp @ForceArg
         }
 
         Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
