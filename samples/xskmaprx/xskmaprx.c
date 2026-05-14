@@ -77,6 +77,7 @@ typedef struct _QUEUE_CONTEXT {
     UCHAR *Umem;
     UINT64 PacketsReceived;
     UINT64 BytesReceived;
+    UINT64 PacketsDropped;
 } QUEUE_CONTEXT;
 
 UINT32 IfIndex;
@@ -211,7 +212,7 @@ SetupQueueSocket(
     //
     // Register the UMEM buffer region.
     //
-    UmemReg.TotalSize = (UINT32)RX_RING_SIZE * FRAME_SIZE;
+    UmemReg.TotalSize = RX_RING_SIZE * FRAME_SIZE;
     UmemReg.ChunkSize = FRAME_SIZE;
     UmemReg.Address = Ctx->Umem;
 
@@ -291,15 +292,17 @@ PrintStats(
 {
     UINT64 TotalPackets = 0;
     UINT64 TotalBytes = 0;
+    UINT64 TotalDrops = 0;
 
     printf("\n--- RX Stats ---\n");
     for (UINT32 i = 0; i < Count; i++) {
-        printf("  Queue %2u: %8llu pkts  %12llu bytes\n",
-            i, Queues[i].PacketsReceived, Queues[i].BytesReceived);
+        printf("  Queue %2u: %8llu pkts  %12llu bytes  %8llu drops\n",
+            i, Queues[i].PacketsReceived, Queues[i].BytesReceived, Queues[i].PacketsDropped);
         TotalPackets += Queues[i].PacketsReceived;
         TotalBytes += Queues[i].BytesReceived;
+        TotalDrops += Queues[i].PacketsDropped;
     }
-    printf("  Total:    %8llu pkts  %12llu bytes\n", TotalPackets, TotalBytes);
+    printf("  Total:    %8llu pkts  %12llu bytes  %8llu drops\n", TotalPackets, TotalBytes, TotalDrops);
     printf("----------------\n");
 }
 
@@ -427,23 +430,20 @@ main(
             UINT32 RxIndex;
             UINT32 Available = XskRingConsumerReserve(&Ctx->RxRing, RX_RING_SIZE, &RxIndex);
 
-            for (UINT32 j = 0; j < Available; j++) {
-                XSK_BUFFER_DESCRIPTOR *Desc =
-                    (XSK_BUFFER_DESCRIPTOR *)XskRingGetElement(&Ctx->RxRing, RxIndex + j);
-                Ctx->PacketsReceived++;
-                Ctx->BytesReceived += Desc->Length;
-            }
-
             if (Available > 0) {
-                XskRingConsumerRelease(&Ctx->RxRing, Available);
-
                 //
-                // Recycle the consumed frame descriptors back onto the fill ring
-                // so the socket can receive more packets.
+                // Reserve fill ring slots first so we only consume
+                // what we can recycle back to the fill ring.
                 //
                 UINT32 FillIndex;
                 UINT32 Filled = XskRingProducerReserve(&Ctx->RxFillRing, Available, &FillIndex);
+
                 for (UINT32 j = 0; j < Filled; j++) {
+                    XSK_BUFFER_DESCRIPTOR *Desc =
+                        (XSK_BUFFER_DESCRIPTOR *)XskRingGetElement(&Ctx->RxRing, RxIndex + j);
+                    Ctx->PacketsReceived++;
+                    Ctx->BytesReceived += Desc->Length;
+
                     //
                     // Re-post the same UMEM offsets. The order doesn't matter;
                     // just cycle through the buffer pool.
@@ -451,6 +451,9 @@ main(
                     *(UINT64 *)XskRingGetElement(&Ctx->RxFillRing, FillIndex + j) =
                         (UINT64)((RxIndex + j) % RX_RING_SIZE) * FRAME_SIZE;
                 }
+
+                Ctx->PacketsDropped += (Available - Filled);
+                XskRingConsumerRelease(&Ctx->RxRing, Filled);
                 XskRingProducerSubmit(&Ctx->RxFillRing, Filled);
             }
         }
