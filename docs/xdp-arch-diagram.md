@@ -1,3 +1,4 @@
+````mermaid
 flowchart TB
 %% =========================
 %% USER MODE APP
@@ -110,3 +111,4 @@ end
     class RXQ1,RXQ2,TXQ1,TXQ2 queue;
     class RXGEN1,RXN1,RXN2,TXN1,TXN2 notify;
     class PROG,NOPROG prog;
+```
