@@ -8,4 +8,4 @@ We show how these sockets are represented in the XDP core layer, and its interat
 Note that the at the XDP LWF (light weight filter) layer, only the "Generic" objects are attached to the datapath.
 Other objects can subscribe to various NDIS updates. Offload changes, for example, is one such update.
 
-![xdp](./xdp-arch.png)
+![xdp](./xdp-arch.md)
