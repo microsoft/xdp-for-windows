@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="$(SolutionDir)\published\private\PktMonClnt.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="precomp.h" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ProjectGuid>{dee8c283-682f-40f2-818b-06123bcc7844}</ProjectGuid>
+    <TargetName>pktmonclnt</TargetName>
+    <UndockedType>drvlib</UndockedType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        .;
+        $(SolutionDir)published\private;
+        $(IntDir);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        NDIS684=1;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <!--
+        To allow the static pktmonclnt.lib to be linked by other toolchain versions,
+        disable /GL, which avoids compiler version-dependent CIL and use slower
+        but portable codegen instead.
+        -->
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <!-- EWDK builds do not binplace the PDB for this library, so force it here. -->
+      <ProgramDataBaseFileName>$(OutDir)pktmonclnt.pdb</ProgramDataBaseFileName>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+</Project>

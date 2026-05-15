@@ -453,3 +453,20 @@ function New-PerfData {
         Metrics = $Metrics
     }
 }
+
+# Helper to start (with retry) a service.
+function Start-Service-With-Retry($Name) {
+    Write-Verbose "Start-Service $Name"
+    $StartSuccess = $false
+    for ($i=0; $i -lt 100; $i++) {
+        try {
+            Start-Sleep -Milliseconds 10
+            Start-Service $Name
+            $StartSuccess = $true
+            break
+        } catch { }
+    }
+    if ($StartSuccess -eq $false) {
+        Write-Error "Failed to start $Name"
+    }
+}

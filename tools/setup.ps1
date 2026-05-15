@@ -102,23 +102,6 @@ function Uninstall-Failure($FileName) {
     Write-Error "Uninstall failed"
 }
 
-# Helper to start (with retry) a service.
-function Start-Service-With-Retry($Name) {
-    Write-Verbose "Start-Service $Name"
-    $StartSuccess = $false
-    for ($i=0; $i -lt 100; $i++) {
-        try {
-            Start-Sleep -Milliseconds 10
-            Start-Service $Name
-            $StartSuccess = $true
-            break
-        } catch { }
-    }
-    if ($StartSuccess -eq $false) {
-        Write-Error "Failed to start $Name"
-    }
-}
-
 # Helper to rename (with retry) a network adapter. On WS2022, renames sometimes
 # fail with ERROR_TRANSACTION_NOT_ACTIVE.
 function Rename-NetAdapter-With-Retry($IfDesc, $Name) {

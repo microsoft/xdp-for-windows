@@ -38,6 +38,9 @@ param (
     [switch]$EbpfPreinstalled = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$DisablePktMon = $false,
+
+    [Parameter(Mandatory = $false)]
     [int]$Timeout = 0,
 
     [Parameter(Mandatory = $false)]
@@ -124,6 +127,15 @@ for ($i = 1; $i -le $Iterations; $i++) {
         Write-Verbose "installing xdp..."
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
+
+        if ($DisablePktMon) {
+            Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpDisablePktMon /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpDisablePktMon /d 1 /t REG_DWORD /f | Write-Verbose
+
+            Write-Verbose "Restarting xdp to reload registry keys"
+            Stop-Service "xdp" | Write-Verbose
+            Start-Service-With-Retry "xdp" | Write-Verbose
+        }
 
         Write-Verbose "installing fnmp..."
         & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform
