@@ -40,6 +40,7 @@ typedef struct _XDP_LWF_FILTER {
 #define POOLTAG_NATIVE              'NfdX'      // XdfN
 #define POOLTAG_OID                 'OfdX'      // XdfO
 #define POOLTAG_OFFLOAD             'ofdX'      // Xdfo
+#define POOLTAG_PKTMON              'PfdX'      // XdfP
 #define POOLTAG_RECV                'rfdX'      // Xdfr
 #define POOLTAG_RECV_NOTIFY         'nfdX'      // Xdfn
 #define POOLTAG_RECV_TX             'TfdX'      // XdfT

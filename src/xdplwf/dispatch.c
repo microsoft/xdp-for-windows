@@ -65,6 +65,11 @@ XdpLwfStart(
         goto Exit;
     }
 
+    Status = XdpPktMonStart();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     Status = XdpLwfBindStart(XdpLwfDriverObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
@@ -84,6 +89,7 @@ XdpLwfStop(
     )
 {
     XdpLwfBindStop();
+    XdpPktMonStop();
     XdpGenericStop();
     XdpLifetimeStop();
     XdpRegWatcherRemoveClient(XdpLwfRegWatcher, &XdpLwfRegWatcherEntry);

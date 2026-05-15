@@ -7,6 +7,7 @@
 
 #include <xdprefcount.h>
 
+#include "pktmon.h"
 #include "rss.h"
 #include "send.h"
 
@@ -55,6 +56,11 @@ typedef struct _XDP_LWF_GENERIC {
         LIST_ENTRY Queues;
         UINT32 Mtu;
     } Tx;
+
+    //
+    // Protected by NDIS driver stack synchronization.
+    //
+    XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext;
 } XDP_LWF_GENERIC;
 
 typedef enum _XDP_LWF_GENERIC_INJECTION_TYPE {
