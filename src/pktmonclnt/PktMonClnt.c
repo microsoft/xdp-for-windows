@@ -419,8 +419,8 @@ PktMonClientComponentRegisterEx(
     _In_ PUNICODE_STRING Description,
     _In_ PKTMON_COMPONENT_TYPE Type,
     _In_ PKTMON_PACKET_TYPE PacketType,
-    _In_ PKTMON_DIRECTION_TAG DirTagIn,
-    _In_ PKTMON_DIRECTION_TAG DirTagOut
+    _In_ PKTMON_DIRECTION DirTagIn,
+    _In_ PKTMON_DIRECTION DirTagOut
     )
 {
     NTSTATUS status;
@@ -511,8 +511,8 @@ PktMonClientComponentRegister(
     _In_ PUNICODE_STRING Description,
     _In_ PKTMON_COMPONENT_TYPE Type,
     _In_ NDIS_MEDIUM MediaType,
-    _In_ PKTMON_DIRECTION_TAG DirTagIn,
-    _In_ PKTMON_DIRECTION_TAG DirTagOut
+    _In_ PKTMON_DIRECTION DirTagIn,
+    _In_ PKTMON_DIRECTION DirTagOut
     )
 {
     return PktMonClientComponentRegisterEx(
@@ -628,8 +628,8 @@ NTSTATUS
 PktMonClientAddEdgeEx(
     _In_ PKTMON_COMPONENT_CONTEXT *CompContext,
     _In_ PUNICODE_STRING Name,
-    _In_ PKTMON_DIRECTION_TAG DirTagIn,
-    _In_ PKTMON_DIRECTION_TAG DirTagOut,
+    _In_ PKTMON_DIRECTION DirTagIn,
+    _In_ PKTMON_DIRECTION DirTagOut,
     _In_ PKTMON_PACKET_TYPE PacketType,
     _Out_ PKTMON_EDGE_CONTEXT *EdgeContext
     )
@@ -689,8 +689,8 @@ NTSTATUS
 PktMonClientAddEdge(
     _In_ PKTMON_COMPONENT_CONTEXT *CompContext,
     _In_ PUNICODE_STRING Name,
-    _In_ PKTMON_DIRECTION_TAG DirTagIn,
-    _In_ PKTMON_DIRECTION_TAG DirTagOut,
+    _In_ PKTMON_DIRECTION DirTagIn,
+    _In_ PKTMON_DIRECTION DirTagOut,
     _In_ NDIS_MEDIUM MediaType,
     _Out_ PKTMON_EDGE_CONTEXT *EdgeContext
     )
@@ -796,7 +796,7 @@ PktMonClientNblDrop(
     _In_opt_ PKTMON_PACKET_HEADER_INFO *PacketHeaderInfo,
     _In_ BOOLEAN UseOnlyFirstNbl,
     _In_ PKTMON_DIRECTION Direction,
-    _In_ PKTMON_DROP_REASON DropReason,
+    _In_ INT DropReason,
     _In_ INT LocationCode
     )
 {
@@ -854,7 +854,7 @@ PktMonClientHeaderInfoDropWithContext(
     _In_ PKTMON_PACKET_TYPE PacketType,
     _In_ PKTMON_PACKET_HEADER_INFO* PacketHeaderInfo,
     _In_ PKTMON_DIRECTION Direction,
-    _In_ PKTMON_DROP_REASON DropReason,
+    _In_ INT DropReason,
     _In_ INT LocationCode,
     _In_opt_ PKTMON_PACKET_CONTEXT_IN* Context
     )
@@ -909,7 +909,7 @@ PktMonClientHeaderInfoDrop(
     _In_ PKTMON_PACKET_TYPE PacketType,
     _In_ PKTMON_PACKET_HEADER_INFO* PacketHeaderInfo,
     _In_ PKTMON_DIRECTION Direction,
-    _In_ PKTMON_DROP_REASON DropReason,
+    _In_ INT DropReason,
     _In_ INT LocationCode
     )
 {
@@ -1074,8 +1074,8 @@ PktMonClntComponentRegister(
         (PUNICODE_STRING)Description,
         Type,
         PacketType,
-        PktMonDirTag_In,
-        PktMonDirTag_Out
+        PktMonDir_In,
+        PktMonDir_Out
     );
 }
 
@@ -1196,8 +1196,8 @@ PktMonClntAddEdge(
     return PktMonClientAddEdgeEx(
         CompContext,
         (PUNICODE_STRING)Name,
-        PktMonDirTag_In,
-        PktMonDirTag_Out,
+        PktMonDir_In,
+        PktMonDir_Out,
         PacketType,
         EdgeContext
     );

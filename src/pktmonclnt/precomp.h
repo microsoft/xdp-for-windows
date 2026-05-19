@@ -9,3 +9,4 @@
 #include <windef.h>
 #include <netioddk.h>
 #include <ntstrsafe.h>
+#include <pktmonclntk.h>

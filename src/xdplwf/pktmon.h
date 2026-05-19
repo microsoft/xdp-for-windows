@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "PktMonClnt.h"
+#include <pktmonclntk.h>
 
 //
 // Must be in range [0x80000000 - 0xFFFFFFFF] per PktMon guidance.
