@@ -2,12 +2,13 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 //
-// This module is linked into every driver that wishes to publish network
-// packets into the pktmon diagnostics framework
+
+// This module exists as a replacement to the public PktMonClnt API support
+// provided by PktMonApi.sys. This replacement is necessary in order to support
+// down-level platforms that do not have PktMonApi.sys available.
 //
 
 #include "precomp.h"
-#include "PktMonClnt.h"
 
 #define PKTMON_RUNDOWN_TAG    'rdMP'
 
@@ -55,6 +56,29 @@ PKTMON_CLIENT_DISPATCH const PktMonClientDispatch =
     .CompEnable = PktMonCompEnableCallback,
     .CompClose = PktMonCompCloseCallback,
 };
+
+//
+// Packet monitor NMR client context
+//
+typedef struct _PKTMON_CLIENT_CONTEXT
+{
+    HANDLE  NmrClientHandle;
+
+    PEX_RUNDOWN_REF_CACHE_AWARE RundownRef;
+
+    BOOLEAN Enabled;
+
+    PKTMON_CLIENT_COMP_ENUM_HANDLER   EnumComponents;
+    PKTMON_CLIENT_CLEANUP_HANDLER     CleanupComponents;
+    PKTMON_CLIENT_COMP_NOTIFY_HANDLER NotifyComponent;
+
+    //
+    // Provider dispatch
+    //
+    PVOID ProviderContext;
+    PKTMON_PROVIDER_DISPATCH *ProviderDispatch;
+
+} PKTMON_CLIENT_CONTEXT;
 
 PKTMON_CLIENT_CONTEXT PktMon = { 0 };
 

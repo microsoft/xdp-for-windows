@@ -4,7 +4,6 @@
 //
 
 #include "precomp.h"
-#include "PktMonClnt.h"
 #include "pktmon.tmh"
 
 static BOOLEAN XdpDisablePktMon = FALSE;
@@ -67,7 +66,7 @@ XdpPktMonLogDrop(
     // Drop location must be in range [0 - 0x7FFFFFFF] per PktMon guidance.
     //
 
-    if ((PktMonContext != NULL) && PktMon.Enabled && PktMonContext->PktMonComp.DropEnabled) {
+    if ((PktMonContext != NULL) && PktMonContext->PktMonComp.DropEnabled) {
         PktMonClntNblDrop(
             &PktMonContext->PktMonComp,
             NetBufferLists,

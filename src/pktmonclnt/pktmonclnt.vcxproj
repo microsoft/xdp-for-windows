@@ -24,14 +24,6 @@
         NDIS684=1;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
-      <!--
-        To allow the static pktmonclnt.lib to be linked by other toolchain versions,
-        disable /GL, which avoids compiler version-dependent CIL and use slower
-        but portable codegen instead.
-        -->
-      <WholeProgramOptimization>false</WholeProgramOptimization>
-      <!-- EWDK builds do not binplace the PDB for this library, so force it here. -->
-      <ProgramDataBaseFileName>$(OutDir)pktmonclnt.pdb</ProgramDataBaseFileName>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />
