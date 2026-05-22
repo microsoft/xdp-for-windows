@@ -11,6 +11,7 @@
     <ClCompile Include="offloadrss.c" />
     <ClCompile Include="offloadtask.c" />
     <ClCompile Include="oid.c" />
+    <ClCompile Include="pktmon.c" />
     <ClCompile Include="recv.c" />
     <ClCompile Include="rss.c" />
     <ClCompile Include="send.c" />
@@ -24,6 +25,9 @@
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)src\xdppcw\xdppcw.vcxproj">
       <Project>{ed611744-b780-41a2-a995-2c100d86b3a6}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)src\pktmonclnt\pktmonclnt.vcxproj">
+      <Project>{dee8c283-682f-40f2-818b-06123bcc7844}</Project>
     </ProjectReference>
   </ItemGroup>
   <PropertyGroup>

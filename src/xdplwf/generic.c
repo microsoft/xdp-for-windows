@@ -714,6 +714,8 @@ XdpGenericAttachInterface(
         goto Exit;
     }
 
+    XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
+
     RtlZeroMemory(AddIf, sizeof(*AddIf));
     AddIf->InterfaceCapabilities = &Generic->InternalCapabilities;
     AddIf->RemoveInterfaceComplete = XdpGenericRemoveInterfaceComplete;
@@ -745,6 +747,8 @@ XdpGenericDetachInterface(
         //
         XdpIfRemoveInterfaces(&Generic->XdpIfInterfaceHandle, 1);
     }
+
+    XdpPktMonUnregisterInterface(&Generic->PktMonContext);
 }
 
 VOID

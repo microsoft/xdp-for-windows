@@ -3015,6 +3015,37 @@ AdminFn(
             exitCode = system(cmdBuff);
             TraceVerbose("admin: query counters exitCode=%d", exitCode);
         }
+
+        if (!(RandUlong() % 10)) {
+            if (RandUlong() % 2) {
+                //
+                // Ensure pktmon is loaded before starting a trace.
+                //
+                TraceVerbose("admin: starting pktmon service");
+                system("sc.exe start pktmon > nul 2>&1");
+
+                TraceVerbose("admin: starting pktmon trace");
+                switch (RandUlong() % 3) {
+                case 0:
+                    system("pktmon start --capture --type all > nul 2>&1");
+                    break;
+                case 1:
+                    system("pktmon start --capture --type flow > nul 2>&1");
+                    break;
+                case 2:
+                    system("pktmon start --capture --type drop > nul 2>&1");
+                    break;
+                }
+            } else {
+                TraceVerbose("admin: stopping pktmon trace");
+                system("pktmon stop > nul 2>&1");
+
+                if (RandUlong() % 2) {
+                    TraceVerbose("admin: stopping pktmon service");
+                    system("sc.exe stop pktmon > nul 2>&1");
+                }
+            }
+        }
     }
 
     //

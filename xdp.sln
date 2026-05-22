@@ -71,6 +71,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ringperf", "test\ringperf\r
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xskrestricted", "samples\xskrestricted\xskrestricted.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pktmonclnt", "src\pktmonclnt\pktmonclnt.vcxproj", "{DEE8C283-682F-40F2-818B-06123BCC7844}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -423,6 +425,14 @@ Global
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.Build.0 = Release|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.Deploy.0 = Release|x64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Debug|ARM64.Build.0 = Debug|ARM64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Debug|x64.ActiveCfg = Debug|x64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Debug|x64.Build.0 = Debug|x64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Release|ARM64.ActiveCfg = Release|ARM64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Release|ARM64.Build.0 = Release|ARM64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Release|x64.ActiveCfg = Release|x64
+		{DEE8C283-682F-40F2-818B-06123BCC7844}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
