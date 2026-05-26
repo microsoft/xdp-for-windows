@@ -166,7 +166,7 @@ XdpDeleteContext(
         }
         memcpy(DataOut, XdpMd->Base.data, DataSize);
         *DataSizeOut = DataSize;
-    } else {
+    } else if (DataSizeOut != NULL) {
         *DataSizeOut = 0;
     }
 
@@ -181,7 +181,7 @@ XdpDeleteContext(
         XdpContextOut->data_meta = XdpMd->Base.data_meta;
         XdpContextOut->ingress_ifindex = XdpMd->Base.ingress_ifindex;
         *ContextSizeOut = context_size;
-    } else {
+    } else if (ContextSizeOut != NULL) {
         *ContextSizeOut = 0;
     }
 
