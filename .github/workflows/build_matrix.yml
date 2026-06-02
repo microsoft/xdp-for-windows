@@ -1,49 +1,105 @@
-name: Build XDP Matrix
+name: Publish Test-Signed NuGet
 
-# The caller is responsible for making sure all options passed to this workflow are valid and compatible with each other.
+# Manually triggered workflow that builds test-signed NuGet packages and
+# uploads them to a new draft prerelease GitHub release.
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        required: false
-        default: ''
-        type: string
-      id:
-        required: false
-        default: ''
-        type: string
-      codeql:
-        required: false
-        default: true
-        type: boolean
   workflow_dispatch:
     inputs:
-      ref:
+      dry_run:
+        description: 'Build and collect packages without creating a release.'
         required: false
-        default: ''
-        type: string
-        description: 'The git commit hash (or HEAD of current branch if left empty) of XDP to build.'
-      id:
-        required: false
-        default: ''
-        type: string
-        description: 'With multiple builds with duplicate configurations (e.g. Debug_x64_2022), you can append an ID (e.g. Debug_x64_2022_myid).'
+        default: false
+        type: boolean
+
+permissions: read-all
 
 jobs:
-  build_matrix:
-    name: Build ${{ inputs.ref }}
+  build:
+    name: Build
     strategy:
       fail-fast: false
       matrix:
-        os: [2022]
-        config: [Release, Debug]
+        config: [Release]
         platform: [x64, arm64]
+    permissions:
+      actions: read
+      contents: read
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
+      os: '2022'
       platform: ${{ matrix.platform }}
-      ref: ${{ inputs.ref }}
-      codeql: ${{ (inputs.codeql || false) && github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
+      artifact_path: bin_${{ matrix.config }}_${{ matrix.platform }}
+
+  publish:
+    name: Publish Draft Prerelease
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        sparse-checkout: src/xdp.props
+    - name: Read version from xdp.props
+      id: version
+      shell: bash
+      run: |
+        major=$(grep -oP '<XdpMajorVersion>\K[^<]+' src/xdp.props)
+        minor=$(grep -oP '<XdpMinorVersion>\K[^<]+' src/xdp.props)
+        patch=$(grep -oP '<XdpPatchVersion>\K[^<]+' src/xdp.props)
+        echo "xdp_version=${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
+        echo "XDP version: ${major}.${minor}.${patch}"
+    - name: Download Release x64 Build Artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: bin_Release_x64
+        path: artifacts/bin_x64
+    - name: Download Release arm64 Build Artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: bin_Release_arm64
+        path: artifacts/bin_arm64
+    - name: Collect NuGet packages
+      shell: bash
+      run: |
+        mkdir -p release_assets
+        find artifacts -name '*.nupkg' -exec cp {} release_assets/ \;
+        echo "NuGet packages to upload:"
+        ls -la release_assets/
+        count=$(find release_assets -name '*.nupkg' | wc -l)
+        echo "Found $count NuGet package(s)"
+        if [ "$count" -lt 2 ]; then
+          echo "::error::Expected at least 2 NuGet packages (x64 Runtime + arm64 Runtime), found $count"
+          exit 1
+        fi
+    - name: Create draft prerelease
+      if: ${{ !inputs.dry_run }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        TAG="v${{ steps.version.outputs.xdp_version }}-draft-prerelease-${GITHUB_SHA::8}"
+        echo "Creating draft prerelease with tag: $TAG"
+
+        gh release create "$TAG" \
+          --repo "$GITHUB_REPOSITORY" \
+          --title "$TAG" \
+          --notes "Auto-generated draft prerelease containing test-signed NuGet packages built from \`${{ github.ref_name }}\` at commit \`${GITHUB_SHA}\`." \
+          --draft \
+          --prerelease \
+          --target "$GITHUB_SHA" \
+          release_assets/*
+    - name: Dry run summary
+      if: ${{ inputs.dry_run }}
+      shell: bash
+      run: |
+        TAG="v${{ steps.version.outputs.xdp_version }}-draft-prerelease-${GITHUB_SHA::8}"
+        echo "::notice::Dry run — skipping release creation. Would have created: $TAG"
+        echo "Packages that would be uploaded:"
+        ls release_assets/
+        
