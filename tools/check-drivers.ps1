@@ -173,8 +173,15 @@ Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Check for any eBPF drivers.
 if (!$IgnoreEbpf) {
-    Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
-    Check-And-Remove-Driver "netebpfext.sys" "ebpf"
+    $EbpfInstallPath = Get-EbpfInstallPath
+    if (Test-Path $EbpfInstallPath) {
+        # eBPF was installed via MSI; attempt removal.
+        Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
+        Check-And-Remove-Driver "netebpfext.sys" "ebpf"
+    } else {
+        # eBPF is an inbox OS component; don't attempt removal.
+        Write-Verbose "eBPF install path ($EbpfInstallPath) not found; assuming inbox eBPF."
+    }
 }
 
 # Yay! No XDP drivers found.
