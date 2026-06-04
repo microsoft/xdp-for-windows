@@ -136,6 +136,19 @@ function Get-EbpfMsiUrl {
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$Platform.$EbpfVersion.msi"
 }
 
+# Returns $true if eBPF appears to be an inbox (OS-provided) component rather
+# than installed via the eBPF-for-Windows MSI package.
+function Test-EbpfInbox {
+    $svcKey = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\ebpfcore" -ErrorAction SilentlyContinue
+    if ($null -eq $svcKey) { return $false }
+    $imagePath = if ($svcKey.ImagePath) { $svcKey.ImagePath } else { "" }
+    $ebpfInstallPath = Get-EbpfInstallPath
+    # Inbox drivers have a system image path (e.g. \SystemRoot\System32\drivers\)
+    # and no MSI install directory. Exclude stale MSI state where the service
+    # still references the MSI install path.
+    return ($imagePath -notlike "$ebpfInstallPath*") -and !(Test-Path $ebpfInstallPath)
+}
+
 function Get-FnVersion {
     return "1.5.0"
 }

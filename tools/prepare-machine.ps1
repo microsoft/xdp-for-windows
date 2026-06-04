@@ -171,6 +171,11 @@ function Download-eBpf-Nuget {
 }
 
 function Download-Ebpf-Msi {
+    if (Test-EbpfInbox) {
+        Write-Verbose "eBPF is an inbox OS component; skipping MSI download."
+        return
+    }
+
     # Download and extract private eBPF installer MSI package.
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
 
