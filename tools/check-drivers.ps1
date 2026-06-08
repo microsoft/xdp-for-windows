@@ -173,8 +173,13 @@ Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Check for any eBPF drivers.
 if (!$IgnoreEbpf) {
-    Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
-    Check-And-Remove-Driver "netebpfext.sys" "ebpf"
+    if (Test-EbpfInbox) {
+        # eBPF is an inbox OS component; don't attempt removal.
+        Write-Verbose "eBPF is an inbox OS component; skipping driver removal."
+    } else {
+        Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
+        Check-And-Remove-Driver "netebpfext.sys" "ebpf"
+    }
 }
 
 # Yay! No XDP drivers found.

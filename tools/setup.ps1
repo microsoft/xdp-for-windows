@@ -575,6 +575,11 @@ function Uninstall-FnSock {
 }
 
 function Install-Ebpf {
+    if (Test-EbpfInbox) {
+        Write-Verbose "eBPF is an inbox OS component; skipping MSI install."
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
 
@@ -600,6 +605,11 @@ function Install-Ebpf {
 }
 
 function Uninstall-Ebpf {
+    if (Test-EbpfInbox) {
+        Write-Verbose "eBPF is an inbox OS component; skipping MSI uninstall."
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
     $Timeout = 60
