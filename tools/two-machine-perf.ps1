@@ -244,7 +244,7 @@ foreach ($XdpMode in "None", "BuiltIn", "eBPF") {
         eBPF
         {
             Write-Output "Attaching eBPF program"
-            $ProgId = (& netsh.exe ebpf add program $ArtifactBin\bpf\pass.sys interface=$LocalInterface)[0].substring("Loaded with ID ".length)
+            $ProgId = (& netsh.exe ebpf add program $ArtifactBin\bpf\pass.o interface=$LocalInterface)[0].substring("Loaded with ID ".length)
         }
     }
 

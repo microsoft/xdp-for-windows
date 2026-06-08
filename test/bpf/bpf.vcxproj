@@ -21,7 +21,7 @@
   <ItemGroup>
     <CustomBuild Include="*.c">
       <FileType>CppCode</FileType>
-      <Outputs>$(OutDir)%(Filename).sys</Outputs>
+      <Outputs>$(OutDir)%(Filename).sys;$(OutDir)%(Filename).o</Outputs>
       <Command>
         clang -g -target bpf -O2 -Werror $(ClangIncludes) -I $(SolutionDir)published\external -c %(Filename).c -o $(OutDir)%(Filename).o
         pushd $(OutDir)

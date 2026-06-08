@@ -436,7 +436,7 @@ FuzzProgTestRunXdpEbpfProgram()
         goto Exit;
     }
 
-    ProgramRelativePath = "\\bpf\\allow_ipv6.sys";
+    ProgramRelativePath = "\\bpf\\allow_ipv6.o";
 
     ASSERT_FRE(strcat_s(Path, sizeof(Path), ProgramRelativePath) == 0);
 
@@ -593,13 +593,13 @@ AttachXdpEbpfProgram(
 
     switch (RandUlong() % 3) {
     case 0:
-        ProgramRelativePath = "\\bpf\\drop.sys";
+        ProgramRelativePath = "\\bpf\\drop.o";
         break;
     case 1:
-        ProgramRelativePath = "\\bpf\\pass.sys";
+        ProgramRelativePath = "\\bpf\\pass.o";
         break;
     case 2:
-        ProgramRelativePath = "\\bpf\\l1fwd.sys";
+        ProgramRelativePath = "\\bpf\\l1fwd.o";
         break;
     default:
         ASSERT_FRE(FALSE);

@@ -6074,19 +6074,19 @@ GenericRxEbpfAttach()
 {
     auto If = FnMpIf;
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
 
     unique_xdp_program BpfProgramReplacement;
-    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfProgramReplacement, If, "\\bpf\\pass.sys", "pass")));
+    TEST_TRUE(FAILED(TryAttachEbpfXdpProgram(BpfProgramReplacement, If, "\\bpf\\pass.o", "pass")));
 
     //
-    // eBPF doesn't wait for the pass.sys driver to completely unload after
+    // eBPF doesn't wait for the program to completely unload after
     // tearing down the object, so allow some time for that to happen before
     // retrying with the replace flag.
     //
     CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
     BpfProgramReplacement =
-        AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass", XDP_FLAGS_REPLACE);
+        AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass", XDP_FLAGS_REPLACE);
 }
 
 VOID
@@ -6097,7 +6097,7 @@ GenericRxEbpfDrop()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfDrop";
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.sys", "drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\drop.o", "drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -6126,7 +6126,7 @@ GenericRxEbpfPass()
     unique_fnlwf_handle FnLwf;
     const UCHAR Payload[] = "GenericRxEbpfPass";
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -6151,7 +6151,7 @@ GenericRxEbpfTx()
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfTx";
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.o", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -6181,7 +6181,7 @@ GenericRxEbpfPayload()
     const UINT32 Trailer = 17;
     const UCHAR UdpPayload[] = "GenericRxEbpfPayload";
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.o", "allow_ipv6");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -6222,7 +6222,7 @@ ProgTestRunRxEbpfPayload()
     const UCHAR UdpPayload[] = "ProgTestRunRxEbpfPayload";
     bpf_test_run_opts Opts = {};
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.sys", "allow_ipv6");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\allow_ipv6.o", "allow_ipv6");
     fd_t ProgFd = bpf_program__fd(bpf_object__find_program_by_name(BpfProgram.get(), "allow_ipv6"));
 
     // Build a v6 packet and verify it is allowed.
@@ -6281,7 +6281,7 @@ GenericRxEbpfIfIndex()
     const UCHAR Payload[] = "GenericRxEbpfIfIndex";
     UINT32 Zero = 0;
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.sys", "selective_drop");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\selective_drop.o", "selective_drop");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
     FnLwf = LwfOpenDefault(If.GetIfIndex());
@@ -6346,7 +6346,7 @@ GenericRxEbpfFragments()
     DATA_BUFFER Buffers[2] = {};
     const UCHAR Payload[] = "123GenericRxEbpfFragments4321";
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.sys", "l1fwd");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\l1fwd.o", "l1fwd");
 
     GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -6385,7 +6385,7 @@ GenericRxEbpfUnload()
 {
     auto If = FnMpIf;
 
-    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.sys", "pass");
+    unique_xdp_program BpfProgram = AttachEbpfXdpProgram(If, "\\bpf\\pass.o", "pass");
 
     TEST_HRESULT(TryStopService(XDP_SERVICE_NAME));
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
