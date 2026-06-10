@@ -443,7 +443,7 @@ jobs:
         path: artifacts/bin
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
@@ -468,7 +468,7 @@ jobs:
         if-no-files-found: ignore
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   perf_test_summary:
     name: Perf Test Summary
@@ -592,7 +592,7 @@ jobs:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -618,7 +618,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   xskmaprx_test:
     name: XskMapRx Test
@@ -644,7 +644,7 @@ jobs:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -670,7 +670,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   xskrestricted_test:
     name: XskRestricted Test
@@ -696,7 +696,7 @@ jobs:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -723,7 +723,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -IgnoreEbpf
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   create_artifacts:
     name: Create Release Artifacts

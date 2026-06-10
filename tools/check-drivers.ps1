@@ -14,8 +14,9 @@ This checks for the presence of any XDP drivers currently loaded.
     [ValidateSet("x64", "arm64")]
     [string]$Platform = "x64",
 
+    # Allow eBPF drivers to be and remain present
     [Parameter(Mandatory = $false)]
-    [switch]$IgnoreEbpf = $false,
+    [switch]$AllowEbpf = $false,
 
     # Pass -Force to the underlying setup.ps1 so that normally-fatal
     # uninstall errors are treated as recoverable warnings. Use after a
@@ -172,7 +173,23 @@ Check-And-Remove-Driver "xdp.sys" "xdp"
 Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Check for any eBPF drivers.
-if (!$IgnoreEbpf) {
+#
+# Some CI images ship eBPF inbox. Tests must leave any inbox eBPF exactly as
+# they found it. The caller drives this: the test prologue passes -AllowEbpf
+# (tolerate eBPF and record whether it is present as a pipeline baseline), and
+# the test epilogue passes -AllowEbpf based on that recorded baseline -
+# tolerating eBPF when it was present originally, or removing it to restore the
+# original state when it was not.
+if ($AllowEbpf) {
+    $EbpfPresent = (Check-Driver "ebpfcore.sys") -or (Check-Driver "netebpfext.sys")
+    if ($EbpfPresent) {
+        Write-Verbose "Detected allowed eBPF driver, not removing."
+    }
+    if ($env:GITHUB_ENV) {
+        Write-Verbose "Setting GITHUB_ENV XDP_EBPF_BASELINE=$([int][bool]$EbpfPresent)"
+        Add-Content -Path $env:GITHUB_ENV -Value "XDP_EBPF_BASELINE=$([int][bool]$EbpfPresent)"
+    }
+} else {
     Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
     Check-And-Remove-Driver "netebpfext.sys" "ebpf"
 }
