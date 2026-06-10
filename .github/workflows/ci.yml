@@ -168,7 +168,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025, Prerelease]
+        windows: [2022, 2025]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
@@ -234,7 +234,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025, Prerelease]
+        windows: [2022, 2025]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
@@ -386,7 +386,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [Prerelease]
+        windows: [2025]
         configuration: [Release]
         platform: [x64, arm64]
     runs-on:
@@ -422,7 +422,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [Prerelease]
+        windows: [2025]
         configuration: [Release]
         platform: [x64, arm64]
     runs-on:
@@ -518,7 +518,7 @@ jobs:
       fail-fast: false
       matrix:
         downlevel_release: ${{ fromJson(needs.resolve_downlevel_releases.outputs.downlevel_release) }}
-        windows: [2022, 2025, Prerelease]
+        windows: [2022, 2025]
         configuration: [Release]
         platform: [x64]
     runs-on:
