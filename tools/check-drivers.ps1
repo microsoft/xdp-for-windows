@@ -180,18 +180,22 @@ Check-And-Remove-Driver "fndis.sys" "fndis"
 # the test epilogue passes -AllowEbpf based on that recorded baseline -
 # tolerating eBPF when it was present originally, or removing it to restore the
 # original state when it was not.
+$EbpfDrivers = @("ebpfcore.sys", "netebpfext.sys")
+
 if ($AllowEbpf) {
-    $EbpfPresent = (Check-Driver "ebpfcore.sys") -or (Check-Driver "netebpfext.sys")
+    $DetectedEbpfDrivers = @($EbpfDrivers | Where-Object { Check-Driver $_ })
+    $EbpfPresent = $DetectedEbpfDrivers.Count -gt 0
     if ($EbpfPresent) {
-        Write-Verbose "Detected allowed eBPF driver, not removing."
+        Write-Verbose "Detected allowed eBPF driver(s), not removing: $($DetectedEbpfDrivers -join ', ')"
     }
     if ($env:GITHUB_ENV) {
-        Write-Verbose "Setting GITHUB_ENV XDP_EBPF_BASELINE=$([int][bool]$EbpfPresent)"
-        Add-Content -Path $env:GITHUB_ENV -Value "XDP_EBPF_BASELINE=$([int][bool]$EbpfPresent)"
+        Write-Verbose "Setting GITHUB_ENV XDP_EBPF_BASELINE=$([int]$EbpfPresent)"
+        Add-Content -Path $env:GITHUB_ENV -Value "XDP_EBPF_BASELINE=$([int]$EbpfPresent)"
     }
 } else {
-    Check-And-Remove-Driver "ebpfcore.sys" "ebpf"
-    Check-And-Remove-Driver "netebpfext.sys" "ebpf"
+    foreach ($EbpfDriver in $EbpfDrivers) {
+        Check-And-Remove-Driver $EbpfDriver "ebpf"
+    }
 }
 
 # Yay! No XDP drivers found.
