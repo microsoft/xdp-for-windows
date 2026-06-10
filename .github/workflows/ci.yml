@@ -186,7 +186,7 @@ jobs:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -219,7 +219,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   stress_tests:
     name: Stress Tests
@@ -257,7 +257,7 @@ jobs:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
@@ -300,7 +300,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   pktfuzz_tests:
     name: Fuzz Packet Parsing
@@ -533,7 +533,7 @@ jobs:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
@@ -566,7 +566,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   xskfwdkm_test:
     name: XskFwdKm Test
