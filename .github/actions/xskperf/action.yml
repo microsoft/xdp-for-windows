@@ -46,7 +46,7 @@ runs:
       path: ./${{ inputs.id }}/
   - name: Check Drivers
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose
+    run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose -AllowEbpf
   - name: Prepare Machine
     shell: PowerShell
     run: ./${{ inputs.id }}/tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ inputs.platform }} -RequireNoReboot -Verbose
@@ -81,4 +81,4 @@ runs:
   - name: Check Drivers
     if: ${{ always() }}
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose
+    run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
