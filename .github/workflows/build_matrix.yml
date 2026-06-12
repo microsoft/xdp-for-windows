@@ -113,7 +113,7 @@ jobs:
         }
 
         # Sanity check: every package must carry the identical version string.
-        $Versions = $Parsed | ForEach-Object { $_.Version } | Sort-Object -Unique
+        $Versions = @($Parsed | ForEach-Object { $_.Version } | Sort-Object -Unique)
         if ($Versions.Count -ne 1) {
             Write-Error "NuGet packages have mismatched versions: $($Versions -join ', ')"
         }
@@ -127,7 +127,7 @@ jobs:
             "Microsoft.XDP-for-Windows.Runtime.arm64",
             "Microsoft.XDP-for-Windows.Sdk"
         )
-        $ActualIds = $Parsed | ForEach-Object { $_.Id }
+        $ActualIds = @($Parsed | ForEach-Object { $_.Id })
         foreach ($Expected in $ExpectedIds) {
             if ($Expected -notin $ActualIds) {
                 Write-Error "Missing expected package: $Expected.$VersionString.nupkg"
@@ -166,4 +166,3 @@ jobs:
         Write-Host "Dry run - skipping release creation. Would have created: $Tag"
         Write-Host "Packages that would be uploaded:"
         Get-ChildItem release_assets -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }
-        
