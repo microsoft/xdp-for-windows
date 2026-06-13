@@ -160,7 +160,13 @@ XdpDeleteContext(
     // Copy the packet data to the output buffer.
     if (DataOut != NULL && DataSizeOut != NULL && XdpMd->Base.data != NULL) {
         size_t DataSize = *DataSizeOut;
-        size_t XdpDataSize = (char*)(XdpMd->Base.data_end) - (char*)(XdpMd->Base.data);
+        size_t XdpDataSize = 0;
+        if ((char*)(XdpMd->Base.data_end) > (char*)(XdpMd->Base.data)) {
+            XdpDataSize = (char*)(XdpMd->Base.data_end) - (char*)(XdpMd->Base.data);
+            if (XdpDataSize > XdpMd->ProgTestRunContext->DataSize) {
+                XdpDataSize = XdpMd->ProgTestRunContext->DataSize;
+            }
+        }
         if (DataSize > XdpDataSize) {
             DataSize = XdpDataSize;
         }
