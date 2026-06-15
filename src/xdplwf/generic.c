@@ -660,6 +660,9 @@ XdpGenericAttachInterface(
     InitializeListHead(&Generic->Rx.Queues);
     InitializeListHead(&Generic->Tx.Queues);
     InitializeListHead(&Generic->Rx.NotifyQueues);
+    InitializeListHead(&Generic->PktMonLink);
+    ExInitializeRundownProtection(&Generic->PktMonRundownRef);
+    ExWaitForRundownProtectionRelease(&Generic->PktMonRundownRef);
     KeInitializeEvent(&Generic->InterfaceRemovedEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->CleanupEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
@@ -714,7 +717,7 @@ XdpGenericAttachInterface(
         goto Exit;
     }
 
-    XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
+    XdpPktMonTrackGeneric(Generic);
 
     RtlZeroMemory(AddIf, sizeof(*AddIf));
     AddIf->InterfaceCapabilities = &Generic->InternalCapabilities;
@@ -748,7 +751,7 @@ XdpGenericDetachInterface(
         XdpIfRemoveInterfaces(&Generic->XdpIfInterfaceHandle, 1);
     }
 
-    XdpPktMonUnregisterInterface(&Generic->PktMonContext);
+    XdpPktMonUntrackGeneric(Generic);
 }
 
 VOID

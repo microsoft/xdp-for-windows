@@ -42,10 +42,12 @@ typedef struct _XDP_INTERFACE_PKTMON_CONTEXT {
     PKTMON_COMPONENT_CONTEXT PktMonComp;
 } XDP_INTERFACE_PKTMON_CONTEXT;
 
+typedef struct _XDP_LWF_GENERIC XDP_LWF_GENERIC;
+
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 XdpPktMonLogDrop(
-    _In_ XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext,
+    _In_ XDP_LWF_GENERIC *Generic,
     _In_ NET_BUFFER_LIST *NetBufferLists,
     _In_ BOOLEAN UseOnlyFirstNbl,
     _In_ PKTMON_DIRECTION Direction,
@@ -55,15 +57,14 @@ XdpPktMonLogDrop(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpPktMonRegisterInterface(
-    _Outptr_result_maybenull_ XDP_INTERFACE_PKTMON_CONTEXT **PktMonContext,
-    _In_ NET_IFINDEX IfIndex
+XdpPktMonTrackGeneric(
+    _Inout_ XDP_LWF_GENERIC *Generic
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpPktMonUnregisterInterface(
-    _Inout_ XDP_INTERFACE_PKTMON_CONTEXT **PktMonContext
+XdpPktMonUntrackGeneric(
+    _Inout_ XDP_LWF_GENERIC *Generic
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

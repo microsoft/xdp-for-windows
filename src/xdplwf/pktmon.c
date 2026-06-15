@@ -16,69 +16,14 @@ static const NPI_MODULEID NPI_XDP_GENERIC_PKTMON_CLNT_MODULEID = {
     }
 };
 
-static
-VOID
-XdpPktMonRegistrationCallback(
-    VOID
-    )
-{
-    //
-    // We don't yet support pktmon tracing for existing XDP interfaces in dynamic
-    // pktmon load scenarios (pktmon loads after XDP interface is established).
-    //
-}
+//
+// List of all generic bindings. Used for dynamic pktmon registration. Protected by the pktmon
+// generic list lock.
+//
+static LIST_ENTRY XdpPktMonGenericList;
+static EX_PUSH_LOCK XdpPktMonGenericListLock;
 
 static
-VOID
-XdpPktMonClientCleanupCallback(
-    VOID
-    )
-{
-}
-
-static
-VOID
-XdpPktMonClientCompNotifyCallback(
-    _In_ PKTMON_COMPONENT_CONTEXT *CompContext
-    )
-{
-    UNREFERENCED_PARAMETER(CompContext);
-}
-
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-XdpPktMonLogDrop(
-    _In_ XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext,
-    _In_ NET_BUFFER_LIST *NetBufferLists,
-    _In_ BOOLEAN UseOnlyFirstNbl,
-    _In_ PKTMON_DIRECTION Direction,
-    _In_ XDP_PKTMON_DROP_REASON DropReason,
-    _In_ XDP_PKTMON_DROP_LOCATION DropLocation
-    )
-{
-    //
-    // If PktMonContext is non-NULL, PktMon must be enabled.
-    //
-    ASSERT(!XdpDisablePktMon || (PktMonContext == NULL));
-
-    //
-    // Drop reason must be in range [0x80000000 - 0xFFFFFFFF] per PktMon guidance.
-    // Drop location must be in range [0 - 0x7FFFFFFF] per PktMon guidance.
-    //
-
-    if ((PktMonContext != NULL) && PktMonContext->PktMonComp.DropEnabled) {
-        PktMonClntNblDrop(
-            &PktMonContext->PktMonComp,
-            NetBufferLists,
-            PktMonPayload_Ethernet,
-            NULL, // PacketHeaderInformation
-            UseOnlyFirstNbl,
-            Direction,
-            DropReason,
-            DropLocation);
-    }
-}
-
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 XdpPktMonRegisterInterface(
@@ -95,19 +40,12 @@ XdpPktMonRegisterInterface(
 
     *PktMonContext = NULL;
 
-    if (XdpDisablePktMon) {
-        Status = STATUS_SUCCESS;
-        goto Exit;
-    }
-
     DECLARE_CONST_UNICODE_STRING(DriverName, L"xdp.sys");
     DECLARE_CONST_UNICODE_STRING(Description, L"XDP GENERIC network inspection");
 
     Context = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*Context), POOLTAG_PKTMON);
     if (Context == NULL) {
-        TraceError(
-            TRACE_LWF, "IfIndex=%u PktMon allocation failed",
-            IfIndex);
+        TraceError(TRACE_LWF, "IfIndex=%u PktMon allocation failed", IfIndex);
         Status = STATUS_NO_MEMORY;
         goto Exit;
     }
@@ -153,6 +91,7 @@ Exit:
     TraceExitStatus(TRACE_LWF);
 }
 
+static
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 XdpPktMonUnregisterInterface(
@@ -163,16 +102,200 @@ XdpPktMonUnregisterInterface(
 
     TraceEnter(TRACE_LWF, "Context=%p", Context);
 
-    if (XdpDisablePktMon) {
-        goto Exit;
-    }
-
     if (Context != NULL) {
         PktMonClntComponentUnregister(&Context->PktMonComp);
         ExFreePoolWithTag(Context, POOLTAG_PKTMON);
     }
 
     *PktMonContext = NULL;
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpPktMonRegistrationCallback(
+    VOID
+    )
+{
+    //
+    // PktMon was loaded.
+    //
+    // Enumerate generic bindings and register them with pktmon.
+    //
+
+    TraceEnter(TRACE_LWF, "PktMonRegistrationCallback");
+
+    KeEnterCriticalRegion();
+    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+
+    LIST_ENTRY *Entry = XdpPktMonGenericList.Flink;
+    while (Entry != &XdpPktMonGenericList) {
+        XDP_LWF_GENERIC *Generic = CONTAINING_RECORD(Entry, XDP_LWF_GENERIC, PktMonLink);
+        Entry = Entry->Flink;
+
+        ASSERT(Generic->PktMonContext == NULL);
+
+        XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
+        if (Generic->PktMonContext != NULL) {
+            ExReInitializeRundownProtection(&Generic->PktMonRundownRef);
+            TraceInfo(
+                TRACE_LWF, "PktMon dynamic registration IfIndex=%u Context=%p",
+                Generic->IfIndex, Generic->PktMonContext);
+        }
+    }
+
+    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
+    KeLeaveCriticalRegion();
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpPktMonClientCleanupCallback(
+    VOID
+    )
+{
+    //
+    // PktMon is unloading.
+    //
+    // Enumerate existing generic bindings and unregister them with pktmon.
+    //
+    // N.B. By this time, the PktMonClnt library shim has disallowed new calls across the PktMon
+    //      NPI, so the unregistration attempts will effectively be no-ops. This is fine because
+    //      neither the PktMon subsystem nor the PktMonClnt library shim require explicit
+    //      unregistration of edges or components. However, attempting unregistration at this time
+    //      frees context memory and provides symmetry and simplicity for this XDP pktmon module.
+
+    TraceEnter(TRACE_LWF, "PktMonClientCleanupCallback");
+
+    KeEnterCriticalRegion();
+    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+
+    LIST_ENTRY *Entry = XdpPktMonGenericList.Flink;
+    while (Entry != &XdpPktMonGenericList) {
+        XDP_LWF_GENERIC *Generic =
+            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC, PktMonLink);
+        Entry = Entry->Flink;
+
+        //
+        // Wait for any in-progress datapath references to drain, then free
+        // the pktmon context. The component is already unregistered by
+        // PktMonDetachProvider (which zeroed the component context).
+        //
+        ExWaitForRundownProtectionRelease(&Generic->PktMonRundownRef);
+        XdpPktMonUnregisterInterface(&Generic->PktMonContext);
+
+        TraceVerbose(
+            TRACE_LWF, "PktMon cleanup IfIndex=%u", Generic->IfIndex);
+    }
+
+    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
+    KeLeaveCriticalRegion();
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+static
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpPktMonClientCompNotifyCallback(
+    _In_ PKTMON_COMPONENT_CONTEXT *CompContext
+    )
+{
+    UNREFERENCED_PARAMETER(CompContext);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+XdpPktMonLogDrop(
+    _In_ XDP_LWF_GENERIC *Generic,
+    _In_ NET_BUFFER_LIST *NetBufferLists,
+    _In_ BOOLEAN UseOnlyFirstNbl,
+    _In_ PKTMON_DIRECTION Direction,
+    _In_ XDP_PKTMON_DROP_REASON DropReason,
+    _In_ XDP_PKTMON_DROP_LOCATION DropLocation
+    )
+{
+    if (!ExAcquireRundownProtection(&Generic->PktMonRundownRef)) {
+        return;
+    }
+
+    if (Generic->PktMonContext->PktMonComp.DropEnabled) {
+        PktMonClntNblDrop(
+            &Generic->PktMonContext->PktMonComp,
+            NetBufferLists,
+            PktMonPayload_Ethernet,
+            NULL, // PacketHeaderInformation
+            UseOnlyFirstNbl,
+            Direction,
+            DropReason,
+            DropLocation);
+    }
+
+    ExReleaseRundownProtection(&Generic->PktMonRundownRef);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpPktMonTrackGeneric(
+    _Inout_ XDP_LWF_GENERIC *Generic
+    )
+{
+    TraceEnter(TRACE_LWF, "IfIndex=%u", Generic->IfIndex);
+
+    if (XdpDisablePktMon) {
+        goto Exit;
+    }
+
+    KeEnterCriticalRegion();
+    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+
+    InsertTailList(&XdpPktMonGenericList, &Generic->PktMonLink);
+    XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
+
+    if (Generic->PktMonContext != NULL) {
+        ExReInitializeRundownProtection(&Generic->PktMonRundownRef);
+    }
+
+    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
+    KeLeaveCriticalRegion();
+
+Exit:
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpPktMonUntrackGeneric(
+    _Inout_ XDP_LWF_GENERIC *Generic
+    )
+{
+    TraceEnter(TRACE_LWF, "IfIndex=%u", Generic->IfIndex);
+
+    if (XdpDisablePktMon) {
+        goto Exit;
+    }
+
+    KeEnterCriticalRegion();
+    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+
+    RemoveEntryList(&Generic->PktMonLink);
+    InitializeListHead(&Generic->PktMonLink);
+
+    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
+    KeLeaveCriticalRegion();
+
+    //
+    // Wait for any in-progress datapath references to drain, then free the
+    // pktmon context.
+    //
+    ExWaitForRundownProtectionRelease(&Generic->PktMonRundownRef);
+    XdpPktMonUnregisterInterface(&Generic->PktMonContext);
 
 Exit:
 
@@ -188,6 +311,9 @@ XdpPktMonStart(
     NTSTATUS Status;
 
     TraceEnter(TRACE_LWF, "Start");
+
+    InitializeListHead(&XdpPktMonGenericList);
+    ExInitializePushLock(&XdpPktMonGenericListLock);
 
     Status = XdpRegQueryBoolean(XDP_LWF_PARAMETERS_KEY, L"XdpDisablePktMon", &XdpDisablePktMon);
     if (!NT_SUCCESS(Status)) {

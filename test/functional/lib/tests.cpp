@@ -661,6 +661,30 @@ public:
             PowershellPrefix, _IfDesc);
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
+
+    HRESULT
+    TryDisable() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(
+            CmdBuff,
+            "%s /c \"Disable-NetAdapter -ifDesc '%s' -Confirm:$false\"",
+            PowershellPrefix, _IfDesc);
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
+    }
+
+    HRESULT
+    TryEnable() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(
+            CmdBuff,
+            "%s /c \"Enable-NetAdapter -ifDesc '%s'\"",
+            PowershellPrefix, _IfDesc);
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
+    }
 };
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
@@ -10494,6 +10518,116 @@ GenericRxXskMapRedirectMiss()
 
     UINT32 ConsumerIndex;
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+}
+
+static
+BOOLEAN
+IsPktMonComponentRegistered(
+    _In_z_ const CHAR *NicName,
+    _In_z_ const CHAR *ComponentName
+    )
+{
+    CHAR Cmd[512];
+
+    //
+    // Use PowerShell to parse the pktmon component list and check if the
+    // given component appears under the specified NIC section.
+    //
+    sprintf_s(
+        Cmd, sizeof(Cmd),
+        "%s /c \""
+        "$found = $false; $inNic = $false; "
+        "pktmon comp list --all | ForEach-Object { "
+        "  if ($_ -match '^NIC:') { $inNic = $_ -match 'NIC: %s$' } "
+        "  if ($inNic -and $_ -match '%s') { $found = $true } "
+        "}; if (-not $found) { exit 1 }\"",
+        PowershellPrefix, NicName, ComponentName);
+
+    return InvokeSystem(Cmd) == 0;
+}
+
+static
+HRESULT
+WaitForPktMonComponent(
+    _In_z_ const CHAR *NicName,
+    _In_z_ const CHAR *ComponentName,
+    _In_ BOOLEAN ExpectRegistered,
+    _In_ UINT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS
+    )
+{
+    HRESULT Result;
+    BOOLEAN IsRegistered;
+    Stopwatch Watchdog(TimeoutMs);
+
+    do {
+        IsRegistered = IsPktMonComponentRegistered(NicName, ComponentName);
+        if (IsRegistered == ExpectRegistered) {
+            break;
+        }
+    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+
+    Result = (IsRegistered == ExpectRegistered) ? S_OK : E_FAIL;
+    TraceVerbose(
+        "NicName=%s ComponentName=%s ExpectRegistered=%u IsRegistered=%u Result=%!HRESULT!",
+        NicName, ComponentName, ExpectRegistered, IsRegistered, Result);
+    return Result;
+}
+
+VOID
+GenericPktMonRegistration()
+{
+    //
+    // Capture the original pktmon service state and restore it on exit.
+    //
+    UINT32 OriginalServiceState;
+    TEST_HRESULT(GetServiceState(&OriginalServiceState, "pktmon"));
+    auto RestorePktMon = wil::scope_exit([&] {
+        if (OriginalServiceState == SERVICE_RUNNING) {
+            (VOID)TryStartService("pktmon");
+        } else {
+            (VOID)TryStopService("pktmon");
+        }
+    });
+
+    //
+    // Disable the test adapter and stop pktmon to start from a known state.
+    //
+    TEST_HRESULT(FnMpIf.TryDisable());
+    auto RestoreAdapter = wil::scope_exit([&] {
+        (VOID)FnMpIf.TryEnable();
+    });
+    (VOID)TryStopService("pktmon");
+
+    //
+    // Enable the adapter while pktmon is already loaded.
+    // Expect xdp.sys to appear in the pktmon component list.
+    //
+    TEST_HRESULT(TryStartService("pktmon"));
+    TEST_HRESULT(FnMpIf.TryEnable());
+    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", TRUE));
+
+    //
+    // Disable the adapter. Expect xdp.sys to no longer appear in the pktmon
+    // component list for this NIC.
+    //
+    TEST_HRESULT(FnMpIf.TryDisable());
+    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", FALSE));
+
+    //
+    // Load pktmon after the adapter is already enabled.
+    // The registration callback should register the pre-existing binding.
+    //
+    TEST_HRESULT(TryStopService("pktmon"));
+    TEST_HRESULT(FnMpIf.TryEnable());
+    TEST_HRESULT(TryStartService("pktmon"));
+    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", TRUE));
+
+    //
+    // Restart pktmon while the adapter is enabled.
+    // The registration callback should re-register the binding.
+    //
+    TEST_HRESULT(TryRestartService("pktmon"));
+    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", TRUE));
 }
 
 /**
