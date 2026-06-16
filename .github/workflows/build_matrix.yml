@@ -1,49 +1,179 @@
-name: Build XDP Matrix
+name: Publish Test-Signed NuGet
 
-# The caller is responsible for making sure all options passed to this workflow are valid and compatible with each other.
+# Manually triggered workflow that builds test-signed NuGet packages and
+# uploads them to a new draft prerelease GitHub release. A repo admin then
+# publishes the draft via the GitHub UI, which creates the tag and makes the
+# assets downloadable without authentication via their public
+# browser_download_url.
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        required: false
-        default: ''
-        type: string
-      id:
-        required: false
-        default: ''
-        type: string
-      codeql:
-        required: false
-        default: true
-        type: boolean
   workflow_dispatch:
     inputs:
-      ref:
+      dry_run:
+        description: 'Build and collect packages without creating a release.'
         required: false
-        default: ''
-        type: string
-        description: 'The git commit hash (or HEAD of current branch if left empty) of XDP to build.'
-      id:
-        required: false
-        default: ''
-        type: string
-        description: 'With multiple builds with duplicate configurations (e.g. Debug_x64_2022), you can append an ID (e.g. Debug_x64_2022_myid).'
+        default: false
+        type: boolean
+
+permissions: read-all
 
 jobs:
-  build_matrix:
-    name: Build ${{ inputs.ref }}
+  build:
+    name: Build
     strategy:
       fail-fast: false
       matrix:
-        os: [2022]
-        config: [Release, Debug]
+        config: [Release]
         platform: [x64, arm64]
+    permissions:
+      actions: read
+      contents: read
     uses: ./.github/workflows/build.yml
     with:
       config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
+      os: '2022'
       platform: ${{ matrix.platform }}
-      ref: ${{ inputs.ref }}
-      codeql: ${{ (inputs.codeql || false) && github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
+      artifact_path: bin_${{ matrix.config }}_${{ matrix.platform }}
+      testsigned: true
+
+  build_allpackage:
+    name: Build AllPackage
+    needs: build
+    permissions:
+      actions: read
+      contents: read
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        submodules: recursive
+    - name: Download build artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        pattern: bin_Release_*
+        path: artifacts/bin
+        merge-multiple: true
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
+    - name: Nuget Restore
+      run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=tools/nuget.config /p:Configuration=Release /p:Platform=x64
+    - name: Build AllPackage
+      env:
+        XDP_TESTSIGNED: 'true'
+      run: msbuild xdp.sln /m /nodeReuse:false /t:onebranch /p:Configuration=Release /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: bin_allpackage_Release
+        path: |
+          artifacts/bin/Release
+          !artifacts/bin/**/*.ilk
+          !artifacts/bin/**/*.exp
+          !artifacts/bin/**/*.lastcodeanalysissucceeded
+
+  publish:
+    name: Publish Draft Prerelease
+    needs: [build, build_allpackage]
+    runs-on: windows-2022
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+    - name: Download build artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        pattern: bin_*Release*
+        path: artifacts
+    - name: Collect and validate NuGet packages
+      id: collect
+      shell: PowerShell
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+
+        New-Item -ItemType Directory -Path release_assets -Force | Out-Null
+        Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse | Copy-Item -Destination release_assets
+
+        $Packages = Get-ChildItem -Path release_assets -Filter *.nupkg
+        Write-Host "NuGet packages found:"
+        $Packages | ForEach-Object { Write-Host "  $($_.Name)" }
+
+        # The authoritative version is the one stamped into the packages
+        # themselves, so derive it from the package file names rather than
+        # recomputing it here. This keeps the release tag in lockstep with the
+        # version baked into the binaries and NuGet packages.
+        $VersionPattern = '^(?<id>.+?)\.(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\.nupkg$'
+        $Parsed = foreach ($Package in $Packages) {
+            if ($Package.Name -notmatch $VersionPattern) {
+                Write-Error "Unable to parse version from package name: $($Package.Name)"
+            }
+            [pscustomobject]@{ Id = $Matches.id; Version = $Matches.version }
+        }
+
+        # Sanity check: every package must carry the identical version string.
+        $Versions = @($Parsed | ForEach-Object { $_.Version } | Sort-Object -Unique)
+        if ($Versions.Count -ne 1) {
+            Write-Error "NuGet packages have mismatched versions: $($Versions -join ', ')"
+        }
+        $VersionString = $Versions[0]
+        Write-Host "NuGet version string: $VersionString"
+
+        $Tag = "v$VersionString"
+        Write-Host "Prerelease tag: $Tag"
+
+        # Validate the expected set of packages is present (compared by id,
+        # independent of the version suffix).
+        $ExpectedIds = @(
+            "Microsoft.XDP-for-Windows.Runtime.x64",
+            "Microsoft.XDP-for-Windows.Runtime.arm64",
+            "Microsoft.XDP-for-Windows.Sdk"
+        )
+        $ActualIds = @($Parsed | ForEach-Object { $_.Id })
+        foreach ($Expected in $ExpectedIds) {
+            if ($Expected -notin $ActualIds) {
+                Write-Error "Missing expected package: $Expected.$VersionString.nupkg"
+            }
+        }
+        Write-Host "All $($ExpectedIds.Count) expected packages found with version $VersionString."
+
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
+    - name: Create draft prerelease
+      if: ${{ !inputs.dry_run }}
+      shell: PowerShell
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+
+        $Tag = "${{ steps.collect.outputs.tag }}"
+        Write-Host "Creating draft prerelease with tag: $Tag"
+
+        # Create as a draft so this token doesn't need to create the tag ref
+        # (which is restricted by the repository tag ruleset). A repo admin
+        # publishes the draft via the GitHub UI, which creates the tag and makes
+        # the assets downloadable without authentication via their public
+        # browser_download_url.
+        $Packages = (Get-ChildItem -Path release_assets -Filter *.nupkg).FullName
+        gh release create $Tag `
+          --repo $env:GITHUB_REPOSITORY `
+          --title $Tag `
+          --notes "Auto-generated draft prerelease containing test-signed NuGet packages built from ``${{ github.ref_name }}`` at commit ``${{ github.sha }}``." `
+          --draft `
+          --prerelease `
+          --target ${{ github.sha }} `
+          @Packages
+    - name: Dry run summary
+      if: ${{ inputs.dry_run }}
+      shell: PowerShell
+      run: |
+        $Tag = "${{ steps.collect.outputs.tag }}"
+        Write-Host "Dry run - skipping release creation. Would have created: $Tag"
+        Write-Host "Packages that would be uploaded:"
+        Get-ChildItem release_assets -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }
