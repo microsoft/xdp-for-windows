@@ -307,7 +307,8 @@ function Get-XdpBuildVersionString {
         }
         $VersionString = $TagVersion
     } else {
-        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+        $PrereleaseTag = if ($env:XDP_TESTSIGNED -eq 'true') { "-prerelease-testsigned-" } else { "-prerelease-" }
+        $VersionString += $PrereleaseTag + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 
     return $VersionString;
