@@ -10521,72 +10521,248 @@ GenericRxXskMapRedirectMiss()
 }
 
 static
-BOOLEAN
-IsPktMonComponentRegistered(
-    _In_z_ const CHAR *NicName,
-    _In_z_ const CHAR *ComponentName
+HRESULT
+StartPktMonDropCapture(
+    _In_z_ const CHAR *EtlPath
     )
 {
     CHAR Cmd[512];
 
     //
-    // Use PowerShell to parse the pktmon component list and check if the
-    // given component appears under the specified NIC section.
+    // Stop any existing trace session and clear filters before starting a
+    // fresh drop-only capture.
     //
+    InvokeSystem("pktmon stop >nul 2>&1");
+    InvokeSystem("pktmon filter remove >nul 2>&1");
     sprintf_s(
         Cmd, sizeof(Cmd),
-        "%s /c \""
-        "$found = $false; $inNic = $false; "
-        "pktmon comp list --all | ForEach-Object { "
-        "  if ($_ -match '^NIC:') { $inNic = $_ -match 'NIC: %s$' } "
-        "  if ($inNic -and $_ -match '%s') { $found = $true } "
-        "}; if (-not $found) { exit 1 }\"",
-        PowershellPrefix, NicName, ComponentName);
+        "pktmon start -c --type drop --pkt-size 256 --file-name %s",
+        EtlPath);
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError("StartPktMonDropCapture: pktmon start failed for '%s'", EtlPath);
+        return E_FAIL;
+    }
 
-    return InvokeSystem(Cmd) == 0;
+    return S_OK;
 }
 
 static
 HRESULT
-WaitForPktMonComponent(
-    _In_z_ const CHAR *NicName,
-    _In_z_ const CHAR *ComponentName,
-    _In_ BOOLEAN ExpectRegistered,
-    _In_ UINT32 TimeoutMs = TEST_TIMEOUT_ASYNC_MS
+StopPktMonCapture()
+{
+    if (InvokeSystem("pktmon stop") != 0) {
+        TraceError("StopPktMonCapture: pktmon stop failed");
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+static
+HRESULT
+FormatPktMonTrace(
+    _In_z_ const CHAR *EtlPath,
+    _In_z_ const CHAR *TxtPath
     )
 {
-    HRESULT Result;
-    BOOLEAN IsRegistered;
-    Stopwatch Watchdog(TimeoutMs);
+    CHAR Cmd[512];
 
-    do {
-        IsRegistered = IsPktMonComponentRegistered(NicName, ComponentName);
-        if (IsRegistered == ExpectRegistered) {
-            break;
-        }
-    } while (CxPlatSleep(POLL_INTERVAL_MS), !Watchdog.IsExpired());
+    sprintf_s(Cmd, sizeof(Cmd), "pktmon format %s -o %s >nul 2>&1", EtlPath, TxtPath);
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError("FormatPktMonTrace: pktmon format failed for '%s'", EtlPath);
+        return E_FAIL;
+    }
 
-    Result = (IsRegistered == ExpectRegistered) ? S_OK : E_FAIL;
-    TraceVerbose(
-        "NicName=%s ComponentName=%s ExpectRegistered=%u IsRegistered=%u Result=%!HRESULT!",
-        NicName, ComponentName, ExpectRegistered, IsRegistered, Result);
-    return Result;
+    return S_OK;
+}
+
+static
+HRESULT
+ReadNumberFromFile(
+    _In_z_ const CHAR *FilePath,
+    _Out_ UINT32 *Value
+    )
+{
+    *Value = 0;
+
+    FILE *f = NULL;
+    fopen_s(&f, FilePath, "r");
+    if (f == NULL) {
+        TraceError("ReadNumberFromFile failed to open '%s'", FilePath);
+        return E_FAIL;
+    }
+
+    CHAR Buf[16] = {};
+    fgets(Buf, sizeof(Buf), f);
+    fclose(f);
+
+    *Value = (UINT32)atoi(Buf);
+    return S_OK;
+}
+
+static
+HRESULT
+GetPktMonComponentId(
+    _In_z_ const CHAR *TxtPath,
+    _In_z_ const CHAR *ComponentName,
+    _In_ UINT32 IfIndex,
+    _Out_ UINT32 *CompId
+    )
+{
+    CHAR Cmd[1024];
+    CHAR IdFilePath[MAX_PATH];
+
+    *CompId = 0;
+
+    //
+    // Find the pktmon component ID for the given driver name and interface
+    // index. The formatted trace contains registration lines of the form:
+    //   "Component <id>, Type Filter , Name <driver>, <description>"
+    // followed by property lines:
+    //   "Property: Component <id>, MiniportIfIndex  = <ifindex>"
+    // We match both to identify the correct component. Writes 0 if not found.
+    //
+    sprintf_s(IdFilePath, sizeof(IdFilePath), "%s.compid", TxtPath);
+    auto CleanupIdFile = wil::scope_exit([&] { DeleteFileA(IdFilePath); });
+
+    sprintf_s(
+        Cmd, sizeof(Cmd),
+        "%s /c \""
+        "$txt = Get-Content '%s'; "
+        "$ids = $txt | Select-String 'Component (\\d+), Type Filter.*%s.*XDP GENERIC' "
+        "  | ForEach-Object { $_.Matches[0].Groups[1].Value }; "
+        "$id = $ids | Where-Object { "
+        "  $txt | Select-String -Pattern ('Property: Component ' + $_ + ', MiniportIfIndex\\s+=\\s+%u') -Quiet "
+        "} | Select-Object -First 1; "
+        "if ($id) { Set-Content '%s' $id } else { Set-Content '%s' 0 }\"",
+        PowershellPrefix, TxtPath, ComponentName, IfIndex, IdFilePath, IdFilePath);
+
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError(
+            "GetPktMonComponentId: script execution failed for '%s' IfIndex=%u",
+            ComponentName, IfIndex);
+        return E_FAIL;
+    }
+
+    return ReadNumberFromFile(IdFilePath, CompId);
+}
+
+static
+HRESULT
+GetPktMonComponentDropCount(
+    _In_z_ const CHAR *TxtPath,
+    _In_ UINT32 CompId,
+    _Out_ UINT32 *DropCount
+    )
+{
+    CHAR Cmd[512];
+    CHAR CountFilePath[MAX_PATH];
+
+    *DropCount = 0;
+
+    //
+    // Count the number of drop events referencing the given component ID.
+    //
+    sprintf_s(CountFilePath, sizeof(CountFilePath), "%s.dropcount", TxtPath);
+    auto CleanupCountFile = wil::scope_exit([&] { DeleteFileA(CountFilePath); });
+
+    sprintf_s(
+        Cmd, sizeof(Cmd),
+        "%s /c \""
+        "$n = (Select-String -Path '%s' -Pattern 'Drop:.*Component %u,').Count; "
+        "Set-Content '%s' $n\"",
+        PowershellPrefix, TxtPath, CompId, CountFilePath);
+
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError("GetPktMonComponentDropCount: query failed for CompId=%u", CompId);
+        return E_FAIL;
+    }
+
+    return ReadNumberFromFile(CountFilePath, DropCount);
+}
+
+static
+HRESULT
+ExercisePktMonDrop(
+    _In_ const TestInterface &If,
+    _In_z_ const CHAR *EtlPath,
+    _In_z_ const CHAR *TxtPath
+    )
+{
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const UCHAR Payload[] = "PktMonDropVerify";
+
+    //
+    // Create a program that drops all RX traffic.
+    //
+    XDP_RULE Rule = {};
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_DROP;
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    //
+    // Start a pktmon drop capture.
+    //
+    HRESULT Hr = StartPktMonDropCapture(EtlPath);
+    if (FAILED(Hr)) {
+        return Hr;
+    }
+
+    //
+    // Inject a packet.
+    //
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    Hr = MpRxEnqueueFrame(GenericMp, &Frame);
+    if (FAILED(Hr)) {
+        TraceError("ExercisePktMonDrop: MpRxEnqueueFrame failed Hr=%!HRESULT!", Hr);
+        return Hr;
+    }
+    MpRxFlush(GenericMp);
+
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+    //
+    // Stop the trace.
+    //
+    Hr = StopPktMonCapture();
+    if (FAILED(Hr)) {
+        return Hr;
+    }
+
+    //
+    // Format the trace to text for analysis.
+    //
+    return FormatPktMonTrace(EtlPath, TxtPath);
 }
 
 VOID
 GenericPktMonRegistration()
 {
+    const CHAR *EtlPath = "C:\\pktmon_xdp_test.etl";
+    const CHAR *TxtPath = "C:\\pktmon_xdp_test.etl.txt";
+    UINT32 CompId;
+    UINT32 DropCount;
+
     //
     // Capture the original pktmon service state and restore it on exit.
     //
     UINT32 OriginalServiceState;
     TEST_HRESULT(GetServiceState(&OriginalServiceState, "pktmon"));
     auto RestorePktMon = wil::scope_exit([&] {
+        InvokeSystem("pktmon stop >nul 2>&1");
         if (OriginalServiceState == SERVICE_RUNNING) {
             (VOID)TryStartService("pktmon");
         } else {
             (VOID)TryStopService("pktmon");
         }
+    });
+
+    auto CleanupFiles = wil::scope_exit([&] {
+        DeleteFileA(TxtPath);
+        DeleteFileA(EtlPath);
     });
 
     //
@@ -10600,34 +10776,55 @@ GenericPktMonRegistration()
 
     //
     // Enable the adapter while pktmon is already loaded.
-    // Expect xdp.sys to appear in the pktmon component list.
+    // Verify XDP drops are visible in pktmon traces.
     //
     TEST_HRESULT(TryStartService("pktmon"));
     TEST_HRESULT(FnMpIf.TryEnable());
-    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", TRUE));
+
+    TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 
     //
-    // Disable the adapter. Expect xdp.sys to no longer appear in the pktmon
-    // component list.
+    // Disable the adapter. This deregisters the XDP pktmon component.
+    // Verify the component is no longer registered.
     //
     TEST_HRESULT(FnMpIf.TryDisable());
-    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", FALSE));
+
+    TEST_HRESULT(StartPktMonDropCapture(EtlPath));
+    TEST_HRESULT(StopPktMonCapture());
+    TEST_HRESULT(FormatPktMonTrace(EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_EQUAL(0, CompId);
 
     //
     // Load pktmon after the adapter is already enabled.
-    // The registration callback should register the pre-existing binding.
+    // The registration callback should register the pre-existing binding,
+    // so drops should appear in pktmon traces.
     //
     TEST_HRESULT(TryStopService("pktmon"));
     TEST_HRESULT(FnMpIf.TryEnable());
     TEST_HRESULT(TryStartService("pktmon"));
-    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", TRUE));
+
+    TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 
     //
     // Restart pktmon while the adapter is enabled.
     // The registration callback should re-register the binding.
     //
     TEST_HRESULT(TryRestartService("pktmon"));
-    TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", TRUE));
+
+    TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 }
 
 /**
