@@ -127,8 +127,7 @@ XdpPktMonRegistrationCallback(
 
     TraceEnter(TRACE_LWF, "PktMonRegistrationCallback");
 
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
 
     LIST_ENTRY *Entry = XdpPktMonGenericList.Flink;
     while (Entry != &XdpPktMonGenericList) {
@@ -146,8 +145,7 @@ XdpPktMonRegistrationCallback(
         }
     }
 
-    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
-    KeLeaveCriticalRegion();
+    RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -172,8 +170,7 @@ XdpPktMonClientCleanupCallback(
 
     TraceEnter(TRACE_LWF, "PktMonClientCleanupCallback");
 
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
 
     LIST_ENTRY *Entry = XdpPktMonGenericList.Flink;
     while (Entry != &XdpPktMonGenericList) {
@@ -193,8 +190,7 @@ XdpPktMonClientCleanupCallback(
             TRACE_LWF, "PktMon cleanup IfIndex=%u", Generic->IfIndex);
     }
 
-    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
-    KeLeaveCriticalRegion();
+    RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
 
     TraceExitSuccess(TRACE_LWF);
 }
@@ -220,8 +216,12 @@ XdpPktMonLogDrop(
     _In_ XDP_PKTMON_DROP_LOCATION DropLocation
     )
 {
+    if (XdpDisablePktMon) {
+        goto Exit;
+    }
+
     if (!ExAcquireRundownProtection(&Generic->PktMonRundownRef)) {
-        return;
+        goto Exit;
     }
 
     if (Generic->PktMonContext->PktMonComp.DropEnabled) {
@@ -237,6 +237,8 @@ XdpPktMonLogDrop(
     }
 
     ExReleaseRundownProtection(&Generic->PktMonRundownRef);
+
+Exit:
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -251,8 +253,7 @@ XdpPktMonTrackGeneric(
         goto Exit;
     }
 
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
 
     InsertTailList(&XdpPktMonGenericList, &Generic->PktMonLink);
     XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
@@ -261,8 +262,7 @@ XdpPktMonTrackGeneric(
         ExReInitializeRundownProtection(&Generic->PktMonRundownRef);
     }
 
-    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
-    KeLeaveCriticalRegion();
+    RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
 
 Exit:
 
@@ -281,14 +281,12 @@ XdpPktMonUntrackGeneric(
         goto Exit;
     }
 
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
 
     RemoveEntryList(&Generic->PktMonLink);
     InitializeListHead(&Generic->PktMonLink);
 
-    ExReleasePushLockExclusive(&XdpPktMonGenericListLock);
-    KeLeaveCriticalRegion();
+    RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
 
     //
     // Wait for any in-progress datapath references to drain, then free the
@@ -367,6 +365,4 @@ XdpPktMonStop(
 Exit:
 
     TraceExitSuccess(TRACE_LWF);
-
-    return;
 }
