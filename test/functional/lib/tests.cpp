@@ -10608,7 +10608,7 @@ GenericPktMonRegistration()
 
     //
     // Disable the adapter. Expect xdp.sys to no longer appear in the pktmon
-    // component list for this NIC.
+    // component list.
     //
     TEST_HRESULT(FnMpIf.TryDisable());
     TEST_HRESULT(WaitForPktMonComponent(FNMP_IF_DESC, "xdp.sys", FALSE));

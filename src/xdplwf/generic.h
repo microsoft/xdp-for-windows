@@ -58,7 +58,7 @@ typedef struct _XDP_LWF_GENERIC {
     } Tx;
 
     //
-    // Pktmon context. Protected by rundown protection.
+    // Pktmon context. Protected by the pktmon rundown reference.
     //
     XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext;
     EX_RUNDOWN_REF PktMonRundownRef;
