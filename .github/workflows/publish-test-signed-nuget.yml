@@ -59,6 +59,8 @@ jobs:
     - name: Nuget Restore
       run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=tools/nuget.config /p:Configuration=Release /p:Platform=x64
     - name: Build AllPackage
+      env:
+        XDP_TESTSIGNED: 'true'
       run: msbuild xdp.sln /m /nodeReuse:false /t:onebranch /p:Configuration=Release /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
     - name: Upload Artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -121,8 +123,7 @@ jobs:
         $VersionString = $Versions[0]
         Write-Host "NuGet version string: $VersionString"
 
-        # Insert a "-testsigned" marker into the tag so the ADO pipeline does not prod sign.
-        $Tag = "v" + ($VersionString -replace '-prerelease-', '-prerelease-testsigned-')
+        $Tag = "v$VersionString"
         Write-Host "Prerelease tag: $Tag"
 
         # Validate the expected set of packages is present (compared by id,
