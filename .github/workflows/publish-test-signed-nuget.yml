@@ -34,6 +34,7 @@ jobs:
       os: '2022'
       platform: ${{ matrix.platform }}
       artifact_path: bin_${{ matrix.config }}_${{ matrix.platform }}
+      testsigned: true
 
   build_allpackage:
     name: Build AllPackage
