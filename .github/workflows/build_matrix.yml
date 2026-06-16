@@ -121,6 +121,10 @@ jobs:
         $VersionString = $Versions[0]
         Write-Host "NuGet version string: $VersionString"
 
+        # Insert a "-testsigned" marker into the tag so the ADO pipeline does not prod sign.
+        $Tag = "v" + ($VersionString -replace '-prerelease-', '-prerelease-testsigned-')
+        Write-Host "Prerelease tag: $Tag"
+
         # Validate the expected set of packages is present (compared by id,
         # independent of the version suffix).
         $ExpectedIds = @(
@@ -136,7 +140,7 @@ jobs:
         }
         Write-Host "All $($ExpectedIds.Count) expected packages found with version $VersionString."
 
-        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "version_string=$VersionString"
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
     - name: Create draft prerelease
       if: ${{ !inputs.dry_run }}
       shell: PowerShell
@@ -146,7 +150,7 @@ jobs:
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
 
-        $Tag = "v${{ steps.collect.outputs.version_string }}"
+        $Tag = "${{ steps.collect.outputs.tag }}"
         Write-Host "Creating draft prerelease with tag: $Tag"
 
         # Create as a draft so this token doesn't need to create the tag ref
@@ -167,8 +171,7 @@ jobs:
       if: ${{ inputs.dry_run }}
       shell: PowerShell
       run: |
-        $Tag = "v${{ steps.collect.outputs.version_string }}"
+        $Tag = "${{ steps.collect.outputs.tag }}"
         Write-Host "Dry run - skipping release creation. Would have created: $Tag"
         Write-Host "Packages that would be uploaded:"
         Get-ChildItem release_assets -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }
-        
