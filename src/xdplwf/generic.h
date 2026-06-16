@@ -61,7 +61,7 @@ typedef struct _XDP_LWF_GENERIC {
     // Pktmon context. Protected by the pktmon rundown reference.
     //
     XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext;
-    EX_RUNDOWN_REF PktMonRundownRef;
+    PEX_RUNDOWN_REF_CACHE_AWARE PktMonRundownRef;
 
     //
     // Pktmon generic list entry. Protected by the pktmon generic list lock.

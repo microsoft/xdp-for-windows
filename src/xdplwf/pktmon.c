@@ -138,9 +138,9 @@ XdpPktMonRegistrationCallback(
 
         XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
         if (Generic->PktMonContext != NULL) {
-            ExReInitializeRundownProtection(&Generic->PktMonRundownRef);
+            ExReInitializeRundownProtectionCacheAware(Generic->PktMonRundownRef);
             TraceInfo(
-                TRACE_LWF, "PktMon dynamic registration IfIndex=%u Context=%p",
+                TRACE_LWF, "PktMon dynamic register IfIndex=%u Context=%p",
                 Generic->IfIndex, Generic->PktMonContext);
         }
     }
@@ -174,20 +174,21 @@ XdpPktMonClientCleanupCallback(
 
     LIST_ENTRY *Entry = XdpPktMonGenericList.Flink;
     while (Entry != &XdpPktMonGenericList) {
-        XDP_LWF_GENERIC *Generic =
-            CONTAINING_RECORD(Entry, XDP_LWF_GENERIC, PktMonLink);
+        XDP_LWF_GENERIC *Generic = CONTAINING_RECORD(Entry, XDP_LWF_GENERIC, PktMonLink);
         Entry = Entry->Flink;
 
         //
         // Wait for any in-progress datapath references to drain, then free
         // the pktmon context. The component is already unregistered by
         // PktMonDetachProvider (which zeroed the component context).
+        // Only wait if PktMonContext is non-NULL (rundown is active).
         //
-        ExWaitForRundownProtectionRelease(&Generic->PktMonRundownRef);
-        XdpPktMonUnregisterInterface(&Generic->PktMonContext);
+        if (Generic->PktMonContext != NULL) {
+            ExWaitForRundownProtectionReleaseCacheAware(Generic->PktMonRundownRef);
+            XdpPktMonUnregisterInterface(&Generic->PktMonContext);
+        }
 
-        TraceVerbose(
-            TRACE_LWF, "PktMon cleanup IfIndex=%u", Generic->IfIndex);
+        TraceInfo(TRACE_LWF, "PktMon dynamic unregister IfIndex=%u", Generic->IfIndex);
     }
 
     RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
@@ -220,7 +221,7 @@ XdpPktMonLogDrop(
         goto Exit;
     }
 
-    if (!ExAcquireRundownProtection(&Generic->PktMonRundownRef)) {
+    if (!ExAcquireRundownProtectionCacheAware(Generic->PktMonRundownRef)) {
         goto Exit;
     }
 
@@ -236,64 +237,116 @@ XdpPktMonLogDrop(
             DropLocation);
     }
 
-    ExReleaseRundownProtection(&Generic->PktMonRundownRef);
-
-Exit:
-}
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpPktMonTrackGeneric(
-    _Inout_ XDP_LWF_GENERIC *Generic
-    )
-{
-    TraceEnter(TRACE_LWF, "IfIndex=%u", Generic->IfIndex);
-
-    if (XdpDisablePktMon) {
-        goto Exit;
-    }
-
-    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
-
-    InsertTailList(&XdpPktMonGenericList, &Generic->PktMonLink);
-    XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
-
-    if (Generic->PktMonContext != NULL) {
-        ExReInitializeRundownProtection(&Generic->PktMonRundownRef);
-    }
-
-    RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
+    ExReleaseRundownProtectionCacheAware(Generic->PktMonRundownRef);
 
 Exit:
 
-    TraceExitSuccess(TRACE_LWF);
+    return;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpPktMonUntrackGeneric(
+NTSTATUS
+XdpPktMonInitializeInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     )
 {
+    NTSTATUS Status;
+
     TraceEnter(TRACE_LWF, "IfIndex=%u", Generic->IfIndex);
 
     if (XdpDisablePktMon) {
+        Status = STATUS_SUCCESS;
         goto Exit;
     }
 
-    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+    //
+    // Initialize members that are necessary regardless of registration with PktMon service.
+    // Errors here are returned to caller.
+    //
 
-    RemoveEntryList(&Generic->PktMonLink);
     InitializeListHead(&Generic->PktMonLink);
 
+    Generic->PktMonRundownRef =
+        ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, POOLTAG_PKTMON);
+    if (Generic->PktMonRundownRef == NULL) {
+        TraceError(TRACE_LWF, "IfIndex=%u PktMonRundownRef allocation failed", Generic->IfIndex);
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+    ExWaitForRundownProtectionReleaseCacheAware(Generic->PktMonRundownRef);
+
+    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+
+    //
+    // Add interface to global tracking.
+    //
+    InsertTailList(&XdpPktMonGenericList, &Generic->PktMonLink);
+
+    //
+    // Attempt registration with PktMon service.
+    // Errors here are ignored, as PktMon service may not be currently running.
+    //
+    XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
+    if (Generic->PktMonContext != NULL) {
+        ExReInitializeRundownProtectionCacheAware(Generic->PktMonRundownRef);
+    }
+
+    RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    TraceExitStatus(TRACE_LWF);
+
+    return Status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+XdpPktMonCleanupInterface(
+    _Inout_ XDP_LWF_GENERIC *Generic
+    )
+{
+    TraceEnter(TRACE_LWF, "IfIndex=%u", Generic->IfIndex);
+
+    if (XdpDisablePktMon) {
+        goto Exit;
+    }
+
+    //
+    // Remove interface from global tracking.
+    //
+    RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
+    if (!IsListEmpty(&Generic->PktMonLink)) {
+        RemoveEntryList(&Generic->PktMonLink);
+        InitializeListHead(&Generic->PktMonLink);
+    }
     RtlReleasePushLockExclusive(&XdpPktMonGenericListLock);
 
     //
-    // Wait for any in-progress datapath references to drain, then free the
-    // pktmon context.
+    // Wait for any in-progress datapath references to drain.
+    // Only wait if PktMonContext is non-NULL, which means the rundown was
+    // reinitialized after a successful registration. If PktMonContext is NULL
+    // (registration failed, or the cleanup callback already drained), the
+    // rundown is already in the "run down" state and waiting would deadlock.
     //
-    ExWaitForRundownProtectionRelease(&Generic->PktMonRundownRef);
+    if (Generic->PktMonRundownRef != NULL && Generic->PktMonContext != NULL) {
+        ExWaitForRundownProtectionReleaseCacheAware(Generic->PktMonRundownRef);
+    }
+
+    //
+    // Unregister with PktMon service (if a registration exists).
+    //
     XdpPktMonUnregisterInterface(&Generic->PktMonContext);
+
+    //
+    // Free resources.
+    //
+    if (Generic->PktMonRundownRef != NULL) {
+        ExFreeCacheAwareRundownProtection(Generic->PktMonRundownRef);
+        Generic->PktMonRundownRef = NULL;
+    }
 
 Exit:
 

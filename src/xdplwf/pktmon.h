@@ -38,6 +38,9 @@ typedef enum _XDP_PKTMON_DROP_LOCATION {
     PktMonDropLoc15,
 } XDP_PKTMON_DROP_LOCATION;
 
+//
+// Per-interface context that is only allocated when pktmon service is running.
+//
 typedef struct _XDP_INTERFACE_PKTMON_CONTEXT {
     PKTMON_COMPONENT_CONTEXT PktMonComp;
 } XDP_INTERFACE_PKTMON_CONTEXT;
@@ -56,14 +59,14 @@ XdpPktMonLogDrop(
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-XdpPktMonTrackGeneric(
+NTSTATUS
+XdpPktMonInitializeInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpPktMonUntrackGeneric(
+XdpPktMonCleanupInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     );
 
