@@ -1,11 +1,13 @@
 name: Publish Test-Signed NuGet
 
 # Manually triggered workflow that publishes test-signed NuGet packages as a
-# prerelease GitHub release. The git tag is the single source of truth for the
-# version: the create_tag job pushes "v<major.minor.patch>-prerelease-testsigned
-# -<commit>", the build jobs check out that tag, and the existing release-build
-# logic (Get-XdpBuildVersionString -> Get-BuildTag) stamps every package
-# straight from it. There is no separate "-testsigned" plumbing to keep in sync.
+# prerelease GitHub release, all in a single run. The git tag is a first-class
+# citizen: the create_tag job computes and pushes
+# "v<major.minor.patch>-prerelease-testsigned-<commit>", and the build jobs are
+# pointed at that tag (both checked out AND advertised via XDP_BUILD_REF) so the
+# existing release-build logic (Get-XdpBuildVersionString -> Get-BuildTag) stamps
+# every package straight from the tag.
+#
 
 on:
   workflow_dispatch:
@@ -42,13 +44,7 @@ jobs:
         $ErrorActionPreference = 'Stop'
         . ./tools/common.ps1
 
-        # Assemble the tag from the product version (src/xdp.props) and the short
-        # commit hash. This is the only place the "-testsigned" marker is chosen;
-        # the build reads it back off the tag via Get-BuildTag.
-        $Version = Get-XdpBuildVersion
-        $Base = "$($Version.Major).$($Version.Minor).$($Version.Patch)"
-        $Commit = git describe --long --always --exclude=* --abbrev=8
-        $Tag = "v$Base-prerelease-testsigned-$Commit"
+        $Tag = "v" + (Get-XdpBuildVersionString -PrereleaseMoniker "testsigned")
         Write-Host "Computed tag: $Tag"
         Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
 
@@ -82,7 +78,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/build.yml
     with:
-      ref: ${{ needs.create_tag.outputs.tag }}
+      ref: refs/tags/${{ needs.create_tag.outputs.tag }}
       config: ${{ matrix.config }}
       os: '2022'
       platform: ${{ matrix.platform }}
@@ -96,12 +92,14 @@ jobs:
       actions: read
       contents: read
     runs-on: windows-2022
+    env:
+      XDP_BUILD_REF: refs/tags/${{ needs.create_tag.outputs.tag }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         repository: microsoft/xdp-for-windows
-        ref: ${{ needs.create_tag.outputs.tag }}
+        ref: refs/tags/${{ needs.create_tag.outputs.tag }}
         submodules: recursive
     - name: Download build artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -138,7 +136,7 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         repository: microsoft/xdp-for-windows
-        ref: ${{ needs.create_tag.outputs.tag }}
+        ref: refs/tags/${{ needs.create_tag.outputs.tag }}
     - name: Download build artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:

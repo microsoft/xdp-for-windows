@@ -44,6 +44,8 @@ jobs:
     strategy:
       fail-fast: false
     runs-on: windows-${{ inputs.os }}
+    env:
+      XDP_BUILD_REF: ${{ inputs.ref }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd

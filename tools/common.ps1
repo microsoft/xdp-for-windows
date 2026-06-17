@@ -45,7 +45,13 @@ function Get-CurrentBranch {
 
 # Returns the target or current git branch.
 function Get-BuildBranch {
-    if (![string]::IsNullOrWhiteSpace($env:SYSTEM_PULLREQUEST_TARGETBRANCH)) {
+    if (![string]::IsNullOrWhiteSpace($env:XDP_BUILD_REF)) {
+        Write-Host "Using XDP_BUILD_REF=$env:XDP_BUILD_REF to compute branch"
+        if ($env:XDP_BUILD_REF -match '^refs/tags/(.+)$')  { return "tags/$($Matches[1])" }
+        if ($env:XDP_BUILD_REF -match '^refs/heads/(.+)$') { return $Matches[1] }
+        return $env:XDP_BUILD_REF
+
+    } elseif (![string]::IsNullOrWhiteSpace($env:SYSTEM_PULLREQUEST_TARGETBRANCH)) {
         # We are in a (AZP) pull request build.
         Write-Host "Using SYSTEM_PULLREQUEST_TARGETBRANCH=$env:SYSTEM_PULLREQUEST_TARGETBRANCH to compute branch"
         return $env:SYSTEM_PULLREQUEST_TARGETBRANCH
@@ -75,16 +81,6 @@ function Get-BuildBranch {
 
 function Get-BuildTag {
     if (((Get-BuildBranch) -match '^tags/v(\d+\.\d+\.\d+.*)$')) {
-        return $Matches[1]
-    }
-
-    # GitHub Actions reports the dispatched branch in GITHUB_REF even when a
-    # build checks out a tag. Fall back to discovering a version tag
-    # that points at the checked-out commit.
-    $HeadTag = @(git.exe tag --points-at HEAD 2>$null) |
-        Where-Object { $_ -match '^v\d+\.\d+\.\d+' } |
-        Select-Object -First 1
-    if ($HeadTag -and ($HeadTag -match '^v(\d+\.\d+\.\d+.*)$')) {
         return $Matches[1]
     }
 
@@ -307,6 +303,9 @@ function Invoke-XdpRemoteIfRequested {
 }
 
 function Get-XdpBuildVersionString {
+    param (
+        [string]$PrereleaseMoniker = ""
+    )
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
 
@@ -317,7 +316,11 @@ function Get-XdpBuildVersionString {
         }
         $VersionString = $TagVersion
     } else {
-        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+        $VersionString += "-prerelease-"
+        if (-not [string]::IsNullOrEmpty($PrereleaseMoniker)) {
+            $VersionString += "$PrereleaseMoniker-"
+        }
+        $VersionString += (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 
     return $VersionString;
