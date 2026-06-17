@@ -37,10 +37,6 @@ on:
         required: false
         default: ''
         type: string
-      testsigned:
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   build:
@@ -73,10 +69,6 @@ jobs:
       run: tools/prepare-machine.ps1 -ForEbpfBuild -Verbose -Platform ${{ inputs.platform }}
     - name: Build
       # See /tools/build.ps1 for /nodeReuse:false discussion.
-      # XDP_TESTSIGNED causes Get-XdpBuildVersionString to stamp a "-testsigned"
-      # marker into the NuGet package version (see tools/common.ps1).
-      env:
-        XDP_TESTSIGNED: ${{ inputs.testsigned }}
       run: msbuild xdp.sln /m /p:configuration=${{ inputs.config }} /p:platform=${{ inputs.platform }} /p:SignMode=TestSign /p:IsAdmin=true /nodeReuse:false
     - name: Upload Artifacts
       if: inputs.artifact_path != ''

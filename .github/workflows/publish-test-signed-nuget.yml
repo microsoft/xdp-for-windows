@@ -1,16 +1,17 @@
 name: Publish Test-Signed NuGet
 
-# Manually triggered workflow that builds test-signed NuGet packages and
-# uploads them to a new draft prerelease GitHub release. A repo admin then
-# publishes the draft via the GitHub UI, which creates the tag and makes the
-# assets downloadable without authentication via their public
-# browser_download_url.
+# Manually triggered workflow that publishes test-signed NuGet packages as a
+# prerelease GitHub release. The git tag is the single source of truth for the
+# version: the create_tag job pushes "v<major.minor.patch>-prerelease-testsigned
+# -<commit>", the build jobs check out that tag, and the existing release-build
+# logic (Get-XdpBuildVersionString -> Get-BuildTag) stamps every package
+# straight from it. There is no separate "-testsigned" plumbing to keep in sync.
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Build and collect packages without creating a release.'
+        description: 'Compute the tag without creating it, building, or releasing.'
         required: false
         default: false
         type: boolean
@@ -18,8 +19,59 @@ on:
 permissions: read-all
 
 jobs:
+  create_tag:
+    name: Create Tag
+    runs-on: windows-2022
+    permissions:
+      contents: write   # push the tag
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 0
+    - name: Compute and create tag
+      id: tag
+      shell: PowerShell
+      env:
+        DRY_RUN: ${{ inputs.dry_run }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        . ./tools/common.ps1
+
+        # Assemble the tag from the product version (src/xdp.props) and the short
+        # commit hash. This is the only place the "-testsigned" marker is chosen;
+        # the build reads it back off the tag via Get-BuildTag.
+        $Version = Get-XdpBuildVersion
+        $Base = "$($Version.Major).$($Version.Minor).$($Version.Patch)"
+        $Commit = git describe --long --always --exclude=* --abbrev=8
+        $Tag = "v$Base-prerelease-testsigned-$Commit"
+        Write-Host "Computed tag: $Tag"
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
+
+        if ($env:DRY_RUN -eq 'true') {
+            Write-Host "Dry run - not creating the tag."
+            return
+        }
+
+        git check-ref-format "refs/tags/$Tag"
+        if ($LASTEXITCODE -ne 0) { throw "Invalid tag name: $Tag" }
+
+        $Existing = git ls-remote --tags origin "refs/tags/$Tag"
+        if (-not [string]::IsNullOrWhiteSpace($Existing)) { throw "Tag already exists: $Tag" }
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a -m "Test-signed prerelease $Tag" -- $Tag HEAD
+        git push origin "refs/tags/$Tag"
+
   build:
     name: Build
+    if: ${{ !inputs.dry_run }}
+    needs: create_tag
     strategy:
       fail-fast: false
       matrix:
@@ -30,15 +82,16 @@ jobs:
       contents: read
     uses: ./.github/workflows/build.yml
     with:
+      ref: ${{ needs.create_tag.outputs.tag }}
       config: ${{ matrix.config }}
       os: '2022'
       platform: ${{ matrix.platform }}
       artifact_path: bin_${{ matrix.config }}_${{ matrix.platform }}
-      testsigned: true
 
   build_allpackage:
     name: Build AllPackage
-    needs: build
+    if: ${{ !inputs.dry_run }}
+    needs: [create_tag, build]
     permissions:
       actions: read
       contents: read
@@ -48,6 +101,7 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         repository: microsoft/xdp-for-windows
+        ref: ${{ needs.create_tag.outputs.tag }}
         submodules: recursive
     - name: Download build artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -60,8 +114,6 @@ jobs:
     - name: Nuget Restore
       run: msbuild.exe xdp.sln /t:restore /p:RestoreConfigFile=tools/nuget.config /p:Configuration=Release /p:Platform=x64
     - name: Build AllPackage
-      env:
-        XDP_TESTSIGNED: 'true'
       run: msbuild xdp.sln /m /nodeReuse:false /t:onebranch /p:Configuration=Release /p:Platform=x64 /p:IsAdmin=true /p:BuildStage=AllPackage /p:NugetPlatforms=x64%2carm64
     - name: Upload Artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -74,8 +126,9 @@ jobs:
           !artifacts/bin/**/*.lastcodeanalysissucceeded
 
   publish:
-    name: Publish Draft Prerelease
-    needs: [build, build_allpackage]
+    name: Publish Prerelease
+    if: ${{ !inputs.dry_run }}
+    needs: [create_tag, build, build_allpackage]
     runs-on: windows-2022
     permissions:
       contents: write
@@ -85,14 +138,16 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         repository: microsoft/xdp-for-windows
+        ref: ${{ needs.create_tag.outputs.tag }}
     - name: Download build artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
         pattern: bin_*Release*
         path: artifacts
     - name: Collect and validate NuGet packages
-      id: collect
       shell: PowerShell
+      env:
+        TAG: ${{ needs.create_tag.outputs.tag }}
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
@@ -104,10 +159,10 @@ jobs:
         Write-Host "NuGet packages found:"
         $Packages | ForEach-Object { Write-Host "  $($_.Name)" }
 
-        # The authoritative version is the one stamped into the packages
-        # themselves, so derive it from the package file names rather than
-        # recomputing it here. This keeps the release tag in lockstep with the
-        # version baked into the binaries and NuGet packages.
+        # Every package must carry the tag's version (sans leading 'v'), since
+        # both derive from the same tag via Get-XdpBuildVersionString.
+        $ExpectedVersion = $env:TAG -replace '^v', ''
+
         $VersionPattern = '^(?<id>.+?)\.(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\.nupkg$'
         $Parsed = foreach ($Package in $Packages) {
             if ($Package.Name -notmatch $VersionPattern) {
@@ -116,19 +171,13 @@ jobs:
             [pscustomobject]@{ Id = $Matches.id; Version = $Matches.version }
         }
 
-        # Sanity check: every package must carry the identical version string.
-        $Versions = @($Parsed | ForEach-Object { $_.Version } | Sort-Object -Unique)
-        if ($Versions.Count -ne 1) {
-            Write-Error "NuGet packages have mismatched versions: $($Versions -join ', ')"
+        $Mismatched = @($Parsed | Where-Object { $_.Version -ne $ExpectedVersion })
+        if ($Mismatched.Count -gt 0) {
+            $Details = ($Mismatched | ForEach-Object { "$($_.Id) ($($_.Version))" }) -join ', '
+            Write-Error "Packages do not match tag version '$ExpectedVersion': $Details"
         }
-        $VersionString = $Versions[0]
-        Write-Host "NuGet version string: $VersionString"
 
-        $Tag = "v$VersionString"
-        Write-Host "Prerelease tag: $Tag"
-
-        # Validate the expected set of packages is present (compared by id,
-        # independent of the version suffix).
+        # Validate the expected set of packages is present (compared by id).
         $ExpectedIds = @(
             "Microsoft.XDP-for-Windows.Runtime.x64",
             "Microsoft.XDP-for-Windows.Runtime.arm64",
@@ -137,43 +186,26 @@ jobs:
         $ActualIds = @($Parsed | ForEach-Object { $_.Id })
         foreach ($Expected in $ExpectedIds) {
             if ($Expected -notin $ActualIds) {
-                Write-Error "Missing expected package: $Expected.$VersionString.nupkg"
+                Write-Error "Missing expected package: $Expected.$ExpectedVersion.nupkg"
             }
         }
-        Write-Host "All $($ExpectedIds.Count) expected packages found with version $VersionString."
-
-        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
-    - name: Create draft prerelease
-      if: ${{ !inputs.dry_run }}
+        Write-Host "All $($ExpectedIds.Count) expected packages found with version $ExpectedVersion."
+    - name: Create prerelease
       shell: PowerShell
       env:
         GH_TOKEN: ${{ github.token }}
+        TAG: ${{ needs.create_tag.outputs.tag }}
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
 
-        $Tag = "${{ steps.collect.outputs.tag }}"
-        Write-Host "Creating draft prerelease with tag: $Tag"
+        Write-Host "Creating prerelease for tag: $env:TAG"
 
-        # Create as a draft so this token doesn't need to create the tag ref
-        # (which is restricted by the repository tag ruleset). A repo admin
-        # publishes the draft via the GitHub UI, which creates the tag and makes
-        # the assets downloadable without authentication via their public
-        # browser_download_url.
         $Packages = (Get-ChildItem -Path release_assets -Filter *.nupkg).FullName
-        gh release create $Tag `
+        gh release create $env:TAG `
           --repo $env:GITHUB_REPOSITORY `
-          --title $Tag `
-          --notes "Auto-generated draft prerelease containing test-signed NuGet packages built from ``${{ github.ref_name }}`` at commit ``${{ github.sha }}``." `
-          --draft `
+          --title $env:TAG `
+          --notes "Auto-generated prerelease containing test-signed NuGet packages built from tag ``$env:TAG`` at commit ``${{ github.sha }}``." `
           --prerelease `
-          --target ${{ github.sha }} `
+          --verify-tag `
           @Packages
-    - name: Dry run summary
-      if: ${{ inputs.dry_run }}
-      shell: PowerShell
-      run: |
-        $Tag = "${{ steps.collect.outputs.tag }}"
-        Write-Host "Dry run - skipping release creation. Would have created: $Tag"
-        Write-Host "Packages that would be uploaded:"
-        Get-ChildItem release_assets -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }

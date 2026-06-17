@@ -78,6 +78,16 @@ function Get-BuildTag {
         return $Matches[1]
     }
 
+    # GitHub Actions reports the dispatched branch in GITHUB_REF even when a
+    # build checks out a tag. Fall back to discovering a version tag
+    # that points at the checked-out commit.
+    $HeadTag = @(git.exe tag --points-at HEAD 2>$null) |
+        Where-Object { $_ -match '^v\d+\.\d+\.\d+' } |
+        Select-Object -First 1
+    if ($HeadTag -and ($HeadTag -match '^v(\d+\.\d+\.\d+.*)$')) {
+        return $Matches[1]
+    }
+
     return $null
 }
 
@@ -307,8 +317,7 @@ function Get-XdpBuildVersionString {
         }
         $VersionString = $TagVersion
     } else {
-        $PrereleaseTag = if ($env:XDP_TESTSIGNED -eq 'true') { "-prerelease-testsigned-" } else { "-prerelease-" }
-        $VersionString += $PrereleaseTag + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 
     return $VersionString;
