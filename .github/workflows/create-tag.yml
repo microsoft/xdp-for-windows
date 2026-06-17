@@ -14,11 +14,6 @@ on:
         required: false
         default: false
         type: boolean
-      prerelease_moniker:
-        description: 'Prerelease moniker embedded in the tag (e.g. testsigned).'
-        required: false
-        default: 'testsigned'
-        type: string
 
 permissions: read-all
 
@@ -41,13 +36,12 @@ jobs:
       shell: PowerShell
       env:
         DRY_RUN: ${{ inputs.dry_run }}
-        PRERELEASE_MONIKER: ${{ inputs.prerelease_moniker }}
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
         . ./tools/common.ps1
 
-        $Tag = "v" + (Get-XdpBuildVersionString -PrereleaseMoniker $env:PRERELEASE_MONIKER)
+        $Tag = "v" + (Get-XdpBuildVersionString -PrereleaseMoniker "testsigned")
         Write-Host "Computed tag: $Tag"
         Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
 
