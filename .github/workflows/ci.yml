@@ -2,6 +2,9 @@ name: CI
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    # Called by create-tag.yml after a tag is created.
+    types: [publish-testsigned-prerelease]
   push:
     branches:
     - main
@@ -30,6 +33,9 @@ jobs:
     permissions:
       security-events: write  # For CodeQL
     uses: ./.github/workflows/build_matrix.yml
+    with:
+      # From a create-tag.yml repo dispatch, let's build from the created tag.
+      ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/{0}', github.event.client_payload.tag) || '' }}
 
   resolve_base:
     name: Resolve base commit reference
@@ -87,6 +93,7 @@ jobs:
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
+        ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/{0}', github.event.client_payload.tag) || '' }}
     - name: Download x64 Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -737,6 +744,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/{0}', github.event.client_payload.tag) || '' }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -752,6 +761,94 @@ jobs:
         path: |
           artifacts/kit/**/*.zip
           artifacts/testarchive/**/*.zip
+
+  publish_release:
+    name: Publish Release
+    if: ${{ github.event_name == 'repository_dispatch' }}
+    needs: [build, build_allpackage, onebranch_build_validation,
+            functional_tests, stress_tests, pktfuzz_tests,
+            xskfwdkm_test, xskmaprx_test, xskrestricted_test,
+            downlevel_functional_tests, create_artifacts]
+    runs-on: windows-2022
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        ref: refs/tags/${{ github.event.client_payload.tag }}
+    - name: Download build artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        pattern: bin_allpackage_Release
+        path: artifacts
+    - name: Collect and validate NuGet packages
+      shell: PowerShell
+      env:
+        TAG: ${{ github.event.client_payload.tag }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+
+        New-Item -ItemType Directory -Path release_assets -Force | Out-Null
+        Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse | Copy-Item -Destination release_assets
+
+        $Packages = Get-ChildItem -Path release_assets -Filter *.nupkg
+        Write-Host "NuGet packages found:"
+        $Packages | ForEach-Object { Write-Host "  $($_.Name)" }
+
+        # Every package must carry the tag's version (sans leading 'v'), since
+        # both derive from the same tag via Get-XdpBuildVersionString.
+        $ExpectedVersion = $env:TAG -replace '^v', ''
+
+        $VersionPattern = '^(?<id>.+?)\.(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\.nupkg$'
+        $Parsed = foreach ($Package in $Packages) {
+            if ($Package.Name -notmatch $VersionPattern) {
+                Write-Error "Unable to parse version from package name: $($Package.Name)"
+            }
+            [pscustomobject]@{ Id = $Matches.id; Version = $Matches.version }
+        }
+
+        $Mismatched = @($Parsed | Where-Object { $_.Version -ne $ExpectedVersion })
+        if ($Mismatched.Count -gt 0) {
+            $Details = ($Mismatched | ForEach-Object { "$($_.Id) ($($_.Version))" }) -join ', '
+            Write-Error "Packages do not match tag version '$ExpectedVersion': $Details"
+        }
+
+        # Validate the expected set of packages is present (compared by id).
+        $ExpectedIds = @(
+            "Microsoft.XDP-for-Windows.Runtime.x64",
+            "Microsoft.XDP-for-Windows.Runtime.arm64",
+            "Microsoft.XDP-for-Windows.Sdk"
+        )
+        $ActualIds = @($Parsed | ForEach-Object { $_.Id })
+        foreach ($Expected in $ExpectedIds) {
+            if ($Expected -notin $ActualIds) {
+                Write-Error "Missing expected package: $Expected.$ExpectedVersion.nupkg"
+            }
+        }
+        Write-Host "All $($ExpectedIds.Count) expected packages found with version $ExpectedVersion."
+    - name: Create prerelease
+      shell: PowerShell
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.event.client_payload.tag }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+
+        Write-Host "Creating prerelease for tag: $env:TAG"
+
+        $Packages = (Get-ChildItem -Path release_assets -Filter *.nupkg).FullName
+        gh release create $env:TAG `
+          --repo $env:GITHUB_REPOSITORY `
+          --title $env:TAG `
+          --notes "Auto-generated prerelease containing test-signed NuGet packages built from tag ``$env:TAG`` at commit ``${{ github.sha }}``." `
+          --prerelease `
+          --verify-tag `
+          @Packages
 
   # netperf:
   #   name: Run Perf

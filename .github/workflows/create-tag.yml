@@ -1,0 +1,87 @@
+name: Create Testsigned Prerelease Tag
+
+#
+# Manually triggered workflow that computes and creates a testsigned-prerelease tag, then
+# kicks off CI (via repository_dispatch) to build from that tag, run the full
+# test suite, and optionally publish the release.
+#
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute the tag without creating it or dispatching CI.'
+        required: false
+        default: false
+        type: boolean
+      prerelease_moniker:
+        description: 'Prerelease moniker embedded in the tag (e.g. testsigned).'
+        required: false
+        default: 'testsigned'
+        type: string
+
+permissions: read-all
+
+jobs:
+  create_tag:
+    name: Create Tag
+    runs-on: windows-2022
+    permissions:
+      contents: write   # push the tag
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 0
+    - name: Compute and create tag
+      id: tag
+      shell: PowerShell
+      env:
+        DRY_RUN: ${{ inputs.dry_run }}
+        PRERELEASE_MONIKER: ${{ inputs.prerelease_moniker }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        . ./tools/common.ps1
+
+        $Tag = "v" + (Get-XdpBuildVersionString -PrereleaseMoniker $env:PRERELEASE_MONIKER)
+        Write-Host "Computed tag: $Tag"
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
+
+        if ($env:DRY_RUN -eq 'true') {
+            Write-Host "Dry run - not creating the tag."
+            return
+        }
+
+        git check-ref-format "refs/tags/$Tag"
+        if ($LASTEXITCODE -ne 0) { throw "Invalid tag name: $Tag" }
+
+        $Existing = git ls-remote --tags origin "refs/tags/$Tag"
+        if (-not [string]::IsNullOrWhiteSpace($Existing)) { throw "Tag already exists: $Tag" }
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a -m "Release $Tag" -- $Tag HEAD
+        git push origin "refs/tags/$Tag"
+
+  dispatch_ci:
+    name: Dispatch CI
+    if: ${{ !inputs.dry_run }}
+    needs: create_tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to send a repository_dispatch event
+    steps:
+    - name: Dispatch CI for tag
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ needs.create_tag.outputs.tag }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        $Body = @{ event_type = 'publish-testsigned-prerelease'; client_payload = @{ tag = $env:TAG } } | ConvertTo-Json -Compress
+        $Body | gh api "repos/$env:GITHUB_REPOSITORY/dispatches" --input -

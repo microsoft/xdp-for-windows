@@ -45,13 +45,7 @@ function Get-CurrentBranch {
 
 # Returns the target or current git branch.
 function Get-BuildBranch {
-    if (![string]::IsNullOrWhiteSpace($env:XDP_BUILD_REF)) {
-        Write-Host "Using XDP_BUILD_REF=$env:XDP_BUILD_REF to compute branch"
-        if ($env:XDP_BUILD_REF -match '^refs/tags/(.+)$')  { return "tags/$($Matches[1])" }
-        if ($env:XDP_BUILD_REF -match '^refs/heads/(.+)$') { return $Matches[1] }
-        return $env:XDP_BUILD_REF
-
-    } elseif (![string]::IsNullOrWhiteSpace($env:SYSTEM_PULLREQUEST_TARGETBRANCH)) {
+    if (![string]::IsNullOrWhiteSpace($env:SYSTEM_PULLREQUEST_TARGETBRANCH)) {
         # We are in a (AZP) pull request build.
         Write-Host "Using SYSTEM_PULLREQUEST_TARGETBRANCH=$env:SYSTEM_PULLREQUEST_TARGETBRANCH to compute branch"
         return $env:SYSTEM_PULLREQUEST_TARGETBRANCH
