@@ -1,0 +1,77 @@
+name: Create Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Tag name to create
+        required: true
+        type: string
+      target_ref:
+        description: Commit, branch, or tag to create the tag from
+        required: true
+        default: main
+        type: string
+      tag_message:
+        description: Annotated tag message
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create_tag:
+    name: Create tag
+    runs-on: windows-2022
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        fetch-depth: 0
+        ref: ${{ inputs.target_ref }}
+    - name: Create tag
+      shell: PowerShell
+      env:
+        TAG_NAME: ${{ inputs.tag_name }}
+        TARGET_REF: ${{ inputs.target_ref }}
+        TAG_MESSAGE: ${{ inputs.tag_message }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        $TagName = $env:TAG_NAME.Trim()
+        $TargetRef = $env:TARGET_REF.Trim()
+        $TagMessage = $env:TAG_MESSAGE.Trim()
+
+        if ([string]::IsNullOrWhiteSpace($TagName)) {
+            throw "Tag name is required."
+        }
+
+        if ([string]::IsNullOrWhiteSpace($TargetRef)) {
+            throw "Target ref is required."
+        }
+
+        git check-ref-format "refs/tags/$TagName"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Invalid tag name: $TagName"
+        }
+
+        $ExistingTag = git ls-remote --tags origin "refs/tags/$TagName"
+        if (-not [string]::IsNullOrWhiteSpace($ExistingTag)) {
+            throw "Tag already exists: $TagName"
+        }
+
+        $TargetCommit = git rev-parse --verify "$TargetRef^{commit}"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Target ref does not resolve to a commit: $TargetRef"
+        }
+
+        if ([string]::IsNullOrWhiteSpace($TagMessage)) {
+            $TagMessage = "Create tag $TagName"
+        }
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a -m "$TagMessage" -- $TagName $TargetCommit
+        git push origin "refs/tags/$TagName"
