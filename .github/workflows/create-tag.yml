@@ -2,8 +2,8 @@ name: Create Testsigned Prerelease Tag
 
 #
 # Manually triggered workflow that computes and creates a testsigned-prerelease tag, then
-# kicks off CI (via repository_dispatch) to build from that tag, run the full
-# test suite, and optionally publish the release.
+# kicks off CI (via workflow_dispatch on the tag) to build from that tag, run
+# the test suite, and optionally publish the release.
 #
 
 on:
@@ -73,7 +73,7 @@ jobs:
     needs: create_tag
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # required to send a repository_dispatch event
+      actions: write   # required to dispatch ci.yml via workflow_dispatch
     steps:
     - name: Dispatch CI for tag
       shell: pwsh
@@ -83,5 +83,7 @@ jobs:
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
-        $Body = @{ event_type = 'publish-testsigned-prerelease'; client_payload = @{ tag = $env:TAG } } | ConvertTo-Json -Compress
-        $Body | gh api "repos/$env:GITHUB_REPOSITORY/dispatches" --input -
+        # Dispatch ci.yml *on the tag ref* (workflow_dispatch). This makes the
+        # run natively report GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
+        # so the build derives the version straight from the tag.
+        gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG"

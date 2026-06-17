@@ -2,9 +2,6 @@ name: CI
 
 on:
   workflow_dispatch:
-  repository_dispatch:
-    # Called by create-tag.yml after a tag is created.
-    types: [publish-testsigned-prerelease]
   push:
     branches:
     - main
@@ -33,9 +30,6 @@ jobs:
     permissions:
       security-events: write  # For CodeQL
     uses: ./.github/workflows/build_matrix.yml
-    with:
-      # From a create-tag.yml repo dispatch, let's build from the created tag.
-      ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/{0}', github.event.client_payload.tag) || '' }}
 
   resolve_base:
     name: Resolve base commit reference
@@ -93,7 +87,6 @@ jobs:
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
-        ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/{0}', github.event.client_payload.tag) || '' }}
     - name: Download x64 Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -744,8 +737,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      with:
-        ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/{0}', github.event.client_payload.tag) || '' }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -764,7 +755,7 @@ jobs:
 
   publish_release:
     name: Publish Release
-    if: ${{ github.event_name == 'repository_dispatch' }}
+    if: ${{ github.ref_type == 'tag' }}
     needs: [build, build_allpackage, onebranch_build_validation,
             functional_tests, stress_tests, pktfuzz_tests,
             xskfwdkm_test, xskmaprx_test, xskrestricted_test,
@@ -778,7 +769,6 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         repository: microsoft/xdp-for-windows
-        ref: refs/tags/${{ github.event.client_payload.tag }}
     - name: Download build artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -787,7 +777,7 @@ jobs:
     - name: Collect and validate NuGet packages
       shell: PowerShell
       env:
-        TAG: ${{ github.event.client_payload.tag }}
+        TAG: ${{ github.ref_name }}
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
@@ -834,7 +824,7 @@ jobs:
       shell: PowerShell
       env:
         GH_TOKEN: ${{ github.token }}
-        TAG: ${{ github.event.client_payload.tag }}
+        TAG: ${{ github.ref_name }}
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
