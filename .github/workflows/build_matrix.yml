@@ -1,49 +1,90 @@
-name: Build XDP Matrix
+name: Create Testsigned Prerelease Tag
 
-# The caller is responsible for making sure all options passed to this workflow are valid and compatible with each other.
+#
+# Manually triggered workflow that computes and creates a testsigned-prerelease tag, then
+# kicks off CI (via workflow_dispatch on the tag) to build from that tag, run
+# the test suite, and optionally publish the release.
+#
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        required: false
-        default: ''
-        type: string
-      id:
-        required: false
-        default: ''
-        type: string
-      codeql:
-        required: false
-        default: true
-        type: boolean
   workflow_dispatch:
     inputs:
-      ref:
+      dry_run:
+        description: 'Compute the tag without creating it or dispatching CI.'
         required: false
-        default: ''
-        type: string
-        description: 'The git commit hash (or HEAD of current branch if left empty) of XDP to build.'
-      id:
+        default: false
+        type: boolean
+      prerelease_moniker:
+        description: 'Prerelease moniker embedded in the tag (e.g. testsigned).'
         required: false
-        default: ''
+        default: 'testsigned'
         type: string
-        description: 'With multiple builds with duplicate configurations (e.g. Debug_x64_2022), you can append an ID (e.g. Debug_x64_2022_myid).'
+
+permissions: read-all
 
 jobs:
-  build_matrix:
-    name: Build ${{ inputs.ref }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [2022]
-        config: [Release, Debug]
-        platform: [x64, arm64]
-    uses: ./.github/workflows/build.yml
-    with:
-      config: ${{ matrix.config }}
-      os: ${{ matrix.os }}
-      platform: ${{ matrix.platform }}
-      ref: ${{ inputs.ref }}
-      codeql: ${{ (inputs.codeql || false) && github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
+  create_tag:
+    name: Create Tag
+    runs-on: windows-2022
+    permissions:
+      contents: write   # push the tag
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 0
+    - name: Compute and create tag
+      id: tag
+      shell: PowerShell
+      env:
+        DRY_RUN: ${{ inputs.dry_run }}
+        PRERELEASE_MONIKER: ${{ inputs.prerelease_moniker }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        . ./tools/common.ps1
+
+        $Tag = "v" + (Get-XdpBuildVersionString -PrereleaseMoniker $env:PRERELEASE_MONIKER)
+        Write-Host "Computed tag: $Tag"
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
+
+        if ($env:DRY_RUN -eq 'true') {
+            Write-Host "Dry run - not creating the tag."
+            return
+        }
+
+        git check-ref-format "refs/tags/$Tag"
+        if ($LASTEXITCODE -ne 0) { throw "Invalid tag name: $Tag" }
+
+        $Existing = git ls-remote --tags origin "refs/tags/$Tag"
+        if (-not [string]::IsNullOrWhiteSpace($Existing)) { throw "Tag already exists: $Tag" }
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a -m "Release $Tag" -- $Tag HEAD
+        git push origin "refs/tags/$Tag"
+
+  dispatch_ci:
+    name: Dispatch CI
+    if: ${{ !inputs.dry_run }}
+    needs: create_tag
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write   # required to dispatch ci.yml via workflow_dispatch
+    steps:
+    - name: Dispatch CI for tag
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ needs.create_tag.outputs.tag }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        # Dispatch ci.yml *on the tag ref* (workflow_dispatch). This makes the
+        # run natively report GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
+        # so the build derives the version straight from the tag.
+        gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG"
+        
