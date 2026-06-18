@@ -71,7 +71,6 @@ function Get-BuildBranch {
             return "tags/$env:GITHUB_REF_NAME"
         }
         return $env:GITHUB_REF_NAME
-        $CommitMergedData = $true
 
     } else {
         # Fallback to the current branch.
