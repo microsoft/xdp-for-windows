@@ -3,14 +3,14 @@ name: Create Testsigned Prerelease Tag
 #
 # Manually triggered workflow that computes and creates a testsigned-prerelease tag, then
 # kicks off CI (via workflow_dispatch on the tag) to build from that tag, run
-# the test suite, and optionally publish the release.
+# the test suite, and publish the release.
 #
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Compute the tag without creating it or dispatching CI.'
+        description: 'Compute the tag without creating it.'
         required: false
         default: false
         type: boolean
@@ -41,7 +41,7 @@ jobs:
         $ErrorActionPreference = 'Stop'
         . ./tools/common.ps1
 
-        $Tag = "v" + (Get-XdpBuildVersionString -PrereleaseMoniker "testsigned")
+        $Tag = "v" + (Get-XdpBuildVersionString -ExtraMoniker "testsigned")
         Write-Host "Computed tag: $Tag"
         Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
 
@@ -77,7 +77,8 @@ jobs:
       run: |
         Set-StrictMode -Version 'Latest'
         $ErrorActionPreference = 'Stop'
-        # Dispatch ci.yml *on the tag ref* (workflow_dispatch). This makes the
-        # run natively report GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
-        # so the build derives the version straight from the tag.
+        # The tag push above uses GITHUB_TOKEN, which does not trigger push
+        # workflows. Explicitly dispatch ci.yml on the tag ref so the run
+        # natively reports GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
+        # and the build derives the version straight from the tag.
         gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG"

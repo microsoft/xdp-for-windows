@@ -71,7 +71,6 @@ function Get-BuildBranch {
             return "tags/$env:GITHUB_REF_NAME"
         }
         return $env:GITHUB_REF_NAME
-        $CommitMergedData = $true
 
     } else {
         # Fallback to the current branch.
@@ -304,7 +303,7 @@ function Invoke-XdpRemoteIfRequested {
 
 function Get-XdpBuildVersionString {
     param (
-        [string]$PrereleaseMoniker = ""
+        [string]$ExtraMoniker = ""
     )
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
@@ -317,8 +316,8 @@ function Get-XdpBuildVersionString {
         $VersionString = $TagVersion
     } else {
         $VersionString += "-prerelease-"
-        if (-not [string]::IsNullOrEmpty($PrereleaseMoniker)) {
-            $VersionString += "$PrereleaseMoniker-"
+        if (-not [string]::IsNullOrEmpty($ExtraMoniker)) {
+            $VersionString += "$ExtraMoniker-"
         }
         $VersionString += (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
