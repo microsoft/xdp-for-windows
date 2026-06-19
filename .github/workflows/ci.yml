@@ -759,7 +759,7 @@ jobs:
     needs: [build, build_allpackage, onebranch_build_validation,
             functional_tests, stress_tests, pktfuzz_tests,
             xskfwdkm_test, xskmaprx_test, xskrestricted_test,
-            downlevel_functional_tests, create_artifacts]
+            downlevel_functional_tests]
     runs-on: windows-2022
     permissions:
       contents: write
@@ -772,7 +772,7 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
-        pattern: bin_allpackage_Release
+        pattern: bin_*Release*
         path: artifacts
     - name: Collect and validate NuGet packages
       shell: PowerShell
