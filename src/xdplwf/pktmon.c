@@ -316,9 +316,11 @@ XdpPktMonCleanupInterface(
 
     //
     // Remove interface from global tracking.
+    // PktMonLink may be zero-initialized (never inserted) if the attach path
+    // failed before XdpPktMonInitializeInterface was called.
     //
     RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
-    if (!IsListEmpty(&Generic->PktMonLink)) {
+    if (Generic->PktMonLink.Flink != NULL && !IsListEmpty(&Generic->PktMonLink)) {
         RemoveEntryList(&Generic->PktMonLink);
         InitializeListHead(&Generic->PktMonLink);
     }
