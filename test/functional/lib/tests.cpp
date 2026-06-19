@@ -10536,7 +10536,7 @@ StartPktMonDropCapture(
     InvokeSystem("pktmon filter remove >nul 2>&1");
     sprintf_s(
         Cmd, sizeof(Cmd),
-        "pktmon start -c --type drop --pkt-size 256 --file-name %s",
+        "pktmon start -c --type drop --pkt-size 256 --file-name %s >nul 2>&1",
         EtlPath);
     if (InvokeSystem(Cmd) != 0) {
         TraceError("StartPktMonDropCapture: pktmon start failed for '%s'", EtlPath);
@@ -10550,7 +10550,7 @@ static
 HRESULT
 StopPktMonCapture()
 {
-    if (InvokeSystem("pktmon stop") != 0) {
+    if (InvokeSystem("pktmon stop >nul 2>&1") != 0) {
         TraceError("StopPktMonCapture: pktmon stop failed");
         return E_FAIL;
     }
