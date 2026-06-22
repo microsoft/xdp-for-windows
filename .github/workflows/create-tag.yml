@@ -65,12 +65,12 @@ jobs:
     name: Dispatch CI
     if: ${{ !inputs.dry_run }}
     needs: create_tag
-    runs-on: ubuntu-latest
+    runs-on: windows-2022
     permissions:
       actions: write   # required to dispatch ci.yml via workflow_dispatch
     steps:
     - name: Dispatch CI for tag
-      shell: pwsh
+      shell: PowerShell
       env:
         GH_TOKEN: ${{ github.token }}
         TAG: ${{ needs.create_tag.outputs.tag }}

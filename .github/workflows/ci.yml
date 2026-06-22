@@ -753,77 +753,17 @@ jobs:
           artifacts/kit/**/*.zip
           artifacts/testarchive/**/*.zip
 
-  publish_release:
-    name: Publish Release
+  publish_testsigned_release:
+    name: Publish Testsigned Release
     if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
     needs: [build, build_allpackage, onebranch_build_validation,
             functional_tests, stress_tests, pktfuzz_tests,
             xskfwdkm_test, xskmaprx_test, xskrestricted_test,
             downlevel_functional_tests]
-    runs-on: windows-2022
+    uses: ./.github/workflows/publish-testsigned-release.yml
     permissions:
       contents: write
       actions: read
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      with:
-        repository: microsoft/xdp-for-windows
-    - name: Download build artifacts
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-      with:
-        pattern: bin_*Release*
-        path: artifacts
-    - name: Collect and validate NuGet packages
-      shell: PowerShell
-      env:
-        TAG: ${{ github.ref_name }}
-      run: |
-        Set-StrictMode -Version 'Latest'
-        $ErrorActionPreference = 'Stop'
-
-        New-Item -ItemType Directory -Path release_assets -Force | Out-Null
-        $ExpectedVersion = $env:TAG -replace '^v', ''
-        $ExpectedPackageNames = @(
-            "Microsoft.XDP-for-Windows.Runtime.x64.$ExpectedVersion.nupkg",
-            "Microsoft.XDP-for-Windows.Runtime.ARM64.$ExpectedVersion.nupkg",
-            "Microsoft.XDP-for-Windows.Sdk.$ExpectedVersion.nupkg"
-        )
-
-        $AllPackages = @(Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse)
-        foreach ($ExpectedPackageName in $ExpectedPackageNames) {
-            $MatchingPackages = @($AllPackages | Where-Object { $_.Name -eq $ExpectedPackageName })
-            if ($MatchingPackages.Count -ne 1) {
-                Write-Error "Expected exactly one package named $ExpectedPackageName, found $($MatchingPackages.Count)."
-            }
-            Copy-Item -Path $MatchingPackages[0].FullName -Destination release_assets
-        }
-
-        $UnexpectedPackages = @($AllPackages | Where-Object { $_.Name -notin $ExpectedPackageNames })
-        if ($UnexpectedPackages.Count -gt 0) {
-            $Details = ($UnexpectedPackages | ForEach-Object { $_.Name }) -join ', '
-            Write-Error "Unexpected NuGet package(s): $Details"
-        }
-
-        Write-Host "NuGet packages selected for release:"
-        Get-ChildItem -Path release_assets -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }
-    - name: Create prerelease
-      shell: PowerShell
-      env:
-        GH_TOKEN: ${{ github.token }}
-        TAG: ${{ github.ref_name }}
-      run: |
-        Set-StrictMode -Version 'Latest'
-        $ErrorActionPreference = 'Stop'
-
-        Write-Host "Creating prerelease for tag: $env:TAG"
-        $Packages = (Get-ChildItem -Path release_assets -Filter *.nupkg).FullName
-        gh release create $env:TAG $Packages `
-          --repo $env:GITHUB_REPOSITORY `
-          --title $env:TAG `
-          --notes "Auto-generated prerelease containing test-signed NuGet packages built from tag ``$env:TAG`` at commit ``${{ github.sha }}``." `
-          --prerelease `
-          --verify-tag
 
   # netperf:
   #   name: Run Perf
