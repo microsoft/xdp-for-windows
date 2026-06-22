@@ -753,18 +753,6 @@ jobs:
           artifacts/kit/**/*.zip
           artifacts/testarchive/**/*.zip
 
-  publish_testsigned_release:
-    name: Publish Testsigned Release
-    if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
-    needs: [build, build_allpackage, onebranch_build_validation,
-            functional_tests, stress_tests, pktfuzz_tests,
-            xskfwdkm_test, xskmaprx_test, xskrestricted_test,
-            downlevel_functional_tests]
-    uses: ./.github/workflows/publish-testsigned-release.yml
-    permissions:
-      contents: write
-      actions: read
-
   # netperf:
   #   name: Run Perf
   #   needs: []
@@ -799,3 +787,12 @@ jobs:
       with:
         jobs: ${{ toJSON(needs) }}
         allowed-failures: xskperf_tests # xsk_perf_tests depend on build N-1, which sometimes breaks.
+
+  publish_testsigned_release:
+    name: Publish Testsigned Release
+    if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
+    needs: [Complete]
+    uses: ./.github/workflows/publish-testsigned-release.yml
+    permissions:
+      contents: write
+      actions: read
