@@ -8,8 +8,6 @@ name: Publish Testsigned Release
 on:
   workflow_call:
 
-permissions: read-all
-
 jobs:
   publish_release:
     name: Publish Release
