@@ -788,7 +788,6 @@ jobs:
         jobs: ${{ toJSON(needs) }}
         allowed-failures: xskperf_tests
 
-
   publish_testsigned_release:
     name: Publish Testsigned Release
     if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
