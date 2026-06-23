@@ -772,7 +772,7 @@ jobs:
     name: All Tests Complete
     if: always()
     needs: [functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskmaprx_test, xskrestricted_test, downlevel_functional_tests]
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions: {}
     steps:
     - name: Decide whether the needed jobs succeeded or failed (Release)
@@ -801,7 +801,7 @@ jobs:
     name: Complete
     if: always()
     needs: [build, build_allpackage, onebranch_build_validation, all_tests_complete, create_artifacts]
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions: {} # No need for any permissions.
     steps:
     - name: Decide whether the needed jobs succeeded or failed
