@@ -623,7 +623,7 @@ XdpGenericCleanupInterface(
         Generic->Registration = NULL;
     }
 
-    XdpPktMonCleanupInterface(Generic);
+    XdpPktMonUntrackInterface(Generic);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -667,6 +667,7 @@ XdpGenericAttachInterface(
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Rx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     XdpInitializeReferenceCount(&Generic->ReferenceCount);
+    XdpPktMonInitializeInterface(Generic);
     Generic->Filter = Filter;
     Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
@@ -695,7 +696,7 @@ XdpGenericAttachInterface(
         goto Exit;
     }
 
-    Status = XdpPktMonInitializeInterface(Generic);
+    Status = XdpPktMonTrackInterface(Generic);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }

@@ -59,14 +59,20 @@ XdpPktMonLogDrop(
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS
+VOID
 XdpPktMonInitializeInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+XdpPktMonTrackInterface(
+    _Inout_ XDP_LWF_GENERIC *Generic
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpPktMonCleanupInterface(
+XdpPktMonUntrackInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     );
 

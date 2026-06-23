@@ -245,8 +245,30 @@ Exit:
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS
+VOID
 XdpPktMonInitializeInterface(
+    _Inout_ XDP_LWF_GENERIC *Generic
+    )
+{
+    NTSTATUS Status;
+
+    TraceEnter(TRACE_LWF, "IfIndex=%u", Generic->IfIndex);
+
+    if (XdpDisablePktMon) {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    InitializeListHead(&Generic->PktMonLink);
+
+Exit:
+
+    TraceExitSuccess(TRACE_LWF);
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+XdpPktMonTrackInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     )
 {
@@ -263,8 +285,6 @@ XdpPktMonInitializeInterface(
     // Initialize members that are necessary regardless of registration with PktMon service.
     // Errors here are returned to caller.
     //
-
-    InitializeListHead(&Generic->PktMonLink);
 
     Generic->PktMonRundownRef =
         ExAllocateCacheAwareRundownProtection(NonPagedPoolNx, POOLTAG_PKTMON);
@@ -304,7 +324,7 @@ Exit:
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-XdpPktMonCleanupInterface(
+XdpPktMonUntrackInterface(
     _Inout_ XDP_LWF_GENERIC *Generic
     )
 {
@@ -316,11 +336,9 @@ XdpPktMonCleanupInterface(
 
     //
     // Remove interface from global tracking.
-    // PktMonLink may be zero-initialized (never inserted) if the attach path
-    // failed before XdpPktMonInitializeInterface was called.
     //
     RtlAcquirePushLockExclusive(&XdpPktMonGenericListLock);
-    if (Generic->PktMonLink.Flink != NULL && !IsListEmpty(&Generic->PktMonLink)) {
+    if (!IsListEmpty(&Generic->PktMonLink)) {
         RemoveEntryList(&Generic->PktMonLink);
         InitializeListHead(&Generic->PktMonLink);
     }
