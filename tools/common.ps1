@@ -62,10 +62,15 @@ function Get-BuildBranch {
         return $Matches[1]
 
     } elseif (![string]::IsNullOrWhiteSpace($env:GITHUB_REF_NAME)) {
-        # We are in a (GitHub Action) main build.
-        Write-Host "Using GITHUB_REF_NAME=$env:GITHUB_REF_NAME to compute branch"
+        # We are in a (GitHub Action) main build. When the run is on a tag ref
+        # (e.g. ci.yml dispatched via "workflow_dispatch --ref refs/tags/vX.Y.Z"),
+        # GitHub natively reports GITHUB_REF_TYPE=tag, so surface it as a tag so
+        # Get-BuildTag treats it as a release build.
+        Write-Host "Using GITHUB_REF_NAME=$env:GITHUB_REF_NAME (GITHUB_REF_TYPE=$env:GITHUB_REF_TYPE) to compute branch"
+        if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            return "tags/$env:GITHUB_REF_NAME"
+        }
         return $env:GITHUB_REF_NAME
-        $CommitMergedData = $true
 
     } else {
         # Fallback to the current branch.
@@ -297,6 +302,9 @@ function Invoke-XdpRemoteIfRequested {
 }
 
 function Get-XdpBuildVersionString {
+    param (
+        [string]$ExtraMoniker = ""
+    )
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
 
@@ -307,7 +315,11 @@ function Get-XdpBuildVersionString {
         }
         $VersionString = $TagVersion
     } else {
-        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+        $VersionString += "-prerelease-"
+        if (-not [string]::IsNullOrEmpty($ExtraMoniker)) {
+            $VersionString += "$ExtraMoniker-"
+        }
+        $VersionString += (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 
     return $VersionString;

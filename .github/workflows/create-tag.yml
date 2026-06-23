@@ -1,0 +1,84 @@
+name: Create Testsigned Prerelease Tag
+
+#
+# Manually triggered workflow that computes and creates a testsigned-prerelease tag, then
+# kicks off CI (via workflow_dispatch on the tag) to build from that tag, run
+# the test suite, and publish the release.
+#
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute the tag without creating it.'
+        required: false
+        default: false
+        type: boolean
+
+permissions: read-all
+
+jobs:
+  create_tag:
+    name: Create Tag
+    runs-on: windows-2022
+    permissions:
+      contents: write   # push the tag
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        repository: microsoft/xdp-for-windows
+        fetch-depth: 0
+    - name: Compute and create tag
+      id: tag
+      shell: PowerShell
+      env:
+        DRY_RUN: ${{ inputs.dry_run }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        . ./tools/common.ps1
+
+        $Tag = "v" + (Get-XdpBuildVersionString -ExtraMoniker "testsigned")
+        Write-Host "Computed tag: $Tag"
+        Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "tag=$Tag"
+
+        if ($env:DRY_RUN -eq 'true') {
+            Write-Host "Dry run - not creating the tag."
+            return
+        }
+
+        git check-ref-format "refs/tags/$Tag"
+        if ($LASTEXITCODE -ne 0) { throw "Invalid tag name: $Tag" }
+
+        $Existing = git ls-remote --tags origin "refs/tags/$Tag"
+        if (-not [string]::IsNullOrWhiteSpace($Existing)) { throw "Tag already exists: $Tag" }
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a -m "Release $Tag" -- $Tag HEAD
+        git push origin "refs/tags/$Tag"
+
+  dispatch_ci:
+    name: Dispatch CI
+    if: ${{ !inputs.dry_run }}
+    needs: create_tag
+    runs-on: windows-2022
+    permissions:
+      actions: write   # required to dispatch ci.yml via workflow_dispatch
+    steps:
+    - name: Dispatch CI for tag
+      shell: PowerShell
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ needs.create_tag.outputs.tag }}
+      run: |
+        Set-StrictMode -Version 'Latest'
+        $ErrorActionPreference = 'Stop'
+        # The tag push above uses GITHUB_TOKEN, which does not trigger push
+        # workflows. Explicitly dispatch ci.yml on the tag ref so the run
+        # natively reports GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
+        # and the build derives the version straight from the tag.
+        gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG"
