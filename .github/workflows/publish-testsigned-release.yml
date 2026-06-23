@@ -34,30 +34,42 @@ jobs:
         $ErrorActionPreference = 'Stop'
 
         New-Item -ItemType Directory -Path release_assets -Force | Out-Null
+        Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse | Copy-Item -Destination release_assets
+
+        $Packages = Get-ChildItem -Path release_assets -Filter *.nupkg
+        Write-Host "NuGet packages found:"
+        $Packages | ForEach-Object { Write-Host "  $($_.Name)" }
+
+        # Every package must carry the tag's version (sans leading 'v'), since
+        # both derive from the same tag via Get-XdpBuildVersionString.
         $ExpectedVersion = $env:TAG -replace '^v', ''
-        $ExpectedPackageNames = @(
-            "Microsoft.XDP-for-Windows.Runtime.x64.$ExpectedVersion.nupkg",
-            "Microsoft.XDP-for-Windows.Runtime.ARM64.$ExpectedVersion.nupkg",
-            "Microsoft.XDP-for-Windows.Sdk.$ExpectedVersion.nupkg"
-        )
 
-        $AllPackages = @(Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse)
-        foreach ($ExpectedPackageName in $ExpectedPackageNames) {
-            $MatchingPackages = @($AllPackages | Where-Object { $_.Name -eq $ExpectedPackageName })
-            if ($MatchingPackages.Count -ne 1) {
-                Write-Error "Expected exactly one package named $ExpectedPackageName, found $($MatchingPackages.Count)."
+        $VersionPattern = '^(?<id>.+?)\.(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\.nupkg$'
+        $Parsed = foreach ($Package in $Packages) {
+            if ($Package.Name -notmatch $VersionPattern) {
+                Write-Error "Unable to parse version from package name: $($Package.Name)"
             }
-            Copy-Item -Path $MatchingPackages[0].FullName -Destination release_assets
+            [pscustomobject]@{ Id = $Matches.id; Version = $Matches.version }
         }
 
-        $UnexpectedPackages = @($AllPackages | Where-Object { $_.Name -notin $ExpectedPackageNames })
-        if ($UnexpectedPackages.Count -gt 0) {
-            $Details = ($UnexpectedPackages | ForEach-Object { $_.Name }) -join ', '
-            Write-Error "Unexpected NuGet package(s): $Details"
+        $Mismatched = @($Parsed | Where-Object { $_.Version -ne $ExpectedVersion })
+        if ($Mismatched.Count -gt 0) {
+            $Details = ($Mismatched | ForEach-Object { "$($_.Id) ($($_.Version))" }) -join ', '
+            Write-Error "Packages do not match tag version '$ExpectedVersion': $Details"
         }
 
-        Write-Host "NuGet packages selected for release:"
-        Get-ChildItem -Path release_assets -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }
+        $ExpectedIds = @(
+            "Microsoft.XDP-for-Windows.Runtime.x64",
+            "Microsoft.XDP-for-Windows.Runtime.arm64",
+            "Microsoft.XDP-for-Windows.Sdk"
+        )
+        $ActualIds = @($Parsed | ForEach-Object { $_.Id })
+        foreach ($Expected in $ExpectedIds) {
+            if ($Expected -notin $ActualIds) {
+                Write-Error "Missing expected package: $Expected.$ExpectedVersion.nupkg"
+            }
+        }
+        Write-Host "All $($ExpectedIds.Count) expected packages found with version $ExpectedVersion."
     - name: Create prerelease
       shell: PowerShell
       env:
@@ -68,10 +80,12 @@ jobs:
         $ErrorActionPreference = 'Stop'
 
         Write-Host "Creating prerelease for tag: $env:TAG"
+
         $Packages = (Get-ChildItem -Path release_assets -Filter *.nupkg).FullName
-        gh release create $env:TAG $Packages `
+        gh release create $env:TAG `
           --repo $env:GITHUB_REPOSITORY `
           --title $env:TAG `
           --notes "Auto-generated prerelease containing test-signed NuGet packages built from tag ``$env:TAG`` at commit ``${{ github.sha }}``." `
           --prerelease `
-          --verify-tag
+          --verify-tag `
+          @Packages
