@@ -85,5 +85,5 @@ jobs:
 
         # Wait briefly for the run to appear, then print its URL.
         Start-Sleep -Seconds 5
-        $RunUrl = gh run list --workflow=ci.yml --branch=$env:TAG --limit=1 --json url --jq '.[0].url'
+        $RunUrl = gh run list --repo $env:GITHUB_REPOSITORY --workflow=ci.yml --branch=$env:TAG --limit=1 --json url --jq '.[0].url'
         Write-Host "Dispatched CI run: $RunUrl"
