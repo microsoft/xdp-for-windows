@@ -2,6 +2,12 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      allow-testsigned-publishing:
+        description: 'Allow publishing a testsigned release.'
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
     - main
@@ -790,7 +796,7 @@ jobs:
 
   publish_testsigned_release:
     name: Publish Testsigned Release
-    if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
+    if: ${{ (github.ref_type == 'tag' || inputs.allow-testsigned-publishing) && contains(github.ref_name, '-testsigned') }}
     needs: [all_tests_complete, build, build_allpackage, onebranch_build_validation]
     uses: ./.github/workflows/publish-testsigned-release.yml
     permissions:
