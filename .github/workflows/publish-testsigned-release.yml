@@ -34,7 +34,9 @@ jobs:
         $ErrorActionPreference = 'Stop'
 
         New-Item -ItemType Directory -Path release_assets -Force | Out-Null
-        Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse | Copy-Item -Destination release_assets
+        Get-ChildItem -Path artifacts -Filter *.nupkg -Recurse |
+          Where-Object { $_.FullName -notmatch 'baseref' } |
+          Copy-Item -Destination release_assets
 
         $Packages = Get-ChildItem -Path release_assets -Filter *.nupkg
         Write-Host "NuGet packages found:"
