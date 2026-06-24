@@ -790,8 +790,8 @@ jobs:
 
   publish_testsigned_release:
     name: Publish Testsigned Release
-    if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
-    needs: [all_tests_complete, build, build_allpackage, onebranch_build_validation]
+    if: ${{ contains(github.ref_name, '-testsigned') }}
+    needs: [build, build_allpackage, onebranch_build_validation]
     uses: ./.github/workflows/publish-testsigned-release.yml
     permissions:
       contents: write
