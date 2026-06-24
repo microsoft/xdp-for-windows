@@ -79,9 +79,9 @@ jobs:
         $ErrorActionPreference = 'Stop'
         # The tag push above uses GITHUB_TOKEN, which does not trigger push
         # workflows. Explicitly dispatch ci.yml on the tag ref so the run
-        # natively reports GITHUB_REF=refs/tags/<tag> and the build derives
-        # the version straight from the tag.
-        gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG" `
+        # natively reports GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
+        # and the build derives the version straight from the tag.
+        gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG"
 
         # Wait briefly for the run to appear, then print its URL.
         Start-Sleep -Seconds 5
