@@ -622,8 +622,6 @@ XdpGenericCleanupInterface(
         XdpDeregisterInterface(Generic->Registration);
         Generic->Registration = NULL;
     }
-
-    XdpPktMonUntrackInterface(Generic);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -667,7 +665,6 @@ XdpGenericAttachInterface(
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Rx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     XdpInitializeReferenceCount(&Generic->ReferenceCount);
-    XdpPktMonInitializeInterface(Generic);
     Generic->Filter = Filter;
     Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
@@ -696,11 +693,6 @@ XdpGenericAttachInterface(
         goto Exit;
     }
 
-    Status = XdpPktMonTrackInterface(Generic);
-    if (!NT_SUCCESS(Status)) {
-        goto Exit;
-    }
-
     Status =
         XdpInitializeCapabilities(
             &Generic->Capabilities, &DriverApiVersion);
@@ -721,6 +713,8 @@ XdpGenericAttachInterface(
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
+
+    XdpPktMonRegisterInterface(&Generic->PktMonContext, Generic->IfIndex);
 
     RtlZeroMemory(AddIf, sizeof(*AddIf));
     AddIf->InterfaceCapabilities = &Generic->InternalCapabilities;
@@ -753,6 +747,8 @@ XdpGenericDetachInterface(
         //
         XdpIfRemoveInterfaces(&Generic->XdpIfInterfaceHandle, 1);
     }
+
+    XdpPktMonUnregisterInterface(&Generic->PktMonContext);
 }
 
 VOID
