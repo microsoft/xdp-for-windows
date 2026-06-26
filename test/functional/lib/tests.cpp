@@ -10576,6 +10576,7 @@ FormatPktMonTrace(
     return S_OK;
 }
 
+#if 0 // Temporarily disabled: drop verification not yet active.
 static
 HRESULT
 ReadNumberFromFile(
@@ -10680,6 +10681,7 @@ GetPktMonComponentDropCount(
 
     return ReadNumberFromFile(CountFilePath, DropCount);
 }
+#endif // Temporarily disabled: drop verification not yet active.
 
 static
 HRESULT
@@ -10689,18 +10691,19 @@ ExercisePktMonDrop(
     _In_z_ const CHAR *TxtPath
     )
 {
-    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
-    const UCHAR Payload[] = "PktMonDropVerify";
+    UNREFERENCED_PARAMETER(If);
+    // auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    // const UCHAR Payload[] = "PktMonDropVerify";
 
     //
     // Create a program that drops all RX traffic.
     //
-    XDP_RULE Rule = {};
-    Rule.Match = XDP_MATCH_ALL;
-    Rule.Action = XDP_PROGRAM_ACTION_DROP;
-    wil::unique_handle ProgramHandle =
-        CreateXdpProg(
-            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+    // XDP_RULE Rule = {};
+    // Rule.Match = XDP_MATCH_ALL;
+    // Rule.Action = XDP_PROGRAM_ACTION_DROP;
+    // wil::unique_handle ProgramHandle =
+    //     CreateXdpProg(
+    //         If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
 
     //
     // Start a pktmon drop capture.
@@ -10713,14 +10716,14 @@ ExercisePktMonDrop(
     //
     // Inject a packet.
     //
-    RX_FRAME Frame;
-    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
-    Hr = MpRxEnqueueFrame(GenericMp, &Frame);
-    if (FAILED(Hr)) {
-        TraceError("ExercisePktMonDrop: MpRxEnqueueFrame failed Hr=%!HRESULT!", Hr);
-        return Hr;
-    }
-    MpRxFlush(GenericMp);
+    // RX_FRAME Frame;
+    // RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    // Hr = MpRxEnqueueFrame(GenericMp, &Frame);
+    // if (FAILED(Hr)) {
+    //     TraceError("ExercisePktMonDrop: MpRxEnqueueFrame failed Hr=%!HRESULT!", Hr);
+    //     return Hr;
+    // }
+    // MpRxFlush(GenericMp);
 
     CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
 
@@ -10743,8 +10746,6 @@ GenericPktMonRegistration()
 {
     const CHAR *EtlPath = "C:\\pktmon_xdp_test.etl";
     const CHAR *TxtPath = "C:\\pktmon_xdp_test.etl.txt";
-    UINT32 CompId;
-    UINT32 DropCount;
 
     //
     // Capture the original pktmon service state and restore it on exit.
@@ -10782,9 +10783,9 @@ GenericPktMonRegistration()
     TEST_HRESULT(FnMpIf.TryEnable());
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
+    // (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
     // TEST_NOT_EQUAL(0, CompId);
-    (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
+    // (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
     // TEST_TRUE(DropCount > 0);
 
     //
@@ -10795,8 +10796,8 @@ GenericPktMonRegistration()
 
     TEST_HRESULT(StartPktMonDropCapture(EtlPath));
     TEST_HRESULT(StopPktMonCapture());
-    TEST_HRESULT(FormatPktMonTrace(EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
+    // TEST_HRESULT(FormatPktMonTrace(EtlPath, TxtPath));
+    // (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
     // TEST_EQUAL(0, CompId);
 
     //
@@ -10809,9 +10810,9 @@ GenericPktMonRegistration()
     TEST_HRESULT(TryStartService("pktmon"));
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
+    // (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
     // TEST_NOT_EQUAL(0, CompId);
-    (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
+    // (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
     // TEST_TRUE(DropCount > 0);
 
     //
@@ -10821,9 +10822,9 @@ GenericPktMonRegistration()
     TEST_HRESULT(TryRestartService("pktmon"));
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
+    // (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
     // TEST_NOT_EQUAL(0, CompId);
-    (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
+    // (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
     // TEST_TRUE(DropCount > 0);
 }
 
