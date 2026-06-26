@@ -10520,7 +10520,6 @@ GenericRxXskMapRedirectMiss()
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
 }
 
-#if 0 // Temporarily disabled while investigating CI bugcheck.
 static
 HRESULT
 StartPktMonDropCapture(
@@ -10738,26 +10737,37 @@ ExercisePktMonDrop(
     //
     return FormatPktMonTrace(EtlPath, TxtPath);
 }
-#endif // Temporarily disabled while investigating CI bugcheck.
 
 VOID
 GenericPktMonRegistration()
 {
-    //
-    // Print all network adapters on the system for diagnostic purposes.
-    //
-    CHAR CmdBuff[256];
-    sprintf_s(
-        CmdBuff, sizeof(CmdBuff),
-        "%s /c \"Get-NetAdapter | Format-Table Name, InterfaceDescription -AutoSize\"",
-        PowershellPrefix);
-    InvokeSystem(CmdBuff);
-
-    /*
     const CHAR *EtlPath = "C:\\pktmon_xdp_test.etl";
     const CHAR *TxtPath = "C:\\pktmon_xdp_test.etl.txt";
     UINT32 CompId;
     UINT32 DropCount;
+
+    //
+    // Disable any Mellanox ConnectX-5 Virtual Adapters for the duration of this
+    // test case. These adapters bugcheck when subjected to Disable/Enable-NetAdapter
+    // cycles combined with pktmon tracing in certain CI environments and are not
+    // needed for the test case.
+    //
+    static const CHAR *MellanoxFilter =
+        "Where-Object { $_.InterfaceDescription -like 'Mellanox ConnectX-5 Virtual Adapter*' }";
+    CHAR CmdBuff[512];
+    sprintf_s(
+        CmdBuff, sizeof(CmdBuff),
+        "%s /c \"Get-NetAdapter | %s | Disable-NetAdapter -Confirm:$false -ErrorAction SilentlyContinue\"",
+        PowershellPrefix, MellanoxFilter);
+    InvokeSystem(CmdBuff);
+    auto RestoreMellanox = wil::scope_exit([&] {
+        CHAR Cmd[512];
+        sprintf_s(
+            Cmd, sizeof(Cmd),
+            "%s /c \"Get-NetAdapter -IncludeHidden | %s | Enable-NetAdapter -ErrorAction SilentlyContinue\"",
+            PowershellPrefix, MellanoxFilter);
+        InvokeSystem(Cmd);
+    });
 
     //
     // Capture the original pktmon service state and restore it on exit.
@@ -10838,7 +10848,6 @@ GenericPktMonRegistration()
     TEST_NOT_EQUAL(0, CompId);
     TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
     TEST_TRUE(DropCount > 0);
-    */
 }
 
 /**
