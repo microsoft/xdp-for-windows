@@ -346,3 +346,6 @@ GenericRxXskMapRedirectMiss();
 
 VOID
 XskMapCreateInsertDelete();
+
+VOID
+GenericPktMonRegistration();

@@ -735,4 +735,8 @@ public:
     TEST_METHOD(GenericRxXskMapRedirectMiss) {
         ::GenericRxXskMapRedirectMiss();
     }
+
+    TEST_METHOD(GenericPktMonRegistration) {
+        ::GenericPktMonRegistration();
+    }
 };
