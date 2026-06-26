@@ -10782,10 +10782,10 @@ GenericPktMonRegistration()
     TEST_HRESULT(FnMpIf.TryEnable());
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
-    // TEST_NOT_EQUAL(0, CompId);
-    (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
-    // TEST_TRUE(DropCount > 0);
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 
     //
     // Disable the adapter. This deregisters the XDP pktmon component.
@@ -10796,8 +10796,8 @@ GenericPktMonRegistration()
     TEST_HRESULT(StartPktMonDropCapture(EtlPath));
     TEST_HRESULT(StopPktMonCapture());
     TEST_HRESULT(FormatPktMonTrace(EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
-    // TEST_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_EQUAL(0, CompId);
 
     //
     // Load pktmon after the adapter is already enabled.
@@ -10809,10 +10809,10 @@ GenericPktMonRegistration()
     TEST_HRESULT(TryStartService("pktmon"));
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
-    // TEST_NOT_EQUAL(0, CompId);
-    (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
-    // TEST_TRUE(DropCount > 0);
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 
     //
     // Restart pktmon while the adapter is enabled.
@@ -10821,10 +10821,10 @@ GenericPktMonRegistration()
     TEST_HRESULT(TryRestartService("pktmon"));
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
-    (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
-    // TEST_NOT_EQUAL(0, CompId);
-    (VOID)GetPktMonComponentDropCount(TxtPath, CompId, &DropCount);
-    // TEST_TRUE(DropCount > 0);
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 }
 
 /**
