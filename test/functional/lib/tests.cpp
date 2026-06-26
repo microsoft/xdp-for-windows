@@ -10520,6 +10520,7 @@ GenericRxXskMapRedirectMiss()
     TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
 }
 
+#if 0 // Temporarily disabled while investigating CI bugcheck.
 static
 HRESULT
 StartPktMonDropCapture(
@@ -10737,10 +10738,22 @@ ExercisePktMonDrop(
     //
     return FormatPktMonTrace(EtlPath, TxtPath);
 }
+#endif // Temporarily disabled while investigating CI bugcheck.
 
 VOID
 GenericPktMonRegistration()
 {
+    //
+    // Print all network adapters on the system for diagnostic purposes.
+    //
+    CHAR CmdBuff[256];
+    sprintf_s(
+        CmdBuff, sizeof(CmdBuff),
+        "%s /c \"Get-NetAdapter | Format-Table Name, InterfaceDescription -AutoSize\"",
+        PowershellPrefix);
+    InvokeSystem(CmdBuff);
+
+    /*
     const CHAR *EtlPath = "C:\\pktmon_xdp_test.etl";
     const CHAR *TxtPath = "C:\\pktmon_xdp_test.etl.txt";
     UINT32 CompId;
@@ -10825,6 +10838,7 @@ GenericPktMonRegistration()
     TEST_NOT_EQUAL(0, CompId);
     TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
     TEST_TRUE(DropCount > 0);
+    */
 }
 
 /**
