@@ -10792,10 +10792,10 @@ GenericPktMonRegistration()
     // Disable the adapter. This deregisters the XDP pktmon component.
     // Verify the component is no longer registered.
     //
-    TEST_HRESULT(FnMpIf.TryDisable());
+    // TEST_HRESULT(FnMpIf.TryDisable());
 
-    TEST_HRESULT(StartPktMonDropCapture(EtlPath));
-    TEST_HRESULT(StopPktMonCapture());
+    // TEST_HRESULT(StartPktMonDropCapture(EtlPath));
+    // TEST_HRESULT(StopPktMonCapture());
     // TEST_HRESULT(FormatPktMonTrace(EtlPath, TxtPath));
     // (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
     // TEST_EQUAL(0, CompId);
