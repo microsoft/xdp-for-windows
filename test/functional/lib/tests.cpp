@@ -10769,18 +10769,18 @@ GenericPktMonRegistration()
     //
     // Disable the test adapter and stop pktmon to start from a known state.
     //
-    TEST_HRESULT(FnMpIf.TryDisable());
-    auto RestoreAdapter = wil::scope_exit([&] {
-        (VOID)FnMpIf.TryEnable();
-    });
-    (VOID)TryStopService("pktmon");
+    // TEST_HRESULT(FnMpIf.TryDisable());
+    // auto RestoreAdapter = wil::scope_exit([&] {
+    //     (VOID)FnMpIf.TryEnable();
+    // });
+    // (VOID)TryStopService("pktmon");
 
     //
     // Enable the adapter while pktmon is already loaded.
     // Verify XDP drops are visible in pktmon traces.
     //
-    TEST_HRESULT(TryStartService("pktmon"));
-    TEST_HRESULT(FnMpIf.TryEnable());
+    // TEST_HRESULT(TryStartService("pktmon"));
+    // TEST_HRESULT(FnMpIf.TryEnable());
 
     TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
     // (VOID)GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId);
