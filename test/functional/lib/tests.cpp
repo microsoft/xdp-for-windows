@@ -10529,6 +10529,7 @@ GenericPktMonRegistration()
     //
     // Start a pktmon drop capture.
     //
+    CHAR Cmd[256];
     sprintf_s(
         Cmd, sizeof(Cmd),
         "pktmon start -c --type drop --pkt-size 256 --file-name %s >nul 2>&1",
