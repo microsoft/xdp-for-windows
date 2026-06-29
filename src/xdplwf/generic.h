@@ -58,9 +58,15 @@ typedef struct _XDP_LWF_GENERIC {
     } Tx;
 
     //
-    // Protected by NDIS driver stack synchronization.
+    // Pktmon context. Protected by the pktmon rundown reference.
     //
     XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext;
+    PEX_RUNDOWN_REF_CACHE_AWARE PktMonRundownRef;
+
+    //
+    // Pktmon generic list entry. Protected by the pktmon generic list lock.
+    //
+    LIST_ENTRY PktMonLink;
 } XDP_LWF_GENERIC;
 
 typedef enum _XDP_LWF_GENERIC_INJECTION_TYPE {
