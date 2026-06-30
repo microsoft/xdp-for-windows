@@ -82,3 +82,8 @@ jobs:
         # natively reports GITHUB_REF=refs/tags/<tag> / GITHUB_REF_TYPE=tag,
         # and the build derives the version straight from the tag.
         gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$env:TAG"
+
+        # Wait briefly for the run to appear, then print its URL.
+        Start-Sleep -Seconds 5
+        $RunUrl = gh run list --repo $env:GITHUB_REPOSITORY --workflow=ci.yml --branch=$env:TAG --limit=1 --json url --jq '.[0].url'
+        Write-Host "Dispatched CI run: $RunUrl"
