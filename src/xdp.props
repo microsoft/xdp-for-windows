@@ -17,8 +17,7 @@
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
     <!-- eBPF-for-windows version -->
     <XdpEbpfVersion>1.1.0</XdpEbpfVersion>
-    <XdpWdkVersion>10.0.26100.4204</XdpWdkVersion>
-    <XdpWixVer>5.0.1</XdpWixVer>
+    <XdpWdkVersion>10.0.26100.6584</XdpWdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->

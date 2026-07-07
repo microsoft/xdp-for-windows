@@ -26,7 +26,12 @@ param (
     [string]$Uninstall = "",
 
     [Parameter(Mandatory = $false)]
-    [string]$BinaryDirectory = ""
+    [string]$BinaryDirectory = "",
+
+    # When set, treat normally-fatal cleanup errors during -Uninstall as
+    # recoverable warnings.
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -214,9 +219,17 @@ if ($Install -eq "xdpebpf") {
 # Uninstalls the XDP eBPF feature.
 if ($Uninstall -eq "xdpebpf") {
     Write-Verbose "$XdpBpfExport --clear"
-    & $XdpBpfExport --clear
+    # Use cmd.exe to insulate from PowerShell 7+ converting native-command
+    # stderr into terminating errors (which would bypass the explicit
+    # -Force exit-code check below).
+    cmd.exe /c "`"$XdpBpfExport`" --clear 2>&1" | Write-Verbose
     if ($LastExitCode) {
-        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+        if ($Force) {
+            Write-Warning "$XdpBpfExport --clear exit code: $LastExitCode (ignored due to -Force)"
+            $global:LASTEXITCODE = 0
+        } else {
+            Write-Error "$XdpBpfExport exit code: $LastExitCode"
+        }
     }
 
     Write-Verbose "reg.exe delete HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /f"

@@ -73,11 +73,6 @@ if ([string]::IsNullOrEmpty($Project)) {
 
 & $RootDir\tools\prepare-machine.ps1 -ForBuild -Force:$UpdateDeps -Platform $Platform
 
-$IsAdmin = Test-Admin
-if (!$IsAdmin) {
-    Write-Verbose "MSI installer validation requires admin privileges. Skipping."
-}
-
 if (!$NoRestore) {
     Write-Verbose "Restoring packages [$Sln]"
     msbuild.exe $Sln `
@@ -102,7 +97,6 @@ Write-Verbose "Building [$Sln]"
 msbuild.exe $Sln `
     /p:Configuration=$Config `
     /p:Platform=$Platform `
-    /p:IsAdmin=$IsAdmin `
     /p:SignMode=$SignMode `
     /p:BuildStage=$BuildStage `
     /p:NugetPlatforms=$($NugetPlatforms -join "%2c") `

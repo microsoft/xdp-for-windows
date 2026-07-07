@@ -32,8 +32,63 @@ static WCHAR XdpParametersKeyStorage[256] = { 0 };
 CONST WCHAR *XDP_PARAMETERS_KEY = XdpParametersKeyStorage;
 
 DRIVER_OBJECT *XdpDriverObject;
-DEVICE_OBJECT *XdpDeviceObject;
 XDP_REG_WATCHER *XdpRegWatcher;
+
+//
+// The common XDP device object. Accepts any object type for backward
+// compatibility.
+//
+static DEVICE_OBJECT *XdpDeviceObject;
+
+//
+// Handle to the \Device\xdpapi object directory that contains the per-type
+// device objects. Held open for the lifetime of the driver to keep the
+// directory alive.
+//
+static HANDLE XdpDeviceDirectoryHandle;
+
+//
+// Table of per-object-type XDP device objects. Each device has its own device
+// class GUID, allowing independent SDDL configuration via xdpcfg.exe.
+//
+typedef struct _XDP_DEVICE_TABLE_ENTRY {
+    UNICODE_STRING DeviceName;
+    const GUID *DeviceClassGuid;
+    XDP_OBJECT_TYPE ObjectType;
+    DEVICE_OBJECT *DeviceObject;
+} XDP_DEVICE_TABLE_ENTRY;
+
+//
+// Device extension stored in each XDP device object.
+//
+typedef struct _XDP_DEVICE_EXTENSION {
+    BOOLEAN IsPerTypeDevice;
+    XDP_OBJECT_TYPE AllowedObjectType;
+} XDP_DEVICE_EXTENSION;
+
+static XDP_DEVICE_TABLE_ENTRY XdpDeviceTable[] = {
+    {
+        .DeviceName = RTL_CONSTANT_STRING(XDP_PROGRAM_DEVICE_NAME),
+        .DeviceClassGuid = &XDP_PROGRAM_DEVICE_CLASS_GUID,
+        .ObjectType = XDP_OBJECT_TYPE_PROGRAM,
+    },
+    {
+        .DeviceName = RTL_CONSTANT_STRING(XDP_XSK_DEVICE_NAME),
+        .DeviceClassGuid = &XDP_XSK_DEVICE_CLASS_GUID,
+        .ObjectType = XDP_OBJECT_TYPE_XSK,
+    },
+    {
+        .DeviceName = RTL_CONSTANT_STRING(XDP_INTERFACE_DEVICE_NAME),
+        .DeviceClassGuid = &XDP_INTERFACE_DEVICE_CLASS_GUID,
+        .ObjectType = XDP_OBJECT_TYPE_INTERFACE,
+    },
+    {
+        .DeviceName = RTL_CONSTANT_STRING(XDP_MAP_DEVICE_NAME),
+        .DeviceClassGuid = &XDP_MAP_DEVICE_CLASS_GUID,
+        .ObjectType = XDP_OBJECT_TYPE_MAP,
+    },
+};
+
 XDP_REG_WATCHER_CLIENT_ENTRY XdpRegWatcherEntry = {0};
 
 #if DBG
@@ -65,9 +120,18 @@ XdpFaultInject(
 #endif
 }
 
+BOOLEAN
+XdpIsXdpDeviceObject(
+    _In_ DEVICE_OBJECT *DeviceObject
+    )
+{
+    return DeviceObject->DriverObject == XdpDriverObject;
+}
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 XdpIrpCreate(
+    _In_ DEVICE_OBJECT *DeviceObject,
     _Inout_ IRP *Irp,
     _In_ IO_STACK_LOCATION *IrpSp
     )
@@ -79,6 +143,7 @@ XdpIrpCreate(
     STRING ExpectedEaName;
     STRING ActualEaName = {0};
     XDP_FILE_CREATE_ROUTINE *CreateRoutine = NULL;
+    XDP_DEVICE_EXTENSION *DevExt;
 
 #ifdef _WIN64
     if (IoIs32bitProcess(Irp)) {
@@ -129,7 +194,22 @@ XdpIrpCreate(
         CreateRoutine = XdpIrpCreateInterface;
         break;
 
+    case XDP_OBJECT_TYPE_MAP:
+        CreateRoutine = XdpMapIrpCreate;
+        break;
+
     default:
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    //
+    // Validate that the requested object type is allowed on this device.
+    // Per-type devices only allow their corresponding object type. The common
+    // device allows any type for backward compatibility.
+    //
+    DevExt = (XDP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension;
+    if (DevExt->IsPerTypeDevice && OpenPacket->ObjectType != DevExt->AllowedObjectType) {
         Status = STATUS_INVALID_PARAMETER;
         goto Exit;
     }
@@ -194,8 +274,7 @@ XdpIrpDispatch(
     IO_STACK_LOCATION *IrpSp;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    UNREFERENCED_PARAMETER(DeviceObject);
-    ASSERT(DeviceObject == XdpDeviceObject);
+    ASSERT(XdpIsXdpDeviceObject(DeviceObject));
     PAGED_CODE();
 
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -207,7 +286,7 @@ XdpIrpDispatch(
 
     switch (IrpSp->MajorFunction) {
     case IRP_MJ_CREATE:
-        Status = XdpIrpCreate(Irp, IrpSp);
+        Status = XdpIrpCreate(DeviceObject, Irp, IrpSp);
         break;
 
     case IRP_MJ_CLEANUP:
@@ -244,9 +323,10 @@ XdpIrpDeviceIoControl(
     XDP_FILE_OBJECT_HEADER *FileHeader;
     NTSTATUS Status;
 
-    UNREFERENCED_PARAMETER(DeviceObject);
-    ASSERT(DeviceObject == XdpDeviceObject);
     PAGED_CODE();
+
+    ASSERT(XdpIsXdpDeviceObject(DeviceObject));
+    DBG_UNREFERENCED_PARAMETER(DeviceObject);
 
     Irp->IoStatus.Information = 0;
     IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -344,7 +424,7 @@ XdpReferenceObjectByHandle(
         goto Exit;
     }
 
-    if (FileObject->DeviceObject != XdpDeviceObject || FileObject->FsContext == NULL) {
+    if (!XdpIsXdpDeviceObject(FileObject->DeviceObject) || FileObject->FsContext == NULL) {
         Status = STATUS_INVALID_HANDLE;
         goto Exit;
     }
@@ -393,12 +473,25 @@ XdpStop(
     VOID
     )
 {
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpDeviceTable); i++) {
+        if (XdpDeviceTable[i].DeviceObject != NULL) {
+            IoDeleteDevice(XdpDeviceTable[i].DeviceObject);
+            XdpDeviceTable[i].DeviceObject = NULL;
+        }
+    }
+
     if (XdpDeviceObject != NULL) {
         IoDeleteDevice(XdpDeviceObject);
         XdpDeviceObject = NULL;
     }
 
+    if (XdpDeviceDirectoryHandle != NULL) {
+        ZwClose(XdpDeviceDirectoryHandle);
+        XdpDeviceDirectoryHandle = NULL;
+    }
+
     XdpProgramStop();
+    XdpMapStop();
     XskStop();
     XdpIfStop();
     XdpTxStop();
@@ -420,7 +513,10 @@ XdpStart(
     )
 {
     NTSTATUS Status;
-    DECLARE_CONST_UNICODE_STRING(DeviceName, XDP_DEVICE_NAME);
+    DECLARE_CONST_UNICODE_STRING(XdpDeviceName, XDP_DEVICE_NAME);
+    DECLARE_CONST_UNICODE_STRING(XdpDirectoryName, XDP_DEVICE_DIRECTORY_NAME);
+    XDP_DEVICE_EXTENSION *XdpDevExt;
+    OBJECT_ATTRIBUTES ObjectAttributes;
 
 #pragma warning(push)
 #pragma warning(disable:28175) // We can access the DRIVER_OBJECT
@@ -482,18 +578,70 @@ XdpStart(
         goto Exit;
     }
 
+    Status = XdpMapStart();
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
     Status = XdpProgramStart();
     if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 
+    //
+    // Create the common XDP device object, which accepts any object type for
+    // backward compatibility.
+    //
     Status =
         IoCreateDeviceSecure(
-            XdpDriverObject, 0, (PUNICODE_STRING)&DeviceName, FILE_DEVICE_NETWORK,
-            FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL, &XDP_DEVICE_CLASS_GUID,
-            &XdpDeviceObject);
+            XdpDriverObject, sizeof(XDP_DEVICE_EXTENSION),
+            (PUNICODE_STRING)&XdpDeviceName, FILE_DEVICE_NETWORK,
+            FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL,
+            &XDP_DEVICE_CLASS_GUID, &XdpDeviceObject);
     if (!NT_SUCCESS(Status)) {
         goto Exit;
+    }
+
+    XdpDevExt = (XDP_DEVICE_EXTENSION *)XdpDeviceObject->DeviceExtension;
+    XdpDevExt->IsPerTypeDevice = FALSE;
+
+    //
+    // Create the \Device\xdpapi object directory to hold the per-type device
+    // objects.
+    //
+    InitializeObjectAttributes(
+        &ObjectAttributes, (PUNICODE_STRING)&XdpDirectoryName,
+        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    Status =
+        ZwCreateDirectoryObject(
+            &XdpDeviceDirectoryHandle, DIRECTORY_ALL_ACCESS, &ObjectAttributes);
+    if (!NT_SUCCESS(Status)) {
+        goto Exit;
+    }
+
+    //
+    // Create per-object-type device objects within \Device\xdpapi. Each has its
+    // own device class GUID, allowing independent SDDL configuration via
+    // xdpcfg.exe.
+    //
+    for (UINT32 i = 0; i < RTL_NUMBER_OF(XdpDeviceTable); i++) {
+        XDP_DEVICE_TABLE_ENTRY *Entry = &XdpDeviceTable[i];
+        XDP_DEVICE_EXTENSION *DevExt;
+
+        Status =
+            IoCreateDeviceSecure(
+                XdpDriverObject, sizeof(XDP_DEVICE_EXTENSION),
+                &Entry->DeviceName, FILE_DEVICE_NETWORK,
+                FILE_DEVICE_SECURE_OPEN, FALSE, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL,
+                Entry->DeviceClassGuid, &Entry->DeviceObject);
+        if (!NT_SUCCESS(Status)) {
+            goto Exit;
+        }
+
+        DevExt = (XDP_DEVICE_EXTENSION *)Entry->DeviceObject->DeviceExtension;
+        DevExt->IsPerTypeDevice = TRUE;
+        DevExt->AllowedObjectType = Entry->ObjectType;
     }
 
 Exit:

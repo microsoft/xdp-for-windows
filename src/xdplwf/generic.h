@@ -7,6 +7,7 @@
 
 #include <xdprefcount.h>
 
+#include "pktmon.h"
 #include "rss.h"
 #include "send.h"
 
@@ -55,6 +56,17 @@ typedef struct _XDP_LWF_GENERIC {
         LIST_ENTRY Queues;
         UINT32 Mtu;
     } Tx;
+
+    //
+    // Pktmon context. Protected by the pktmon rundown reference.
+    //
+    XDP_INTERFACE_PKTMON_CONTEXT *PktMonContext;
+    PEX_RUNDOWN_REF_CACHE_AWARE PktMonRundownRef;
+
+    //
+    // Pktmon generic list entry. Protected by the pktmon generic list lock.
+    //
+    LIST_ENTRY PktMonLink;
 } XDP_LWF_GENERIC;
 
 typedef enum _XDP_LWF_GENERIC_INJECTION_TYPE {

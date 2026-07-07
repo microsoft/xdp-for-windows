@@ -1394,12 +1394,41 @@ XdpInspect(
             switch (Rule->Action) {
 
             case XDP_PROGRAM_ACTION_REDIRECT:
-                XdpRedirect(
-                    &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
-                    Rule->Redirect.TargetType, Rule->Redirect.Target);
+                switch (Rule->Redirect.TargetType) {
+                case XDP_REDIRECT_TARGET_TYPE_XSK:
+                    XdpRedirect(
+                        &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
+                        XDP_REDIRECT_TARGET_TYPE_XSK, Rule->Redirect.Target);
+                    STAT_INC(RxQueueStats, InspectFramesRedirected);
+                    break;
+
+                case XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID:
+                {
+                    UINT32 QueueId =
+                        XdpRxQueueGetQueueIdFromInspectionContext(InspectionContext);
+                    VOID *XskTarget;
+
+                    ASSERT(
+                        XdpMapGetType(Rule->Redirect.Target) == XDP_MAP_TYPE_XSKMAP);
+                    XskTarget = XdpXskMapLookup(Rule->Redirect.Target, QueueId);
+
+                    if (XskTarget != NULL) {
+                        XdpRedirect(
+                            &InspectionContext->RedirectContext, FrameIndex, FragmentIndex,
+                            XDP_REDIRECT_TARGET_TYPE_XSK, XskTarget);
+                        STAT_INC(RxQueueStats, InspectFramesRedirected);
+                    } else {
+                        STAT_INC(RxQueueStats, InspectFramesDropped);
+                    }
+                    break;
+                }
+
+                default:
+                    ASSERT(FALSE);
+                    break;
+                }
 
                 Action = XDP_RX_ACTION_DROP;
-                STAT_INC(RxQueueStats, InspectFramesRedirected);
                 break;
 
             case XDP_PROGRAM_ACTION_EBPF:
@@ -1426,7 +1455,6 @@ XdpInspect(
                         Frame, FragmentRing, FragmentExtension, FragmentIndex,
                         VirtualAddressExtension, &FrameCache, &Program->FrameStorage, RxQueueStats);
                 break;
-
 
             default:
                 ASSERT(FALSE);
@@ -1469,18 +1497,24 @@ XdpProgramDeleteRule(
     }
 
     if (Rule->Action == XDP_PROGRAM_ACTION_REDIRECT) {
-
         switch (Rule->Redirect.TargetType) {
-
         case XDP_REDIRECT_TARGET_TYPE_XSK:
             if (Rule->Redirect.Target != NULL) {
                 XskDereferenceDatapathHandle(Rule->Redirect.Target);
                 Rule->Redirect.Target = NULL;
             }
             break;
-
+        case XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID:
+            if (Rule->Redirect.Target != NULL) {
+                ASSERT(
+                    XdpMapGetType(Rule->Redirect.Target) == XDP_MAP_TYPE_XSKMAP);
+                XdpMapDereferenceDatapathHandle(Rule->Redirect.Target);
+                Rule->Redirect.Target = NULL;
+            }
+            break;
         default:
-            ASSERT(FALSE);
+            ASSERT(Rule->Redirect.Target == NULL);
+            break;
         }
     }
 }
@@ -1595,6 +1629,7 @@ XdpProgramValidateRule(
     //
     switch (UserRule->Action) {
     case XDP_PROGRAM_ACTION_REDIRECT:
+        ValidatedRule->Redirect.TargetType = UserRule->Redirect.TargetType;
         switch (UserRule->Redirect.TargetType) {
 
         case XDP_REDIRECT_TARGET_TYPE_XSK:
@@ -1603,6 +1638,29 @@ XdpProgramValidateRule(
                     RequestorMode, &UserRule->Redirect.Target, TRUE,
                     &ValidatedRule->Redirect.Target);
             break;
+
+        case XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID:
+        {
+            XDP_MAP *Map;
+
+            Status =
+                XdpMapReferenceDatapathHandle(
+                    RequestorMode, &UserRule->Redirect.Target, TRUE, &Map);
+            if (!NT_SUCCESS(Status)) {
+                break;
+            }
+            //
+            // The lookup-by-queue-id target type yields an XSK on success and
+            // requires an XSKMAP-typed map.
+            //
+            if (XdpMapGetType(Map) != XDP_MAP_TYPE_XSKMAP) {
+                XdpMapDereferenceDatapathHandle(Map);
+                Status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+            ValidatedRule->Redirect.Target = Map;
+            break;
+        }
 
         default:
             Status = STATUS_INVALID_PARAMETER;

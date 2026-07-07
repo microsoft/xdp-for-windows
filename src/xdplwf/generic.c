@@ -622,6 +622,8 @@ XdpGenericCleanupInterface(
         XdpDeregisterInterface(Generic->Registration);
         Generic->Registration = NULL;
     }
+
+    XdpPktMonUntrackInterface(Generic);
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -665,6 +667,7 @@ XdpGenericAttachInterface(
     KeInitializeEvent(&Generic->Tx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     KeInitializeEvent(&Generic->Rx.Datapath.ReadyEvent, NotificationEvent, FALSE);
     XdpInitializeReferenceCount(&Generic->ReferenceCount);
+    XdpPktMonInitializeInterface(Generic);
     Generic->Filter = Filter;
     Generic->NdisFilterHandle = NdisFilterHandle;
     Generic->IfIndex = IfIndex;
@@ -690,6 +693,11 @@ XdpGenericAttachInterface(
             XdpGenericPackContext(Generic, &Generic->Tx.Datapath), XdpLwfDriverObject, NULL);
     if (Generic->Tx.Datapath.DelayDetachTimer == NULL) {
         Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    Status = XdpPktMonTrackInterface(Generic);
+    if (!NT_SUCCESS(Status)) {
         goto Exit;
     }
 

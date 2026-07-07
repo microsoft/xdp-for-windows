@@ -17,6 +17,7 @@ typedef struct _XDP_INSPECTION_CONTEXT {
     XDP_REDIRECT_CONTEXT RedirectContext;
     ULONG IfIndex;
     UINT32 QueueId;
+    LOCK_STATE_EX MapLockState;
 } XDP_INSPECTION_CONTEXT;
 
 //

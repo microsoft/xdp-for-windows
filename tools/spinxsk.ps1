@@ -101,11 +101,25 @@ param (
     [switch]$EbpfPreinstalled = $false,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI",
+    [ValidateSet("INF", "NuGet")]
+    [string]$XdpInstaller = "NuGet",
 
     [Parameter(Mandatory = $false)]
-    [switch]$TxInspect = $false
+    [switch]$TxInspect = $false,
+
+    # Remote execution: when set, deploy + run this script on the named test
+    # machine over PowerShell remoting. See tools\remote.ps1 for setup.
+    [Parameter(Mandatory = $false)]
+    [string]$ComputerName = "",
+
+    [Parameter(Mandatory = $false)]
+    [System.Management.Automation.PSCredential]$Credential,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RemoteRoot = "",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipDeploy
 )
 
 Set-StrictMode -Version 'Latest'
@@ -114,6 +128,11 @@ $ErrorActionPreference = 'Stop'
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
+
+$Forwarded = Invoke-XdpRemoteIfRequested -InvocationCommand $MyInvocation.MyCommand `
+    -BoundParameters $PSBoundParameters -Config $Config -Platform $Platform
+if ($Forwarded -is [array]) { $Forwarded = $Forwarded[-1] }
+if ($Forwarded) { return }
 
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"

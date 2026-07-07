@@ -38,7 +38,7 @@ jobs:
       base_ref: ${{ steps.resolve_base_ref.outputs.base_ref }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         repository: microsoft/xdp-for-windows
         fetch-depth: 2
@@ -83,7 +83,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -126,7 +126,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         repository: microsoft/xdp-for-windows
         submodules: recursive
@@ -168,7 +168,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025, Prerelease]
+        windows: [2022, 2025]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         exclude:
@@ -181,12 +181,12 @@ jobs:
      - "JobId=func_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -219,7 +219,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   stress_tests:
     name: Stress Tests
@@ -234,7 +234,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025, Prerelease]
+        windows: [2022, 2025]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
@@ -252,12 +252,12 @@ jobs:
      - "JobId=stress_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
@@ -270,22 +270,22 @@ jobs:
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet -TxInspect
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect
     - name: Run spinxsk (PR)
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Run spinxsk (main, with TxInspect)
       if: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet -TxInspect
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -XdpInstaller NuGet
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
@@ -300,7 +300,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   pktfuzz_tests:
     name: Fuzz Packet Parsing
@@ -318,7 +318,7 @@ jobs:
      - "JobId=pktfuzz_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: tools
     - name: Download Artifacts
@@ -359,7 +359,7 @@ jobs:
      - "JobId=xskperf_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: |
           .github
@@ -396,7 +396,7 @@ jobs:
      - "JobId=ringperf_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: |
           tools
@@ -432,7 +432,7 @@ jobs:
      - "JobId=rxfilter_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: |
           tools
@@ -443,7 +443,7 @@ jobs:
         path: artifacts/bin
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
@@ -468,7 +468,7 @@ jobs:
         if-no-files-found: ignore
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   perf_test_summary:
     name: Perf Test Summary
@@ -476,7 +476,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -496,7 +496,7 @@ jobs:
       downlevel_release: ${{ steps.resolve.outputs.downlevel_release }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         repository: microsoft/xdp-for-windows
         sparse-checkout: release-branches.json
@@ -518,7 +518,7 @@ jobs:
       fail-fast: false
       matrix:
         downlevel_release: ${{ fromJson(needs.resolve_downlevel_releases.outputs.downlevel_release) }}
-        windows: [2022, 2025, Prerelease]
+        windows: [2022, 2025]
         configuration: [Release]
         platform: [x64]
     runs-on:
@@ -528,12 +528,12 @@ jobs:
      - "JobId=downlevel_${{ matrix.downlevel_release }}_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
@@ -566,7 +566,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   xskfwdkm_test:
     name: XskFwdKm Test
@@ -587,12 +587,12 @@ jobs:
      - "JobId=xskfwdkm_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -618,7 +618,59 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
+
+  xskmaprx_test:
+    name: XskMapRx Test
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        windows: [2022, 2025, Prerelease]
+        configuration: [Release, Debug]
+        platform: [x64, arm64]
+        exclude:
+        - windows: 2022
+          platform: arm64
+    runs-on:
+     - self-hosted
+     - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+     - "JobId=xskmaprx_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      with:
+        sparse-checkout: tools
+    - name: Check Drivers
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
+    - name: Prepare Machine
+      shell: PowerShell
+      run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
+    - name: Download Artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/bin
+    - name: Run XskMapRx
+      shell: PowerShell
+      run: tools/xskmaprx.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
+    - name: Convert Logs
+      if: ${{ always() }}
+      timeout-minutes: 15
+      shell: PowerShell
+      run: tools/log.ps1 -Convert -Name xskmaprx -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+    - name: Upload Logs
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      if: ${{ always() }}
+      with:
+        name: logs_xskmaprx_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        path: artifacts/logs
+    - name: Check Drivers
+      if: ${{ always() }}
+      shell: PowerShell
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   xskrestricted_test:
     name: XskRestricted Test
@@ -639,12 +691,12 @@ jobs:
      - "JobId=xskrestricted_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
       with:
         sparse-checkout: tools
     - name: Check Drivers
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
       run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose
@@ -671,7 +723,7 @@ jobs:
     - name: Check Drivers
       if: ${{ always() }}
       shell: PowerShell
-      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose
+      run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf:($env:XDP_EBPF_BASELINE -ne '0')
 
   sample_tests:
     name: Sample Tests
@@ -731,7 +783,7 @@ jobs:
     runs-on: windows-2022
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -763,12 +815,12 @@ jobs:
   #       }
   #       iex "& { $(irm $url) } ${{ secrets.NET_PERF_TRIGGER }} xdp ${{ github.sha }} ${{ github.ref }} ${{ github.event.pull_request.number }}"
 
-  Complete:
-    name: Complete
+  all_tests_complete:
+    name: All Tests Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskrestricted_test, downlevel_functional_tests, create_artifacts, sample_tests]
+    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskmaprx_test, xskrestricted_test, downlevel_functional_tests, create_artifacts, sample_tests]
     runs-on: ubuntu-latest
-    permissions: {} # No need for any permissions.
+    permissions: {}
     steps:
     - name: Decide whether the needed jobs succeeded or failed (Release)
       if: ${{ contains(github.ref, 'release') || contains(github.base_ref, 'release') || contains(github.head_ref, 'release') }}
@@ -781,4 +833,25 @@ jobs:
       uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
       with:
         jobs: ${{ toJSON(needs) }}
-        allowed-failures: xskperf_tests # xsk_perf_tests depend on build N-1, which sometimes breaks.
+        allowed-failures: xskperf_tests
+
+  publish_testsigned_release:
+    name: Publish Testsigned Release
+    if: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-testsigned') }}
+    needs: [all_tests_complete, build, build_allpackage, onebranch_build_validation]
+    uses: ./.github/workflows/publish-testsigned-release.yml
+    permissions:
+      contents: write
+      actions: read
+
+  Complete:
+    name: Complete
+    if: always()
+    needs: [build, build_allpackage, onebranch_build_validation, all_tests_complete, create_artifacts]
+    runs-on: ubuntu-latest
+    permissions: {} # No need for any permissions.
+    steps:
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+      with:
+        jobs: ${{ toJSON(needs) }}

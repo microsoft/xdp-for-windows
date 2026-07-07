@@ -127,6 +127,13 @@ typedef struct _XDP_PROGRAM {
     //
     XDP_PROGRAM_FRAME_STORAGE FrameStorage;
 
+    //
+    // Set if any rule references an XDP map via a redirect target type. The
+    // data path holds the global map lock for the duration of each batch when
+    // this is set.
+    //
+    BOOLEAN HasMap;
+
     DECLSPEC_CACHEALIGN
     UINT32 RuleCount;
     XDP_RULE Rules[0];

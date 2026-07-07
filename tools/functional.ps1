@@ -38,6 +38,9 @@ param (
     [switch]$EbpfPreinstalled = $false,
 
     [Parameter(Mandatory = $false)]
+    [switch]$DisablePktMon = $false,
+
+    [Parameter(Mandatory = $false)]
     [int]$Timeout = 0,
 
     [Parameter(Mandatory = $false)]
@@ -47,8 +50,23 @@ param (
     [switch]$NoPrerelease = $false,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI"
+    [ValidateSet("INF", "NuGet")]
+    [string]$XdpInstaller = "NuGet",
+
+    # Remote execution: when set, deploy + run this script on the named test
+    # machine over PowerShell remoting. See tools\remote.ps1 for setup.
+    [Parameter(Mandatory = $false)]
+    [string]$ComputerName = "",
+
+    [Parameter(Mandatory = $false)]
+    [System.Management.Automation.PSCredential]$Credential,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RemoteRoot = "",
+
+    # Skip the file deployment step (assume a previous -Deploy is current).
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipDeploy
 )
 
 Set-StrictMode -Version 'Latest'
@@ -57,6 +75,11 @@ $ErrorActionPreference = 'Stop'
 # Important paths.
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
+
+$Forwarded = Invoke-XdpRemoteIfRequested -InvocationCommand $MyInvocation.MyCommand `
+    -BoundParameters $PSBoundParameters -Config $Config -Platform $Platform
+if ($Forwarded -is [array]) { $Forwarded = $Forwarded[-1] }
+if ($Forwarded) { return }
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 $IterationFailureCount = 0
@@ -104,6 +127,15 @@ for ($i = 1; $i -le $Iterations; $i++) {
         Write-Verbose "installing xdp..."
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
+
+        if ($DisablePktMon) {
+            Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpDisablePktMon /d 1 /t REG_DWORD /f"
+            reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpDisablePktMon /d 1 /t REG_DWORD /f | Write-Verbose
+
+            Write-Verbose "Restarting xdp to reload registry keys"
+            Stop-Service "xdp" | Write-Verbose
+            Start-Service-With-Retry "xdp" | Write-Verbose
+        }
 
         Write-Verbose "installing fnmp..."
         & "$RootDir\tools\setup.ps1" -Install fnmp -Config $Config -Platform $Platform

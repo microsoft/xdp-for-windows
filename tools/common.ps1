@@ -62,10 +62,15 @@ function Get-BuildBranch {
         return $Matches[1]
 
     } elseif (![string]::IsNullOrWhiteSpace($env:GITHUB_REF_NAME)) {
-        # We are in a (GitHub Action) main build.
-        Write-Host "Using GITHUB_REF_NAME=$env:GITHUB_REF_NAME to compute branch"
+        # We are in a (GitHub Action) main build. When the run is on a tag ref
+        # (e.g. ci.yml dispatched via "workflow_dispatch --ref refs/tags/vX.Y.Z"),
+        # GitHub natively reports GITHUB_REF_TYPE=tag, so surface it as a tag so
+        # Get-BuildTag treats it as a release build.
+        Write-Host "Using GITHUB_REF_NAME=$env:GITHUB_REF_NAME (GITHUB_REF_TYPE=$env:GITHUB_REF_TYPE) to compute branch"
+        if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            return "tags/$env:GITHUB_REF_NAME"
+        }
         return $env:GITHUB_REF_NAME
-        $CommitMergedData = $true
 
     } else {
         # Fallback to the current branch.
@@ -204,7 +209,102 @@ function Get-XdpBuildVersion {
     return $XdpBuildVersion;
 }
 
+# If -ComputerName was passed to a top-level script, forward execution to the
+# remote test machine via tools\remote.ps1 and exit. Returns $true when the
+# command was forwarded (caller should exit), $false otherwise.
+function Get-XdpDefaultRemoteRoot {
+    return 'C:\xdp'
+}
+
+function Invoke-XdpRemoteIfRequested {
+    [CmdletBinding()]
+    param (
+        # The MyInvocation.MyCommand of the caller; used to compute repo-relative path.
+        [Parameter(Mandatory = $true)] $InvocationCommand,
+        # The PSBoundParameters of the caller.
+        [Parameter(Mandatory = $true)] $BoundParameters,
+        # Whether the caller's workflow needs the artifacts\bin tree on the
+        # remote. Scripts that only operate on machine state (e.g.
+        # prepare-machine.ps1, check-drivers.ps1) should pass $false to
+        # avoid pushing large binaries unnecessarily.
+        [bool]$DeployArtifacts = $true,
+        # Build config/platform for the deploy step.
+        [string]$Config = '',
+        [string]$Platform = ''
+    )
+
+    $ComputerName = $null
+    if ($BoundParameters.ContainsKey('ComputerName')) {
+        $ComputerName = [string]$BoundParameters['ComputerName']
+    }
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        # Fall back to a session-scoped default set via
+        # Set-XdpRemoteDefault. Lets developers stop retyping
+        # -ComputerName on every command.
+        $defaultVar = Get-Variable -Name XdpRemoteDefault -Scope Global -ErrorAction SilentlyContinue
+        if ($defaultVar -and -not [string]::IsNullOrEmpty([string]$defaultVar.Value)) {
+            $ComputerName = [string]$defaultVar.Value
+            Write-Host "Using session-default remote computer: $ComputerName" -ForegroundColor DarkGray
+        }
+    }
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        return $false
+    }
+
+    $Credential = $null
+    if ($BoundParameters.ContainsKey('Credential')) { $Credential = $BoundParameters['Credential'] }
+    $RemoteRoot = Get-XdpDefaultRemoteRoot
+    if ($BoundParameters.ContainsKey('RemoteRoot') -and -not [string]::IsNullOrEmpty([string]$BoundParameters['RemoteRoot'])) {
+        $RemoteRoot = [string]$BoundParameters['RemoteRoot']
+    }
+    $SkipDeploy = $false
+    if ($BoundParameters.ContainsKey('SkipDeploy')) { $SkipDeploy = [bool]$BoundParameters['SkipDeploy'] }
+
+    # Strip parameters that are meaningful only on the dev machine before
+    # forwarding to the remote.
+    $remoteArgs = @{}
+    foreach ($key in @($BoundParameters.Keys)) {
+        if ($key -in @('ComputerName','Credential','RemoteRoot','SkipDeploy')) { continue }
+        $remoteArgs[$key] = $BoundParameters[$key]
+    }
+
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    $RemoteScript = $InvocationCommand.Path
+    if ([string]::IsNullOrEmpty($RemoteScript)) {
+        Write-Error "Unable to determine caller script path for remote forwarding."
+    }
+    $RelScript = $RemoteScript.Substring($RootDir.Length).TrimStart('\','/')
+
+    $RemoteScriptPs1 = "$RootDir\tools\remote.ps1"
+
+    if (-not $SkipDeploy) {
+        $deployArgs = @{
+            ComputerName = $ComputerName
+            RemoteRoot   = $RemoteRoot
+        }
+        if (-not [string]::IsNullOrEmpty($Config))   { $deployArgs.Config   = $Config }
+        if (-not [string]::IsNullOrEmpty($Platform)) { $deployArgs.Platform = $Platform }
+        if (-not $DeployArtifacts) { $deployArgs.SkipArtifacts = $true }
+        if ($Credential) { $deployArgs.Credential = $Credential }
+        & $RemoteScriptPs1 -Deploy @deployArgs
+    }
+
+    $invokeArgs = @{
+        ComputerName = $ComputerName
+        RemoteRoot   = $RemoteRoot
+        ScriptPath   = $RelScript
+        ArgumentList = $remoteArgs
+    }
+    if ($Credential) { $invokeArgs.Credential = $Credential }
+    & $RemoteScriptPs1 -Invoke @invokeArgs
+
+    return $true
+}
+
 function Get-XdpBuildVersionString {
+    param (
+        [string]$ExtraMoniker = ""
+    )
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
 
@@ -215,7 +315,11 @@ function Get-XdpBuildVersionString {
         }
         $VersionString = $TagVersion
     } else {
-        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+        $VersionString += "-prerelease-"
+        if (-not [string]::IsNullOrEmpty($ExtraMoniker)) {
+            $VersionString += "$ExtraMoniker-"
+        }
+        $VersionString += (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 
     return $VersionString;
@@ -359,5 +463,22 @@ function New-PerfData {
         OsBuild = Get-OsBuildVersionString
         MachineName = $env:ComputerName
         Metrics = $Metrics
+    }
+}
+
+# Helper to start (with retry) a service.
+function Start-Service-With-Retry($Name) {
+    Write-Verbose "Start-Service $Name"
+    $StartSuccess = $false
+    for ($i=0; $i -lt 100; $i++) {
+        try {
+            Start-Sleep -Milliseconds 10
+            Start-Service $Name
+            $StartSuccess = $true
+            break
+        } catch { }
+    }
+    if ($StartSuccess -eq $false) {
+        Write-Error "Failed to start $Name"
     }
 }

@@ -18,6 +18,7 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <functional>
 #include <lm.h>
 #include <sddl.h>
 #include <string.h>
@@ -660,6 +661,30 @@ public:
             PowershellPrefix, _IfDesc);
         return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
     }
+
+    HRESULT
+    TryDisable() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(
+            CmdBuff,
+            "%s /c \"Disable-NetAdapter -ifDesc '%s' -Confirm:$false\"",
+            PowershellPrefix, _IfDesc);
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
+    }
+
+    HRESULT
+    TryEnable() const
+    {
+        CHAR CmdBuff[256];
+        RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+        sprintf_s(
+            CmdBuff,
+            "%s /c \"Enable-NetAdapter -ifDesc '%s'\"",
+            PowershellPrefix, _IfDesc);
+        return HRESULT_FROM_WIN32(InvokeSystem(CmdBuff));
+    }
 };
 
 static TestInterface FnMpIf(FNMP_IF_DESC, FNMP_IPV4_ADDRESS, FNMP_IPV6_ADDRESS);
@@ -776,6 +801,29 @@ SetDeviceSddl(
 }
 
 static
+VOID
+SetObjectDeviceSddl(
+    _In_z_ const CHAR *ObjectType,
+    _In_z_ const CHAR *Sddl
+    )
+{
+    CHAR XdpBinaryPath[MAX_PATH];
+    UINT32 XdpBinaryPathLength;
+    CHAR CmdBuff[256];
+
+    XdpBinaryPathLength =
+        GetEnvironmentVariableA("_XDP_BINARIES_PATH", XdpBinaryPath, sizeof(XdpBinaryPath));
+    TEST_NOT_EQUAL(0, XdpBinaryPathLength);
+    TEST_TRUE(XdpBinaryPathLength <= sizeof(XdpBinaryPath));
+
+    RtlZeroMemory(CmdBuff, sizeof(CmdBuff));
+    sprintf_s(
+        CmdBuff, "%s\\xdpcfg.exe SetDeviceSddl %s \"%s\"",
+        XdpBinaryPath, ObjectType, Sddl);
+    TEST_EQUAL(0, InvokeSystem(CmdBuff));
+}
+
+static
 HRESULT
 TryCreateSocket(
     _Inout_ wil::unique_handle &Socket
@@ -810,11 +858,12 @@ static
 VOID
 InitUmem(
     _Out_ XSK_UMEM_REG *UmemRegistration,
-    VOID *UmemBuffer
+    VOID *UmemBuffer,
+    UINT32 ChunkSize = DEFAULT_UMEM_CHUNK_SIZE
     )
 {
     UmemRegistration->TotalSize = DEFAULT_UMEM_SIZE;
-    UmemRegistration->ChunkSize = DEFAULT_UMEM_CHUNK_SIZE;
+    UmemRegistration->ChunkSize = ChunkSize;
     UmemRegistration->Headroom = DEFAULT_UMEM_HEADROOM;
     UmemRegistration->Address = UmemBuffer;
 }
@@ -1189,11 +1238,12 @@ VOID
 XskSetupPreBind(
     _Inout_ MY_SOCKET *Socket,
     _In_opt_ const XDP_HOOK_ID *RxHookId = nullptr,
-    _In_opt_ const XDP_HOOK_ID *TxHookId = nullptr
+    _In_opt_ const XDP_HOOK_ID *TxHookId = nullptr,
+    _In_opt_ UINT32 ChunkSize = DEFAULT_UMEM_CHUNK_SIZE
     )
 {
     Socket->Umem.Buffer = AllocUmemBuffer();
-    InitUmem(&Socket->Umem.Reg, Socket->Umem.Buffer.get());
+    InitUmem(&Socket->Umem.Reg, Socket->Umem.Buffer.get(), ChunkSize);
     SetUmem(Socket->Handle.get(), &Socket->Umem.Reg);
 
     if (RxHookId != nullptr) {
@@ -1214,14 +1264,15 @@ CreateAndBindSocket(
     XDP_MODE XdpMode,
     XSK_BIND_FLAGS BindFlags = XSK_BIND_FLAG_NONE,
     const XDP_HOOK_ID *RxHookId = nullptr,
-    const XDP_HOOK_ID *TxHookId = nullptr
+    const XDP_HOOK_ID *TxHookId = nullptr,
+    UINT32 ChunkSize = DEFAULT_UMEM_CHUNK_SIZE
     )
 {
     MY_SOCKET Socket = {0};
 
     Socket.Handle = CreateSocket();
 
-    XskSetupPreBind(&Socket, RxHookId, TxHookId);
+    XskSetupPreBind(&Socket, RxHookId, TxHookId, ChunkSize);
 
     if (Rx) {
         BindFlags |= XSK_BIND_FLAG_RX;
@@ -5744,9 +5795,15 @@ SecurityAdjustDeviceAcl()
     sprintf_s(SddlBuff, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
 
     SetDeviceSddl(SddlBuff);
+    SetObjectDeviceSddl("program", SddlBuff);
+    SetObjectDeviceSddl("xsk", SddlBuff);
+    SetObjectDeviceSddl("interface", SddlBuff);
     auto ResetSddl = wil::scope_exit([&]
     {
         SetDeviceSddl(DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("program", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("xsk", DEFAULT_XDP_SDDL);
+        SetObjectDeviceSddl("interface", DEFAULT_XDP_SDDL);
 
         HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
         if (FAILED(Result)) {
@@ -5768,6 +5825,150 @@ SecurityAdjustDeviceAcl()
 
         CreateSocket();
         InterfaceOpen(If.GetIfIndex());
+    }
+}
+
+VOID
+SecurityPerObjectDeviceAcl()
+{
+    PCWSTR UserName = L"xdpfnuser2";
+    WCHAR UserPassword[16 + 1];
+    USER_INFO_1 UserInfo = {0};
+    NET_API_STATUS UserStatus;
+    SE_SID UserSid;
+    SID_NAME_USE UserSidUse;
+    auto If = FnMpIf;
+
+    //
+    // Create a standard, non-admin user on the local system and create a logon
+    // session for them.
+    //
+
+    UserInfo.usri1_name = (PWSTR)UserName;
+    UserInfo.usri1_password = (PWSTR)UserPassword;
+    UserInfo.usri1_priv = USER_PRIV_USER;
+    UserInfo.usri1_flags = UF_SCRIPT | UF_PASSWD_NOTREQD | UF_DONT_EXPIRE_PASSWD;
+
+    for (UINT32 i = 0; i < 10; i++) {
+        GenerateTestPassword(UserPassword, RTL_NUMBER_OF(UserPassword));
+
+        UserStatus = NetUserAdd(NULL, 1, (BYTE *)&UserInfo, NULL);
+        if (UserStatus == NERR_Success) {
+            break;
+        }
+    }
+
+    TEST_EQUAL(NERR_Success, UserStatus);
+
+    auto UserRemove = wil::scope_exit([&]
+    {
+        NET_API_STATUS UserStatus = NetUserDel(NULL, UserName);
+
+        if (UserStatus != NERR_Success) {
+            TEST_WARNING("NetUserDel failed: %x", UserStatus);
+        }
+    });
+
+    wil::unique_handle Token;
+    TEST_TRUE(LogonUserW(
+        UserName, L".", UserPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &Token));
+
+    DWORD SidSize = sizeof(UserSid);
+    WCHAR Domain[256];
+    DWORD DomainSize = RTL_NUMBER_OF(Domain);
+
+    TEST_TRUE(LookupAccountNameW(
+        NULL, UserName, &UserSid.Sid, &SidSize, Domain, &DomainSize, &UserSidUse));
+
+    wil::unique_hlocal_ansistring SidString;
+    TEST_TRUE(ConvertSidToStringSidA(&UserSid.Sid, wil::out_param(SidString)));
+
+    CHAR GrantSddl[256];
+    RtlZeroMemory(GrantSddl, sizeof(GrantSddl));
+    sprintf_s(GrantSddl, DEFAULT_XDP_SDDL "(A;;GA;;;%s)", SidString.get());
+
+    //
+    // Define each per-object-type device and the operation that exercises it.
+    //
+    struct PER_OBJECT_TYPE {
+        const CHAR *Name;
+        std::function<HRESULT()> TryOpen;
+    };
+    const PER_OBJECT_TYPE ObjectTypes[] = {
+        {
+            "program",
+            [&]() -> HRESULT {
+                wil::unique_handle ProgramHandle;
+                XDP_RULE Rule = {};
+                Rule.Match = XDP_MATCH_ALL;
+                Rule.Action = XDP_PROGRAM_ACTION_PASS;
+                return TryCreateXdpProg(
+                    ProgramHandle, If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(),
+                    XDP_GENERIC, &Rule, 1);
+            },
+        },
+        {
+            "xsk",
+            [&]() -> HRESULT {
+                wil::unique_handle Socket;
+                return TryCreateSocket(Socket);
+            },
+        },
+        {
+            "interface",
+            [&]() -> HRESULT {
+                wil::unique_handle Interface;
+                return TryInterfaceOpen(If.GetIfIndex(), Interface);
+            },
+        },
+        {
+            "map",
+            [&]() -> HRESULT {
+                wil::unique_handle Map;
+                return XdpMapCreate(&Map, XDP_MAP_TYPE_XSKMAP);
+            },
+        },
+    };
+
+    //
+    // Restore default ACLs on all per-object-type devices when the test exits.
+    //
+    auto ResetSddl = wil::scope_exit([&]
+    {
+        for (auto &Object : ObjectTypes) {
+            SetObjectDeviceSddl(Object.Name, DEFAULT_XDP_SDDL);
+        }
+
+        HRESULT Result = TryRestartService(XDP_SERVICE_NAME);
+        if (FAILED(Result)) {
+            TEST_WARNING("TryRestartService(XDP_SERVICE_NAME) failed: %x", Result);
+        }
+    });
+
+    //
+    // For each per-object-type device, grant the standard user access to only
+    // that device. Verify the corresponding operation succeeds and that all
+    // other operations are denied.
+    //
+    for (auto &Granted : ObjectTypes) {
+        for (auto &Object : ObjectTypes) {
+            const CHAR *Sddl = (&Object == &Granted) ? GrantSddl : DEFAULT_XDP_SDDL;
+            SetObjectDeviceSddl(Object.Name, Sddl);
+        }
+
+        TEST_HRESULT(TryRestartService(XDP_SERVICE_NAME));
+
+        TEST_TRUE(ImpersonateLoggedOnUser(Token.get()));
+        auto Unimpersonate = wil::scope_exit([&]
+        {
+            RevertToSelf();
+        });
+
+        for (auto &Object : ObjectTypes) {
+            HRESULT ExpectedResult =
+                (&Object == &Granted) ? S_OK : HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED);
+            TEST_EQUAL(ExpectedResult, Object.TryOpen());
+        }
     }
 }
 
@@ -7673,7 +7874,16 @@ GenericRxOriginalLength()
     ETHERNET_ADDRESS LocalHw, RemoteHw;
     INET_ADDR LocalIp, RemoteIp;
 
-    auto Xsk = CreateAndBindSocket(If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC);
+    //
+    // Use a UMEM chunk size that is smaller than the RX indication so that the
+    // XSK frame is truncated, but the original length extension still reports
+    // the full indication size.
+    //
+    const UINT32 ChunkSize = 64;
+    auto Xsk =
+        CreateAndBindSocket(
+            If.GetIfIndex(), If.GetQueueId(), Rx, Tx, XDP_GENERIC,
+            XSK_BIND_FLAG_NONE, nullptr, nullptr, ChunkSize);
     auto UdpSocket = CreateUdpSocket(Af, NULL, &LocalPort);
     auto GenericMp = MpOpenGeneric(If.GetIfIndex());
 
@@ -7690,13 +7900,19 @@ GenericRxOriginalLength()
     If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
 
     RX_FRAME RxFrame;
-    UCHAR UdpPayload[] = "GenericRxOriginalLength";
+    UCHAR UdpPayload[ChunkSize * 4] = "GenericRxOriginalLength";
     UCHAR UdpFrame[UDP_HEADER_STORAGE + sizeof(UdpPayload)];
     UINT32 UdpFrameLength = sizeof(UdpFrame);
     TEST_TRUE(
         PktBuildUdpFrame(
             UdpFrame, &UdpFrameLength, UdpPayload, sizeof(UdpPayload), &LocalHw,
             &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+
+    //
+    // Ensure the indication is larger than the XSK chunk size so truncation
+    // occurs.
+    //
+    TEST_TRUE(UdpFrameLength > ChunkSize);
 
     SocketProduceRxFill(&Xsk, 1);
 
@@ -7709,6 +7925,12 @@ GenericRxOriginalLength()
 
     XSK_FRAME_DESCRIPTOR *RxDesc = SocketGetRxFrameDesc(&Xsk, ConsumerIndex++);
     TEST_TRUE(Xsk.Extensions.RxOriginalLengthExtension != 0);
+
+    //
+    // The XSK frame data length should be truncated to the chunk size, but the
+    // original length extension should report the full indication size.
+    //
+    TEST_EQUAL(ChunkSize, RxDesc->Buffer.Length);
 
     XSK_FRAME_ORIGINAL_LENGTH *OriginalLength =
         (XSK_FRAME_ORIGINAL_LENGTH *)RTL_PTR_ADD(RxDesc, Xsk.Extensions.RxOriginalLengthExtension);
@@ -10587,6 +10809,555 @@ GenericXskUmemReg()
             Socket.Handle.get(), XSK_SOCKOPT_UMEM_REG, &UmemReg2, sizeof(UmemReg2));
         TEST_EQUAL(HRESULT_FROM_WIN32(ERROR_BAD_COMMAND), Result);
     }
+}
+
+VOID
+XskMapCreateInsertDelete()
+{
+    //
+    // Create an XSKMAP, insert an XSK, delete the entry, and close the map.
+    //
+    auto If = FnMpIf;
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    TEST_TRUE(XskMap.get() != NULL);
+
+    UINT32 Key;
+    HANDLE Value = Xsk.Handle.get();
+
+    //
+    // Insert XSK at key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert XSK at maximum valid key (128 entries, 0-indexed).
+    //
+    Key = 127;
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Insert at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapInsert(XskMap.get(), &Key, &Value));
+
+    //
+    // Delete key 0.
+    //
+    Key = 0;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete at invalid key should fail.
+    //
+    Key = 128;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_INVALID_PARAMETER),
+        XdpMapDelete(XskMap.get(), &Key));
+
+    //
+    // Delete a key that doesn't have an entry (should succeed).
+    //
+    Key = 1;
+    TEST_HRESULT(XdpMapDelete(XskMap.get(), &Key));
+}
+
+VOID
+GenericRxXskMapRedirect(
+    _In_ ADDRESS_FAMILY Af
+    )
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    if (Af == AF_INET) {
+        If.GetIpv4Address(&LocalIp.Ipv4);
+        If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+    } else {
+        If.GetIpv6Address(&LocalIp.Ipv6);
+        If.GetRemoteIpv6Address(&RemoteIp.Ipv6);
+    }
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP and insert the XSK at the queue ID key.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 InsertKey = If.GetQueueId();
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &InsertKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirect";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 2);
+
+    //
+    // Indicate a packet on the right RX queue.
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify the packet is received by the XSK socket.
+    //
+    UINT32 ConsumerIndex = SocketConsumerReserve(&Xsk.Rings.Rx, 1);
+    TEST_EQUAL(1, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+    auto RxDesc = SocketGetAndFreeRxDesc(&Xsk, ConsumerIndex);
+    TEST_EQUAL(PacketBufferLength, RxDesc->Length);
+    TEST_TRUE(
+        RtlEqualMemory(
+            Xsk.Umem.Buffer.get() + RxDesc->Address.BaseAddress + RxDesc->Address.Offset,
+            PacketBuffer,
+            PacketBufferLength));
+}
+
+VOID
+GenericRxXskMapRedirectMiss()
+{
+    auto If = FnMpIf;
+    UINT16 LocalPort;
+    UINT16 RemotePort = htons(1234);
+    ETHERNET_ADDRESS LocalHw, RemoteHw;
+    INET_ADDR LocalIp, RemoteIp;
+    ADDRESS_FAMILY Af = AF_INET;
+
+    auto Socket = CreateUdpSocket(Af, &If, &LocalPort);
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+
+    If.GetHwAddress(&LocalHw);
+    If.GetRemoteHwAddress(&RemoteHw);
+    If.GetIpv4Address(&LocalIp.Ipv4);
+    If.GetRemoteIpv4Address(&RemoteIp.Ipv4);
+
+    auto Xsk =
+        CreateAndActivateSocket(
+            If.GetIfIndex(), If.GetQueueId(), TRUE, FALSE, XDP_GENERIC);
+
+    //
+    // Create an XSKMAP but do NOT insert any XSK for the current queue ID.
+    // Insert at a different key instead to verify the miss behavior.
+    //
+    wil::unique_handle XskMap;
+    TEST_HRESULT(XdpMapCreate(&XskMap, XDP_MAP_TYPE_XSKMAP));
+    UINT32 WrongKey = (If.GetQueueId() + 1) % 128;
+    HANDLE InsertValue = Xsk.Handle.get();
+    TEST_HRESULT(XdpMapInsert(XskMap.get(), &WrongKey, &InsertValue));
+
+    //
+    // Create an XDP program with redirect-by-queue-id action.
+    //
+    XDP_RULE Rule;
+    Rule.Match = XDP_MATCH_UDP_DST;
+    Rule.Pattern.Port = LocalPort;
+    Rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+    Rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+    Rule.Redirect.Target = XskMap.get();
+
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1,
+            XDP_CREATE_PROGRAM_FLAG_ALL_QUEUES);
+
+    const UCHAR Payload[] = "GenericRxXskMapRedirectMiss";
+    UINT16 PayloadLength = sizeof(Payload);
+    UCHAR PacketBuffer[UDP_HEADER_STORAGE + sizeof(Payload)];
+    UINT32 PacketBufferLength = sizeof(PacketBuffer);
+
+    SocketProduceRxFill(&Xsk, 1);
+
+    //
+    // Indicate a packet on the RX queue. The XSKMAP has no entry for this
+    // queue ID, so the packet should be dropped (not received by XSK).
+    //
+    RX_FRAME Frame;
+    TEST_TRUE(
+        PktBuildUdpFrame(
+            PacketBuffer, &PacketBufferLength, Payload, PayloadLength, &LocalHw,
+            &RemoteHw, Af, &LocalIp, &RemoteIp, LocalPort, RemotePort));
+    RxInitializeFrame(&Frame, If.GetQueueId(), PacketBuffer, PacketBufferLength);
+    TEST_HRESULT(MpRxIndicateFrame(GenericMp, &Frame));
+
+    //
+    // Verify no packet is received by the XSK socket.
+    //
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS * 2);
+
+    UINT32 ConsumerIndex;
+    TEST_EQUAL(0, XskRingConsumerReserve(&Xsk.Rings.Rx, MAXUINT32, &ConsumerIndex));
+}
+
+static
+HRESULT
+StartPktMonDropCapture(
+    _In_z_ const CHAR *EtlPath
+    )
+{
+    CHAR Cmd[512];
+
+    //
+    // Stop any existing trace session and clear filters before starting a
+    // fresh drop-only capture.
+    //
+    InvokeSystem("pktmon stop >nul 2>&1");
+    InvokeSystem("pktmon filter remove >nul 2>&1");
+    sprintf_s(
+        Cmd, sizeof(Cmd),
+        "pktmon start -c --type drop --pkt-size 256 --file-name %s >nul 2>&1",
+        EtlPath);
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError("StartPktMonDropCapture: pktmon start failed for '%s'", EtlPath);
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+static
+HRESULT
+StopPktMonCapture()
+{
+    if (InvokeSystem("pktmon stop >nul 2>&1") != 0) {
+        TraceError("StopPktMonCapture: pktmon stop failed");
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+static
+HRESULT
+FormatPktMonTrace(
+    _In_z_ const CHAR *EtlPath,
+    _In_z_ const CHAR *TxtPath
+    )
+{
+    CHAR Cmd[512];
+
+    sprintf_s(Cmd, sizeof(Cmd), "pktmon format %s -o %s >nul 2>&1", EtlPath, TxtPath);
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError("FormatPktMonTrace: pktmon format failed for '%s'", EtlPath);
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+static
+HRESULT
+ReadNumberFromFile(
+    _In_z_ const CHAR *FilePath,
+    _Out_ UINT32 *Value
+    )
+{
+    *Value = 0;
+
+    FILE *f = NULL;
+    fopen_s(&f, FilePath, "r");
+    if (f == NULL) {
+        TraceError("ReadNumberFromFile failed to open '%s'", FilePath);
+        return E_FAIL;
+    }
+
+    CHAR Buf[16] = {};
+    fgets(Buf, sizeof(Buf), f);
+    fclose(f);
+
+    *Value = (UINT32)atoi(Buf);
+    return S_OK;
+}
+
+static
+HRESULT
+GetPktMonComponentId(
+    _In_z_ const CHAR *TxtPath,
+    _In_z_ const CHAR *ComponentName,
+    _In_ UINT32 IfIndex,
+    _Out_ UINT32 *CompId
+    )
+{
+    CHAR Cmd[1024];
+    CHAR IdFilePath[MAX_PATH];
+
+    *CompId = 0;
+
+    //
+    // Find the pktmon component ID for the given driver name and interface
+    // index. The formatted trace contains registration lines of the form:
+    //   "Component <id>, Type Filter , Name <driver>, <description>"
+    // followed by property lines:
+    //   "Property: Component <id>, MiniportIfIndex  = <ifindex>"
+    // We match both to identify the correct component. Writes 0 if not found.
+    //
+    sprintf_s(IdFilePath, sizeof(IdFilePath), "%s.compid", TxtPath);
+    auto CleanupIdFile = wil::scope_exit([&] { DeleteFileA(IdFilePath); });
+
+    sprintf_s(
+        Cmd, sizeof(Cmd),
+        "%s /c \""
+        "$txt = Get-Content '%s'; "
+        "$ids = $txt | Select-String 'Component (\\d+), Type Filter.*%s.*XDP GENERIC' "
+        "  | ForEach-Object { $_.Matches[0].Groups[1].Value }; "
+        "$id = $ids | Where-Object { "
+        "  $txt | Select-String -Pattern ('Property: Component ' + $_ + ', MiniportIfIndex\\s+=\\s+%u') -Quiet "
+        "} | Select-Object -First 1; "
+        "if ($id) { Set-Content '%s' $id } else { Set-Content '%s' 0 }\"",
+        PowershellPrefix, TxtPath, ComponentName, IfIndex, IdFilePath, IdFilePath);
+
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError(
+            "GetPktMonComponentId: script execution failed for '%s' IfIndex=%u",
+            ComponentName, IfIndex);
+        return E_FAIL;
+    }
+
+    return ReadNumberFromFile(IdFilePath, CompId);
+}
+
+static
+HRESULT
+GetPktMonComponentDropCount(
+    _In_z_ const CHAR *TxtPath,
+    _In_ UINT32 CompId,
+    _Out_ UINT32 *DropCount
+    )
+{
+    CHAR Cmd[512];
+    CHAR CountFilePath[MAX_PATH];
+
+    *DropCount = 0;
+
+    //
+    // Count the number of drop events referencing the given component ID.
+    //
+    sprintf_s(CountFilePath, sizeof(CountFilePath), "%s.dropcount", TxtPath);
+    auto CleanupCountFile = wil::scope_exit([&] { DeleteFileA(CountFilePath); });
+
+    sprintf_s(
+        Cmd, sizeof(Cmd),
+        "%s /c \""
+        "$n = (Select-String -Path '%s' -Pattern 'Drop:.*Component %u,').Count; "
+        "Set-Content '%s' $n\"",
+        PowershellPrefix, TxtPath, CompId, CountFilePath);
+
+    if (InvokeSystem(Cmd) != 0) {
+        TraceError("GetPktMonComponentDropCount: query failed for CompId=%u", CompId);
+        return E_FAIL;
+    }
+
+    return ReadNumberFromFile(CountFilePath, DropCount);
+}
+
+static
+HRESULT
+ExercisePktMonDrop(
+    _In_ const TestInterface &If,
+    _In_z_ const CHAR *EtlPath,
+    _In_z_ const CHAR *TxtPath
+    )
+{
+    auto GenericMp = MpOpenGeneric(If.GetIfIndex());
+    const UCHAR Payload[] = "PktMonDropVerify";
+
+    //
+    // Create a program that drops all RX traffic.
+    //
+    XDP_RULE Rule = {};
+    Rule.Match = XDP_MATCH_ALL;
+    Rule.Action = XDP_PROGRAM_ACTION_DROP;
+    wil::unique_handle ProgramHandle =
+        CreateXdpProg(
+            If.GetIfIndex(), &XdpInspectRxL2, If.GetQueueId(), XDP_GENERIC, &Rule, 1);
+
+    //
+    // Start a pktmon drop capture.
+    //
+    HRESULT Hr = StartPktMonDropCapture(EtlPath);
+    if (FAILED(Hr)) {
+        return Hr;
+    }
+
+    //
+    // Inject a packet.
+    //
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    Hr = MpRxEnqueueFrame(GenericMp, &Frame);
+    if (FAILED(Hr)) {
+        TraceError("ExercisePktMonDrop: MpRxEnqueueFrame failed Hr=%!HRESULT!", Hr);
+        return Hr;
+    }
+    MpRxFlush(GenericMp);
+
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+    //
+    // Stop the trace.
+    //
+    Hr = StopPktMonCapture();
+    if (FAILED(Hr)) {
+        return Hr;
+    }
+
+    //
+    // Format the trace to text for analysis.
+    //
+    return FormatPktMonTrace(EtlPath, TxtPath);
+}
+
+VOID
+GenericPktMonRegistration()
+{
+    const CHAR *EtlPath = "C:\\pktmon_xdp_test.etl";
+    const CHAR *TxtPath = "C:\\pktmon_xdp_test.etl.txt";
+    UINT32 CompId;
+    UINT32 DropCount;
+
+    //
+    // Disable any Mellanox ConnectX-5 Virtual Adapters for the duration of this
+    // test case. These adapters bugcheck when subjected to Disable/Enable-NetAdapter
+    // cycles combined with pktmon tracing in certain CI environments and are not
+    // needed for the test case.
+    //
+    static const CHAR *MellanoxFilter =
+        "Where-Object { $_.InterfaceDescription -like 'Mellanox ConnectX-5 Virtual Adapter*' }";
+    CHAR CmdBuff[512];
+    sprintf_s(
+        CmdBuff, sizeof(CmdBuff),
+        "%s /c \"Get-NetAdapter | %s | Disable-NetAdapter -Confirm:$false -ErrorAction SilentlyContinue\"",
+        PowershellPrefix, MellanoxFilter);
+    InvokeSystem(CmdBuff);
+    auto RestoreMellanox = wil::scope_exit([&] {
+        CHAR Cmd[512];
+        sprintf_s(
+            Cmd, sizeof(Cmd),
+            "%s /c \"Get-NetAdapter -IncludeHidden | %s | Enable-NetAdapter -ErrorAction SilentlyContinue\"",
+            PowershellPrefix, MellanoxFilter);
+        InvokeSystem(Cmd);
+    });
+
+    //
+    // Capture the original pktmon service state and restore it on exit.
+    //
+    UINT32 OriginalServiceState;
+    TEST_HRESULT(GetServiceState(&OriginalServiceState, "pktmon"));
+    auto RestorePktMon = wil::scope_exit([&] {
+        InvokeSystem("pktmon stop >nul 2>&1");
+        if (OriginalServiceState == SERVICE_RUNNING) {
+            (VOID)TryStartService("pktmon");
+        } else {
+            (VOID)TryStopService("pktmon");
+        }
+    });
+
+    auto CleanupFiles = wil::scope_exit([&] {
+        DeleteFileA(TxtPath);
+        DeleteFileA(EtlPath);
+    });
+
+    //
+    // Disable the test adapter and stop pktmon to start from a known state.
+    //
+    TEST_HRESULT(FnMpIf.TryDisable());
+    auto RestoreAdapter = wil::scope_exit([&] {
+        (VOID)FnMpIf.TryEnable();
+    });
+    (VOID)TryStopService("pktmon");
+
+    //
+    // Enable the adapter while pktmon is already loaded.
+    // Verify XDP drops are visible in pktmon traces.
+    //
+    TEST_HRESULT(TryStartService("pktmon"));
+    TEST_HRESULT(FnMpIf.TryEnable());
+
+    TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
+
+    //
+    // Disable the adapter. This deregisters the XDP pktmon component.
+    // Verify the component is no longer registered.
+    //
+    TEST_HRESULT(FnMpIf.TryDisable());
+
+    TEST_HRESULT(StartPktMonDropCapture(EtlPath));
+    TEST_HRESULT(StopPktMonCapture());
+    TEST_HRESULT(FormatPktMonTrace(EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_EQUAL(0, CompId);
+
+    //
+    // Load pktmon after the adapter is already enabled.
+    // The registration callback should register the pre-existing binding,
+    // so drops should appear in pktmon traces.
+    //
+    TEST_HRESULT(TryStopService("pktmon"));
+    TEST_HRESULT(FnMpIf.TryEnable());
+    TEST_HRESULT(TryStartService("pktmon"));
+
+    TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
+
+    //
+    // Restart pktmon while the adapter is enabled.
+    // The registration callback should re-register the binding.
+    //
+    TEST_HRESULT(TryRestartService("pktmon"));
+
+    TEST_HRESULT(ExercisePktMonDrop(FnMpIf, EtlPath, TxtPath));
+    TEST_HRESULT(GetPktMonComponentId(TxtPath, "xdp.sys", FnMpIf.GetIfIndex(), &CompId));
+    TEST_NOT_EQUAL(0, CompId);
+    TEST_HRESULT(GetPktMonComponentDropCount(TxtPath, CompId, &DropCount));
+    TEST_TRUE(DropCount > 0);
 }
 
 /**

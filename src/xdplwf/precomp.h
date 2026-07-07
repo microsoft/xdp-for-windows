@@ -75,5 +75,6 @@
 #include "offloadrss.h"
 #include "offloadtask.h"
 #include "oid.h"
+#include "pktmon.h"
 #include "recv.h"
 #include "send.h"

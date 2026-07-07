@@ -41,14 +41,21 @@ param (
     [string]$XdpmpPollProvider = "NDIS",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("MSI", "INF", "NuGet")]
-    [string]$XdpInstaller = "MSI",
+    [ValidateSet("INF", "NuGet")]
+    [string]$XdpInstaller = "NuGet",
 
     [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $false,
 
     [Parameter(Mandatory = $false)]
-    [switch]$PaLayer = $false
+    [switch]$PaLayer = $false,
+
+    # When set, propagates -Force to the underlying xdpruntime\xdp-setup.ps1
+    # so that normally-fatal uninstall errors (e.g. xdpbpfexport --clear
+    # failing because the eBPF store registry was wedged by a bugcheck) are
+    # downgraded to warnings. Use only for recovery scenarios.
+    [Parameter(Mandatory = $false)]
+    [switch]$Force = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -73,7 +80,6 @@ $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
 # Determine the XDP build version string from xdp.sys. The Windows file version
 # format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
 $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
-$XdpMsiFullPath = "$ArtifactsDir\xdp-for-windows.$Platform.$XdpFileVersion.msi"
 $XdpRuntimeNupkgNativePath = "runtime/native"
 $XdpRuntimeNupkgSetupPath = "$XdpRuntimeNupkgNativePath/xdp-setup.ps1"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
@@ -94,23 +100,6 @@ function Uninstall-Failure($FileName) {
 
     Write-Host "##vso[task.setvariable variable=NeedsReboot]true"
     Write-Error "Uninstall failed"
-}
-
-# Helper to start (with retry) a service.
-function Start-Service-With-Retry($Name) {
-    Write-Verbose "Start-Service $Name"
-    $StartSuccess = $false
-    for ($i=0; $i -lt 100; $i++) {
-        try {
-            Start-Sleep -Milliseconds 10
-            Start-Service $Name
-            $StartSuccess = $true
-            break
-        } catch { }
-    }
-    if ($StartSuccess -eq $false) {
-        Write-Error "Failed to start $Name"
-    }
 }
 
 # Helper to rename (with retry) a network adapter. On WS2022, renames sometimes
@@ -284,29 +273,7 @@ function Install-Xdp {
     Install-SignedDriverCertificate $XdpCat
     Install-DebugCrt
 
-    if ($XdpInstaller -eq "MSI") {
-        $XdpPath = Get-XdpInstallPath
-        $XdpBinariesPath = $XdpPath
-
-        $AddLocal = @()
-
-        if ($EnableEbpf) {
-            $AddLocal += "xdp_ebpf"
-        }
-        if ($PaLayer) {
-            $AddLocal += "xdp_pa"
-        }
-        if ($AddLocal) {
-            $AddLocal = "ADDLOCAL=$($AddLocal -join ",")"
-        }
-
-        Write-Verbose "msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt"
-        msiexec.exe /i $XdpMsiFullPath INSTALLFOLDER=$XdpPath $AddLocal /quiet /l*v $LogsDir\xdpinstall.txt | Write-Verbose
-
-        if ($LastExitCode -ne 0) {
-            Write-Error "XDP MSI installation failed: $LastExitCode"
-        }
-    } elseif ($XdpInstaller -eq "NuGet") {
+    if ($XdpInstaller -eq "NuGet") {
         $XdpPath = Get-XdpInstallPath
         $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
@@ -357,57 +324,7 @@ function Install-Xdp {
 
 # Uninstalls the xdp driver.
 function Uninstall-Xdp {
-    if ($XdpInstaller -eq "MSI") {
-        $XdpPath = Get-XdpInstallPath
-
-        if (!(Test-Path $XdpPath)) {
-            Write-Verbose "$XdpPath does not exist. Assuming XDP is not installed."
-            return
-        }
-
-        Write-Verbose "msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt"
-        msiexec.exe /x $XdpMsiFullPath /quiet /l*v $LogsDir\xdpuninstall.txt | Write-Verbose
-        Write-Verbose "msiexec.exe returned $LastExitCode"
-
-        if ($LastExitCode -eq 0x645) {
-            Write-Warning "XDP is present but the MSI is not installed. Trying to use the installation's setup script..."
-
-            $XdpSetupPath = "$XdpPath/xdp-setup.ps1"
-
-            if (Test-Path "$XdpPath/xdpbpfexport.exe") {
-                Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
-                & $XdpSetupPath -Uninstall xdpebpf
-            }
-            if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
-                Write-Verbose "$XdpSetupPath -Uninstall xdppa"
-                & $XdpSetupPath -Uninstall xdppa
-            }
-            if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
-                Write-Verbose "$XdpSetupPath -Uninstall xdp"
-                & $XdpSetupPath -Uninstall xdp
-            }
-
-            Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
-            Remove-Item $XdpPath -Recurse -Force
-
-            $global:LASTEXITCODE = 0
-        }
-
-        if ($LastExitCode -eq 0x666) {
-            Write-Warning "The current version of XDP could not be uninstalled using MSI. Trying the existing installer..."
-
-            $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'XDP for Windows'").IdentifyingNumber
-
-            Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt"
-            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\xdpuninstallwmi.txt | Write-Verbose
-            Write-Verbose "msiexe.exe returned $LastExitCode"
-        }
-
-        if ($LastExitCode -ne 0) {
-            Write-Error "XDP MSI uninstall failed with status $LastExitCode" -ErrorAction Continue
-            Uninstall-Failure "xdp_uninstall.dmp"
-        }
-    } elseif ($XdpInstaller -eq "NuGet") {
+    if ($XdpInstaller -eq "NuGet") {
         $XdpPath = Get-XdpInstallPath
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
 
@@ -416,17 +333,24 @@ function Uninstall-Xdp {
             return
         }
 
+        # The packaged xdp-setup.ps1 does not necessarily accept -Force, so
+        # only pass it when explicitly requested (recovery scenarios).
+        $ForceArg = @{}
+        if ($Force) {
+            $ForceArg['Force'] = $true
+        }
+
         if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters").PSObject.Properties["XdpEbpfEnabled"]) {
             Write-Verbose "$XdpSetupPath -Uninstall xdpebpf"
-            & $XdpSetupPath -Uninstall xdpebpf
+            & $XdpSetupPath -Uninstall xdpebpf @ForceArg
         }
         if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
             Write-Verbose "$XdpSetupPath -Uninstall xdppa"
-            & $XdpSetupPath -Uninstall xdppa
+            & $XdpSetupPath -Uninstall xdppa @ForceArg
         }
         if (Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) {
             Write-Verbose "$XdpSetupPath -Uninstall xdp"
-            & $XdpSetupPath -Uninstall xdp
+            & $XdpSetupPath -Uninstall xdp @ForceArg
         }
 
         Write-Verbose "Remove-Item $XdpPath -Recurse -Force"
@@ -705,6 +629,10 @@ function Uninstall-Ebpf {
 
         if ($Process.ExitCode -eq 0x645) {
             Write-Warning "eBPF is present but the MSI is not installed. Trying to uninstall services and binaries..."
+
+            Write-Verbose "Stop-Service ebpfsvc"
+            try { Stop-Service ebpfsvc -NoWait } catch { }
+            Cleanup-Service ebpfsvc
 
             Write-Verbose "Stop-Service netebpfext"
             try { Stop-Service netebpfext -NoWait } catch { }

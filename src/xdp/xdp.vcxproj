@@ -16,6 +16,8 @@
     <ClCompile Include="tx.c" />
     <ClCompile Include="xsk.c" />
     <ClCompile Include="ebpfxskmap.c" />
+    <ClCompile Include="map.c" />
+    <ClCompile Include="xskmap.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h" />

@@ -240,6 +240,9 @@ struct QUEUE_CONTEXT {
     HANDLE rss;
     SRWLOCK rssLock;
 
+    HANDLE xskMap;
+    SRWLOCK xskMapLock;
+
     XSK_PROGRAM_SET rxProgramSet;
     XSK_PROGRAM_SET sharedUmemRxProgramSet;
 
@@ -810,7 +813,7 @@ AttachXdpProgram(
             rule.Match = (XDP_MATCH_TYPE)RandUlong();
         }
 
-        switch (RandUlong() % 4) {
+        switch (RandUlong() % 5) {
         case 0:
             rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
             rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
@@ -829,6 +832,20 @@ AttachXdpProgram(
 
         case 3:
             return AttachXdpEbpfProgram(Queue, Sock, RxProgramSet);
+
+        case 4:
+            //
+            // Redirect via the queue's XSKMAP. Snapshot the handle under the
+            // lock; if it is concurrently closed/recreated, the driver may
+            // return an error, which is intentional fuzzing coverage. The map
+            // handle may also be NULL if FuzzXskMap has not (yet) created one.
+            //
+            rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
+            rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSKMAP_BY_QUEUEID;
+            AcquireSRWLockShared(&Queue->xskMapLock);
+            rule.Redirect.Target = Queue->xskMap;
+            ReleaseSRWLockShared(&Queue->xskMapLock);
+            break;
         }
     }
 
@@ -1000,6 +1017,9 @@ CleanupQueue(
     }
     if (Queue->rss != NULL) {
         ASSERT_FRE(CloseHandle(Queue->rss));
+    }
+    if (Queue->xskMap != NULL) {
+        ASSERT_FRE(CloseHandle(Queue->xskMap));
     }
 
     if (Queue->fuzzerShared.pauseEvent != NULL) {
@@ -1324,6 +1344,75 @@ FuzzInterface(
     }
 }
 
+VOID
+FuzzXskMap(
+    _In_ XSK_FUZZER_WORKER *fuzzer,
+    _In_ QUEUE_CONTEXT *queue
+    )
+{
+    UNREFERENCED_PARAMETER(fuzzer);
+
+    if (RandUlong() % 50 == 0) {
+        // Close the map.
+        HANDLE toClose = NULL;
+        AcquireSRWLockExclusive(&queue->xskMapLock);
+        toClose = queue->xskMap;
+        queue->xskMap = NULL;
+        ReleaseSRWLockExclusive(&queue->xskMapLock);
+        if (toClose != NULL) {
+            ASSERT_FRE(CloseHandle(toClose));
+        }
+    }
+
+    if (RandUlong() % 10 == 0) {
+        // (Re)create the map.
+        HANDLE newMap = NULL;
+        HANDLE oldMap = NULL;
+        XdpMapCreate(&newMap, XDP_MAP_TYPE_XSKMAP);
+
+        AcquireSRWLockExclusive(&queue->xskMapLock);
+        oldMap = queue->xskMap;
+        queue->xskMap = newMap;
+        ReleaseSRWLockExclusive(&queue->xskMapLock);
+
+        if (oldMap != NULL) {
+            ASSERT_FRE(CloseHandle(oldMap));
+        }
+    }
+
+    if (RandUlong() % 5 == 0) {
+        //
+        // Use a key that is sometimes out of the supported XSKMAP range to
+        // exercise the parameter validation path. Use the current XSK
+        // socket handle when available, occasionally NULL or the XSKMAP's
+        // own handle to exercise error paths.
+        //
+        UINT32 key = RandUlong() % 200;
+        HANDLE xskHandle;
+
+        AcquireSRWLockShared(&queue->xskMapLock);
+        if (queue->xskMap != NULL) {
+            switch (RandUlong() % 8) {
+            case 0:  xskHandle = NULL; break;
+            case 1:  xskHandle = queue->xskMap; break;
+            default: xskHandle = queue->sock; break;
+            }
+            (void)XdpMapInsert(queue->xskMap, &key, &xskHandle);
+        }
+        ReleaseSRWLockShared(&queue->xskMapLock);
+    }
+
+    if (RandUlong() % 5 == 0) {
+        UINT32 key = RandUlong() % 200;
+
+        AcquireSRWLockShared(&queue->xskMapLock);
+        if (queue->xskMap != NULL) {
+            (void)XdpMapDelete(queue->xskMap, &key);
+        }
+        ReleaseSRWLockShared(&queue->xskMapLock);
+    }
+}
+
 HRESULT
 InitializeQueue(
     _In_ UINT32 QueueId,
@@ -1345,6 +1434,7 @@ InitializeQueue(
     InitializeCriticalSection(&queue->rxProgramSet.Lock);
     InitializeCriticalSection(&queue->sharedUmemRxProgramSet.Lock);
     InitializeSRWLock(&queue->rssLock);
+    InitializeSRWLock(&queue->xskMapLock);
 
     queue->fuzzers = calloc(queue->fuzzerCount, sizeof(*queue->fuzzers));
     if (queue->fuzzers == NULL) {
@@ -2632,6 +2722,8 @@ XskFuzzerWorkerFn(
 
         FuzzInterface(fuzzer, queue);
 
+        FuzzXskMap(fuzzer, queue);
+
         FuzzSocketRxTxSetup(
             queue, queue->sock,
             scenarioConfig->sockRx, scenarioConfig->sockTx,
@@ -3028,6 +3120,37 @@ AdminFn(
                 powershellPrefix);
             exitCode = system(cmdBuff);
             TraceVerbose("admin: query counters exitCode=%d", exitCode);
+        }
+
+        if (!(RandUlong() % 10)) {
+            if (RandUlong() % 2) {
+                //
+                // Ensure pktmon is loaded before starting a trace.
+                //
+                TraceVerbose("admin: starting pktmon service");
+                system("sc.exe start pktmon > nul 2>&1");
+
+                TraceVerbose("admin: starting pktmon trace");
+                switch (RandUlong() % 3) {
+                case 0:
+                    system("pktmon start --capture --type all > nul 2>&1");
+                    break;
+                case 1:
+                    system("pktmon start --capture --type flow > nul 2>&1");
+                    break;
+                case 2:
+                    system("pktmon start --capture --type drop > nul 2>&1");
+                    break;
+                }
+            } else {
+                TraceVerbose("admin: stopping pktmon trace");
+                system("pktmon stop > nul 2>&1");
+
+                if (RandUlong() % 2) {
+                    TraceVerbose("admin: stopping pktmon service");
+                    system("sc.exe stop pktmon > nul 2>&1");
+                }
+            }
         }
     }
 
