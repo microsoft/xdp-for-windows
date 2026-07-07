@@ -53,6 +53,10 @@ $XskFwdProcess = $null
 try {
     & "$RootDir\tools\log.ps1" -Start -Name sample_xskfwd -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
 
+    Write-Verbose "installing ebpf..."
+    & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
+    Write-Verbose "installed ebpf."
+
     Write-Verbose "installing xdp..."
     & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
     Write-Verbose "installed xdp."
@@ -64,10 +68,6 @@ try {
     Write-Verbose "installing xdpmp..."
     & "$RootDir\tools\setup.ps1" -Install xdpmp -Config $Config -Platform $Platform -XdpmpPollProvider FNDIS
     Write-Verbose "installed xdpmp."
-
-    Write-Verbose "installing ebpf..."
-    & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
-    Write-Verbose "installed ebpf."
 
     $IfIndex = (Get-NetAdapter XDPMP).ifIndex
 
@@ -93,9 +93,9 @@ try {
     if ($null -ne $XskFwdProcess -and !$XskFwdProcess.HasExited) {
         Stop-Process -Force -InputObject $XskFwdProcess -ErrorAction 'Continue'
     }
-    & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\log.ps1" -Stop -Name sample_xskfwd -Config $Config -Platform $Platform -ErrorAction 'Continue'
 }
