@@ -13,7 +13,7 @@
 #include <ebpf_private_extension.h>
 #include <xdp/ebpfhook.h>
 
-static const ebpf_context_descriptor_t EbpfXdpContextDescriptor = {
+static const ebpf_ctx_descriptor_t EbpfXdpContextDescriptor = {
     .size = sizeof(xdp_md_t),
     .data = FIELD_OFFSET(xdp_md_t, data),
     .end = FIELD_OFFSET(xdp_md_t, data_end),

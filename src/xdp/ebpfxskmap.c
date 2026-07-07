@@ -282,7 +282,7 @@ Exit:
 }
 
 static
-ebpf_result_t
+void
 XdpXskmapProcessDeleteElement(
     _In_ void *BindingContext,
     _In_ void *MapContext,
@@ -321,7 +321,6 @@ XdpXskmapProcessDeleteElement(
     }
 
     TraceExitSuccess(TRACE_CORE);
-    return EBPF_SUCCESS;
 }
 
 //
@@ -329,12 +328,12 @@ XdpXskmapProcessDeleteElement(
 //
 static ebpf_base_map_provider_dispatch_table_t XdpXskmapProviderDispatchTable = {
     .header = EBPF_BASE_MAP_PROVIDER_DISPATCH_TABLE_HEADER,
-    .process_map_create = XdpXskmapProcessCreate,
-    .process_map_delete = XdpXskmapProcessDelete,
-    .associate_program_function = XdpXskmapAssociateProgramType,
-    .process_map_find_element = XdpXskmapProcessFindElement,
-    .process_map_add_element = XdpXskmapProcessAddElement,
-    .process_map_delete_element = XdpXskmapProcessDeleteElement,
+    .preprocess_map_create = XdpXskmapProcessCreate,
+    .postprocess_map_delete = XdpXskmapProcessDelete,
+    .preprocess_associate_program_type = XdpXskmapAssociateProgramType,
+    .postprocess_map_find_element = XdpXskmapProcessFindElement,
+    .preprocess_map_update_element = XdpXskmapProcessAddElement,
+    .postprocess_map_delete_element = XdpXskmapProcessDeleteElement,
 };
 
 static ebpf_base_map_provider_properties_t XdpXskmapProviderProperties = {
