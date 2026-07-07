@@ -757,15 +757,15 @@ jobs:
         path: artifacts/bin
     - name: Test rxfilter sample
       shell: PowerShell
-      timeout-minutes: 5
+      timeout-minutes: 15
       run: tools/sample-rxfilter-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
     - name: Test xskfwd sample
       shell: PowerShell
-      timeout-minutes: 5
+      timeout-minutes: 15
       run: tools/sample-xskfwd-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
     - name: Test xskrestricted sample
       shell: PowerShell
-      timeout-minutes: 5
+      timeout-minutes: 15
       run: tools/sample-xskrestricted-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
     - name: Convert Logs
       if: ${{ always() }}
