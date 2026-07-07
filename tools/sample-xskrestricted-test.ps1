@@ -52,7 +52,7 @@ try {
     & "$RootDir\tools\log.ps1" -Start -Name sample_xskrestricted -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
+    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
     Write-Verbose "installed xdp."
 
     Write-Verbose "installing fndis..."
