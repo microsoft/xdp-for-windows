@@ -47,7 +47,7 @@ if ($Forwarded) { return }
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 
 for ($i = 0; $i -lt $QueueCount; $i++) {
-    Start-Process $ArtifactsDir\test\rxfilter.exe -ArgumentList `
+    Start-Process $ArtifactsDir\test\rxfilter-deprecated.exe -ArgumentList `
         "-IfIndex", (Get-NetAdapter -Name $AdapterName).ifIndex, `
         "-QueueId", $i, "-MatchType" ,"All", "-Action", $Action, `
         "-XdpMode", $XdpMode

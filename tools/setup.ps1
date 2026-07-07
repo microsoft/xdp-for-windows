@@ -89,7 +89,7 @@ $XdpMpCert = "$ArtifactsDir\test\xdpmp.cer"
 $XdpMpComponentId = "ms_xdpmp"
 $XdpMpDeviceId = "xdpmp0"
 $XdpMpServiceName = "XDPMP"
-$XskFwdKmSys = "$ArtifactsDir\test\xskfwdkm.sys"
+$XskFwdKmSys = "$ArtifactsDir\test\xskfwdkm-deprecated.sys"
 
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null

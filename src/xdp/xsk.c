@@ -1979,7 +1979,25 @@ XskCanRedirect(
 {
     XSK *Xsk = (XSK *)XskHandle;
 
-    return Xsk->State == XskActive && Xsk->Rx.Xdp.Queue == RxQueue;
+    //
+    // Snapshot the state and bound queue once so the tracing below reflects
+    // exactly the values used for the redirect decision.
+    //
+    // N.B. State and Queue are read without holding Xsk->Lock. Diagnostic
+    // tracing is emitted to aid investigation of redirect-decision issues
+    // (e.g. observed arm64-only fallback test failures where a closed or
+    // queue-mismatched socket may be evaluated concurrently with teardown).
+    //
+    XSK_STATE State = Xsk->State;
+    XDP_RX_QUEUE *XskQueue = Xsk->Rx.Xdp.Queue;
+    BOOLEAN CanRedirect = (State == XskActive) && (XskQueue == RxQueue);
+
+    TraceVerbose(
+        TRACE_XSK,
+        "Xsk=%p State=%u XskQueue=%p RxQueue=%p CanRedirect=%u",
+        Xsk, (UINT32)State, XskQueue, RxQueue, (UINT32)CanRedirect);
+
+    return CanRedirect;
 }
 
 static

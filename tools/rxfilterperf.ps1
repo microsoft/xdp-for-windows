@@ -55,7 +55,7 @@ if ($Forwarded -is [array]) { $Forwarded = $Forwarded[-1] }
 if ($Forwarded) { return }
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
-$RxFilter = "$ArtifactsDir\test\rxfilter.exe"
+$RxFilter = "$ArtifactsDir\test\rxfilter-deprecated.exe"
 
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null

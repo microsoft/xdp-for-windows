@@ -35,7 +35,7 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
-$XskRestricted = "$ArtifactsDir\test\xskrestricted.exe"
+$XskRestricted = "$ArtifactsDir\test\xskrestricted-deprecated.exe"
 
 # Verify the binary exists.
 if (!(Test-Path $XskRestricted)) {
