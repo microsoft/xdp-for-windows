@@ -16,7 +16,7 @@
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
     <!-- eBPF-for-windows version -->
-    <XdpEbpfVersion>1.1.0</XdpEbpfVersion>
+    <XdpEbpfVersion>1.3.0</XdpEbpfVersion>
     <XdpWdkVersion>10.0.26100.6584</XdpWdkVersion>
   </PropertyGroup>
   <ItemGroup>

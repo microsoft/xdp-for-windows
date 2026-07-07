@@ -118,27 +118,46 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfVersion {
-    return "1.1.0"
+    return "1.3.0"
+}
+
+# Returns the GitHub release tag for a given eBPF for Windows version. Releases
+# up to and including v1.1.0 use the "Release-v" tag prefix; newer releases use
+# a bare "v" prefix.
+function Get-EbpfReleaseTag {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+    if ([version]$Version -le [version]"1.1.0") {
+        return "Release-v$Version"
+    }
+    return "v$Version"
 }
 
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
     param (
         [Parameter()]
-        [string]$Platform
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$Version = (Get-EbpfVersion)
     )
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfVersion = Get-EbpfVersion
-    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.$Platform.msi"
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$Version.$Platform.msi"
 }
 
 function Get-EbpfMsiUrl {
     param (
         [Parameter()]
-        [string]$Platform
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$Version = (Get-EbpfVersion)
     )
-    $EbpfVersion = Get-EbpfVersion
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$Platform.$EbpfVersion.msi"
+    $Tag = Get-EbpfReleaseTag -Version $Version
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/$Tag/ebpf-for-windows.$Platform.$Version.msi"
 }
 
 function Get-FnVersion {

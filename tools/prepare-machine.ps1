@@ -75,6 +75,11 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$Cleanup = $false,
 
+    # eBPF for Windows runtime version to download/install for test scenarios.
+    # Defaults to the build-time version returned by Get-EbpfVersion.
+    [Parameter(Mandatory = $false)]
+    [string]$EbpfVersion = "",
+
     # Remote execution: when set, deploy + run this script on the named test
     # machine over PowerShell remoting. See tools\remote.ps1 for setup.
     [Parameter(Mandatory = $false)]
@@ -172,11 +177,12 @@ function Download-eBpf-Nuget {
 
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
+    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
 
     if (!(Test-Path $EbpfMsiFullPath)) {
         $EbpfMsiDir = Split-Path $EbpfMsiFullPath
-        $EbpfMsiUrl = Get-EbpfMsiUrl -Platform $Platform
+        $EbpfMsiUrl = Get-EbpfMsiUrl -Platform $Platform -Version $Version
 
         if (!(Test-Path $EbpfMsiDir)) {
             mkdir $EbpfMsiDir | Write-Verbose
