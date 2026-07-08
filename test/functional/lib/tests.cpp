@@ -6861,6 +6861,9 @@ GenericRxEbpfXskRedirectFallbackHelper(
         fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
         TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
 
+        fd_t results_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "results_map");
+        TEST_NOT_EQUAL(results_map_fd, ebpf_fd_invalid);
+
         //
         // The map key and indication queue differ by scenario:
         //  - CloseSocket: XSK bound to queue 0, map key = 0, indicate on queue 0.
@@ -6909,6 +6912,32 @@ GenericRxEbpfXskRedirectFallbackHelper(
         MpRxFlush(GenericMp);
 
         CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+        //
+        // Read back what the eBPF program actually computed and passed to
+        // bpf_redirect_map. This isolates an eBPF-side miscomputation (e.g. an
+        // arm64 JIT issue loading/forwarding the runtime fallback value) from an
+        // XDP-side helper issue when the redirect fallback path misbehaves.
+        //
+        {
+            UINT32 ResultKey;
+            UINT64 ProgIndex = MAXUINT64;
+            UINT64 ProgFallback = MAXUINT64;
+
+            ResultKey = 0;
+            TEST_EQUAL(0, bpf_map_lookup_elem(results_map_fd, &ResultKey, &ProgIndex));
+            ResultKey = 1;
+            TEST_EQUAL(0, bpf_map_lookup_elem(results_map_fd, &ResultKey, &ProgFallback));
+
+            TEST_WARNING(
+                "xsk_redirect_fallback diag: CloseSocket=%d QueueMismatch=%d tc=%u "
+                "IndicateQueueId=%u FallbackAction=%u ProgIndex=%llu ProgFallback=%llu",
+                CloseSocket, QueueMismatch, tc, IndicateQueueId, FallbackAction,
+                ProgIndex, ProgFallback);
+
+            TEST_EQUAL((UINT64)IndicateQueueId, ProgIndex);
+            TEST_EQUAL((UINT64)FallbackAction, ProgFallback);
+        }
 
         //
         // If the XSK is still open, verify no packet was delivered to it.

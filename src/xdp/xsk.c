@@ -1979,19 +1979,7 @@ XskCanRedirect(
 {
     XSK *Xsk = (XSK *)XskHandle;
 
-    //
-    // The redirect data path evaluates the socket state and bound RX queue
-    // without holding Xsk->Lock, while socket teardown transitions the state to
-    // XskClosing under the lock. On weak memory-ordering architectures (e.g.
-    // arm64) plain loads may observe a stale state, causing a redirect to a
-    // closing socket instead of falling back. Use acquire loads so the latest
-    // published state and queue are observed.
-    //
-    XSK_STATE State = (XSK_STATE)ReadULongAcquire((volatile ULONG *)&Xsk->State);
-    XDP_RX_QUEUE *XskQueue =
-        (XDP_RX_QUEUE *)ReadPointerAcquire((PVOID volatile *)&Xsk->Rx.Xdp.Queue);
-
-    return (State == XskActive) && (XskQueue == RxQueue);
+    return (Xsk->State == XskActive) && (Xsk->Rx.Xdp.Queue == RxQueue);
 }
 
 static
@@ -2019,7 +2007,7 @@ XskIrpCleanup(
     XskAcquirePollLock(Xsk);
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-    WriteULongRelease((volatile ULONG *)&Xsk->State, XskClosing);
+    Xsk->State = XskClosing;
     IoWaitFlags = Xsk->IoWaitFlags;
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
