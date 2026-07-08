@@ -37,6 +37,12 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,
 
+    # eBPF for Windows runtime version to install on the test machine. Defaults
+    # to the build-time version (Get-EbpfVersion). XDP is always built against a
+    # single (latest) eBPF version; this only varies the installed runtime.
+    [Parameter(Mandatory = $false)]
+    [string]$EbpfVersion = "",
+
     [Parameter(Mandatory = $false)]
     [switch]$DisablePktMon = $false,
 
@@ -120,7 +126,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
 
         if (!$EbpfPreinstalled) {
             Write-Verbose "installing ebpf..."
-            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform -EbpfVersion $EbpfVersion
             Write-Verbose "installed ebpf."
         }
 
@@ -206,7 +212,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
         & "$RootDir\tools\setup.ps1" -Uninstall fnmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -XdpInstaller $XdpInstaller -ErrorAction 'Continue'
         if (!$EbpfPreinstalled) {
-            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+            & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -EbpfVersion $EbpfVersion -ErrorAction 'Continue'
         }
         & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Platform $Platform -ErrorAction 'Continue'
     }
