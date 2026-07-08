@@ -6923,17 +6923,21 @@ GenericRxEbpfXskRedirectFallbackHelper(
             UINT32 ResultKey;
             UINT64 ProgIndex = MAXUINT64;
             UINT64 ProgFallback = MAXUINT64;
+            UINT64 ProgAction = MAXUINT64;
 
             ResultKey = 0;
             TEST_EQUAL(0, bpf_map_lookup_elem(results_map_fd, &ResultKey, &ProgIndex));
             ResultKey = 1;
             TEST_EQUAL(0, bpf_map_lookup_elem(results_map_fd, &ResultKey, &ProgFallback));
+            ResultKey = 2;
+            TEST_EQUAL(0, bpf_map_lookup_elem(results_map_fd, &ResultKey, &ProgAction));
 
             TEST_WARNING(
                 "xsk_redirect_fallback diag: CloseSocket=%d QueueMismatch=%d tc=%u "
-                "IndicateQueueId=%u FallbackAction=%u ProgIndex=%llu ProgFallback=%llu",
+                "IndicateQueueId=%u FallbackAction=%u ProgIndex=%llu ProgFallback=%llu "
+                "ProgAction=%llu",
                 CloseSocket, QueueMismatch, tc, IndicateQueueId, FallbackAction,
-                ProgIndex, ProgFallback);
+                ProgIndex, ProgFallback, ProgAction);
 
             TEST_EQUAL((UINT64)IndicateQueueId, ProgIndex);
             TEST_EQUAL((UINT64)FallbackAction, ProgFallback);
