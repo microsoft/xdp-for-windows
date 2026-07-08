@@ -1980,26 +1980,18 @@ XskCanRedirect(
     XSK *Xsk = (XSK *)XskHandle;
 
     //
-    // Snapshot the state and bound queue once so the tracing below reflects
-    // exactly the values used for the redirect decision.
+    // The redirect data path evaluates the socket state and bound RX queue
+    // without holding Xsk->Lock, while socket teardown transitions the state to
+    // XskClosing under the lock. On weak memory-ordering architectures (e.g.
+    // arm64) plain loads may observe a stale state, causing a redirect to a
+    // closing socket instead of falling back. Use acquire loads so the latest
+    // published state and queue are observed.
     //
-    // N.B. State and Queue are read without holding Xsk->Lock. Diagnostic
-    // tracing is emitted to aid investigation of redirect-decision issues
-    // (e.g. observed arm64-only fallback test failures where a closed or
-    // queue-mismatched socket may be evaluated concurrently with teardown).
-    //
-    XSK_STATE State = Xsk->State;
-    XDP_RX_QUEUE *XskQueue = Xsk->Rx.Xdp.Queue;
-    BOOLEAN CanRedirect = (State == XskActive) && (XskQueue == RxQueue);
+    XSK_STATE State = (XSK_STATE)ReadULongAcquire((volatile ULONG *)&Xsk->State);
+    XDP_RX_QUEUE *XskQueue =
+        (XDP_RX_QUEUE *)ReadPointerAcquire((PVOID volatile *)&Xsk->Rx.Xdp.Queue);
 
-    if (!CanRedirect) {
-        TraceInfo(
-            TRACE_XSK,
-            "Xsk=%p State=%u XskQueue=%p RxQueue=%p CanRedirect=0",
-            Xsk, (UINT32)State, XskQueue, RxQueue);
-    }
-
-    return CanRedirect;
+    return (State == XskActive) && (XskQueue == RxQueue);
 }
 
 static
@@ -2027,7 +2019,7 @@ XskIrpCleanup(
     XskAcquirePollLock(Xsk);
 
     KeAcquireSpinLock(&Xsk->Lock, &OldIrql);
-    Xsk->State = XskClosing;
+    WriteULongRelease((volatile ULONG *)&Xsk->State, XskClosing);
     IoWaitFlags = Xsk->IoWaitFlags;
     KeReleaseSpinLock(&Xsk->Lock, OldIrql);
 
