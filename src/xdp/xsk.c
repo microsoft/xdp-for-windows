@@ -1992,10 +1992,12 @@ XskCanRedirect(
     XDP_RX_QUEUE *XskQueue = Xsk->Rx.Xdp.Queue;
     BOOLEAN CanRedirect = (State == XskActive) && (XskQueue == RxQueue);
 
-    TraceInfo(
-        TRACE_XSK,
-        "Xsk=%p State=%u XskQueue=%p RxQueue=%p CanRedirect=%u",
-        Xsk, (UINT32)State, XskQueue, RxQueue, (UINT32)CanRedirect);
+    if (!CanRedirect) {
+        TraceInfo(
+            TRACE_XSK,
+            "Xsk=%p State=%u XskQueue=%p RxQueue=%p CanRedirect=0",
+            Xsk, (UINT32)State, XskQueue, RxQueue);
+    }
 
     return CanRedirect;
 }

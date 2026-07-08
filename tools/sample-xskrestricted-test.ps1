@@ -84,9 +84,9 @@ try {
     Write-Output "xskrestricted sample test PASSED"
 
 } finally {
+    & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
-    & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\log.ps1" -Stop -Name sample_xskrestricted -Config $Config -Platform $Platform -ErrorAction 'Continue'
 }

@@ -778,10 +778,12 @@ EbpfXdpRedirectMap(
 
 Exit:
 
-    TraceInfo(
-        TRACE_CORE,
-        "EbpfXdpRedirectMap RxQueue=%p Key=%u Flags=%llu FallbackAction=%u ReturnAction=%u IsProgTestRun=%u",
-        RxQueue, Key, Flags, (UINT32)FallbackAction, (UINT32)ReturnAction, (UINT32)IsProgTestRun);
+    if (ReturnAction != XDP_REDIRECT) {
+        TraceInfo(
+            TRACE_CORE,
+            "EbpfXdpRedirectMap fallback RxQueue=%p Key=%u Flags=%llu FallbackAction=%u ReturnAction=%u IsProgTestRun=%u",
+            RxQueue, Key, Flags, (UINT32)FallbackAction, (UINT32)ReturnAction, (UINT32)IsProgTestRun);
+    }
 
     return ReturnAction;
 }
