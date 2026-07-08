@@ -19,6 +19,11 @@
 
 #define TEST_WARNING(Format, ...) LogTestWarning(L"" __FILE__, L"" __FUNCTION__, __LINE__, L"" Format, ##__VA_ARGS__)
 
+#define TEST_SKIP(Reason) { \
+    SkipTest(L"" Reason); \
+    return; \
+}
+
 #define TEST_EQUAL(expected, condition) { \
     if ((condition) != (expected)) \
     { \

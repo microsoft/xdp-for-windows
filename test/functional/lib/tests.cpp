@@ -6415,9 +6415,44 @@ GenericRxEbpfUnload()
     TEST_HRESULT(TryStartService(XDP_SERVICE_NAME));
 }
 
+//
+// The eBPF XSKMAP (bpf_redirect_map to AF_XDP sockets) requires the eBPF for
+// Windows base-map-provider, which is available in eBPF for Windows v1.3.0 and
+// later. functional.ps1 provides the installed runtime version via the
+// XDP_EBPF_RUNTIME_VERSION environment variable; when it is absent the
+// build-time default (>= 1.3.0) is assumed.
+//
+static
+bool
+EbpfXskmapSupported()
+{
+    CHAR VersionBuffer[64];
+    size_t Length = 0;
+
+    if (getenv_s(
+            &Length, VersionBuffer, sizeof(VersionBuffer),
+            "XDP_EBPF_RUNTIME_VERSION") != 0 || Length == 0) {
+        return true;
+    }
+
+    INT Major = 0;
+    INT Minor = 0;
+    if (sscanf_s(VersionBuffer, "%d.%d", &Major, &Minor) < 2) {
+        return true;
+    }
+
+    return (Major > 1) || (Major == 1 && Minor >= 3);
+}
+
+#define SKIP_IF_EBPF_XSKMAP_UNSUPPORTED() \
+    if (!EbpfXskmapSupported()) { \
+        TEST_SKIP("eBPF XSKMAP requires eBPF for Windows v1.3.0 or later"); \
+    }
+
 VOID
 GenericRxEbpfXskRedirect()
 {
+    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfXskRedirect";
@@ -6481,6 +6516,7 @@ GenericRxEbpfXskRedirect()
 VOID
 GenericRxEbpfXskRedirectFallback()
 {
+    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
@@ -6519,6 +6555,7 @@ GenericRxEbpfXskRedirectFallback()
 VOID
 GenericRxEbpfXskRedirectReplace()
 {
+    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfXskRedirectReplace";
@@ -6581,6 +6618,7 @@ GenericRxEbpfXskRedirectReplace()
 VOID
 GenericRxEbpfXskRedirectDelete()
 {
+    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
@@ -6629,6 +6667,7 @@ GenericRxEbpfXskRedirectDelete()
 VOID
 GenericRxEbpfXskMapControlPath()
 {
+    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
     auto If = FnMpIf;
 
     auto Xsk =
@@ -6779,6 +6818,7 @@ GenericRxEbpfXskRedirectFallbackHelper(
     _In_ BOOLEAN QueueMismatch
     )
 {
+    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
     auto If = FnMpIf;
 
     //

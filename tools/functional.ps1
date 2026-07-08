@@ -184,6 +184,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
             }
         }
 
+        $env:XDP_EBPF_RUNTIME_VERSION = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+
         Write-Verbose "$VsTestPath\$VsTestConsole.exe $TestArgs"
         & $VsTestPath\$VsTestConsole.exe $TestArgs
 

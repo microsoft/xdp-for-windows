@@ -53,6 +53,16 @@ StopTest()
 }
 
 VOID
+SkipTest(
+    _In_z_ PCWSTR Reason
+    )
+{
+    TraceWarn("%S", Reason);
+    Logger::WriteMessage(L"[SKIPPED] ");
+    Logger::WriteMessage(Reason);
+}
+
+VOID
 LogTestFailure(
     _In_z_ PCWSTR File,
     _In_z_ PCWSTR Function,

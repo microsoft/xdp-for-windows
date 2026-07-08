@@ -15,6 +15,15 @@
 VOID
 StopTest();
 
+//
+// Marks the current test as skipped for the given reason and stops executing
+// the remainder of the test. Use via the TEST_SKIP macro.
+//
+VOID
+SkipTest(
+    _In_z_ PCWSTR Reason
+    );
+
 VOID
 LogTestFailure(
     _In_z_ PCWSTR File,
