@@ -6939,6 +6939,14 @@ GenericRxEbpfXskRedirectFallbackHelper(
                 CloseSocket, QueueMismatch, tc, IndicateQueueId, FallbackAction,
                 ProgIndex, ProgFallback, ProgAction);
 
+            //
+            // Emit the redirect action on its own short line: the warning buffer
+            // truncates the longer message above before ProgAction is printed.
+            //
+            TEST_WARNING(
+                "xsk_redirect_fallback action: CS=%d QM=%d ProgAction=%llu",
+                CloseSocket, QueueMismatch, ProgAction);
+
             TEST_EQUAL((UINT64)IndicateQueueId, ProgIndex);
             TEST_EQUAL((UINT64)FallbackAction, ProgFallback);
         }

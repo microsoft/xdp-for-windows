@@ -762,6 +762,16 @@ EbpfXdpRedirectMap(
     ASSERT(Value != NULL);
     Xsk = *(HANDLE *)Value;
 
+    //
+    // Diagnostic: low-volume path (only eBPF XSKMAP redirect tests). Captures
+    // the kernel-side Key/Flags/Xsk to investigate arm64-only redirect fallback
+    // failures.
+    //
+    TraceInfo(
+        TRACE_CORE,
+        "EbpfXdpRedirectMap RxQueue=%p Key=%u Flags=%llu FallbackAction=%u Xsk=%p IsProgTestRun=%u",
+        RxQueue, Key, Flags, (UINT32)FallbackAction, Xsk, (UINT32)IsProgTestRun);
+
     if (!IsProgTestRun && !XskCanRedirect(Xsk, RxQueue)) {
         if (RxQueue != NULL) {
             STAT_INC(XdpRxQueueGetStats(RxQueue), EbpfXskMapRedirectFailures);

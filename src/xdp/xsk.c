@@ -1978,8 +1978,22 @@ XskCanRedirect(
     )
 {
     XSK *Xsk = (XSK *)XskHandle;
+    XSK_STATE State = Xsk->State;
+    XDP_RX_QUEUE *XskQueue = Xsk->Rx.Xdp.Queue;
+    BOOLEAN CanRedirect = (State == XskActive) && (XskQueue == RxQueue);
 
-    return (Xsk->State == XskActive) && (Xsk->Rx.Xdp.Queue == RxQueue);
+    //
+    // Diagnostic: this path is low volume (only the eBPF XSKMAP redirect tests
+    // reach it) so the trace is safe to emit unconditionally. Captures the
+    // exact inputs to the redirect decision to investigate arm64-only redirect
+    // fallback failures.
+    //
+    TraceInfo(
+        TRACE_XSK,
+        "XskCanRedirect Xsk=%p State=%u XskQueue=%p RxQueue=%p CanRedirect=%u",
+        Xsk, (UINT32)State, XskQueue, RxQueue, (UINT32)CanRedirect);
+
+    return CanRedirect;
 }
 
 static
