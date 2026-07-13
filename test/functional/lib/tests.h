@@ -209,6 +209,9 @@ VOID
 GenericRxEbpfXskRedirectQueueMismatch();
 
 VOID
+GenericRxEbpfRedirectNonXskMap();
+
+VOID
 GenericTxToRxInject();
 
 VOID

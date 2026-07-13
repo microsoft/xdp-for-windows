@@ -21,7 +21,7 @@
 struct
 {
     __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
+    __type(key, uint64_t);
     __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
@@ -38,7 +38,7 @@ SEC("xdp/xsk_map_crud")
 int
 xsk_map_crud(xdp_md_t *ctx)
 {
-    uint32_t key = 0;
+    uint64_t key = 0;
     int64_t result;
 
     //

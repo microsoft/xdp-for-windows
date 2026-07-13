@@ -1,7 +1,11 @@
 <#
 
 .SYNOPSIS
-This script runs the xskrestricted sample program.
+Runs the xskrestricted sample, which attaches an XSK redirect program, spawns a
+restricted child process, and forwards received frames back to the sender.
+
+By default the eBPF-based sample (xskrestricted.exe) is run. Pass -Deprecated to
+run the legacy built-in rules-based sample (xskrestricted-deprecated.exe).
 
 .PARAMETER Config
     Specifies the build configuration to use.
@@ -11,6 +15,9 @@ This script runs the xskrestricted sample program.
 
 .PARAMETER TimeoutSeconds
     Duration of execution in seconds. Default is 10.
+
+.PARAMETER Deprecated
+    Run the legacy built-in rules-based sample instead of the eBPF sample.
 
 #>
 
@@ -24,7 +31,10 @@ param (
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [Int32]$TimeoutSeconds = 10
+    [Int32]$TimeoutSeconds = 10,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Deprecated
 )
 
 Set-StrictMode -Version 'Latest'
@@ -35,18 +45,42 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
-$XskRestricted = "$ArtifactsDir\test\xskrestricted-deprecated.exe"
 
-# Verify the binary exists.
+if ($Deprecated) {
+    #
+    # The deprecated sample uses the built-in rules-based program API, which is
+    # deprecated and planned for removal.
+    #
+    Write-Warning "xskrestricted -Deprecated uses the built-in program API (xskrestricted-deprecated); this path is deprecated and planned for removal."
+    $XskRestricted = "$ArtifactsDir\test\xskrestricted-deprecated.exe"
+} else {
+    $XskRestricted = "$ArtifactsDir\test\xskrestricted.exe"
+    $BpfProgram = "$ArtifactsDir\test\bpf\xsk_redirect.sys"
+}
+
+# Verify binaries exist.
 if (!(Test-Path $XskRestricted)) {
     Write-Error "$XskRestricted does not exist!"
+}
+if (!$Deprecated -and !(Test-Path $BpfProgram)) {
+    Write-Error "$BpfProgram does not exist!"
 }
 
 try {
     & "$RootDir\tools\log.ps1" -Start -Name xskrestricted -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
 
+    if (!$Deprecated) {
+        Write-Verbose "installing ebpf..."
+        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
+        Write-Verbose "installed ebpf."
+    }
+
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
+    if ($Deprecated) {
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
+    } else {
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
+    }
     Write-Verbose "installed xdp."
 
     Write-Verbose "installing fndis..."
@@ -59,15 +93,30 @@ try {
 
     $IfIndex = (Get-NetAdapter XDPMP).ifIndex
 
-    Write-Verbose "$XskRestricted $IfIndex -TimeoutSeconds $TimeoutSeconds"
-    & $XskRestricted $IfIndex -TimeoutSeconds $TimeoutSeconds
+    #
+    # Run xskrestricted. The program spawns a restricted child, forwards traffic
+    # for TimeoutSeconds, then exits.
+    #
+    $ArgList = @("$IfIndex", "-TimeoutSeconds", "$TimeoutSeconds")
+    if (!$Deprecated) {
+        $ArgList += @("-BpfProgram", $BpfProgram, "-ProgramName", "xsk_redirect")
+    }
+
+    Write-Verbose "$XskRestricted $ArgList"
+    & $XskRestricted @ArgList
 
     if ($LastExitCode -ne 0) {
         Write-Error "xskrestricted failed with exit code $LastExitCode"
     }
+
+    Write-Output "xskrestricted sample test PASSED"
+
 } finally {
+    if (!$Deprecated) {
+        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    }
     & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
-    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -Force -ErrorAction 'Continue'
     & "$RootDir\tools\log.ps1" -Stop -Name xskrestricted -Config $Config -Platform $Platform -ErrorAction 'Continue'
 }

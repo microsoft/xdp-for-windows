@@ -71,6 +71,12 @@ udp_filter(xdp_md_t *ctx)
             return XDP_PASS;
         }
         protocol = ip->Protocol;
+        //
+        // N.B. For simplicity this sample does not validate the IPv4 header
+        // length (IHL). A malformed or truncated IHL is trusted as-is; the
+        // subsequent bounds check against data_end still prevents any
+        // out-of-bounds access before the UDP header is dereferenced.
+        //
         transport = (char *)ip + (ip->HeaderLength * 4);
     } else if (eth->Type == bpf_htons(ETHERNET_TYPE_IPV6)) {
         IPV6_HEADER *ip6 = (IPV6_HEADER *)(eth + 1);

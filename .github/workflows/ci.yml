@@ -712,7 +712,7 @@ jobs:
     - name: Run XskRestricted
       shell: PowerShell
       timeout-minutes: 5
-      run: tools/xskrestricted.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
+      run: tools/xskrestricted.ps1 -Verbose -Deprecated -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
@@ -762,20 +762,20 @@ jobs:
     - name: Test rxfilter sample
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/sample-rxfilter-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
+      run: tools/rxfilter.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
     - name: Test xskfwd sample
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/sample-xskfwd-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
+      run: tools/xskfwd.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
     - name: Test xskrestricted sample
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/sample-xskrestricted-test.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
+      run: tools/xskrestricted.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
       shell: PowerShell
-      run: tools/log.ps1 -Convert -Name sample_* -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+      run: tools/log.ps1 -Convert -Name * -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       if: ${{ always() }}
@@ -833,7 +833,7 @@ jobs:
   all_tests_complete:
     name: All Tests Complete
     if: always()
-    needs: [build, build_allpackage, onebranch_build_validation, functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskmaprx_test, xskrestricted_test, downlevel_functional_tests, create_artifacts, sample_tests]
+    needs: [functional_tests, stress_tests, pktfuzz_tests, xskperf_tests, ring_perf_tests, rxfilter_perf_tests, xskfwdkm_test, xskmaprx_test, xskrestricted_test, downlevel_functional_tests, sample_tests]
     runs-on: ubuntu-latest
     permissions: {}
     steps:

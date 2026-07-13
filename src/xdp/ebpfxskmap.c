@@ -83,6 +83,7 @@ XdpXskmapProcessCreate(
 {
     XDP_XSKMAP_CONTEXT *Context = NULL;
     XDP_XSKMAP_BINDING_CONTEXT *Binding = XdpXskmapGetBindingContext(BindingContext);
+    ebpf_result_t Result;
 
     UNREFERENCED_PARAMETER(MaxEntries);
 
@@ -94,11 +95,13 @@ XdpXskmapProcessCreate(
     *MapContext = NULL;
 
     if (MapType != BPF_MAP_TYPE_XSKMAP) {
-        return EBPF_INVALID_ARGUMENT;
+        Result = EBPF_OPERATION_NOT_SUPPORTED;
+        goto Exit;
     }
 
-    if (KeySize != sizeof(UINT32) || ValueSize != sizeof(HANDLE)) {
-        return EBPF_INVALID_ARGUMENT;
+    if (KeySize != sizeof(UINT64) || ValueSize != sizeof(HANDLE)) {
+        Result = EBPF_INVALID_ARGUMENT;
+        goto Exit;
     }
 
     //
@@ -111,14 +114,18 @@ XdpXskmapProcessCreate(
     //
     Context = Binding->ClientDispatch.epoch_allocate_with_tag(sizeof(*Context), XDP_POOLTAG_MAP);
     if (Context == NULL) {
-        return EBPF_NO_MEMORY;
+        Result = EBPF_NO_MEMORY;
+        goto Exit;
     }
 
     Context->ClientDispatch = &Binding->ClientDispatch;
     *MapContext = Context;
+    Result = EBPF_SUCCESS;
 
-    TraceExitSuccess(TRACE_CORE);
-    return EBPF_SUCCESS;
+Exit:
+
+    TraceExitEbpfResult(TRACE_CORE);
+    return Result;
 }
 
 static
@@ -154,6 +161,7 @@ XdpXskmapAssociateProgramType(
     )
 {
     static const ebpf_program_type_t ExpectedProgramType = EBPF_PROGRAM_TYPE_XDP_INIT;
+    ebpf_result_t Result;
 
     UNREFERENCED_PARAMETER(BindingContext);
     UNREFERENCED_PARAMETER(MapContext);
@@ -162,11 +170,16 @@ XdpXskmapAssociateProgramType(
 
     if (!IsEqualGUID(ProgramType, &ExpectedProgramType)) {
         TraceError(TRACE_CORE, "XSKMAP only supports XDP program type");
-        return EBPF_OPERATION_NOT_SUPPORTED;
+        Result = EBPF_OPERATION_NOT_SUPPORTED;
+        goto Exit;
     }
 
-    TraceExitSuccess(TRACE_CORE);
-    return EBPF_SUCCESS;
+    Result = EBPF_SUCCESS;
+
+Exit:
+
+    TraceExitEbpfResult(TRACE_CORE);
+    return Result;
 }
 
 static
@@ -326,7 +339,7 @@ XdpXskmapProcessDeleteElement(
 //
 // Provider dispatch table for XSKMAP operations.
 //
-static ebpf_base_map_provider_dispatch_table_t XdpXskmapProviderDispatchTable = {
+static const ebpf_base_map_provider_dispatch_table_t XdpXskmapProviderDispatchTable = {
     .header = EBPF_BASE_MAP_PROVIDER_DISPATCH_TABLE_HEADER,
     .preprocess_map_create = XdpXskmapProcessCreate,
     .postprocess_map_delete = XdpXskmapProcessDelete,
@@ -336,12 +349,12 @@ static ebpf_base_map_provider_dispatch_table_t XdpXskmapProviderDispatchTable = 
     .postprocess_map_delete_element = XdpXskmapProcessDeleteElement,
 };
 
-static ebpf_base_map_provider_properties_t XdpXskmapProviderProperties = {
+static const ebpf_base_map_provider_properties_t XdpXskmapProviderProperties = {
     .header = EBPF_BASE_MAP_PROVIDER_PROPERTIES_HEADER,
     .updates_original_value = TRUE,
 };
 
-static ebpf_map_provider_data_t XdpXskmapProviderData = {
+static const ebpf_map_provider_data_t XdpXskmapProviderData = {
     .header = EBPF_MAP_PROVIDER_DATA_HEADER,
     .map_type = BPF_MAP_TYPE_XSKMAP,
     .base_map_type = BPF_MAP_TYPE_HASH,
@@ -385,7 +398,7 @@ XdpXskmapOnClientAttach(
         min(sizeof(Binding->ClientDispatch), ClientData->base_client_table->header.total_size));
 
     WriteULong64NoFence(
-        (volatile UINT64 *)&XdpXskmapContextOffset, ClientData->map_context_offset);
+        (UINT64 *)&XdpXskmapContextOffset, ClientData->map_context_offset);
 
     EbpfExtensionClientSetProviderData(AttachingClient, Binding);
 

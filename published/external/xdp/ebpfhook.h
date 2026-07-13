@@ -69,7 +69,7 @@ typedef enum _xdp_helper_id {
 XDP_EBPF_HELPER(int, bpf_xdp_adjust_head, (xdp_md_t *ctx, int delta));
 #define bpf_xdp_adjust_head ((bpf_xdp_adjust_head_t *)BPF_FUNC_xdp_adjust_head)
 
-XDP_EBPF_HELPER(intptr_t, bpf_redirect_map, (void *map, uint32_t key, uint64_t flags));
+XDP_EBPF_HELPER(intptr_t, bpf_redirect_map, (void *map, uint64_t key, uint64_t flags));
 #define bpf_redirect_map ((bpf_redirect_map_t *)BPF_FUNC_redirect_map)
 
 #ifdef __cplusplus

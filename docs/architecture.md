@@ -49,7 +49,7 @@ XDP for Windows is a high-performance packet processing framework inspired by Li
 
 ## Extensibility
 - XDP for Windows is designed to be extensible via [eBPF programs](./ebpf.md) through integration with [eBPF for Windows](https://github.com/microsoft/ebpf-for-windows).
-- The legacy built-in rules-based program engine is deprecated and planned for removal. See the [eBPF Integration Guide](./ebpf.md) for migration guidance.
+- The built-in rules-based program engine is deprecated and planned for removal. See the [eBPF Integration Guide](./ebpf.md) for migration guidance.
 - New hook points and interface types can be added as needed.
 
 ## Comparison to Linux XDP

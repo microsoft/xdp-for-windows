@@ -322,7 +322,7 @@
                 outType="win:HexInt64"
                 />
             <data
-                inType="win:UInt32"
+                inType="win:UInt64"
                 name="Key"
                 />
             <data
@@ -337,7 +337,7 @@
                 outType="win:HexInt64"
                 />
             <data
-                inType="win:UInt32"
+                inType="win:UInt64"
                 name="Key"
                 />
             <data
@@ -357,7 +357,7 @@
                 outType="win:HexInt64"
                 />
             <data
-                inType="win:UInt32"
+                inType="win:UInt64"
                 name="Key"
                 />
             <data

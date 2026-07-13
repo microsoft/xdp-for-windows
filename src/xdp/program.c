@@ -704,7 +704,7 @@ static
 intptr_t
 EbpfXdpRedirectMap(
     _In_ const void *Map,
-    _In_ uint32_t Key,
+    _In_ uint64_t Key,
     _In_ uint64_t Flags,
     _In_ uint64_t Reserved4,
     _In_ uint64_t Reserved5,

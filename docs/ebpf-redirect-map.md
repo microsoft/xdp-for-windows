@@ -2,11 +2,15 @@
 
 ## Overview
 
-The **XSKMAP** (`BPF_MAP_TYPE_XSKMAP`) is a specialized eBPF map type that
-enables XDP eBPF programs to redirect packets to
-[AF_XDP](afxdp.md) sockets. It is the primary mechanism for delivering
-wire-rate packet data to user-mode applications when using eBPF programs with
-XDP for Windows.
+The `bpf_redirect_map` helper redirects packets to a target looked up from an
+eBPF map. The helper is designed to conceptually support multiple redirect map
+types; the **XSKMAP** (`BPF_MAP_TYPE_XSKMAP`) is the only map type currently
+supported by XDP for Windows.
+
+The **XSKMAP** is a specialized eBPF map type that enables XDP eBPF programs to
+redirect packets to [AF_XDP](afxdp.md) sockets. It is the primary mechanism for
+delivering wire-rate packet data to user-mode applications when using eBPF
+programs with XDP for Windows.
 
 User mode creates AF_XDP sockets (XSKs), populates the XSKMAP with socket
 handles keyed by RX queue index, and the eBPF program calls
@@ -39,7 +43,7 @@ Declare the XSKMAP in your eBPF program using the BTF-style map syntax:
 ```c
 struct {
     __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
+    __type(key, uint64_t);
     __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
@@ -48,14 +52,14 @@ struct {
 | Field | Value | Description |
 |-------|-------|-------------|
 | `type` | `BPF_MAP_TYPE_XSKMAP` (16) | Identifies this as an XSK redirect map. |
-| `key` | `uint32_t` | The key type. Typically the RX queue index. |
+| `key` | `uint64_t` | The key type. Typically the RX queue index. |
 | `value` | `void *` | Opaque XSK socket handle (populated by user mode). |
-| `max_entries` | Application-defined | Should be >= the number of RX queues you intend to use. |
+| `max_entries` | Application-defined | Should be >= the number of sockets you intend to use. |
 
 ## `bpf_redirect_map` Helper
 
 ```c
-intptr_t bpf_redirect_map(void *map, uint32_t key, uint64_t flags);
+intptr_t bpf_redirect_map(void *map, uint64_t key, uint64_t flags);
 ```
 
 ### Parameters
@@ -74,8 +78,15 @@ intptr_t bpf_redirect_map(void *map, uint32_t key, uint64_t flags);
   - The key does not exist in the map (no XSK handle for that queue).
   - The XSK socket is not in a valid state for redirect (e.g., not yet
     activated or already closing).
+  - The XSK is bound to a different RX queue than the one the packet arrived
+    on (queue mismatch).
 
 ## Examples
+
+For complete, buildable sample source in this repository, see
+[`samples/xskfwd/bpf/xskfwd_redirect.c`](../samples/xskfwd/bpf/xskfwd_redirect.c)
+(the eBPF `bpf_redirect_map` program) and [`samples/xskfwd`](../samples/xskfwd)
+(the accompanying AF_XDP user-mode application).
 
 ### Basic XSK Redirect
 
@@ -93,14 +104,14 @@ same RX queue.
 //
 struct {
     __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
+    __type(key, uint64_t);
     __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
 
 SEC("xdp/xsk_redirect")
 int xsk_redirect(xdp_md_t *ctx) {
-    uint32_t index = ctx->rx_queue_index;
+    uint64_t index = ctx->rx_queue_index;
     return bpf_redirect_map(&xsk_map, index, XDP_PASS);
 }
 ```
@@ -120,7 +131,7 @@ runtime:
 
 struct {
     __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
+    __type(key, uint64_t);
     __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
@@ -139,7 +150,7 @@ struct {
 
 SEC("xdp/xsk_redirect_fallback")
 int xsk_redirect_fallback(xdp_md_t *ctx) {
-    uint32_t index = ctx->rx_queue_index;
+    uint64_t index = ctx->rx_queue_index;
     uint32_t zero = 0;
     uint64_t fallback = XDP_PASS;
 
@@ -170,7 +181,7 @@ traffic and let everything else pass:
 
 struct {
     __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
+    __type(key, uint64_t);
     __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
@@ -234,7 +245,7 @@ After loading, find the map and insert XSK handles keyed by queue index:
 struct bpf_map *map = bpf_object__find_map_by_name(obj, "xsk_map");
 int map_fd = bpf_map__fd(map);
 
-for (uint32_t q = 0; q < queue_count; q++) {
+for (uint64_t q = 0; q < queue_count; q++) {
     bpf_map_update_elem(map_fd, &q, &xsk_handles[q], BPF_ANY);
 }
 ```
@@ -266,7 +277,7 @@ XskNotifySocket(xsk, XSK_NOTIFY_FLAG_WAIT_RX, ...);
 | Property | Value |
 |----------|-------|
 | Map type ID | `BPF_MAP_TYPE_XSKMAP` (16) |
-| Key type | `uint32_t` |
+| Key type | `uint64_t` |
 | Value type | Opaque XSK handle (`void *`) |
 | Writable from eBPF | **No** -- read-only from BPF programs. User mode manages entries. |
 | Reference counting | XSK handles are reference-counted. Adding an entry increments the ref count; removing it decrements. |

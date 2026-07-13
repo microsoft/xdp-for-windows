@@ -18,18 +18,18 @@ logic that runs safely inside the Windows kernel.
 | Project | Role |
 |---------|------|
 | **[XDP for Windows](https://github.com/microsoft/xdp-for-windows)** | Provides the high-performance data path: NIC hook points, AF_XDP sockets, shared-memory rings, and the XDP driver (`xdp.sys`). Registers an XDP program type and helper functions with the eBPF runtime. |
-| **[eBPF for Windows](https://github.com/microsoft/ebpf-for-windows)** | Provides the eBPF runtime: program verification (PREVAIL verifier), JIT compilation (uBPF), map infrastructure, and the NMR-based extension model that XDP plugs into. |
+| **[eBPF for Windows](https://github.com/microsoft/ebpf-for-windows)** | Provides the eBPF runtime: program verification (PREVAIL verifier), map infrastructure, and the NMR-based extension model that XDP plugs into. |
 
-An eBPF program compiled to BPF bytecode is loaded by the eBPF for Windows
-runtime, verified for safety, JIT-compiled to native code, and then attached to
-an XDP hook point. The XDP driver invokes the program on every received packet
-at wire speed.
+An eBPF program is compiled offline into a native Windows kernel driver
+(`.sys`), loaded and verified by the eBPF for Windows runtime, and then attached
+to an XDP hook point. The XDP driver invokes the program on every received
+packet at wire speed.
 
 ```mermaid
 graph TD
     subgraph User Mode
         A["AF_XDP App<br/>(XSK socket)"] -- UMEM rings --> X[xdp.sys]
-        B["bpf_object__open/load<br/>(eBPF loader / libbpf)"] -- IOCTL --> E["eBPF runtime<br/>(ebpfcore.sys)<br/>verifier + JIT"]
+        B["bpf_object__open/load<br/>(eBPF loader / libbpf)"] -- IOCTL --> E["eBPF runtime<br/>(ebpfcore.sys)<br/>verifier"]
     end
 
     subgraph Kernel Mode
@@ -57,14 +57,6 @@ After installing eBPF for Windows:
 ```powershell
 xdp-setup.ps1 -Install xdp
 xdp-setup.ps1 -Install xdpebpf
-```
-
-### MSI (<= v1.2 only)
-
-Append `ADDLOCAL=xdp_ebpf` to the MSI install command:
-
-```powershell
-msiexec.exe /i xdp-for-windows.msi ADDLOCAL=xdp_ebpf /quiet
 ```
 
 ### Developer Setup
@@ -149,7 +141,7 @@ XDP exposes program-specific helper functions in addition to the
 Redirects the current packet to an AF_XDP socket looked up from an XSKMAP.
 
 ```c
-intptr_t bpf_redirect_map(void *map, uint32_t key, uint64_t flags);
+intptr_t bpf_redirect_map(void *map, uint64_t key, uint64_t flags);
 ```
 
 | Parameter | Description |
@@ -162,17 +154,6 @@ intptr_t bpf_redirect_map(void *map, uint32_t key, uint64_t flags);
 
 See [eBPF Redirect Map (XSKMAP)](ebpf-redirect-map.md) for a comprehensive
 guide.
-
-### `bpf_xdp_adjust_head`
-
-Adjusts the packet data start pointer (e.g., to add or remove encapsulation
-headers).
-
-```c
-int bpf_xdp_adjust_head(xdp_md_t *ctx, int delta);
-```
-
-> **Note:** This helper is **not yet implemented**. It currently returns `-1`.
 
 ## Writing an XDP eBPF Program
 
@@ -272,7 +253,7 @@ See [eBPF Redirect Map (XSKMAP)](ebpf-redirect-map.md) for complete examples.
 
 struct {
     __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
+    __type(key, uint64_t);
     __type(value, void *);
     __uint(max_entries, 64);
 } xsk_map SEC(".maps");
@@ -363,7 +344,6 @@ Use the existing XDP tracing infrastructure to capture these events at [Logging]
 
 ## Limitations
 
-- **`bpf_xdp_adjust_head` is not implemented** -- returns `-1`.
 - **XSKMAP is read-only from eBPF programs** -- user mode must populate the map;
   `bpf_map_lookup_elem`, `bpf_map_update_elem`, and `bpf_map_delete_elem`
   cannot be used on XSKMAPs from within a BPF program.
@@ -377,75 +357,6 @@ Use the existing XDP tracing infrastructure to capture these events at [Logging]
 The built-in rules engine (`XdpCreateProgram` with `XDP_RULE` / `XDP_MATCH_TYPE`
 / `XDP_RULE_ACTION`) is deprecated and planned for removal. All users should
 migrate to eBPF programs.
-
-### Migration Quick Reference
-
-| Built-in Rule | eBPF Equivalent |
-|---------------|-----------------|
-| `XDP_PROGRAM_ACTION_DROP` | Return `XDP_DROP` |
-| `XDP_PROGRAM_ACTION_PASS` | Return `XDP_PASS` |
-| `XDP_PROGRAM_ACTION_REDIRECT` to XSK | Call `bpf_redirect_map()` with an XSKMAP |
-| `XDP_PROGRAM_ACTION_L2FWD` | Return `XDP_TX` (swap MACs in the program) |
-| `XDP_MATCH_ALL` | Unconditional return |
-| `XDP_MATCH_UDP_DST` | Parse UDP header, compare `dst_port` |
-| `XDP_MATCH_IPV4_DST_MASK` | Parse IPv4 header, apply bitmask to `dst_addr` |
-| Port set matching | Use a `BPF_MAP_TYPE_HASH` or `BPF_MAP_TYPE_ARRAY` map for port lookups |
-
-### Example: Migrating a UDP Port Filter
-
-**Before (built-in rules):**
-
-```c
-XDP_RULE rules[1] = {};
-rules[0].Match = XDP_MATCH_UDP_DST;
-rules[0].Pattern.Port = htons(4789);
-rules[0].Action = XDP_PROGRAM_ACTION_REDIRECT;
-rules[0].Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-rules[0].Redirect.Target = xskHandle;
-
-XdpCreateProgram(ifIndex, &hookId, queueId, flags, rules, 1, &program);
-```
-
-**After (eBPF):**
-
-```c
-#include "bpf_endian.h"
-#include "bpf_helpers.h"
-#include "net/if_ether.h"
-#include "net/ip.h"
-#include "xdp/ebpfhook.h"
-
-struct {
-    __uint(type, BPF_MAP_TYPE_XSKMAP);
-    __type(key, uint32_t);
-    __type(value, void *);
-    __uint(max_entries, 64);
-} xsk_map SEC(".maps");
-
-SEC("xdp/udp_filter")
-int udp_filter(xdp_md_t *ctx) {
-    void *data = ctx->data;
-    void *data_end = ctx->data_end;
-
-    // Parse Ethernet + IPv4 + UDP headers
-    ETHERNET_HEADER *eth = data;
-    if ((char *)eth + sizeof(*eth) > (char *)data_end) return XDP_PASS;
-    if (eth->Type != htons(ETHERNET_TYPE_IPV4)) return XDP_PASS;
-
-    IPV4_HEADER *ip = (IPV4_HEADER *)(eth + 1);
-    if ((char *)ip + sizeof(*ip) > (char *)data_end) return XDP_PASS;
-    if (ip->Protocol != 17) return XDP_PASS; // UDP
-
-    UDP_HEADER *udp = (UDP_HEADER *)((char *)ip + (ip->HeaderLength * 4));
-    if ((char *)udp + sizeof(*udp) > (char *)data_end) return XDP_PASS;
-
-    if (udp->DestinationPort == htons(4789)) {
-        return bpf_redirect_map(&xsk_map, ctx->rx_queue_index, XDP_PASS);
-    }
-
-    return XDP_PASS;
-}
-```
 
 ## References
 

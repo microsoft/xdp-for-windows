@@ -1,9 +1,10 @@
 <#
 
 .SYNOPSIS
-This script tests the xskfwd eBPF sample by attaching an XSK redirect eBPF
-program to a virtual XDPMP adapter, generating traffic, and forwarding
-received frames back to the sender.
+Runs the xskfwd sample, which forwards received frames back to the sender.
+
+By default the eBPF-based sample (xskfwd.exe) is run. Pass -Deprecated to run
+the legacy built-in rules-based sample (xskfwd-deprecated.exe) instead.
 
 .PARAMETER Config
     Specifies the build configuration to use.
@@ -13,6 +14,9 @@ received frames back to the sender.
 
 .PARAMETER Duration
     Duration of the test in seconds.
+
+.PARAMETER Deprecated
+    Run the legacy built-in rules-based sample instead of the eBPF sample.
 
 #>
 
@@ -26,7 +30,10 @@ param (
     [string]$Platform = "x64",
 
     [Parameter(Mandatory = $false)]
-    [Int32]$Duration = 10
+    [Int32]$Duration = 10,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Deprecated
 )
 
 Set-StrictMode -Version 'Latest'
@@ -37,28 +44,44 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
-$XskFwd = "$ArtifactsDir\test\xskfwd.exe"
-$BpfProgram = "$ArtifactsDir\test\bpf\xsk_redirect.sys"
+
+if ($Deprecated) {
+    #
+    # The deprecated sample uses the built-in rules-based program API, which is
+    # deprecated and planned for removal.
+    #
+    Write-Warning "xskfwd -Deprecated uses the built-in program API (xskfwd-deprecated); this path is deprecated and planned for removal."
+    $XskFwd = "$ArtifactsDir\test\xskfwd-deprecated.exe"
+} else {
+    $XskFwd = "$ArtifactsDir\test\xskfwd.exe"
+    $BpfProgram = "$ArtifactsDir\test\bpf\xsk_redirect.sys"
+}
 
 # Verify binaries exist.
 if (!(Test-Path $XskFwd)) {
     Write-Error "$XskFwd does not exist!"
 }
-if (!(Test-Path $BpfProgram)) {
+if (!$Deprecated -and !(Test-Path $BpfProgram)) {
     Write-Error "$BpfProgram does not exist!"
 }
 
 $XskFwdProcess = $null
 
 try {
-    & "$RootDir\tools\log.ps1" -Start -Name sample_xskfwd -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
+    & "$RootDir\tools\log.ps1" -Start -Name xskfwd -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
 
-    Write-Verbose "installing ebpf..."
-    & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
-    Write-Verbose "installed ebpf."
+    if (!$Deprecated) {
+        Write-Verbose "installing ebpf..."
+        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
+        Write-Verbose "installed ebpf."
+    }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
+    if ($Deprecated) {
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
+    } else {
+        & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf
+    }
     Write-Verbose "installed xdp."
 
     Write-Verbose "installing fndis..."
@@ -71,10 +94,11 @@ try {
 
     $IfIndex = (Get-NetAdapter XDPMP).ifIndex
 
-    #
-    # Start xskfwd with the xsk_redirect eBPF program.
-    #
-    $ArgList = "$IfIndex", "-BpfProgram", $BpfProgram, "-ProgramName", "xsk_redirect"
+    $ArgList = @("$IfIndex")
+    if (!$Deprecated) {
+        $ArgList += @("-BpfProgram", $BpfProgram, "-ProgramName", "xsk_redirect")
+    }
+
     Write-Verbose "$XskFwd $ArgList"
     $XskFwdProcess = Start-Process $XskFwd -PassThru -ArgumentList $ArgList
 
@@ -93,9 +117,11 @@ try {
     if ($null -ne $XskFwdProcess -and !$XskFwdProcess.HasExited) {
         Stop-Process -Force -InputObject $XskFwdProcess -ErrorAction 'Continue'
     }
-    & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    if (!$Deprecated) {
+        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    }
     & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -Force -ErrorAction 'Continue'
-    & "$RootDir\tools\log.ps1" -Stop -Name sample_xskfwd -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    & "$RootDir\tools\log.ps1" -Stop -Name xskfwd -Config $Config -Platform $Platform -ErrorAction 'Continue'
 }

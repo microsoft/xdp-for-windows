@@ -6416,43 +6416,59 @@ GenericRxEbpfUnload()
 }
 
 //
+// Retrieves the installed eBPF for Windows runtime version from the
+// XDP_EBPF_RUNTIME_VERSION environment variable, which functional.ps1 sets to
+// the installed runtime version. Returns false when the variable is absent or
+// unparseable, in which case callers assume the build-time default.
+//
+static
+bool
+GetEbpfRuntimeVersion(
+    _Out_ INT *Major,
+    _Out_ INT *Minor,
+    _Out_ INT *Patch
+    )
+{
+    CHAR VersionBuffer[64];
+    size_t Length = 0;
+
+    *Major = 0;
+    *Minor = 0;
+    *Patch = 0;
+
+    if (getenv_s(
+            &Length, VersionBuffer, sizeof(VersionBuffer),
+            "XDP_EBPF_RUNTIME_VERSION") != 0 || Length == 0) {
+        return false;
+    }
+
+    return sscanf_s(VersionBuffer, "%d.%d.%d", Major, Minor, Patch) >= 2;
+}
+
+//
 // The eBPF XSKMAP (bpf_redirect_map to AF_XDP sockets) requires the eBPF for
-// Windows base-map-provider, which is available in eBPF for Windows v1.3.0 and
-// later. functional.ps1 provides the installed runtime version via the
-// XDP_EBPF_RUNTIME_VERSION environment variable; when it is absent the
-// build-time default (>= 1.3.0) is assumed.
+// Windows base-map-provider. When the installed runtime version is unavailable
+// the build-time default (which supports XSKMAP) is assumed.
 //
 static
 bool
 EbpfXskmapSupported()
 {
-    CHAR VersionBuffer[64];
-    size_t Length = 0;
+    INT Major, Minor, Patch;
 
-    if (getenv_s(
-            &Length, VersionBuffer, sizeof(VersionBuffer),
-            "XDP_EBPF_RUNTIME_VERSION") != 0 || Length == 0) {
-        return true;
-    }
-
-    INT Major = 0;
-    INT Minor = 0;
-    if (sscanf_s(VersionBuffer, "%d.%d", &Major, &Minor) < 2) {
+    if (!GetEbpfRuntimeVersion(&Major, &Minor, &Patch)) {
         return true;
     }
 
     return (Major > 1) || (Major == 1 && Minor >= 3);
 }
 
-#define SKIP_IF_EBPF_XSKMAP_UNSUPPORTED() \
-    if (!EbpfXskmapSupported()) { \
-        TEST_SKIP("eBPF XSKMAP requires eBPF for Windows v1.3.0 or later"); \
-    }
-
 VOID
 GenericRxEbpfXskRedirect()
 {
-    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfXskRedirect";
@@ -6476,7 +6492,7 @@ GenericRxEbpfXskRedirect()
     fd_t xsk_map_fd = bpf_object__find_map_fd_by_name(BpfProgram.get(), "xsk_map");
     TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
 
-    UINT32 QueueId = If.GetQueueId();
+    UINT64 QueueId = If.GetQueueId();
     HANDLE XskHandle = Xsk.Handle.get();
     TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
 
@@ -6516,7 +6532,9 @@ GenericRxEbpfXskRedirect()
 VOID
 GenericRxEbpfXskRedirectFallback()
 {
-    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
@@ -6555,7 +6573,9 @@ GenericRxEbpfXskRedirectFallback()
 VOID
 GenericRxEbpfXskRedirectReplace()
 {
-    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     const UCHAR Payload[] = "GenericRxEbpfXskRedirectReplace";
@@ -6582,7 +6602,7 @@ GenericRxEbpfXskRedirectReplace()
     //
     // Set the map entry to the first XSK.
     //
-    UINT32 QueueId = If.GetQueueId();
+    UINT64 QueueId = If.GetQueueId();
     HANDLE XskHandle1 = Xsk1.Handle.get();
     TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle1, BPF_ANY));
 
@@ -6618,7 +6638,9 @@ GenericRxEbpfXskRedirectReplace()
 VOID
 GenericRxEbpfXskRedirectDelete()
 {
-    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
@@ -6640,7 +6662,7 @@ GenericRxEbpfXskRedirectDelete()
     //
     // Populate the map entry, then delete it.
     //
-    UINT32 QueueId = If.GetQueueId();
+    UINT64 QueueId = If.GetQueueId();
     HANDLE XskHandle = Xsk.Handle.get();
     TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
     TEST_EQUAL(0, bpf_map_delete_elem(xsk_map_fd, &QueueId));
@@ -6667,7 +6689,9 @@ GenericRxEbpfXskRedirectDelete()
 VOID
 GenericRxEbpfXskMapControlPath()
 {
-    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
     auto If = FnMpIf;
 
     auto Xsk =
@@ -6683,7 +6707,7 @@ GenericRxEbpfXskMapControlPath()
     //
     // Verify lookup on a non-existent key returns an error.
     //
-    UINT32 QueueId = If.GetQueueId();
+    UINT64 QueueId = If.GetQueueId();
     HANDLE LookupValue = NULL;
     TEST_NOT_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
 
@@ -6704,6 +6728,15 @@ GenericRxEbpfXskMapControlPath()
     // Verify deleting a non-existent key returns an error.
     //
     TEST_NOT_EQUAL(0, bpf_map_delete_elem(xsk_map_fd, &QueueId));
+
+    //
+    // Negative value validation: the XSKMAP provider must reject NULL and
+    // bogus (non-XSK) socket handle values.
+    //
+    HANDLE NullHandle = NULL;
+    TEST_NOT_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &NullHandle, BPF_ANY));
+    HANDLE BogusHandle = (HANDLE)(ULONG_PTR)0xdeadbeef;
+    TEST_NOT_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &BogusHandle, BPF_ANY));
 
     //
     // Verify that BPF programs cannot perform CRUD operations on the XSKMAP.
@@ -6818,7 +6851,9 @@ GenericRxEbpfXskRedirectFallbackHelper(
     _In_ BOOLEAN QueueMismatch
     )
 {
-    SKIP_IF_EBPF_XSKMAP_UNSUPPORTED();
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
     auto If = FnMpIf;
 
     //
@@ -6866,8 +6901,8 @@ GenericRxEbpfXskRedirectFallbackHelper(
         //  - CloseSocket: XSK bound to queue 0, map key = 0, indicate on queue 0.
         //  - QueueMismatch: XSK bound to queue 0, map key = 1, indicate on queue 1.
         //
-        UINT32 MapKey = QueueMismatch ? If.GetQueueId() + 1 : If.GetQueueId();
-        UINT32 IndicateQueueId = MapKey;
+        UINT64 MapKey = QueueMismatch ? If.GetQueueId() + 1 : If.GetQueueId();
+        UINT32 IndicateQueueId = (UINT32)MapKey;
 
         MY_SOCKET Xsk;
         {
@@ -6963,6 +6998,48 @@ VOID
 GenericRxEbpfXskRedirectQueueMismatch()
 {
     GenericRxEbpfXskRedirectFallbackHelper(FALSE, TRUE);
+}
+
+VOID
+GenericRxEbpfRedirectNonXskMap()
+{
+    if (!EbpfXskmapSupported()) {
+        TEST_SKIP("eBPF runtime does not support XSKMAP");
+    }
+    auto If = FnMpIf;
+    unique_fnmp_handle GenericMp;
+    unique_fnlwf_handle FnLwf;
+    const UCHAR Payload[] = "GenericRxEbpfRedirectNonXskMap";
+
+    //
+    // Attach a program that calls bpf_redirect_map with a non-XSKMAP map.
+    // The redirect helper only supports XSKMAPs, so the redirect must fail
+    // and fall back to XDP_PASS without crashing the driver.
+    //
+    unique_xdp_program BpfProgram =
+        AttachEbpfXdpProgram(If, "\\bpf\\redirect_noxskmap.sys", "redirect_noxskmap");
+
+    GenericMp = MpOpenGeneric(If.GetIfIndex());
+    FnLwf = LwfOpenDefault(If.GetIfIndex());
+
+    CxPlatVector<UCHAR> Mask(sizeof(Payload), 0xFF);
+    auto LwfFilter = LwfRxFilter(FnLwf, Payload, Mask.data(), sizeof(Payload));
+
+    RX_FRAME Frame;
+    RxInitializeFrame(&Frame, If.GetQueueId(), Payload, sizeof(Payload));
+    TEST_HRESULT(MpRxEnqueueFrame(GenericMp, &Frame));
+    MpRxFlush(GenericMp);
+
+    //
+    // The redirect fails (unsupported map type), so the fallback action
+    // XDP_PASS is taken and the packet reaches the LWF.
+    //
+    CxPlatSleep(TEST_TIMEOUT_ASYNC_MS);
+
+    UINT32 FrameLength = 0;
+    TEST_EQUAL(
+        HRESULT_FROM_WIN32(ERROR_MORE_DATA),
+        LwfRxGetFrame(FnLwf, 0, &FrameLength, NULL));
 }
 
 VOID

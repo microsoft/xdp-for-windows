@@ -633,7 +633,7 @@ AttachXdpEbpfProgram(
         int ExistingMapFd = AcquireSharedEbpfMapFd();
         if (ExistingMapFd >= 0) {
             if (Sock != NULL) {
-                UINT32 QueueId = Queue->queueId;
+                UINT64 QueueId = Queue->queueId;
                 bpf_map_update_elem(ExistingMapFd, &QueueId, &Sock, 0);
             }
             ReleaseSharedEbpfMapFd();
@@ -744,25 +744,23 @@ AttachXdpEbpfProgram(
     //
     // Store the eBPF program and map FD in the shared interface-level set.
     //
-    {
-        int XskMapFd = -1;
-        if (ProgramRelativePath != NULL &&
-            strcmp(ProgramRelativePath, "\\bpf\\xsk_redirect.sys") == 0) {
-            XskMapFd = bpf_object__find_map_fd_by_name(BpfObject, "xsk_map");
-        }
+    int XskMapFd = -1;
+    if (ProgramRelativePath != NULL &&
+        strcmp(ProgramRelativePath, "\\bpf\\xsk_redirect.sys") == 0) {
+        XskMapFd = bpf_object__find_map_fd_by_name(BpfObject, "xsk_map");
+    }
 
-        EnterCriticalSection(&sharedEbpfProgram.Lock);
-        sharedEbpfProgram.BpfObject = BpfObject;
-        sharedEbpfProgram.XskMapFd = XskMapFd;
-        LeaveCriticalSection(&sharedEbpfProgram.Lock);
+    EnterCriticalSection(&sharedEbpfProgram.Lock);
+    sharedEbpfProgram.BpfObject = BpfObject;
+    sharedEbpfProgram.XskMapFd = XskMapFd;
+    LeaveCriticalSection(&sharedEbpfProgram.Lock);
 
-        //
-        // Register this queue's socket in the map.
-        //
-        if (XskMapFd >= 0 && Sock != NULL) {
-            UINT32 QueueId = Queue->queueId;
-            bpf_map_update_elem(XskMapFd, &QueueId, &Sock, 0);
-        }
+    //
+    // Register this queue's socket in the map.
+    //
+    if (XskMapFd >= 0 && Sock != NULL) {
+        UINT64 QueueId = Queue->queueId;
+        bpf_map_update_elem(XskMapFd, &QueueId, &Sock, 0);
     }
 
     BpfObject = NULL; // Ownership transferred to shared set.

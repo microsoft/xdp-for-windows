@@ -226,7 +226,8 @@ main(
     //
     // Populate the XSKMAP: key = queue index, value = XSK socket handle.
     //
-    Result = bpf_map_update_elem(XskMapFd, &QueueId, &Socket, 0);
+    UINT64 MapKey = QueueId;
+    Result = bpf_map_update_elem(XskMapFd, &MapKey, &Socket, 0);
     if (Result != 0) {
         LOGERR("bpf_map_update_elem(xsk_map) failed: %d", Result);
         goto Exit;

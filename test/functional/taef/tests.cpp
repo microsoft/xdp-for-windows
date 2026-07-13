@@ -658,32 +658,36 @@ public:
         ::GenericRxEbpfUnload();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirect) {
+    TEST_METHOD(GenericRxEbpfXskRedirect) {
         ::GenericRxEbpfXskRedirect();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectFallback) {
+    TEST_METHOD(GenericRxEbpfXskRedirectFallback) {
         ::GenericRxEbpfXskRedirectFallback();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectReplace) {
+    TEST_METHOD(GenericRxEbpfXskRedirectReplace) {
         ::GenericRxEbpfXskRedirectReplace();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectDelete) {
+    TEST_METHOD(GenericRxEbpfXskRedirectDelete) {
         ::GenericRxEbpfXskRedirectDelete();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskMapControlPath) {
+    TEST_METHOD(GenericRxEbpfXskMapControlPath) {
         ::GenericRxEbpfXskMapControlPath();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectCloseSocket) {
+    TEST_METHOD(GenericRxEbpfXskRedirectCloseSocket) {
         ::GenericRxEbpfXskRedirectCloseSocket();
     }
 
-    TEST_METHOD_PRERELEASE(GenericRxEbpfXskRedirectQueueMismatch) {
+    TEST_METHOD(GenericRxEbpfXskRedirectQueueMismatch) {
         ::GenericRxEbpfXskRedirectQueueMismatch();
+    }
+
+    TEST_METHOD(GenericRxEbpfRedirectNonXskMap) {
+        ::GenericRxEbpfRedirectNonXskMap();
     }
 
     TEST_METHOD(GenericLoopbackV4) {
