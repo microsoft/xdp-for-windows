@@ -358,8 +358,12 @@ static const ebpf_map_provider_data_t XdpXskmapProviderData = {
     .header = EBPF_MAP_PROVIDER_DATA_HEADER,
     .map_type = BPF_MAP_TYPE_XSKMAP,
     .base_map_type = BPF_MAP_TYPE_HASH,
-    .base_properties = &XdpXskmapProviderProperties,
-    .base_provider_table = &XdpXskmapProviderDispatchTable,
+    //
+    // ebpf_map_provider_data_t stores non-const pointers, so cast away const.
+    // The eBPF runtime treats the provider data as read-only.
+    //
+    .base_properties = (ebpf_base_map_provider_properties_t *)&XdpXskmapProviderProperties,
+    .base_provider_table = (ebpf_base_map_provider_dispatch_table_t *)&XdpXskmapProviderDispatchTable,
 };
 
 //
