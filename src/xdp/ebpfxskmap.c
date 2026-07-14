@@ -402,7 +402,7 @@ XdpXskmapOnClientAttach(
         min(sizeof(Binding->ClientDispatch), ClientData->base_client_table->header.total_size));
 
     WriteULong64NoFence(
-        (UINT64 *)&XdpXskmapContextOffset, ClientData->map_context_offset);
+        &XdpXskmapContextOffset, ClientData->map_context_offset);
 
     EbpfExtensionClientSetProviderData(AttachingClient, Binding);
 
