@@ -62,10 +62,15 @@ function Get-BuildBranch {
         return $Matches[1]
 
     } elseif (![string]::IsNullOrWhiteSpace($env:GITHUB_REF_NAME)) {
-        # We are in a (GitHub Action) main build.
-        Write-Host "Using GITHUB_REF_NAME=$env:GITHUB_REF_NAME to compute branch"
+        # We are in a (GitHub Action) main build. When the run is on a tag ref
+        # (e.g. ci.yml dispatched via "workflow_dispatch --ref refs/tags/vX.Y.Z"),
+        # GitHub natively reports GITHUB_REF_TYPE=tag, so surface it as a tag so
+        # Get-BuildTag treats it as a release build.
+        Write-Host "Using GITHUB_REF_NAME=$env:GITHUB_REF_NAME (GITHUB_REF_TYPE=$env:GITHUB_REF_TYPE) to compute branch"
+        if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            return "tags/$env:GITHUB_REF_NAME"
+        }
         return $env:GITHUB_REF_NAME
-        $CommitMergedData = $true
 
     } else {
         # Fallback to the current branch.
@@ -113,27 +118,46 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfVersion {
-    return "1.1.0"
+    return "1.3.0"
+}
+
+# Returns the GitHub release tag for a given eBPF for Windows version. Releases
+# up to and including v1.1.0 use the "Release-v" tag prefix; newer releases use
+# a bare "v" prefix.
+function Get-EbpfReleaseTag {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+    if ([version]$Version -le [version]"1.1.0") {
+        return "Release-v$Version"
+    }
+    return "v$Version"
 }
 
 # Returns the eBPF MSI full path
 function Get-EbpfMsiFullPath {
     param (
         [Parameter()]
-        [string]$Platform
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$Version = (Get-EbpfVersion)
     )
     $RootDir = Split-Path $PSScriptRoot -Parent
-    $EbpfVersion = Get-EbpfVersion
-    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$EbpfVersion.$Platform.msi"
+    return "$RootDir\artifacts\ebpfmsi\ebpf-for-windows.$Version.$Platform.msi"
 }
 
 function Get-EbpfMsiUrl {
     param (
         [Parameter()]
-        [string]$Platform
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$Version = (Get-EbpfVersion)
     )
-    $EbpfVersion = Get-EbpfVersion
-    return "https://github.com/microsoft/ebpf-for-windows/releases/download/Release-v$EbpfVersion/ebpf-for-windows.$Platform.$EbpfVersion.msi"
+    $Tag = Get-EbpfReleaseTag -Version $Version
+    return "https://github.com/microsoft/ebpf-for-windows/releases/download/$Tag/ebpf-for-windows.$Platform.$Version.msi"
 }
 
 # Returns $true if eBPF appears to be an inbox (OS-provided) component rather
@@ -310,6 +334,9 @@ function Invoke-XdpRemoteIfRequested {
 }
 
 function Get-XdpBuildVersionString {
+    param (
+        [string]$ExtraMoniker = ""
+    )
     $XdpVersion = Get-XdpBuildVersion
     $VersionString = "$($XdpVersion.Major).$($XdpVersion.Minor).$($XdpVersion.Patch)"
 
@@ -320,7 +347,11 @@ function Get-XdpBuildVersionString {
         }
         $VersionString = $TagVersion
     } else {
-        $VersionString += "-prerelease-" + (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
+        $VersionString += "-prerelease-"
+        if (-not [string]::IsNullOrEmpty($ExtraMoniker)) {
+            $VersionString += "$ExtraMoniker-"
+        }
+        $VersionString += (git.exe describe --long --always --dirty --exclude=* --abbrev=8)
     }
 
     return $VersionString;
@@ -471,9 +502,9 @@ function New-PerfData {
 function Start-Service-With-Retry($Name) {
     Write-Verbose "Start-Service $Name"
     $StartSuccess = $false
-    for ($i=0; $i -lt 100; $i++) {
+    for ($i=0; $i -lt 200; $i++) {
         try {
-            Start-Sleep -Milliseconds 10
+            Start-Sleep -Milliseconds 5
             Start-Service $Name
             $StartSuccess = $true
             break

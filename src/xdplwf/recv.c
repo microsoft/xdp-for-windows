@@ -650,7 +650,7 @@ XdpGenericRxAllocateTxCloneNbl(
         if (TxNbl == NULL) {
             STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
             XdpPktMonLogDrop(
-                RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+                RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
                 DropForwardingAllocation, PktMonDropLoc);
             return NULL;
         }
@@ -662,7 +662,7 @@ XdpGenericRxAllocateTxCloneNbl(
         TxNbl = NULL;
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocationLimit);
         XdpPktMonLogDrop(
-            RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+            RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
             DropForwardingAllocationLimit, PktMonDropLoc);
         return NULL;
     }
@@ -741,7 +741,7 @@ XdpGenericRxCloneOrCopyTxNblData2(
         if (NdisStatus != NDIS_STATUS_SUCCESS) {
             STAT_INC(&RxQueue->PcwStats, ForwardingFailuresAllocation);
             XdpPktMonLogDrop(
-                RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+                RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
                 DropForwardingAllocation, PktMonDropLoc);
             return FALSE;
         }
@@ -1060,7 +1060,7 @@ XdpGenericRxSegmentRscToLso(
                 CanPend, TxNbl, PktMonDropLoc13)) {
             XdpGenericRxReturnTxCloneNbl(RxQueue, TxNbl);
             XdpPktMonLogDrop(
-                RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+                RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
                 DropForwardingAllocation, PktMonDropLoc13);
             goto Exit;
         }
@@ -1162,7 +1162,7 @@ XdpGenericRxConvertRscToLso(
     if (MdlDataLength < sizeof(*Ethernet)) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         XdpPktMonLogDrop(
-            RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+            RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
             DropForwardingRscInvalidHeaders, PktMonDropLoc2);
         goto Exit;
     }
@@ -1179,7 +1179,7 @@ XdpGenericRxConvertRscToLso(
         if (MdlDataLength < TcpOffset + sizeof(*Tcp)) {
             STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
             XdpPktMonLogDrop(
-                RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+                RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
                 DropForwardingRscInvalidHeaders, PktMonDropLoc3);
             goto Exit;
         }
@@ -1188,7 +1188,7 @@ XdpGenericRxConvertRscToLso(
         if (IpPayloadLength < sizeof(*Ipv4)) {
             STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
             XdpPktMonLogDrop(
-                RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+                RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
                 DropForwardingRscInvalidHeaders, PktMonDropLoc4);
             goto Exit;
         }
@@ -1209,7 +1209,7 @@ XdpGenericRxConvertRscToLso(
         if (MdlDataLength < TcpOffset + sizeof(*Tcp)) {
             STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
             XdpPktMonLogDrop(
-                RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+                RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
                 DropForwardingRscInvalidHeaders, PktMonDropLoc5);
             goto Exit;
         }
@@ -1222,7 +1222,7 @@ XdpGenericRxConvertRscToLso(
     default:
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         XdpPktMonLogDrop(
-            RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+            RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
             DropForwardingRscInvalidHeaders, PktMonDropLoc6);
         goto Exit;
     }
@@ -1235,7 +1235,7 @@ XdpGenericRxConvertRscToLso(
     if (TcpOffset + (UINT32)IpPayloadLength > Nb->DataLength) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         XdpPktMonLogDrop(
-            RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+            RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
             DropForwardingRscInvalidHeaders, PktMonDropLoc7);
         goto Exit;
     }
@@ -1252,7 +1252,7 @@ XdpGenericRxConvertRscToLso(
         Nb->DataLength < TcpTotalHdrLen) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         XdpPktMonLogDrop(
-            RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+            RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
             DropForwardingRscInvalidHeaders, PktMonDropLoc8);
         goto Exit;
     }
@@ -1278,7 +1278,7 @@ XdpGenericRxConvertRscToLso(
     if (TcpUserDataLenOrPureAck < NumSeg) {
         STAT_INC(&RxQueue->PcwStats, ForwardingFailuresRscInvalidHeaders);
         XdpPktMonLogDrop(
-            RxQueue->Generic->PktMonContext, Nbl, TRUE, PktMonDir_Out,
+            RxQueue->Generic, Nbl, TRUE, PktMonDir_Out,
             DropForwardingRscInvalidHeaders, PktMonDropLoc9);
         goto Exit;
     }
@@ -1761,7 +1761,7 @@ XdpGenericReceivePostInspectNbs(
             case XDP_RX_ACTION_DROP:
                 NdisAppendSingleNblToNblQueue(DropList, ActionNbl);
                 XdpPktMonLogDrop(
-                    RxQueue->Generic->PktMonContext, ActionNbl, TRUE,
+                    RxQueue->Generic, ActionNbl, TRUE,
                     RxQueue->Flags.TxInspect ? PktMonDir_Out : PktMonDir_In,
                     DropProgramInspection, PktMonDropLoc1);
                 break;

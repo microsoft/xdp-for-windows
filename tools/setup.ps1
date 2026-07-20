@@ -55,7 +55,13 @@ param (
     # failing because the eBPF store registry was wedged by a bugcheck) are
     # downgraded to warnings. Use only for recovery scenarios.
     [Parameter(Mandatory = $false)]
-    [switch]$Force = $false
+    [switch]$Force = $false,
+
+    # eBPF for Windows runtime version to install/uninstall. Defaults to the
+    # build-time version returned by Get-EbpfVersion. Only the installed runtime
+    # varies; XDP is always built against a single (latest) eBPF version.
+    [Parameter(Mandatory = $false)]
+    [string]$EbpfVersion = ""
 )
 
 Set-StrictMode -Version 'Latest'
@@ -581,7 +587,8 @@ function Install-Ebpf {
     }
 
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
+    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
 
     Write-Verbose "Installing eBPF for Windows"
 
@@ -611,7 +618,8 @@ function Uninstall-Ebpf {
     }
 
     $EbpfPath = Get-EbpfInstallPath
-    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform
+    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
     $Timeout = 60
 
     if (!(Test-Path $EbpfPath)) {
