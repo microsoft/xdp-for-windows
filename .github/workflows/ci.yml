@@ -168,7 +168,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         # eBPF for Windows runtime version installed on the test machine. XDP is
@@ -238,7 +238,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
@@ -522,7 +522,7 @@ jobs:
       fail-fast: false
       matrix:
         downlevel_release: ${{ fromJson(needs.resolve_downlevel_releases.outputs.downlevel_release) }}
-        windows: [2022, 2025]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release]
         platform: [x64]
     runs-on:

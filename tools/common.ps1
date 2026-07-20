@@ -160,6 +160,14 @@ function Get-EbpfMsiUrl {
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/$Tag/ebpf-for-windows.$Platform.$Version.msi"
 }
 
+# Returns $true if eBPF appears to be an inbox (OS-provided) component rather
+# than installed via the eBPF-for-Windows MSI package.
+function Test-EbpfInbox {
+    $svc = Get-Service -Name "ebpfcore" -ErrorAction SilentlyContinue
+    if ($null -eq $svc) { return $false }
+    return !(Test-Path (Get-EbpfInstallPath))
+}
+
 function Get-FnVersion {
     return "1.5.0"
 }

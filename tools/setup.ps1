@@ -581,6 +581,22 @@ function Uninstall-FnSock {
 }
 
 function Install-Ebpf {
+    if (Test-EbpfInbox) {
+        Write-Verbose "eBPF is an inbox OS component; skipping MSI install."
+        # Ensure inbox eBPF services are running.
+        foreach ($svc in @("ebpfcore", "netebpfext", "ebpfsvc")) {
+            $status = (Get-Service -Name $svc -ErrorAction Stop).Status
+            if ($status -ne "Running") {
+                Write-Verbose "starting $svc..."
+                Start-Service-With-Retry $svc
+                Write-Verbose "started $svc."
+            } else {
+                Write-Verbose "$svc is already running."
+            }
+        }
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
     $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
@@ -607,6 +623,11 @@ function Install-Ebpf {
 }
 
 function Uninstall-Ebpf {
+    if (Test-EbpfInbox) {
+        Write-Verbose "eBPF is an inbox OS component; skipping MSI uninstall."
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
     $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
