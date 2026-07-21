@@ -336,8 +336,15 @@ if ($Cleanup) {
         # 1   - Delay (in minutes) after boot until simulation engages
         #       This is the lowest value configurable via verifier.exe.
         # WARNING: xdp.sys itself may fail to load due to low resources simulation.
-        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
-        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
+        #
+        # On images with inbox eBPF (e.g. Windows Prerelease), the inbox eBPF
+        # program-attach path is more allocation-sensitive than the MSI runtime,
+        # so the default 5.99% failure rate starves socket setup below the pass
+        # threshold. Use a lower failure rate there while still exercising the
+        # low-resources code paths.
+        $Faults = if ($EbpfPreinstalled) { 200 } else { 599 }
+        Write-Verbose "verifier.exe /standard /faults $Faults `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
+        verifier.exe /standard /faults $Faults `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }
