@@ -168,12 +168,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         # eBPF for Windows runtime version installed on the test machine. XDP is
         # always built against a single (latest) eBPF version; this matrix only
         # varies the installed runtime to validate backward compatibility.
+        # Prerelease ships eBPF inbox, so it ignores this dimension entirely and
+        # runs against the inbox runtime (see -EbpfPreinstalled on the steps
+        # below); the version value is unused for Prerelease.
         ebpf: ["1.1.0", "1.3.0"]
         exclude:
         - windows: 2022
@@ -193,7 +196,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose -EbpfVersion ${{ matrix.ebpf }}
+      run: tools/prepare-machine.ps1 -Platform ${{ matrix.platform }} -ForFunctionalTest -RequireNoReboot -Verbose -EbpfVersion ${{ matrix.ebpf }} -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -203,12 +206,12 @@ jobs:
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
       shell: PowerShell
       timeout-minutes: 36
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }} -EbpfVersion ${{ matrix.ebpf }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.prIters }} -Timeout ${{ env.fullRuntime }} -EbpfVersion ${{ matrix.ebpf }} -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Run Tests (main)
       if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'}}
       shell: PowerShell
       timeout-minutes: 360
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }} -EbpfVersion ${{ matrix.ebpf }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.fullIters }} -Timeout ${{ env.fullRuntime }} -EbpfVersion ${{ matrix.ebpf }} -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
@@ -238,7 +241,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows: [2022, 2025]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release, Debug]
         platform: [x64, arm64]
         testDriver: [XDPMP, FNMP]
@@ -264,7 +267,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -274,22 +277,22 @@ jobs:
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Run spinxsk (PR)
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Run spinxsk (main, with TxInspect)
       if: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
@@ -522,7 +525,7 @@ jobs:
       fail-fast: false
       matrix:
         downlevel_release: ${{ fromJson(needs.resolve_downlevel_releases.outputs.downlevel_release) }}
-        windows: [2022, 2025]
+        windows: [2022, 2025, Prerelease]
         configuration: [Release]
         platform: [x64]
     runs-on:
@@ -540,7 +543,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForFunctionalTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -555,7 +558,7 @@ jobs:
     - name: Run Tests
       shell: PowerShell
       timeout-minutes: 25
-      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }}
+      run: tools/functional.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Iterations ${{ env.Iters }} -NoPrerelease -Timeout ${{ env.Runtime }} -EbpfPreinstalled:${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15

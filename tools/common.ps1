@@ -501,3 +501,19 @@ function Start-Service-With-Retry($Name) {
         Write-Error "Failed to start $Name"
     }
 }
+
+# Ensures the inbox eBPF services are running. Used on images (e.g. Windows
+# Prerelease) that ship eBPF inbox, where we must NOT install the eBPF MSI but
+# instead start the services already present on the machine.
+function Start-Ebpf-Inbox {
+    foreach ($svc in @("ebpfcore", "netebpfext", "ebpfsvc")) {
+        $status = (Get-Service -Name $svc -ErrorAction Stop).Status
+        if ($status -ne "Running") {
+            Write-Verbose "starting $svc..."
+            Start-Service-With-Retry $svc
+            Write-Verbose "started $svc."
+        } else {
+            Write-Verbose "$svc is already running."
+        }
+    }
+}
