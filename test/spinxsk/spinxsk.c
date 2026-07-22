@@ -629,11 +629,22 @@ AttachXdpEbpfProgram(
         goto Exit;
     }
 
-    TraceVerbose("bpf_program__set_type(%p, %d)", BpfProgram, BPF_PROG_TYPE_XDP);
-    if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
-        TraceVerbose("bpf_program__set_type failed: %d", errno);
-        Result = E_FAIL;
-        goto Exit;
+    //
+    // The programs loaded here are native (compiled) programs whose type is
+    // already fixed to XDP, so bpf_program__set_type is unnecessary and in fact
+    // fails with EINVAL for native programs - which previously caused every
+    // eBPF attach attempt to bail out here before ever loading or attaching the
+    // program. Exercise set_type only occasionally to retain fuzz coverage of
+    // that path, and skip it the rest of the time so the program can actually
+    // load and attach.
+    //
+    if ((RandUlong() % 100) == 0) {
+        TraceVerbose("bpf_program__set_type(%p, %d)", BpfProgram, BPF_PROG_TYPE_XDP);
+        if (bpf_program__set_type(BpfProgram, BPF_PROG_TYPE_XDP) < 0) {
+            TraceVerbose("bpf_program__set_type failed: %d", errno);
+            Result = E_FAIL;
+            goto Exit;
+        }
     }
 
     TraceVerbose("bpf_object__load(%p)", BpfObject);
