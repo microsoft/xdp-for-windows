@@ -128,6 +128,11 @@ for ($i = 1; $i -le $Iterations; $i++) {
             Write-Verbose "installing ebpf..."
             & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform -EbpfVersion $EbpfVersion
             Write-Verbose "installed ebpf."
+        } else {
+            # On images with inbox eBPF (e.g. Windows Prerelease), do not install
+            # the eBPF MSI; just ensure the inbox services are running.
+            Write-Verbose "using inbox ebpf; ensuring services are running..."
+            Start-Ebpf-Inbox
         }
 
         Write-Verbose "installing xdp..."

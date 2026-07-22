@@ -80,6 +80,11 @@ param (
     [Parameter(Mandatory = $false)]
     [string]$EbpfVersion = "",
 
+    # When set, eBPF is preinstalled (inbox) on the machine; skip downloading the
+    # eBPF MSI, since there is no MSI to install for inbox eBPF.
+    [Parameter(Mandatory = $false)]
+    [switch]$EbpfPreinstalled = $false,
+
     # Remote execution: when set, deploy + run this script on the named test
     # machine over PowerShell remoting. See tools\remote.ps1 for setup.
     [Parameter(Mandatory = $false)]
@@ -360,7 +365,9 @@ if ($Cleanup) {
         Setup-VcRuntime
         Setup-VsTest
         Download-CoreNet-Deps
-        Download-Ebpf-Msi
+        if (!$EbpfPreinstalled) {
+            Download-Ebpf-Msi
+        }
         Setup-TestSigning
     }
 
