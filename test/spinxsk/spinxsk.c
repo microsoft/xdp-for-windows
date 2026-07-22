@@ -1744,7 +1744,15 @@ FuzzSocketMisc(
         }
 
         if (RandUlong() % 2) {
-            timeoutMs = RandUlong() % 1000;
+            //
+            // A blocking XskNotifySocket (below) with a WAIT flag stalls this
+            // fuzzer thread for up to timeoutMs while it is still configuring
+            // the socket. A large timeout can consume the entire setup window
+            // (see the completeEvent wait in QueueWorkerFn), starving the final
+            // bind/activate steps and tanking the socket setup success rate.
+            // Keep the timeout tiny so setup can make progress.
+            //
+            timeoutMs = RandUlong() % 3;
         }
 
         if (RandUlong() % 2) {
