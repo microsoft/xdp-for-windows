@@ -6446,9 +6446,10 @@ GetEbpfRuntimeVersion(
 }
 
 //
-// The eBPF XSKMAP (bpf_redirect_map to AF_XDP sockets) requires the eBPF for
-// Windows base-map-provider. When the installed runtime version is unavailable
-// the build-time default (which supports XSKMAP) is assumed.
+// The eBPF XSKMAP (bpf_redirect_map to AF_XDP sockets) requires the global
+// virtual bpf_redirect_map helper introduced in eBPF for Windows 1.4. When the
+// installed runtime version is unavailable the build-time default (which
+// supports XSKMAP) is assumed.
 //
 static
 bool
@@ -6460,7 +6461,7 @@ EbpfXskmapSupported()
         return true;
     }
 
-    return (Major > 1) || (Major == 1 && Minor >= 3);
+    return (Major > 1) || (Major == 1 && Minor >= 4);
 }
 
 VOID

@@ -118,7 +118,7 @@ function Get-EbpfInstallPath {
 }
 
 function Get-EbpfVersion {
-    return "1.3.0"
+    return "1.4.0"
 }
 
 # Returns the GitHub release tag for a given eBPF for Windows version. Releases
