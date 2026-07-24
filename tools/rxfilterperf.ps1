@@ -55,7 +55,13 @@ if ($Forwarded -is [array]) { $Forwarded = $Forwarded[-1] }
 if ($Forwarded) { return }
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
-$RxFilter = "$ArtifactsDir\test\rxfilter.exe"
+
+#
+# This perf harness exercises the deprecated built-in rules-based program API
+# (rxfilter-deprecated.exe), which is deprecated and planned for removal.
+#
+Write-Warning "rxfilterperf uses the deprecated built-in program API (rxfilter-deprecated); this path is deprecated and planned for removal."
+$RxFilter = "$ArtifactsDir\test\rxfilter-deprecated.exe"
 
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null

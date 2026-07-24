@@ -60,6 +60,10 @@
 // FUNC TraceExitStatus{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS);
 // USESUFFIX (TraceExitStatus, "%!STATUS!", Status);
 //
+// USEPREFIX(TraceExitEbpfResult,"%!STDPREFIX! %!FUNC!:%!LINE! <---%!SPACE!");
+// FUNC TraceExitEbpfResult{LEVEL=TRACE_LEVEL_VERBOSE}(FLAGS);
+// USESUFFIX (TraceExitEbpfResult, "ebpf_result_t=%u", Result);
+//
 // CUSTOM_TYPE(EXTENSION_TYPE, ItemEnum(_XDP_EXTENSION_TYPE));
 // CUSTOM_TYPE(HOOK_LAYER, ItemEnum(_XDP_HOOK_LAYER));
 // CUSTOM_TYPE(HOOK_DIR, ItemEnum(_XDP_HOOK_DATAPATH_DIRECTION));

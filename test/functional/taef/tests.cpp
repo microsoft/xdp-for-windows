@@ -53,6 +53,16 @@ StopTest()
 }
 
 VOID
+SkipTest(
+    _In_z_ PCWSTR Reason
+    )
+{
+    TraceWarn("%S", Reason);
+    Logger::WriteMessage(L"[SKIPPED] ");
+    Logger::WriteMessage(Reason);
+}
+
+VOID
 LogTestFailure(
     _In_z_ PCWSTR File,
     _In_z_ PCWSTR Function,
@@ -646,6 +656,38 @@ public:
 
     TEST_METHOD_PRERELEASE(GenericRxEbpfUnload) {
         ::GenericRxEbpfUnload();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskRedirect) {
+        ::GenericRxEbpfXskRedirect();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskRedirectFallback) {
+        ::GenericRxEbpfXskRedirectFallback();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskRedirectReplace) {
+        ::GenericRxEbpfXskRedirectReplace();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskRedirectDelete) {
+        ::GenericRxEbpfXskRedirectDelete();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskMapControlPath) {
+        ::GenericRxEbpfXskMapControlPath();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskRedirectCloseSocket) {
+        ::GenericRxEbpfXskRedirectCloseSocket();
+    }
+
+    TEST_METHOD(GenericRxEbpfXskRedirectQueueMismatch) {
+        ::GenericRxEbpfXskRedirectQueueMismatch();
+    }
+
+    TEST_METHOD(GenericRxEbpfRedirectNonXskMap) {
+        ::GenericRxEbpfRedirectNonXskMap();
     }
 
     TEST_METHOD(GenericLoopbackV4) {
