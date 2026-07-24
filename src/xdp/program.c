@@ -784,7 +784,6 @@ Exit:
 
 static const VOID *EbpfXdpHelperFunctions[] = {
     (VOID *)EbpfXdpAdjustHead,
-    (VOID *)EbpfXdpRedirectMap,
 };
 
 static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
@@ -793,10 +792,25 @@ static const ebpf_helper_function_addresses_t XdpHelperFunctionAddresses = {
     .helper_function_address = (UINT64 *)EbpfXdpHelperFunctions
 };
 
+//
+// XDP-specific implementations of eBPF global (virtual) helpers. The order must
+// match EbpfXdpGlobalHelperFunctionPrototype in ebpfstore.h.
+//
+static const VOID *EbpfXdpGlobalHelperFunctions[] = {
+    (VOID *)EbpfXdpRedirectMap,
+};
+
+static const ebpf_helper_function_addresses_t XdpGlobalHelperFunctionAddresses = {
+    .header = EBPF_HELPER_FUNCTION_ADDRESSES_HEADER,
+    .helper_function_count = RTL_NUMBER_OF(EbpfXdpGlobalHelperFunctions),
+    .helper_function_address = (UINT64 *)EbpfXdpGlobalHelperFunctions
+};
+
 static const ebpf_program_data_t EbpfXdpProgramData = {
     .header = EBPF_PROGRAM_DATA_HEADER,
     .program_info = &EbpfXdpProgramInfo,
     .program_type_specific_helper_function_addresses = &XdpHelperFunctionAddresses,
+    .global_helper_function_addresses = &XdpGlobalHelperFunctionAddresses,
     .context_create = XdpCreateContext,
     .context_destroy = XdpDeleteContext,
     .required_irql = DISPATCH_LEVEL,

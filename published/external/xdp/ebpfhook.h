@@ -61,7 +61,6 @@ xdp_hook_t(
 
 typedef enum _xdp_helper_id {
     BPF_FUNC_xdp_adjust_head = XDP_EXT_HELPER_FN_BASE,
-    BPF_FUNC_redirect_map,
 } xdp_helper_id_t;
 
 #define XDP_EBPF_HELPER(return_type, name, args) typedef return_type(name##_t) args
@@ -69,8 +68,11 @@ typedef enum _xdp_helper_id {
 XDP_EBPF_HELPER(int, bpf_xdp_adjust_head, (xdp_md_t *ctx, int delta));
 #define bpf_xdp_adjust_head ((bpf_xdp_adjust_head_t *)BPF_FUNC_xdp_adjust_head)
 
-XDP_EBPF_HELPER(intptr_t, bpf_redirect_map, (void *map, uint64_t key, uint64_t flags));
-#define bpf_redirect_map ((bpf_redirect_map_t *)BPF_FUNC_redirect_map)
+//
+// N.B. bpf_redirect_map is a global (virtual) helper defined by eBPF for
+// Windows (see bpf_helper_defs.h, BPF_FUNC_redirect_map). XDP provides the
+// XDP-specific implementation via its global helper override table.
+//
 
 #ifdef __cplusplus
 } // extern "C"
