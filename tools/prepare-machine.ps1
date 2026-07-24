@@ -321,7 +321,7 @@ if ($Cleanup) {
     if ($ForSpinxskTest) {
         $ForTest = $true
         # Verifier configuration: standard flags with low resources simulation.
-        # 599 - Failure probability (599/10000 = 5.99%)
+        # 100 - Failure probability (100/10000 = 1.00%)
         #       N.B. If left to the default value, roughly every 5 minutes verifier
         #       will fail all allocations within a 10 second interval. This behavior
         #       complicates the spinxsk socket setup statistics. Setting it to a
@@ -331,8 +331,8 @@ if ($Cleanup) {
         # 1   - Delay (in minutes) after boot until simulation engages
         #       This is the lowest value configurable via verifier.exe.
         # WARNING: xdp.sys itself may fail to load due to low resources simulation.
-        Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
-        verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
+        Write-Verbose "verifier.exe /standard /faults 100 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
+        verifier.exe /standard /faults 100 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
         if (!$?) {
             $Reboot = $true
         }
