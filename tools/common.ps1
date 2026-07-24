@@ -489,9 +489,9 @@ function New-PerfData {
 function Start-Service-With-Retry($Name) {
     Write-Verbose "Start-Service $Name"
     $StartSuccess = $false
-    for ($i=0; $i -lt 100; $i++) {
+    for ($i=0; $i -lt 200; $i++) {
         try {
-            Start-Sleep -Milliseconds 10
+            Start-Sleep -Milliseconds 5
             Start-Service $Name
             $StartSuccess = $true
             break
