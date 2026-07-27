@@ -426,6 +426,24 @@
                 outType="win:HexInt32"
                 />
           </template>
+          <template tid="tid_EbpfXskmapMapContext">
+            <data
+                inType="win:Pointer"
+                name="MapContext"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_EbpfXskmapDeleteElementFailure">
+            <data
+                inType="win:Pointer"
+                name="MapContext"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="ValueSize"
+                />
+          </template>
           <template tid="tid_GenericRxInspectRing">
             <data
                 inType="win:Pointer"
@@ -746,6 +764,26 @@
               />
           <event
               channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Error"
+              message="$(string.EbpfXskmapAssociateFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapAssociateFailure"
+              template="tid_EbpfXskmapMapContext"
+              value="31"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Error"
+              message="$(string.EbpfXskmapDeleteElementFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapDeleteElementFailure"
+              template="tid_EbpfXskmapDeleteElementFailure"
+              value="32"
+              />
+          <event
+              channel="CHID_XDP"
               keywords="Generic Rx"
               level="XdpPerFrame"
               message="$(string.GenericRxInspectRingStart.EventMessage)"
@@ -882,6 +920,14 @@
         <string
             id="EbpfXskmapFindElementRejected.EventMessage"
             value="[xskm][%1] find element rejected Flags=%2"
+            />
+        <string
+            id="EbpfXskmapAssociateFailure.EventMessage"
+            value="[xskm][%1] program type association rejected (not XDP)"
+            />
+        <string
+            id="EbpfXskmapDeleteElementFailure.EventMessage"
+            value="[xskm][%1] element delete unexpected value ValueSize=%2"
             />
         <string
             id="GenericRxInspectRingStart.EventMessage"

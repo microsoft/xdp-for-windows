@@ -715,7 +715,6 @@ EbpfXdpRedirectMap(
     intptr_t ReturnAction = FallbackAction;
     EBPF_XDP_MD *XdpMd = CONTAINING_RECORD(ProgramContext, EBPF_XDP_MD, Base);
     BOOLEAN IsProgTestRun = XdpMd->ProgTestRunContext != NULL;
-    XDP_REDIRECT_CONTEXT *RedirectContext = &XdpMd->InspectionContext->RedirectContext;
     XDP_RX_QUEUE *RxQueue;
     VOID *Value = NULL;
     HANDLE Xsk;
@@ -725,12 +724,14 @@ EbpfXdpRedirectMap(
 
     if (IsProgTestRun) {
         //
-        // N.B. RxQueue and other nontrivial structures are not present in
-        // eBPF prog_test_run callbacks.
+        // N.B. RxQueue and the inspection context are not present in eBPF
+        // prog_test_run callbacks.
         //
         RxQueue = NULL;
     } else {
-        RxQueue = XdpRxQueueFromRedirectContext(RedirectContext);
+        ASSERT(XdpMd->InspectionContext != NULL);
+        RxQueue =
+            XdpRxQueueFromRedirectContext(&XdpMd->InspectionContext->RedirectContext);
         ASSERT(RxQueue != NULL);
     }
 

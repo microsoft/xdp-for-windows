@@ -170,12 +170,12 @@ XdpXskmapPreprocessAssociateProgramType(
     ebpf_result_t Result;
 
     UNREFERENCED_PARAMETER(BindingContext);
-    UNREFERENCED_PARAMETER(MapContext);
 
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
 
     if (!IsEqualGUID(ProgramType, &ExpectedProgramType)) {
         TraceError(TRACE_CORE, "XSKMAP only supports XDP program type");
+        EventWriteEbpfXskmapAssociateFailure(&MICROSOFT_XDP_PROVIDER, MapContext);
         Result = EBPF_OPERATION_NOT_SUPPORTED;
         goto Exit;
     }
@@ -342,10 +342,20 @@ XdpXskmapPostprocessMapDeleteElement(
     //
     if (ValueSize == sizeof(HANDLE) && Value != NULL) {
         XskHandle = *(const HANDLE *)Value;
-        if (XskHandle != NULL) {
-            XskDereferenceDatapathHandle(XskHandle);
-            EventWriteEbpfXskmapDeleteElement(&MICROSOFT_XDP_PROVIDER, MapContext, XskHandle);
-        }
+    } else {
+        XskHandle = NULL;
+    }
+
+    if (XskHandle != NULL) {
+        XskDereferenceDatapathHandle(XskHandle);
+        EventWriteEbpfXskmapDeleteElement(&MICROSOFT_XDP_PROVIDER, MapContext, XskHandle);
+    } else {
+        //
+        // The base map handed back an entry that is not a valid XSK handle
+        // (unexpected value size or NULL handle). Log the anomaly.
+        //
+        EventWriteEbpfXskmapDeleteElementFailure(
+            &MICROSOFT_XDP_PROVIDER, MapContext, (UINT32)ValueSize);
     }
 
     TraceExitSuccess(TRACE_CORE);
