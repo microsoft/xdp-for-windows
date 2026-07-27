@@ -102,11 +102,10 @@ try {
     Write-Verbose "$XskFwd $ArgList"
     $XskFwdProcess = Start-Process $XskFwd -PassThru -ArgumentList $ArgList
 
-    Write-Verbose "Waiting $Duration seconds with traffic flowing..."
-    Start-Sleep -Seconds $Duration
-
     & $RootDir\tools\xdpmpratesim.ps1 -AdapterName XDPMP -RxFramesPerInterval 1000
 
+    Write-Verbose "Waiting $Duration seconds with traffic flowing..."
+    Start-Sleep -Seconds $Duration
     if ($XskFwdProcess.HasExited) {
         Write-Error "xskfwd exited unexpectedly with code $($XskFwdProcess.ExitCode)"
     }

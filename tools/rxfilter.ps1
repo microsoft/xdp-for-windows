@@ -123,12 +123,12 @@ try {
     $RxFilterProcess = Start-Process $RxFilter -PassThru -ArgumentList $ArgList
 
     $StartPackets = (Get-NetAdapterStatistics -Name XDPMP).ReceivedUnicastPackets
-    Write-Verbose "Waiting $Duration seconds with traffic flowing..."
-    Start-Sleep -Seconds $Duration
-    $EndPackets = (Get-NetAdapterStatistics -Name XDPMP).ReceivedUnicastPackets
 
     & $RootDir\tools\xdpmpratesim.ps1 -AdapterName XDPMP -RxFramesPerInterval 1000
 
+    Write-Verbose "Waiting $Duration seconds with traffic flowing..."
+    Start-Sleep -Seconds $Duration
+    $EndPackets = (Get-NetAdapterStatistics -Name XDPMP).ReceivedUnicastPackets
     $PacketsProcessed = $EndPackets - $StartPackets
     Write-Output "rxfilter processed $PacketsProcessed packets in $Duration seconds."
 

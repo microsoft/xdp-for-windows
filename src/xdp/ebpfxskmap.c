@@ -8,10 +8,9 @@
 // enabling eBPF programs to redirect packets to AF_XDP sockets via
 // bpf_redirect_map().
 //
-// The XSKMAP relies entirely on the eBPF base array map for storage. The
-// provider callbacks intercept CRUD operations to reference-count XSK handles.
-// The base map stores HANDLE-sized values; the provider validates and transforms
-// them on add/delete.
+// The XSKMAP relies entirely on the eBPF base hash map for storage. The provider
+// callbacks intercept CRUD operations to reference-count XSK handles. The base map
+// stores HANDLE-sized values; the provider validates and transforms them on add/delete.
 //
 
 #include "precomp.h"
