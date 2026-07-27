@@ -17,7 +17,7 @@ XdpXskmapStop(
 
 ebpf_result_t
 XdpXskmapFindElement(
-    _In_ const void *Map,
+    _In_ const VOID *Map,
     _In_ const VOID *Key,
     _Outptr_ VOID **Value
     );

@@ -8,19 +8,9 @@
 #ifndef XDPEBPFHOOK_H
 #define XDPEBPFHOOK_H
 
-#include <ebpf_structs.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-//
-// BPF_MAP_TYPE_XSKMAP for AF_XDP socket redirection.
-//
-
-// TODO! BPF_MAP_TYPE_XSKMAP must be defined in eBPF headers.
-
-#define BPF_MAP_TYPE_XSKMAP 16
 
 typedef struct xdp_md {
     void *data;               ///< Pointer to start of packet data.
@@ -53,20 +43,6 @@ xdp_action_t
 xdp_hook_t(
     xdp_md_t *context
     );
-
-//
-// Program-specific helper functions.
-//
-#define XDP_EXT_HELPER_FN_BASE (EBPF_MAX_GENERAL_HELPER_FUNCTION + 1)
-
-typedef enum _xdp_helper_id {
-    BPF_FUNC_xdp_adjust_head = XDP_EXT_HELPER_FN_BASE,
-} xdp_helper_id_t;
-
-#define XDP_EBPF_HELPER(return_type, name, args) typedef return_type(name##_t) args
-
-XDP_EBPF_HELPER(int, bpf_xdp_adjust_head, (xdp_md_t *ctx, int delta));
-#define bpf_xdp_adjust_head ((bpf_xdp_adjust_head_t *)BPF_FUNC_xdp_adjust_head)
 
 //
 // N.B. bpf_redirect_map is a global (virtual) helper defined by eBPF for

@@ -6706,21 +6706,25 @@ GenericRxEbpfXskMapControlPath()
     TEST_NOT_EQUAL(xsk_map_fd, ebpf_fd_invalid);
 
     //
-    // Verify lookup on a non-existent key returns an error.
+    // Verify that user-mode lookups are always rejected, whether or not an
+    // entry exists. An XSKMAP value is a referenced kernel XSK handle, so the
+    // provider refuses to return it to user mode to avoid leaking a kernel
+    // pointer.
     //
     UINT64 QueueId = If.GetQueueId();
     HANDLE LookupValue = NULL;
     TEST_NOT_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
 
     //
-    // Insert an entry and verify lookup succeeds.
+    // Insert an entry: the update succeeds, but a subsequent user-mode lookup
+    // is still rejected.
     //
     HANDLE XskHandle = Xsk.Handle.get();
     TEST_EQUAL(0, bpf_map_update_elem(xsk_map_fd, &QueueId, &XskHandle, BPF_ANY));
-    TEST_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
+    TEST_NOT_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));
 
     //
-    // Delete the entry and verify lookup fails again.
+    // Delete the entry and verify lookup is still rejected.
     //
     TEST_EQUAL(0, bpf_map_delete_elem(xsk_map_fd, &QueueId));
     TEST_NOT_EQUAL(0, bpf_map_lookup_elem(xsk_map_fd, &QueueId, &LookupValue));

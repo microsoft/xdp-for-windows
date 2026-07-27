@@ -52,7 +52,7 @@ struct {
 | Field | Value | Description |
 |-------|-------|-------------|
 | `type` | `BPF_MAP_TYPE_XSKMAP` (16) | Identifies this as an XSK redirect map. |
-| `key` | `uint64_t` | The key type. Typically the RX queue index. |
+| `key` | `uint64_t` | The key type. Should be the RX queue index. |
 | `value` | `void *` | Opaque XSK socket handle (populated by user mode). |
 | `max_entries` | Application-defined | Should be >= the number of sockets you intend to use. |
 
@@ -295,6 +295,12 @@ map's contents. From within a BPF program:
 
 Only `bpf_redirect_map` can successfully read from the XSKMAP at runtime.
 
+From user mode, entries are managed with `bpf_map_update_elem` and
+`bpf_map_delete_elem`, but `bpf_map_lookup_elem` is rejected: the stored
+value is a referenced kernel XSK pointer that must not be returned to user mode.
+
+For kernel mode, entries cannot be added, updated, or removed from a BPF program.
+
 ## Diagnostics
 
 ### Performance Counters
@@ -311,6 +317,11 @@ Only `bpf_redirect_map` can successfully read from the XSKMAP at runtime.
 | `EbpfRedirectMapLookupFailure` | Key, FallbackAction | The key was not found in the XSKMAP. |
 | `EbpfRedirectMapRedirectFailure` | Key, Xsk, FallbackAction | The XSK was found but could not accept the redirect. |
 | `EbpfRedirectMapSuccess` | Key, Xsk | The packet was successfully redirected. |
+| `EbpfXskmapCreateFailure` | MapType, KeySize, ValueSize, EbpfResult | XSKMAP creation was rejected (unsupported map type or invalid key/value size). |
+| `EbpfXskmapUpdateElement` | Xsk | A user-mode update added an XSK handle to the map. |
+| `EbpfXskmapUpdateElementFailure` | Status | A user-mode update was rejected (NULL or non-XSK handle). |
+| `EbpfXskmapDeleteElement` | Xsk | A user-mode delete removed an XSK handle from the map. |
+| `EbpfXskmapFindElementRejected` | Flags | A user-mode `bpf_map_lookup_elem` was rejected to avoid leaking a kernel pointer. |
 
 ### Capturing Traces
 

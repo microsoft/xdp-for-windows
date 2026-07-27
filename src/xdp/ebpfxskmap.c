@@ -29,6 +29,7 @@ typedef struct _XDP_XSKMAP_BINDING_CONTEXT {
 // Per-map context for an XSKMAP instance.
 //
 typedef struct _XDP_XSKMAP_CONTEXT {
+    XDP_EBPF_MAP_HEADER Header;
     ebpf_base_map_client_dispatch_table_t *ClientDispatch;
 } XDP_XSKMAP_CONTEXT;
 
@@ -51,8 +52,8 @@ static EBPF_EXTENSION_PROVIDER *EbpfXskmapProvider;
 
 //
 // Offset within the eBPF map structure where the provider context (map_context)
-// is stored. Set during client attach; used by XdpXskmapFindElement to derive
-// the XDP_XSKMAP_CONTEXT from a raw map pointer.
+// is stored. Set during client attach; used by XdpXskmapFindElement to resolve
+// a raw map pointer to its XDP_EBPF_MAP_HEADER.
 //
 // N.B. The eBPF contract guarantees all maps share the same context offset.
 //
@@ -70,7 +71,7 @@ XdpXskmapGetBindingContext(
 
 static
 ebpf_result_t
-XdpXskmapProcessCreate(
+XdpXskmapPreprocessMapCreate(
     _In_ void *BindingContext,
     uint32_t MapType,
     uint32_t KeySize,
@@ -117,11 +118,17 @@ XdpXskmapProcessCreate(
         goto Exit;
     }
 
+    Context->Header.Type = XdpEbpfMapTypeXsk;
     Context->ClientDispatch = &Binding->ClientDispatch;
-    *MapContext = Context;
+    *MapContext = &Context->Header;
     Result = EBPF_SUCCESS;
 
 Exit:
+
+    if (Result != EBPF_SUCCESS) {
+        EventWriteEbpfXskmapCreateFailure(
+            &MICROSOFT_XDP_PROVIDER, BindingContext, MapType, KeySize, ValueSize, (UINT32)Result);
+    }
 
     TraceExitEbpfResult(TRACE_CORE);
     return Result;
@@ -129,12 +136,12 @@ Exit:
 
 static
 void
-XdpXskmapProcessDelete(
+XdpXskmapPostprocessMapDelete(
     _In_ void *BindingContext,
     _In_ _Post_invalid_ void *MapContext
     )
 {
-    XDP_XSKMAP_CONTEXT *Context = (XDP_XSKMAP_CONTEXT *)MapContext;
+    XDP_XSKMAP_CONTEXT *Context = CONTAINING_RECORD(MapContext, XDP_XSKMAP_CONTEXT, Header);
 
     UNREFERENCED_PARAMETER(BindingContext);
 
@@ -153,7 +160,7 @@ XdpXskmapProcessDelete(
 
 static
 ebpf_result_t
-XdpXskmapAssociateProgramType(
+XdpXskmapPreprocessAssociateProgramType(
     _In_ void *BindingContext,
     _In_ void *MapContext,
     _In_ const ebpf_program_type_t *ProgramType
@@ -183,7 +190,7 @@ Exit:
 
 static
 ebpf_result_t
-XdpXskmapProcessFindElement(
+XdpXskmapPostprocessMapFindElement(
     _In_ void *BindingContext,
     _In_ void *MapContext,
     size_t KeySize,
@@ -196,37 +203,36 @@ XdpXskmapProcessFindElement(
     )
 {
     UNREFERENCED_PARAMETER(BindingContext);
-    UNREFERENCED_PARAMETER(MapContext);
     UNREFERENCED_PARAMETER(KeySize);
     UNREFERENCED_PARAMETER(Key);
+    UNREFERENCED_PARAMETER(InValueSize);
+    UNREFERENCED_PARAMETER(InValue);
     UNREFERENCED_PARAMETER(OutValueSize);
     UNREFERENCED_PARAMETER(OutValue);
-    DBG_UNREFERENCED_PARAMETER(Flags);
 
     //
-    // The eBPF runtime blocks BPF program lookups on maps with
-    // updates_original_value set. Assert this invariant.
+    // This provider sets updates_original_value, so the eBPF runtime blocks
+    // find-element lookups issued by a kernel BPF program (the helper path,
+    // flagged with EBPF_MAP_OPERATION_HELPER). This callback therefore only
+    // runs for BPF user-mode API lookups; assert the helper flag is clear.
     //
     ASSERT(!(Flags & EBPF_MAP_OPERATION_HELPER));
 
     //
-    // The base map handles the lookup. The in_value contains the stored
-    // HANDLE. Validate it is non-NULL.
+    // An XSKMAP value is a referenced kernel XSK handle (pointer). Returning it
+    // to user mode would leak a kernel pointer, so reject all user-mode
+    // lookups. This matches Linux behavior.
+    // Lookups from kernel BPF programs (the useful case) are not yet
+    // permitted by the eBPF runtime; see the tracking issues on the PR
+    // (ebpf-for-windows#5464 and xdp-for-windows#1049).
     //
-    if (InValueSize != sizeof(HANDLE) || InValue == NULL) {
-        return EBPF_INVALID_ARGUMENT;
-    }
-
-    if (*(const HANDLE *)InValue == NULL) {
-        return EBPF_KEY_NOT_FOUND;
-    }
-
-    return EBPF_SUCCESS;
+    EventWriteEbpfXskmapFindElementRejected(&MICROSOFT_XDP_PROVIDER, MapContext, Flags);
+    return EBPF_OPERATION_NOT_SUPPORTED;
 }
 
 static
 ebpf_result_t
-XdpXskmapProcessAddElement(
+XdpXskmapPreprocessMapUpdateElement(
     _In_ void *BindingContext,
     _In_ void *MapContext,
     size_t KeySize,
@@ -250,8 +256,10 @@ XdpXskmapProcessAddElement(
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
 
     //
-    // The eBPF runtime blocks BPF program updates on maps with
-    // updates_original_value set. Assert this invariant.
+    // This provider sets updates_original_value, so the eBPF runtime blocks
+    // element updates issued by a kernel BPF program (the helper path, flagged
+    // with EBPF_MAP_OPERATION_HELPER); this callback runs for BPF user-mode API
+    // updates. Assert the helper flag is clear.
     //
     ASSERT(!(Flags & EBPF_MAP_OPERATION_HELPER));
 
@@ -279,10 +287,15 @@ XdpXskmapProcessAddElement(
     // will store this as the entry's value.
     //
     *(HANDLE *)OutValue = NewXskHandle;
+    EventWriteEbpfXskmapUpdateElement(&MICROSOFT_XDP_PROVIDER, MapContext, NewXskHandle);
     NewXskHandle = NULL;
     Status = STATUS_SUCCESS;
 
 Exit:
+
+    if (!NT_SUCCESS(Status)) {
+        EventWriteEbpfXskmapUpdateElementFailure(&MICROSOFT_XDP_PROVIDER, MapContext, (UINT32)Status);
+    }
 
     if (NewXskHandle != NULL) {
         XskDereferenceDatapathHandle(NewXskHandle);
@@ -295,7 +308,7 @@ Exit:
 
 static
 void
-XdpXskmapProcessDeleteElement(
+XdpXskmapPostprocessMapDeleteElement(
     _In_ void *BindingContext,
     _In_ void *MapContext,
     size_t KeySize,
@@ -316,8 +329,10 @@ XdpXskmapProcessDeleteElement(
     TraceEnter(TRACE_CORE, "MapContext=%p", MapContext);
 
     //
-    // The eBPF runtime blocks BPF program deletes on maps with
-    // updates_original_value set (except during map cleanup).
+    // This provider sets updates_original_value, so the eBPF runtime blocks
+    // element deletes issued by a kernel BPF program (the helper path, flagged
+    // with EBPF_MAP_OPERATION_HELPER); this callback runs for BPF user-mode API
+    // deletes and during map cleanup. Assert the helper flag is clear.
     //
     ASSERT(!(Flags & EBPF_MAP_OPERATION_HELPER));
 
@@ -329,6 +344,7 @@ XdpXskmapProcessDeleteElement(
         XskHandle = *(const HANDLE *)Value;
         if (XskHandle != NULL) {
             XskDereferenceDatapathHandle(XskHandle);
+            EventWriteEbpfXskmapDeleteElement(&MICROSOFT_XDP_PROVIDER, MapContext, XskHandle);
         }
     }
 
@@ -340,12 +356,12 @@ XdpXskmapProcessDeleteElement(
 //
 static const ebpf_base_map_provider_dispatch_table_t XdpXskmapProviderDispatchTable = {
     .header = EBPF_BASE_MAP_PROVIDER_DISPATCH_TABLE_HEADER,
-    .preprocess_map_create = XdpXskmapProcessCreate,
-    .postprocess_map_delete = XdpXskmapProcessDelete,
-    .preprocess_associate_program_type = XdpXskmapAssociateProgramType,
-    .postprocess_map_find_element = XdpXskmapProcessFindElement,
-    .preprocess_map_update_element = XdpXskmapProcessAddElement,
-    .postprocess_map_delete_element = XdpXskmapProcessDeleteElement,
+    .preprocess_map_create = XdpXskmapPreprocessMapCreate,
+    .postprocess_map_delete = XdpXskmapPostprocessMapDelete,
+    .preprocess_associate_program_type = XdpXskmapPreprocessAssociateProgramType,
+    .postprocess_map_find_element = XdpXskmapPostprocessMapFindElement,
+    .preprocess_map_update_element = XdpXskmapPreprocessMapUpdateElement,
+    .postprocess_map_delete_element = XdpXskmapPostprocessMapDeleteElement,
 };
 
 static const ebpf_base_map_provider_properties_t XdpXskmapProviderProperties = {
@@ -429,17 +445,31 @@ XdpXskmapOnClientDetach(
 
 ebpf_result_t
 XdpXskmapFindElement(
-    _In_ const void *Map,
+    _In_ const VOID *Map,
     _In_ const VOID *Key,
     _Outptr_ VOID **Value
     )
 {
+    XDP_EBPF_MAP_HEADER *Header;
     XDP_XSKMAP_CONTEXT *Context;
 
-    Context = *(XDP_XSKMAP_CONTEXT **)MAP_CONTEXT(Map, ReadULong64NoFence(&XdpXskmapContextOffset));
-    if (Context == NULL) {
+    *Value = NULL;
+
+    //
+    // Resolve the provider context stored at the shared map-context offset. A
+    // NULL context indicates a map with no XDP map provider, e.g. a core eBPF
+    // array/hash map passed to bpf_redirect_map.
+    //
+    Header = *(XDP_EBPF_MAP_HEADER **)MAP_CONTEXT(Map, ReadULong64NoFence(&XdpXskmapContextOffset));
+    if (Header == NULL) {
         return EBPF_OPERATION_NOT_SUPPORTED;
     }
+
+    if (Header->Type != XdpEbpfMapTypeXsk) {
+        return EBPF_OPERATION_NOT_SUPPORTED;
+    }
+
+    Context = CONTAINING_RECORD(Header, XDP_XSKMAP_CONTEXT, Header);
 
     return Context->ClientDispatch->find_element_function(Map, Key, (uint8_t **)Value);
 }

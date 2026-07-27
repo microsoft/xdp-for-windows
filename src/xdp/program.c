@@ -742,11 +742,6 @@ EbpfXdpRedirectMap(
     }
 
     //
-    // Review: is it worth caching the most recent key/value lookup per
-    // inspection batch and skipping the following validation?
-    //
-
-    //
     // Look up the XSK handle in the map using the eBPF runtime's find_element.
     // The map provider's process_map_find_element callback will be invoked,
     // which returns the XSK handle stored at the given key.

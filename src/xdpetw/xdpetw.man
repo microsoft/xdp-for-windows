@@ -366,6 +366,66 @@
                 outType="win:HexInt64"
                 />
           </template>
+          <template tid="tid_EbpfXskmapCreateFailure">
+            <data
+                inType="win:Pointer"
+                name="BindingContext"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="MapType"
+                />
+            <data
+                inType="win:UInt32"
+                name="KeySize"
+                />
+            <data
+                inType="win:UInt32"
+                name="ValueSize"
+                />
+            <data
+                inType="win:UInt32"
+                name="EbpfResult"
+                outType="win:HexInt32"
+                />
+          </template>
+          <template tid="tid_EbpfXskmapElement">
+            <data
+                inType="win:Pointer"
+                name="MapContext"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:Pointer"
+                name="Xsk"
+                outType="win:HexInt64"
+                />
+          </template>
+          <template tid="tid_EbpfXskmapUpdateElementFailure">
+            <data
+                inType="win:Pointer"
+                name="MapContext"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Status"
+                outType="win:HexInt32"
+                />
+          </template>
+          <template tid="tid_EbpfXskmapFindElementRejected">
+            <data
+                inType="win:Pointer"
+                name="MapContext"
+                outType="win:HexInt64"
+                />
+            <data
+                inType="win:UInt32"
+                name="Flags"
+                outType="win:HexInt32"
+                />
+          </template>
           <template tid="tid_GenericRxInspectRing">
             <data
                 inType="win:Pointer"
@@ -636,6 +696,56 @@
               />
           <event
               channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Error"
+              message="$(string.EbpfXskmapCreateFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapCreateFailure"
+              template="tid_EbpfXskmapCreateFailure"
+              value="26"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Verbose"
+              message="$(string.EbpfXskmapUpdateElement.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapUpdateElement"
+              template="tid_EbpfXskmapElement"
+              value="27"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Error"
+              message="$(string.EbpfXskmapUpdateElementFailure.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapUpdateElementFailure"
+              template="tid_EbpfXskmapUpdateElementFailure"
+              value="28"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Verbose"
+              message="$(string.EbpfXskmapDeleteElement.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapDeleteElement"
+              template="tid_EbpfXskmapElement"
+              value="29"
+              />
+          <event
+              channel="CHID_XDP"
+              keywords="Ebpf"
+              level="win:Warning"
+              message="$(string.EbpfXskmapFindElementRejected.EventMessage)"
+              opcode="Xsk"
+              symbol="EbpfXskmapFindElementRejected"
+              template="tid_EbpfXskmapFindElementRejected"
+              value="30"
+              />
+          <event
+              channel="CHID_XDP"
               keywords="Generic Rx"
               level="XdpPerFrame"
               message="$(string.GenericRxInspectRingStart.EventMessage)"
@@ -743,15 +853,35 @@
             />
         <string
             id="EbpfRedirectMapLookupFailure.EventMessage"
-            value="[ebpf][%1] bpf_redirect_map lookup failed Key=%2 FallbackAction=%3"
+            value="[bpfm][%1] bpf_redirect_map lookup failed Key=%2 FallbackAction=%3"
             />
         <string
             id="EbpfRedirectMapRedirectFailure.EventMessage"
-            value="[ebpf][%1] bpf_redirect_map redirect failed Key=%2 Xsk=%3 FallbackAction=%4"
+            value="[bpfm][%1] bpf_redirect_map redirect failed Key=%2 Xsk=%3 FallbackAction=%4"
             />
         <string
             id="EbpfRedirectMapSuccess.EventMessage"
-            value="[ebpf][%1] bpf_redirect_map success Key=%2 Xsk=%3"
+            value="[bpfm][%1] bpf_redirect_map success Key=%2 Xsk=%3"
+            />
+        <string
+            id="EbpfXskmapCreateFailure.EventMessage"
+            value="[xskm][%1] create failed MapType=%2 KeySize=%3 ValueSize=%4 EbpfResult=%5"
+            />
+        <string
+            id="EbpfXskmapUpdateElement.EventMessage"
+            value="[xskm][%1] element updated Xsk=%2"
+            />
+        <string
+            id="EbpfXskmapUpdateElementFailure.EventMessage"
+            value="[xskm][%1] element update failed Status=%2"
+            />
+        <string
+            id="EbpfXskmapDeleteElement.EventMessage"
+            value="[xskm][%1] element deleted Xsk=%2"
+            />
+        <string
+            id="EbpfXskmapFindElementRejected.EventMessage"
+            value="[xskm][%1] find element rejected Flags=%2"
             />
         <string
             id="GenericRxInspectRingStart.EventMessage"
