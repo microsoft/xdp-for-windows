@@ -46,12 +46,19 @@ For example, if `v1.0` is released on January 1st, 2024 and then `v2.0` is relea
 
 The following are the official releases of XDP-for-Windows.
 
+## Current Releases
+
+| Version | Fork Date | Release Date | End of Support |
+|   --    |     --    |       --     |       --       |
+| [v1.3](https://github.com/microsoft/xdp-for-windows/tree/release/1.3) | Feb 23, 2026 | Feb 23, 2026 | August 23, 2027 |
+|   TBD    |     TBD    |       TBD     |       TBD       |
+
+## Historical Releases (Out of Support)
+
 | Version | Fork Date | Release Date | End of Support |
 |   --    |     --    |       --     |       --       |
 | [v1.0](https://github.com/microsoft/xdp-for-windows/tree/release/1.0) | Jul 26, 2023 | Aug 7, 2023 | Feb 7, 2025 |
 | [v1.1](https://github.com/microsoft/xdp-for-windows/tree/release/1.1) | Dec 2, 2024 | Jan 7, 2025 | July 7, 2026 |
-| [v1.3](https://github.com/microsoft/xdp-for-windows/tree/release/1.3) | Feb 23, 2026 | Feb 23, 2026 | August 23, 2027 |
-|   TBD    |     TBD    |       TBD     |       TBD       |
 
 # Release Process
 
@@ -64,7 +71,6 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 * [JIT elevate](https://repos.opensource.microsoft.com/orgs/microsoft/repos/xdp-for-windows/jit) to admin, create a `release/major.minor` branch, then revoke JIT.
 * Create a PR updating the version number in `main` to the next `major.minor.0` release.
 * Authorize the new branch in the [OneBranch.Official](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2407) and [OneBranch.PullRequest](https://mscodehub.visualstudio.com/WindowsXDP/_apps/hub/EZStart.management-ux.onebranch-resources#authorizedbranches/xdp/2404) internal pipelines under **OneBranch Resources** -> **Manage Authorized Branches**.
-* Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release. If creating a new major release branch, do not modify the V1 link nor create any new links.
 * Add the test artifacts of the new release to the downlevel tests for main and
   any other active release branches.
 * Update this release process documentation as necessary.
@@ -79,7 +85,6 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 * Grab the built artifacts: MSI (for version < 1.3), Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
 * Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
 * Upload the XDP + Runtime Nuget pkgs to Nuget.org as well
-* Update https://aka.ms/xdp-v1.msi to redirect to the latest V1.x release (for version < 1.3).
 * Update the downlevel test matrix in main to point to X.Y.(Z + 1) once all artifacts are uploaded
 * Update this release process documentation as necessary.
 
