@@ -80,7 +80,7 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 * Cherry pick necessary changes to Release/X.Y
 * Bump the version in xdp.props XML to X.Y.(Z + 1), where Z is the current latest
 * Ensure all changes propagate properly to our internal mirror of XDP-for-windows in ADO: https://microsoft.visualstudio.com/undock/_git/xdp-for-windows
-* Create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick by drafting a new release
+* [JIT elevate](https://repos.opensource.microsoft.com/orgs/microsoft/repos/xdp-for-windows/jit) to admin, create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick by drafting a new release, then revoke JIT.
 * Official pipeline in ADO should kick off upon the existence of the new tag: https://microsoft.visualstudio.com/undock/_build?definitionId=134506
 * Grab the built artifacts: MSI (for version < 1.3), Nuget Packages + Runtime, and upload them to release X.Y.(Z + 1)
 * Grab the test artifacts from the Github CI (ADO does not build XDP tests), and upload them as well
