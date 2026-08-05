@@ -17,7 +17,10 @@
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
     <!-- eBPF-for-windows version -->
     <XdpEbpfVersion>1.4.0</XdpEbpfVersion>
+    <!-- WDK ships DriverKit build tasks only for its own era's VS: 26100 -> VS2022 (17.0),
+         28000 -> VS2026 (18.0). Select per VisualStudioVersion so both toolsets build. -->
     <XdpWdkVersion>10.0.26100.6584</XdpWdkVersion>
+    <XdpWdkVersion Condition="'$(VisualStudioVersion)' == '18.0'">10.0.28000.2526</XdpWdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->
