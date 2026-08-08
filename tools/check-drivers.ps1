@@ -174,12 +174,12 @@ Check-And-Remove-Driver "fndis.sys" "fndis"
 
 # Check for any eBPF drivers.
 #
-# Some CI images ship eBPF inbox. Tests must leave any inbox eBPF exactly as
-# they found it. The caller drives this: the test prologue passes -AllowEbpf
-# (tolerate eBPF and record whether it is present as a pipeline baseline), and
-# the test epilogue passes -AllowEbpf based on that recorded baseline -
-# tolerating eBPF when it was present originally, or removing it to restore the
-# original state when it was not.
+# Some CI images have eBPF preinstalled. Tests must leave any preinstalled eBPF
+# exactly as they found it. The caller drives this: the test prologue passes
+# -AllowEbpf (tolerate eBPF and record whether it is present as a pipeline
+# baseline), and the test epilogue passes -AllowEbpf based on that recorded
+# baseline - tolerating eBPF when it was present originally, or removing it to
+# restore the original state when it was not.
 $EbpfDrivers = @("ebpfcore.sys", "netebpfext.sys")
 
 if ($AllowEbpf) {

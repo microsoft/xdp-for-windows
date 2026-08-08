@@ -6296,9 +6296,18 @@ ProgTestRunRxEbpfPayload()
     TEST_EQUAL(memcmp(UdpFrameV4, UdpFrameOutV4, sizeof(UdpFrameV4)), 0);
 }
 
+static bool EbpfRuntimeAtLeast(_In_ INT MinMajor, _In_ INT MinMinor);
+
 VOID
 GenericRxEbpfIfIndex()
 {
+    //
+    // selective_drop.sys reads the ingress_ifindex context field, which the XDP
+    // hook only populates on eBPF for Windows 1.4 and later.
+    //
+    if (!EbpfRuntimeAtLeast(1, 4)) {
+        TEST_SKIP("eBPF runtime does not populate ingress_ifindex");
+    }
     auto If = FnMpIf;
     unique_fnmp_handle GenericMp;
     unique_fnlwf_handle FnLwf;
@@ -6446,14 +6455,16 @@ GetEbpfRuntimeVersion(
 }
 
 //
-// The eBPF XSKMAP (bpf_redirect_map to AF_XDP sockets) requires the global
-// virtual bpf_redirect_map helper introduced in eBPF for Windows 1.4. When the
-// installed runtime version is unavailable the build-time default (which
-// supports XSKMAP) is assumed.
+// Returns whether the installed eBPF for Windows runtime is at least the given
+// version. When the installed version is unavailable the build-time default
+// (which supports all features XDP tests use) is assumed.
 //
 static
 bool
-EbpfXskmapSupported()
+EbpfRuntimeAtLeast(
+    _In_ INT MinMajor,
+    _In_ INT MinMinor
+    )
 {
     INT Major, Minor, Patch;
 
@@ -6461,7 +6472,18 @@ EbpfXskmapSupported()
         return true;
     }
 
-    return (Major > 1) || (Major == 1 && Minor >= 4);
+    return (Major > MinMajor) || (Major == MinMajor && Minor >= MinMinor);
+}
+
+//
+// The eBPF XSKMAP (bpf_redirect_map to AF_XDP sockets) requires the global
+// virtual bpf_redirect_map helper introduced in eBPF for Windows 1.4.
+//
+static
+bool
+EbpfXskmapSupported()
+{
+    return EbpfRuntimeAtLeast(1, 4);
 }
 
 VOID

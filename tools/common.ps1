@@ -160,6 +160,20 @@ function Get-EbpfMsiUrl {
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/$Tag/ebpf-for-windows.$Platform.$Version.msi"
 }
 
+# Returns the directory holding the packaged eBPF runtime binaries used to
+# override a preinstalled eBPF runtime.
+function Get-EbpfOverrideBinPath {
+    param (
+        [Parameter()]
+        [string]$Platform,
+
+        [Parameter()]
+        [string]$Version = (Get-EbpfVersion)
+    )
+    $RootDir = Split-Path $PSScriptRoot -Parent
+    return "$RootDir\artifacts\ebpfoverride\$Platform.$Version"
+}
+
 function Get-FnVersion {
     return "1.5.0"
 }
@@ -499,5 +513,19 @@ function Start-Service-With-Retry($Name) {
     }
     if ($StartSuccess -eq $false) {
         Write-Error "Failed to start $Name"
+    }
+}
+
+# Ensures the preinstalled eBPF services are running.
+function Start-Ebpf-Inbox {
+    foreach ($svc in @("ebpfcore", "netebpfext", "ebpfsvc")) {
+        $status = (Get-Service -Name $svc -ErrorAction Stop).Status
+        if ($status -ne "Running") {
+            Write-Verbose "starting $svc..."
+            Start-Service-With-Retry $svc
+            Write-Verbose "started $svc."
+        } else {
+            Write-Verbose "$svc is already running."
+        }
     }
 }
