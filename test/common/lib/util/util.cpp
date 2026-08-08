@@ -3,6 +3,8 @@
 // Licensed under the MIT License.
 //
 
+#include <random>
+
 #include <xdp/wincommon.h>
 #include <stdlib.h>
 #include <iphlpapi.h>
@@ -11,6 +13,25 @@
 #include <xdpassert.h>
 
 #include "util.h"
+
+EXTERN_C
+ULONG
+RandUlong(
+    VOID
+    )
+{
+    //
+    // Per-thread, seeded once from the system CSPRNG so streams differ per
+    // thread and run. Non-cryptographic: fast enough for high-rate fuzzing.
+    //
+    thread_local std::mt19937_64 Generator = [] {
+        std::random_device Entropy;
+        std::seed_seq Seed{Entropy(), Entropy(), Entropy(), Entropy()};
+        return std::mt19937_64{Seed};
+    }();
+
+    return static_cast<ULONG>(Generator());
+}
 
 EXTERN_C
 CONST CHAR*

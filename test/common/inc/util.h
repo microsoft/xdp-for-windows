@@ -14,6 +14,14 @@ extern "C" {
 CONST CHAR*
 GetPowershellPrefix();
 
+//
+// Fast per-thread non-cryptographic PRNG for fuzzing.
+//
+ULONG
+RandUlong(
+    VOID
+    );
+
 HRESULT
 GetCurrentBinaryFileName(
     _Out_ CHAR *Path,

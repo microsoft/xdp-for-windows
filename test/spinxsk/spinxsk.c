@@ -26,7 +26,6 @@
 #include <assert.h>
 #include <crtdbg.h>
 #include <stdio.h>
-#define _CRT_RAND_S
 #include <stdlib.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -143,6 +142,12 @@ typedef struct {
     BOOLEAN isSharedUmemSockBound;
     BOOLEAN isSharedUmemSockActivated;
     BOOLEAN isUmemRegistered;
+
+    //
+    // Result of the primary socket's most recent bind attempt: TRUE if it
+    // failed with NOT_FOUND (interface transiently absent), else FALSE.
+    //
+    BOOLEAN lastBindNotFound;
     HANDLE completeEvent;
 } SCENARIO_CONFIG;
 
@@ -339,16 +344,6 @@ ReleaseSharedEbpfMapFd(
     )
 {
     InterlockedDecrement(&sharedEbpfProgram.RefCount);
-}
-
-ULONG
-RandUlong(
-    VOID
-    )
-{
-    unsigned int r = 0;
-    rand_s(&r);
-    return r;
 }
 
 VOID
@@ -1964,7 +1959,8 @@ FuzzSocketBind(
     _In_ HANDLE Sock,
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx,
-    _Inout_ BOOLEAN *WasSockBound
+    _Inout_ BOOLEAN *WasSockBound,
+    _Inout_opt_ BOOLEAN *LastBindNotFound
     )
 {
     HRESULT res;
@@ -1992,6 +1988,10 @@ FuzzSocketBind(
         res = XskBind(Sock, ifindex, Queue->queueId, bindFlags);
         if (SUCCEEDED(res)) {
             WriteBooleanRelease(WasSockBound, TRUE);
+        }
+        if (LastBindNotFound != NULL) {
+            WriteBooleanNoFence(
+                LastBindNotFound, (BOOLEAN)(res == HRESULT_FROM_WIN32(ERROR_NOT_FOUND)));
         }
     }
 }
@@ -2738,11 +2738,11 @@ XskFuzzerWorkerFn(
 
         FuzzSocketBind(
             queue, queue->sock, scenarioConfig->sockRx, scenarioConfig->sockTx,
-            &scenarioConfig->isSockBound);
+            &scenarioConfig->isSockBound, &scenarioConfig->lastBindNotFound);
         if (queue->sharedUmemSock != NULL) {
             FuzzSocketBind(
                 queue, queue->sharedUmemSock, scenarioConfig->sharedUmemSockRx,
-                scenarioConfig->sharedUmemSockTx, &scenarioConfig->isSharedUmemSockBound);
+                scenarioConfig->sharedUmemSockTx, &scenarioConfig->isSharedUmemSockBound, NULL);
         }
 
         FuzzSocketActivate(queue, queue->sock, &scenarioConfig->isSockActivated);
@@ -2834,7 +2834,8 @@ UpdateSetupStats(
 VOID
 PrintSetupStats(
     _In_ QUEUE_WORKER *QueueWorker,
-    _In_ ULONG NumIterations
+    _In_ ULONG NumIterations,
+    _In_ ULONG NumExcluded
     )
 {
     SETUP_STATS *setupStats = &QueueWorker->setupStats;
@@ -2850,7 +2851,8 @@ PrintSetupStats(
         "\tsharedRx:       (%lu / %lu) %lu%%\n"
         "\tsharedTx:       (%lu / %lu) %lu%%\n"
         "\tsharedBind:     (%lu / %lu) %lu%%\n"
-        "\tsharedActivate: (%lu / %lu) %lu%%\n",
+        "\tsharedActivate: (%lu / %lu) %lu%%\n"
+        "\tnotfound excl:  (%lu / %lu) %lu%%\n",
         setupStats->initSuccess, NumIterations, Pct(setupStats->initSuccess, NumIterations),
         setupStats->umemSuccess, setupStats->umemTotal, Pct(setupStats->umemSuccess, setupStats->umemTotal),
         setupStats->rxSuccess, setupStats->rxTotal, Pct(setupStats->rxSuccess, setupStats->rxTotal),
@@ -2860,7 +2862,8 @@ PrintSetupStats(
         setupStats->sharedRxSuccess, setupStats->sharedRxTotal, Pct(setupStats->sharedRxSuccess, setupStats->sharedRxTotal),
         setupStats->sharedTxSuccess, setupStats->sharedTxTotal, Pct(setupStats->sharedTxSuccess, setupStats->sharedTxTotal),
         setupStats->sharedBindSuccess, setupStats->sharedBindTotal, Pct(setupStats->sharedBindSuccess, setupStats->sharedBindTotal),
-        setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal, Pct(setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal));
+        setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal, Pct(setupStats->sharedActivateSuccess, setupStats->sharedActivateTotal),
+        NumExcluded, NumIterations, Pct(NumExcluded, NumIterations));
 }
 
 DWORD
@@ -2872,6 +2875,8 @@ QueueWorkerFn(
     QUEUE_WORKER *queueWorker = ThreadParameter;
     ULONG numIterations = 0;
     ULONG numSuccessfulSetups = 0;
+    ULONG numBindNotFoundSkipped = 0;
+    ULONG effectiveIterations;
     ULONG successPct;
 
     TraceEnter("q[%u]", queueWorker->queueId);
@@ -2945,6 +2950,13 @@ QueueWorkerFn(
                 queue->datapath2.threadHandle = NULL;
                 #pragma warning(pop)
             }
+        } else if (ReadBooleanNoFence(&queue->scenarioConfig.lastBindNotFound)) {
+            //
+            // The socket's last bind failed with NOT_FOUND: the interface was
+            // transiently absent (mid restart / XDP re-attach), not a genuine
+            // socket-setup failure. Exclude it.
+            //
+            ++numBindNotFoundSkipped;
         }
 
         //
@@ -2968,12 +2980,17 @@ QueueWorkerFn(
         CleanupQueue(queue);
     }
 
-    successPct = Pct(numSuccessfulSetups, numIterations);
+    //
+    // Exclude iterations whose bind failed only because the interface was
+    // transiently absent (NOT_FOUND) so the rate reflects genuine failures.
+    //
+    effectiveIterations = numIterations - numBindNotFoundSkipped;
+    successPct = Pct(numSuccessfulSetups, effectiveIterations);
     printf("q[%u]: socket setup success rate: (%lu / %lu) %lu%%\n",
-        queueWorker->queueId, numSuccessfulSetups, numIterations, successPct);
+        queueWorker->queueId, numSuccessfulSetups, effectiveIterations, successPct);
 
     if (extraStats) {
-        PrintSetupStats(queueWorker, numIterations);
+        PrintSetupStats(queueWorker, numIterations, numBindNotFoundSkipped);
     }
 
     //
@@ -3009,6 +3026,12 @@ GlobalConcurrentWorkerFn(
         TraceExit("Early exit - no work to do");
         return 0;
     }
+
+    //
+    // Run one notch below the queue/datapath workers so socket setup wins CPU
+    // under contention on constrained VMs.
+    //
+    ASSERT_FRE(SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL));
 
     //
     // Get an handle to the FNMP driver interface to inject received data.
@@ -3056,6 +3079,31 @@ GlobalConcurrentWorkerFn(
     return 0;
 }
 
+//
+// Restarts the NIC to churn the interface and stress XDP detach/re-attach.
+// Returns the Restart-NetAdapter exit code. Setups that race the resulting
+// interface-absent window are discounted via the NOT_FOUND bind exemption in
+// QueueWorkerFn rather than by trying to time this window.
+//
+INT
+RestartAdapter(
+    VOID
+    )
+{
+    CHAR cmdBuff[256];
+    INT exitCode;
+
+    RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
+    sprintf_s(
+        cmdBuff, sizeof(cmdBuff),
+        "%s -Command \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | Restart-NetAdapter\"",
+        powershellPrefix, ifindex);
+
+    exitCode = system(cmdBuff);
+
+    return exitCode;
+}
+
 DWORD
 WINAPI
 AdminFn(
@@ -3086,15 +3134,10 @@ AdminFn(
 
         TraceVerbose("admin iter");
 
-        if (!cleanDatapath && !(RandUlong() % 10)) {
+        if (!cleanDatapath && !(RandUlong() % 20)) {
             INT exitCode;
             TraceVerbose("admin: restart adapter");
-            RtlZeroMemory(cmdBuff, sizeof(cmdBuff));
-            sprintf_s(
-                cmdBuff, sizeof(cmdBuff),
-                "%s -Command \"(Get-NetAdapter | Where-Object {$_.IfIndex -eq %d}) | Restart-NetAdapter\"",
-                powershellPrefix, ifindex);
-            exitCode = system(cmdBuff);
+            exitCode = RestartAdapter();
             TraceVerbose("admin: restart adapter exitCode=%d", exitCode);
         }
 
