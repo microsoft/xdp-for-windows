@@ -741,11 +741,15 @@ jobs:
         windows: [2022, 2025]
         configuration: [Release, Debug]
         platform: [x64]
+        # Run each sample on its own fresh machine. Sharing a single machine
+        # across all samples accumulated disk/driver state and caused unrelated
+        # infra failures (e.g. low disk space), so keep each sample isolated.
+        sample: [rxfilter, xskfwd, xskrestricted]
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
-     - "JobId=samples_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+     - "JobId=samples_${{ matrix.sample }}_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -763,14 +767,17 @@ jobs:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
     - name: Test rxfilter sample
+      if: ${{ matrix.sample == 'rxfilter' }}
       shell: PowerShell
       timeout-minutes: 15
       run: tools/rxfilter.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
     - name: Test xskfwd sample
+      if: ${{ matrix.sample == 'xskfwd' }}
       shell: PowerShell
       timeout-minutes: 15
       run: tools/xskfwd.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 10
     - name: Test xskrestricted sample
+      if: ${{ matrix.sample == 'xskrestricted' }}
       shell: PowerShell
       timeout-minutes: 15
       run: tools/xskrestricted.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 10
@@ -778,12 +785,12 @@ jobs:
       if: ${{ always() }}
       timeout-minutes: 15
       shell: PowerShell
-      run: tools/log.ps1 -Convert -Name * -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
+      run: tools/log.ps1 -Convert -Name ${{ matrix.sample }} -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }}
     - name: Upload Logs
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       if: ${{ always() }}
       with:
-        name: logs_samples_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        name: logs_samples_${{ matrix.sample }}_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/logs
     - name: Check Drivers
       if: ${{ always() }}
