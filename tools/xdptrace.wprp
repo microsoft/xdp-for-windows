@@ -171,6 +171,14 @@
             </Collectors>
         </Profile>
 
+        <Profile
+            Id="XdpFunctional.Verbose.Memory"
+            Base="XdpFunctional.Verbose.File"
+            LoggingMode="Memory"
+            DetailLevel="Verbose"
+            Name="XdpFunctional"
+            Description="XDP Functional Test"/>
+
         <Profile Id="SpinXsk.Verbose.File" Name="SpinXsk" Description="XDP SpinXsk Stress Test" LoggingMode="File" DetailLevel="Verbose">
             <Collectors>
                 <EventCollectorId Value="EC_HighVolume">

@@ -83,7 +83,7 @@ if (!$Deprecated -and !(Test-Path $BpfProgram)) {
 $RxFilterProcess = $null
 
 try {
-    & "$RootDir\tools\log.ps1" -Start -Name rxfilter -Profile XdpFunctional.Verbose -Config $Config -Platform $Platform
+    & "$RootDir\tools\log.ps1" -Start -Name rxfilter -Profile XdpFunctional.Verbose -LogMode Memory -Config $Config -Platform $Platform
 
     if (!$Deprecated) {
         Write-Verbose "installing ebpf..."
