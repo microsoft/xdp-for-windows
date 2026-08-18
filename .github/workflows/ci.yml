@@ -765,15 +765,15 @@ jobs:
     - name: Test rxfilter sample
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/rxfilter.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 1
+      run: tools/rxfilter.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 1 -LogMode Memory
     - name: Test xskfwd sample
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/xskfwd.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 1
+      run: tools/xskfwd.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Duration 1 -LogMode Memory
     - name: Test xskrestricted sample
       shell: PowerShell
       timeout-minutes: 15
-      run: tools/xskrestricted.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 1
+      run: tools/xskrestricted.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -TimeoutSeconds 1 -LogMode Memory
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15

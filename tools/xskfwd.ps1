@@ -18,6 +18,10 @@ the legacy built-in rules-based sample (xskfwd-deprecated.exe) instead.
 .PARAMETER Deprecated
     Run the legacy built-in rules-based sample instead of the eBPF sample.
 
+.PARAMETER LogMode
+    The WPR logging mode to use. "File" (default) writes an unbounded ETL to
+    disk; "Memory" uses a bounded circular buffer dumped at stop.
+
 #>
 
 param (
@@ -33,7 +37,11 @@ param (
     [Int32]$Duration = 10,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Deprecated
+    [switch]$Deprecated,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("File", "Memory")]
+    [string]$LogMode = "File"
 )
 
 Set-StrictMode -Version 'Latest'
@@ -68,7 +76,7 @@ if (!$Deprecated -and !(Test-Path $BpfProgram)) {
 $XskFwdProcess = $null
 
 try {
-    & "$RootDir\tools\log.ps1" -Start -Name xskfwd -Profile XdpFunctional.Verbose -LogMode Memory -Config $Config -Platform $Platform
+    & "$RootDir\tools\log.ps1" -Start -Name xskfwd -Profile XdpFunctional.Verbose -LogMode $LogMode -Config $Config -Platform $Platform
 
     if (!$Deprecated) {
         Write-Verbose "installing ebpf..."
