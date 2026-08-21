@@ -17,8 +17,6 @@
         $(IntDir);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
-      <!-- C5252: benign XFG type-hash collisions from the STL locale headers pulled in by <random>. -->
-      <DisableSpecificWarnings>5252;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\xdp.targets" />

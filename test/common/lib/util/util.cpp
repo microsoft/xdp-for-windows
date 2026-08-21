@@ -3,7 +3,12 @@
 // Licensed under the MIT License.
 //
 
+// <random> pulls in STL locale headers that trip C5252 (benign XFG type-hash
+// collisions) under /WX; scope the suppression to just this include.
+#pragma warning(push)
+#pragma warning(disable:5252)
 #include <random>
+#pragma warning(pop)
 
 #include <xdp/wincommon.h>
 #include <stdlib.h>
