@@ -12,6 +12,8 @@
     <UndockedVersioning>false</UndockedVersioning>
     <!-- PackageReferences for SourceLink implicitly include all .props and .targets files. -->
     <UndockedSourceLink>false</UndockedSourceLink>
+    <!-- XDP supplies its own SourceLink/WDK/SDK package references below; opt out of undocked's. -->
+    <UndockedUsePackageReferences>false</UndockedUsePackageReferences>
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
