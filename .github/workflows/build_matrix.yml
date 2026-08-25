@@ -19,7 +19,7 @@ on:
         type: boolean
       os_list:
         required: false
-        default: '["2022", "2025-vs2026"]'
+        default: '["2022", "2025"]'
         type: string
   workflow_dispatch:
     inputs:
@@ -35,9 +35,9 @@ on:
         description: 'With multiple builds with duplicate configurations (e.g. Debug_x64_2022), you can append an ID (e.g. Debug_x64_2022_myid).'
       os_list:
         required: false
-        default: '["2022", "2025-vs2026"]'
+        default: '["2022", "2025"]'
         type: string
-        description: 'JSON array of OS/VS legs to build (e.g. ["2022", "2025-vs2026"]).'
+        description: 'JSON array of OS/VS legs to build (e.g. ["2022", "2025"]).'
 
 jobs:
   build_matrix:
