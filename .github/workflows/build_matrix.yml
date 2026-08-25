@@ -18,8 +18,6 @@ on:
         default: true
         type: boolean
       os_list:
-        # JSON array of OS/VS legs to build. "2022" -> windows-2022 (VS2022);
-        # "2025-vs2026" -> windows-2025-vs2026 (WS2025 + VS2026).
         required: false
         default: '["2022", "2025-vs2026"]'
         type: string
@@ -47,9 +45,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 2022 -> windows-2022 (VS2022); 2025-vs2026 -> windows-2025-vs2026 (WS2025 + VS2026).
-        # The 2025-vs2026 leg is a build-only validation stage: artifacts and CodeQL are gated
-        # to os == 2022, so it neither uploads artifacts nor feeds downstream test jobs.
         os: ${{ fromJSON(inputs.os_list) }}
         config: [Release, Debug]
         platform: [x64, arm64]
@@ -59,5 +54,6 @@ jobs:
       os: ${{ matrix.os }}
       platform: ${{ matrix.platform }}
       ref: ${{ inputs.ref }}
+      # CodeQL runs on the 2022 leg until it supports VS2026 (tracked by #1065).
       codeql: ${{ matrix.os == 2022 && (inputs.codeql || false) && github.event_name == 'schedule' }}
       artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}

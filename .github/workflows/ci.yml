@@ -69,9 +69,7 @@ jobs:
       ref: ${{ needs.resolve_base.outputs.base_ref }}
       id: "baseref"
       codeql: false
-      # The base ref only needs the 2022 leg (baseline for artifact/size comparison);
-      # the VS2026 leg is validation-only and produces no artifacts.
-      os_list: '["2022"]'
+      os_list: '["2022", "2025-vs2026"]'
 
   build_allpackage:
     name: Build AllPackage
