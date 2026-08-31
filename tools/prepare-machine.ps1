@@ -317,16 +317,16 @@ function Setup-TestSigning {
 }
 
 function Setup-VcRuntime {
-    # Install both the VS2022 (v143) and VS2026 (v145) redists: the current build is v145, but the
-    # downlevel-compat tests run older prebuilt (v143) binaries. vc_redist is idempotent, so always run.
-    Write-Host "Installing VC++ runtimes (v143 + v145)"
+    # Always (re)install: the registry check cannot tell the VS2022 (v143) redist from the
+    # VS2026 (v145) one the tests now need, and vc_redist is idempotent.
+    Write-Host "Installing VC++ runtime"
 
     if (!(Test-Path $ArtifactsDir)) { mkdir artifacts }
-    foreach ($VsVersion in @("17", "18")) {
-        Remove-Item -Force "$ArtifactsDir\vc_redist.$Platform.exe" -ErrorAction Ignore
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/$VsVersion/release/vc_redist.$Platform.exe" -OutFile "$ArtifactsDir\vc_redist.$Platform.exe"
-        & $ArtifactsDir\vc_redist.$Platform.exe /install /passive | Write-Verbose
-    }
+    Remove-Item -Force "$ArtifactsDir\vc_redist.$Platform.exe" -ErrorAction Ignore
+
+    # Download and install.
+    Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/18/release/vc_redist.$Platform.exe" -OutFile "$ArtifactsDir\vc_redist.$Platform.exe"
+    & $ArtifactsDir\vc_redist.$Platform.exe /install /passive | Write-Verbose
 }
 
 function Setup-VsTest {
