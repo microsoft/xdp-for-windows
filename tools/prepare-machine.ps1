@@ -425,6 +425,21 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
+        # Lower the *active* failure probability at runtime via a volatile setting.
+        # Volatile changes take effect immediately without a reboot, and without
+        # re-baking the CI image (whose persistent boot-time value stays at 599, so
+        # the command above is a no-op that keeps -RequireNoReboot satisfied). This
+        # reduces spurious spinxsk socket-setup-rate failures under heavy injection.
+        # 10 - Failure probability (10/10000 = 0.1%). Tune this knob to trade fault
+        #      coverage against setup-rate flakiness. Reverts to 599 on reboot.
+        # N.B. Like the persistent form above, the volatile /faults command still
+        #      requires an explicit /driver list on Windows Server images.
+        Write-Verbose "verifier.exe /volatile /faults 10 `"`" `"`" 1 /driver xdp.sys ebpfcore.sys"
+        verifier.exe /volatile /faults 10 `"`" `"`" 1 /driver xdp.sys ebpfcore.sys | Write-Verbose
+        if (!$?) {
+            Write-Warning "Failed to lower volatile fault-injection rate; continuing at the boot-time rate."
+        }
+
         Enable-CrashDumps
         Download-Fn-Runtime
         Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
