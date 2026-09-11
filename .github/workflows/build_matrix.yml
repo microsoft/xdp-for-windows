@@ -56,4 +56,4 @@ jobs:
       ref: ${{ inputs.ref }}
       # CodeQL runs on the 2022 leg until it supports VS2026 (tracked by #1065).
       codeql: ${{ matrix.os == 2022 && (inputs.codeql || false) && github.event_name == 'schedule' }}
-      artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
+      artifact_path: ${{ matrix.os == '2025' && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
