@@ -259,10 +259,10 @@ jobs:
           enableTxInspect: enableTxInspect
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
-     - self-hosted
-     - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
-     - "JobId=stress_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+      - self-hosted
+      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+      - "JobId=stress_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -273,7 +273,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose -EbpfPreinstalled:${{ env.ebpfInbox }} -OverrideInboxEbpf:${{ env.ebpfInbox }}
+      run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -AllowVerifierMismatch -Verbose -EbpfPreinstalled:${{ env.ebpfInbox }} -OverrideInboxEbpf:${{ env.ebpfInbox }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:

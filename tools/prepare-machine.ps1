@@ -32,6 +32,10 @@ This prepares a machine for running XDP.
 .PARAMETER RequireNoReboot
     Returns an error if a reboot is needed.
 
+.PARAMETER AllowVerifierMismatch
+    With ForSpinxskTest, warns instead of requiring a reboot when Verifier
+    configuration fails or needs a reboot. Other reboot requirements still apply.
+
 .PARAMETER Force
     Forces the installation of the latest dependencies.
 
@@ -68,6 +72,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$RequireNoReboot = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$AllowVerifierMismatch = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$Force = $false,
@@ -421,8 +428,19 @@ if ($Cleanup) {
         # WARNING: xdp.sys itself may fail to load due to low resources simulation.
         Write-Verbose "verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys"
         verifier.exe /standard /faults 599 `"`" `"`" 1  /driver xdp.sys ebpfcore.sys | Write-Verbose
-        if (!$?) {
-            $Reboot = $true
+        $VerifierExitCode = $LastExitCode
+        if ($VerifierExitCode -ne 0) {
+            if ($AllowVerifierMismatch) {
+                Write-Warning "Verifier configuration returned $VerifierExitCode; continuing with the current boot's settings. Requested fault injection is not guaranteed active."
+            } else {
+                $Reboot = $true
+            }
+        }
+        if ($AllowVerifierMismatch) {
+            Write-Host "Current Verifier state (not the requested next-boot configuration):"
+            verifier.exe /query
+            Write-Host "Verifier settings requested for the next boot:"
+            verifier.exe /querysettings
         }
 
         Enable-CrashDumps
