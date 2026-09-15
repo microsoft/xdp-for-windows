@@ -108,7 +108,7 @@ XdpLwfFaultInject(
     )
 {
 #if DBG
-    return XdpLwfFaultInjectEnabled && RtlRandomNumberInRange(0, 100) == 0;
+    return XdpLwfFaultInjectEnabled && RtlRandomNumberInRange(0, 1000) == 0;
 #else
     return FALSE;
 #endif
