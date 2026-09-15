@@ -114,7 +114,7 @@ XdpFaultInject(
     )
 {
 #if DBG
-    return XdpFaultInjectEnabled && RtlRandomNumberInRange(0, 100) == 0;
+    return XdpFaultInjectEnabled && RtlRandomNumberInRange(0, 1000) == 0;
 #else
     return FALSE;
 #endif
