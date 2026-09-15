@@ -48,6 +48,9 @@ more coverage for setup and cleanup.
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver and spinxsk test cases.
 
+.PARAMETER DisableXdpFaultInject
+    Disable XDP's internal fault injection without changing Driver Verifier.
+
 #>
 
 param (
@@ -96,6 +99,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $true,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$DisableXdpFaultInject = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,
@@ -188,6 +194,12 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             Write-Verbose "installed ebpf."
         }
 
+        if ($DisableXdpFaultInject) {
+            # Set the opt-out before driver load, not just via the asynchronous registry watcher.
+            reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 0 /t REG_DWORD /f | Write-Verbose
+            if ($LastExitCode -ne 0) { throw "Unable to disable XdpFaultInject before XDP installation" }
+        }
+
         Write-Verbose "installing xdp..."
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
@@ -209,8 +221,13 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         Write-Verbose "Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount"
         Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount
 
-        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
-        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
+        $XdpFaultInject = [int](!$DisableXdpFaultInject)
+        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d $XdpFaultInject /t REG_DWORD /f"
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d $XdpFaultInject /t REG_DWORD /f | Write-Verbose
+        if ($LastExitCode -ne 0) { throw "Unable to configure XdpFaultInject" }
+        $ConfiguredFaultInject = Get-ItemPropertyValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters" -Name XdpFaultInject
+        if ($ConfiguredFaultInject -ne $XdpFaultInject) { throw "XdpFaultInject registry readback mismatch" }
+        Write-Host "XdpFaultInject=$ConfiguredFaultInject (Config=$Config; internal injection is DBG-only)"
 
         $Args = `
             "-IfIndex", (Get-NetAdapter $AdapterName).ifIndex, `
