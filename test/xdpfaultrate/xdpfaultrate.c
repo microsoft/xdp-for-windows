@@ -44,12 +44,18 @@ typedef struct {
 
 const PROBE_CASE cases[] = {
     {"control", XSK_BIND_FLAG_NONE, FALSE},
-    {"rx-bind", XSK_BIND_FLAG_RX, FALSE},
-    {"rx-activate", XSK_BIND_FLAG_RX, TRUE},
-    {"tx-bind", XSK_BIND_FLAG_TX, FALSE},
-    {"tx-activate", XSK_BIND_FLAG_TX, TRUE},
-    {"rxtx-bind", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX, FALSE},
-    {"rxtx-activate", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX, TRUE}
+    {"generic-rx-bind", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_GENERIC, FALSE},
+    {"native-rx-bind", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_NATIVE, FALSE},
+    {"generic-rx-activate", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_GENERIC, TRUE},
+    {"native-rx-activate", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_NATIVE, TRUE},
+    {"generic-tx-bind", XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC, FALSE},
+    {"native-tx-bind", XSK_BIND_FLAG_TX | XSK_BIND_FLAG_NATIVE, FALSE},
+    {"generic-tx-activate", XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC, TRUE},
+    {"native-tx-activate", XSK_BIND_FLAG_TX | XSK_BIND_FLAG_NATIVE, TRUE},
+    {"generic-rxtx-bind", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC, FALSE},
+    {"native-rxtx-bind", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_NATIVE, FALSE},
+    {"generic-rxtx-activate", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_GENERIC, TRUE},
+    {"native-rxtx-activate", XSK_BIND_FLAG_RX | XSK_BIND_FLAG_TX | XSK_BIND_FLAG_NATIVE, TRUE}
 };
 
 int __cdecl
@@ -90,8 +96,7 @@ RunCase(const PROBE_CASE *Case, ULONG Iterations, ULONG IfIndex, ULONG QueueId)
     GetSystemTimePreciseAsFileTime(&utc);
     bucketStart = caseStart;
     printf("xdpfaultrate: case=%s ifindex=%lu queue=%lu flags=0x%x iterations=%lu\n",
-        Case->Name, IfIndex, QueueId,
-        Case->Flags == 0 ? 0 : Case->Flags | XSK_BIND_FLAG_GENERIC, Iterations);
+        Case->Name, IfIndex, QueueId, Case->Flags, Iterations);
     printf("xdpfaultrate: case=%s pid=%lu qpc=%lld frequency=%lld utc-filetime=%llu ring-size=8 umem-bytes=32768\n",
         Case->Name, GetCurrentProcessId(), caseStart.QuadPart, frequency.QuadPart,
         ((ULONGLONG)utc.dwHighDateTime << 32) | utc.dwLowDateTime);
@@ -150,7 +155,7 @@ RunCase(const PROBE_CASE *Case, ULONG Iterations, ULONG IfIndex, ULONG QueueId)
                 result = XskSetSockopt(sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &ringSize, sizeof(ringSize));
                 break;
             case StageBind:
-                result = XskBind(sock, IfIndex, QueueId, Case->Flags | XSK_BIND_FLAG_GENERIC);
+                result = XskBind(sock, IfIndex, QueueId, Case->Flags);
                 break;
             case StageActivate:
                 result = XskActivate(sock, 0);
