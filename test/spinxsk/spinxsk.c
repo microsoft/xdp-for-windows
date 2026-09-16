@@ -53,6 +53,7 @@
 #define DEFAULT_FUZZER_COUNT 3
 #define DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT 2
 #define DEFAULT_SUCCESS_THRESHOLD 50
+#define DEFAULT_SETUP_TIMEOUT_MS 500
 
 CHAR *HELP =
 "spinxsk.exe -IfIndex <ifindex> [OPTIONS]\n"
@@ -62,6 +63,8 @@ CHAR *HELP =
 "                         Default: infinite\n"
 "   -Stats                Periodic socket statistics output\n"
 "                         Default: off\n"
+"   -SetupTimeoutMs <ms>  Socket setup deadline (500..5000); reports progress at 500 ms\n"
+"                         Default: " STR_OF(DEFAULT_SETUP_TIMEOUT_MS) "\n"
 "   -Verbose              Verbose logging\n"
 "                         Default: off\n"
 "   -QueueCount <count>   Number of queues to spin\n"
@@ -303,6 +306,7 @@ BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
 BOOLEAN useFnmp = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
+ULONG setupTimeoutMs = DEFAULT_SETUP_TIMEOUT_MS;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
 QUEUE_WORKER *queueWorkers;
@@ -2866,6 +2870,25 @@ PrintSetupStats(
         NumExcluded, NumIterations, Pct(NumExcluded, NumIterations));
 }
 
+VOID
+TraceSetupDeadline(
+    _In_ QUEUE_CONTEXT *Queue,
+    _In_ ULONG DeadlineMs
+    )
+{
+    SCENARIO_CONFIG *config = &Queue->scenarioConfig;
+
+    TraceVerbose("q[%u]: deadline=%lu umem=%u rx=%u/%u tx=%u/%u bind=%u active=%u sharedRx=%u/%u sharedTx=%u/%u sharedBind=%u sharedActive=%u",
+        Queue->queueId, DeadlineMs,
+        ReadBooleanAcquire(&config->isUmemRegistered),
+        ReadBooleanAcquire(&config->isSockRxSet), config->sockRx,
+        ReadBooleanAcquire(&config->isSockTxSet), config->sockTx,
+        ReadBooleanAcquire(&config->isSockBound), ReadBooleanAcquire(&config->isSockActivated),
+        ReadBooleanAcquire(&config->isSharedUmemSockRxSet), config->sharedUmemSockRx,
+        ReadBooleanAcquire(&config->isSharedUmemSockTxSet), config->sharedUmemSockTx,
+        ReadBooleanAcquire(&config->isSharedUmemSockBound), ReadBooleanAcquire(&config->isSharedUmemSockActivated));
+}
+
 DWORD
 WINAPI
 QueueWorkerFn(
@@ -2876,6 +2899,12 @@ QueueWorkerFn(
     ULONG numIterations = 0;
     ULONG numSuccessfulSetups = 0;
     ULONG numBindNotFoundSkipped = 0;
+    ULONG numEarlySetups = 0;
+    ULONG numEarlyTimeouts = 0;
+    ULONG numRescuedSetups = 0;
+    ULONG numExtendedTimeouts = 0;
+    ULONG numInterrupted = 0;
+    ULONG numShutdownCompletions = 0;
     ULONG effectiveIterations;
     ULONG successPct;
 
@@ -2907,7 +2936,29 @@ QueueWorkerFn(
         // Wait until fuzzers have successfully configured the socket/s.
         //
         TraceVerbose("q[%u]: waiting for sockets to be configured", queue->queueId);
-        ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, 500);
+        ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, DEFAULT_SETUP_TIMEOUT_MS);
+        ASSERT_FRE(ret == WAIT_OBJECT_0 || ret == WAIT_TIMEOUT);
+        if (ret == WAIT_OBJECT_0) {
+            ++numEarlySetups;
+        } else {
+            ++numEarlyTimeouts;
+            if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS) {
+                HANDLE events[] = {queue->scenarioConfig.completeEvent, stopEvent};
+
+                TraceSetupDeadline(queue, DEFAULT_SETUP_TIMEOUT_MS);
+                ret = WaitForMultipleObjects(
+                    ARRAYSIZE(events), events, FALSE, setupTimeoutMs - DEFAULT_SETUP_TIMEOUT_MS);
+                ASSERT_FRE(ret == WAIT_OBJECT_0 || ret == WAIT_OBJECT_0 + 1 || ret == WAIT_TIMEOUT);
+                if (ret == WAIT_OBJECT_0) {
+                    ++numRescuedSetups;
+                } else if (ret == WAIT_TIMEOUT) {
+                    ++numExtendedTimeouts;
+                    TraceSetupDeadline(queue, setupTimeoutMs);
+                } else {
+                    ++numInterrupted;
+                }
+            }
+        }
 
         if (ret == WAIT_OBJECT_0) {
             ++numSuccessfulSetups;
@@ -2973,6 +3024,11 @@ QueueWorkerFn(
             #pragma warning(pop)
         }
 
+        if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS && ret != WAIT_OBJECT_0 &&
+            WaitForSingleObject(queue->scenarioConfig.completeEvent, 0) == WAIT_OBJECT_0) {
+            ++numShutdownCompletions;
+        }
+
         if (extraStats) {
             UpdateSetupStats(queueWorker, queue);
         }
@@ -2991,6 +3047,16 @@ QueueWorkerFn(
 
     if (extraStats) {
         PrintSetupStats(queueWorker, numIterations, numBindNotFoundSkipped);
+    }
+
+    if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS) {
+        printf("q[%u]: setup deadlines: iterations=%lu early500=%lu timeout500=%lu rescued=%lu timeout%lu=%lu interrupted=%lu shutdownCompletions=%lu\n",
+            queueWorker->queueId, numIterations, numEarlySetups, numEarlyTimeouts,
+            numRescuedSetups, setupTimeoutMs, numExtendedTimeouts, numInterrupted, numShutdownCompletions);
+        printf("q[%u]: setup deadlines raw rates: early500=%.2f%% final%lu=%.2f%% rescueOfTimeouts=%.2f%% (no exclusions)\n",
+            queueWorker->queueId, numIterations ? numEarlySetups * 100.0 / numIterations : 0.0,
+            setupTimeoutMs, numIterations ? numSuccessfulSetups * 100.0 / numIterations : 0.0,
+            numEarlyTimeouts ? numRescuedSetups * 100.0 / numEarlyTimeouts : 0.0);
     }
 
     //
@@ -3321,6 +3387,18 @@ ParseArgs(
             }
             successThresholdPercent = (UINT8)atoi(argv[i]);
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
+        } else if (!strcmp(argv[i], "-SetupTimeoutMs")) {
+            CHAR *end;
+            ULONG value;
+            if (++i >= argc) {
+                Usage();
+            }
+            value = strtoul(argv[i], &end, 10);
+            if (end == argv[i] || *end != '\0' || value < DEFAULT_SETUP_TIMEOUT_MS || value > 5000) {
+                Usage();
+            }
+            setupTimeoutMs = value;
+            TraceVerbose("setupTimeoutMs=%lu", setupTimeoutMs);
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
             TraceVerbose("enableEbpf=%!BOOLEAN!", enableEbpf);
@@ -3444,6 +3522,9 @@ main(
     TraceVerbose("main: running test...");
     WaitForSingleObject(stopEvent, (duration == ULONG_MAX) ? INFINITE : duration * 1000);
     WriteBooleanNoFence(&done, TRUE);
+    if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS) {
+        ASSERT_FRE(SetEvent(stopEvent));
+    }
 
     //
     // Wait on each queue worker to return.
