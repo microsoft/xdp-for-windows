@@ -82,6 +82,7 @@ CHAR *HELP =
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 "   -EnableEbpf           Enables eBPF testing\n"
+"   -SkipEbpfTestRun      Skip per-pass eBPF load/test-run/close (other eBPF testing remains enabled)\n"
 "                         Default: off\n"
 "   -UseFnmp              Use FnMp to inject packets in the receive path\n"
 "                         Default: off\n"
@@ -304,6 +305,7 @@ BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
+BOOLEAN skipEbpfTestRun = FALSE;
 BOOLEAN useFnmp = FALSE;
 BOOLEAN requireContiguousHeaders = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
@@ -2758,7 +2760,9 @@ XskFuzzerWorkerFn(
         }
 
         // Fuzz prog_test_run.
-        FuzzProgTestRunXdpEbpfProgram();
+        if (!skipEbpfTestRun) {
+            FuzzProgTestRunXdpEbpfProgram();
+        }
 
         FuzzInterface(fuzzer, queue);
 
@@ -3440,6 +3444,9 @@ ParseArgs(
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
             TraceVerbose("enableEbpf=%!BOOLEAN!", enableEbpf);
+        } else if (!strcmp(argv[i], "-SkipEbpfTestRun")) {
+            skipEbpfTestRun = TRUE;
+            TraceVerbose("skipEbpfTestRun=%!BOOLEAN!", skipEbpfTestRun);
         } else if (!strcmp(argv[i], "-UseFnmp")) {
             useFnmp = TRUE;
             TraceVerbose("useFnmp=%!BOOLEAN!", useFnmp);
