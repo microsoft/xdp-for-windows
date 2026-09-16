@@ -30,6 +30,9 @@ more coverage for setup and cleanup.
 .Parameter SuccessThresholdPercent
     Minimum socket success rate, percent.
 
+.PARAMETER SetupTimeoutMs
+    Setup deadline in milliseconds; values above 500 report paired deadline measurements.
+
 .PARAMETER CleanDatapath
     Avoid actions that invalidate the datapath.
 
@@ -79,6 +82,10 @@ param (
 
     [Parameter(Mandatory = $false)]
     [Int32]$SuccessThresholdPercent = -1,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateRange(500, 5000)]
+    [Int32]$SetupTimeoutMs = 500,
 
     [Parameter(Mandatory = $false)]
     [switch]$CleanDatapath = $false,
@@ -239,6 +246,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($FuzzerCount -ne 0) {
             $Args += "-FuzzerCount", $FuzzerCount
+        }
+        if ($SetupTimeoutMs -ne 500) {
+            $Args += "-SetupTimeoutMs", $SetupTimeoutMs
         }
         if ($CleanDatapath) {
             $Args += "-CleanDatapath"
