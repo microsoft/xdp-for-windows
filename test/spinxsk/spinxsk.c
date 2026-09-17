@@ -307,6 +307,7 @@ BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
 BOOLEAN skipEbpfTestRun = FALSE;
 BOOLEAN useFnmp = FALSE;
+BOOLEAN requireContiguousHeaders = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
 ULONG setupTimeoutMs = DEFAULT_SETUP_TIMEOUT_MS;
 HANDLE stopEvent;
@@ -2459,13 +2460,48 @@ BuildRandomFnmpDataBuffers(
     ASSERT_FRE(*NumBuffers > 0);
     *NumBuffers = (RandUlong() % min(*NumBuffers, 3)) + 1;
 
+    //
+    // Ensure the first MDL covers headers that NDIS/tcpip read without
+    // MDL-chain traversal. The minimum depends on what the frame contains.
+    //
+    UINT32 minFirstBufferData = 0;
+    if (*NumBuffers > 1 && FrameLength >= sizeof(ETHERNET_HEADER)) {
+        const ETHERNET_HEADER *eth = (const ETHERNET_HEADER *)(Frame + Backfill);
+        UINT16 etherType = ntohs(eth->Type);
+
+        // NDIS ndisParseReceivedNBL checks 14 bytes for DIX Ethernet.
+        minFirstBufferData = sizeof(ETHERNET_HEADER);
+
+        if (etherType <= 0x600 &&
+            FrameLength >= sizeof(ETHERNET_HEADER) + 8) {
+            // 802.3: NDIS SNAP/LLC path reads 8 bytes past Ethernet header.
+            minFirstBufferData = sizeof(ETHERNET_HEADER) + 8;
+        } else if (etherType == 0x8100 &&
+            FrameLength >= sizeof(ETHERNET_HEADER) + 4) {
+            // VLAN: NDIS checks 18 bytes.
+            minFirstBufferData = sizeof(ETHERNET_HEADER) + 4;
+        }
+
+        if (requireContiguousHeaders) {
+            // WS2022 tcpip fast-paths IPv4/IPv6 header reads.
+            if (etherType == ETHERNET_TYPE_IPV4 &&
+                FrameLength >= sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER)) {
+                minFirstBufferData = sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER);
+            } else if (etherType == ETHERNET_TYPE_IPV6 &&
+                FrameLength >= sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER)) {
+                minFirstBufferData = sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER);
+            }
+        }
+    }
+
     if (*NumBuffers == 1) {
         Buffers[0].DataOffset = Backfill;
         Buffers[0].DataLength = FrameLength;
         Buffers[0].BufferLength = FrameBufferSize;
         Buffers[0].VirtualAddress = Frame;
     } else if (*NumBuffers == 2) {
-        const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
+        const UINT32 bufferSplitOffset =
+            minFirstBufferData + RandUlong() % (FrameLength - minFirstBufferData + 1);
 
         Buffers[0].DataOffset = Backfill;
         Buffers[0].DataLength = bufferSplitOffset;
@@ -2477,7 +2513,8 @@ BuildRandomFnmpDataBuffers(
         Buffers[1].VirtualAddress = Buffers[0].VirtualAddress + Buffers[0].BufferLength;;
     } else { // *NumBuffers == 3
         ASSERT_FRE(*NumBuffers == 3);
-        const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
+        const UINT32 bufferSplitOffset =
+            minFirstBufferData + RandUlong() % (FrameLength - minFirstBufferData + 1);
         const UINT32 bufferSplitOffset2 =
             bufferSplitOffset + RandUlong() % (FrameLength - bufferSplitOffset + 1);
 
@@ -3465,6 +3502,22 @@ main(
 #endif
 
     ParseArgs(argc, argv);
+
+    if (useFnmp) {
+        typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
+        RTL_OSVERSIONINFOW osVersionInfo = {0};
+        HMODULE module = GetModuleHandleW(L"ntdll.dll");
+        ASSERT_FRE(module != NULL);
+        RTL_GET_VERSION_FN rtlGetVersion =
+            (RTL_GET_VERSION_FN)GetProcAddress(module, "RtlGetVersion");
+        ASSERT_FRE(rtlGetVersion != NULL);
+        osVersionInfo.dwOSVersionInfoSize = sizeof(osVersionInfo);
+        ASSERT_FRE(NT_SUCCESS(rtlGetVersion(&osVersionInfo)));
+        requireContiguousHeaders =
+            osVersionInfo.dwMajorVersion < 10 ||
+            (osVersionInfo.dwMajorVersion == 10 && osVersionInfo.dwMinorVersion == 0 &&
+                osVersionInfo.dwBuildNumber < 26100);
+    }
 
     powershellPrefix = GetPowershellPrefix();
 
