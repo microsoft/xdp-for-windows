@@ -94,17 +94,6 @@ One-time setup:
 .\tools\prepare-machine.ps1 -ForSpinxskTest
 ```
 
-Optionally, disable the legacy TDX/TDI driver stack for greater reliability:
-```Powershell
-#
-# Disable TDX and its dependent service NetBT. These drivers are implicated in
-# some NDIS control path hangs.
-#
-reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\netbt /v Start /d 4 /t REG_DWORD /f
-reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\tdx /v Start /d 4 /t REG_DWORD /f
-shutdown.exe /r /f /t 0
-```
-
 Running the test:
 
 ```Powershell
