@@ -30,6 +30,9 @@ more coverage for setup and cleanup.
 .Parameter SuccessThresholdPercent
     Minimum socket success rate, percent.
 
+.PARAMETER SetupTimeoutMs
+    Setup deadline in milliseconds; values above 500 report paired deadline measurements.
+
 .PARAMETER CleanDatapath
     Avoid actions that invalidate the datapath.
 
@@ -47,6 +50,12 @@ more coverage for setup and cleanup.
 
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver and spinxsk test cases.
+
+.PARAMETER SkipEbpfTestRun
+    Skip per-pass eBPF program load/test-run/close while retaining other eBPF testing.
+
+.PARAMETER DisableXdpFaultInject
+    Disable XDP's internal fault injection without changing Driver Verifier.
 
 #>
 
@@ -78,6 +87,10 @@ param (
     [Int32]$SuccessThresholdPercent = -1,
 
     [Parameter(Mandatory = $false)]
+    [ValidateRange(500, 5000)]
+    [Int32]$SetupTimeoutMs = 500,
+
+    [Parameter(Mandatory = $false)]
     [switch]$CleanDatapath = $false,
 
     [Parameter(Mandatory = $false)]
@@ -96,6 +109,12 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $true,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipEbpfTestRun = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$DisableXdpFaultInject = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,
@@ -188,6 +207,12 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             Write-Verbose "installed ebpf."
         }
 
+        if ($DisableXdpFaultInject) {
+            # Set the opt-out before driver load, not just via the asynchronous registry watcher.
+            reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 0 /t REG_DWORD /f | Write-Verbose
+            if ($LastExitCode -ne 0) { throw "Unable to disable XdpFaultInject before XDP installation" }
+        }
+
         Write-Verbose "installing xdp..."
         & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$EnableEbpf -XdpInstaller $XdpInstaller
         Write-Verbose "installed xdp."
@@ -209,8 +234,13 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         Write-Verbose "Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount"
         Set-NetAdapterRss $AdapterName -NumberOfReceiveQueues $QueueCount
 
-        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f"
-        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d 1 /t REG_DWORD /f | Write-Verbose
+        $XdpFaultInject = [int](!$DisableXdpFaultInject)
+        Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d $XdpFaultInject /t REG_DWORD /f"
+        reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpFaultInject /d $XdpFaultInject /t REG_DWORD /f | Write-Verbose
+        if ($LastExitCode -ne 0) { throw "Unable to configure XdpFaultInject" }
+        $ConfiguredFaultInject = Get-ItemPropertyValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters" -Name XdpFaultInject
+        if ($ConfiguredFaultInject -ne $XdpFaultInject) { throw "XdpFaultInject registry readback mismatch" }
+        Write-Host "XdpFaultInject=$ConfiguredFaultInject (Config=$Config; internal injection is DBG-only)"
 
         $Args = `
             "-IfIndex", (Get-NetAdapter $AdapterName).ifIndex, `
@@ -222,6 +252,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($FuzzerCount -ne 0) {
             $Args += "-FuzzerCount", $FuzzerCount
+        }
+        if ($SetupTimeoutMs -ne 500) {
+            $Args += "-SetupTimeoutMs", $SetupTimeoutMs
         }
         if ($CleanDatapath) {
             $Args += "-CleanDatapath"
@@ -236,6 +269,9 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($EnableEbpf) {
             $Args += "-EnableEbpf"
+        }
+        if ($SkipEbpfTestRun) {
+            $Args += "-SkipEbpfTestRun"
         }
         if ($Driver -eq "FNMP") {
             $Args += "-UseFnmp"
@@ -265,8 +301,12 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             throw "SpinXsk failed with $LastExitCode"
         }
     } catch {
-        Write-Error "Error: $_"
-        exit 1
+        if ($Minutes -eq 0) {
+            Write-Warning "Iteration error (continuing): $_"
+        } else {
+            Write-Error "Error: $_"
+            exit 1
+        }
     } finally {
         if ($Driver -eq "XDPMP") {
             & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'

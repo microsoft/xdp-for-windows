@@ -53,6 +53,7 @@
 #define DEFAULT_FUZZER_COUNT 3
 #define DEFAULT_GLOBAL_CONCURRENT_WORKERS_COUNT 2
 #define DEFAULT_SUCCESS_THRESHOLD 50
+#define DEFAULT_SETUP_TIMEOUT_MS 500
 
 CHAR *HELP =
 "spinxsk.exe -IfIndex <ifindex> [OPTIONS]\n"
@@ -62,6 +63,8 @@ CHAR *HELP =
 "                         Default: infinite\n"
 "   -Stats                Periodic socket statistics output\n"
 "                         Default: off\n"
+"   -SetupTimeoutMs <ms>  Socket setup deadline (500..5000); reports progress at 500 ms\n"
+"                         Default: " STR_OF(DEFAULT_SETUP_TIMEOUT_MS) "\n"
 "   -Verbose              Verbose logging\n"
 "                         Default: off\n"
 "   -QueueCount <count>   Number of queues to spin\n"
@@ -79,6 +82,7 @@ CHAR *HELP =
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 "   -EnableEbpf           Enables eBPF testing\n"
+"   -SkipEbpfTestRun      Skip per-pass eBPF load/test-run/close (other eBPF testing remains enabled)\n"
 "                         Default: off\n"
 "   -UseFnmp              Use FnMp to inject packets in the receive path\n"
 "                         Default: off\n"
@@ -301,8 +305,11 @@ BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
+BOOLEAN skipEbpfTestRun = FALSE;
 BOOLEAN useFnmp = FALSE;
+BOOLEAN requireContiguousHeaders = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
+ULONG setupTimeoutMs = DEFAULT_SETUP_TIMEOUT_MS;
 HANDLE stopEvent;
 HANDLE workersDoneEvent;
 QUEUE_WORKER *queueWorkers;
@@ -2453,13 +2460,48 @@ BuildRandomFnmpDataBuffers(
     ASSERT_FRE(*NumBuffers > 0);
     *NumBuffers = (RandUlong() % min(*NumBuffers, 3)) + 1;
 
+    //
+    // Ensure the first MDL covers headers that NDIS/tcpip read without
+    // MDL-chain traversal. The minimum depends on what the frame contains.
+    //
+    UINT32 minFirstBufferData = 0;
+    if (*NumBuffers > 1 && FrameLength >= sizeof(ETHERNET_HEADER)) {
+        const ETHERNET_HEADER *eth = (const ETHERNET_HEADER *)(Frame + Backfill);
+        UINT16 etherType = ntohs(eth->Type);
+
+        // NDIS ndisParseReceivedNBL checks 14 bytes for DIX Ethernet.
+        minFirstBufferData = sizeof(ETHERNET_HEADER);
+
+        if (etherType <= 0x600 &&
+            FrameLength >= sizeof(ETHERNET_HEADER) + 8) {
+            // 802.3: NDIS SNAP/LLC path reads 8 bytes past Ethernet header.
+            minFirstBufferData = sizeof(ETHERNET_HEADER) + 8;
+        } else if (etherType == 0x8100 &&
+            FrameLength >= sizeof(ETHERNET_HEADER) + 4) {
+            // VLAN: NDIS checks 18 bytes.
+            minFirstBufferData = sizeof(ETHERNET_HEADER) + 4;
+        }
+
+        if (requireContiguousHeaders) {
+            // WS2022 tcpip fast-paths IPv4/IPv6 header reads.
+            if (etherType == ETHERNET_TYPE_IPV4 &&
+                FrameLength >= sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER)) {
+                minFirstBufferData = sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER);
+            } else if (etherType == ETHERNET_TYPE_IPV6 &&
+                FrameLength >= sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER)) {
+                minFirstBufferData = sizeof(ETHERNET_HEADER) + sizeof(IPV6_HEADER);
+            }
+        }
+    }
+
     if (*NumBuffers == 1) {
         Buffers[0].DataOffset = Backfill;
         Buffers[0].DataLength = FrameLength;
         Buffers[0].BufferLength = FrameBufferSize;
         Buffers[0].VirtualAddress = Frame;
     } else if (*NumBuffers == 2) {
-        const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
+        const UINT32 bufferSplitOffset =
+            minFirstBufferData + RandUlong() % (FrameLength - minFirstBufferData + 1);
 
         Buffers[0].DataOffset = Backfill;
         Buffers[0].DataLength = bufferSplitOffset;
@@ -2471,7 +2513,8 @@ BuildRandomFnmpDataBuffers(
         Buffers[1].VirtualAddress = Buffers[0].VirtualAddress + Buffers[0].BufferLength;;
     } else { // *NumBuffers == 3
         ASSERT_FRE(*NumBuffers == 3);
-        const UINT32 bufferSplitOffset = RandUlong() % (FrameLength + 1);
+        const UINT32 bufferSplitOffset =
+            minFirstBufferData + RandUlong() % (FrameLength - minFirstBufferData + 1);
         const UINT32 bufferSplitOffset2 =
             bufferSplitOffset + RandUlong() % (FrameLength - bufferSplitOffset + 1);
 
@@ -2716,7 +2759,9 @@ XskFuzzerWorkerFn(
         }
 
         // Fuzz prog_test_run.
-        FuzzProgTestRunXdpEbpfProgram();
+        if (!skipEbpfTestRun) {
+            FuzzProgTestRunXdpEbpfProgram();
+        }
 
         FuzzInterface(fuzzer, queue);
 
@@ -2866,6 +2911,25 @@ PrintSetupStats(
         NumExcluded, NumIterations, Pct(NumExcluded, NumIterations));
 }
 
+VOID
+TraceSetupDeadline(
+    _In_ QUEUE_CONTEXT *Queue,
+    _In_ ULONG DeadlineMs
+    )
+{
+    SCENARIO_CONFIG *config = &Queue->scenarioConfig;
+
+    TraceVerbose("q[%u]: deadline=%lu umem=%u rx=%u/%u tx=%u/%u bind=%u active=%u sharedRx=%u/%u sharedTx=%u/%u sharedBind=%u sharedActive=%u",
+        Queue->queueId, DeadlineMs,
+        ReadBooleanAcquire(&config->isUmemRegistered),
+        ReadBooleanAcquire(&config->isSockRxSet), config->sockRx,
+        ReadBooleanAcquire(&config->isSockTxSet), config->sockTx,
+        ReadBooleanAcquire(&config->isSockBound), ReadBooleanAcquire(&config->isSockActivated),
+        ReadBooleanAcquire(&config->isSharedUmemSockRxSet), config->sharedUmemSockRx,
+        ReadBooleanAcquire(&config->isSharedUmemSockTxSet), config->sharedUmemSockTx,
+        ReadBooleanAcquire(&config->isSharedUmemSockBound), ReadBooleanAcquire(&config->isSharedUmemSockActivated));
+}
+
 DWORD
 WINAPI
 QueueWorkerFn(
@@ -2876,6 +2940,12 @@ QueueWorkerFn(
     ULONG numIterations = 0;
     ULONG numSuccessfulSetups = 0;
     ULONG numBindNotFoundSkipped = 0;
+    ULONG numEarlySetups = 0;
+    ULONG numEarlyTimeouts = 0;
+    ULONG numRescuedSetups = 0;
+    ULONG numExtendedTimeouts = 0;
+    ULONG numInterrupted = 0;
+    ULONG numShutdownCompletions = 0;
     ULONG effectiveIterations;
     ULONG successPct;
 
@@ -2907,7 +2977,29 @@ QueueWorkerFn(
         // Wait until fuzzers have successfully configured the socket/s.
         //
         TraceVerbose("q[%u]: waiting for sockets to be configured", queue->queueId);
-        ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, 500);
+        ret = WaitForSingleObject(queue->scenarioConfig.completeEvent, DEFAULT_SETUP_TIMEOUT_MS);
+        ASSERT_FRE(ret == WAIT_OBJECT_0 || ret == WAIT_TIMEOUT);
+        if (ret == WAIT_OBJECT_0) {
+            ++numEarlySetups;
+        } else {
+            ++numEarlyTimeouts;
+            if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS) {
+                HANDLE events[] = {queue->scenarioConfig.completeEvent, stopEvent};
+
+                TraceSetupDeadline(queue, DEFAULT_SETUP_TIMEOUT_MS);
+                ret = WaitForMultipleObjects(
+                    ARRAYSIZE(events), events, FALSE, setupTimeoutMs - DEFAULT_SETUP_TIMEOUT_MS);
+                ASSERT_FRE(ret == WAIT_OBJECT_0 || ret == WAIT_OBJECT_0 + 1 || ret == WAIT_TIMEOUT);
+                if (ret == WAIT_OBJECT_0) {
+                    ++numRescuedSetups;
+                } else if (ret == WAIT_TIMEOUT) {
+                    ++numExtendedTimeouts;
+                    TraceSetupDeadline(queue, setupTimeoutMs);
+                } else {
+                    ++numInterrupted;
+                }
+            }
+        }
 
         if (ret == WAIT_OBJECT_0) {
             ++numSuccessfulSetups;
@@ -2973,6 +3065,11 @@ QueueWorkerFn(
             #pragma warning(pop)
         }
 
+        if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS && ret != WAIT_OBJECT_0 &&
+            WaitForSingleObject(queue->scenarioConfig.completeEvent, 0) == WAIT_OBJECT_0) {
+            ++numShutdownCompletions;
+        }
+
         if (extraStats) {
             UpdateSetupStats(queueWorker, queue);
         }
@@ -2991,6 +3088,16 @@ QueueWorkerFn(
 
     if (extraStats) {
         PrintSetupStats(queueWorker, numIterations, numBindNotFoundSkipped);
+    }
+
+    if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS) {
+        printf("q[%u]: setup deadlines: iterations=%lu early500=%lu timeout500=%lu rescued=%lu timeout%lu=%lu interrupted=%lu shutdownCompletions=%lu\n",
+            queueWorker->queueId, numIterations, numEarlySetups, numEarlyTimeouts,
+            numRescuedSetups, setupTimeoutMs, numExtendedTimeouts, numInterrupted, numShutdownCompletions);
+        printf("q[%u]: setup deadlines raw rates: early500=%.2f%% final%lu=%.2f%% rescueOfTimeouts=%.2f%% (no exclusions)\n",
+            queueWorker->queueId, numIterations ? numEarlySetups * 100.0 / numIterations : 0.0,
+            setupTimeoutMs, numIterations ? numSuccessfulSetups * 100.0 / numIterations : 0.0,
+            numEarlyTimeouts ? numRescuedSetups * 100.0 / numEarlyTimeouts : 0.0);
     }
 
     //
@@ -3321,9 +3428,24 @@ ParseArgs(
             }
             successThresholdPercent = (UINT8)atoi(argv[i]);
             TraceVerbose("successThresholdPercent=%u", successThresholdPercent);
+        } else if (!strcmp(argv[i], "-SetupTimeoutMs")) {
+            CHAR *end;
+            ULONG value;
+            if (++i >= argc) {
+                Usage();
+            }
+            value = strtoul(argv[i], &end, 10);
+            if (end == argv[i] || *end != '\0' || value < DEFAULT_SETUP_TIMEOUT_MS || value > 5000) {
+                Usage();
+            }
+            setupTimeoutMs = value;
+            TraceVerbose("setupTimeoutMs=%lu", setupTimeoutMs);
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
             TraceVerbose("enableEbpf=%!BOOLEAN!", enableEbpf);
+        } else if (!strcmp(argv[i], "-SkipEbpfTestRun")) {
+            skipEbpfTestRun = TRUE;
+            TraceVerbose("skipEbpfTestRun=%!BOOLEAN!", skipEbpfTestRun);
         } else if (!strcmp(argv[i], "-UseFnmp")) {
             useFnmp = TRUE;
             TraceVerbose("useFnmp=%!BOOLEAN!", useFnmp);
@@ -3380,6 +3502,22 @@ main(
 #endif
 
     ParseArgs(argc, argv);
+
+    if (useFnmp) {
+        typedef NTSTATUS (WINAPI* RTL_GET_VERSION_FN)(PRTL_OSVERSIONINFOW);
+        RTL_OSVERSIONINFOW osVersionInfo = {0};
+        HMODULE module = GetModuleHandleW(L"ntdll.dll");
+        ASSERT_FRE(module != NULL);
+        RTL_GET_VERSION_FN rtlGetVersion =
+            (RTL_GET_VERSION_FN)GetProcAddress(module, "RtlGetVersion");
+        ASSERT_FRE(rtlGetVersion != NULL);
+        osVersionInfo.dwOSVersionInfoSize = sizeof(osVersionInfo);
+        ASSERT_FRE(NT_SUCCESS(rtlGetVersion(&osVersionInfo)));
+        requireContiguousHeaders =
+            osVersionInfo.dwMajorVersion < 10 ||
+            (osVersionInfo.dwMajorVersion == 10 && osVersionInfo.dwMinorVersion == 0 &&
+                osVersionInfo.dwBuildNumber < 26100);
+    }
 
     powershellPrefix = GetPowershellPrefix();
 
@@ -3444,6 +3582,9 @@ main(
     TraceVerbose("main: running test...");
     WaitForSingleObject(stopEvent, (duration == ULONG_MAX) ? INFINITE : duration * 1000);
     WriteBooleanNoFence(&done, TRUE);
+    if (setupTimeoutMs > DEFAULT_SETUP_TIMEOUT_MS) {
+        ASSERT_FRE(SetEvent(stopEvent));
+    }
 
     //
     // Wait on each queue worker to return.

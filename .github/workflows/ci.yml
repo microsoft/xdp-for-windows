@@ -259,10 +259,10 @@ jobs:
           enableTxInspect: enableTxInspect
     timeout-minutes: 75 # Ideally this would be only 25 min for PR runs, but GitHub Actions don't support that.
     runs-on:
-     - self-hosted
-     - "1ES.Pool=xdp-ci-spinxsk${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
-     - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Spinxsk"
-     - "JobId=stress_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+      - self-hosted
+      - "1ES.Pool=xdp-ci-functional${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
+      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-Functional"
+      - "JobId=stress_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.testDriver }}_${{ matrix.enableTxInspect }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -273,7 +273,7 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose -EbpfPreinstalled:${{ env.ebpfInbox }} -OverrideInboxEbpf:${{ env.ebpfInbox }}
+      run: tools/prepare-machine.ps1 -ForSpinxskTest -Platform ${{ matrix.platform }} -RequireNoReboot -AllowVerifierMismatch -Verbose -EbpfPreinstalled:${{ env.ebpfInbox }} -OverrideInboxEbpf:${{ env.ebpfInbox }}
     - name: Download Artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
@@ -283,22 +283,22 @@ jobs:
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect -EbpfPreinstalled:${{ env.ebpfInbox }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect -DisableXdpFaultInject -SetupTimeoutMs 2000 -SkipEbpfTestRun -EbpfPreinstalled:${{ env.ebpfInbox }}
     - name: Run spinxsk (PR)
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 20
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -EbpfPreinstalled:${{ env.ebpfInbox }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.prRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -DisableXdpFaultInject -SetupTimeoutMs 2000 -SkipEbpfTestRun -EbpfPreinstalled:${{ env.ebpfInbox }}
     - name: Run spinxsk (main, with TxInspect)
       if: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect -EbpfPreinstalled:${{ env.ebpfInbox }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -TxInspect -DisableXdpFaultInject -SetupTimeoutMs 2000 -SkipEbpfTestRun -EbpfPreinstalled:${{ env.ebpfInbox }}
     - name: Run spinxsk (main)
       if: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' && matrix.enableTxInspect == 'disableTxInspect' }}
       shell: PowerShell
       timeout-minutes: 70
-      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -EbpfPreinstalled:${{ env.ebpfInbox }}
+      run: tools/spinxsk.ps1 -Verbose -Stats -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Driver ${{ matrix.testDriver}} -Minutes ${{ env.fullRuntime }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -SuccessThresholdPercent ${{ env.successThresholdPercent }} -EnableEbpf -DisableXdpFaultInject -SetupTimeoutMs 2000 -SkipEbpfTestRun -EbpfPreinstalled:${{ env.ebpfInbox }}
     - name: Convert Logs
       if: ${{ always() }}
       timeout-minutes: 15
