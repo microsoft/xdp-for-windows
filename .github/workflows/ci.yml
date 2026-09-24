@@ -279,6 +279,12 @@ jobs:
       with:
         name: bin_${{ matrix.configuration }}_${{ matrix.platform }}
         path: artifacts/bin
+    # Run the deterministic baseline once per OS/config/platform.
+    - name: Measure XDP fault-injection rate
+      if: ${{ matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'disableTxInspect' }}
+      shell: PowerShell
+      timeout-minutes: 10
+      run: tools/xdpfaultrate.ps1 -Verbose -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -XdpmpPollProvider ${{ env.xdpmpPollProvider }} -EbpfPreinstalled:${{ env.ebpfInbox }}
     - name: Run spinxsk (PR, with TxInspect)
       if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.testDriver == 'XDPMP' && matrix.enableTxInspect == 'enableTxInspect' }}
       shell: PowerShell
