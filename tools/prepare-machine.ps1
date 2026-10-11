@@ -425,6 +425,22 @@ if ($Cleanup) {
             $Reboot = $true
         }
 
+        # Disable TDX and NetBT. These legacy TDI drivers cause NDIS control
+        # path hangs during driver install/uninstall stress.
+        foreach ($svc in @("tdx", "netbt")) {
+            $startValue = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$svc" -Name Start -ErrorAction SilentlyContinue).Start
+            if ($startValue -ne 4) {
+                Write-Verbose "Disabling $svc (current Start=$startValue)"
+                reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\$svc" /v Start /d 4 /t REG_DWORD /f | Write-Verbose
+                $Reboot = $true
+            }
+            $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
+            if ($null -ne $svcObj -and $svcObj.Status -ne "Stopped") {
+                Write-Verbose "$svc is still running; reboot required"
+                $Reboot = $true
+            }
+        }
+
         Enable-CrashDumps
         Download-Fn-Runtime
         Write-Verbose "$(Get-FnRuntimeDir)/tools/prepare-machine.ps1 -ForTest -NoReboot"
