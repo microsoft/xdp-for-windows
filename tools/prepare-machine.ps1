@@ -317,19 +317,16 @@ function Setup-TestSigning {
 }
 
 function Setup-VcRuntime {
-    $Installed = $false
-    try { $Installed = Get-ChildItem -Path Registry::HKEY_CLASSES_ROOT\Installer\Dependencies | Where-Object { $_.Name -like "*VC,redist*" } } catch {}
+    # Always (re)install: the registry check cannot tell the VS2022 (v143) redist from the
+    # VS2026 (v145) one the tests now need, and vc_redist is idempotent.
+    Write-Host "Installing VC++ runtime"
 
-    if (!$Installed -or $Force) {
-        Write-Host "Installing VC++ runtime"
+    if (!(Test-Path $ArtifactsDir)) { mkdir artifacts }
+    Remove-Item -Force "$ArtifactsDir\vc_redist.$Platform.exe" -ErrorAction Ignore
 
-        if (!(Test-Path $ArtifactsDir)) { mkdir artifacts }
-        Remove-Item -Force "$ArtifactsDir\vc_redist.$Platform.exe" -ErrorAction Ignore
-
-        # Download and install.
-        Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/17/release/vc_redist.$Platform.exe" -OutFile "$ArtifactsDir\vc_redist.$Platform.exe"
-        & $ArtifactsDir\vc_redist.$Platform.exe /install /passive | Write-Verbose
-    }
+    # Download and install.
+    Invoke-WebRequest-WithRetry -Uri "https://aka.ms/vs/18/release/vc_redist.$Platform.exe" -OutFile "$ArtifactsDir\vc_redist.$Platform.exe"
+    & $ArtifactsDir\vc_redist.$Platform.exe /install /passive | Write-Verbose
 }
 
 function Setup-VsTest {
