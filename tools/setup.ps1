@@ -61,7 +61,16 @@ param (
     # build-time version returned by Get-EbpfVersion. Only the installed runtime
     # varies; XDP is always built against a single (latest) eBPF version.
     [Parameter(Mandatory = $false)]
-    [string]$EbpfVersion = ""
+    [string]$EbpfVersion = "",
+
+    # Use the private-stack replacement flow instead of MSI install/uninstall.
+    # This is valid only on machines where eBPF is already installed.
+    [Parameter(Mandatory = $false)]
+    [switch]$EbpfPreinstalled = $false,
+
+    # Directory containing the locally staged private eBPF stack.
+    [Parameter(Mandatory = $false)]
+    [string]$EbpfArtifactDirectory = ""
 )
 
 Set-StrictMode -Version 'Latest'
@@ -82,10 +91,6 @@ $XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
-$XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
-# Determine the XDP build version string from xdp.sys. The Windows file version
-# format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
-$XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpRuntimeNupkgNativePath = "runtime/native"
 $XdpRuntimeNupkgSetupPath = "$XdpRuntimeNupkgNativePath/xdp-setup.ps1"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
@@ -280,6 +285,9 @@ function Install-Xdp {
     Install-DebugCrt
 
     if ($XdpInstaller -eq "NuGet") {
+        $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
+        # Windows file versions have four components; XDP package versions use three.
+        $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
         $XdpPath = Get-XdpInstallPath
         $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
@@ -581,8 +589,21 @@ function Uninstall-FnSock {
 }
 
 function Install-Ebpf {
-    $EbpfPath = Get-EbpfInstallPath
     $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+
+    if ($EbpfPreinstalled) {
+        if ([string]::IsNullOrWhiteSpace($EbpfArtifactDirectory)) {
+            Write-Error "-EbpfArtifactDirectory is required with -EbpfPreinstalled."
+        }
+        $PrivateDirectory = Join-Path $env:ProgramFiles "eBPF-for-Windows-Private\$Platform.$Version"
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Enable `
+            -ArtifactDirectory $EbpfArtifactDirectory `
+            -PrivateDirectory $PrivateDirectory `
+            -Confirm:$false
+        return
+    }
+
+    $EbpfPath = Get-EbpfInstallPath
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
 
     Write-Verbose "Installing eBPF for Windows"
@@ -607,6 +628,11 @@ function Install-Ebpf {
 }
 
 function Uninstall-Ebpf {
+    if ($EbpfPreinstalled) {
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore -Confirm:$false
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
     $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version

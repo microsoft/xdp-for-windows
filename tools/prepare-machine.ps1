@@ -85,8 +85,8 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,
 
-    # When set, replace the preinstalled eBPF runtime binaries with the packaged
-    # runtime version. Stopgap until the eBPF team provides supported guidance.
+    # When set, replace the preinstalled eBPF runtime with a locally staged
+    # private stack. Requires -EbpfPreinstalled.
     [Parameter(Mandatory = $false)]
     [switch]$OverrideInboxEbpf = $false,
 
@@ -107,6 +107,10 @@ param (
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
+
+if ($OverrideInboxEbpf -and !$EbpfPreinstalled) {
+    Write-Error "-OverrideInboxEbpf requires -EbpfPreinstalled."
+}
 
 $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
@@ -202,11 +206,17 @@ function Download-Ebpf-Msi {
     }
 }
 
-function Extract-Ebpf-Override-Binaries {
+function Stage-Ebpf-PrivateStack {
     $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
     $BinDir = Get-EbpfOverrideBinPath -Platform $Platform -Version $Version
-    $Binaries = @("ebpfcore.sys", "netebpfext.sys", "ebpfapi.dll")
+    $Binaries = @(
+        "EbpfCore.sys",
+        "NetEbpfExt.sys",
+        "EbpfSvc.exe",
+        "EbpfApi.dll",
+        "export_program_info.exe"
+    )
 
     $HaveAll = $true
     foreach ($Bin in $Binaries) {
@@ -221,63 +231,34 @@ function Extract-Ebpf-Override-Binaries {
     if (Test-Path $ExtractDir) { Remove-Item -Recurse -Force $ExtractDir }
     New-Item -ItemType Directory -Force -Path $ExtractDir | Out-Null
 
-    Write-Verbose "msiexec.exe /a $EbpfMsiFullPath /qn TARGETDIR=$ExtractDir"
-    $Process = Start-Process -FilePath msiexec.exe -NoNewWindow -PassThru -Wait -ArgumentList `
-        @("/a", "`"$EbpfMsiFullPath`"", "/qn", "TARGETDIR=`"$ExtractDir`"")
-    if ($Process.ExitCode -ne 0) {
-        Write-Error "eBPF MSI administrative extract failed: $($Process.ExitCode)"
-    }
-
-    New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-    foreach ($Bin in $Binaries) {
-        $Found = Get-ChildItem -Recurse -Path $ExtractDir -Filter $Bin -ErrorAction Ignore | Select-Object -First 1
-        if ($null -eq $Found) {
-            Write-Error "Could not find $Bin in the extracted eBPF MSI at $ExtractDir"
+    try {
+        Write-Verbose "msiexec.exe /a $EbpfMsiFullPath /qn TARGETDIR=$ExtractDir"
+        $Process = Start-Process -FilePath msiexec.exe -NoNewWindow -PassThru -Wait -ArgumentList `
+            @("/a", "`"$EbpfMsiFullPath`"", "/qn", "TARGETDIR=`"$ExtractDir`"")
+        if ($Process.ExitCode -ne 0) {
+            Write-Error "eBPF MSI administrative extract failed: $($Process.ExitCode)"
         }
-        Copy-Item -Path $Found.FullName -Destination "$BinDir\$Bin" -Force
-    }
 
-    Remove-Item -Recurse -Force $ExtractDir
-}
-
-# Replaces the preinstalled eBPF runtime binaries with the packaged runtime
-# version. Stopgap until the eBPF team provides supported guidance.
-function Override-InboxEbpf {
-    Extract-Ebpf-Override-Binaries
-
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
-    $BinDir = Get-EbpfOverrideBinPath -Platform $Platform -Version $Version
-    $SfpCopy = Get-CoreNetCiArtifactPath -Name "sfpcopy.exe"
-    $System32 = "$env:SystemRoot\System32"
-
-    $Binaries = @(
-        @{ Name = "ebpfcore.sys";   Dest = "$System32\drivers" },
-        @{ Name = "netebpfext.sys"; Dest = "$System32\drivers" },
-        @{ Name = "ebpfapi.dll";    Dest = $System32 }
-    )
-
-    if (!(Test-Path $SfpCopy)) {
-        Write-Error "sfpcopy.exe not found at $SfpCopy"
-    }
-
-    # Stop the eBPF services (dependents first) so the binaries are unloaded and
-    # can be replaced. The service registrations are left intact.
-    foreach ($svc in @("ebpfsvc", "netebpfext", "ebpfcore")) {
-        Write-Verbose "Stop-Service $svc"
-        try { Stop-Service $svc -Force -ErrorAction Stop } catch { Write-Verbose "Stop-Service ${svc}: $_" }
-    }
-
-    foreach ($Bin in $Binaries) {
-        $Src = "$BinDir\$($Bin.Name)"
-        $Dst = "$($Bin.Dest)\$($Bin.Name)"
-        Write-Verbose "$SfpCopy $Src $Dst"
-        & $SfpCopy $Src $Dst | Write-Verbose
-        if ($LastExitCode) {
-            Write-Error "sfpcopy failed to copy $($Bin.Name) (exit $LastExitCode)"
+        New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+        $StagedFiles = @{}
+        foreach ($Bin in $Binaries) {
+            $Found = Get-ChildItem -Recurse -Path $ExtractDir -Filter $Bin -File -ErrorAction Ignore |
+                Select-Object -First 1
+            if ($null -eq $Found) {
+                Write-Error "Could not find $Bin in the extracted eBPF MSI at $ExtractDir"
+            }
+            Copy-Item -Path $Found.FullName -Destination "$BinDir\$Bin" -Force
+            $StagedFiles[$Bin] = $Found
         }
+
+        Get-ChildItem -Path $StagedFiles["EbpfSvc.exe"].DirectoryName -File |
+            Where-Object { $_.Extension -in @(".dll", ".pdb") } |
+            Copy-Item -Destination $BinDir -Force
+    } finally {
+        Remove-Item -Recurse -Force $ExtractDir -ErrorAction Ignore
     }
 
-    Write-Verbose "eBPF runtime overridden with packaged version $Version"
+    return $BinDir
 }
 
 function Download-Fn-Runtime {
@@ -453,7 +434,11 @@ if ($Cleanup) {
         } else {
             if ($OverrideInboxEbpf) {
                 Download-Ebpf-Msi
-                Override-InboxEbpf
+                $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+                $PrivateStackDirectory = Stage-Ebpf-PrivateStack
+                & "$RootDir\tools\setup.ps1" -Install ebpf -Platform $Platform `
+                    -EbpfVersion $Version -EbpfPreinstalled `
+                    -EbpfArtifactDirectory $PrivateStackDirectory
             }
             Start-Ebpf-Inbox
         }
