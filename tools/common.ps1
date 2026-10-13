@@ -5,6 +5,12 @@
 # Disable Invoke-WebRequest progress bar to work around a bug that slows downloads.
 $ProgressPreference = 'SilentlyContinue'
 
+# Centralized retry parameters for starting services under driver verifier fault
+# injection. All service-start retry loops across the repo should reference these
+# values so there is one place to tune.
+$Script:ServiceStartRetries = 200
+$Script:ServiceStartRetryDelayMs = 5
+
 function Invoke-WebRequest-WithRetry {
     param (
         [Parameter()]
@@ -503,9 +509,9 @@ function New-PerfData {
 function Start-Service-With-Retry($Name) {
     Write-Verbose "Start-Service $Name"
     $StartSuccess = $false
-    for ($i=0; $i -lt 200; $i++) {
+    for ($i=0; $i -lt $Script:ServiceStartRetries; $i++) {
         try {
-            Start-Sleep -Milliseconds 5
+            Start-Sleep -Milliseconds $Script:ServiceStartRetryDelayMs
             Start-Service $Name
             $StartSuccess = $true
             break

@@ -61,6 +61,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "common.ps1")
+
 $serviceNames = @("EbpfCore", "NetEbpfExt", "eBPFSvc")
 $requiredFiles = @(
     "EbpfCore.sys",
@@ -205,9 +207,7 @@ function Start-EbpfStack
 
     foreach ($name in $servicesToStart) {
         Write-Host "Starting $name..."
-        Start-Service -Name $name
-        (Get-Service -Name $name).WaitForStatus(
-            [System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(60))
+        Start-Service-With-Retry $name
     }
 }
 
@@ -648,9 +648,7 @@ function Restore-InboxStack
         $service = $state.Services | Where-Object { $_.Name -eq $name }
         if ($service.WasRunning) {
             Write-Host "Starting $name..."
-            Start-Service -Name $name
-            (Get-Service -Name $name).WaitForStatus(
-                [System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(60))
+            Start-Service-With-Retry $name
         }
     }
 
