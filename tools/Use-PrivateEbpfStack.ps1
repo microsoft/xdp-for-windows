@@ -78,6 +78,7 @@ $developerScenarioFiles = @(
 $sampleExtensionServiceName = "sample_ebpf_ext"
 $stateRoot = Join-Path $env:ProgramData "eBPF-for-Windows\PrivateStack"
 $activeStatePath = Join-Path $stateRoot "active.json"
+$netshRegistryPath = "HKLM:\SOFTWARE\Microsoft\NetSh"
 
 function Assert-Administrator
 {
@@ -208,6 +209,87 @@ function Start-EbpfStack
     foreach ($name in $servicesToStart) {
         Write-Host "Starting $name..."
         Start-Service-With-Retry $name
+    }
+}
+
+function Get-EbpfNetshHelpers
+{
+    $key = Get-Item -Path $netshRegistryPath -ErrorAction SilentlyContinue
+    if ($null -eq $key) {
+        return @()
+    }
+    return @(
+        $key.GetValueNames() |
+            Where-Object { [IO.Path]::GetFileName([string]$key.GetValue($_)) -match '^ebpfnetsh.*\.dll$' } |
+            ForEach-Object { [PSCustomObject]@{ Name = $_; Value = [string]$key.GetValue($_) } }
+    )
+}
+
+# Replaces any registered eBPF netsh helper with the private one so that
+# "netsh ebpf ..." exercises the private stack.
+function Register-PrivateNetshHelper
+{
+    param([Parameter(Mandatory = $true)][string]$PrivatePath)
+
+    $helperPath = Join-Path $PrivatePath "ebpfnetsh.dll"
+    if (-not (Test-Path -Path $helperPath -PathType Leaf)) {
+        Write-Host "No ebpfnetsh.dll in '$PrivatePath'; leaving netsh helper registration unchanged."
+        return
+    }
+    foreach ($helper in Get-EbpfNetshHelpers) {
+        Write-Host "Unregistering netsh helper '$($helper.Name)' ($($helper.Value))."
+        Remove-ItemProperty -Path $netshRegistryPath -Name $helper.Name
+    }
+    Write-Host "Registering netsh helper '$helperPath'."
+    New-ItemProperty -Path $netshRegistryPath -Name "ebpfnetsh" -Value $helperPath -PropertyType String -Force | Out-Null
+}
+
+function Restore-NetshHelpers
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [object[]]$Helpers)
+
+    foreach ($helper in Get-EbpfNetshHelpers) {
+        Remove-ItemProperty -Path $netshRegistryPath -Name $helper.Name
+    }
+    foreach ($helper in $Helpers) {
+        if ($null -eq $helper) {
+            continue
+        }
+        New-ItemProperty -Path $netshRegistryPath -Name $helper.Name -Value $helper.Value -PropertyType String -Force | Out-Null
+    }
+}
+
+function Test-PathEntryEqual
+{
+    param([string]$Left, [string]$Right)
+    return [string]::Equals($Left.Trim().TrimEnd("\"), $Right.Trim().TrimEnd("\"), [StringComparison]::OrdinalIgnoreCase)
+}
+
+# netsh resolves the private ebpfnetsh.dll's EbpfApi.dll dependency through PATH.
+function Add-PrivateDirectoryToMachinePath
+{
+    param([Parameter(Mandatory = $true)][string]$PrivatePath)
+
+    $entries = @(([Environment]::GetEnvironmentVariable("Path", "Machine")) -split ";" | Where-Object { $_ -ne "" })
+    if (@($entries | Where-Object { Test-PathEntryEqual $_ $PrivatePath }).Count -gt 0) {
+        return $false
+    }
+    [Environment]::SetEnvironmentVariable("Path", (($entries + $PrivatePath) -join ";"), "Machine")
+    return $true
+}
+
+function Remove-PrivateDirectoryFromMachinePath
+{
+    param([Parameter(Mandatory = $true)][string]$PrivatePath)
+
+    $entries = @(([Environment]::GetEnvironmentVariable("Path", "Machine")) -split ";" | Where-Object { $_ -ne "" })
+    $remaining = @($entries | Where-Object { -not (Test-PathEntryEqual $_ $PrivatePath) })
+    if ($remaining.Count -ne $entries.Count) {
+        [Environment]::SetEnvironmentVariable("Path", ($remaining -join ";"), "Machine")
     }
 }
 
@@ -527,7 +609,14 @@ function Enable-PrivateStack
         HklmStoreExisted = $hklmStoreExisted
         HkcuStoreExisted = $hkcuStoreExisted
         TestApplicationDlls = $appDlls
+        NetshHelpers = @(Get-EbpfNetshHelpers)
+        PathEntryAdded = $false
     }
+    $state | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $backupPath "state.json") -Encoding UTF8
+    $state | ConvertTo-Json -Depth 6 | Set-Content -Path $activeStatePath -Encoding UTF8
+
+    Register-PrivateNetshHelper -PrivatePath $privatePath
+    $state.PathEntryAdded = Add-PrivateDirectoryToMachinePath -PrivatePath $privatePath
     $state | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $backupPath "state.json") -Encoding UTF8
     $state | ConvertTo-Json -Depth 6 | Set-Content -Path $activeStatePath -Encoding UTF8
 
@@ -644,6 +733,12 @@ function Restore-InboxStack
     }
 
     Restore-TestApplicationDlls -Entries @($state.TestApplicationDlls)
+    if ($null -ne $state.PSObject.Properties["NetshHelpers"]) {
+        Restore-NetshHelpers -Helpers @($state.NetshHelpers)
+    }
+    if ($null -ne $state.PSObject.Properties["PathEntryAdded"] -and [bool]$state.PathEntryAdded) {
+        Remove-PrivateDirectoryFromMachinePath -PrivatePath $state.PrivateDirectory
+    }
     foreach ($name in @("EbpfCore", "NetEbpfExt", "eBPFSvc")) {
         $service = $state.Services | Where-Object { $_.Name -eq $name }
         if ($service.WasRunning) {

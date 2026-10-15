@@ -215,6 +215,7 @@ function Stage-Ebpf-PrivateStack {
         "NetEbpfExt.sys",
         "EbpfSvc.exe",
         "EbpfApi.dll",
+        "ebpfnetsh.dll",
         "export_program_info.exe"
     )
 
@@ -224,7 +225,7 @@ function Stage-Ebpf-PrivateStack {
     }
     if ($HaveAll) {
         Write-Verbose "eBPF override binaries already extracted to $BinDir"
-        return
+        return $BinDir
     }
 
     $ExtractDir = "$RootDir\artifacts\ebpfoverride\_extract_$Platform.$Version"
