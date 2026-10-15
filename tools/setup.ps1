@@ -633,6 +633,16 @@ function Uninstall-Ebpf {
         return
     }
 
+    # Even without -EbpfPreinstalled, a private stack may have been activated by
+    # an earlier setup step. Detect and restore it so the inbox configuration is
+    # returned before we try the MSI-based uninstall path.
+    $PrivateStackState = Join-Path $env:ProgramData "eBPF-for-Windows\PrivateStack\active.json"
+    if (Test-Path $PrivateStackState) {
+        Write-Verbose "Active private eBPF stack detected; restoring inbox stack first."
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore -Confirm:$false
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
     $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
