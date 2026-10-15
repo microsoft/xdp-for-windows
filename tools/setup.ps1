@@ -614,15 +614,17 @@ function Install-Ebpf {
 
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
-    for ($i = 0; $i -lt 100; $i++) {
+    $Installed = $false
+    for ($i = 0; $i -lt $Script:EbpfInstallRetries; $i++) {
         Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
         msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
-        if ($?) {
+        if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 3010) {
+            $Installed = $true
             break;
         }
     }
-    if (!$? -or !(Test-Path $EbpfPath)) {
-        Write-Error "eBPF could not be installed"
+    if (!$Installed -or !(Test-Path $EbpfPath)) {
+        Write-Error "eBPF could not be installed after $i attempts"
     }
     Refresh-Path
 }

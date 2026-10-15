@@ -11,6 +11,10 @@ $ProgressPreference = 'SilentlyContinue'
 $Script:ServiceStartRetries = 200
 $Script:ServiceStartRetryDelayMs = 5
 
+# Each eBPF MSI install attempt starts the eBPF drivers, which fault injection
+# may prevent, so allow many attempts.
+$Script:EbpfInstallRetries = 500
+
 function Invoke-WebRequest-WithRetry {
     param (
         [Parameter()]
