@@ -185,7 +185,7 @@ $EbpfDrivers = @("ebpfcore.sys", "netebpfext.sys")
 # A private eBPF stack replaces the preinstalled one in place, so restore it
 # unconditionally once XDP is gone and before eBPF drivers are checked. This
 # also recovers machines where an earlier run was interrupted before cleanup.
-& $RootDir\tools\Use-PrivateEbpfStack.ps1 Restore
+& $RootDir\tools\Use-PrivateEbpfStack.ps1 Restore | Out-Null
 $AllDrivers = driverquery /v /fo list
 
 if ($AllowEbpf) {

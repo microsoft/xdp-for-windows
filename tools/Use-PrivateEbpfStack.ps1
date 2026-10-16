@@ -16,7 +16,8 @@ store, netsh helper and machine PATH at the private copy before starting it.
 
 Restore undoes every change made by Enable (including a partially completed
 Enable), deletes PrivateDirectory, and restarts the eBPF services that were
-running beforehand. Restore does nothing when no private stack is active.
+running beforehand. Restore outputs $true if it restored a private stack and
+$false if none was active.
 
 .EXAMPLE
 .\Use-PrivateEbpfStack.ps1 Enable `
@@ -60,6 +61,13 @@ $BackupPath = Join-Path $StateRoot "backup"
 $NetshRegistryPath = "HKLM:\SOFTWARE\Microsoft\NetSh"
 $EbpfStoreKeys = @("HKLM\Software\eBPF", "HKCU\Software\eBPF")
 
+# Quotes an argument using the rules native programs use to split command lines.
+function Format-NativeArgument($Value) {
+    return '"' + ($Value -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+}
+
+# Windows PowerShell drops embedded quotes when calling native programs (e.g. a
+# quoted service binPath), so build the command line explicitly.
 function Invoke-NativeCommand {
     param (
         [Parameter(Mandatory = $true)]
@@ -67,13 +75,32 @@ function Invoke-NativeCommand {
 
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
-        [string[]]$ArgumentList
+        [string[]]$ArgumentList,
+
+        [Parameter(Mandatory = $false)]
+        [string]$WorkingDirectory = $PWD.ProviderPath
     )
 
-    Write-Verbose "$FilePath $($ArgumentList -join ' ')"
-    & $FilePath @ArgumentList | Write-Verbose
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "'$FilePath $($ArgumentList -join ' ')' failed with exit code $LASTEXITCODE."
+    $StartArgs = @{
+        FilePath = $FilePath
+        WorkingDirectory = $WorkingDirectory
+        NoNewWindow = $true
+        Wait = $true
+        PassThru = $true
+    }
+    if ($ArgumentList.Count -gt 0) {
+        $StartArgs.ArgumentList = ($ArgumentList | ForEach-Object { Format-NativeArgument $_ }) -join " "
+    }
+    Write-Verbose "$FilePath $($StartArgs.ArgumentList)"
+    $Output = New-TemporaryFile
+    try {
+        $Process = Start-Process @StartArgs -RedirectStandardOutput $Output.FullName
+        Get-Content $Output.FullName | Write-Verbose
+    } finally {
+        Remove-Item $Output.FullName
+    }
+    if ($Process.ExitCode -ne 0) {
+        Write-Error "'$FilePath $($StartArgs.ArgumentList)' failed with exit code $($Process.ExitCode)."
     }
 }
 
@@ -278,7 +305,10 @@ function Enable-PrivateStack {
         })
         NetshHelpers = @(Get-EbpfNetshHelpers)
     }
-    $State | ConvertTo-Json -Depth 4 | Set-Content -Path $StatePath -Encoding UTF8
+    # Write the state atomically: Restore treats an existing state file as an
+    # active (possibly partially enabled) private stack.
+    $State | ConvertTo-Json -Depth 4 | Set-Content -Path "$StatePath.tmp" -Encoding UTF8
+    Move-Item -Path "$StatePath.tmp" -Destination $StatePath -Force
 
     Write-Verbose "Enabling private eBPF stack from $Destination"
     Stop-EbpfStack
@@ -289,13 +319,8 @@ function Enable-PrivateStack {
 
     # Replace the eBPF registry store with the private stack's program info.
     $ExportProgramInfo = Join-Path $Destination "export_program_info.exe"
-    Push-Location $Destination
-    try {
-        Invoke-NativeCommand -FilePath $ExportProgramInfo -ArgumentList @("--clear")
-        Invoke-NativeCommand -FilePath $ExportProgramInfo -ArgumentList @()
-    } finally {
-        Pop-Location
-    }
+    Invoke-NativeCommand -FilePath $ExportProgramInfo -ArgumentList @("--clear") -WorkingDirectory $Destination
+    Invoke-NativeCommand -FilePath $ExportProgramInfo -ArgumentList @() -WorkingDirectory $Destination
 
     Set-EbpfNetshHelpers @([PSCustomObject]@{
         Name = "ebpfnetsh"; Value = (Join-Path $Destination "ebpfnetsh.dll")
@@ -310,7 +335,7 @@ function Enable-PrivateStack {
 function Restore-PreinstalledStack {
     if (!(Test-Path $StatePath)) {
         Write-Verbose "No private eBPF stack is active."
-        return
+        return $false
     }
     $State = Get-Content -Path $StatePath -Raw | ConvertFrom-Json
 
@@ -343,6 +368,7 @@ function Restore-PreinstalledStack {
     # Delete the state last so that a failed Restore can be retried.
     Remove-Item -Recurse -Force $StateRoot
     Write-Verbose "Preinstalled eBPF stack restored."
+    return $true
 }
 
 if (!(Test-Admin) -and ($Action -eq "Enable" -or (Test-Path $StatePath))) {

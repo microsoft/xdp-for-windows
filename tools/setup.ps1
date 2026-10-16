@@ -593,7 +593,7 @@ function Install-Ebpf {
             Write-Error "$StagingPath not found. Run prepare-machine.ps1 -UsePrivateEbpfStack first."
         }
         # Restore any private stack left active by an interrupted run.
-        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore | Out-Null
         & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Enable `
             -ArtifactDirectory $StagingPath `
             -PrivateDirectory "$env:ProgramFiles\XdpPrivateEbpfStack"
@@ -615,7 +615,7 @@ function Install-Ebpf {
     for ($i = 0; $i -lt $Script:EbpfInstallRetries; $i++) {
         Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
         msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
-        if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 3010) {
+        if ($LASTEXITCODE -eq 0) {
             $Installed = $true
             break;
         }
@@ -628,9 +628,10 @@ function Install-Ebpf {
 
 function Uninstall-Ebpf {
     # A private stack replaces a preinstalled eBPF stack rather than an MSI
-    # install, so restoring it is all that is needed to return the machine to
-    # its original state.
-    & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore
+    # install, so restoring it returns the machine to its original state.
+    if (& "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore) {
+        return
+    }
 
     $EbpfPath = Get-EbpfInstallPath
     $Version = Get-EbpfRuntimeVersion $EbpfVersion
