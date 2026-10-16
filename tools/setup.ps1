@@ -61,7 +61,12 @@ param (
     # build-time version returned by Get-EbpfVersion. Only the installed runtime
     # varies; XDP is always built against a single (latest) eBPF version.
     [Parameter(Mandatory = $false)]
-    [string]$EbpfVersion = ""
+    [string]$EbpfVersion = "",
+
+    # Instead of installing the eBPF MSI, replace the preinstalled eBPF stack
+    # with the one staged by prepare-machine.ps1 -UsePrivateEbpfStack.
+    [Parameter(Mandatory = $false)]
+    [switch]$UsePrivateEbpfStack = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -82,10 +87,6 @@ $XdpCat = "$ArtifactsDir\xdp\xdp.cat"
 $XdpInf = "$ArtifactsDir\xdp\xdp.inf"
 $XdpPcwMan = "$ArtifactsDir\xdppcw.man"
 $XdpSys = "$ArtifactsDir\xdp\xdp.sys"
-$XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
-# Determine the XDP build version string from xdp.sys. The Windows file version
-# format is "A.B.C.D", but XDP (and semver) use only the "A.B.C".
-$XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
 $XdpRuntimeNupkgNativePath = "runtime/native"
 $XdpRuntimeNupkgSetupPath = "$XdpRuntimeNupkgNativePath/xdp-setup.ps1"
 $FndisSys = "$ArtifactsDir\test\fndis\fndis.sys"
@@ -280,6 +281,9 @@ function Install-Xdp {
     Install-DebugCrt
 
     if ($XdpInstaller -eq "NuGet") {
+        $XdpFileVersion = (Get-Item $XdpSys).VersionInfo.FileVersion
+        # Windows file versions have four components; XDP package versions use three.
+        $XdpFileVersion = $XdpFileVersion.substring(0, $XdpFileVersion.LastIndexOf('.'))
         $XdpPath = Get-XdpInstallPath
         $XdpBinariesPath = "$XdpPath/$XdpRuntimeNupkgNativePath"
         $XdpSetupPath = "$XdpPath/$XdpRuntimeNupkgSetupPath"
@@ -581,8 +585,22 @@ function Uninstall-FnSock {
 }
 
 function Install-Ebpf {
+    $Version = Get-EbpfRuntimeVersion $EbpfVersion
+
+    if ($UsePrivateEbpfStack) {
+        $StagingPath = Get-EbpfPrivateStackStagingPath -Platform $Platform -Version $Version
+        if (!(Test-Path $StagingPath)) {
+            Write-Error "$StagingPath not found. Run prepare-machine.ps1 -UsePrivateEbpfStack first."
+        }
+        # Restore any private stack left active by an interrupted run.
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore | Out-Null
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Enable `
+            -ArtifactDirectory $StagingPath `
+            -PrivateDirectory "$env:ProgramFiles\XdpPrivateEbpfStack"
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
 
     Write-Verbose "Installing eBPF for Windows"
@@ -593,22 +611,30 @@ function Install-Ebpf {
 
     # Try to install eBPF several times, since driver verifier's fault injection
     # may occasionally prevent the eBPF driver from loading.
-    for ($i = 0; $i -lt 100; $i++) {
+    $Installed = $false
+    for ($i = 0; $i -lt $Script:EbpfInstallRetries; $i++) {
         Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
         msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
-        if ($?) {
+        if ($LASTEXITCODE -eq 0) {
+            $Installed = $true
             break;
         }
     }
-    if (!$? -or !(Test-Path $EbpfPath)) {
-        Write-Error "eBPF could not be installed"
+    if (!$Installed -or !(Test-Path $EbpfPath)) {
+        Write-Error "eBPF could not be installed after $i attempts"
     }
     Refresh-Path
 }
 
 function Uninstall-Ebpf {
+    # A private stack replaces a preinstalled eBPF stack rather than an MSI
+    # install, so restoring it returns the machine to its original state.
+    if (& "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore) {
+        return
+    }
+
     $EbpfPath = Get-EbpfInstallPath
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $Version = Get-EbpfRuntimeVersion $EbpfVersion
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
     $Timeout = 60
 
