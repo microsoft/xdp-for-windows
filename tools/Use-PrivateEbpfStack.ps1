@@ -88,10 +88,11 @@ function Invoke-NativeCommand {
         Wait = $true
         PassThru = $true
     }
-    if ($ArgumentList.Count -gt 0) {
-        $StartArgs.ArgumentList = ($ArgumentList | ForEach-Object { Format-NativeArgument $_ }) -join " "
+    $CommandLine = ($ArgumentList | ForEach-Object { Format-NativeArgument $_ }) -join " "
+    if ($CommandLine) {
+        $StartArgs.ArgumentList = $CommandLine
     }
-    Write-Verbose "$FilePath $($StartArgs.ArgumentList)"
+    Write-Verbose "$FilePath $CommandLine"
     $Output = New-TemporaryFile
     try {
         $Process = Start-Process @StartArgs -RedirectStandardOutput $Output.FullName
@@ -100,7 +101,7 @@ function Invoke-NativeCommand {
         Remove-Item $Output.FullName
     }
     if ($Process.ExitCode -ne 0) {
-        Write-Error "'$FilePath $($StartArgs.ArgumentList)' failed with exit code $($Process.ExitCode)."
+        Write-Error "'$FilePath $CommandLine' failed with exit code $($Process.ExitCode)."
     }
 }
 
