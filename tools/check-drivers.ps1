@@ -182,6 +182,12 @@ Check-And-Remove-Driver "fndis.sys" "fndis"
 # restore the original state when it was not.
 $EbpfDrivers = @("ebpfcore.sys", "netebpfext.sys")
 
+# A private eBPF stack replaces the preinstalled one in place, so restore it
+# unconditionally once XDP is gone and before eBPF drivers are checked. This
+# also recovers machines where an earlier run was interrupted before cleanup.
+& $RootDir\tools\Use-PrivateEbpfStack.ps1 Restore
+$AllDrivers = driverquery /v /fo list
+
 if ($AllowEbpf) {
     $DetectedEbpfDrivers = @($EbpfDrivers | Where-Object { Check-Driver $_ })
     $EbpfPresent = $DetectedEbpfDrivers.Count -gt 0

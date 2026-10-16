@@ -131,6 +131,18 @@ function Get-EbpfVersion {
     return "1.4.0"
 }
 
+# Returns $Version if set, otherwise the eBPF version XDP builds against.
+function Get-EbpfRuntimeVersion {
+    param (
+        [Parameter()]
+        [string]$Version = ""
+    )
+    if ([string]::IsNullOrEmpty($Version)) {
+        return Get-EbpfVersion
+    }
+    return $Version
+}
+
 # Returns the GitHub release tag for a given eBPF for Windows version. Releases
 # up to and including v1.1.0 use the "Release-v" tag prefix; newer releases use
 # a bare "v" prefix.
@@ -170,9 +182,9 @@ function Get-EbpfMsiUrl {
     return "https://github.com/microsoft/ebpf-for-windows/releases/download/$Tag/ebpf-for-windows.$Platform.$Version.msi"
 }
 
-# Returns the directory holding the packaged eBPF runtime binaries used to
-# override a preinstalled eBPF runtime.
-function Get-EbpfOverrideBinPath {
+# Returns the directory holding eBPF runtime files staged from the eBPF MSI for
+# Use-PrivateEbpfStack.ps1.
+function Get-EbpfPrivateStackStagingPath {
     param (
         [Parameter()]
         [string]$Platform,
@@ -181,7 +193,20 @@ function Get-EbpfOverrideBinPath {
         [string]$Version = (Get-EbpfVersion)
     )
     $RootDir = Split-Path $PSScriptRoot -Parent
-    return "$RootDir\artifacts\ebpfoverride\$Platform.$Version"
+    return "$RootDir\artifacts\ebpfprivate\$Platform.$Version"
+}
+
+# Returns the eBPF runtime files a private eBPF stack is built from. Any other
+# DLLs next to them are copied too.
+function Get-PrivateEbpfStackFiles {
+    return @(
+        "EbpfCore.sys",
+        "NetEbpfExt.sys",
+        "EbpfSvc.exe",
+        "EbpfApi.dll",
+        "ebpfnetsh.dll",
+        "export_program_info.exe"
+    )
 }
 
 function Get-FnVersion {
@@ -526,8 +551,8 @@ function Start-Service-With-Retry($Name) {
     }
 }
 
-# Ensures the preinstalled eBPF services are running.
-function Start-Ebpf-Inbox {
+# Ensures the eBPF services are running.
+function Start-EbpfServices {
     foreach ($svc in @("ebpfcore", "netebpfext", "ebpfsvc")) {
         $status = (Get-Service -Name $svc -ErrorAction Stop).Status
         if ($status -ne "Running") {

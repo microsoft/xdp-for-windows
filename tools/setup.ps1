@@ -63,14 +63,10 @@ param (
     [Parameter(Mandatory = $false)]
     [string]$EbpfVersion = "",
 
-    # Use the private-stack replacement flow instead of MSI install/uninstall.
-    # This is valid only on machines where eBPF is already installed.
+    # Instead of installing the eBPF MSI, replace the preinstalled eBPF stack
+    # with the one staged by prepare-machine.ps1 -UsePrivateEbpfStack.
     [Parameter(Mandatory = $false)]
-    [switch]$EbpfPreinstalled = $false,
-
-    # Directory containing the locally staged private eBPF stack.
-    [Parameter(Mandatory = $false)]
-    [string]$EbpfArtifactDirectory = ""
+    [switch]$UsePrivateEbpfStack = $false
 )
 
 Set-StrictMode -Version 'Latest'
@@ -589,17 +585,18 @@ function Uninstall-FnSock {
 }
 
 function Install-Ebpf {
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $Version = Get-EbpfRuntimeVersion $EbpfVersion
 
-    if ($EbpfPreinstalled) {
-        if ([string]::IsNullOrWhiteSpace($EbpfArtifactDirectory)) {
-            Write-Error "-EbpfArtifactDirectory is required with -EbpfPreinstalled."
+    if ($UsePrivateEbpfStack) {
+        $StagingPath = Get-EbpfPrivateStackStagingPath -Platform $Platform -Version $Version
+        if (!(Test-Path $StagingPath)) {
+            Write-Error "$StagingPath not found. Run prepare-machine.ps1 -UsePrivateEbpfStack first."
         }
-        $PrivateDirectory = Join-Path $env:ProgramFiles "eBPF-for-Windows-Private\$Platform.$Version"
+        # Restore any private stack left active by an interrupted run.
+        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore
         & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Enable `
-            -ArtifactDirectory $EbpfArtifactDirectory `
-            -PrivateDirectory $PrivateDirectory `
-            -Confirm:$false
+            -ArtifactDirectory $StagingPath `
+            -PrivateDirectory "$env:ProgramFiles\XdpPrivateEbpfStack"
         return
     }
 
@@ -630,23 +627,13 @@ function Install-Ebpf {
 }
 
 function Uninstall-Ebpf {
-    if ($EbpfPreinstalled) {
-        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore -Confirm:$false
-        return
-    }
-
-    # Even without -EbpfPreinstalled, a private stack may have been activated by
-    # an earlier setup step. Detect and restore it so the inbox configuration is
-    # returned before we try the MSI-based uninstall path.
-    $PrivateStackState = Join-Path $env:ProgramData "eBPF-for-Windows\PrivateStack\active.json"
-    if (Test-Path $PrivateStackState) {
-        Write-Verbose "Active private eBPF stack detected; restoring inbox stack first."
-        & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore -Confirm:$false
-        return
-    }
+    # A private stack replaces a preinstalled eBPF stack rather than an MSI
+    # install, so restoring it is all that is needed to return the machine to
+    # its original state.
+    & "$RootDir\tools\Use-PrivateEbpfStack.ps1" Restore
 
     $EbpfPath = Get-EbpfInstallPath
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $Version = Get-EbpfRuntimeVersion $EbpfVersion
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
     $Timeout = 60
 

@@ -93,6 +93,11 @@ $IterationTimeout = 0
 
 . $RootDir\tools\common.ps1
 
+# Each CI step starts with the runner's environment, so pick up machine PATH
+# changes made by earlier steps. For example, the EbpfNetsh test needs the
+# private eBPF stack directory added by Use-PrivateEbpfStack.ps1.
+Refresh-Path
+
 $VsTestPath = Get-VsTestPath
 if ($VsTestPath -eq $null) {
     Write-Error "Could not find VSTest path"
@@ -184,11 +189,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
             }
         }
 
-        if ([string]::IsNullOrEmpty($EbpfVersion)) {
-            $env:XDP_EBPF_RUNTIME_VERSION = Get-EbpfVersion
-        } else {
-            $env:XDP_EBPF_RUNTIME_VERSION = $EbpfVersion
-        }
+        $env:XDP_EBPF_RUNTIME_VERSION = Get-EbpfRuntimeVersion $EbpfVersion
 
         Write-Verbose "$VsTestPath\$VsTestConsole.exe $TestArgs"
         & $VsTestPath\$VsTestConsole.exe $TestArgs

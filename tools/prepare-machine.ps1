@@ -85,10 +85,10 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,
 
-    # When set, replace the preinstalled eBPF runtime with a locally staged
-    # private stack. Requires -EbpfPreinstalled.
+    # When set, replace the preinstalled eBPF stack with a private stack staged
+    # from the eBPF MSI. Requires -EbpfPreinstalled.
     [Parameter(Mandatory = $false)]
-    [switch]$OverrideInboxEbpf = $false,
+    [switch]$UsePrivateEbpfStack = $false,
 
     # Remote execution: when set, deploy + run this script on the named test
     # machine over PowerShell remoting. See tools\remote.ps1 for setup.
@@ -108,8 +108,8 @@ param (
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 
-if ($OverrideInboxEbpf -and !$EbpfPreinstalled) {
-    Write-Error "-OverrideInboxEbpf requires -EbpfPreinstalled."
+if ($UsePrivateEbpfStack -and !$EbpfPreinstalled) {
+    Write-Error "-UsePrivateEbpfStack requires -EbpfPreinstalled."
 }
 
 $RootDir = Split-Path $PSScriptRoot -Parent
@@ -191,7 +191,7 @@ function Download-eBpf-Nuget {
 
 function Download-Ebpf-Msi {
     # Download and extract private eBPF installer MSI package.
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $Version = Get-EbpfRuntimeVersion $EbpfVersion
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
 
     if (!(Test-Path $EbpfMsiFullPath)) {
@@ -206,29 +206,19 @@ function Download-Ebpf-Msi {
     }
 }
 
+# Extracts the files a private eBPF stack needs from the eBPF MSI.
 function Stage-Ebpf-PrivateStack {
-    $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
+    $Version = Get-EbpfRuntimeVersion $EbpfVersion
     $EbpfMsiFullPath = Get-EbpfMsiFullPath -Platform $Platform -Version $Version
-    $BinDir = Get-EbpfOverrideBinPath -Platform $Platform -Version $Version
-    $Binaries = @(
-        "EbpfCore.sys",
-        "NetEbpfExt.sys",
-        "EbpfSvc.exe",
-        "EbpfApi.dll",
-        "ebpfnetsh.dll",
-        "export_program_info.exe"
-    )
+    $StagingPath = Get-EbpfPrivateStackStagingPath -Platform $Platform -Version $Version
+    $Files = Get-PrivateEbpfStackFiles
 
-    $HaveAll = $true
-    foreach ($Bin in $Binaries) {
-        if (!(Test-Path "$BinDir\$Bin")) { $HaveAll = $false; break }
-    }
-    if ($HaveAll) {
-        Write-Verbose "eBPF override binaries already extracted to $BinDir"
-        return $BinDir
+    if (!($Files | Where-Object { !(Test-Path "$StagingPath\$_") })) {
+        Write-Verbose "Private eBPF stack already staged in $StagingPath"
+        return
     }
 
-    $ExtractDir = "$RootDir\artifacts\ebpfoverride\_extract_$Platform.$Version"
+    $ExtractDir = "$StagingPath.extract"
     if (Test-Path $ExtractDir) { Remove-Item -Recurse -Force $ExtractDir }
     New-Item -ItemType Directory -Force -Path $ExtractDir | Out-Null
 
@@ -240,26 +230,25 @@ function Stage-Ebpf-PrivateStack {
             Write-Error "eBPF MSI administrative extract failed: $($Process.ExitCode)"
         }
 
-        New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+        New-Item -ItemType Directory -Force -Path $StagingPath | Out-Null
         $StagedFiles = @{}
-        foreach ($Bin in $Binaries) {
-            $Found = Get-ChildItem -Recurse -Path $ExtractDir -Filter $Bin -File -ErrorAction Ignore |
+        foreach ($File in $Files) {
+            $Found = Get-ChildItem -Recurse -Path $ExtractDir -Filter $File -File -ErrorAction Ignore |
                 Select-Object -First 1
             if ($null -eq $Found) {
-                Write-Error "Could not find $Bin in the extracted eBPF MSI at $ExtractDir"
+                Write-Error "Could not find $File in the extracted eBPF MSI at $ExtractDir"
             }
-            Copy-Item -Path $Found.FullName -Destination "$BinDir\$Bin" -Force
-            $StagedFiles[$Bin] = $Found
+            Copy-Item -Path $Found.FullName -Destination "$StagingPath\$File" -Force
+            $StagedFiles[$File] = $Found
         }
 
+        # EbpfSvc.exe's runtime dependencies live next to it in the MSI.
         Get-ChildItem -Path $StagedFiles["EbpfSvc.exe"].DirectoryName -File |
             Where-Object { $_.Extension -in @(".dll", ".pdb") } |
-            Copy-Item -Destination $BinDir -Force
+            Copy-Item -Destination $StagingPath -Force
     } finally {
         Remove-Item -Recurse -Force $ExtractDir -ErrorAction Ignore
     }
-
-    return $BinDir
 }
 
 function Download-Fn-Runtime {
@@ -432,16 +421,13 @@ if ($Cleanup) {
         Download-CoreNet-Deps
         if (!$EbpfPreinstalled) {
             Download-Ebpf-Msi
+        } elseif ($UsePrivateEbpfStack) {
+            Download-Ebpf-Msi
+            Stage-Ebpf-PrivateStack
+            & "$RootDir\tools\setup.ps1" -Install ebpf -Platform $Platform `
+                -EbpfVersion $EbpfVersion -UsePrivateEbpfStack
         } else {
-            if ($OverrideInboxEbpf) {
-                Download-Ebpf-Msi
-                $Version = if ([string]::IsNullOrEmpty($EbpfVersion)) { Get-EbpfVersion } else { $EbpfVersion }
-                $PrivateStackDirectory = Stage-Ebpf-PrivateStack
-                & "$RootDir\tools\setup.ps1" -Install ebpf -Platform $Platform `
-                    -EbpfVersion $Version -EbpfPreinstalled `
-                    -EbpfArtifactDirectory $PrivateStackDirectory
-            }
-            Start-Ebpf-Inbox
+            Start-EbpfServices
         }
         Setup-TestSigning
     }
