@@ -315,7 +315,13 @@ function Enable-PrivateStack {
     Stop-EbpfStack
     Copy-PrivateStack $Source $Destination
     foreach ($Name in $ServiceBinaries.Keys) {
-        Set-ServiceConfiguration $Name ('"' + (Join-Path $Destination $ServiceBinaries[$Name]) + '"') 3
+        $ImagePath = Join-Path $Destination $ServiceBinaries[$Name]
+        # Win32 service image paths are command lines and must be quoted;
+        # kernel drivers load the image path literally and must not be.
+        if ((Get-Service -Name $Name).ServiceType -notmatch "Driver") {
+            $ImagePath = '"' + $ImagePath + '"'
+        }
+        Set-ServiceConfiguration $Name $ImagePath 3
     }
 
     # Replace the eBPF registry store with the private stack's program info.
