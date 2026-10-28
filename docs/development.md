@@ -123,6 +123,28 @@ After the test, convert the logs:
 .\tools\log.ps1 -Convert -Name spinxsk
 ```
 
+### Performance inspection coverage
+
+CI measures both the deprecated built-in rules engine and eBPF inspection:
+
+- RX filter benchmarks run Drop in Generic and Native modes on x64 and arm64.
+- XSK benchmarks run RX and FWD in Generic and Native modes, including
+  zero-copy simulation, with the `xsk_redirect` eBPF program and an XSKMAP.
+- TX-only, TX-inspect/RX-inject, Winsock/RIO, and ring benchmarks retain their
+  existing coverage. The eBPF hook currently supports RX inspection only; ring
+  benchmarks do not execute an inspection program.
+
+The perf scripts preserve built-in inspection by default. Pass `-Ebpf` to
+`rxfilterperf.ps1`, or `-Ebpf -Modes RX,FWD` to `xskperfsuite.ps1`, to select
+eBPF. eBPF scenarios and CPU trace names include `-EBPF` so the two engines
+remain separate in summaries and comparisons. `-EbpfPreinstalled` preserves
+an existing eBPF runtime; otherwise the harness installs and removes it.
+Prerelease CI uses a private stack matching the build-time eBPF version.
+
+XSK baseline comparisons include eBPF when the base reference supports the
+new benchmark switch. Older base references explicitly skip eBPF and continue
+to compare the existing built-in scenarios.
+
 ## Configuration
 
 ### XDPMP poll-mode provider
