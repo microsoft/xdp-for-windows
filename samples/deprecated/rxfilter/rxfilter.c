@@ -272,6 +272,9 @@ main(
         return 1;
     }
 
+    printf("Program attached to IfIndex %u. Press Ctrl+C to stop.\n", IfIndex);
+    fflush(stdout);
+
     //
     // Let XDP filter frames until this process is terminated.
     //

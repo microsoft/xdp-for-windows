@@ -21,7 +21,14 @@ param (
     [switch]$Fndis = $false,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("Drop", "Pass", "L2Fwd")]
     [string]$Action = "Drop",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Ebpf,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EbpfPreinstalled,
 
     [Parameter(Mandatory=$false)]
     [string]$RawResultsFile = "",
@@ -56,12 +63,27 @@ if ($Forwarded) { return }
 $ArtifactsDir = Get-ArtifactBinPath -Config $Config -Platform $Platform
 $LogsDir = "$RootDir\artifacts\logs"
 
-#
-# This perf harness exercises the deprecated built-in rules-based program API
-# (rxfilter-deprecated.exe), which is deprecated and planned for removal.
-#
-Write-Warning "rxfilterperf uses the deprecated built-in program API (rxfilter-deprecated); this path is deprecated and planned for removal."
-$RxFilter = "$ArtifactsDir\test\rxfilter-deprecated.exe"
+$ScenarioName = "RXFILTER-$XdpMode-$Action-$($QueueCount)Q"
+if ($Ebpf) {
+    $RxFilter = "$ArtifactsDir\test\rxfilter.exe"
+    switch ($Action) {
+        "Drop"  { $ProgramName = "drop" }
+        "Pass"  { $ProgramName = "pass" }
+        "L2Fwd" { $ProgramName = "l1fwd" }
+    }
+    $BpfProgram = "$ArtifactsDir\test\bpf\$ProgramName.sys"
+    if (!(Test-Path $BpfProgram)) {
+        throw "$BpfProgram does not exist!"
+    }
+    $ScenarioName += "-EBPF"
+} else {
+    Write-Warning "rxfilterperf uses the deprecated built-in program API; pass -Ebpf to test eBPF."
+    $RxFilter = "$ArtifactsDir\test\rxfilter-deprecated.exe"
+}
+if (!(Test-Path $RxFilter)) {
+    throw "$RxFilter does not exist!"
+}
+$LogName = "rxfiltercpu_$ScenarioName"
 
 # Ensure the output path exists.
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
@@ -73,6 +95,13 @@ if ($Fndis) {
 }
 
 try {
+    if ($Ebpf -and !$EbpfPreinstalled) {
+        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
+    }
+    if ($Ebpf) {
+        Refresh-Path
+    }
+
     if ($Fndis) {
         Write-Verbose "installing fndis..."
         & "$RootDir\tools\setup.ps1" -Install fndis -Config $Config -Platform $Platform
@@ -80,8 +109,11 @@ try {
     }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
+    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$Ebpf
     Write-Verbose "installed xdp."
+    if ($Ebpf) {
+        Set-XdpEbpfMode -Mode $XdpMode
+    }
 
     Write-Verbose "installing xdpmp..."
     & "$RootDir\tools\setup.ps1" -Install xdpmp -XdpmpPollProvider $XdpmpPollProvider -Config $Config -Platform $Platform
@@ -90,14 +122,30 @@ try {
     Write-Verbose "Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount"
     Set-NetAdapterRss XDPMP -NumberOfReceiveQueues $QueueCount
 
-    & "$RootDir\tools\log.ps1" -Start -Name rxfiltercpu_$XdpMode -Profile CpuSample.Verbose -Config $Config -Platform $Platform
+    & "$RootDir\tools\log.ps1" -Start -Name $LogName -Profile CpuSample.Verbose -Config $Config -Platform $Platform
 
-    $ArgList = `
-        "-IfIndex", (Get-NetAdapter -Name XDPMP).ifIndex, `
-        "-QueueId", "*", "-MatchType" ,"All", "-Action", $Action, `
-        "-XdpMode", $XdpMode
+    $ArgList = @("-IfIndex", (Get-NetAdapter -Name XDPMP).ifIndex)
+    if ($Ebpf) {
+        $ArgList += @("-BpfProgram", "`"$BpfProgram`"", "-ProgramName", $ProgramName)
+    } else {
+        $ArgList += @("-QueueId", "*", "-MatchType", "All", "-Action", $Action, "-XdpMode", $XdpMode)
+    }
     Write-Verbose "$RxFilter $ArgList"
-    $RxFilterProcess = Start-Process $RxFilter -PassThru -ArgumentList $ArgList
+    $OutputFile = "$LogsDir\$LogName.stdout.txt"
+    $ErrorFile = "$LogsDir\$LogName.stderr.txt"
+    $RxFilterProcess = Start-Process $RxFilter -PassThru -ArgumentList $ArgList `
+        -RedirectStandardOutput $OutputFile -RedirectStandardError $ErrorFile
+
+    $ReadyTimeout = [Diagnostics.Stopwatch]::StartNew()
+    while (!(Select-String -Path $OutputFile -SimpleMatch "attached" -Quiet)) {
+        if ($RxFilterProcess.HasExited) {
+            throw "rxfilter exited with code $($RxFilterProcess.ExitCode): $(Get-Content $ErrorFile -Raw)"
+        }
+        if ($ReadyTimeout.Elapsed.TotalSeconds -ge 60) {
+            throw "Timed out waiting for rxfilter to attach: $(Get-Content $ErrorFile -Raw)"
+        }
+        Start-Sleep -Milliseconds 100
+    }
 
     & $RootDir\tools\xdpmpratesim.ps1 -AdapterName XDPMP -Unlimited
 
@@ -107,6 +155,13 @@ try {
     $StartPackets = (Get-NetAdapterStatistics -Name XDPMP).ReceivedUnicastPackets
     Start-Sleep -Seconds $Timeout
     $EndPackets = (Get-NetAdapterStatistics -Name XDPMP).ReceivedUnicastPackets
+
+    if ($RxFilterProcess.HasExited) {
+        throw "rxfilter exited unexpectedly with code $($RxFilterProcess.ExitCode)"
+    }
+    if ($EndPackets -le $StartPackets) {
+        throw "No packets were processed"
+    }
 
     Write-Verbose "End XDP counters:"
     Get-Counter ((Get-Counter -ListSet XDP*).Paths) -ErrorAction Ignore | Out-String | Write-Verbose
@@ -120,7 +175,7 @@ try {
         $Results = New-PerfDataSet -Files $RawResultsFile
 
         [void]$Results.Add($(
-            New-PerfData -ScenarioName "RXFILTER-$XdpMode-$Action-$($QueueCount)Q" `
+            New-PerfData -ScenarioName $ScenarioName `
                 -Platform $Platform -CommitHash $CommitHash -Metrics @(
                     @{
                         Name = "pps"
@@ -134,14 +189,20 @@ try {
         Write-PerfDataSet -DataSet $Results -File $RawResultsFile
     }
 } finally {
-    if ($RxFilterProcess) {
-        Stop-Process -InputObject $RxFilterProcess
+    if ($RxFilterProcess -and !$RxFilterProcess.HasExited) {
+        Stop-Process -Id $RxFilterProcess.Id
     }
 
-    & "$RootDir\tools\log.ps1" -Stop -Name rxfiltercpu_$XdpMode -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Platform $Platform -ErrorAction 'Continue'
 
+    if ($Ebpf) {
+        Set-XdpEbpfMode -Mode System -ErrorAction Continue
+    }
     & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
     & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    if ($Ebpf -and !$EbpfPreinstalled) {
+        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    }
     if ($Fndis) {
         & "$RootDir\tools\setup.ps1" -Uninstall fndis -Config $Config -Platform $Platform -ErrorAction 'Continue'
     }

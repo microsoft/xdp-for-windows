@@ -15,6 +15,25 @@ $Script:ServiceStartRetryDelayMs = 5
 # may prevent, so allow many attempts.
 $Script:EbpfInstallRetries = 500
 
+function Set-XdpEbpfMode {
+    [CmdletBinding()]
+    param (
+        [ValidateSet("System", "Generic", "Native")]
+        [string]$Mode
+    )
+
+    $Path = "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters"
+    if ($Mode -eq "System") {
+        if ((Get-ItemProperty -Path $Path).PSObject.Properties["XdpEbpfMode"]) {
+            Remove-ItemProperty -Path $Path -Name XdpEbpfMode
+        }
+    } else {
+        # XDP_INTERFACE_MODE_GENERIC = 0, XDP_INTERFACE_MODE_NATIVE = 1.
+        $Value = [int]($Mode -eq "Native")
+        New-ItemProperty -Path $Path -Name XdpEbpfMode -Value $Value -PropertyType DWord -Force | Out-Null
+    }
+}
+
 function Invoke-WebRequest-WithRetry {
     param (
         [Parameter()]

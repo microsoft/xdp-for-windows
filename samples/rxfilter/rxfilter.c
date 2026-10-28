@@ -220,6 +220,7 @@ main(
 
     printf("eBPF program '%s' attached to IfIndex %u. Press Ctrl+C to stop.\n",
         ProgramName, IfIndex);
+    fflush(stdout);
 
     //
     // Let the eBPF program filter frames until this process is terminated.
