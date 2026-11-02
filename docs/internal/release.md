@@ -12,6 +12,8 @@ The following sections are generally for the maintainers of XDP-for-Windows. The
 
 ## Servicing a new Release Branch
 
+For security fixes under MSRC embargo, follow the internal [MSRC servicing runbook](https://dev.azure.com/microsoft/undock/_git/xdp-for-windows-internal?path=/docs/msrc-servicing.md) instead of the steps below.
+
 * Cherry pick necessary changes to Release/X.Y
 * Bump the version in xdp.props XML to X.Y.(Z + 1), where Z is the current latest
 * Ensure all changes propagate properly to our internal mirror of XDP-for-windows in ADO: https://microsoft.visualstudio.com/undock/_git/xdp-for-windows
