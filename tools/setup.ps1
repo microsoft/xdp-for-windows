@@ -109,6 +109,16 @@ function Uninstall-Failure($FileName) {
     Write-Error "Uninstall failed"
 }
 
+# The eBPF MSI is run with /norestart so it can never reboot a test machine.
+# Treat a success-but-reboot-required result as a failure instead.
+$ERROR_SUCCESS_REBOOT_INITIATED = 1641
+$ERROR_SUCCESS_REBOOT_REQUIRED = 3010
+function Verify-MsiNoReboot($ExitCode, $Operation) {
+    if ($ExitCode -eq $ERROR_SUCCESS_REBOOT_REQUIRED -or $ExitCode -eq $ERROR_SUCCESS_REBOOT_INITIATED) {
+        throw "$Operation requires a reboot (MSI exit code $ExitCode)"
+    }
+}
+
 # Helper to rename (with retry) a network adapter. On WS2022, renames sometimes
 # fail with ERROR_TRANSACTION_NOT_ACTIVE.
 function Rename-NetAdapter-With-Retry($IfDesc, $Name) {
@@ -613,8 +623,9 @@ function Install-Ebpf {
     # may occasionally prevent the eBPF driver from loading.
     $Installed = $false
     for ($i = 0; $i -lt $Script:EbpfInstallRetries; $i++) {
-        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt"
-        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Write-Verbose "msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /norestart /l*v $LogsDir\ebpfinstall.txt"
+        msiexec.exe /i $EbpfMsiFullPath INSTALLFOLDER=$EbpfPath ADDLOCAL=eBPF_Runtime_Components /qn /norestart /l*v $LogsDir\ebpfinstall.txt | Write-Verbose
+        Verify-MsiNoReboot $LastExitCode "eBPF install"
         if ($LASTEXITCODE -eq 0) {
             $Installed = $true
             break;
@@ -645,9 +656,11 @@ function Uninstall-Ebpf {
 
     Write-Verbose "Uninstalling eBPF for Windows"
 
-    Write-Verbose "msiexec.exe /x $EbpfMsiFullPath /qn /l*v $LogsDir\ebpfuninstall.txt"
+    Write-Verbose "msiexec.exe /x $EbpfMsiFullPath /qn /norestart /l*v $LogsDir\ebpfuninstall.txt"
     $Process = Start-Process -FilePath msiexec.exe -NoNewWindow -PassThru -ArgumentList `
-        @("/x", $EbpfMsiFullPath, "/qn", "/l*v", "$LogsDir\ebpfuninstall.txt")
+        @("/x", $EbpfMsiFullPath, "/qn", "/norestart", "/l*v", "$LogsDir\ebpfuninstall.txt")
+    # Cache the process handle; otherwise Windows PowerShell may report a null ExitCode.
+    $null = $Process.Handle
 
     $Process | Wait-Process -Timeout $Timeout -ErrorAction Ignore
 
@@ -657,6 +670,8 @@ function Uninstall-Ebpf {
         Collect-ProcessDump -ProcessName "msiexec.exe" -ProcessId $Process.Id -OutFile "$LogsDir\ebpf_uninstall_msiexec.dmp"
         Uninstall-Failure "ebpf_uninstall_timeout.dmp"
     }
+
+    Verify-MsiNoReboot $Process.ExitCode "eBPF uninstall"
 
     if ($Process.ExitCode -ne 0) {
         Write-Warning "Uninstalling eBPF from $EbpfMsiFullPath failed: $($Process.ExitCode)"
@@ -687,9 +702,11 @@ function Uninstall-Ebpf {
 
             $InstallId = (Get-CimInstance Win32_Product -Filter "Name = 'eBPF For Windows'").IdentifyingNumber
 
-            Write-Verbose "msiexec.exe /x $InstallId /quiet /l*v $LogsDir\ebpfuninstallwmi.txt"
-            msiexec.exe /x $InstallId /quiet /l*v $LogsDir\ebpfuninstallwmi.txt | Write-Verbose
+            Write-Verbose "msiexec.exe /x $InstallId /quiet /norestart /l*v $LogsDir\ebpfuninstallwmi.txt"
+            msiexec.exe /x $InstallId /quiet /norestart /l*v $LogsDir\ebpfuninstallwmi.txt | Write-Verbose
             Write-Verbose "msiexe.exe returned $LastExitCode"
+
+            Verify-MsiNoReboot $LastExitCode "eBPF uninstall"
 
             if ($LastExitCode -ne 0) {
                 Write-Error "eBPF MSI uninstall failed with status $LastExitCode" -ErrorAction Continue

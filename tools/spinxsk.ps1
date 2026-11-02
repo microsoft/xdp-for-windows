@@ -253,16 +253,26 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             $UdpSize = $IoSize - 8 - 20 - 14
             $TxInspectContentionCount = 2
             $ArgList =
-                "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup " +
+                "Winsock Send -Target 192.168.100.2:1234 -Group $XskGroup -CPU 0 " +
                 "-IoSize $UdpSize -IoCount -1 -ThreadCount $TxInspectContentionCount"
             Write-Verbose "$WsaRio $ArgList"
-            $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList
+            $WsaRioProcess = Start-Process $WsaRio -PassThru -ArgumentList $ArgList -NoNewWindow `
+                -RedirectStandardOutput "$LogsDir\spinxsk-tx-traffic.stdout" `
+                -RedirectStandardError "$LogsDir\spinxsk-tx-traffic.stderr"
+            # Cache the process handle; otherwise Windows PowerShell may report a null ExitCode.
+            $null = $WsaRioProcess.Handle
+            if ($WsaRioProcess.WaitForExit(1000)) {
+                throw "TX inspection traffic generator failed startup with $($WsaRioProcess.ExitCode); see spinxsk-tx-traffic logs."
+            }
         }
 
         Write-Verbose "$SpinXsk $Args"
         & $SpinXsk $Args
         if ($LastExitCode -ne 0) {
             throw "SpinXsk failed with $LastExitCode"
+        }
+        if ($WsaRioProcess -and $WsaRioProcess.HasExited) {
+            throw "TX inspection traffic generator exited during stress with $($WsaRioProcess.ExitCode); see spinxsk-tx-traffic logs."
         }
     } catch {
         Write-Error "Error: $_"
@@ -289,7 +299,10 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             & "$RootDir\tools\log.ps1" -Stop -Name spinxsk_$Driver -Config $Config -Platform $Platform -ErrorAction 'Continue'
         }
         if ($WsaRioProcess) {
-            Stop-Process -InputObject $WsaRioProcess
+            # The process may already have exited when its adapter was removed.
+            Stop-Process -InputObject $WsaRioProcess -ErrorAction SilentlyContinue
+            $WsaRioProcess.WaitForExit()
+            $WsaRioProcess = $null
         }
     }
 }
