@@ -140,6 +140,8 @@ eBPF. eBPF scenarios and CPU trace names include `-EBPF` so the two engines
 remain separate in summaries and comparisons. `-EbpfPreinstalled` preserves
 an existing eBPF runtime; otherwise the harness installs and removes it.
 Prerelease CI uses a private stack matching the build-time eBPF version.
+RX filter owns its eBPF link for the lifetime of the process, so stopping a
+benchmark releases the program before the next provider run loads it again.
 
 XSK baseline comparisons include eBPF when the base reference supports the
 new benchmark switch. Older base references explicitly skip eBPF and continue

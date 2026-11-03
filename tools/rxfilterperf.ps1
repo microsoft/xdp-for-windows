@@ -191,6 +191,7 @@ try {
 } finally {
     if ($RxFilterProcess -and !$RxFilterProcess.HasExited) {
         Stop-Process -Id $RxFilterProcess.Id
+        $RxFilterProcess.WaitForExit()
     }
 
     & "$RootDir\tools\log.ps1" -Stop -Name $LogName -Config $Config -Platform $Platform -ErrorAction 'Continue'

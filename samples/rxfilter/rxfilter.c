@@ -9,6 +9,7 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 #pragma warning(pop)
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <winsock2.h>
@@ -147,6 +148,7 @@ main(
 {
     struct bpf_object *BpfObject = NULL;
     struct bpf_program *BpfProgram = NULL;
+    struct bpf_link *BpfLink = NULL;
     int ProgramFd;
     int Result;
 
@@ -212,9 +214,11 @@ main(
             UdpDstPort, MatchAction == 2 ? "DROP" : "PASS");
     }
 
-    Result = bpf_xdp_attach(IfIndex, ProgramFd, 0, NULL);
-    if (Result != 0) {
-        LOGERR("bpf_xdp_attach(IfIndex=%u) failed: %d", IfIndex, Result);
+    // Own the link so process termination also detaches the program.
+    BpfLink = bpf_program__attach_xdp(BpfProgram, IfIndex);
+    if (BpfLink == NULL) {
+        Result = -errno;
+        LOGERR("bpf_program__attach_xdp(IfIndex=%u) failed: %d", IfIndex, Result);
         goto Exit;
     }
 
@@ -227,12 +231,14 @@ main(
     //
     Sleep(INFINITE);
 
-    //
-    // Detach on exit (reached if INFINITE sleep is interrupted).
-    //
-    bpf_xdp_detach(IfIndex, 0, NULL);
-
 Exit:
+    if (BpfLink != NULL) {
+        int DetachResult = bpf_link__destroy(BpfLink);
+        if (DetachResult != 0) {
+            LOGERR("bpf_link__destroy failed: %d", DetachResult);
+            Result = DetachResult;
+        }
+    }
     if (BpfObject != NULL) {
         bpf_object__close(BpfObject);
     }
