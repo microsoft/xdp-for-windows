@@ -83,6 +83,8 @@ For development scenarios, configuring the registry store in just the HKCU locat
 
 To upgrade versions of XDP, uninstall the old version and install the new version. If processes have XDP handles open (e.g. sockets, programs) those handles need to be closed for uninstallation to complete.
 
+When using the runtime nuget package, running `xdp-setup.ps1 -Install xdp` (or `-Install xdppa`) from the new version's package upgrades an existing installation in place: the old version is removed and the new version is installed. If the XDP eBPF feature was enabled, it is re-enabled after the upgrade. If the old version cannot be removed (for example, because XDP handles are still open), the script reports an error.
+
 ## Logging
 
 XDP has detailed logging (via WPP) on its cold code paths and lightweight

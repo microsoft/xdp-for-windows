@@ -4,7 +4,11 @@
 This script installs or uninstalls various XDP components.
 
 .PARAMETER Install
-    Specifies an XDP component to install.
+    Specifies an XDP component to install. If XDP is already installed, the
+    "xdp" and "xdppa" components are upgraded in place: the existing
+    installation is removed and the binaries from the binary directory are
+    installed. If the XDP eBPF feature was enabled, it is re-enabled after the
+    upgrade.
 
 .PARAMETER Uninstall
     Attempts to uninstall all XDP components.
@@ -176,15 +180,83 @@ function Uninstall-XdpComponent($ComponentId) {
     Write-Verbose "xdp.sys uninstall complete!"
 }
 
-# Installs the xdp driver.
-if ($Install -eq "xdp") {
-    Install-XdpComponent "xdp"
+# Returns the component ID ("xdp" or "xdp_pa") of the currently installed XDP
+# component, or an empty string if XDP is not installed.
+function Get-InstalledXdpComponent {
+    if (Get-NetAdapterBinding -ComponentID ms_xdp_pa -ErrorAction Ignore) {
+        return "xdp_pa"
+    }
+    if ((Get-NetAdapterBinding -ComponentID ms_xdp -ErrorAction Ignore) -or
+        (Get-Service xdp -ErrorAction Ignore)) {
+        return "xdp"
+    }
+    return ""
 }
 
-# Installs the xdp driver in PA mode. Implicitly uninstalls regular xdp.
+# Returns whether the XDP eBPF feature is enabled in the xdp service registry.
+function Test-XdpEbpfEnabled {
+    $Params = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\xdp\Parameters" -ErrorAction Ignore
+    if (!$Params -or !$Params.PSObject.Properties["XdpEbpfEnabled"]) {
+        return $false
+    }
+    return $Params.XdpEbpfEnabled -ne 0
+}
+
+# Installs the XDP eBPF feature.
+function Install-XdpEbpf {
+    Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
+    reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
+
+    # XDP needs to be restarted to reload this registry key. Continue past failures.
+    Write-Verbose "Restarting xdp"
+    Restart-Service xdp -ErrorAction 'Continue'
+
+    Write-Verbose "$XdpBpfExport"
+    & $XdpBpfExport
+    if ($LastExitCode) {
+        Write-Error "$XdpBpfExport exit code: $LastExitCode"
+    }
+
+    Write-Verbose "XDP eBPF feature install complete!"
+}
+
+# Installs the given XDP component. If XDP is already installed, the existing
+# installation is removed first so the binaries are replaced (upgraded), and the
+# eBPF feature is re-enabled afterwards if it was previously enabled.
+function Install-Xdp($ComponentId) {
+    $InstalledComponentId = Get-InstalledXdpComponent
+
+    if ([string]::IsNullOrEmpty($InstalledComponentId)) {
+        Install-XdpComponent $ComponentId
+        return
+    }
+
+    $EbpfEnabled = Test-XdpEbpfEnabled
+    Write-Verbose "XDP component ms_$InstalledComponentId is already installed (eBPF enabled: $EbpfEnabled); replacing it with ms_$ComponentId"
+
+    try {
+        Uninstall-XdpComponent $InstalledComponentId
+    } catch {
+        Write-Error "Failed to remove the existing XDP installation, so XDP cannot be upgraded in place: $_ Close any open XDP handles (for example, AF_XDP sockets and XDP programs), or run 'xdp-setup.ps1 -Uninstall xdp' and reboot, and then try again."
+    }
+
+    Install-XdpComponent $ComponentId
+
+    if ($EbpfEnabled) {
+        Write-Verbose "Re-enabling the XDP eBPF feature"
+        Install-XdpEbpf
+    }
+}
+
+# Installs (or upgrades) the xdp driver.
+if ($Install -eq "xdp") {
+    Install-Xdp "xdp"
+}
+
+# Installs (or upgrades) the xdp driver in PA mode. Implicitly uninstalls
+# regular xdp.
 if ($Install -eq "xdppa") {
-    Uninstall-XdpComponent "xdp"
-    Install-XdpComponent "xdp_pa"
+    Install-Xdp "xdp_pa"
 }
 
 # Uninstalls the xdp driver from PA mode. Implicitly installs regular xdp.
@@ -200,20 +272,7 @@ if ($Uninstall -eq "xdp") {
 
 # Installs the XDP eBPF feature.
 if ($Install -eq "xdpebpf") {
-    Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f"
-    reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XdpEbpfEnabled /d 1 /t REG_DWORD /f | Write-Verbose
-
-    # XDP needs to be restarted to reload this registry key. Continue past failures.
-    Write-Verbose "Restarting xdp"
-    Restart-Service xdp -ErrorAction 'Continue'
-
-    Write-Verbose "$XdpBpfExport"
-    & $XdpBpfExport
-    if ($LastExitCode) {
-        Write-Error "$XdpBpfExport exit code: $LastExitCode"
-    }
-
-    Write-Verbose "XDP eBPF feature install complete!"
+    Install-XdpEbpf
 }
 
 # Uninstalls the XDP eBPF feature.
