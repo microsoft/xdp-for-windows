@@ -11401,13 +11401,13 @@ GenericPktMonRegistration()
     UINT32 DropCount;
 
     //
-    // Disable any Mellanox ConnectX-5 Virtual Adapters for the duration of this
-    // test case. These adapters bugcheck when subjected to Disable/Enable-NetAdapter
+    // Disable any mlx5.sys-based adapters for the duration of this test case.
+    // These adapters bugcheck when subjected to Disable/Enable-NetAdapter
     // cycles combined with pktmon tracing in certain CI environments and are not
     // needed for the test case.
     //
     static const CHAR *MellanoxFilter =
-        "Where-Object { $_.InterfaceDescription -like 'Mellanox ConnectX-5 Virtual Adapter*' }";
+        "Where-Object { $_.DriverFileName -ieq 'mlx5.sys' }";
     CHAR CmdBuff[512];
     sprintf_s(
         CmdBuff, sizeof(CmdBuff),
