@@ -24,7 +24,9 @@ The built-in rules-based program API (`XDP_RULE` / `XDP_MATCH_TYPE` / `XdpCreate
 
 > What versions of Windows does XDP support?
 
-XDP is currently tested on Windows Server 2019 and 2022.
+XDP is currently tested and officially supported on Windows Server 2022 and 2025. Windows Server
+2019 is no longer tested or officially supported, although the driver may still be usable in some
+scenarios.
 
 > When is this shipping with Windows?
 
