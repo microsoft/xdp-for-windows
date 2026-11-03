@@ -49,7 +49,7 @@ runs:
     run: ./${{ inputs.id }}/tools/check-drivers.ps1 -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Verbose -AllowEbpf
   - name: Prepare Machine
     shell: PowerShell
-    run: ./${{ inputs.id }}/tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ inputs.platform }} -RequireNoReboot -Verbose
+    run: ./${{ inputs.id }}/tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ inputs.platform }} -RequireNoReboot -Verbose -EbpfPreinstalled:(${{ inputs.os == 'Prerelease' && '$true' || '$false' }}) -UsePrivateEbpfStack:(${{ inputs.os == 'Prerelease' && '$true' || '$false' }})
   - name: Download Artifacts
     uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
     with:
@@ -67,6 +67,26 @@ runs:
   - name: Run xskperfsuite (Winsock, RIO)
     shell: PowerShell
     run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -XdpModes "Winsock", "RIO" -Modes "RX", "TX" -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ inputs.ref != '' && format('_{0}', inputs.ref) || github.sha }}
+  - name: Check eBPF benchmark support
+    id: ebpf
+    shell: PowerShell
+    run: |
+      $Supported = (Get-Command "./${{ inputs.id }}/tools/xskperfsuite.ps1").Parameters.ContainsKey("Ebpf")
+      if (!$Supported) {
+          if ("${{ inputs.ref }}" -eq "") {
+              throw "The current XSK perf suite must support eBPF"
+          }
+          Write-Warning "Base reference predates eBPF benchmarks; comparing built-in scenarios only."
+      }
+      "supported=$($Supported.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+  - name: Run xskperfsuite (eBPF, Generic, Native)
+    if: ${{ steps.ebpf.outputs.supported == 'true' }}
+    shell: PowerShell
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -Modes "RX", "FWD" -Ebpf -EbpfPreinstalled:(${{ inputs.os == 'Prerelease' && '$true' || '$false' }}) -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ inputs.ref != '' && format('_{0}', inputs.ref) || github.sha }}
+  - name: Run xskperfsuite (eBPF, ZerocopySimulation)
+    if: ${{ steps.ebpf.outputs.supported == 'true' }}
+    shell: PowerShell
+    run: ./${{ inputs.id }}/tools/xskperfsuite.ps1 -Verbose -Config ${{ inputs.config }} -Platform ${{ inputs.platform }} -Fndis -Iterations ${{ env.ITERATIONS }} -Modes "RX", "FWD" -Ebpf -EbpfPreinstalled:(${{ inputs.os == 'Prerelease' && '$true' || '$false' }}) -ZerocopySimulation -RawResultsFile "./${{ inputs.id }}/artifacts/perf/xskperfsuite_win${{ inputs.os }}_${{ inputs.config }}_${{ inputs.platform }}${{ inputs.id != '' && format('_{0}', inputs.id) || '' }}.json" -XperfDirectory "./${{ inputs.id }}/artifacts/logs" -CommitHash ${{ inputs.ref != '' && format('_{0}', inputs.ref) || github.sha }}
   - name: Upload Logs
     uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
     if: ${{ always() }}

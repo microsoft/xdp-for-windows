@@ -38,6 +38,12 @@ param (
     [int]$XskBatchSize = 16,
 
     [Parameter(Mandatory=$false)]
+    [switch]$Ebpf,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$EbpfPreinstalled,
+
+    [Parameter(Mandatory=$false)]
     [switch]$DeepInspection = $false,
 
     [Parameter(Mandatory=$false)]
@@ -73,6 +79,11 @@ param (
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
+
+if ($Ebpf -and ($Modes.Contains("TX") -or $TxInspect -or $DeepInspection -or
+    $XdpModes.Contains("Winsock") -or $XdpModes.Contains("RIO"))) {
+    throw "-Ebpf requires -Modes RX,FWD and XDP modes, without -TxInspect or -DeepInspection"
+}
 
 function ExtractKppsStat {
     param(
@@ -143,6 +154,13 @@ $RootDir = Split-Path $PSScriptRoot -Parent
 . $RootDir\tools\common.ps1
 
 try {
+    if ($Ebpf -and !$EbpfPreinstalled) {
+        & "$RootDir\tools\setup.ps1" -Install ebpf -Config $Config -Platform $Platform
+    }
+    if ($Ebpf) {
+        Refresh-Path
+    }
+
     if ($AdapterNames.Contains("XDPMP")) {
         $XdpmpPollProvider = "NDIS"
 
@@ -160,7 +178,7 @@ try {
     }
 
     Write-Verbose "installing xdp..."
-    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform
+    & "$RootDir\tools\setup.ps1" -Install xdp -Config $Config -Platform $Platform -EnableEbpf:$Ebpf
     Write-Verbose "installed xdp."
 
     $Format = "{0,-73} {1,-14} {2,-14}"
@@ -176,6 +194,10 @@ try {
                         $Wait = $WaitMode -eq "WAIT"
                         $Options = ""
                         $XperfFile = $null
+
+                        if ($Ebpf) {
+                            $Options += "-EBPF"
+                        }
 
                         if ($RxInject) {
                             $Options += "-RXINJECT"
@@ -219,7 +241,7 @@ try {
                                     -TxInspectContentionCount $TxInspectContentionCount `
                                     -ZerocopySimulation:$ZerocopySimulation `
                                     -SocketCount:$SocketCount -Fndis:$Fndis -Config $Config `
-                                    -Platform $Platform -XperfFile $XperfFile
+                                    -Platform $Platform -XperfFile $XperfFile -Ebpf:$Ebpf
 
                                 $kpps = ExtractKppsStat $TmpFile
                                 $kppsList += $kpps
@@ -255,6 +277,9 @@ try {
     }
 } finally {
     & "$RootDir\tools\setup.ps1" -Uninstall xdp -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    if ($Ebpf -and !$EbpfPreinstalled) {
+        & "$RootDir\tools\setup.ps1" -Uninstall ebpf -Config $Config -Platform $Platform -ErrorAction 'Continue'
+    }
     if ($AdapterNames.Contains("XDPMP")) {
         & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
         if ($Fndis) {

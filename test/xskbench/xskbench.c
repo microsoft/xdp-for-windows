@@ -6,6 +6,11 @@
 #include <afxdp_helper.h>
 #include <afxdp_experimental.h>
 #include <xdpapi.h>
+#pragma warning(push)
+#pragma warning(disable:4201) // nonstandard extension used: nameless struct/union
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+#pragma warning(pop)
 
 #include <assert.h>
 #include <math.h>
@@ -117,6 +122,9 @@ CHAR *HELP =
 "                      Default: " STR_OF(DEFAULT_UDP_DEST_PORT) "\n"
 "   -lp                Use large pages. Requires privileged account.\n"
 "                      Default: off\n"
+"   -bpf <path.sys>    Use the eBPF xsk_redirect program instead of built-in rules.\n"
+"                      RX/FWD only, without -p or -tx_inspect.\n"
+"                      Provider selected by the XdpEbpfMode registry setting.\n"
 "   -priclass <class>  The priority class of the process.\n"
 "                      Default: " STR_OF(DEFAULT_PRIORITY_CLASS) "\n"
 
@@ -238,6 +246,8 @@ BOOLEAN largePages = FALSE;
 MODE mode;
 CHAR *modestr;
 HANDLE periodicStatsEvent;
+const CHAR *bpfProgramPath;
+struct bpf_object *bpfObject;
 
 UINT32
 RingPairReserve(
@@ -298,6 +308,19 @@ AttachXdpProgram(
     HRESULT res;
 
     if (!Queue->flags.rx) {
+        return;
+    }
+
+    if (bpfObject != NULL) {
+        UINT64 key = Queue->queueId;
+        fd_t mapFd = bpf_object__find_map_fd_by_name(bpfObject, "xsk_map");
+
+        if (Queue->flags.txInspect) {
+            ABORT("eBPF does not support TX inspection\n");
+        }
+        if (mapFd < 0 || bpf_map_update_elem(mapFd, &key, &Queue->sock, 0) != 0) {
+            ABORT("Failed to populate eBPF xsk_map for queue %u\n", Queue->queueId);
+        }
         return;
     }
 
@@ -1797,6 +1820,11 @@ ParseArgs(
         } else if (!_stricmp(argv[i], "-lp")) {
             largePages = TRUE;
             EnableLargePages();
+        } else if (!_stricmp(argv[i], "-bpf")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            bpfProgramPath = argv[i];
         } else if (!_stricmp(argv[i], "-priclass")) {
             if (++i >= argc) {
                 Usage();
@@ -1939,6 +1967,16 @@ main(
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
+    if (bpfProgramPath != NULL) {
+        if ((mode != ModeRx && mode != ModeFwd) || udpDestPort != 0) {
+            ABORT("-bpf requires RX/FWD traffic without -p\n");
+        }
+        bpfObject = bpf_object__open(bpfProgramPath);
+        if (bpfObject == NULL || bpf_object__load(bpfObject) != 0) {
+            ABORT("Failed to load eBPF program %s\n", bpfProgramPath);
+        }
+    }
+
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);
 
@@ -1951,6 +1989,13 @@ main(
             CreateThread(NULL, 0, DoThread, &threads[tIndex], 0, NULL);
         ASSERT_FRE(threads[tIndex].threadHandle != NULL);
         WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
+    }
+
+    if (bpfObject != NULL) {
+        struct bpf_program *program = bpf_object__find_program_by_name(bpfObject, "xsk_redirect");
+        if (program == NULL || bpf_xdp_attach(ifindex, bpf_program__fd(program), 0, NULL) != 0) {
+            ABORT("Failed to attach eBPF xsk_redirect program\n");
+        }
     }
 
     while (duration-- > 0) {
@@ -1971,6 +2016,11 @@ main(
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             PrintFinalStats(&Thread->queues[qIndex]);
         }
+    }
+
+    if (bpfObject != NULL) {
+        ASSERT_FRE(bpf_xdp_detach(ifindex, 0, NULL) == 0);
+        bpf_object__close(bpfObject);
     }
 
     return 0;
