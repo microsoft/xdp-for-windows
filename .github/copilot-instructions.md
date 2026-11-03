@@ -7,7 +7,7 @@ XDP for Windows is a high-performance Windows packet processing framework inspir
 **Key facts:**
 - **Languages**: C (kernel drivers), C++ (user-mode tests/samples), PowerShell (build/test scripts)
 - **Frameworks**: Windows Driver Kit (WDK), NDIS, TAEF (test framework)
-- **Target**: Windows Server 2019/2022 and Prerelease builds, x64 and arm64 platforms
+- **Target**: Windows Server 2022/2025 and Prerelease builds, x64 and arm64 platforms
 - **Build Tool**: MSBuild via Visual Studio Developer Command Prompt
 
 ## Build Instructions

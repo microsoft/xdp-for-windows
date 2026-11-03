@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Windows Server 2019 or 2022, x64
+- Windows Server 2022 or 2025, x64
 
 ## Installation
 
