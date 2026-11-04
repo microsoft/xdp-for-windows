@@ -12,12 +12,17 @@
     <UndockedVersioning>false</UndockedVersioning>
     <!-- PackageReferences for SourceLink implicitly include all .props and .targets files. -->
     <UndockedSourceLink>false</UndockedSourceLink>
+    <!-- XDP supplies its own SourceLink/WDK/SDK package references below; opt out of undocked's. -->
+    <UndockedUsePackageReferences>false</UndockedUsePackageReferences>
     <!-- Work around nuget build error for native projects. -->
     <ResolveNuGetPackages>false</ResolveNuGetPackages>
     <HostPlatform>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</HostPlatform>
     <!-- eBPF-for-windows version -->
     <XdpEbpfVersion>1.4.0</XdpEbpfVersion>
-    <XdpWdkVersion>10.0.26100.6584</XdpWdkVersion>
+    <!-- WDK ships DriverKit build tasks only for its own era's VS: 26100 -> VS2022 (17.0),
+         28000 -> VS2026 (18.0). Select per VisualStudioVersion so both toolsets build. -->
+    <XdpWdkVersion Condition="'$(VisualStudioVersion)' == '17.0'">10.0.26100.6584</XdpWdkVersion>
+    <XdpWdkVersion Condition="'$(VisualStudioVersion)' == '18.0'">10.0.28000.2526</XdpWdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- eBPF currently has separate packages for each architecture. -->

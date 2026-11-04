@@ -17,6 +17,10 @@ on:
         required: false
         default: true
         type: boolean
+      os_list:
+        required: false
+        default: '["2022", "2025"]'
+        type: string
   workflow_dispatch:
     inputs:
       ref:
@@ -29,6 +33,11 @@ on:
         default: ''
         type: string
         description: 'With multiple builds with duplicate configurations (e.g. Debug_x64_2022), you can append an ID (e.g. Debug_x64_2022_myid).'
+      os_list:
+        required: false
+        default: '["2022", "2025"]'
+        type: string
+        description: 'JSON array of OS/VS legs to build (e.g. ["2022", "2025"]).'
 
 jobs:
   build_matrix:
@@ -36,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [2022]
+        os: ${{ fromJSON(inputs.os_list) }}
         config: [Release, Debug]
         platform: [x64, arm64]
     uses: ./.github/workflows/build.yml
@@ -45,5 +54,6 @@ jobs:
       os: ${{ matrix.os }}
       platform: ${{ matrix.platform }}
       ref: ${{ inputs.ref }}
-      codeql: ${{ (inputs.codeql || false) && github.event_name == 'schedule' }}
+      # CodeQL runs on the 2022 leg until it supports VS2026 (tracked by #1065).
+      codeql: ${{ matrix.os == 2022 && (inputs.codeql || false) && github.event_name == 'schedule' }}
       artifact_path: ${{ matrix.os == 2022 && format('bin_{0}_{1}{2}', matrix.config, matrix.platform, (inputs.id != '' && format('_{0}', inputs.id) || '')) || '' }}
