@@ -17,6 +17,7 @@ For security fixes under MSRC embargo, follow the internal [MSRC servicing runbo
 * Cherry pick necessary changes to Release/X.Y
 * Bump the version in xdp.props XML to X.Y.(Z + 1), where Z is the current latest
 * Ensure all changes propagate properly to our internal mirror of XDP-for-windows in ADO: https://microsoft.visualstudio.com/undock/_git/xdp-for-windows
+  The [internal ADO repo](https://dev.azure.com/microsoft/undock/_git/xdp-for-windows) periodically pulls from GitHub via the [mirror pipeline](https://dev.azure.com/microsoft/undock/_build?definitionId=134727).
 * [JIT elevate](https://repos.opensource.microsoft.com/orgs/microsoft/repos/xdp-for-windows/jit) to admin, create a new tag for version X.Y.(Z + 1) and attach it to the latest commit in the cherry pick by drafting a new release, then revoke JIT.
   
   **Prerelease Validation** Tags may optionally have a `-prerelease1` suffix to verify officially-signed binaries before the final X.Y.Z release. Ensure the naming of any prerelease suffix has the expected precedence, such as by incrementing `1` to `2` for a second prerelease tag.
