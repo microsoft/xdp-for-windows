@@ -69,9 +69,8 @@ jobs:
       ref: ${{ needs.resolve_base.outputs.base_ref }}
       id: "baseref"
       codeql: false
-      # Base ref is the pre-VS2026 target branch, so it only builds on the 2022 leg.
-      # The stacked #1066 flips this to the VS2026 leg once this PR lands on main.
-      os_list: '["2022"]'
+      # Base ref is VS2026-ready, so build the 2025 leg to match the primary artifacts.
+      os_list: '["2025"]'
 
   build_allpackage:
     name: Build AllPackage
