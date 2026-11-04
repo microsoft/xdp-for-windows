@@ -1,0 +1,13 @@
+# PR Assistant settings for this repository's internal Azure DevOps mirror.
+# Keep AI code review, but don't rewrite PR descriptions with AI summaries.
+name: XDP PR Assistant configuration
+description: AI code review only; no AI summaries in PR descriptions.
+
+resource: repository
+
+configuration:
+  pullRequestCopilotPrimitive:
+    enabled: true
+    onPullRequestCreate:
+    - prompt: 'copilot: review'
+      autoResolve: false
