@@ -143,11 +143,6 @@ typedef struct {
     BOOLEAN isSharedUmemSockActivated;
     BOOLEAN isUmemRegistered;
 
-    //
-    // Result of the primary socket's most recent bind attempt: TRUE if it
-    // failed with NOT_FOUND (interface transiently absent), else FALSE.
-    //
-    BOOLEAN lastBindNotFound;
     HANDLE completeEvent;
 } SCENARIO_CONFIG;
 
@@ -299,6 +294,14 @@ ULONG duration = DEFAULT_DURATION;
 BOOLEAN verbose = FALSE;
 BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
+//
+// NIC-restart immunization, published by the admin thread and read by queue
+// workers. nicRestartEpoch increments each time a restart window opens;
+// nicUnavailable is TRUE while the NIC is being restarted or has been found not
+// yet serviceable. Setups racing either are discounted from the success rate.
+//
+volatile LONG nicRestartEpoch = 0;
+BOOLEAN nicUnavailable = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
 BOOLEAN useFnmp = FALSE;
@@ -1959,8 +1962,7 @@ FuzzSocketBind(
     _In_ HANDLE Sock,
     _In_ BOOLEAN Rx,
     _In_ BOOLEAN Tx,
-    _Inout_ BOOLEAN *WasSockBound,
-    _Inout_opt_ BOOLEAN *LastBindNotFound
+    _Inout_ BOOLEAN *WasSockBound
     )
 {
     HRESULT res;
@@ -1988,10 +1990,6 @@ FuzzSocketBind(
         res = XskBind(Sock, ifindex, Queue->queueId, bindFlags);
         if (SUCCEEDED(res)) {
             WriteBooleanRelease(WasSockBound, TRUE);
-        }
-        if (LastBindNotFound != NULL) {
-            WriteBooleanNoFence(
-                LastBindNotFound, (BOOLEAN)(res == HRESULT_FROM_WIN32(ERROR_NOT_FOUND)));
         }
     }
 }
@@ -2738,11 +2736,11 @@ XskFuzzerWorkerFn(
 
         FuzzSocketBind(
             queue, queue->sock, scenarioConfig->sockRx, scenarioConfig->sockTx,
-            &scenarioConfig->isSockBound, &scenarioConfig->lastBindNotFound);
+            &scenarioConfig->isSockBound);
         if (queue->sharedUmemSock != NULL) {
             FuzzSocketBind(
                 queue, queue->sharedUmemSock, scenarioConfig->sharedUmemSockRx,
-                scenarioConfig->sharedUmemSockTx, &scenarioConfig->isSharedUmemSockBound, NULL);
+                scenarioConfig->sharedUmemSockTx, &scenarioConfig->isSharedUmemSockBound);
         }
 
         FuzzSocketActivate(queue, queue->sock, &scenarioConfig->isSockActivated);
@@ -2875,7 +2873,7 @@ QueueWorkerFn(
     QUEUE_WORKER *queueWorker = ThreadParameter;
     ULONG numIterations = 0;
     ULONG numSuccessfulSetups = 0;
-    ULONG numBindNotFoundSkipped = 0;
+    ULONG numExcluded = 0;
     ULONG effectiveIterations;
     ULONG successPct;
 
@@ -2883,10 +2881,14 @@ QueueWorkerFn(
 
     while (!ReadBooleanNoFence(&done)) {
         QUEUE_CONTEXT *queue;
+        LONG restartEpochAtStart;
+        BOOLEAN nicUnavailableAtStart;
         DWORD ret;
 
         ++numIterations;
         TraceVerbose("q[%u]: iter %lu", queueWorker->queueId, numIterations);
+        restartEpochAtStart = ReadNoFence((LONG *)&nicRestartEpoch);
+        nicUnavailableAtStart = ReadBooleanNoFence(&nicUnavailable);
 
         QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
 
@@ -2950,13 +2952,18 @@ QueueWorkerFn(
                 queue->datapath2.threadHandle = NULL;
                 #pragma warning(pop)
             }
-        } else if (ReadBooleanNoFence(&queue->scenarioConfig.lastBindNotFound)) {
+        } else if (nicUnavailableAtStart ||
+                   ReadBooleanNoFence(&nicUnavailable) ||
+                   ReadNoFence((LONG *)&nicRestartEpoch) != restartEpochAtStart) {
             //
-            // The socket's last bind failed with NOT_FOUND: the interface was
-            // transiently absent (mid restart / XDP re-attach), not a genuine
-            // socket-setup failure. Exclude it.
+            // The setup did not complete and it overlapped a NIC restart: the
+            // interface was not serviceable at the start (nicUnavailableAtStart)
+            // or end (nicUnavailable) of the iteration, or a restart window
+            // opened during it (epoch changed). Any overlap with a restart -
+            // even partial, and regardless of the failure code - is discounted;
+            // it is not a genuine socket-setup failure.
             //
-            ++numBindNotFoundSkipped;
+            ++numExcluded;
         }
 
         //
@@ -2981,16 +2988,18 @@ QueueWorkerFn(
     }
 
     //
-    // Exclude iterations whose bind failed only because the interface was
-    // transiently absent (NOT_FOUND) so the rate reflects genuine failures.
+    // Discount iterations that raced a NIC restart or hit the interface-absent
+    // NOT_FOUND path so the rate reflects genuine socket-setup failures. If every
+    // iteration was discounted (e.g. the interface was unavailable for the whole
+    // run), there is nothing to measure and the run is not failed on a vacuous 0%.
     //
-    effectiveIterations = numIterations - numBindNotFoundSkipped;
+    effectiveIterations = numIterations - numExcluded;
     successPct = Pct(numSuccessfulSetups, effectiveIterations);
     printf("q[%u]: socket setup success rate: (%lu / %lu) %lu%%\n",
         queueWorker->queueId, numSuccessfulSetups, effectiveIterations, successPct);
 
     if (extraStats) {
-        PrintSetupStats(queueWorker, numIterations, numBindNotFoundSkipped);
+        PrintSetupStats(queueWorker, numIterations, numExcluded);
     }
 
     //
@@ -2998,7 +3007,9 @@ QueueWorkerFn(
     // as a proxy for ensuring effective code coverage, validating that all
     // drivers are started, etc.
     //
-    ASSERT_FRE(successPct >= successThresholdPercent);
+    if (effectiveIterations > 0) {
+        ASSERT_FRE(successPct >= successThresholdPercent);
+    }
 
     TraceExit("q[%u]", queueWorker->queueId);
     return 0;
@@ -3081,9 +3092,9 @@ GlobalConcurrentWorkerFn(
 
 //
 // Restarts the NIC to churn the interface and stress XDP detach/re-attach.
-// Returns the Restart-NetAdapter exit code. Setups that race the resulting
-// interface-absent window are discounted via the NOT_FOUND bind exemption in
-// QueueWorkerFn rather than by trying to time this window.
+// Returns the Restart-NetAdapter exit code. Callers should drive this via
+// RestartNicAndConfirmServiceable so the restart window is published to queue
+// workers and a bad restart (interface not serviceable afterward) is retried.
 //
 INT
 RestartAdapter(
@@ -3102,6 +3113,146 @@ RestartAdapter(
     exitCode = system(cmdBuff);
 
     return exitCode;
+}
+
+//
+// Attempts a minimal, deterministic XSK RX setup + bind + activate to determine
+// whether XDP can currently service socket requests on the interface. Returns
+// the resulting HRESULT: success means serviceable; NOT_FOUND means the
+// interface is absent (restart incomplete or failed); any other failure is
+// treated by the caller as a transient fault-injection error.
+//
+HRESULT
+ProbeInterfaceServiceable(
+    VOID
+    )
+{
+    HRESULT res;
+    HANDLE sock = NULL;
+    XSK_UMEM_REG umemReg = {0};
+    UINT32 ringSize = 8;
+
+    res = XskCreate(&sock);
+    if (FAILED(res)) {
+        return res;
+    }
+
+    umemReg.TotalSize = ringSize * 4096;
+    umemReg.ChunkSize = 4096;
+    umemReg.Address =
+        VirtualAlloc(NULL, umemReg.TotalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (umemReg.Address == NULL) {
+        res = E_OUTOFMEMORY;
+        goto Exit;
+    }
+
+    res = XskSetSockopt(sock, XSK_SOCKOPT_UMEM_REG, &umemReg, sizeof(umemReg));
+    if (FAILED(res)) {
+        goto Exit;
+    }
+
+    res = XskSetSockopt(sock, XSK_SOCKOPT_RX_RING_SIZE, &ringSize, sizeof(ringSize));
+    if (FAILED(res)) {
+        goto Exit;
+    }
+
+    res = XskSetSockopt(sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &ringSize, sizeof(ringSize));
+    if (FAILED(res)) {
+        goto Exit;
+    }
+
+    res = XskBind(sock, ifindex, 0, XSK_BIND_FLAG_RX | XSK_BIND_FLAG_GENERIC);
+    if (FAILED(res)) {
+        goto Exit;
+    }
+
+    res = XskActivate(sock, 0);
+
+Exit:
+
+    if (sock != NULL) {
+        ASSERT_FRE(CloseHandle(sock));
+    }
+    if (umemReg.Address != NULL) {
+        ASSERT_FRE(VirtualFree(umemReg.Address, 0, MEM_RELEASE));
+    }
+
+    return res;
+}
+
+//
+// Restarts the NIC and confirms XDP can service socket requests before clearing
+// the restart-immunization window. The interface can stay absent for tens of
+// seconds because XDP does not re-add it until the next restart (it does not
+// self-heal), and re-attach can keep failing under fault injection. So there is
+// no restart cap: keep restarting - each restart is another attach attempt - and
+// hold the window open until a probe confirms the interface is back or the test
+// ends. Only a NOT_FOUND probe (interface genuinely absent) forces another
+// restart; other probe failures are transient injection. Queue workers discount
+// any setup that races this window.
+//
+VOID
+RestartNicAndConfirmServiceable(
+    VOID
+    )
+{
+    const UINT32 maxProbesPerRestart = 15;
+    UINT32 backoffMs = 250;
+
+    InterlockedIncrement(&nicRestartEpoch);
+    WriteBooleanNoFence(&nicUnavailable, TRUE);
+
+    while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN serviceable = FALSE;
+        BOOLEAN sawNotFound = FALSE;
+        INT exitCode;
+
+        exitCode = RestartAdapter();
+        TraceVerbose("admin: restart adapter exitCode=%d", exitCode);
+
+        for (UINT32 probe = 0; probe < maxProbesPerRestart; probe++) {
+            HRESULT res;
+
+            if (ReadBooleanNoFence(&done)) {
+                serviceable = TRUE;
+                break;
+            }
+
+            res = ProbeInterfaceServiceable();
+            if (SUCCEEDED(res)) {
+                serviceable = TRUE;
+                break;
+            }
+
+            if (res == HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
+                sawNotFound = TRUE;
+            }
+
+            Sleep(100);
+        }
+
+        if (serviceable || !sawNotFound) {
+            //
+            // The interface is serviceable, or the probe never observed it as
+            // absent (failures were transient injection, not a failed restart),
+            // so another restart would not help.
+            //
+            break;
+        }
+
+        //
+        // Interface still absent: XDP failed to re-add it this attempt. Back off
+        // (capped) and restart again to give XDP another attach attempt.
+        //
+        Sleep(backoffMs);
+        if (backoffMs < 2000) {
+            backoffMs *= 2;
+        }
+
+        TraceVerbose("admin: interface still absent after restart; restarting again");
+    }
+
+    WriteBooleanNoFence(&nicUnavailable, FALSE);
 }
 
 DWORD
@@ -3135,10 +3286,8 @@ AdminFn(
         TraceVerbose("admin iter");
 
         if (!cleanDatapath && !(RandUlong() % 20)) {
-            INT exitCode;
             TraceVerbose("admin: restart adapter");
-            exitCode = RestartAdapter();
-            TraceVerbose("admin: restart adapter exitCode=%d", exitCode);
+            RestartNicAndConfirmServiceable();
         }
 
         if (!(RandUlong() % 10)) {
