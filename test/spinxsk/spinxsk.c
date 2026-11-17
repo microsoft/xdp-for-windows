@@ -595,6 +595,34 @@ Exit:
     return Result;
 }
 
+DWORD
+WINAPI
+EbpfTestRunWorkerFn(
+    _In_ VOID *ThreadParameter
+    )
+{
+    ULONG numAttempts = 0;
+    ULONG numTestCalls = 0;
+
+    UNREFERENCED_PARAMETER(ThreadParameter);
+
+    TraceEnter("-");
+
+    while (!ReadBooleanNoFence(&done)) {
+        if (SUCCEEDED(FuzzProgTestRunXdpEbpfProgram())) {
+            ++numTestCalls;
+        }
+        ++numAttempts;
+    }
+
+    if (extraStats) {
+        printf("eBPF program test-run: loadAttempts=%lu testCalls=%lu\n", numAttempts, numTestCalls);
+    }
+
+    TraceExit("-");
+    return 0;
+}
+
 HRESULT
 AttachXdpEbpfProgram(
     _In_ QUEUE_CONTEXT *Queue,
@@ -2757,9 +2785,6 @@ XskFuzzerWorkerFn(
                 queue, queue->sharedUmemSock, queue->sock);
         }
 
-        // Fuzz prog_test_run.
-        FuzzProgTestRunXdpEbpfProgram();
-
         FuzzInterface(fuzzer, queue);
 
         FuzzXskMap(fuzzer, queue);
@@ -3482,6 +3507,7 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
+    HANDLE ebpfTestRunThread = NULL;
     HANDLE* globalConcurrentThreads;
 
     WPP_INIT_TRACING(NULL);
@@ -3549,6 +3575,12 @@ main(
     watchdogThread = CreateThread(NULL, 0, WatchdogFn, NULL, 0, NULL);
     ASSERT_FRE(watchdogThread);
 
+    // Keep eBPF load/test-run/close latency independent of socket setup deadlines.
+    if (enableEbpf) {
+        ebpfTestRunThread = CreateThread(NULL, 0, EbpfTestRunWorkerFn, NULL, 0, NULL);
+        ASSERT_FRE(ebpfTestRunThread != NULL);
+    }
+
     //
     // Create global concurrent workers
     // (non-queue specific operations running concurrently).
@@ -3599,6 +3631,12 @@ main(
     //
 
     SetEvent(workersDoneEvent);
+
+    if (ebpfTestRunThread != NULL) {
+        ASSERT_FRE(
+            WaitForSingleObject(ebpfTestRunThread, WATCHDOG_THREAD_TIMEOUT_SEC * 1000) == WAIT_OBJECT_0);
+        ASSERT_FRE(CloseHandle(ebpfTestRunThread));
+    }
 
     TraceVerbose("main: waiting for globalConcurrent...");
     for (UINT32 i = 0; i < globalConcurrentWorkerCount; i++) {

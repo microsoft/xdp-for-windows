@@ -88,6 +88,12 @@ After the test, convert the logs:
 
 ### Running spinxsk
 
+With eBPF enabled, a separate worker continuously loads, test-runs, and closes
+programs concurrently with socket setup and traffic. This keeps eBPF program
+loading latency out of the socket setup deadline without disabling test-run
+coverage. `-Stats` reports load attempts and calls to `bpf_prog_test_run_opts`;
+test calls may return errors because their inputs are fuzzed.
+
 One-time setup:
 
 ```Powershell
