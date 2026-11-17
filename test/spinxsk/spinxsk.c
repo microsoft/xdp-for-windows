@@ -82,7 +82,6 @@ CHAR *HELP =
 "   -SuccessThresholdPercent <count> Minimum socket success rate, percent\n"
 "                         Default: " STR_OF(DEFAULT_SUCCESS_THRESHOLD) "\n"
 "   -EnableEbpf           Enables eBPF testing\n"
-"   -SkipEbpfTestRun      Skip per-pass eBPF load/test-run/close (other eBPF testing remains enabled)\n"
 "                         Default: off\n"
 "   -UseFnmp              Use FnMp to inject packets in the receive path\n"
 "                         Default: off\n"
@@ -305,7 +304,6 @@ BOOLEAN cleanDatapath = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN extraStats = FALSE;
 BOOLEAN enableEbpf = FALSE;
-BOOLEAN skipEbpfTestRun = FALSE;
 BOOLEAN useFnmp = FALSE;
 BOOLEAN requireContiguousHeaders = FALSE;
 UINT8 successThresholdPercent = DEFAULT_SUCCESS_THRESHOLD;
@@ -595,6 +593,34 @@ Exit:
     }
 
     return Result;
+}
+
+DWORD
+WINAPI
+EbpfTestRunWorkerFn(
+    _In_ VOID *ThreadParameter
+    )
+{
+    ULONG numAttempts = 0;
+    ULONG numTestCalls = 0;
+
+    UNREFERENCED_PARAMETER(ThreadParameter);
+
+    TraceEnter("-");
+
+    while (!ReadBooleanNoFence(&done)) {
+        if (SUCCEEDED(FuzzProgTestRunXdpEbpfProgram())) {
+            ++numTestCalls;
+        }
+        ++numAttempts;
+    }
+
+    if (extraStats) {
+        printf("eBPF program test-run: loadAttempts=%lu testCalls=%lu\n", numAttempts, numTestCalls);
+    }
+
+    TraceExit("-");
+    return 0;
 }
 
 HRESULT
@@ -2759,11 +2785,6 @@ XskFuzzerWorkerFn(
                 queue, queue->sharedUmemSock, queue->sock);
         }
 
-        // Fuzz prog_test_run.
-        if (!skipEbpfTestRun) {
-            FuzzProgTestRunXdpEbpfProgram();
-        }
-
         FuzzInterface(fuzzer, queue);
 
         FuzzXskMap(fuzzer, queue);
@@ -3444,9 +3465,6 @@ ParseArgs(
         } else if (!strcmp(argv[i], "-EnableEbpf")) {
             enableEbpf = TRUE;
             TraceVerbose("enableEbpf=%!BOOLEAN!", enableEbpf);
-        } else if (!strcmp(argv[i], "-SkipEbpfTestRun")) {
-            skipEbpfTestRun = TRUE;
-            TraceVerbose("skipEbpfTestRun=%!BOOLEAN!", skipEbpfTestRun);
         } else if (!strcmp(argv[i], "-UseFnmp")) {
             useFnmp = TRUE;
             TraceVerbose("useFnmp=%!BOOLEAN!", useFnmp);
@@ -3489,6 +3507,7 @@ main(
 {
     HANDLE adminThread;
     HANDLE watchdogThread;
+    HANDLE ebpfTestRunThread = NULL;
     HANDLE* globalConcurrentThreads;
 
     WPP_INIT_TRACING(NULL);
@@ -3556,6 +3575,12 @@ main(
     watchdogThread = CreateThread(NULL, 0, WatchdogFn, NULL, 0, NULL);
     ASSERT_FRE(watchdogThread);
 
+    // Keep eBPF load/test-run/close latency independent of socket setup deadlines.
+    if (enableEbpf) {
+        ebpfTestRunThread = CreateThread(NULL, 0, EbpfTestRunWorkerFn, NULL, 0, NULL);
+        ASSERT_FRE(ebpfTestRunThread != NULL);
+    }
+
     //
     // Create global concurrent workers
     // (non-queue specific operations running concurrently).
@@ -3606,6 +3631,12 @@ main(
     //
 
     SetEvent(workersDoneEvent);
+
+    if (ebpfTestRunThread != NULL) {
+        ASSERT_FRE(
+            WaitForSingleObject(ebpfTestRunThread, WATCHDOG_THREAD_TIMEOUT_SEC * 1000) == WAIT_OBJECT_0);
+        ASSERT_FRE(CloseHandle(ebpfTestRunThread));
+    }
 
     TraceVerbose("main: waiting for globalConcurrent...");
     for (UINT32 i = 0; i < globalConcurrentWorkerCount; i++) {

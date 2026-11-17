@@ -51,9 +51,6 @@ more coverage for setup and cleanup.
 .PARAMETER EnableEbpf
     Enable eBPF in the XDP driver and spinxsk test cases.
 
-.PARAMETER SkipEbpfTestRun
-    Skip per-pass eBPF program load/test-run/close while retaining other eBPF testing.
-
 #>
 
 param (
@@ -106,9 +103,6 @@ param (
 
     [Parameter(Mandatory = $false)]
     [switch]$EnableEbpf = $true,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$SkipEbpfTestRun = $false,
 
     [Parameter(Mandatory = $false)]
     [switch]$EbpfPreinstalled = $false,
@@ -252,9 +246,6 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
         }
         if ($EnableEbpf) {
             $Args += "-EnableEbpf"
-        }
-        if ($SkipEbpfTestRun) {
-            $Args += "-SkipEbpfTestRun"
         }
         if ($Driver -eq "FNMP") {
             $Args += "-UseFnmp"
