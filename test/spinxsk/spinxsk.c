@@ -2987,6 +2987,9 @@ QueueWorkerFn(
             continue;
         }
 
+        // Track completed phases, not the cumulative duration of an iteration.
+        QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
+
         //
         // Hand off socket/s to fuzzer threads.
         //
@@ -3023,6 +3026,8 @@ QueueWorkerFn(
             }
         }
 
+        QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
+
         if (ret == WAIT_OBJECT_0) {
             ++numSuccessfulSetups;
 
@@ -3052,6 +3057,7 @@ QueueWorkerFn(
                 #pragma warning(push)
                 #pragma warning(disable:6387) // threadHandle is not NULL.
                 WaitForSingleObject(queue->datapath1.threadHandle, INFINITE);
+                QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
                 ASSERT_FRE(CloseHandle(queue->datapath1.threadHandle));
                 queue->datapath1.threadHandle = NULL;
                 #pragma warning(pop)
@@ -3060,6 +3066,7 @@ QueueWorkerFn(
                 #pragma warning(push)
                 #pragma warning(disable:6387) // threadHandle is not NULL.
                 WaitForSingleObject(queue->datapath2.threadHandle, INFINITE);
+                QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
                 ASSERT_FRE(CloseHandle(queue->datapath2.threadHandle));
                 queue->datapath2.threadHandle = NULL;
                 #pragma warning(pop)
@@ -3082,6 +3089,7 @@ QueueWorkerFn(
             #pragma warning(push)
             #pragma warning(disable:6387) // threadHandle is not NULL.
             WaitForSingleObject(queue->fuzzers[i].threadHandle, INFINITE);
+            QueryPerformanceCounter((LARGE_INTEGER*)&queueWorker->watchdogPerfCount);
             ASSERT_FRE(CloseHandle(queue->fuzzers[i].threadHandle));
             queue->fuzzers[i].threadHandle = NULL;
             #pragma warning(pop)
