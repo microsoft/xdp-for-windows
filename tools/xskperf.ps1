@@ -64,6 +64,9 @@ param (
     [switch]$RateSimulation = $false,
 
     [Parameter(Mandatory=$false)]
+    [switch]$Ebpf,
+
+    [Parameter(Mandatory=$false)]
     [switch]$ZerocopySimulation = $false,
 
     [Parameter(Mandatory=$false)]
@@ -103,6 +106,11 @@ param (
 
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
+
+if ($Ebpf -and ($Mode -eq "TX" -or $TxInspect -or $UdpDstPort -ne 0 -or
+    @("Winsock", "RIO").Contains($XdpMode))) {
+    throw "-Ebpf supports RX/FWD XDP inspection without -TxInspect or -UdpDstPort"
+}
 
 function Wait-NetAdapterUpStatus {
     [CmdletBinding()]
@@ -173,6 +181,9 @@ Write-Verbose "reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters
 reg.exe add HKLM\SYSTEM\CurrentControlSet\Services\xdp\Parameters /v XskRxZeroCopy /d $([int]!!$ZerocopySimulation) /t REG_DWORD /f | Write-Verbose
 
 Write-Verbose "Restarting XDP"
+if ($Ebpf) {
+    Set-XdpEbpfMode -Mode $XdpMode
+}
 Restart-Service xdp
 
 try {
@@ -332,6 +343,10 @@ try {
         $GlobalParams += " -lp"
     }
 
+    if ($Ebpf) {
+        $GlobalParams += " -bpf `"$ArtifactsDir\test\bpf\xsk_redirect.sys`""
+    }
+
     if ($RxInject) {
         $QueueParams += " -rx_inject"
     }
@@ -357,15 +372,22 @@ try {
 
         Write-Verbose "xskbench.exe $ArgList"
         if ([string]::IsNullOrEmpty($OutFile)) {
-            Start-Process $ArtifactsDir\test\xskbench.exe -Wait -NoNewWindow $ArgList
+            $XskBenchProcess = Start-Process $ArtifactsDir\test\xskbench.exe -Wait -PassThru -NoNewWindow $ArgList
         } else {
             $StdErrFile = [System.IO.Path]::GetTempFileName()
-            Start-Process $ArtifactsDir\test\xskbench.exe -Wait -RedirectStandardOutput $OutFile `
-                -RedirectStandardError $StdErrFile $ArgList
-            $StdErr = Get-Content $StdErrFile
+            try {
+                $XskBenchProcess = Start-Process $ArtifactsDir\test\xskbench.exe -Wait -PassThru `
+                    -RedirectStandardOutput $OutFile -RedirectStandardError $StdErrFile $ArgList
+                $StdErr = Get-Content $StdErrFile -Raw
+            } finally {
+                Remove-Item $StdErrFile
+            }
             if (-not [string]::IsNullOrWhiteSpace($StdErr)) {
                 throw "xskbench.exe $StdErr"
             }
+        }
+        if ($XskBenchProcess.ExitCode -ne 0) {
+            throw "xskbench.exe exited with code $($XskBenchProcess.ExitCode)"
         }
     } else {
         if ($Mode -eq "RX") {
@@ -404,6 +426,10 @@ try {
     }
 
 } finally {
+
+    if ($Ebpf) {
+        Set-XdpEbpfMode -Mode System -ErrorAction Continue
+    }
 
     if (-not [string]::IsNullOrEmpty($XperfFile)) {
         & $RootDir\tools\log.ps1 -Stop -Name xskcpu -Config $Config -Platform $Platform `

@@ -356,7 +356,7 @@ jobs:
     needs: [build, build_base, resolve_base]
     env:
       ITERATIONS: ${{ (github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch' ) && '8' || '3' }}
-    timeout-minutes: 120 # Ideally this would be only 30 min for PR runs, but GitHub Actions don't support that.
+    timeout-minutes: 180 # Includes head/base runs with both inspection engines.
     strategy:
       fail-fast: false
       matrix:
@@ -433,17 +433,20 @@ jobs:
   rxfilter_perf_tests:
     name: RX Filter Perf Tests
     needs: [build]
+    env:
+      ebpfInbox: ${{ matrix.windows == 'Prerelease' && '$true' || '$false' }}
     strategy:
       fail-fast: false
       matrix:
         windows: [Prerelease]
         configuration: [Release]
         platform: [x64, arm64]
+        inspection: [builtin, ebpf]
     runs-on:
      - self-hosted
      - "1ES.Pool=xdp-ci-perf${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}-gh"
      - "1ES.ImageOverride=WS${{ matrix.windows }}${{ matrix.platform != 'x64' && format('-{0}', matrix.platform) || '' }}"
-     - "JobId=rxfilter_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+     - "JobId=rxfilter_${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.inspection }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
     steps:
     - name: Checkout repository
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -460,24 +463,24 @@ jobs:
       run: tools/check-drivers.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -AllowEbpf
     - name: Prepare Machine
       shell: PowerShell
-      run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose
+      run: tools/prepare-machine.ps1 -ForPerfTest -Platform ${{ matrix.platform }} -RequireNoReboot -Verbose -EbpfPreinstalled:${{ env.ebpfInbox }} -UsePrivateEbpfStack:${{ env.ebpfInbox }}
     - name: Run rxfilter (drop, generic)
       shell: PowerShell
-      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Generic -RawResultsFile artifacts/perf/rxfilterperf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}.json -CommitHash ${{ github.sha }}
+      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Generic -Ebpf:(${{ matrix.inspection == 'ebpf' && '$true' || '$false' }}) -EbpfPreinstalled:${{ env.ebpfInbox }} -RawResultsFile artifacts/perf/rxfilterperf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.inspection }}.json -CommitHash ${{ github.sha }}
     - name: Run rxfilter (drop, native)
       shell: PowerShell
-      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Native -RawResultsFile artifacts/perf/rxfilterperf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}.json -CommitHash ${{ github.sha }}
+      run: tools/rxfilterperf.ps1 -Config ${{ matrix.configuration }} -Platform ${{ matrix.platform }} -Verbose -Fndis -QueueCount 4 -Action Drop -XdpMode Native -Ebpf:(${{ matrix.inspection == 'ebpf' && '$true' || '$false' }}) -EbpfPreinstalled:${{ env.ebpfInbox }} -RawResultsFile artifacts/perf/rxfilterperf_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.inspection }}.json -CommitHash ${{ github.sha }}
     - name: Upload Logs
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       if: ${{ always() }}
       with:
-        name: logs_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        name: logs_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.inspection }}
         path: artifacts/logs
         if-no-files-found: ignore
     - name: Upload Perf Data
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
-        name: perfdata_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}
+        name: perfdata_rxfilter_win${{ matrix.windows }}_${{ matrix.configuration }}_${{ matrix.platform }}_${{ matrix.inspection }}
         path: artifacts/perf
         if-no-files-found: ignore
     - name: Check Drivers
