@@ -275,12 +275,8 @@ while (($Minutes -eq 0) -or (((Get-Date)-$StartTime).TotalMinutes -lt $Minutes))
             throw "TX inspection traffic generator exited during stress with $($WsaRioProcess.ExitCode); see spinxsk-tx-traffic logs."
         }
     } catch {
-        if ($Minutes -eq 0) {
-            Write-Warning "Iteration error (continuing): $_"
-        } else {
-            Write-Error "Error: $_"
-            exit 1
-        }
+        Write-Error "Error: $_"
+        exit 1
     } finally {
         if ($Driver -eq "XDPMP") {
             & "$RootDir\tools\setup.ps1" -Uninstall xdpmp -Config $Config -Platform $Platform -ErrorAction 'Continue'
