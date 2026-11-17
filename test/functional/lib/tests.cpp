@@ -8841,8 +8841,10 @@ GenericLwfDelayDetach(
         auto Xsk = SetupSocket(FnMpIf.GetIfIndex(), FnMpIf.GetQueueId(), Rx, Tx, XDP_GENERIC);
     }
     Stopwatch Timer(MP_RESTART_TIMEOUT_MS);
-    FnMpIf.Restart();
+    // Readiness probes use separate PowerShell calls; time only the restart.
+    FnMpIf.Restart(FALSE);
     TEST_FALSE(Timer.IsExpired());
+    WaitForNdisDatapath(FnMpIf);
 
     //
     // Verify LWF detach occurs at the expected time by observing FNMP pause events.
